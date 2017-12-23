@@ -118,17 +118,6 @@
 						(t (macroexpand alpha)))))
 		       ,@(if ,axes (list (cons 'list (macroexpand axes)))))))))
 
-(defmacro to-arbitrary (operation alpha &optional omega)
-  (let ((fn (if (symbolp operation)
-		``(function ,',operation)
-		(if (and (listp operation)
-			 (macro-function (first operation))
-			 (not (eql 'lambda (first operation))))
-		    (macroexpand (append operation (if omega (list alpha omega)
-						       (list alpha))))
-		    ``(function ,',operation)))))
-    ``(funcall ,,fn ,alpha ,@(if omega (list omega)))))
-
 (defmacro boolean-op (operation omega &optional alpha)
   "Converts output of a boolean operation from t/nil to 1/0."
   `(lambda ,(if alpha (list omega alpha)
@@ -554,6 +543,33 @@
 				 new-array)
 		   new-array)))))
 
+(defun enlist (vector)
+  (if (arrayp vector)
+      (setq vector (aops:flatten vector)))
+  (if (and (vectorp vector)
+	   (loop for element from 0 to (1- (length vector))
+	      always (not (arrayp (aref vector element)))))
+      vector
+      (let ((current-segment nil)
+	    (segments nil))
+	(dotimes (index (length vector))
+	  (let ((element (aref vector index)))
+	    (if (arrayp element)
+		(if (not (= 0 (array-total-size element)))
+		    ;; skip empty vectors
+		    (setq segments (cons (enlist element)
+					 (if current-segment
+					     (cons (make-array (list (length current-segment))
+							       :initial-contents (reverse current-segment))
+						   segments)
+					     segments))
+			  current-segment nil))
+		(setq current-segment (cons element current-segment)))))
+	(if current-segment (setq segments (cons (make-array (list (length current-segment))
+							     :initial-contents (reverse current-segment))
+						 segments)))
+	(apply #'aops:stack (cons 0 (reverse segments))))))
+
 (vex-spec
  apex
  (operators / (right (lambda (axes functions operand)
@@ -624,7 +640,6 @@
 					  operand right-operand
 					  right-operand placeholder))
 				`(let ((new-array (alexandria:copy-array ,operand)))
-				   (print (list :rr ,right-operand ,operand))
 				   (if ,right-operand
 				       (apply-scalar-function ,(third (first functions))
 							      ,right-operand
@@ -634,7 +649,19 @@
             ⍨ (right (macro (lambda (meta axes functions operand &optional right-operand)
 			      (funcall (caar functions)
 				       meta axes (if right-operand right-operand operand)
-				       operand)))))
+				       operand))))
+	    ∘ (center (macro (lambda (meta axes functions operand &optional right-operand)
+			       (declare (ignore meta axes))
+			       (if (and (first functions)
+					(second functions))
+				   (if right-operand
+				       `(apply-scalar-function ,(third (second functions))
+							       ,operand
+							       (print (aops:each ,(second (first functions))
+									  ,right-operand)))
+				       `(aops:each ,(cadadr functions)
+						   (aops:each ,(cadar functions)
+							      ,operand))))))))
  (functions ← (dyadic (args :sym :any set))
 	    ⊣ (ambivalent (args :any (lambda (omega) (make-array (list 0))))
 			  (args :any :any (lambda (alpha omega) alpha)))
@@ -661,7 +688,6 @@
      					    (make-array (list alpha)
      							:initial-contents (loop for i from 0 to (1- alpha)
      									     collect (1+ (random omega)))))))
-     	    ;; last dyadic function of pi nyi
      	    ○ (ambivalent (args :scalar (lambda (omega) (* pi omega)))
      			  (args :one :any (lambda (alpha omega)
      					    (let ((fn (vector (lambda (input) (* input (exp #C(0 1))))
@@ -727,18 +753,18 @@
      	    ⍴ (ambivalent (args :any dims)
      			  (args :any :any (lambda (alpha omega)
 					    (reshape-array-fitting omega (array-to-list alpha)))))
-	    ;; monadic form of ∊ is nyi
-	    ∊ (dyadic (args :any :any (lambda (alpha omega)
-					(let ((output (alexandria:copy-array alpha)))
-					  (dotimes (index (array-total-size output))
-					    (let ((found nil))
-					      (aops:each (lambda (input)
-							   (if (= input (row-major-aref output index))
-							       (setq found t)))
-							 omega)
-					      (setf (row-major-aref output index)
-						    (if found 1 0))))
-					  output))))
+	    ∊ (ambivalent (args :any enlist)
+			  (args :any :any (lambda (alpha omega)
+					    (let ((output (alexandria:copy-array alpha)))
+					      (dotimes (index (array-total-size output))
+						(let ((found nil))
+						  (aops:each (lambda (input)
+							       (if (= input (row-major-aref output index))
+								   (setq found t)))
+							     omega)
+						  (setf (row-major-aref output index)
+							(if found 1 0))))
+					      output))))
 	    ↑ (ambivalent (args :any (lambda (omega)
      				       (if (not (arrayp omega))
      					   omega (row-major-aref omega 0))))
@@ -751,15 +777,18 @@
 							    (array-to-list alpha))
 						  (list :polarity :positive
 							:fill-with 0)))))
-	    ;; monadic form of ↓ nyi
-	    ↓ (dyadic (args :any :any :axes
-			    (lambda (alpha omega &optional axes)
-			      (multidim-slice omega (if axes (loop for axis from 0 to (1- (rank omega))
-								collect (if (= axis (1- (aref (first axes) 0)))
-									    (aref alpha 0)
-									    0))
-							(array-to-list alpha))
-					      (list :polarity :negative)))))
+	    ↓ (ambivalent (args :any :axes (lambda (omega &optional axes)
+					     ;; NOTE: check this against another implementation
+					     (aops:split omega (if axes (aref (first axes) 0)
+								   (1- (rank omega))))))
+			  (args :any :any :axes
+				(lambda (alpha omega &optional axes)
+				  (multidim-slice omega (if axes (loop for axis from 0 to (1- (rank omega))
+								    collect (if (= axis (1- (aref (first axes) 0)))
+										(aref alpha 0)
+										0))
+							    (array-to-list alpha))
+						  (list :polarity :negative)))))
 	    ⌷ (dyadic (args :any :any (lambda (alpha omega)
 					(apply #'aref (cons omega (array-to-list alpha))))))
 	   \, (ambivalent (args :any (lambda (omega)
@@ -903,23 +932,23 @@
      	    ⍋ (monadic (args :any (lambda (omega) (grade omega #'<=))))
 	    ⍒ (monadic (args :any (lambda (omega) (grade omega #'>=))))
 	    ⊤ (dyadic (args :any :any (lambda (alpha omega)
-					;; right arguments containing 0 don't work yet, results in 0
 					(flet ((rebase (bases number)
 						 (let ((operand number)
 						       (last-base 1)
 						       (base 1)
-						       (component 1))
+						       (component 1)
+						       (element nil))
 						   (loop for index from (1- (length bases)) downto 0
 						      do (setq last-base base
-							       base (* base (aref bases index)))
-							(let ((remainder (nth-value 1 (floor (if (not (= 0 base))
-												 (/ operand base)
-												 base)))))
-							  (setq operand (- operand (* remainder base))
-								component (* remainder base)))
-						      collect (if (not (= 0 last-base))
-								  (/ component last-base)
-								  component)))))
+							       base (* base (aref bases index))
+							       component (if (= 0 base)
+									     operand
+									     (* base
+										(nth-value 1 (floor (/ operand
+												       base)))))
+							       operand (- operand component)
+							       element (/ component last-base))
+						      collect element))))
 					  (if (= 1 (length omega))
 					      (let ((result (rebase alpha (aref omega 0))))
 						(make-array (list (length result))
