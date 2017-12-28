@@ -5,7 +5,9 @@
   :author "Andrew Sengul"
   :license "GPL-3.0"
   :serial t
-  :depends-on (:alexandria :array-operations :maxpc :cl-slice :cl-ppcre :parse-number :symbol-munger)
+  :depends-on (:alexandria :array-operations :maxpc :cl-slice
+	       :cl-ppcre :parse-number :symbol-munger :prove)
   :components 
   ((:file "package")
-   (:file "apex")))
+   (:file "apex")
+   (:file "tests")))
