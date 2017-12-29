@@ -243,7 +243,8 @@
 					     (first (getf props :titles))))
 				     (if (getf props :titles)
 					 (concatenate 'string " / "
-						      (second (getf props :titles)))))))
+						      (second (getf props :titles)))
+					 ""))))
 	       (labels ((for-tests (tests &optional output)
 			  (if tests
 			      (for-tests (rest tests)
@@ -262,6 +263,7 @@
 										(package-name
 										 *package*))
 									(rest (first specs)))))
+						(list `(princ (format nil "~%~%")))
 						output)
 					output))
 		   output)))))
@@ -478,7 +480,7 @@
 				  (= 1 (length omega))
 				  (not (arrayp (aref omega 0))))
 			     (not (arrayp omega)))))
-    (print (list alpha-unitary? omega-unitary?))
+    ;;(print (list alpha-unitary? omega-unitary?))
     (if (and alpha-unitary? omega-unitary?)
 	(funcall function (if (vectorp alpha)
 			      (aref alpha 0)
@@ -917,10 +919,12 @@
 			   ;; TODO: equalp is not exactly right for this function
 			   (args :any :any (boolean-op (lambda (alpha omega) (not (equalp alpha omega)))))))
 	    (^ (has :title "And")
-	       (dyadic (args :scalar lcm)))
+	       (dyadic (args :scalar lcm))
+	       (is "0 1 0 1 ^ 0 0 1 1" #(0 0 0 1)))
 	    (∧ (has :title "And")
-	       (dyadic (args :scalar lcm)))
-	    (⍲ (has :title "Nand")
+	       (dyadic (args :scalar lcm))
+	       (is "0 1 0 1 ^ 0 0 1 1" #(0 0 0 1)))
+	    (⍲ (Has :Title "Nand")
 	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (not (and (= alpha 1) (= omega 1))))))))
 	    (⍱ (has :title "Nor")
 	       (dyadic (args :scalar gcd)))
@@ -1022,7 +1026,9 @@
 					     omega (if axes (- (rank omega)
 							       (- (aref (first axes) 0)
 								  (1- (of-environment *vex-idiom* :count-from)))))
-					     0 :omit-zeroes t)))))
+					     0 :omit-zeroes t))))
+	       (tests (is "1 0 1 0 1/⍳5" #(1 3 5))
+		      (is "1 ¯2 3 ¯4 5/⍳5" #(1 0 0 3 3 3 0 0 0 0 5 5 5 5 5))))
 	    (⌿ (has :title "Compress First")
 	       (dyadic (args :any :any :axes
 			     (lambda (alpha omega &optional axes)
