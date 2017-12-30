@@ -9,5 +9,4 @@
 	       :cl-ppcre :parse-number :symbol-munger :prove)
   :components 
   ((:file "package")
-   (:file "apex")
-   (:file "tests")))
+   (:file "apex")))
