@@ -27,6 +27,35 @@
 	       array)
     layer))
 
+(defun swap! (v i j)
+  (let ((tt (aref v i)))
+    (setf (aref v i)
+	  (aref v j))
+    (setf (aref v j) tt)))
+
+(defun reverse! (v lo hi)
+  (when (< lo hi)
+    (swap! v lo hi)
+    (reverse! v (+ lo 1) (- hi 1))))
+
+(defun rotate! (n v)
+  (let* ((len (length v))
+	 (n (mod n len)))
+    (reverse! v 0 (- n 1))
+    (reverse! v n (- len 1))
+    (reverse! v 0 (- len 1))))
+
+(defun make-rotator (&optional degrees)
+  (lambda (vector)
+    (if degrees (rotate! degrees vector)
+	(reverse! vector 0 (1- (length vector))))))
+
+(defun rot-left (n l)
+  (append (nthcdr n l) (butlast l (- (length l) n))))
+
+(defun rot-right (n l)
+  (rot-left (- (length l) n) l))
+
 (defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
   (if (= 1 (length dimensions))
       (apply #'aops:stack
