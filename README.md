@@ -140,6 +140,14 @@ See a pattern? The functions not planned for implentation are all those that man
 
 System functions and variables within APL are not implemented, along with APL's control flow statements. This type of functionality is also readily accessible through standard Common Lisp.
 
+## Tests
+
+To run tests for the implemented APL functions and operators, enter:
+
+```
+(apex :test)
+```
+
 ## Thanks to:
 
 Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which Apex makes heavy use.
