@@ -218,7 +218,8 @@
 						      ((eql 'op-specs table-symbol)
 						       `((gethash ,glyph-char ,table-symbol)
 						      	 ,(if (eq :macro
-								  (intern (string-upcase (first (second (third (first pairs)))))
+								  (intern (string-upcase
+									   (first (second (third (first pairs)))))
 									  "KEYWORD"))
 						      	      (macroexpand (second (second (third (first pairs)))))
 						      	      `(lambda (meta axes functions operand
