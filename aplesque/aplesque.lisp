@@ -2,6 +2,31 @@
 
 (in-package #:aplesque)
 
+(defun array-match (alpha omega)
+  (let ((singleton-alpha (is-singleton alpha))
+	(singleton-omega (is-singleton omega)))
+    (if (or singleton-alpha singleton-omega
+	    (loop for dimension in (funcall (lambda (a o) (mapcar #'= a o))
+					    (dims alpha)
+					    (dims omega))
+	       always dimension))
+	(if singleton-alpha
+	    (if singleton-omega
+		(list alpha omega)
+		(list (scale-array alpha omega)
+		      omega))
+	    (if singleton-omega
+		(list alpha (scale-array omega alpha))
+		(list alpha omega))))))
+
+(defun array-depth (array &optional layer)
+  (let ((layer (if layer layer 1)))
+    (aops:each (lambda (item)
+		 (if (arrayp item)
+		     (setq layer (array-depth item (1+ layer)))))
+	       array)
+    layer))
+
 (defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
   (if (= 1 (length dimensions))
       (apply #'aops:stack
@@ -148,6 +173,45 @@
 							     :initial-contents (reverse current-segment))
 						 segments)))
 	(apply #'aops:stack (cons 0 (reverse segments))))))
+
+(defun reshape-array-fitting (array adims)
+  (let* ((original-length (array-total-size array))
+	 (total-length (apply #'* adims))
+	 (displaced-array (make-array (list original-length) :displaced-to array)))
+    (aops:reshape (make-array (list total-length)
+			      :initial-contents (loop for index from 0 to (1- total-length)
+						   collect (aref displaced-array (mod index original-length))))
+		  adims)))
+
+(defun sprfact (n) ; recursive factorial-computing function based on P. Luschny's code
+  (let ((p 1) (r 1) (NN 1) (log2n (floor (log n 2)))
+	(h 0) (shift 0) (high 1) (len 0))
+    (labels ((prod (n)
+	       (declare (fixnum n))
+	       (let ((m (ash n -1)))
+		 (cond ((= m 0) (incf NN 2))
+		       ((= n 2) (* (incf NN 2)
+				   (incf NN 2)))
+		       (t (* (prod (- n m))
+			     (prod m)))))))
+      (loop while (/= h n) do
+	   (incf shift h)
+	   (setf h (ash n (- log2n)))
+	   (decf log2n)
+	   (setf len high)
+	   (setf high (if (oddp h)
+			  h (1- h)))
+	   (setf len (ash (- high len) -1))
+	   (cond ((> len 0)
+		  (setf p (* p (prod len)))
+		  (setf r (* r p)))))
+      (ash r shift))))
+
+(defun binomial (k n)
+  (labels ((prod-enum (s e)
+	     (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
+	   (sprfact (n) (prod-enum 1 n)))
+    (/ (prod-enum (- (1+ n) k) n) (sprfact k))))
 
 (defun array-inner-product (operand1 operand2 function1 function2)
   (aops:each (lambda (sub-vector)
