@@ -103,30 +103,36 @@ Actually, it's easier to list what's -not- implemented.
 
 #### Operators:
 
-* ⍣ Power
-* ⍠ Variant
+```
+⍣ Power
+⍠ Variant
+```
 
 ## What's Not Implemented And Won't Be
 
 #### Functions:
 
-* ⍺ Picture format
-* ⍕ Format
-* ⍕ Format by specification
-* ⍕ Format by example
-* ⍇ File read
-* ⍈ File write
-* ⍐ File hold
-* ⍗ File drop
-* ⎕ Evaluated input
-* ⎕ Output with newline
-* ⍞ Character input
-* ⍞ Bare output
+```
+⍺ Picture format
+⍕ Format
+⍕ Format by specification
+⍕ Format by example
+⍇ File read
+⍈ File write
+⍐ File hold
+⍗ File drop
+⎕ Evaluated input
+⎕ Output with newline
+⍞ Character input
+⍞ Bare output
+```
 
 #### Operators:
 
-* & Spawn
-* ⌶ I-Beam
+```
+& Spawn
+⌶ I-Beam
+```
 
 See a pattern? The functions not planned for implentation are all those that manifest interactions between an APL instance and computer I/O devices. In Apex, it's intended for functionality like this to be accessed through the host Common Lisp instance.
 
