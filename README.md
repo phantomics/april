@@ -95,20 +95,20 @@ More APL operations:
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
-##What's Implemented
+## What's Implemented
 
 Actually, it's easier to list what's -not- implemented.
 
-##What's Not Implemented But Will Be Soon
+## What's Not Implemented But Will Be Soon
 
-####Operators:
+#### Operators:
 
 * ⍣ Power
 * ⍠ Variant
 
-##What's Not Implemented And Won't Be
+## What's Not Implemented And Won't Be
 
-####Functions:
+#### Functions:
 
 * ⍺ Picture format
 * ⍕ Format
@@ -123,18 +123,18 @@ Actually, it's easier to list what's -not- implemented.
 * ⍞ Character input
 * ⍞ Bare output
 
-####Operators:
+#### Operators:
 
 * & Spawn
 * ⌶ I-Beam
 
 See a pattern? The functions not planned for implentation are all those that manifest interactions between an APL instance and computer I/O devices. In Apex, it's intended for functionality like this to be accessed through the host Common Lisp instance.
 
-##Also not implemented
+## Also not implemented
 
 System functions and variables within APL are not implemented, along with APL's control flow statements. This type of functionality is also readily accessible through standard Common Lisp.
 
-##Thanks to:
+## Thanks to:
 
 Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which Apex makes heavy use.
 
