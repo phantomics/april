@@ -363,7 +363,7 @@
        (if ,⍵ (funcall (lambda (,⍺ ,⍵) ,content) ,⍵ ,⍺)
 	     (funcall (lambda (,⍵) ,content) ,⍺)))))
 
-(defun format-value (element)
+(defun format-value (meta element)
   (cond ((and (vectorp element)
 	      (string= element "⍬")) ;; APL's "zilde" character translates to an empty vector
  	 (make-array (list 0)))
@@ -375,8 +375,17 @@
 		  (char= #\' (aref element (1- (length element))))))
 	 (subseq element 1 (1- (length element))))
 	((stringp element)
-	 (intern (string-upcase (symbol-munger:camel-case->lisp-name element))))
+	 ;;(intern (string-upcase (symbol-munger:camel-case->lisp-name element)))
+	 (let ((variable-found (gethash (intern element "KEYWORD")
+					(gethash :variables meta))))
+	   (if variable-found
+	       variable-found
+	       ;; create a new variable if no variable is found matching the string
+	       (setf (gethash (intern element "KEYWORD")
+			      (gethash :variables meta))
+		     (gensym)))))
 	(t element)))
+
 
 (defun is-singleton (value)
   (let ((adims (dims value)))
@@ -506,7 +515,7 @@
 				token (list :axis axis token)))
 		     (next (parse last (=vex-tokens))))
 		 (if (or (not (stringp token))
-			 (not (member (format-value (reverse token))
+			 (not (member (format-value meta (reverse token))
 				      (gethash :functions meta))))
 		     (if next (list (cons token (first next))
 				    (second next))
@@ -573,11 +582,11 @@
 			   (function (lambda (meta axes omega &optional alpha)
 			     (declare (ignorable meta axes))
 			     (if alpha
-				 `(aref (apply-scalar-function ,(format-value (reverse function-string))
+				 `(aref (apply-scalar-function ,(format-value meta (reverse function-string))
 							       ,(macroexpand alpha)
 							       ,(macroexpand omega))
 					0)
-				 `(aref (aops:each ,(format-value (reverse function-string))
+				 `(aref (aops:each ,(format-value meta (reverse function-string))
 						   ,(macroexpand omega))
 					0))))))))
       ;; if the head of the operation is a string (thus a symbol-referenced function),
@@ -585,12 +594,13 @@
       (if at-start? (setq tl hd hd nil))
       (list hd (if tl
 		   (list (process-reverse (lambda (value) (cond ((stringp value)
-								 (format-value (reverse value)))
+								 (format-value meta (reverse value)))
 								((and (listp value)
 								      (eq :axis (first value)))
 								 `(apply #'aref
 									 (cons ,(if (stringp (third value))
 										    (format-value
+										     meta
 										     (reverse (third value)))
 										    (third value))
 									       (mapcar (lambda (i) (1- (aref i 0)))
@@ -642,17 +652,38 @@
 				       dest))
 		   dest)))
       (setf (gethash :functions meta)
-	    nil)
+	    nil
+	    (gethash :variables meta)
+	    (make-hash-table))
       (if (getf options :env)
 	  (setf (idiom-environment idiom)
 		(assign-from (getf options :env)
 			     (idiom-environment idiom))))
       (if string
-	  `(progn
-	     ,@(loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
-						(regex-replace-all (concatenate 'string "^\\s{0,}⍝(.*)[\\r\\n]"
-										"|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
-										"|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
-								   ;; remove comments
-								   string ""))
-		  collect (vex-expression idiom meta (reverse exp))))))))
+	  `(,@(if (getf options :with)
+		  `(let ,(loop for var-entry in (getf options :with)
+			    ;; TODO: move these APL-specific checks into spec
+			    append (let ((symbol-chars (lisp->camel-case (first var-entry))))
+				     (if (loop for index from 0 to (1- (length symbol-chars))
+					    always (or (alphanumericp (aref symbol-chars index))
+						       (member (aref symbol-chars index)
+							       (list #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
+					 (list (list (setf (gethash (intern symbol-chars "KEYWORD")
+								    (gethash :variables meta))
+							   (gensym))
+						     (second var-entry)))))))
+		  (list 'progn))
+	      ,@(loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
+						 (regex-replace-all (concatenate
+								     'string "^\\s{0,}⍝(.*)[\\r\\n]"
+								     "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
+								     "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
+								    ;; remove comments
+								    string ""))
+		   collect (vex-expression idiom meta (reverse exp)))
+	      ,@(if (getf options :return)
+		    (list (cons 'values (mapcar (lambda (return-var)
+						  (gethash (intern (string-upcase return-var)
+								   "KEYWORD")
+							   (gethash :variables meta)))
+						(getf options :return))))))))))
