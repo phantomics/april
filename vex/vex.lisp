@@ -99,10 +99,10 @@
 			t (cond ((eq :one ,omega)
 				 `(is-singleton ,(macroexpand omega)))
 				((eq :sym ,omega)
-				 (if (eql 'lambda (first alpha))
-				     (setf (gethash :functions meta)
-				 	   (cons (macroexpand omega)
-						 (gethash :functions meta))))
+				 ;; (if (eql 'lambda (first alpha))
+				 ;;     (setf (gethash :functions meta)
+				 ;; 	   (cons (macroexpand omega)
+				 ;; 		 (gethash :functions meta))))
 				 `(symbolp (quote ,(if (listp (macroexpand omega))
 						       (second (getf (macroexpand omega)
 								     :initial-contents))
@@ -195,14 +195,16 @@
 								      "KEYWORD"))
 					    (cons 'list (cons glyph-char (rest (getf accumulator
 										     (intern (string-upcase
-											      (first (third (first
-													     pairs))))
+											      (first
+											       (third (first
+												       pairs))))
 											     "KEYWORD")))))))
 				  (list (cons glyph-char (first output))
 					(append (second output)
 						(cond ((and (eql 'fn-specs table-symbol)
 						      	    (eq :symbolic
-								(intern (string-upcase (first (third (first pairs))))
+								(intern (string-upcase
+									 (first (third (first pairs))))
 									"KEYWORD")))
 						       ;; assign symbolic functions as just keywords in the table
 						       `((gethash ,glyph-char ,table-symbol)
@@ -210,10 +212,19 @@
 						      ;; assign functions in hash table
 						      ((eql 'fn-specs table-symbol)
 						       `((gethash ,glyph-char ,table-symbol)
-							 (list (lambda (meta axes omega &optional alpha)
-								 (declare (ignorable meta axes alpha))
-								 ,@(macroexpand (third (first pairs))))
-							       ,@(assign-discrete-functions (first pairs)))))
+							 ,(if (and (listp (second (third (first pairs))))
+								   (eq :macro
+								       (intern (string-upcase
+										(first (second (third
+												(first pairs)))))
+									       "KEYWORD")))
+						      	      `(list ,(macroexpand
+								       (second (second (third (first pairs))))))
+						      	      `(list
+								(lambda (meta axes omega &optional alpha)
+								  (declare (ignorable meta axes alpha))
+								  ,@(macroexpand (third (first pairs))))
+								,@(assign-discrete-functions (first pairs))))))
 						      ;; assign operators in hash table
 						      ((eql 'op-specs table-symbol)
 						       `((gethash ,glyph-char ,table-symbol)
@@ -367,6 +378,10 @@
   (cond ((and (vectorp element)
 	      (string= element "⍬")) ;; APL's "zilde" character translates to an empty vector
  	 (make-array (list 0)))
+	((and (vectorp element)
+	      (or (string= element "⍺")
+		  (string= element "⍵"))) ;; alpha and omega characters are directly changed to symbols
+ 	 (intern element))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
 	((or (and (char= #\" (aref element 0))
@@ -385,7 +400,6 @@
 			      (gethash :variables meta))
 		     (gensym)))))
 	(t element)))
-
 
 (defun is-singleton (value)
   (let ((adims (dims value)))
@@ -651,39 +665,43 @@
 			  (assign-from (cddr source)
 				       dest))
 		   dest)))
-      (setf (gethash :functions meta)
-	    nil
-	    (gethash :variables meta)
-	    (make-hash-table))
+      (setf (gethash :functions meta) nil
+	    (gethash :variables meta) (make-hash-table))
       (if (getf options :env)
 	  (setf (idiom-environment idiom)
 		(assign-from (getf options :env)
 			     (idiom-environment idiom))))
-      (if string
-	  `(,@(if (getf options :with)
-		  `(let ,(loop for var-entry in (getf options :with)
-			    ;; TODO: move these APL-specific checks into spec
-			    append (let ((symbol-chars (lisp->camel-case (first var-entry))))
-				     (if (loop for index from 0 to (1- (length symbol-chars))
-					    always (or (alphanumericp (aref symbol-chars index))
-						       (member (aref symbol-chars index)
-							       (list #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
-					 (list (list (setf (gethash (intern symbol-chars "KEYWORD")
-								    (gethash :variables meta))
-							   (gensym))
-						     (second var-entry)))))))
-		  (list 'progn))
-	      ,@(loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
-						 (regex-replace-all (concatenate
-								     'string "^\\s{0,}⍝(.*)[\\r\\n]"
-								     "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
-								     "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
-								    ;; remove comments
-								    string ""))
-		   collect (vex-expression idiom meta (reverse exp)))
-	      ,@(if (getf options :return)
-		    (list (cons 'values (mapcar (lambda (return-var)
-						  (gethash (intern (string-upcase return-var)
-								   "KEYWORD")
-							   (gethash :variables meta)))
-						(getf options :return))))))))))
+      (let* ((compiled-expressions
+	      (loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
+					       (regex-replace-all (concatenate
+								   'string "^\\s{0,}⍝(.*)[\\r\\n]"
+								   "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
+								   "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
+								  ;; remove comments
+								  string ""))
+		 collect (vex-expression idiom meta (reverse exp))))
+	     (hoisted-variables (loop for hk being the hash-keys of (gethash :variables meta)
+				   when (not (member (string (gethash hk (gethash :variables meta)))
+						     (mapcar #'first (getf options :with))))
+				   collect (list (gethash hk (gethash :variables meta))
+						 :undefined))))
+	(if (getf options :with)
+	    (loop for var-entry in (getf options :with)
+	       ;; TODO: move these APL-specific checks into spec
+	       do (rplacd (assoc (gethash (intern (lisp->camel-case (first var-entry))
+						  "KEYWORD")
+					  (gethash :variables meta))
+				 hoisted-variables)
+			  (list (second var-entry)))))
+	(if string
+	    `(,@(if (getf options :with)
+		    `(let ,hoisted-variables)
+		    (list 'progn))
+		,@compiled-expressions
+		,@(if (getf options :return)
+		      (list (cons 'values (cons (gethash :variables meta)
+						(mapcar (lambda (return-var)
+							  (gethash (intern (lisp->camel-case return-var)
+									   "KEYWORD")
+								   (gethash :variables meta)))
+							(getf options :return))))))))))))
