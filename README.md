@@ -152,4 +152,4 @@ To run tests for the implemented APL functions and operators, enter:
 
 Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which Apex makes heavy use.
 
-Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heard of Apex's parsing engine.
+Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heart of Apex's parsing engine.
