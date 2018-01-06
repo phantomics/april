@@ -52,6 +52,127 @@
 	       (aops:each #'scan-over (if (or alpha-scalar? alpha-unitary?)
 					  omega alpha)))))))
 
+;; (defun handle-argument (operation omega &optional alpha)
+;;   "Process argument specifications for a function or operator in a Vex-implemented language."
+;;   (if (and (symbolp (first operation))
+;; 	   (macro-function (first operation))
+;; 	   (not (eql 'lambda (first operation))))
+;;       (cond ((eql 'args (first operation))
+;; 	     (macroexpand (append (cons 'args (last operation))
+;; 				  (cons (second operation)
+;; 					(append (if (keywordp (third operation))
+;; 						    (list (third operation))
+;; 						    ;; the placeholder is added in case of (args :scalar ...)
+;; 						    ;; and other macros which have two arguments but only one
+;; 						    ;; structure-specifying parameter
+;; 						    (if alpha (list :placeholder)))
+;; 						(if (keywordp (fourth operation))
+;; 						    (list (fourth operation))))))))
+;; 	    (t (macroexpand (append operation (cons omega (if alpha (list alpha)))))))
+;;       `(quote ,operation)))
+
+;; (defmacro monadic (operation)
+;;   "Express a monadic function/operator."
+;;   `((if alpha
+;; 	`(progn (error "Valence error - monadic operation."))
+;; 	,(handle-argument operation 'omega))))
+
+;; (defmacro dyadic (operation)
+;;   "Express a dyadic function/operator."
+;;   `((if alpha
+;; 	,(handle-argument operation 'omega 'alpha)
+;; 	`(error "Valence error - dyadic operation."))))
+
+;; (defmacro ambivalent (operation second-operation &optional third-input)
+;;   "Express a function/operator that can be used as monadic or dyadic."
+;;   `((if alpha
+;; 	,(handle-argument (if (eq :symmetric-scalar operation)
+;; 			      (list 'args :scalar second-operation)
+;; 			      (if (eq :asymmetric-scalar operation)
+;; 				  (list 'args :scalar third-input)
+;; 				  second-operation))
+;; 			  'omega 'alpha)
+;; 	,(handle-argument (if (eq :symmetric-scalar operation)
+;; 			      (list 'args :scalar second-operation)
+;; 			      (if (eq :asymmetric-scalar operation)
+;; 				  (list 'args :scalar second-operation)
+;; 				  operation))
+;; 			  'omega))))
+
+;; (defun mediate-operation (operation)
+;;   (let ((operation-name (intern (string-upcase (first operation))
+;; 				"KEYWORD")))
+;;     (cond ((eq :monadic operation-name)
+;; 	   `((if alpha
+;; 		 `(progn (error "Valence error - monadic operation."))
+;; 		 ,(handle-argument (rest operation)
+;; 				   'omega))))
+;; 	  ((eq :dyadic operation-name)
+;; 	   `((if alpha
+;; 		 ,(handle-argument (rest operation)
+;; 				   'omega 'alpha)
+;; 		 `(error "Valence error - dyadic operation."))))
+;; 	  ((eq :ambivalent operation-name)
+;; 	   (let )`((if alpha
+;; 		 ,(handle-argument (if (eq :symmetric-scalar operation)
+;; 				       (list 'args :scalar second-operation)
+;; 				       (if (eq :asymmetric-scalar operation)
+;; 					   (list 'args :scalar third-input)
+;; 					   second-operation))
+;; 				   'omega 'alpha)
+;; 		 ,(handle-argument (if (eq :symmetric-scalar operation)
+;; 				       (list 'args :scalar second-operation)
+;; 				       (if (eq :asymmetric-scalar operation)
+;; 					   (list 'args :scalar second-operation)
+;; 					   operation))
+;; 				   'omega)))))))
+
+;; (defun args (operation omega &optional alpha axes)
+;;   "Moderate arguments to a Vex function at compile time."
+;;   (let ((fn (if (and (listp operation)
+;; 		     (macro-function (first operation))
+;; 		     (not (eql 'lambda (first operation))))
+;; 		(macroexpand (append operation (if alpha (list 'omega 'alpha)
+;; 						   (list 'omega))))
+;; 		``(function ,',operation))))
+;;     (if (eq omega :scalar)
+;; 	`(if alpha
+;; 	     `(funcall #'apply-scalar-function
+;; 		       ,,fn ,(macroexpand omega)
+;; 		       ,(macroexpand alpha))
+;; 	     `(aops:each ,,fn ,(macroexpand omega)))
+;; 	``(if (and ,(if (eq :any ,omega)
+;; 			t (cond ((eq :one ,omega)
+;; 				 `(is-singleton ,(macroexpand omega)))
+;; 				((eq :sym ,omega)
+;; 				 `(symbolp (quote ,(if (listp (macroexpand omega))
+;; 						       (second (getf (macroexpand omega)
+;; 								     :initial-contents))
+;; 						       (macroexpand omega)))))))
+;; 		   ,@(if (and ,alpha (not (eq :any ,alpha)))
+;; 			 (if (eq :one ,alpha)
+;; 			     (list `(is-singleton ,(macroexpand alpha))))))
+;; 	      ;; if the arguments are scalar (:one), remove them from their arrays for evaluation
+;; 	      (funcall ,,fn
+;; 		       ,(cond ((eq :one ,omega)
+;; 				    `(if (arrayp ,(macroexpand omega))
+;; 					 (aref ,(macroexpand omega) 0)
+;; 					 ,(macroexpand omega)))
+;; 				   ((eq :sym ,omega)
+;; 				    `(quote ,(if (listp (macroexpand omega))
+;; 						 (second (getf (macroexpand omega)
+;; 							       :initial-contents))
+;; 						 (macroexpand omega))))
+;; 				   (t (macroexpand omega)))
+;; 		       ,@(if ,alpha (list (cond ((eq :one ,alpha)
+;; 						 `(aref ,(macroexpand alpha) 0))
+;; 						((eq :axes ,alpha)
+;; 						 (cons 'list (macroexpand axes)))
+;; 						;; alpha is equal to :axes when
+;; 						;; axes are used for a monadic function
+;; 						(t (macroexpand alpha)))))
+;; 		       ,@(if ,axes (list (cons 'list (macroexpand axes)))))))))
+
 (vex-spec
  apex
  (environment :count-from 1
@@ -209,12 +330,13 @@
 		      (is "1+1 2 3" #(2 3 4))))
     	    (- (has :titles ("Negate" "Subtract"))
 	       (ambivalent :symmetric-scalar -)
-	       (tests (is "2-1" #(1))))
+	       (tests (is "2-1" #(1))
+		      (is "7-2 3 4" #(5 4 3))))
      	    (× (has :titles ("Sign" "Multiply"))
 	       (ambivalent :asymmetric-scalar signum *)
 	       (tests (is "2×3" #(6))
 		      (is "4 5×8 9" #(32 45))
-		      (is "×20 5 0 -5 5 -9" #(1 1 0 -1 1 -1))))
+		      (is "×20 5 0 ¯5 5 ¯9" #(1 1 0 -1 1 -1))))
      	    (÷ (has :titles ("Reciprocal" "Divide"))
 	       (ambivalent :symmetric-scalar /)
 	       (tests (is "6÷2" #(3))
@@ -236,18 +358,18 @@
 	       (ambivalent :asymmetric-scalar floor min))
 	    (? (has :titles ("Random" "Deal"))
 	       (ambivalent (args :scalar (lambda (omega)
-					   (+ (of-environment *apex-idiom* :count-from)
-					      (random omega))))
+					   (+ (random omega)
+					      (of-state *apex-idiom* :count-from))))
 	    		   (args :one :one (lambda (alpha omega)
 	    				     (make-array (list alpha)
 	    						 :initial-contents
 	    						 (loop for i from 0 to (1- alpha)
-	    						    collect (+ (of-environment *apex-idiom* :count-from)
-	    							       (random omega))))))))
+	    						    collect (+ (random omega)
+								       (of-state *apex-idiom* :count-from))))))))
      	    (○ (has :titles ("Pi Times" "Circular"))
 	       (ambivalent (args :scalar (lambda (omega) (* pi omega)))
 	    		   (args :one :any (lambda (alpha omega)
-	    				     (let ((fn (vector (lambda (input) (* input (exp #C(0 1))))
+	    				     (let ((fn (vector (lambda (input) (exp (* input #C(0 1))))
 	    						       (lambda (input) (* input #C(0 1)))
 	    						       (lambda (input) (if (complexp input)
 	    									   (complex (realpart input)
@@ -351,7 +473,7 @@
 	    				(make-array (list omega)
 	    					    :initial-contents
 	    					    (mapcar (lambda (i)
-	    						      (+ i (of-environment *apex-idiom* :count-from)))
+	    						      (+ i (of-state *apex-idiom* :count-from)))
 	    						    (alexandria:iota omega)))))
 	    		   (args :any :any index-of))
 	       (tests (is "⍳5" #(1 2 3 4 5))
@@ -468,8 +590,7 @@
 	    		       (expand-array (array-to-list alpha)
 	    				     omega (if axes (- (rank omega)
 	    						       (- (aref (first axes) 0)
-	    							  (1- (of-environment *apex-idiom*
-										      :count-from)))))
+	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     0 :omit-zeroes t))))
 	       (tests (is "1 0 1 0 1/⍳5" #(1 3 5))
 	    	      (is "1 ¯2 3 ¯4 5/⍳5" #(1 0 0 3 3 3 0 0 0 0 5 5 5 5 5))))
@@ -479,8 +600,7 @@
 	    		       (expand-array (array-to-list alpha)
 	    				     omega (if axes (- (rank omega)
 	    						       (- (aref (first axes) 0)
-	    							  (1- (of-environment *apex-idiom*
-										      :count-from)))))
+	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     (1- (rank omega))
 	    				     :omit-zeroes t)))))
 	    (\\ (has :title "Expand")
@@ -489,8 +609,7 @@
 	    			(expand-array (array-to-list alpha) ;[1] 1 [2] 0 / [0] 1 [1] 0
 	    				      omega (if axes (- (rank omega)
 	    							(- (aref (first axes) 0)
-	    							   (1- (of-environment *apex-idiom*
-										       :count-from)))))
+	    							   (1- (of-state *apex-idiom* :count-from)))))
 	    				      0)))))
 	    (⍀ (has :title "Expand First")
 	       (dyadic (args :any :any :axes
@@ -498,8 +617,7 @@
 	    		       (expand-array (array-to-list alpha)
 	    				     omega (if axes (- (rank omega)
 	    						       (- (aref (first axes) 0)
-	    							  (1- (of-environment *apex-idiom*
-										      :count-from)))))
+	    							  (1- (of-state *apex-idiom* :count-from)))))
 					     (1- (rank omega)))))))
 	    (⍷ (has :title "Find")
 	       (dyadic (args :any :any find-array)))
@@ -645,28 +763,25 @@
 	    					      omega)))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (aops:permute (mapcar (lambda (i)
-	    							     (- i (of-environment *apex-idiom*
-											  :count-from)))
+	    							     (- i (of-state *apex-idiom* :count-from)))
 	    							   (array-to-list alpha))
 	    						   omega)))))
             ;; TODO: dyadic functions of ⍋⍒ only support vectors as a right argument
 	    (⍋ (has :titles ("Grade Up" "Grade Up By"))
-	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-environment *apex-idiom*
-												  :atomic-vector)
+	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *apex-idiom*
+											    :atomic-vector)
 										  #'<=))))
 	    		   (args :any :any (lambda (alpha omega) (grade (index-of alpha omega)
-	    								(alpha-compare (of-environment
-											*apex-idiom*
-											:atomic-vector)
+	    								(alpha-compare (of-state *apex-idiom*
+												 :atomic-vector)
 										       #'<))))))
 	    (⍒ (has :titles ("Grade Down" "Grade Down By"))
-	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-environment *apex-idiom*
-												  :atomic-vector)
+	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *apex-idiom*
+											    :atomic-vector)
 										  #'>=))))
 	    		   (args :any :any (lambda (alpha omega) (grade (index-of alpha omega)
-	    								(alpha-compare (of-environment
-											*apex-idiom*
-											:atomic-vector)
+	    								(alpha-compare (of-state *apex-idiom*
+												 :atomic-vector)
 										       #'>))))))
 	    ;; TODO: inversion does not yet work for non-square matrices
 	    (⌹ (has :titles ("Matrix Inverse" "Matrix Divide"))
