@@ -4,14 +4,15 @@
 
 (defclass idiom ()
   ((name :accessor idiom-name
-	 :initarg :name)
-   (environment :accessor idiom-environment
-		:initarg :environment)
+    	 :initarg :name)
+   (state :accessor idiom-state
+	  :initarg :state)
+   (base-state :accessor idiom-base-state
+	       :initarg :state)
+   (default-state :accessor idiom-default-state
+                  :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
-   (parsers :accessor idiom-parsers
-	    :initform ""
-	    :initarg :function-matcher)
    (functions :accessor idiom-functions
 	      :initform nil
 	      :initarg :functions)
@@ -28,15 +29,16 @@
 		       :initform nil
 		       :initarg :overloaded-lexicon)))
 
-(defgeneric of-environment (idiom property))
-(defmethod of-environment ((idiom idiom) property)
-  (getf (idiom-environment idiom) property))
+(defgeneric of-state (idiom property))
+(defmethod of-state ((idiom idiom) property)
+  (getf (idiom-state idiom) property))
 
 (defgeneric of-utilities (idiom utility))
 (defmethod of-utilities ((idiom idiom) utility)
   (getf (idiom-utilities idiom) utility))
 
 (defun handle-argument (operation omega &optional alpha)
+  "Process argument specifications for a function or operator in a Vex-implemented language."
   (if (and (symbolp (first operation))
 	   (macro-function (first operation))
 	   (not (eql 'lambda (first operation))))
@@ -54,7 +56,20 @@
 	    (t (macroexpand (append operation (cons omega (if alpha (list alpha)))))))
       `(quote ,operation)))
 
+(defmacro monadic (operation)
+  "Express a monadic function/operator."
+  `((if alpha
+	`(progn (error "Valence error - monadic operation."))
+	,(handle-argument operation 'omega))))
+
+(defmacro dyadic (operation)
+  "Express a dyadic function/operator."
+  `((if alpha
+	,(handle-argument operation 'omega 'alpha)
+	`(error "Valence error - dyadic operation."))))
+
 (defmacro ambivalent (operation second-operation &optional third-input)
+  "Express a function/operator that can be used as monadic or dyadic."
   `((if alpha
 	,(handle-argument (if (eq :symmetric-scalar operation)
 			      (list 'args :scalar second-operation)
@@ -68,16 +83,6 @@
 				  (list 'args :scalar second-operation)
 				  operation))
 			  'omega))))
-
-(defmacro monadic (operation)
-  `((if alpha
-	`(progn (error "Valence error - monadic operation."))
-	,(handle-argument operation 'omega))))
-
-(defmacro dyadic (operation)
-  `((if alpha
-	,(handle-argument operation 'omega 'alpha)
-	`(error "Valence error - dyadic operation."))))
 
 (defmacro args (operation omega &optional alpha axes)
   "Moderate arguments to a Vex function at compile time."
@@ -136,211 +141,217 @@
 
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
-  (labels ((process-function-definition (is-dyadic is-scalar function-spec)
-	     (let ((discrete-function (if (and (listp (first function-spec))
-					       (macro-function (caar function-spec))
-					       (not (eql 'lambda (caar function-spec))))
-					  (macroexpand (append (first function-spec)
-							       (cons 'omega (if is-dyadic (list 'alpha)))))
-					  (cons 'function function-spec))))
-	       (if (not is-scalar)
-		   discrete-function
-		   `(lambda ,(if is-dyadic (list 'alpha 'omega)
-				 (list 'omega))
-		      ,(if is-dyadic `(apply-scalar-function ,discrete-function alpha omega)
-			   `(if (arrayp omega)
-				(aops:each ,discrete-function omega)
-				(funcall ,discrete-function omega)))))))
+  (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
+			      (package-name *package*))))
+    (labels ((process-function-definition (is-dyadic is-scalar function-spec)
+	       (let ((discrete-function (if (and (listp (first function-spec))
+						 (macro-function (caar function-spec))
+						 (not (eql 'lambda (caar function-spec))))
+					    (macroexpand (append (first function-spec)
+								 (cons 'omega (if is-dyadic (list 'alpha)))))
+					    (cons 'function function-spec))))
+		 (if (not is-scalar)
+		     discrete-function
+		     `(lambda ,(if is-dyadic (list 'alpha 'omega)
+				   (list 'omega))
+			,(if is-dyadic `(funcall (of-utilities ,idiom-symbol :apply-scalar-dyadic)
+						 ,discrete-function alpha omega)
+			     `(if (arrayp omega)
+				  (aops:each ,discrete-function omega)
+				  (funcall ,discrete-function omega)))))))
 
-	   (assign-discrete-functions (entry)
-	     ;; return a list containing the function, or both functions if ambivalent
-	     (let ((spec (third entry)))
-	       (if (eql 'monadic (first spec))
-		   (list (process-function-definition nil (eq :scalar (cadadr spec))
-						      (last (first (last spec)))))
-		   (if (eql 'dyadic (first spec))
-		       (list (process-function-definition t (eq :scalar (cadadr spec))
-							  (last (first (last spec)))))
-		       (list (if (listp (second spec))
-				 (process-function-definition nil (or (eq :symmetric-scalar (second spec))
-								      (eq :scalar (cadadr spec)))
-							      (last (second spec)))
-				 (process-function-definition
-				  nil t
-				  (if (eq :symmetric-scalar (second spec))
-				      (last spec)
-				      (list (third spec)))))
-			     (if (listp (second spec))
-				 (process-function-definition t (eq :scalar (second (third spec)))
-							      (last (third spec)))
-				 (process-function-definition t (or (eq :symmetric-scalar (second spec))
-								    (eq :asymmetric-scalar (second spec)))
-							      (last spec))))))))
+	     (assign-discrete-functions (entry)
+	       ;; return a list containing the function, or both functions if ambivalent
+	       (let ((spec (third entry)))
+		 (if (eql 'monadic (first spec))
+		     (list (process-function-definition nil (eq :scalar (cadadr spec))
+							(last (first (last spec)))))
+		     (if (eql 'dyadic (first spec))
+			 (list (process-function-definition t (eq :scalar (cadadr spec))
+							    (last (first (last spec)))))
+			 (list (if (listp (second spec))
+				   (process-function-definition nil (or (eq :symmetric-scalar (second spec))
+									(eq :scalar (cadadr spec)))
+								(last (second spec)))
+				   (process-function-definition nil t (if (eq :symmetric-scalar (second spec))
+									  (last spec)
+									  (list (third spec)))))
+			       (if (listp (second spec))
+				   (process-function-definition t (eq :scalar (second (third spec)))
+								(last (third spec)))
+				   (process-function-definition t (or (eq :symmetric-scalar (second spec))
+								      (eq :asymmetric-scalar (second spec)))
+								(last spec))))))))
 
-	   (process-pairs (table-symbol pairs &optional output)
-	     (if pairs
-		 (process-pairs table-symbol (rest pairs)
-				(let* ((glyph-char (character (caar pairs)))
-				       (accumulator (third output)))
-				  (if (and (eql 'op-specs table-symbol))
-				      (setf (getf accumulator (intern (string-upcase (first (third (first pairs))))
-								      "KEYWORD"))
-					    (cons 'list (cons glyph-char (rest (getf accumulator
-										     (intern (string-upcase
-											      (first
-											       (third (first
-												       pairs))))
-											     "KEYWORD")))))))
-				  (list (cons glyph-char (first output))
-					(append (second output)
-						(cond ((and (eql 'fn-specs table-symbol)
-						      	    (eq :symbolic
-								(intern (string-upcase
-									 (first (third (first pairs))))
-									"KEYWORD")))
-						       ;; assign symbolic functions as just keywords in the table
-						       `((gethash ,glyph-char ,table-symbol)
-						      	 ,(second (third (first pairs)))))
-						      ;; assign functions in hash table
-						      ((eql 'fn-specs table-symbol)
-						       `((gethash ,glyph-char ,table-symbol)
-							 ,(if (and (listp (second (third (first pairs))))
-								   (eq :macro
-								       (intern (string-upcase
-										(first (second (third
-												(first pairs)))))
-									       "KEYWORD")))
-						      	      `(list ,(macroexpand
-								       (second (second (third (first pairs))))))
-						      	      `(list
-								(lambda (meta axes omega &optional alpha)
-								  (declare (ignorable meta axes alpha))
-								  ,@(macroexpand (third (first pairs))))
-								,@(assign-discrete-functions (first pairs))))))
-						      ;; assign operators in hash table
-						      ((eql 'op-specs table-symbol)
-						       `((gethash ,glyph-char ,table-symbol)
-						      	 ,(if (eq :macro
+	     (process-pairs (table-symbol pairs &optional output)
+	       (if pairs
+		   (process-pairs table-symbol (rest pairs)
+				  (let* ((glyph-char (character (caar pairs)))
+					 (accumulator (third output)))
+				    (if (and (eql 'op-specs table-symbol))
+					(setf (getf accumulator
+						    (intern (string-upcase (first (third (first pairs))))
+							    "KEYWORD"))
+					      (cons 'list (cons glyph-char (rest (getf accumulator
+										       (intern (string-upcase
+												(first
+												 (third (first
+													 pairs))))
+											       "KEYWORD")))))))
+				    (list (cons glyph-char (first output))
+					  (append (second output)
+						  (cond ((and (eql 'fn-specs table-symbol)
+							      (eq :symbolic
 								  (intern (string-upcase
-									   (first (second (third (first pairs)))))
-									  "KEYWORD"))
-						      	      (macroexpand (second (second (third (first pairs)))))
-						      	      `(lambda (meta axes functions operand
-						      			&optional right-operand)
-						      		 (declare (ignorable meta axes right-operand))
-								 ;;(print (list functions operand))
-						      		 `(funcall ,',(second (third (first pairs)))
-						      			   ,(cons 'list axes)
-						      			   ,(if (listp (first functions))
-						      				(cons 'list
-						      				      (mapcar (lambda (f)
-						      						(if (listp f)
-						      						    (cons 'list
-						      							  (rest f))
-						      						    f))
-						      					      functions))
-						      			   	(cons 'list (cdar functions)))
-						      			   ,operand
-						      			   ,@(if right-operand
-						      				 (list right-operand)))))))))
-					accumulator)))
-		 output))
+									   (first (third (first pairs))))
+									  "KEYWORD")))
+							 ;; assign symbolic functions as just keywords in the table
+							 `((gethash ,glyph-char ,table-symbol)
+							   ,(second (third (first pairs)))))
+							;; assign functions in hash table
+							((eql 'fn-specs table-symbol)
+							 `((gethash ,glyph-char ,table-symbol)
+							   ,(if (and (listp (second (third (first pairs))))
+								     (eq :macro
+									 (intern (string-upcase
+										  (first (second (third
+												  (first pairs)))))
+										 "KEYWORD")))
+								`(list ,(macroexpand
+									 (second (second (third (first pairs))))))
+								`(list
+								  (lambda (meta axes omega &optional alpha)
+								    (declare (ignorable meta axes alpha))
+								    ,@(macroexpand (third (first pairs))))
+								  ,@(assign-discrete-functions (first pairs))))))
+							;; assign operators in hash table
+							((eql 'op-specs table-symbol)
+							 `((gethash ,glyph-char ,table-symbol)
+							   ,(if (eq :macro
+								    (intern (string-upcase
+									     (first (second (third (first pairs)))))
+									    "KEYWORD"))
+								(macroexpand
+								 (second (second (third (first pairs)))))
+								`(lambda (meta axes functions operand
+									  &optional right-operand)
+								   (declare (ignorable meta axes right-operand))
+								   ;;(print (list functions operand))
+								   `(funcall ,',(second (third (first pairs)))
+									     ,(cons 'list axes)
+									     ,(if (listp (first functions))
+										  (cons 'list
+											(mapcar
+											 (lambda (f)
+											   (if (listp f)
+											       (cons 'list (rest f))
+											       f))
+											 functions))
+										  (cons 'list (cdar functions)))
+									     ,operand
+									     ,@(if right-operand
+										   (list right-operand)))))))))
+					  accumulator)))
+		   output))
 
-	   (process-tests (specs &optional output)
-	     (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
-					(rest (first specs)))))
-		    (props (rest (assoc (intern "HAS" (package-name *package*))
-					(rest (first specs)))))
-		    (heading (format nil "[~a] ~a~a"
-				     (caar specs)
-				     (if (getf props :title)
-					 (getf props :title)
-					 (if (getf props :titles)
-					     (first (getf props :titles))))
-				     (if (getf props :titles)
-					 (concatenate 'string " / " (second (getf props :titles)))
-					 ""))))
-	       (labels ((for-tests (tests &optional output)
-			  (if tests
-			      (for-tests (rest tests)
-					 (append output (list (cond ((eql 'is (caar tests))
-								     `(is (,(intern (string-upcase symbol)
-										    (package-name *package*))
-									    ,(cadar tests))
-									  ,(third (first tests))))))))
-			      output)))
-		 
-		 (if specs
-		     (process-tests (rest specs)
-				    (if (assoc (intern "TESTS" (package-name *package*))
-					       (rest (first specs)))
-					(append output (list `(princ ,heading))
-						(for-tests tests)
-						(list `(princ (format nil "~%~%")) nil))
-					output))
-		     output)))))
-    (let* ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-				 (package-name *package*)))
-	   (function-specs (process-pairs 'fn-specs (rest (assoc (intern "FUNCTIONS" (package-name *package*))
-								 subspecs))))
-	   (operator-specs (process-pairs 'op-specs (rest (assoc (intern "OPERATORS" (package-name *package*))
-								 subspecs))))
-	   (function-tests (process-tests (rest (assoc (intern "FUNCTIONS" (package-name *package*))
-						       subspecs))))
-	   (operator-tests (process-tests (rest (assoc (intern "OPERATORS" (package-name *package*))
-						       subspecs)))))
-      `(progn (let ((fn-specs (make-hash-table))
-		    (op-specs (make-hash-table)))
-		(setf ,idiom-symbol
-		      (make-instance 'idiom
-				     :name ,(intern (string-upcase symbol) "KEYWORD")
-				     :environment ,(cons 'list
-							 (rest (assoc (intern "ENVIRONMENT"
+	     (process-tests (specs &optional output)
+	       (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
+					  (rest (first specs)))))
+		      (props (rest (assoc (intern "HAS" (package-name *package*))
+					  (rest (first specs)))))
+		      (heading (format nil "[~a] ~a~a"
+				       (caar specs)
+				       (if (getf props :title)
+					   (getf props :title)
+					   (if (getf props :titles)
+					       (first (getf props :titles))))
+				       (if (getf props :titles)
+					   (concatenate 'string " / " (second (getf props :titles)))
+					   ""))))
+		 (labels ((for-tests (tests &optional output)
+			    (if tests
+				(for-tests (rest tests)
+					   (append output (list (cond ((eql 'is (caar tests))
+								       `(is (,(intern (string-upcase symbol)
+										      (package-name *package*))
+									      ,(cadar tests))
+									    ,(third (first tests))))))))
+				output)))
+		   
+		   (if specs
+		       (process-tests (rest specs)
+				      (if (assoc (intern "TESTS" (package-name *package*))
+						 (rest (first specs)))
+					  (append output (list `(princ ,heading))
+						  (for-tests tests)
+						  (list `(princ (format nil "~%~%")) nil))
+					  output))
+		       output)))))
+      (let* ((function-specs (process-pairs 'fn-specs (rest (assoc (intern "FUNCTIONS" (package-name *package*))
+								   subspecs))))
+	     (operator-specs (process-pairs 'op-specs (rest (assoc (intern "OPERATORS" (package-name *package*))
+								   subspecs))))
+	     (function-tests (process-tests (rest (assoc (intern "FUNCTIONS" (package-name *package*))
+							 subspecs))))
+	     (operator-tests (process-tests (rest (assoc (intern "OPERATORS" (package-name *package*))
+							 subspecs)))))
+	`(progn (let ((fn-specs (make-hash-table))
+		      (op-specs (make-hash-table)))
+		  (setf ,idiom-symbol
+			(make-instance 'idiom
+				       :name ,(intern (string-upcase symbol) "KEYWORD")
+				       :state ,(cons 'list
+						     (rest (assoc (intern "ENVIRONMENT"
+									  (package-name *package*))
+								  subspecs)))
+				       :utilities ,(cons 'list
+							 (rest (assoc (intern "UTILITIES"
 									      (package-name *package*))
-								      subspecs)))
-				     :utilities ,(cons 'list
-						       (rest (assoc (intern "UTILITIES"
-									    (package-name *package*))
-								    subspecs))))
+								      subspecs))))
 
-		      ,@(second function-specs)
-		      ,@(second operator-specs)
-		      (idiom-opglyphs ,idiom-symbol)
-		      (list ,@(derive-opglyphs
-			       (append (first function-specs)
-				       (first operator-specs))))
-		      (idiom-functions ,idiom-symbol)
-		      fn-specs
-		      (idiom-operators ,idiom-symbol)
-		      op-specs
-		      (idiom-overloaded-lexicon ,idiom-symbol)
-		      (list ,@(intersection (first function-specs)
-					    (first operator-specs)))
-		      (idiom-opindex ,idiom-symbol)
-		      (list ,@(third operator-specs)))
+			,@(second function-specs)
+			,@(second operator-specs)
+			(idiom-opglyphs ,idiom-symbol)
+			(list ,@(derive-opglyphs
+				 (append (first function-specs)
+					 (first operator-specs))))
+			(idiom-functions ,idiom-symbol)
+			fn-specs
+			(idiom-operators ,idiom-symbol)
+			op-specs
+			(idiom-overloaded-lexicon ,idiom-symbol)
+			(list ,@(intersection (first function-specs)
+					      (first operator-specs)))
+			(idiom-opindex ,idiom-symbol)
+			(list ,@(third operator-specs)))
 
-		(defvar ,idiom-symbol)
-		
-		(defmacro ,(intern (string-upcase symbol)
-				   (package-name *package*))
-		    (options &optional input-string)
-		  (cond ((and options (listp options)
-			      (eq :test (intern (string-upcase (first options))
-						"KEYWORD")))
-			 (cons 'progn ',(append operator-tests function-tests)))
-			((and options (listp options)
-			      (eq :idiom (intern (string-upcase (first options))
-						 "KEYWORD")))
-			 (let ((directive (rest options)))
-			   (cons (first directive)
-				 (cons ,idiom-symbol (rest directive)))))
-			(t (vex-program ,idiom-symbol
-					(if (or input-string (and options (listp options)))
-					    (if (eq :set (intern (string-upcase (first options))
-								 "KEYWORD"))
-						(rest options)
-						(error "Incorrect option syntax.")))
-					(if input-string input-string options))))))))))
+		  (defvar ,idiom-symbol)
+		  
+		  (defmacro ,(intern (string-upcase symbol)
+				     (package-name *package*))
+		      (options &optional input-string)
+		    ;; this macro is the point of contact between users and the language, used to
+		    ;; evaluate expressions and control properties of the language instance
+		    (cond ((and options (listp options)
+				(eq :test (intern (string-upcase (first options))
+						  "KEYWORD")))
+			   (cons 'progn ',(append operator-tests function-tests)))
+			  ;; the (test) setting is used to run tests
+			  ((and options (listp options)
+				(eq :set-default (intern (string-upcase (first options))
+							 "KEYWORD")))
+			   `(setf (idiom-state ,,idiom-symbol)
+				  (copy-alist (idiom-base-state ,,idiom-symbol))))
+			  ;; the (set-default) setting is used to restore the instance settings
+			  ;; to the defaults from the spec
+			  (t (vex-program ,idiom-symbol
+					  (if (or input-string (and options (listp options)))
+					      (if (eq :set (intern (string-upcase (first options))
+								   "KEYWORD"))
+						  (rest options)
+						  (error "Incorrect option syntax.")))
+					  (if (not (listp options))
+					      options input-string)))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   (if (not glyph-list)
@@ -682,7 +693,8 @@
 
 (defun vex-program (idiom options &optional string meta)
   (let ((meta (if meta meta (make-hash-table :test #'eq)))
-	(static-environment nil))
+	(static-environment nil)
+	(state (second (assoc :state options))))
     (labels ((assign-from (source dest)
 	       (if source
 		   (progn (setf (getf dest (first source))
@@ -692,61 +704,59 @@
 		   dest)))
 
       (setf (gethash :functions meta) nil
-	    (gethash :variables meta) (make-hash-table :test #'eq))
+	    (gethash :variables meta) (make-hash-table :test #'eq)
+	    (idiom-state idiom) (assign-from state (if (assoc :state-persists options)
+						       (idiom-base-state idiom)
+						       (copy-alist (idiom-base-state idiom)))))
 
-      (if (getf options :env)
-	  (setf static-environment
-		;;(copy-alist (idiom-environment idiom))
-		(idiom-environment idiom)
-		(idiom-environment idiom)
-		(assign-from (getf options :env)
-			     (idiom-environment idiom))))
+      (if string
+	  (let* ((compiled-expressions
+		  (loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
+						   (regex-replace-all (concatenate
+								       'string "^\\s{0,}⍝(.*)[\\r\\n]"
+								       "|^\\s{0,}[\\r\\n]"
+								       "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
+								       "|(?<=[\\r\\n])\\s{0,}[\\r\\n]"
+								       "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
+								      ;; remove comments and empty lines
+								      string ""))
+		     collect (vex-expression idiom meta (reverse exp))))
+		 (vars-declared (loop for key being the hash-keys of (gethash :variables meta)
+				   when (not (member (string (gethash key (gethash :variables meta)))
+						     (mapcar #'first (getf state :in))))
+				   collect (list (gethash key (gethash :variables meta))
+						 :undefined))))
 
-      (let* ((compiled-expressions
-	      (loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
-					       (regex-replace-all (concatenate
-								   'string "^\\s{0,}⍝(.*)[\\r\\n]"
-								   "|^\\s{0,}[\\r\\n]"
-								   "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
-								   "|(?<=[\\r\\n])\\s{0,}[\\r\\n]"
-								   "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
-								  ;; remove comments and empty lines
-								  string ""))
-		 collect (vex-expression idiom meta (reverse exp))))
-	     (vars-declared (loop for key being the hash-keys of (gethash :variables meta)
-			       when (not (member (string (gethash key (gethash :variables meta)))
-						 (mapcar #'first (getf options :in))))
-			       collect (list (gethash key (gethash :variables meta))
-					     :undefined))))
-	(if (getf options :in)
-	    (loop for var-entry in (getf options :in)
-	       ;; TODO: move these APL-specific checks into spec
-	       when (gethash (intern (lisp->camel-case (first var-entry))
-				     "KEYWORD")
-			     (gethash :variables meta))
-	       do (rplacd (assoc (gethash (intern (lisp->camel-case (first var-entry))
-						  "KEYWORD")
-					  (gethash :variables meta))
-				 vars-declared)
-			  (list (second var-entry)))))
+	    (if (getf state :in)
+		(loop for var-entry in (getf state :in)
+		   ;; TODO: move these APL-specific checks into spec
+		   do (if (gethash (intern (lisp->camel-case (first var-entry))
+					   "KEYWORD")
+				   (gethash :variables meta))
+			  (rplacd (assoc (gethash (intern (lisp->camel-case (first var-entry))
+							  "KEYWORD")
+						  (gethash :variables meta))
+					 vars-declared)
+				  (list (second var-entry)))
+			  (setq vars-declared (append vars-declared
+						      (list (list (setf (gethash (intern (lisp->camel-case
+											  (first var-entry))
+											 "KEYWORD")
+										 (gethash :variables meta))
+									(gensym))
+								  (second var-entry))))))))
 
-	(print (list :st static-environment))
-	
-	(if (and static-environment (not (getf options :persist)))
-	    (setf (idiom-environment idiom)
-		  static-environment))
-
-	(if string
 	    (let ((code `(,@(if vars-declared
 				`(let ,vars-declared)
 				'(progn))
 			    ,@compiled-expressions
-			    ,@(if (getf options :out)
+			    ,@(if (getf state :out)
 				  (list (cons 'values (mapcar (lambda (return-var)
 								(gethash (intern (lisp->camel-case return-var)
 										 "KEYWORD")
 									 (gethash :variables meta)))
-							      (getf options :out))))))))
-	      (if (getf options :compile-only)
+							      (getf state :out))))))))
+
+	      (if (assoc :compile-only options)
 		  `(quote ,code)
 		  code)))))))
