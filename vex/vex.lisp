@@ -37,99 +37,6 @@
 (defmethod of-utilities ((idiom idiom) utility)
   (getf (idiom-utilities idiom) utility))
 
-(defun handle-argument (operation omega &optional alpha)
-  "Process argument specifications for a function or operator in a Vex-implemented language."
-  (if (and (symbolp (first operation))
-	   (macro-function (first operation))
-	   (not (eql 'lambda (first operation))))
-      (cond ((eql 'args (first operation))
-	     (macroexpand (append (cons 'args (last operation))
-				  (cons (second operation)
-					(append (if (keywordp (third operation))
-						    (list (third operation))
-						    ;; the placeholder is added in case of (args :scalar ...)
-						    ;; and other macros which have two arguments but only one
-						    ;; structure-specifying parameter
-						    (if alpha (list :placeholder)))
-						(if (keywordp (fourth operation))
-						    (list (fourth operation))))))))
-	    (t (macroexpand (append operation (cons omega (if alpha (list alpha)))))))
-      `(quote ,operation)))
-
-(defmacro monadic (operation)
-  "Express a monadic function/operator."
-  `((if alpha
-	`(progn (error "Valence error - monadic operation."))
-	,(handle-argument operation 'omega))))
-
-(defmacro dyadic (operation)
-  "Express a dyadic function/operator."
-  `((if alpha
-	,(handle-argument operation 'omega 'alpha)
-	`(error "Valence error - dyadic operation."))))
-
-(defmacro ambivalent (operation second-operation &optional third-input)
-  "Express a function/operator that can be used as monadic or dyadic."
-  `((if alpha
-	,(handle-argument (if (eq :symmetric-scalar operation)
-			      (list 'args :scalar second-operation)
-			      (if (eq :asymmetric-scalar operation)
-				  (list 'args :scalar third-input)
-				  second-operation))
-			  'omega 'alpha)
-	,(handle-argument (if (eq :symmetric-scalar operation)
-			      (list 'args :scalar second-operation)
-			      (if (eq :asymmetric-scalar operation)
-				  (list 'args :scalar second-operation)
-				  operation))
-			  'omega))))
-
-(defmacro args (operation omega &optional alpha axes)
-  "Moderate arguments to a Vex function at compile time."
-  (let ((fn (if (and (listp operation)
-		     (macro-function (first operation))
-		     (not (eql 'lambda (first operation))))
-		(macroexpand (append operation (if alpha (list 'omega 'alpha)
-						   (list 'omega))))
-		``(function ,',operation))))
-    (if (eq omega :scalar)
-	`(if alpha
-	     `(funcall #'apply-scalar-function
-		       ,,fn ,(macroexpand omega)
-		       ,(macroexpand alpha))
-	     `(aops:each ,,fn ,(macroexpand omega)))
-	``(if (and ,(if (eq :any ,omega)
-			t (cond ((eq :one ,omega)
-				 `(is-singleton ,(macroexpand omega)))
-				((eq :sym ,omega)
-				 `(symbolp (quote ,(if (listp (macroexpand omega))
-						       (second (getf (macroexpand omega)
-								     :initial-contents))
-						       (macroexpand omega)))))))
-		   ,@(if (and ,alpha (not (eq :any ,alpha)))
-			 (if (eq :one ,alpha)
-			     (list `(is-singleton ,(macroexpand alpha))))))
-	      ;; if the arguments are scalar (:one), remove them from their arrays for evaluation
-	      (funcall ,,fn
-		       ,(cond ((eq :one ,omega)
-				    `(if (arrayp ,(macroexpand omega))
-					 (aref ,(macroexpand omega) 0)
-					 ,(macroexpand omega)))
-				   ((eq :sym ,omega)
-				    `(quote ,(if (listp (macroexpand omega))
-						 (second (getf (macroexpand omega)
-							       :initial-contents))
-						 (macroexpand omega))))
-				   (t (macroexpand omega)))
-		       ,@(if ,alpha (list (cond ((eq :one ,alpha)
-						 `(aref ,(macroexpand alpha) 0))
-						((eq :axes ,alpha)
-						 (cons 'list (macroexpand axes)))
-						;; alpha is equal to :axes when
-						;; axes are used for a monadic function
-						(t (macroexpand alpha)))))
-		       ,@(if ,axes (list (cons 'list (macroexpand axes)))))))))
-
 (defmacro boolean-op (operation omega &optional alpha)
   "Converts output of a boolean operation from t/nil to 1/0."
   `(lambda ,(if alpha (list omega alpha)
@@ -187,7 +94,11 @@
 	       (if pairs
 		   (process-pairs table-symbol (rest pairs)
 				  (let* ((glyph-char (character (caar pairs)))
-					 (accumulator (third output)))
+					 (accumulator (third output))
+					 ;; name of macro to process operation specs
+					 (oprocess (getf (rest (assoc (intern "UTILITIES" (package-name *package*))
+								      subspecs))
+							 :mediate-operation-macro)))
 				    (if (and (eql 'op-specs table-symbol))
 					(setf (getf accumulator
 						    (intern (string-upcase (first (third (first pairs))))
@@ -220,9 +131,8 @@
 								`(list ,(macroexpand
 									 (second (second (third (first pairs))))))
 								`(list
-								  (lambda (meta axes omega &optional alpha)
-								    (declare (ignorable meta axes alpha))
-								    ,@(macroexpand (third (first pairs))))
+								  ,(macroexpand (cons (second oprocess)
+										      (list (third (first pairs)))))
 								  ,@(assign-discrete-functions (first pairs))))))
 							;; assign operators in hash table
 							((eql 'op-specs table-symbol)
@@ -300,13 +210,10 @@
 		  (setf ,idiom-symbol
 			(make-instance 'idiom
 				       :name ,(intern (string-upcase symbol) "KEYWORD")
-				       :state ,(cons 'list
-						     (rest (assoc (intern "ENVIRONMENT"
-									  (package-name *package*))
-								  subspecs)))
+				       :state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
+									subspecs)))
 				       :utilities ,(cons 'list
-							 (rest (assoc (intern "UTILITIES"
-									      (package-name *package*))
+							 (rest (assoc (intern "UTILITIES" (package-name *package*))
 								      subspecs))))
 
 			,@(second function-specs)
@@ -363,23 +270,6 @@
 					(append output (loop for char from 0 to (1- (length glyph))
 							  collect (aref glyph char)))))))))
 
-(defun numeric-string-p (string)
-  (handler-case (progn (parse-apl-number-string string) t)
-    (condition () nil)))
-
-(defun parse-apl-number-string (number-string &optional imaginary-component)
-  (let ((nstring (string-upcase number-string)))
-    (if (and (not imaginary-component)
-	     (find #\J nstring))
-	(let ((halves (cl-ppcre:split "J" nstring)))
-	  (if (and (= 2 (length halves))
-		   (< 0 (length (first halves)))
-		   (< 0 (length (second halves))))
-	      (complex (parse-apl-number-string (first halves) t)
-		       (parse-apl-number-string (second halves) t))))
-	;; either the macron or combining_macron character may be used as the high minus sign
-	(parse-number:parse-number (regex-replace-all "[¯̄]" nstring "-")))))
-
 (defun format-array (values)
   (if (or (stringp (first values))
 	  (symbolp (first values))
@@ -393,88 +283,9 @@
       `(make-array (list ,(length values))
 		   :initial-contents (list ,@values))))
 
-(defun format-function (idiom content)
-  (let ((⍺ (intern "⍺" (string-upcase (idiom-name idiom))))
-	(⍵ (intern "⍵" (string-upcase (idiom-name idiom)))))
-    `(lambda (,⍺ &optional ,⍵)
-       ;; kludge to handle reversing the variable order
-       ;; the latter variable is always the optional one in Lisp, but in APL
-       ;; the ⍺ is the optional argument
-       (if ,⍵ (funcall (lambda (,⍺ ,⍵) ,content) ,⍵ ,⍺)
-	     (funcall (lambda (,⍵) ,content) ,⍺)))))
-
-(defun format-value (meta element)
-  (cond ((and (vectorp element)
-	      (string= element "⍬")) ;; APL's "zilde" character translates to an empty vector
- 	 (make-array (list 0)))
-	((and (vectorp element)
-	      (or (string= element "⍺")
-		  (string= element "⍵"))) ;; alpha and omega characters are directly changed to symbols
- 	 (intern element))
-	((numeric-string-p element)
-	 (parse-apl-number-string element))
-	((or (and (char= #\" (aref element 0))
-		  (char= #\" (aref element (1- (length element)))))
-	     (and (char= #\' (aref element 0))
-		  (char= #\' (aref element (1- (length element))))))
-	 (subseq element 1 (1- (length element))))
-	((stringp element)
-	 ;;(intern (string-upcase (symbol-munger:camel-case->lisp-name element)))
-	 (let ((variable-found (gethash (intern element "KEYWORD")
-					(gethash :variables meta))))
-	   (if variable-found
-	       variable-found
-	       ;; create a new variable if no variable is found matching the string
-	       (setf (gethash (intern element "KEYWORD")
-			      (gethash :variables meta))
-		     (gensym)))))
-	(t element)))
-
-(defun is-singleton (value)
-  (let ((adims (dims value)))
-    (and (= 1 (first adims))
-	 (= 1 (length adims)))))
-
 (defun scale-array (singleton to-match)
   (make-array (dims to-match)
 	      :initial-element (aref singleton 0)))
-
-(defun apply-scalar-function (function alpha omega)
-  (let* ((alpha-scalar? (not (arrayp alpha)))
-	 (omega-scalar? (not (arrayp omega)))
-	 (alpha-unitary? (and (not alpha-scalar?)
-			      (vectorp alpha)
-			      (= 1 (length alpha))))
-	 (omega-unitary? (and (not omega-scalar?)
-			      (vectorp omega)
-			      (= 1 (length omega)))))
-    (cond ((and alpha-scalar? omega-scalar?)
-	   (funcall function alpha omega))
-	  ((and alpha-unitary? omega-unitary?)
-	   (aops:each (lambda (alpha omega) (apply-scalar-function function alpha omega))
-		      alpha omega))
-	  ((and (not alpha-unitary?)
-		(not omega-unitary?)
-		(not alpha-scalar?)
-		(not omega-scalar?))
-	   (if (loop for dimension in (funcall (lambda (a o) (mapcar #'= a o))
-					       (dims alpha)
-					       (dims omega))
-		  always dimension)
-	       (aops:each (lambda (alpha omega) (apply-scalar-function function alpha omega))
-			  alpha omega)
-	       (error "Array size mismatch.")))
-	  (t (labels ((scan-over (element)
-			(if (arrayp element)
-			    (aops:each #'scan-over element)
-			    (apply (lambda (left right) (apply-scalar-function function left right))
-				   (cond (alpha-scalar? (list alpha element))
-					 (alpha-unitary? (list (aref alpha 0)
-							       element))
-					 (omega-scalar? (list element omega))
-					 (omega-unitary? (list element (aref omega 0))))))))
-	       (aops:each #'scan-over (if (or alpha-scalar? alpha-unitary?)
-					  omega alpha)))))))
 
 (defun process-reverse (function input &optional output)
   (if input
@@ -559,7 +370,8 @@
 				token (list :axis axis token)))
 		     (next (parse last (=vex-tokens))))
 		 (if (or (not (stringp token))
-			 (not (member (format-value meta (reverse token))
+			 (not (member (funcall (of-utilities idiom :format-value)
+					       meta (reverse token))
 				      (gethash :functions meta))))
 		     (if next (list (cons token (first next))
 				    (second next))
@@ -595,15 +407,21 @@
 	       ;; reverse the order of axes, since we're parsing backwards
 	       (process-reverse (lambda (string-content) (vex-expression idiom meta string-content))
 				(if axes axes (list input-string)))))
+	   
 	   (handle-function (input-string)
-	     (let ((formatted-function (format-function idiom (vex-expression idiom meta input-string))))
+	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
+						(string-upcase (idiom-name idiom))
+						(vex-expression idiom meta input-string))))
 	       (lambda (meta axes omega &optional alpha)
 		 (declare (ignorable meta axes))
 		 `(funcall ,formatted-function
 			   ,@(if alpha (list (macroexpand alpha)))
 			   ,(macroexpand omega)))))
+	   
 	   (handle-function-as-data (input-string)
-	     (format-function idiom (vex-expression idiom meta input-string))))
+	     (funcall (of-utilities idiom :format-function)
+		      (string-upcase (idiom-name idiom))
+		      (vex-expression idiom meta input-string))))
     
     (setf (fdefinition '=vex-tokens-parser) (=vex-tokens)
 	  (fdefinition '=vex-axes-parser) (=vex-axes))
@@ -629,12 +447,14 @@
 			   (function (lambda (meta axes omega &optional alpha)
 			     (declare (ignorable meta axes))
 			     (if alpha
-				 `(funcall ,(format-value meta (reverse function-string))
+				 `(funcall ,(funcall (of-utilities idiom :format-value)
+						     meta (reverse function-string))
 					   ,(macroexpand alpha)
 					   ,(macroexpand omega))
 				 (let ((sub-omega (gensym)))
 				   `(aops:each (lambda (,sub-omega)
-						 (aref (funcall ,(format-value meta (reverse function-string))
+						 (aref (funcall ,(funcall (of-utilities idiom :format-value)
+									  meta (reverse function-string))
 								,sub-omega)
 						       0))
 					       ,(macroexpand omega))))))))))
@@ -643,14 +463,16 @@
       (if at-start? (setq tl hd hd nil))
       (list hd (if tl
 		   (list (process-reverse (lambda (value) (cond ((stringp value)
-								 (format-value meta (reverse value)))
+								 (funcall (of-utilities idiom :format-value)
+									  meta (reverse value)))
 								((and (listp value)
 								      (eq :axis (first value)))
 								 `(apply #'aref
 									 (cons ,(if (stringp (third value))
-										    (format-value
-										     meta
-										     (reverse (third value)))
+										    (funcall
+										     (of-utilities idiom
+												   :format-value)
+										     meta (reverse (third value)))
 										    (third value))
 									       (mapcar (lambda (i) (1- (aref i 0)))
 										       (list ,@(second value))))))
@@ -660,7 +482,7 @@
 		   (list nil last))))))
 
 (defun vex-expression (idiom meta string &optional precedent)
-  "Convert an expression into Lisp code, tranforming the text through the parser and invoking the corresponding spec-defined functions accordingly."
+  "Convert an expression into Lisp code, parsing the text and invoking the corresponding spec-defined functions accordingly."
   (if (= 0 (length string))
       precedent
       (let* ((next-operation (parse string (=vex-operation idiom meta (not precedent))))
@@ -692,8 +514,8 @@
 				       (if precedent (list precedent))))))))
 
 (defun vex-program (idiom options &optional string meta)
+  "Convert a set of expressions into Lisp code, optionally drawing external variables into the program and setting configuration paramaters for the system."
   (let ((meta (if meta meta (make-hash-table :test #'eq)))
-	(static-environment nil)
 	(state (second (assoc :state options))))
     (labels ((assign-from (source dest)
 	       (if source
