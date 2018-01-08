@@ -103,7 +103,7 @@ When the (apex) macro is called, you may pass it either a single text string:
 * (apex "1+1 2 3")
 ```
 
-Or a parameter followed by a text string:
+Or a parameter object followed by a text string:
 
 ```
 * (apex (set (:state :count-from 0)) "⍳9")
@@ -133,7 +133,7 @@ Set is the workhorse of Apex parameters, allowing you to configure your Apex ins
 #(23)
 ```
 
-Let's explain some more about what's going on in that code. The sub-parameters of (:state) are:
+Let's learn some more about what's going on in that code. The sub-parameters of (:state) are:
 
 #### :count-from
 
@@ -150,7 +150,7 @@ Ok:
 a var my-var my-var.testing
 ```
 
-Not Ok:
+Not ok:
 ```
 true! this->that pass/fail?
 ```
@@ -190,7 +190,7 @@ The last value calculated is displayed. The :out sub-parameter allows you to lis
 #(18)
 ```
 
-#### :state-persistent
+### (:state-persistent)
 
 You can use the :state-persistent parameter to set state values within the Apex instance, just like :state. The difference is that when you change the state using :state-persistent, those changes will stay until you reverse them, whereas the changes you make with :state are reverted once the following code is done evaluating.
 
@@ -299,10 +299,10 @@ System functions and variables within APL are not implemented, along with APL's 
 
 ## Tests
 
-To run tests for the implemented APL functions and operators, enter:
+If you missed it earlier, you can run tests for the implemented APL functions and operators by entering:
 
 ```
-(apex :test)
+(apex (test))
 ```
 
 ## Thanks to:
