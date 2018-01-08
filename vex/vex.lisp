@@ -206,7 +206,8 @@
 							 subspecs))))
 	     (operator-tests (process-tests (rest (assoc (intern "OPERATORS" (package-name *package*))
 							 subspecs)))))
-	`(progn (let ((fn-specs (make-hash-table))
+	`(progn (defvar ,idiom-symbol)
+		(let ((fn-specs (make-hash-table))
 		      (op-specs (make-hash-table)))
 		  (setf ,idiom-symbol
 			(make-instance 'idiom
@@ -232,8 +233,6 @@
 					      (first operator-specs)))
 			(idiom-opindex ,idiom-symbol)
 			(list ,@(third operator-specs)))
-
-		  (defvar ,idiom-symbol)
 
 		  (defmacro ,(intern (string-upcase symbol)
 				     (package-name *package*))
@@ -270,23 +269,6 @@
 				    (if (stringp glyph)
 					(append output (loop for char from 0 to (1- (length glyph))
 							  collect (aref glyph char)))))))))
-
-(defun format-array (values)
-  (if (or (stringp (first values))
-	  (symbolp (first values))
-	  (and (not (second values))
-	       (or (listp (first values))
-		   (functionp (first values)))))
-      ;; if the first item is a list (i.e. code to generate an array of some kind),
-      ;; pass it through with no changes. Also pass through strings, which are already arrays,
-      ;; any symbols
-      (first values)
-      `(make-array (list ,(length values))
-		   :initial-contents (list ,@values))))
-
-(defun scale-array (singleton to-match)
-  (make-array (dims to-match)
-	      :initial-element (aref singleton 0)))
 
 (defun process-reverse (function input &optional output)
   (if input
@@ -511,7 +493,8 @@
 				       (if operator
 					   (list (cons function (if alpha-function (list alpha-function)))))
 				       (if (first value-results)
-					   (list (format-array (first value-results))))
+					   (list (funcall (of-utilities idiom :format-object)
+							  (first value-results))))
 				       (if precedent (list precedent))))))))
 
 (defun vex-program (idiom options &optional string meta)
@@ -528,13 +511,14 @@
 		   dest)))
 
       (setf (gethash :functions meta) nil
-	    (gethash :variables meta) (make-hash-table :test #'eq))
+	    (gethash :variables meta) (make-hash-table :test #'eq)
+	    (idiom-state idiom) (idiom-base-state idiom))
 
       (if state (setf (idiom-state idiom)
 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
 
       (if state-persistent (setf (idiom-state idiom)
-				 (assign-from state-persistent (idiom-base-state idiom))))
+      				 (assign-from state-persistent (idiom-base-state idiom))))
 
       (if string
 	  (let* ((input-vars (getf (idiom-state idiom) :in))

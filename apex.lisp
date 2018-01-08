@@ -15,11 +15,18 @@
 			      (recurse (1+ n))))))
       (recurse 0))))
 
+(defun array-promote (array)
+  (make-array (cons 1 (dims array))
+	      :initial-contents (list (array-to-list array))))
+
 (defun is-singleton (value)
   "Determine whether an array is a singleton, i.e. possesses just one member."
-  (let ((adims (dims value)))
-    (and (= 1 (first adims))
-	 (= 1 (length adims)))))
+  (or (and (atom value)
+	   (not (arrayp value)))
+      ;; non-array atoms are considered singleton values
+      (let ((adims (dims value)))
+	(and (= 1 (first adims))
+	     (= 1 (length adims))))))
 
 (defun apply-scalar-monadic (function omega)
   "Apply a scalar function across a single arguments, iterating over multidimensional and nested arrays."
@@ -185,16 +192,6 @@
 	;; either the macron or combining_macron character may be used as the high minus sign
 	(parse-number:parse-number (regex-replace-all "[¯̄]" nstring "-")))))
 
-(defun format-function (idiom-name content)
-  (let ((⍺ (intern "⍺" idiom-name))
-	(⍵ (intern "⍵" idiom-name)))
-    `(lambda (,⍺ &optional ,⍵)
-       ;; kludge to handle reversing the variable order
-       ;; the latter variable is always the optional one in Lisp, but in APL
-       ;; the ⍺ is the optional argument
-       (if ,⍵ (funcall (lambda (,⍺ ,⍵) ,content) ,⍵ ,⍺)
-	     (funcall (lambda (,⍵) ,content) ,⍺)))))
-
 (defun format-value (meta element)
   (cond ((and (vectorp element)
 	      (string= element "⍬")) ;; APL's "zilde" character translates to an empty vector
@@ -211,7 +208,6 @@
 		  (char= #\' (aref element (1- (length element))))))
 	 (subseq element 1 (1- (length element))))
 	((stringp element)
-	 ;;(intern (string-upcase (symbol-munger:camel-case->lisp-name element)))
 	 (let ((variable-found (gethash (intern element "KEYWORD")
 					(gethash :variables meta))))
 	   (if variable-found
@@ -221,6 +217,29 @@
 			      (gethash :variables meta))
 		     (gensym)))))
 	(t element)))
+
+(defun format-array (values)
+  (if (or (stringp (first values))
+	  (symbolp (first values))
+	  (and (not (second values))
+	       (or (listp (first values))
+		   (functionp (first values)))))
+      ;; if the first item is a list (i.e. code to generate an array of some kind),
+      ;; pass it through with no changes. Also pass through strings, which are already arrays,
+      ;; any symbols
+      (first values)
+      `(make-array (list ,(length values))
+		   :initial-contents (list ,@values))))
+
+(defun format-function (idiom-name content)
+  (let ((⍺ (intern "⍺" idiom-name))
+	(⍵ (intern "⍵" idiom-name)))
+    `(lambda (,⍺ &optional ,⍵)
+       ;; kludge to handle reversing the variable order
+       ;; the latter variable is always the optional one in Lisp, but in APL
+       ;; the ⍺ is the optional argument
+       (if ,⍵ (funcall (lambda (,⍺ ,⍵) ,content) ,⍵ ,⍺)
+	     (funcall (lambda (,⍵) ,content) ,⍺)))))
 
 (vex-spec
  apex
@@ -239,6 +258,7 @@
 	      (or (alphanumericp char)
 		  (member char (list #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
 	    :format-value #'format-value
+	    :format-object #'format-array
 	    :format-function #'format-function
 	    :mediate-operation-macro 'mediate-operation
 	    :apply-scalar-monadic #'apply-scalar-monadic
@@ -305,7 +325,12 @@
  	   					      (aops:each (first (last (first functions)))
  	   							 right-operand operand)))
  	   			  (array-inner-product operand right-operand
- 	   					       (first (last (first functions)))
+ 	   					       (let ((f1 (first (last (first functions)))))
+							 (lambda (arg1 arg2)
+							   (if (or (arrayp arg1)
+								   (arrayp arg2))
+							       (apply-scalar-dyadic f1 arg1 arg2)
+							       (funcall f1 arg1 arg2))))
  	   					       (first (last (second functions))))))))
  	   	(tests (is "2 3 4+.×8 15 21" #(145))
  	   	       (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))))
@@ -371,7 +396,7 @@
 	    				     omega)))
 	       (tests (is "⊢77" #(77))
 		      (is "55⊢77" #(77))))
-	    (+ (has :titles ("Identity/Invert Imaginary" "Add"))
+	    (+ (has :titles ("Identity or Negate Imaginary" "Add"))
 	       (ambivalent :asymmetric-scalar (lambda (omega) (if (complexp omega)
 								  (complex (realpart omega)
 									   (- (imagpart omega)))
@@ -463,11 +488,10 @@
 	    						       #'realpart #'abs #'imagpart #'phase)))
 	    				       ;; the twelfth element of the vector corresponds to
 	    				       ;; index 0, hence an offset of 12 from the vector's first element
-	    				       (funcall (aref fn (+ 12 alpha))
-	    						omega)))))
+	    				       (apply-scalar-monadic (aref fn (+ 12 alpha))
+								     omega)))))
 	       (tests (is "⌊100000×○1" #(314159))
-		      ;;(is "(1÷2⋆÷2)=1○○÷4" #(1))
-		      ))
+		      (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" #(1))))
 	    (\~ (has :titles ("Not" "Excluding"))
 	    	(ambivalent (args :scalar
 				  (boolean-op (lambda (omega)
@@ -488,9 +512,7 @@
 	    							 (setq included (cons element included))))
 	    						   alpha)
 	    					(make-array (list (length included))
-	    						    :element-type (cond ((stringp alpha)
-	    									 'character)
-	    									(t t))
+	    						    :element-type (element-type alpha)
 	    						    :initial-contents (reverse included))))))
 	    	(tests (is "~1 0 1" #(0 1 0))
 	    	       (is "1 2 3 4 5 6 7~3 5" #(1 2 4 6 7))
@@ -535,12 +557,12 @@
 	    (⍲ (has :title "Nand")
 	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (not (and (= alpha 1) (= omega 1)))))))
 	       (tests (is "0 1 0 1 ⍲ 0 0 1 1" #(1 1 1 0))))
+     	    (∨ (has :title "Or")
+	       (dyadic (args :scalar gcd))
+	       (tests (is "0 1 0 1 ∨ 0 0 1 1" #(0 1 1 1))))
 	    (⍱ (has :title "Nor")
 	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (and (= alpha 0) (= omega 0))))))
 	       (tests (is "0 1 0 1 ⍱ 0 0 1 1" #(1 0 0 0))))
-     	    (∨ (has :title "Or")
-	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (not (and (= alpha 0) (= omega 0)))))))
-	       (tests (is "0 1 0 1 ∨ 0 0 1 1" #(0 1 1 1))))
 	    (⍳ (has :titles ("Index" "Index Of"))
 	       (ambivalent (args :one (lambda (omega)
 	    				(make-array (list omega)
@@ -552,10 +574,15 @@
 	       (tests (is "⍳5" #(1 2 3 4 5))
 	    	      (is "3⍳1 2 3 4 5" #(2 2 1 2 2))))
      	    (⍴ (has :titles ("Shape" "Reshape"))
-	       (ambivalent (args :any dims)
+	       (ambivalent (args :any (lambda (omega)
+					(let ((omega-dims (dims omega)))
+					  (make-array (list (length omega-dims))
+						      :initial-contents omega-dims))))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (reshape-array-fitting omega (array-to-list alpha)))))
-	       (tests (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
+	       (tests (is "⍴1 2 3" #(3))
+		      (is "⍴3 5⍴⍳8" #(3 5))
+		      (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
 	    (∊ (has :titles ("Enlist" "Membership"))
 	       (ambivalent (args :any enlist)
 	    		   (args :any :any (lambda (alpha omega)
@@ -564,10 +591,8 @@
 	    					 (let ((found nil))
 	    					   (aops:each (lambda (input)
 	    							(cond ((and (numberp input)
-	    								    (numberp (row-major-aref alpha
-	    											     index))
-	    								    (= input (row-major-aref alpha
-	    											     index)))
+	    								    (numberp (row-major-aref alpha index))
+	    								    (= input (row-major-aref alpha index)))
 	    							       (setq found t))
 	    							      ((and (characterp input)
 	    								    (characterp
@@ -588,76 +613,118 @@
 	    				    omega (aref omega 0))))
 	    		   (args :any :any :axes
 	    			 (lambda (alpha omega &optional axes)
-				   (print (list :g axes))
-	    			   (multidim-slice omega (if axes (loop for axis from 0 to (1- (rank omega))
-	    							     collect (if (= axis (1- (aref (first axes) 0)))
-	    									 (aref alpha 0)
-	    									 (nth axis (dims omega))))
-	    						     (array-to-list alpha))
+	    			   (multidim-slice omega (if axes
+							     (loop for axis from 0 to (1- (rank omega))
+								collect (if (= axis (- (aref (first axes) 0)
+										       (of-state *apex-idiom*
+												 :count-from)))
+									    (aref alpha 0)
+									    (nth axis (dims omega))))
+							     (array-to-list alpha))
 	    					   :fill-with 0))))
 	       (tests (is "↑⊂1 2 3 4" #(1 2 3 4))
 	    	      (is "2 3 4↑4 5 6⍴⍳9" #3A(((1 2 3 4) (7 8 9 1) (4 5 6 7))
-	    				       ((4 5 6 7) (1 2 3 4) (7 8 9 1))))))
+	    				       ((4 5 6 7) (1 2 3 4) (7 8 9 1))))
+		      (is "1↑[1]2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
+		      (is "1↑[2]2 3 4⍴⍳9" #3A(((1 2 3 4)) ((4 5 6 7))))
+		      (is "2↑[2]2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8)) ((4 5 6 7) (8 9 1 2))))
+		      (is "2↑[3]2 3 4⍴⍳9" #3A(((1 2) (5 6) (9 1)) ((4 5) (8 9) (3 4))))))
 	    (↓ (has :titles ("Drop" "Split"))
 	       (ambivalent (args :any :axes (lambda (omega &optional axes)
-	    				      ;; NOTE: check this against another implementation
+	    				      ;; TODO: check this against another implementation
 	    				      (aops:split omega (if axes (aref (first axes) 0)
 	    							    (1- (rank omega))))))
 	    		   (args :any :any :axes
 	    			 (lambda (alpha omega &optional axes)
-	    			   (multidim-slice omega (if axes (loop for axis from 0 to (1- (rank omega))
-	    							     collect (if (= axis (1- (aref (first axes) 0)))
-	    									 (aref alpha 0)
-	    									 0))
-	    						     (array-to-list alpha))
+	    			   (multidim-slice omega
+						   (if axes (loop for axis from 0 to (1- (rank omega))
+							       collect (if (= axis (- (aref (first axes) 0)
+										      (of-state *apex-idiom*
+												:count-from)))
+									   (aref alpha 0)
+									   0))
+						       (array-to-list alpha))
 	    					   :inverse t))))
 	       (tests (is "↓3 4⍴⍳9" #(#(1 2 3 4) #(5 6 7 8) #(9 1 2 3)))
 	    	      (is "2 2 2↓4 5 6⍴⍳9" #3A(((3 4 5 6) (9 1 2 3) (6 7 8 9))
-	    				       ((6 7 8 9) (3 4 5 6) (9 1 2 3))))))
+	    				       ((6 7 8 9) (3 4 5 6) (9 1 2 3))))
+		      (is "1↓[1]2 3 4⍴⍳9" #3A(((4 5 6 7) (8 9 1 2) (3 4 5 6))))
+		      (is "1↓[2]2 3 4⍴⍳9" #3A(((5 6 7 8) (9 1 2 3)) ((8 9 1 2) (3 4 5 6))))
+		      (is "2↓[2]2 3 4⍴⍳9" #3A(((9 1 2 3)) ((3 4 5 6))))
+		      (is "2↓[3]2 3 4⍴⍳9" #3A(((3 4) (7 8) (2 3)) ((6 7) (1 2) (5 6))))))
 	    (⌷ (has :title "Axis")
 	       (dyadic (args :any :any (lambda (alpha omega)
 	    				 (apply #'aref (cons omega (array-to-list alpha)))))))
-	    (\, (has :titles ("Catenate" "Ravel"))
+	    (\, (has :titles ("Catenate or Laminate" "Ravel"))
 	    	(ambivalent (args :any (lambda (omega)
 	    				 (if (vectorp omega)
 	    				     omega (make-array (list (array-total-size omega))
+							       :element-type (element-type omega)
 	    						       :displaced-to omega))))
 	    		    (args :any :any :axes
 	    			  (lambda (alpha omega &optional axes)
 	    			    (if (and (not axes)
 	    				     (vectorp alpha)
 	    				     (vectorp omega))
+					;; TODO: improve handling of axis arguments when catenating vectors
 	    				(concatenate 'vector alpha omega)
-	    				(aops:stack (if axes (1- (aref (first axes) 0))
-	    						1)
-	    					    alpha omega)))))
+	    				(if (or (not axes)
+						(integerp (aref (first axes) 0)))
+					    (aops:stack (if axes (- (aref (first axes) 0)
+								    (of-state *apex-idiom* :count-from))
+							    1)
+							alpha omega)
+					    ;; laminate in the case of a fractional axis argument
+					    ;; TODO: problems persist with laminate logic
+					    (aops:stack (ceiling (- (aref (first axes) 0)
+								    (of-state *apex-idiom* :count-from)))
+							(aops:permute (rotate-right (ceiling
+										     (- (aref (first axes) 0)
+											(of-state *apex-idiom*
+												  :count-from)))
+										    (alexandria:iota
+										     (1+ (rank alpha))))
+								      (array-promote alpha))
+							(aops:permute (rotate-right (ceiling
+										     (- (aref (first axes) 0)
+											(of-state *apex-idiom*
+												  :count-from)))
+										    (alexandria:iota
+										     (1+ (rank omega))))
+								      (array-promote omega))))))))
 	    	(tests (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
 	    	       (is "(3 6⍴⍳6),3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
-	    					 (1 2 3 4 5 6 9 1 2 3)))))
+	    					 (1 2 3 4 5 6 9 1 2 3)))
+		       (is "(5 4⍴⍳6),[1]3 4⍴⍳9" #2A((1 2 3 4) (5 6 1 2) (3 4 5 6) (1 2 3 4)
+						    (5 6 1 2) (1 2 3 4) (5 6 7 8) (9 1 2 3)))
+		       (is "1 2 3 4,[0.5]1 2 3 4" #2A((1 2 3 4) (1 2 3 4)))
+		       (is "1 2 3 4,[1.5]1 2 3 4" #2A((1 1) (2 2) (3 3) (4 4)))
+		       (is "(2 3⍴⍳9),[0.5]2 3⍴⍳9" #3A(((1 2 3) (4 5 6)) ((1 2 3) (4 5 6))))
+		       (is "(2 3⍴⍳9),[2.5]2 3⍴⍳9" #3A(((1 1) (2 2) (3 3)) ((4 4) (5 5) (6 6))))))
      	    (⍪ (has :titles ("Catenate First" "Table"))
 	       (ambivalent (args :any (lambda (omega) (if (not (second (dims omega)))
 	    						  (make-array (list (length omega) 1)
+								      :element-type (element-type omega)
 	    							      :initial-contents
 	    							      (loop for i from 0 to (1- (length omega))
 	    								 collect (list (aref omega i))))
 	    						  omega)))
 	    		   (args :any :any :axes
-	    			 (lambda (alpha omega &optional axes)
-	    			   (if (and (not axes)
-	    				    (vectorp alpha)
-	    				    (vectorp omega))
-	    			       (if (not (= (length alpha)
-	    					   (length omega)))
-	    				   (error "Vectors must be of same length.")
-	    				   (make-array (list 2 (length alpha))
-	    					       :initial-contents (list (array-to-list alpha)
-	    								       (array-to-list omega))))
-	    			       (aops:stack (if axes (1- (aref (first axes) 0))
-	    					       0)
-	    					   alpha omega)))))
+				 (lambda (alpha omega &optional axes)
+				   (if (and (vectorp alpha)
+					    (vectorp omega))
+				       (if axes
+					   (error "Axis arguments not accepted when catenating vectors.")
+					   (concatenate 'vector alpha omega))
+				       (aops:stack (if axes (- (aref (first axes) 0)
+							       (of-state *apex-idiom* :count-from))
+						       0)
+						   alpha omega)))))
 	       (tests (is "⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 7 8) (9 1 2 3)))
 	    	      (is "(5 4⍴⍳6)⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 1 2) (3 4 5 6) (1 2 3 4)
-	    					(5 6 1 2) (1 2 3 4) (5 6 7 8) (9 1 2 3)))))
+	    					(5 6 1 2) (1 2 3 4) (5 6 7 8) (9 1 2 3)))
+		      (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
+						   (1 2 3 4 5 6 9 1 2 3)))))
 	    (/ (has :title "Compress")
 	       (dyadic (args :any :any :axes
 	    		     (lambda (alpha omega &optional axes)
@@ -667,7 +734,11 @@
 	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     0 :omit-zeroes t))))
 	       (tests (is "1 0 1 0 1/⍳5" #(1 3 5))
-	    	      (is "1 ¯2 3 ¯4 5/⍳5" #(1 0 0 3 3 3 0 0 0 0 5 5 5 5 5))))
+	    	      (is "1 ¯2 3 ¯4 5/3 5⍴⍳5" #2A((1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
+						   (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
+						   (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))
+		      (is "1 ¯2 3/[1]3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
+						 (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6)))))
 	    (⌿ (has :title "Compress First")
 	       (dyadic (args :any :any :axes
 	    		     (lambda (alpha omega &optional axes)
@@ -676,7 +747,13 @@
 	    						       (- (aref (first axes) 0)
 	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     (1- (rank omega))
-	    				     :omit-zeroes t)))))
+	    				     :omit-zeroes t))))
+	       (tests (is "1 0 1 0 1⌿⍳5" #(1 3 5))
+		      (is "1 ¯2 3⌿3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
+					      (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6)))
+		      (is "1 ¯2 3 ¯4 5⌿[2]3 5⍴⍳5" #2A((1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
+						      (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
+						      (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
 	    (\\ (has :title "Expand")
 	    	(dyadic (args :any :any :axes
 	    		      (lambda (alpha omega &optional axes)
@@ -694,7 +771,9 @@
 	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     (1- (rank omega)))))))
 	    (⍷ (has :title "Find")
-	       (dyadic (args :any :any find-array)))
+	       (dyadic (args :any :any find-array))
+	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
+						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
 	    (⊂ (has :titles ("Enclose" "Partition"))
 	       ;; TODO: add axis option
 	       (ambivalent (args :any (lambda (omega)
@@ -731,20 +810,34 @@
 	    	      (is "1 1 2 2 2 3 3 3 3⊂⍳9" #(#(1 2) #(3 4 5) #(6 7 8 9)))))
 	    (⊃ (has :titles ("Mix" "Pick"))
 	       ;; TODO: add axis option
-	       (ambivalent (args :any (lambda (omega)
-	    				;; currently works for vectors only
-	    				(let ((output (make-array
-	    					       (list (length omega)
-	    						     (apply #'max (array-to-list (aops:each #'length
-	    											    omega)))))))
-	    				  (dotimes (index (length omega))
-	    				    (dotimes (sub-index (length (aref omega index)))
-	    				      (setf (aref output index sub-index)
-	    					    (aref (aref omega index) sub-index))))
-	    				  output)))
-	    		   (args :one :any (lambda (alpha omega)
-	    				     (apply #'aref (cons omega (array-to-list (aref alpha 0)))))))
-	       (tests (is "⊃(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))))
+	       (ambivalent (args :any
+				 (lambda (omega)
+				   ;; currently works for vectors only
+				   (let ((output (make-array
+						  (list (length omega)
+							(apply #'max (array-to-list (aops:each #'length
+											       omega)))))))
+				     (dotimes (index (length omega))
+				       (dotimes (sub-index (length (aref omega index)))
+					 (setf (aref output index sub-index)
+					       (aref (aref omega index) sub-index))))
+				     output)))
+	    		   (args :any :any (lambda (alpha omega)
+					     (labels ((layer-index (object indices)
+							(if indices
+							    (layer-index (aref object (- (first indices)
+											 (of-state *apex-idiom*
+												   :count-from)))
+									 (rest indices))
+							    object)))
+					       (let ((found (layer-index omega (array-to-list alpha))))
+						 (if (arrayp found)
+						     found (make-array (list 1)
+								       :element-type (element-type omega)
+								       :initial-element found)))))))
+	       (tests (is "⊃(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))
+		      (is "2⊃(1 2 3)(4 5 6)(7 8 9)" #(4 5 6))
+		      (is "(2 2)⊃(1 2 3)(4 5 6)(7 8 9)" #(5))))
 	    (∪ (has :titles ("Unique" "Union"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(if (not (vectorp omega))
@@ -756,9 +849,7 @@
 	    					    (setq uniques (cons (aref omega index)
 	    								uniques))))
 	    				      (make-array (list (length uniques))
-							  :element-type (cond ((stringp omega)
-									       'character)
-									      (t t))
+							  :element-type (element-type omega)
 	    						  :initial-contents (reverse uniques))))))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (if (or (not (vectorp alpha))
@@ -772,9 +863,7 @@
 	    								     uniques))))
 	    					   (concatenate 'vector alpha
 	    							(make-array (list (length uniques))
-									    :element-type (cond ((stringp alpha)
-												 'character)
-												(t t))
+									    :element-type (element-type alpha)
 	    								    :initial-contents
 	    								    (reverse uniques))))))))
 	       (tests (is "∪1 2 3 4 5 1 2 8 9 10 11 7 8 11 12" #(1 2 3 4 5 8 9 10 11 7 12))
@@ -793,9 +882,7 @@
 	    					     (setq matches (cons (aref alpha index)
 	    								 matches))))
 	    				       (make-array (list (length matches))
-							   :element-type (cond ((stringp alpha)
-										'character)
-									       (t t))
+							   :element-type (element-type alpha)
 	    						   :initial-contents (reverse matches)))))))
 	       (tests (is "'MIXTURE'∩'LATER'" "TRE")
 		      (is "1 4 8∩⍳5" #(1 4))))
