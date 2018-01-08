@@ -63,7 +63,7 @@ For example, you can use this configuration setting to determine whether the APL
 #(1 2 3 4 5 6 7 8 9)
 ```
 
-More APL operations:
+More APL expressions:
 
 ```
 * (apex "⍳12")
