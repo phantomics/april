@@ -756,7 +756,7 @@
 	    					    (setq uniques (cons (aref omega index)
 	    								uniques))))
 	    				      (make-array (list (length uniques))
-							  :element-type (cond ((stringp alpha)
+							  :element-type (cond ((stringp omega)
 									       'character)
 									      (t t))
 	    						  :initial-contents (reverse uniques))))))
