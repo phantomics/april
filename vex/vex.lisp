@@ -2,6 +2,7 @@
 
 (in-package #:vex)
 
+;; The idiom object defines a vector language instance with a persistent state.
 (defclass idiom ()
   ((name :accessor idiom-name
     	 :initarg :name)
@@ -185,7 +186,8 @@
 								       `(is (,(intern (string-upcase symbol)
 										      (package-name *package*))
 									      ,(cadar tests))
-									    ,(third (first tests))))))))
+									    ,(third (first tests))
+									    :test #'equalp))))))
 				output)))
 		   
 		   (if specs
@@ -245,8 +247,8 @@
 			   (cons 'progn ',(append operator-tests function-tests)))
 			  ;; the (test) setting is used to run tests
 			  ((and options (listp options)
-				(eq :set-default (intern (string-upcase (first options))
-							 "KEYWORD")))
+				(eq :restore-defaults (intern (string-upcase (first options))
+							      "KEYWORD")))
 			   `(setf (idiom-state ,,idiom-symbol)
 				  (copy-alist (idiom-base-state ,,idiom-symbol))))
 			  ;; the (set-default) setting is used to restore the instance settings
@@ -514,9 +516,10 @@
 				       (if precedent (list precedent))))))))
 
 (defun vex-program (idiom options &optional string meta)
-  "Convert a set of expressions into Lisp code, optionally drawing external variables into the program and setting configuration paramaters for the system."
+  "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let ((meta (if meta meta (make-hash-table :test #'eq)))
-	(state (second (assoc :state options))))
+	(state (rest (assoc :state options)))
+	(state-persistent (rest (assoc :state-persistent options))))
     (labels ((assign-from (source dest)
 	       (if source
 		   (progn (setf (getf dest (first source))
@@ -526,13 +529,18 @@
 		   dest)))
 
       (setf (gethash :functions meta) nil
-	    (gethash :variables meta) (make-hash-table :test #'eq)
-	    (idiom-state idiom) (assign-from state (if (assoc :state-persists options)
-						       (idiom-base-state idiom)
-						       (copy-alist (idiom-base-state idiom)))))
+	    (gethash :variables meta) (make-hash-table :test #'eq))
+
+      (if state (setf (idiom-state idiom)
+		      (assign-from state (copy-alist (idiom-base-state idiom)))))
+
+      (if state-persistent (setf (idiom-state idiom)
+				 (assign-from state-persistent (idiom-base-state idiom))))
 
       (if string
-	  (let* ((compiled-expressions
+	  (let* ((input-vars (getf (idiom-state idiom) :in))
+		 (output-vars (getf (idiom-state idiom) :out))
+		 (compiled-expressions
 		  (loop for exp in (cl-ppcre:split "[◊\\r\\n]\\s{0,}" ;; whitespace after diamonds is removed
 						   (regex-replace-all (concatenate
 								       'string "^\\s{0,}⍝(.*)[\\r\\n]"
@@ -545,12 +553,12 @@
 		     collect (vex-expression idiom meta (reverse exp))))
 		 (vars-declared (loop for key being the hash-keys of (gethash :variables meta)
 				   when (not (member (string (gethash key (gethash :variables meta)))
-						     (mapcar #'first (getf state :in))))
+						     (mapcar #'first input-vars)))
 				   collect (list (gethash key (gethash :variables meta))
 						 :undefined))))
 
-	    (if (getf state :in)
-		(loop for var-entry in (getf state :in)
+	    (if input-vars
+		(loop for var-entry in input-vars
 		   ;; TODO: move these APL-specific checks into spec
 		   do (if (gethash (intern (lisp->camel-case (first var-entry))
 					   "KEYWORD")

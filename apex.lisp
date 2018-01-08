@@ -21,7 +21,14 @@
     (and (= 1 (first adims))
 	 (= 1 (length adims)))))
 
-(defun apply-scalar-function (function alpha omega)
+(defun apply-scalar-monadic (function omega)
+  "Apply a scalar function across a single arguments, iterating over multidimensional and nested arrays."
+  (labels ((apply-fn (arg) (if (arrayp arg)
+			       (aops:each #'apply-fn arg)
+			       (funcall function arg))))
+    (aops:each #'apply-fn omega)))
+
+(defun apply-scalar-dyadic (function alpha omega)
   "Apply a scalar function across objects as appropriate in APL. Handles scalars as well as nested and multidimensional arrays."
   (let* ((alpha-scalar? (not (arrayp alpha)))
 	 (omega-scalar? (not (arrayp omega)))
@@ -34,7 +41,7 @@
     (cond ((and alpha-scalar? omega-scalar?)
 	   (funcall function alpha omega))
 	  ((and alpha-unitary? omega-unitary?)
-	   (aops:each (lambda (alpha omega) (apply-scalar-function function alpha omega))
+	   (aops:each (lambda (alpha omega) (apply-scalar-dyadic function alpha omega))
 		      alpha omega))
 	  ((and (not alpha-unitary?)
 		(not omega-unitary?)
@@ -44,13 +51,13 @@
 					       (dims alpha)
 					       (dims omega))
 		  always dimension)
-	       (aops:each (lambda (alpha omega) (apply-scalar-function function alpha omega))
+	       (aops:each (lambda (alpha omega) (apply-scalar-dyadic function alpha omega))
 			  alpha omega)
 	       (error "Array size mismatch.")))
 	  (t (labels ((scan-over (element)
 			(if (arrayp element)
 			    (aops:each #'scan-over element)
-			    (apply (lambda (left right) (apply-scalar-function function left right))
+			    (apply (lambda (left right) (apply-scalar-dyadic function left right))
 				   (cond (alpha-scalar? (list alpha element))
 					 (alpha-unitary? (list (aref alpha 0)
 							       element))
@@ -75,11 +82,9 @@
 	     (if (eq :scalar (first arg-specs))
 		 ;; for a scalar function, return both monadic and dyadic variants if applicable
 		 (if (eq :dyadic (second arg-specs))
-		     ``(funcall #'apply-scalar-function
-				;;,(of-utilities ,*apex-idiom* :apply-scalar-dyadic)
-				,,fn ,(macroexpand ,alpha-sym)
+		     ``(funcall #'apply-scalar-dyadic ,,fn ,(macroexpand ,alpha-sym)
 				,(macroexpand ,omega-sym))
-		     ``(aops:each ,,fn ,(macroexpand ,omega-sym)))
+		     ``(funcall #'apply-scalar-monadic ,,fn ,(macroexpand ,omega-sym)))
 		 ;; assign the alpha, omega and axis argument specs
 		 (let ((alpha (if (and (second arg-specs)
 				       (not (eq :axes (second arg-specs))))
@@ -236,13 +241,8 @@
 	    :format-value #'format-value
 	    :format-function #'format-function
 	    :mediate-operation-macro 'mediate-operation
-	    :apply-scalar-monadic
-	    (lambda (function omega)
-	      (labels ((apply-fn (arg) (if (arrayp arg)
-					   (aops:each #'apply-fn arg)
-					   (funcall function arg))))
-		(aops:each #'apply-fn omega)))
-	    :apply-scalar-dyadic #'apply-scalar-function)
+	    :apply-scalar-monadic #'apply-scalar-monadic
+	    :apply-scalar-dyadic #'apply-scalar-dyadic)
  (operators (/ (has :title "Reduce")
  	       (right (lambda (axes functions operand)
  			(let ((new-array (copy-array operand)))
@@ -318,7 +318,7 @@
  	   						  right-operand placeholder))
  	   			  `(let ((new-array (alexandria:copy-array ,operand)))
  	   			     (if ,right-operand
- 	   				 ;; (apply-scalar-function ,(first (last (first functions)))
+ 	   				 ;; (apply-scalar-dyadic ,(first (last (first functions)))
  	   				 ;; 			      ,right-operand
  	   				 ;; 			      (make-array (dims ,right-operand)
  	   				 ;; 					  :initial-element (aref new-array 0)))
@@ -342,9 +342,9 @@
  	   		       (if (and (first functions)
  	   				(second functions))
  	   			   (if right-operand
- 	   			       `(apply-scalar-function ,(third (second functions))
- 	   						       ,operand (aops:each ,(second (first functions))
- 	   									   ,right-operand))
+ 	   			       `(apply-scalar-dyadic ,(third (second functions))
+							     ,operand (aops:each ,(second (first functions))
+										 ,right-operand))
  	   			       `(aops:each ,(cadadr functions)
  	   					   (aops:each ,(cadar functions)
  	   						      ,operand)))))))))
@@ -532,11 +532,11 @@
 	    (∧ (has :title "And")
 	       (dyadic (args :scalar lcm))
 	       (tests (is "0 1 0 1 ∧ 0 0 1 1" #(0 0 0 1))))
-	    (⍲ (Has :Title "Nand")
+	    (⍲ (has :title "Nand")
 	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (not (and (= alpha 1) (= omega 1)))))))
 	       (tests (is "0 1 0 1 ⍲ 0 0 1 1" #(1 1 1 0))))
 	    (⍱ (has :title "Nor")
-	       (dyadic (args :scalar gcd))
+	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (and (= alpha 0) (= omega 0))))))
 	       (tests (is "0 1 0 1 ⍱ 0 0 1 1" #(1 0 0 0))))
      	    (∨ (has :title "Or")
 	       (dyadic (args :scalar (boolean-op (lambda (alpha omega) (not (and (= alpha 0) (= omega 0)))))))
@@ -696,6 +696,7 @@
 	    (⍷ (has :title "Find")
 	       (dyadic (args :any :any find-array)))
 	    (⊂ (has :titles ("Enclose" "Partition"))
+	       ;; TODO: add axis option
 	       (ambivalent (args :any (lambda (omega)
 	    				(if (loop for dim in (dims omega) always (= 1 dim))
 	    				    omega (make-array (list 1) :initial-element omega))))
@@ -729,6 +730,7 @@
 	       (tests (is "⊂3 4⍴⍳7" #(#2A((1 2 3 4) (5 6 7 1) (2 3 4 5))))
 	    	      (is "1 1 2 2 2 3 3 3 3⊂⍳9" #(#(1 2) #(3 4 5) #(6 7 8 9)))))
 	    (⊃ (has :titles ("Mix" "Pick"))
+	       ;; TODO: add axis option
 	       (ambivalent (args :any (lambda (omega)
 	    				;; currently works for vectors only
 	    				(let ((output (make-array
@@ -741,8 +743,9 @@
 	    					    (aref (aref omega index) sub-index))))
 	    				  output)))
 	    		   (args :one :any (lambda (alpha omega)
-	    				     (apply #'aref (cons omega (array-to-list (aref alpha 0))))))))
-	    (∪ (has :titles ("Union" "Unique"))
+	    				     (apply #'aref (cons omega (array-to-list (aref alpha 0)))))))
+	       (tests (is "⊃(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))))
+	    (∪ (has :titles ("Unique" "Union"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(if (not (vectorp omega))
 	    				    (error "Argument must be a vector.")
@@ -753,6 +756,9 @@
 	    					    (setq uniques (cons (aref omega index)
 	    								uniques))))
 	    				      (make-array (list (length uniques))
+							  :element-type (cond ((stringp alpha)
+									       'character)
+									      (t t))
 	    						  :initial-contents (reverse uniques))))))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (if (or (not (vectorp alpha))
@@ -766,8 +772,15 @@
 	    								     uniques))))
 	    					   (concatenate 'vector alpha
 	    							(make-array (list (length uniques))
+									    :element-type (cond ((stringp alpha)
+												 'character)
+												(t t))
 	    								    :initial-contents
-	    								    (reverse uniques)))))))))
+	    								    (reverse uniques))))))))
+	       (tests (is "∪1 2 3 4 5 1 2 8 9 10 11 7 8 11 12" #(1 2 3 4 5 8 9 10 11 7 12))
+		      (is "∪'abcdabghiabz'" "abcdghiz")
+		      ;; TODO: is behavior below correct?
+		      (is "3 10 14 18 11∪9 4 5 10 8 3" #(3 10 14 18 11 9 4 5 8))))
 	    (∩ (has :title "Intersection")
 	       (dyadic (args :any :any (lambda (alpha omega)
 	    				 (if (or (not (vectorp alpha))
@@ -780,7 +793,12 @@
 	    					     (setq matches (cons (aref alpha index)
 	    								 matches))))
 	    				       (make-array (list (length matches))
-	    						   :initial-contents (reverse matches))))))))
+							   :element-type (cond ((stringp alpha)
+										'character)
+									       (t t))
+	    						   :initial-contents (reverse matches)))))))
+	       (tests (is "'MIXTURE'∩'LATER'" "TRE")
+		      (is "1 4 8∩⍳5" #(1 4))))
 	    (⌽ (has :titles ("Reverse" "Rotate"))
 	       (ambivalent (args :any :axes (lambda (omega &optional axes)
 	    				      (if (vectorp omega)
@@ -929,7 +947,7 @@
 	    							(error "Base/element length mismatch.")
 	    							alpha))))
 	    				     (if (= 1 (rank omega))
-	    					 (rebase bases omega)
+	    					 (vector (rebase bases omega))
 	    					 (aops:margin (lambda (sub-array) (rebase bases sub-array))
 	    						      omega 0)))))))
 	       (tests (is "10⊥2 6 7 1" #(2671))
