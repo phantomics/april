@@ -147,7 +147,6 @@
 								`(lambda (meta axes functions operand
 									  &optional right-operand)
 								   (declare (ignorable meta axes right-operand))
-								   ;;(print (list functions operand))
 								   `(funcall ,',(second (third (first pairs)))
 									     ,(cons 'list axes)
 									     ,(if (listp (first functions))
@@ -235,7 +234,7 @@
 			(list ,@(third operator-specs)))
 
 		  (defvar ,idiom-symbol)
-		  
+
 		  (defmacro ,(intern (string-upcase symbol)
 				     (package-name *package*))
 		      (options &optional input-string)
@@ -580,12 +579,12 @@
 				`(let ,vars-declared)
 				'(progn))
 			    ,@compiled-expressions
-			    ,@(if (getf state :out)
+			    ,@(if output-vars
 				  (list (cons 'values (mapcar (lambda (return-var)
 								(gethash (intern (lisp->camel-case return-var)
 										 "KEYWORD")
 									 (gethash :variables meta)))
-							      (getf state :out))))))))
+							      output-vars)))))))
 
 	      (if (assoc :compile-only options)
 		  `(quote ,code)
