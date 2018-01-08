@@ -444,7 +444,7 @@
 	       (ambivalent :asymmetric-scalar ceiling max)
 	       (tests (is "⌈1.0001" #(2))
 		      (is "⌈1.9998" #(2))
-		      (is "3⌈0 1 2 3 4 5" #(3 3 3 4 5))))
+		      (is "3⌈0 1 2 3 4 5" #(3 3 3 3 4 5))))
      	    (⌊ (has :titles ("Floor" "Minimum"))
 	       (ambivalent :asymmetric-scalar floor min)
 	       (tests (is "⌊1.0001" #(1))
