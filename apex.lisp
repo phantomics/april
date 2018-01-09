@@ -317,8 +317,7 @@
  	   				  operand right-operand)
  	   		      (if (and (vectorp operand)
  	   			       (vectorp right-operand))
- 	   			  ;; NOTE: this is a hack and has problems,
- 	   			  ;; how to better control for the type of argument?
+ 	   			  ;; TODO: improve logic for the argument?
  	   			  (make-array (list 1)
  	   				      :initial-element
  	   				      (reduce (first (last (second functions)))
@@ -333,6 +332,8 @@
 							       (funcall f1 arg1 arg2))))
  	   					       (first (last (second functions))))))))
  	   	(tests (is "2 3 4+.×8 15 21" #(145))
+		       (is "2 3 4+.×3 3⍴3 1 4 1 5 9 2 6 5" #(17 41 55))
+		       (is "(3 3⍴3 1 4 1 5 9 2 6 5)+.×2 3 4" #(25 53 42))
  	   	       (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))))
  	    (\¨ (has :title "Each")
  	   	(right (macro (lambda (meta axes functions operand &optional right-operand)
@@ -379,7 +380,8 @@
 	    			(if (eql 'lambda (first alpha))
 	    			     (setf (gethash :functions meta)
 	    			 	   (cons omega (gethash :functions meta))))
-	    			`(setq ,omega ,alpha)))))
+	    			`(setq ,omega ,alpha))))
+	       (tests (is "x←55 ◊ 1+3 ◊ x" #(55))))
 	    (⊣ (has :title "Left")
 	       (ambivalent (args :any (lambda (omega)
 	    				(declare (ignore omega))
@@ -977,10 +979,14 @@
 	    					 (= 1 (length omega)))
 	    				    (/ (aref omega 0))
 	    				    (invert-matrix omega))))
-	    		   ;; TODO: problems apparent with matrix divide
-	    		   (args :any :any (lambda (alpha omega) (array-inner-product (invert-matrix omega)
-	    									      alpha #'* #'+))))
-	       (tests (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))))
+	    		   (args :any :any (lambda (alpha omega)
+					     (array-inner-product (invert-matrix omega)
+								  alpha (lambda (arg1 arg2)
+									  (apply-scalar-dyadic #'* arg1 arg2))
+								  #'+))))
+	       (tests (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
+		      (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
+		      (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
 	    (⊤ (has :title "Encode")
 	       (dyadic (args :any :any (lambda (alpha omega)
 	    				 (flet ((rebase (bases number)
