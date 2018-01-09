@@ -242,7 +242,7 @@ If you just want to compile the code you enter into Apex without running it, use
 
 ### (restore-defaults)
 
-To restore all of Apex's state variables to the default values, enter the below:
+To restore all of Apex's state variables to the default values, enter:
 
 ```
 * (apex (restore-defaults))

@@ -261,22 +261,39 @@
     (/ (prod-enum (- (1+ n) k) n) (sprfact k))))
 
 (defun array-inner-product (operand1 operand2 function1 function2)
-  (aops:each (lambda (sub-vector)
-	       (if (vectorp sub-vector)
-		   (reduce function2 sub-vector)
-		   (funcall function2 sub-vector)))
-	     (aops:outer ;; (lambda (arg1 arg2)
-			 ;;   (if (or (arrayp arg1)
-			 ;; 	   (arrayp arg2))
-			 ;;       (apply-scalar-function function1 arg1 arg2)
-			 ;;       (funcall function1 arg1 arg2)))
-			 function1
-			 (aops:split (aops:permute (alexandria:iota (rank operand1))
-						   operand1)
-				     1)
-			 (aops:split (aops:permute (reverse (alexandria:iota (rank operand2)))
-						   operand2)
-				     1))))
+  (funcall (lambda (result)
+	     ;; disclose the result if the right argument was a vector and there is
+	     ;; a superfluous second dimension
+	     (if (vectorp operand1)
+		 (aref (aops:split result 1) 0)
+		 (if (vectorp operand2)
+		     (let ((nested-result (aops:split result 1)))
+		       (make-array (list (length nested-result))
+				   :initial-contents (loop for index from 0 to (1- (length nested-result))
+							  collect (aref (aref nested-result index) 0))))
+		     result)))
+	   (aops:each (lambda (sub-vector)
+			(if (vectorp sub-vector)
+			    (reduce function2 sub-vector)
+			    (funcall function2 sub-vector)))
+		      (aops:outer function1
+				  ;; enclose the argument if it is a vector
+				  (if (vectorp operand1)
+				      (vector operand1)
+				      (aops:split (aops:permute (alexandria:iota (rank operand1))
+								operand1)
+						  1))
+				  (if (vectorp operand2)
+				      (vector operand2)
+				      (aops:split (aops:permute (reverse (alexandria:iota (rank operand2)))
+								operand2)
+						  1))))))
+
+;; (apex "2 3 4+.×3 3⍴3 1 4 1 5 9 2 6 5")
+;; #2A((12 24 36) (18 36 54)) - wrong
+
+;; (apex "(2 3⍴2 3 4 2 3 4)+.×3 3⍴3 1 4 1 5 9 2 6 5")
+;; #2A((17 41 55) (17 41 55)) - right but doubled?
 
 (defun index-of (set to-search)
   (if (not (vectorp set))
