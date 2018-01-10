@@ -11,6 +11,23 @@
   (make-array (dims to-match)
 	      :initial-element (aref singleton 0)))
 
+(defun array-promote (array)
+  (make-array (cons 1 (dims array))
+	      :initial-contents (list (array-to-list array))))
+
+(defun array-to-list (array)
+  "Convert array to list."
+  (let* ((dimensions (dims array))
+         (depth (1- (length dimensions)))
+         (indices (make-list (1+ depth) :initial-element 0)))
+    (labels ((recurse (n)
+               (loop for j below (nth n dimensions)
+		  do (setf (nth n indices) j)
+		  collect (if (= n depth)
+			      (apply #'aref array indices)
+			      (recurse (1+ n))))))
+      (recurse 0))))
+
 (defun array-match (alpha omega)
   (let ((singleton-alpha (is-singleton alpha))
 	(singleton-omega (is-singleton omega)))
@@ -145,11 +162,13 @@
 				 new-array)
 		   new-array)))))
 
-(defun expand-array (degrees array axis default-axis &key (omit-zeroes nil))
+(defun expand-array (degrees array axis default-axis &key (compress-mode nil))
   (let* ((new-array (copy-array array))
 	 (a-rank (rank array))
 	 (axis (if axis axis default-axis))
-	 (singleton-array (loop for dim in (dims array) always (= 1 dim))))
+	 (singleton-array (loop for dim in (dims array) always (= 1 dim)))
+	 (char-array? (or (eql 'character (element-type array))
+			  (eql 'base-char (element-type array)))))
     (if (and singleton-array (< 1 a-rank))
     	(setq array (make-array (list 1)
 				:element-type (element-type array)
@@ -167,20 +186,23 @@
 						   (loop for items from 1 to degree
 						      collect (aref array-segments segment-index)))
 						  ((and (= 0 degree)
-							(not omit-zeroes))
+							(not compress-mode))
 						   (list (if (arrayp (aref array-segments 0))
 							     (make-array (dims (aref array-segments 0))
 									 :element-type (element-type array)
-									 :initial-element 0)
-							     0)))
+									 :initial-element
+									 (if char-array? #\  0))
+							     (if char-array? #\  0))))
 						  ((> 0 degree)
 						   (loop for items from -1 downto degree
 						      collect (if (arrayp (aref array-segments 0))
 								  (make-array (dims (aref array-segments 0))
 									      :element-type (element-type array)
-									      :initial-element 0)
-								  0))))
-				     do (if (not singleton-array)
+									      :initial-element
+									      (if char-array? #\  0))
+								  (if char-array? #\  0)))))
+				     do (if (and (not singleton-array)
+						 (or compress-mode (< 0 degree)))
 					    (incf segment-index 1))))
 			(output (aops:combine (make-array (length expanded)
 							  :element-type (element-type array)
@@ -289,12 +311,6 @@
 								operand2)
 						  1))))))
 
-;; (apex "2 3 4+.×3 3⍴3 1 4 1 5 9 2 6 5")
-;; #2A((12 24 36) (18 36 54)) - wrong
-
-;; (apex "(2 3⍴2 3 4 2 3 4)+.×3 3⍴3 1 4 1 5 9 2 6 5")
-;; #2A((17 41 55) (17 41 55)) - right but doubled?
-
 (defun index-of (set to-search)
   (if (not (vectorp set))
       (error "Rank error.")
@@ -358,7 +374,6 @@
 					 (if (arrayp val2)
 					     (funcall compare-by val1 (aref val2 0))
 					     (let ((output (funcall compare-by val1 val2)))
-					       (print (list :oo output val1 val2))
 					       (and output (not (eq :equal output))))))
 					((not (arrayp val2))
 					 (funcall compare-by (aref val1 0)
@@ -433,6 +448,32 @@
 		       :dimensions dimensions :start-at start-at :limit limit)
 	      (funcall function (apply #'aref (cons array (append indices (list elix))))
 		       (append indices (list elix)))))))
+
+(defun mix-arrays (axis arrays &optional max-dims)
+  (let ((permute-dims (if (vectorp arrays)
+			  (alexandria:iota (1+ (rank (aref arrays 0))))))
+	(max-dims (if max-dims max-dims
+		      (let ((mdims (make-array (list (array-total-size arrays))
+					       :displaced-to (aops:each #'dims arrays))))
+			(loop for dx from 0 to (1- (length (aref mdims 0)))
+			   collect (apply #'max (array-to-list (aops:each (lambda (n) (nth dx n))
+									  mdims))))))))
+    (if (vectorp arrays)
+	(apply #'aops:stack
+	       (cons axis (loop for index from 0 to (1- (length arrays))
+			     collect (aops:permute (rotate-right axis permute-dims)
+						   (array-promote
+						    (if (not (equalp max-dims (dims (aref arrays index))))
+							(let ((out-array (make-array max-dims)))
+							  (run-dim (aref arrays index)
+								   (lambda (item coords)
+								     (setf (apply #'aref (cons out-array coords))
+									   item)))
+							  out-array)
+							(aref arrays index)))))))
+	(aops:combine (aops:each (lambda (sub-arrays)
+				   (mix-arrays axis sub-arrays max-dims))
+				 (aops:split arrays 1))))))
 
 (defun invert-matrix (in-matrix)
   (let ((dim (array-dimension in-matrix 0))   ;; dimension of matrix

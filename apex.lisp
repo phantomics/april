@@ -2,23 +2,6 @@
 
 (in-package #:apex)
  
-(defun array-to-list (array)
-  "Convert array to list."
-  (let* ((dimensions (dims array))
-         (depth (1- (length dimensions)))
-         (indices (make-list (1+ depth) :initial-element 0)))
-    (labels ((recurse (n)
-               (loop for j below (nth n dimensions)
-		  do (setf (nth n indices) j)
-		  collect (if (= n depth)
-			      (apply #'aref array indices)
-			      (recurse (1+ n))))))
-      (recurse 0))))
-
-(defun array-promote (array)
-  (make-array (cons 1 (dims array))
-	      :initial-contents (list (array-to-list array))))
-
 (defun is-singleton (value)
   "Determine whether an array is a singleton, i.e. possesses just one member."
   (or (and (atom value)
@@ -656,7 +639,18 @@
 		      (is "2↓[3]2 3 4⍴⍳9" #3A(((3 4) (7 8) (2 3)) ((6 7) (1 2) (5 6))))))
 	    (⌷ (has :title "Axis")
 	       (dyadic (args :any :any (lambda (alpha omega)
-	    				 (apply #'aref (cons omega (array-to-list alpha)))))))
+	    				 (let ((found (apply #'aref (cons omega
+									  (mapcar (lambda (coord)
+										    (- coord
+										       (of-state *apex-idiom*
+												 :count-from)))
+										  (array-to-list alpha))))))
+					   (if (not (arrayp found))
+					       (vector found)
+					       found)))))
+	       (tests (is "3⌷⍳9" #(3))
+		      (is "2 2⌷4 5⍴⍳9" #(7))
+		      (is "2 3 4⌷4 5 6⍴⍳9" #(1))))
 	    (\, (has :titles ("Catenate or Laminate" "Ravel"))
 	    	(ambivalent (args :any (lambda (omega)
 	    				 (if (vectorp omega)
@@ -678,22 +672,14 @@
 							alpha omega)
 					    ;; laminate in the case of a fractional axis argument
 					    ;; TODO: problems persist with laminate logic
-					    (aops:stack (ceiling (- (aref (first axes) 0)
-								    (of-state *apex-idiom* :count-from)))
-							(aops:permute (rotate-right (ceiling
-										     (- (aref (first axes) 0)
-											(of-state *apex-idiom*
-												  :count-from)))
-										    (alexandria:iota
-										     (1+ (rank alpha))))
-								      (array-promote alpha))
-							(aops:permute (rotate-right (ceiling
-										     (- (aref (first axes) 0)
-											(of-state *apex-idiom*
-												  :count-from)))
-										    (alexandria:iota
-										     (1+ (rank omega))))
-								      (array-promote omega))))))))
+					    (let ((axis (ceiling (- (aref (first axes) 0)
+								    (of-state *apex-idiom* :count-from))))
+						  (permute-dims (alexandria:iota (1+ (rank alpha)))))
+					      (aops:stack axis
+							  (aops:permute (rotate-right axis permute-dims)
+									(array-promote alpha))
+							  (aops:permute (rotate-right axis permute-dims)
+									(array-promote omega)))))))))
 	    	(tests (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
 	    	       (is "(3 6⍴⍳6),3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
 	    					 (1 2 3 4 5 6 9 1 2 3)))
@@ -734,7 +720,7 @@
 	    				     omega (if axes (- (rank omega)
 	    						       (- (aref (first axes) 0)
 	    							  (1- (of-state *apex-idiom* :count-from)))))
-	    				     0 :omit-zeroes t))))
+	    				     0 :compress-mode t))))
 	       (tests (is "1 0 1 0 1/⍳5" #(1 3 5))
 	    	      (is "1 ¯2 3 ¯4 5/3 5⍴⍳5" #2A((1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
 						   (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
@@ -749,7 +735,7 @@
 	    						       (- (aref (first axes) 0)
 	    							  (1- (of-state *apex-idiom* :count-from)))))
 	    				     (1- (rank omega))
-	    				     :omit-zeroes t))))
+	    				     :compress-mode t))))
 	       (tests (is "1 0 1 0 1⌿⍳5" #(1 3 5))
 		      (is "1 ¯2 3⌿3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
 					      (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6)))
@@ -759,11 +745,14 @@
 	    (\\ (has :title "Expand")
 	    	(dyadic (args :any :any :axes
 	    		      (lambda (alpha omega &optional axes)
-	    			(expand-array (array-to-list alpha) ;;[1] 1 [2] 0 / [0] 1 [1] 0
+	    			(expand-array (array-to-list alpha)
 	    				      omega (if axes (- (rank omega)
 	    							(- (aref (first axes) 0)
 	    							   (1- (of-state *apex-idiom* :count-from)))))
-	    				      0)))))
+	    				      0))))
+		(tests (is "1 ¯2 3 ¯4 5\\ '.'" ".  ...    .....")
+		       (is "1 ¯2 2 0 1\\3+2 3 ⍴⍳6" #2A((4 0 0 5 5 0 6) (7 0 0 8 8 0 9)))
+		       (is "1 0 1\\[1]3+2 3 ⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
 	    (⍀ (has :title "Expand First")
 	       (dyadic (args :any :any :axes
 	    		     (lambda (alpha omega &optional axes)
@@ -771,16 +760,28 @@
 	    				     omega (if axes (- (rank omega)
 	    						       (- (aref (first axes) 0)
 	    							  (1- (of-state *apex-idiom* :count-from)))))
-	    				     (1- (rank omega)))))))
+	    				     (1- (rank omega))))))
+	       (tests (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
+		      (is "1 0 1⍀3+2 3 ⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
 	    (⍷ (has :title "Find")
 	       (dyadic (args :any :any find-array))
 	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
 						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
 	    (⊂ (has :titles ("Enclose" "Partition"))
-	       ;; TODO: add axis option
-	       (ambivalent (args :any (lambda (omega)
-	    				(if (loop for dim in (dims omega) always (= 1 dim))
-	    				    omega (make-array (list 1) :initial-element omega))))
+	       ;; TODO: add multi-axis option
+	       (ambivalent (args :any :axes
+				 (lambda (omega &optional axes)
+				   (if axes
+				       (aops:split (aops:permute (sort (alexandria:iota (rank omega))
+								       (lambda (a b)
+									 (declare (ignore a))
+									 (= b (- (aref (first axes) 0)
+										 (of-state *apex-idiom*
+											   :count-from)))))
+								 omega)
+						   (1- (rank omega)))
+				       (if (loop for dim in (dims omega) always (= 1 dim))
+					   omega (make-array (list 1) :initial-element omega)))))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (if (/= (length alpha) (length omega))
 	    					 (error "Length mismatch.")
@@ -809,21 +810,21 @@
 	    					   (make-array (list (length output))
 	    						       :initial-contents (reverse output)))))))
 	       (tests (is "⊂3 4⍴⍳7" #(#2A((1 2 3 4) (5 6 7 1) (2 3 4 5))))
+		      (is "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #2A(("GRAY" "GOLD" "BLUE") ("SILK" "WOOL" "YARN")))
+		      (is "⊂[2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #2A(("GGB" "ROL" "ALU" "YDE") ("SWY" "IOA" "LOR" "KLN")))
+		      (is "⊂[1]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #2A(("GS" "RI" "AL" "YK") ("GW" "OO" "LO" "DL") ("BY" "LA" "UR" "EN")))
 	    	      (is "1 1 2 2 2 3 3 3 3⊂⍳9" #(#(1 2) #(3 4 5) #(6 7 8 9)))))
 	    (⊃ (has :titles ("Mix" "Pick"))
-	       ;; TODO: add axis option
-	       (ambivalent (args :any
-				 (lambda (omega)
-				   ;; currently works for vectors only
-				   (let ((output (make-array
-						  (list (length omega)
-							(apply #'max (array-to-list (aops:each #'length
-											       omega)))))))
-				     (dotimes (index (length omega))
-				       (dotimes (sub-index (length (aref omega index)))
-					 (setf (aref output index sub-index)
-					       (aref (aref omega index) sub-index))))
-				     output)))
+	       (ambivalent (args :any :axes
+				 (lambda (omega &optional axes)
+				   (mix-arrays (if axes (ceiling (- (1+ (rank omega))
+								    (aref (first axes) 0)
+								    (of-state *apex-idiom* :count-from)))
+						   0)
+					       omega)))
 	    		   (args :any :any (lambda (alpha omega)
 					     (labels ((layer-index (object indices)
 							(if indices
@@ -838,6 +839,15 @@
 								       :element-type (element-type omega)
 								       :initial-element found)))))))
 	       (tests (is "⊃(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))
+		      (is "⊃[0.5](1)(1 2)(1 2 3)" #2A((1 1 1) (0 2 2) (0 0 3)))
+		      (is "⊃(2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
+						  ((1 2 0) (3 4 0) (5 6 0) (7 8 0))))
+		      (is "⊃[0.5](2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 4 0 0) (1 3 5 7)) ((2 5 0 0) (2 4 6 8))
+						       ((3 1 0 0) (0 0 0 0))))
+		      (is "⊃[1.5](2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
+						       ((1 2 0) (3 4 0) (5 6 0) (7 8 0))))
+		      (is "⊃2 2 2⍴(1)(1 2)(3 4)(1 2 3)" #4A((((1 0 0) (1 2 0)) ((3 4 0) (1 2 3)))
+							    (((1 0 0) (1 2 0)) ((3 4 0) (1 2 3)))))
 		      (is "2⊃(1 2 3)(4 5 6)(7 8 9)" #(4 5 6))
 		      (is "(2 2)⊃(1 2 3)(4 5 6)(7 8 9)" #(5))))
 	    (∪ (has :titles ("Unique" "Union"))
@@ -938,7 +948,7 @@
 	       (tests (is "⊖1 2 3 4 5" #(5 4 3 2 1))
 	    	      (is "⊖3 4⍴⍳9" #2A((9 1 2 3) (5 6 7 8) (1 2 3 4)))
 	    	      (is "1⊖3 4⍴⍳9" #2A((5 6 7 8) (9 1 2 3) (1 2 3 4)))))
-	    (⍉ (has :titles ("Reverse Axes" "Transpose"))
+	    (⍉ (has :titles ("Transpose" "Permute"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(aops:permute (reverse (alexandria:iota (rank omega)))
 	    					      omega)))
@@ -1061,5 +1071,7 @@
 				 `(apex ,omega))))
 	       (tests (is "⍎'1+1'" #(2))))
 	    (∘ (has :title "Find Outer Product, Not Inner")
-	       (symbolic :outer-product-designator))
-	       ))
+	       (symbolic :outer-product-designator)))
+ (general-tests (with :title "Basic function definition and use."
+		      :in ("fn←{⍵+3} ◊ fn 1 2 3 4 5")
+		      :ex #(4 5 6 7 8))))
