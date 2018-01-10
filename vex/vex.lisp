@@ -307,10 +307,13 @@
 			  ;; note: nested quotes must be checked backwards; to determine whether a delimiter
 			  ;; indicates the end of the quote, look at previous character to see whether it is a
 			  ;; delimiter, then check whether the current character is an escape character #\\
-			  (=subseq (%any (?satisfies (lambda (c) (if (or (not lastc)
-									 (not (char= lastc delimiter))
-									 (char= c #\\))
-								     (setq lastc c)))))))
+			  (=subseq (%any (?satisfies (lambda (c)
+						       ;; TODO: this causes a problem when a quote mark ' or "
+						       ;; is immediately preceded by a slash: 2\'.'
+						       (if (or (not lastc)
+							       (not (char= lastc delimiter))
+							       (char= c #\\))
+							   (setq lastc c)))))))
 		 (format nil "~a~a" delimiter content))))
 
 	   (=vex-opglyphs ()
@@ -329,6 +332,8 @@
 			       (if (not (getf ops :fn))
 				   (setf (getf ops :fn) glyph)
 				   (if (and (getf ops :op)
+					    (member (getf ops :op)
+						    (getf (idiom-opindex idiom) :center))
 					    (not (getf ops :afn)))
 				       (setf (getf ops :afn) glyph))))
 			      (t nil))))
@@ -498,17 +503,22 @@
 					  (eql 'lambda (first operation))))
 				 (gethash (getf operation :afn)
 					  (idiom-functions idiom)))))
-	(vex-expression idiom meta (second value-results)
-			(apply (cond (operator operator)
-				     (function (first function))
-				     (t (lambda (&rest items) (third items))))
-			       (append (list meta operation-axes)
-				       (if operator
-					   (list (cons function (if alpha-function (list alpha-function)))))
-				       (if (first value-results)
-					   (list (funcall (of-utilities idiom :format-object)
-							  (first value-results))))
-				       (if precedent (list precedent))))))))
+	(if (and (not operation)
+		 (not (first value-results)))
+	    ;; if there's still a string, pass it through again with :f-compositional as precedent,
+	    ;; indicating that this expression probabably consists of functions being composed by an operator.
+	    (vex-expression idiom meta string :f-compositional)
+	    (vex-expression idiom meta (second value-results)
+			    (apply (cond (operator operator)
+					 (function (first function))
+					 (t (lambda (&rest items) (third items))))
+				   (append (list meta operation-axes)
+					   (if operator
+					       (list (cons function (if alpha-function (list alpha-function)))))
+					   (if (first value-results)
+					       (list (funcall (of-utilities idiom :format-object)
+							      (first value-results))))
+					   (if precedent (list precedent)))))))))
 
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."

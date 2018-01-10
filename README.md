@@ -6,7 +6,13 @@
 
 Ken Iverson's masterpiece reflected in the medium of Lisp.
 
-Apex compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numerical processing faculties, it brings APL's expressive power to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
+Apex compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numerical processing faculties, it brings APL's expressive potential to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
+
+## Why Apex?
+
+APL veritably hums with semantic power. As a handful of characters run through the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic (and often costly) runtime environments. If you have a store of data you'd like to use with APL, getting it there can be an ordeal. Like hauling tons of cargo on donkeys' backs through a narrow mountain pass, it's not fun, and the prospect of it has ended many conversations about APL before they could begin.
+
+But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL transforms numeric patterns. With APL inside of Lisp, databases, streams, binary files and other expressive media are just a few lines of code away from processing with APL.
 
 ## Installation
 
@@ -261,7 +267,6 @@ Actually, it's easier to list what's -not- implemented.
 
 ```
 ⍣ Power
-⍠ Variant
 ```
 
 ## What's Not Implemented And Won't Be
@@ -291,7 +296,7 @@ Actually, it's easier to list what's -not- implemented.
 ⌶ I-Beam
 ```
 
-See a pattern? The functions not planned for implentation are all those that manifest interactions between an APL instance and computer I/O devices. In Apex, it's intended for functionality like this to be accessed through the host Common Lisp instance.
+See a pattern? The functions not planned for implentation are all those that manifest low-level interactions between the APL instance and the underlying computer system. Common Lisp already has powerful tools for system interaction, so it's presumed that developers will do things like this outside of Apex.
 
 ## Also not implemented
 
