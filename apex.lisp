@@ -668,7 +668,7 @@
 	    				 (if (vectorp omega)
 	    				     omega (make-array (list (array-total-size omega))
 							       :element-type (element-type omega)
-	    						       :displaced-to omega))))
+	    						       :displaced-to (copy-array omega)))))
 	    		    (args :any :any :axes
 	    			  (lambda (alpha omega &optional axes)
 	    			    (if (and (not axes)
