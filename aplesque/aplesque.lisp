@@ -190,8 +190,7 @@
 						   (list (if (arrayp (aref array-segments 0))
 							     (make-array (dims (aref array-segments 0))
 									 :element-type (element-type array)
-									 :initial-element
-									 (if char-array? #\  0))
+									 :initial-element (if char-array? #\  0))
 							     (if char-array? #\  0))))
 						  ((> 0 degree)
 						   (loop for items from -1 downto degree
@@ -204,9 +203,13 @@
 				     do (if (and (not singleton-array)
 						 (or compress-mode (< 0 degree)))
 					    (incf segment-index 1))))
-			(output (aops:combine (make-array (length expanded)
-							  :element-type (element-type array)
-							  :initial-contents expanded))))
+			(output (funcall (if (< 1 (rank array))
+					     #'aops:combine (lambda (x) x))
+					 ;; combine the resulting arrays if the original is multidimensional,
+					 ;; otherwise just make a vector
+					 (make-array (length expanded)
+						     :element-type (element-type array)
+						     :initial-contents expanded))))
 		   (if (not (= axis (1- a-rank)))
 		       (aops:permute (rotate-right (- a-rank 1 axis)
 						   (alexandria:iota a-rank))
