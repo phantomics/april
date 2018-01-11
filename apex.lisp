@@ -221,7 +221,10 @@
        ;; kludge to handle reversing the variable order
        ;; the latter variable is always the optional one in Lisp, but in APL
        ;; the ⍺ is the optional argument
-       (if ,⍵ (funcall (lambda (,⍺ ,⍵) ,content) ,⍵ ,⍺)
+       (if ,⍵ (funcall (lambda (,⍺ ,⍵)
+			 (declare (ignorable ,⍺))
+			 ,content)
+		       ,⍵ ,⍺)
 	     (funcall (lambda (,⍵) ,content) ,⍺)))))
 
 (vex-spec
@@ -353,14 +356,13 @@
 				   (if (eq :f-compositional operand)
 				       (if right-operand
 					   `(lambda (alpha omega)
-					      (apply-scalar-dyadic ,(third (second functions))
-								   omega (apply-scalar-monadic
-									  ,(second (first functions))
-									  alpha)))
+					      (funcall ,(third (second functions))
+						       omega (funcall ,(second (first functions))
+								      alpha)))
 					   `(lambda (omega)
-					      (apply-scalar-monadic ,(cadadr functions)
-								    (apply-scalar-monadic ,(cadar functions)
-											  omega))))
+					      (funcall ,(cadadr functions)
+						       (funcall ,(cadar functions)
+								omega))))
 				       (if right-operand
 					   `(apply-scalar-dyadic ,(third (second functions))
 								 ,operand (apply-scalar-monadic
