@@ -191,6 +191,9 @@
 		  (char= #\' (aref element (1- (length element))))))
 	 (subseq element 1 (1- (length element))))
 	((stringp element)
+	 (if (not (gethash :variables meta))
+	     (setf (gethash :variables meta)
+		   (make-hash-table :test #'eq)))
 	 (let ((variable-found (gethash (intern element "KEYWORD")
 					(gethash :variables meta))))
 	   (if variable-found
@@ -236,7 +239,9 @@
 		     "⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣◊┘┌█▄▌▐▀"
 		     "⍺⍹⊂⊃⍝⍲⍴⍱⌽⊖○∨⍳⍉∈∩⌿⍀≥≤≠×÷⍙∘⍵⍫⍋⍒¯¨"))
  (utilities :match-blank-character
-	    (lambda (char) (member char (list #\  #\tab)))
+	    (lambda (char) (member char (list #\  #\Tab)))
+	    :match-newline-character
+	    (lambda (char) (member char (list #\◊ #\Newline #\Return)))
 	    :match-token-character
 	    (lambda (char)
 	      ;; the ¯ character must be expressed as #\macron to be correctly processed
