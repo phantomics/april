@@ -248,6 +248,15 @@
 	      ;; the ̄ (combining_macron) character can be denoted normally, however
 	      (or (alphanumericp char)
 		  (member char (list #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
+	    :prep-code-string
+	    (lambda (string)
+	      ;; remove comments, including comment-only lines
+	      (regex-replace-all (concatenate 'string "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
+					      ;;"|^\\s{0,}[\\r\\n]"
+					      ;;"|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
+					      ;;"|(?<=[\\r\\n])\\s{0,}[\\r\\n]"
+					      "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
+				 string ""))
 	    :format-value #'format-value
 	    :format-object #'format-array
 	    :format-function #'format-function
@@ -382,7 +391,7 @@
 	    			(if (eql 'lambda (first alpha))
 	    			     (setf (gethash :functions meta)
 	    			 	   (cons omega (gethash :functions meta))))
-	    			`(setq ,omega ,alpha))))
+	    			`(setq ,omega ,(cadar alpha)))))
 	       (tests (is "x←55 ◊ 1+3 ◊ x" #(55))))
 	    (⊣ (has :title "Left")
 	       (ambivalent (args :any (lambda (omega)
