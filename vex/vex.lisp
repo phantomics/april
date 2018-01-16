@@ -65,11 +65,7 @@
 			,(if is-dyadic `(funcall (of-utilities ,idiom-symbol :apply-scalar-dyadic)
 						 ,discrete-function alpha omega)
 			     `(funcall (of-utilities ,idiom-symbol :apply-scalar-monadic)
-				       ,discrete-function omega)
-			     ;; `(if (arrayp omega)
-			     ;; 	  (aops:each ,discrete-function omega)
-			     ;; 	  (funcall ,discrete-function omega))
-			     )))))
+				       ,discrete-function omega))))))
 
 	     (assign-discrete-functions (entry)
 	       ;; return a list containing the function, or both functions if ambivalent
@@ -147,24 +143,18 @@
 									    "KEYWORD"))
 								(macroexpand
 								 (second (second (third (first pairs)))))
-								`(lambda (meta axes functions operand
-									  &optional right-operand)
-								   (declare (ignorable meta axes right-operand))
-								   `(funcall ,',(second (third (first pairs)))
-									     ,(cons 'list axes)
-									     ,(if (listp (first functions))
-										  (cons 'list
-											(mapcar
-											 (lambda (f)
-											   (if (listp f)
-											       (cons 'list (rest f))
-											       f))
-											 functions))
-										  (cons 'list (cdar functions)))
-									     ,operand
-									     ,@(if right-operand
-									     	   (list right-operand))
-									     )))))))
+								`(lambda
+								     ,(mapcar (lambda (item)
+										(intern item
+											(package-name *package*)))
+									      (list "META" "AXES" "FUNCTIONS"))
+								   (declare
+								    (ignore ,(intern "META"
+										     (package-name *package*)))
+								    (ignorable ,(intern "AXES"
+											(package-name *package*))))
+								   ,(macroexpand
+								     (second (third (first pairs))))))))))
 					  accumulator)))
 		   output))
 
@@ -238,9 +228,8 @@
 			,@(second function-specs)
 			,@(second operator-specs)
 			(idiom-opglyphs ,idiom-symbol)
-			(list ,@(derive-opglyphs
-				 (append (first function-specs)
-					 (first operator-specs))))
+			(list ,@(derive-opglyphs (append (first function-specs)
+							 (first operator-specs))))
 			(idiom-functions ,idiom-symbol)
 			fn-specs
 			(idiom-operators ,idiom-symbol)
@@ -353,26 +342,33 @@
 		 enclosed)))
 	   
 	   (handle-axes (input-string)
-	     (cons :axes (mapcar #'vector (mapcar #'caar (parse input-string (=vex-axes))))))
+	     (cons :axes (mapcar (lambda (item) (list 'vector item))
+				 (mapcar #'caar (parse input-string (=vex-axes))))))
 
 	   (handle-function (input-string)
 	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
 						(string-upcase (idiom-name idiom))
 						(vex-program idiom nil input-string))))
-	       (list :fndef (lambda (meta axes omega &optional alpha)
-			      (declare (ignorable meta axes))
-			      `(funcall ,formatted-function
-					,@(if alpha (list (macroexpand alpha)))
-					,(macroexpand omega)))))))
+	       (list :fndef (list (lambda (meta axes omega &optional alpha)
+				    (declare (ignorable meta axes))
+				    `(funcall ,formatted-function
+					      ,@(if alpha (list (macroexpand alpha)))
+					      ,(macroexpand omega)))
+				  ;; (lambda (omega &optional alpha)
+				  ;;   `(funcall ,formatted-function
+				  ;; 	      ,@(if alpha (list (macroexpand alpha)))
+				  ;; 	      ,(macroexpand omega)))
+				  ;; (lambda (omega &optional alpha)
+				  ;;   `(funcall ,formatted-function
+				  ;; 	      ,@(if alpha (list (macroexpand alpha)))
+				  ;; 	      ,(macroexpand omega)))
+				  )))))
 
     (setf (fdefinition '=vex-axes-parser) (=vex-axes))
 
     (=destructure (_ item _ rest _ nextlines)
 	(=list (%any (?blank-character))
-	       (%or (=transform (=subseq (%some (?token-character)))
-				(lambda (string) (funcall (of-utilities idiom :format-value)
-							  meta string)))
-		    (=vex-closure "()")
+	       (%or (=vex-closure "()")
 		    (=vex-closure "[]" #'handle-axes)
 		    (=vex-closure "{}" #'handle-function)
 		    (=string #\' #\")
@@ -391,7 +387,10 @@
 							  :right)
 							 ((member char (getf (idiom-opindex idiom) :center))
 							  :center))))
-				       ,char)))))
+				       ,char))))
+		    (=transform (=subseq (%some (?token-character)))
+				(lambda (string) (funcall (of-utilities idiom :format-value)
+							  meta string))))
 	       (%any (?blank-character))
 	       (=subseq (%any (?but-newline-character)))
 	       (%any (?newline-character))
@@ -418,6 +417,7 @@
   (if (not exp)
       precedent
       (labels ((assemble-value (exp &optional output)
+		 ;; (print (list :exp exp output))
 		 (if (or (not exp)
 			 (and (symbolp (first exp))
 			      (member (first exp)
@@ -427,17 +427,27 @@
 			      (if (eq :fndef (caar exp))
 				  (or output precedent)
 				  t)))
-		     (values (cond ((and (= 1 (length output))
+		     (values (cond ((and (listp (first exp))
+					 (eq :fn (caar exp))
+					 (and (not output)
+					      (not precedent)))
+				    :fun-comp)
+				   ((not output) nil)
+				   ;; disclose strings since they're treated as arrays
+				   ((and (= 1 (length output))
 					 (stringp (first output)))
 				    (first output))
+				   ;; disclose function definition objects
 				   ((and (listp (first output))
 					 (eq :fndef (caar output)))
 				    output)
+				   ;; disclose arrays and lists (which specify computed values)
+				   ;; disclose single symbols since any value they represent will be vectorized
 				   ((and (= 1 (length output))
-					 (or (listp (first output))
+					 (or (symbolp (first output))
+					     (listp (first output))
 					     (arrayp (first output))))
 				    (first output))
-				   ((not output) nil)
 				   (t (cons 'vector output)))
 			     (if (and (symbolp (first exp))
 				      (member (first exp)
@@ -448,14 +458,16 @@
 				       (rest exp))
 				 exp))
 		     (assemble-value (rest exp)
-				     (cons (if (listp (first exp))
+				     (cons (if (and (listp (first exp))
+						    (not (eq :fndef (caar exp))))
 					       (cons 'progn (mapcar (lambda (sub-exp)
 								      (vex-exp idiom meta sub-exp))
 								    (first exp)))
 					       (first exp))
 					   output))))
+
 	       (assemble-operation (exp &optional output)
-		 ;;(print (list :xx exp output))
+		 ;; (print (list :xx exp output))
 		 (let ((first-out (first output)))
 		   (if (or (not exp)
 			   ;; break on atoms or sub-lists
@@ -467,12 +479,22 @@
 					  (or (= 1 (length output))
 					      (and (= 2 (length output))
 						   (eq :axes (caadr output)))))
+				     ;; (print (list :oo output))
 				     ;; convert an interpreted operator to the overloaded function of the same
 				     ;; name if it appears in context as a function, i.e. with no accompanying
 				     ;; function to apply to the adjacent operand(s)
-				     (setf (first output)
-					   (list :fn (gethash (first (last (first output)))
-							      (idiom-functions idiom))))))
+				     (let ((glyph (first (last (first output)))))
+				       (setf (first output)
+					     (if (and (= 2 (length output))
+						      (eq :axes (caadr output)))
+						 (list :fn (list
+							    (lambda (meta axes omega &optional alpha)
+							      (declare (ignore axes))
+							      (funcall (first (gethash glyph
+										       (idiom-functions idiom)))
+								       meta (list (cadadr output))
+								       omega alpha))))
+						 (list :fn (gethash glyph (idiom-functions idiom))))))))
 			      (values output exp))
 		       (let ((processed (cond ((eq :fnref (caar exp))
 					       (list :fnref
@@ -482,31 +504,78 @@
 							     `(funcall ,(cadar exp)
 								       ,omega ,@(if alpha (list alpha)))))))
 					      ((eq :fndef (caar exp))
-					       (list :fndef (cadar exp)))
+					       ;;(print (list :exo exp output))
+					       (cond ((not output)
+						      (list :fndef (cadar exp)))
+						     ((and (eq :op (caar output))
+							   (eq :right (cadar output)))
+						      (print (list :eq (caadar exp)))
+						      (list :fn-composed
+							    (list (funcall (third (first output))
+									   meta nil (list (cadar exp))))))))
 					      ((eq :fn (caar exp))
-					       (cond ((or (not output)
-							  (and (= 1 (length output))
-							       (eq :axes (caar output))))
+					       (cond ((not output)
 					       	      (list :fn (gethash (cadar exp)
 									 (idiom-functions idiom))))
+						     ((and (= 1 (length output))
+							   (eq :axes (caar output)))
+						      (list :fn
+							    (list
+							     (lambda (meta axes omega &optional alpha)
+							       (declare (ignore axes))
+							       (funcall (first (gethash (cadar exp)
+											(idiom-functions idiom)))
+									meta (list (cadar output))
+									omega alpha)))))
 					       	     ((and (eq :op (caar output))
 					       		   (eq :right (cadar output)))
-						      ;;(print (list :ff (first output)))
 					       	      (list :fn-composed
 					       		    (list
 							     (funcall (third (first output))
 								      meta nil
 								      (list (gethash (cadar exp)
 										     (idiom-functions idiom)))))))
+						     ((and (eq :op (caar output))
+					       		   (eq :center (cadar output)))
+					       	      (list :fn-composed
+					       		    (list
+							     (funcall (third (first output))
+								      meta nil
+								      (list (cadadr output)
+									    (gethash (cadar exp)
+										     (idiom-functions idiom)))))))
 					       	     ((eq :fndef (first first-out))
+						      ;;(print (list :si first-out exp))
 					       	      (funcall (first (last (gethash (cadar exp)
 					       					     (idiom-functions idiom))))
 					       		       (second first-out)))))
 					      ((eq :op (caar exp))
-					       (list :op (first (rest (first exp)))
-						     (gethash (second (rest (first exp)))
-							      (idiom-operators idiom))
-						     (caddar exp)))
+					       ;; in case of a function-overloaded operator following a central
+					       ;; operator, fetch its corresponding function and compose with
+					       ;; the central operator
+					       (cond ((and (eq :op (caar output))
+							   (member (first (last (first exp)))
+								   (idiom-overloaded-lexicon idiom)))
+						      (let ((function (gethash (first (last (first exp)))
+									       (idiom-functions idiom))))
+							(list :fn-composed
+							      (list
+							       (funcall (third (first output))
+									meta nil
+									(list (cadadr output)
+									      function))))))
+						     (t (list :op (first (rest (first exp)))
+							      (if (and (= 1 (length output))
+								       (eq :axes (caar output)))
+								  (lambda (meta axes functions)
+								    (declare (ignore axes))
+								    (funcall (gethash (second (rest (first exp)))
+										      (idiom-operators idiom))
+									     meta (cons 'list (cdar output))
+									     functions))
+								  (gethash (second (rest (first exp)))
+									   (idiom-operators idiom)))
+							      (caddar exp)))))
 					      ((eq :axes (caar exp))
 					       (first exp)))))
 			 (if (and (eq :fn (caar exp))
@@ -521,6 +590,7 @@
 	(if (not precedent)
 	    (multiple-value-bind (right-value from-value)
 		(assemble-value exp)
+	      ;; (print (list :rv right-value from-value))
 	      (vex-exp idiom meta from-value right-value))
 	    (multiple-value-bind (operation from-operation)
 		(assemble-operation exp)
@@ -529,9 +599,7 @@
 		;; (print (list :mm operation precedent right-value))
 		(vex-exp idiom meta from-value
 			 (apply (first (cadar operation))
-				`(,meta ,(if (eq :axes (caadr operation))
-					     (list (cadadr operation)))
-					,@(if right-value (list right-value))
+				`(,meta nil ,@(if right-value (list right-value))
 					,precedent)))))))))
 
 ;; ((eq :funcall (caar operation))
