@@ -608,7 +608,7 @@
 	      ;; 										,operand))))))))
 	      (center (lambda (meta axes omega &optional alpha)
 			(declare (ignore axes))
-			(print (list :oo omega alpha functions))
+			;;(print (list :oo omega alpha functions))
 			(if (and (first functions)
 				 (second functions))
 			    (if (eq :fun-comp omega)
