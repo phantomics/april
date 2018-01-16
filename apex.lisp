@@ -322,9 +322,8 @@
 				      ((and (eq :op (caar output))
 					    (eq :right (cadar output)))
 				       (print (list :eq (caadar exp)))
-				       (list :fn-composed
-					     (list (funcall (third (first output))
-							    meta nil (list (cadar exp))))))))
+				       (list :fn-composed (list (funcall (third (first output))
+									 meta nil (list (cadar exp))))))))
 			       ((eq :fn (caar exp))
 				(cond ((not output)
 				       (list :fn (of-functions idiom (cadar exp))))
