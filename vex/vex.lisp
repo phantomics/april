@@ -362,11 +362,11 @@
 	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
 						(string-upcase (idiom-name idiom))
 						(vex-program idiom nil input-string))))
-	       (list :fndef (list (lambda (meta axes omega &optional alpha)
-				    (declare (ignorable meta axes))
-				    `(funcall ,formatted-function
-					      ,@(if alpha (list (macroexpand alpha)))
-					      ,(macroexpand omega)))
+	       (list :fn (list (lambda (meta axes omega &optional alpha)
+				 (declare (ignorable meta axes))
+				 `(funcall ,formatted-function
+					   ,@(if alpha (list (macroexpand alpha)))
+					   ,(macroexpand omega)))
 				  ;; (lambda (omega &optional alpha)
 				  ;;   `(funcall ,formatted-function
 				  ;; 	      ,@(if alpha (list (macroexpand alpha)))
@@ -443,9 +443,9 @@
 			 idiom meta #'vex-exp precedent from-operation)
 	      ;; (print (list :mm operation precedent right-value))
 	      (vex-exp idiom meta from-value
-		       (apply (first (cadar operation))
-			      `(,meta nil ,@(if right-value (list right-value))
-				      ,precedent))))))))
+		       (apply ;;(first (cadar operation))
+			operation `(,meta nil ,@(if right-value (list right-value))
+					  ,precedent))))))))
 
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
