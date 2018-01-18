@@ -64,46 +64,7 @@
   "Process the specification for a vector language and build functions that generate the code tree."
   (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
 			      (package-name *package*))))
-    (labels ((process-function-definition (is-dyadic is-scalar function-spec)
-	       (let ((discrete-function (if (and (listp (first function-spec))
-						 (macro-function (caar function-spec))
-						 (not (eql 'lambda (caar function-spec))))
-					    (macroexpand (append (first function-spec)
-								 (cons 'omega (if is-dyadic (list 'alpha)))))
-					    (cons 'function function-spec))))
-		 (if (not is-scalar)
-		     discrete-function
-		     `(lambda ,(if is-dyadic (list 'alpha 'omega)
-				   (list 'omega))
-			,(if is-dyadic `(funcall (of-utilities ,idiom-symbol :apply-scalar-dyadic)
-						 ,discrete-function alpha omega)
-			     `(funcall (of-utilities ,idiom-symbol :apply-scalar-monadic)
-				       ,discrete-function omega))))))
-
-	     (assign-discrete-functions (entry)
-	       ;; return a list containing the function, or both functions if ambivalent
-	       (let ((spec (third entry)))
-		 (if (eql 'monadic (first spec))
-		     (list (process-function-definition nil (eq :scalar (cadadr spec))
-							(last (first (last spec)))))
-		     (if (eql 'dyadic (first spec))
-			 (list (process-function-definition t (eq :scalar (cadadr spec))
-							    (last (first (last spec)))))
-			 (list (if (listp (second spec))
-				   (process-function-definition nil (or (eq :symmetric-scalar (second spec))
-									(eq :scalar (cadadr spec)))
-								(last (second spec)))
-				   (process-function-definition nil t (if (eq :symmetric-scalar (second spec))
-									  (last spec)
-									  (list (third spec)))))
-			       (if (listp (second spec))
-				   (process-function-definition t (eq :scalar (second (third spec)))
-								(last (third spec)))
-				   (process-function-definition t (or (eq :symmetric-scalar (second spec))
-								      (eq :asymmetric-scalar (second spec)))
-								(last spec))))))))
-
-	     (process-pairs (table-symbol pairs &optional output)
+    (labels ((process-pairs (table-symbol pairs &optional output)
 	       (if pairs
 		   (process-pairs table-symbol (rest pairs)
 				  (let* ((glyph-char (character (caar pairs)))
@@ -141,12 +102,11 @@
 										  (first (second (third
 												  (first pairs)))))
 										 "KEYWORD")))
-								`(list ,(macroexpand
-									 (second (second (third (first pairs))))))
-								`(list
-								  ,(macroexpand (cons (second oprocess)
-										      (list (third (first pairs)))))
-								  ,@(assign-discrete-functions (first pairs))))))
+								(macroexpand
+								 (second (second (third (first pairs)))))
+								(macroexpand
+								 (cons (second oprocess)
+								       (list (third (first pairs))))))))
 							;; assign operators in hash table
 							((eql 'op-specs table-symbol)
 							 `((gethash ,glyph-char ,table-symbol)
@@ -160,7 +120,7 @@
 								     ,(mapcar (lambda (item)
 										(intern item
 											(package-name *package*)))
-									      (list "META" "AXES" "FUNCTIONS"))
+									      (list "META" "AXES" "FUNCTION"))
 								   (declare
 								    (ignore ,(intern "META"
 										     (package-name *package*)))
@@ -362,20 +322,11 @@
 	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
 						(string-upcase (idiom-name idiom))
 						(vex-program idiom nil input-string))))
-	       (list :fn (list (lambda (meta axes omega &optional alpha)
-				 (declare (ignorable meta axes))
-				 `(funcall ,formatted-function
-					   ,@(if alpha (list (macroexpand alpha)))
-					   ,(macroexpand omega)))
-				  ;; (lambda (omega &optional alpha)
-				  ;;   `(funcall ,formatted-function
-				  ;; 	      ,@(if alpha (list (macroexpand alpha)))
-				  ;; 	      ,(macroexpand omega)))
-				  ;; (lambda (omega &optional alpha)
-				  ;;   `(funcall ,formatted-function
-				  ;; 	      ,@(if alpha (list (macroexpand alpha)))
-				  ;; 	      ,(macroexpand omega)))
-				  )))))
+	       (list :fn (lambda (meta axes omega &optional alpha)
+			   (declare (ignorable meta axes))
+			   `(funcall ,formatted-function
+				     ,@(if alpha (list (macroexpand alpha)))
+				     ,(macroexpand omega)))))))
 
     (setf (fdefinition '=vex-axes-parser) (=vex-axes))
 
@@ -441,11 +392,11 @@
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
 			 idiom meta #'vex-exp precedent from-operation)
-	      ;; (print (list :mm operation precedent right-value))
+	      ;;(print (list :mm operation precedent right-value))
 	      (vex-exp idiom meta from-value
-		       (apply ;;(first (cadar operation))
-			operation `(,meta nil ,@(if right-value (list right-value))
-					  ,precedent))))))))
+		       (apply operation (append (list meta nil)
+						(if right-value (list right-value))
+						(list precedent)))))))))
 
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
