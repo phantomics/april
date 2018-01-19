@@ -159,10 +159,12 @@
 	       `(if alpha ,@mediated)))))))
 
 (defun numeric-string-p (string)
+  "Checks whether the argument is a numeric string."
   (handler-case (progn (parse-apl-number-string string) t)
     (condition () nil)))
 
 (defun parse-apl-number-string (number-string &optional imaginary-component)
+  "Parse an APL numeric string into a Lisp value, handling high minus signs and the J-notation for complex numbers."
   (let ((nstring (string-upcase number-string)))
     (if (and (not imaginary-component)
 	     (find #\J nstring))
@@ -176,12 +178,15 @@
 	(parse-number:parse-number (regex-replace-all "[¯̄]" nstring "-")))))
 
 (defun format-value (meta element)
+  "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((and (vectorp element)
-	      (string= element "⍬")) ;; APL's "zilde" character translates to an empty vector
+	      (string= element "⍬"))
+	 ;; APL's "zilde" character translates to an empty vector
  	 (make-array (list 0)))
 	((and (vectorp element)
 	      (or (string= element "⍺")
-		  (string= element "⍵"))) ;; alpha and omega characters are directly changed to symbols
+		  (string= element "⍵")))
+	 ;; alpha and omega characters are directly changed to symbols
  	 (intern element))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
@@ -189,8 +194,12 @@
 		  (char= #\" (aref element (1- (length element)))))
 	     (and (char= #\' (aref element 0))
 		  (char= #\' (aref element (1- (length element))))))
+	 ;; strings are converted to Lisp strings and passed through
 	 (subseq element 1 (1- (length element))))
 	((stringp element)
+	 ;; variable references are converted into generated symbols from the variable table or,
+	 ;; if no reference is found in that table, a new reference is created there and a new symbol
+	 ;; is generated
 	 (if (not (gethash :variables meta))
 	     (setf (gethash :variables meta)
 		   (make-hash-table :test #'eq)))
@@ -205,6 +214,7 @@
 	(t element)))
 
 (defun format-array (values)
+  "Format an APL array, passing through values that are already arrays."
   (if (or (stringp (first values))
 	  (symbolp (first values))
 	  (and (not (second values))
@@ -218,6 +228,7 @@
 		   :initial-contents (list ,@values))))
 
 (defun format-function (idiom-name content)
+  "Format an APL function, reversing the order of alpha and omega arguments to reflect the argument order of Lisp as opposed to APL."
   (let ((⍺ (intern "⍺" idiom-name))
 	(⍵ (intern "⍵" idiom-name)))
     `(lambda (,⍺ &optional ,⍵)
@@ -230,15 +241,24 @@
 		       ,⍵ ,⍺)
 	     (funcall (lambda (,⍵) ,content) ,⍺)))))
 
-(defun assemble-value (idiom meta subprocessor precedent exp &optional output)
-  ;; (print (list :exp exp output (and (listp (first exp))
-  ;; 				    (functionp (cadar exp)))))
+(defun apl-symbol (item)
+  "Handle APL symbols encountered by the parser. Currently, this means disclosing them if they are singletons referenced in arrays."
+  (if (and (arrayp item)
+	   (is-singleton item))
+      (aref item 0)
+      item))
+
+(defun assemble-value (idiom meta subprocessor precedent exp &optional output axes)
+  "Assemble a value from tokens output by the parser; this may be a space-separated vector or a unitary value (processed as a 1-element vector by APL)."
   (if (or (not exp)
 	  (and (symbolp (first exp))
 	       (member (first exp)
 		       (gethash :functions meta)))
 	  (and (listp (first exp))
 	       (keywordp (caar exp))
+	       (or (not (eq :axes (caar exp)))
+		   (listp (second exp)))
+	       ;; break on axes if the next element is an operation rather than a value
 	       (or (not (eq :fn (caar exp)))
 		   (not (functionp (cadar exp)))
 		   output precedent)))
@@ -258,20 +278,48 @@
 		    (t (cons 'vector output)))
 	      exp)
       (assemble-value idiom meta subprocessor precedent (rest exp)
-		       (cons (if (and (listp (first exp))
-				      (not (eq :fn (caar exp))))
-				 (cons 'progn (mapcar (lambda (sub-exp)
-							(funcall subprocessor idiom meta sub-exp))
-						      (first exp)))
-				 (if (and (listp (first exp))
-					  (eq :fn (caar exp)))
-				     `(lambda (alpha &optional omega)
-					,(funcall (cadar exp)
-						  meta nil 'omega 'alpha))
-				     (first exp)))
-			     output))))
+		      (cons (cond ((and (listp (first exp))
+					(eq :axes (caar exp)))
+				   ;; this placeholder keyword is removed in the next iteration
+				   :axes-placeholder)
+				  ((and (listp (first exp))
+					(not (keywordp (caar exp))))
+				   ;; if the element is a list and doesn't begin with a keyword,
+				   ;; it's a closure and should be handled by the expression processor
+				   (cons 'progn (mapcar (lambda (sub-exp)
+							  (funcall subprocessor idiom meta sub-exp))
+							(first exp))))
+				  ((and (listp (first exp))
+					(eq :fn (caar exp)))
+				   `(lambda (alpha &optional omega)
+				      ,(funcall (cadar exp)
+						meta nil 'omega 'alpha)))
+				  ((symbolp (first exp))
+				   (if axes
+				       `(apply #'aref (cons (apl-symbol ,(first exp))
+							    (mapcar (lambda (vector) (aref vector 0))
+								    ,(cons 'list axes))))
+				       ;; symbol preprocessing is not applied to ⍺ and ⍵
+				       ;; since they represent arguments to a function that already went
+				       ;; through processing
+				       (if (or (eql '⍺ (first exp))
+					       (eql '⍵ (first exp)))
+					   (first exp)
+					   `(apl-symbol ,(first exp)))))
+				  (t (if axes
+					 `(apply #'aref (cons ,(first exp)
+							      (mapcar (lambda (item) (aref item 0))
+								      ,(cons 'list axes))))
+					 (first exp))))
+			    ;; :axes-placeholder is removed here if axes are being processed this iteration
+			    (if axes (rest output)
+				output))
+		      (if (and (listp (first exp))
+			       (eq :axes (caar exp)))
+			  (cdar exp)))))
 
-(defun assemble-operation (idiom meta exp &key (axes nil))
+(defun assemble-operation (idiom meta subprocessor precedent exp &key (axes nil) (from-pivot nil))
+  "Assemble an APL operation from parsed tokens. The simplest operations consist of a single function, like '+', while operators can be used to combine functions for more complex operations."
   (let ((head (first exp))
 	(next (second exp))
 	(tail (rest exp)))
@@ -284,15 +332,20 @@
 			       (declare (ignore unused))
 			       (funcall function meta axes omega alpha))
 			function))))
+      ;; (print (list 909 head))
       (cond ((symbolp head)
 	     (values (lambda (meta axes alpha &optional omega)
 		       (declare (ignore meta axes))
 		       `(funcall ,head ,alpha ,@(if omega (list omega))))
 		     tail))
+
 	    ((eq :axes (first head))
+	     ;; if an axes object is found, process the next item in the list with the :axes option
+	     ;; filled with the found object
 	     (multiple-value-bind (following-axes from-following-axes)
-		 (assemble-operation idiom meta tail :axes (list (second head)))
+		 (assemble-operation idiom meta subprocessor precedent tail :axes (list (second head)))
 	       (values following-axes from-following-axes)))
+
 	    ((and (eq :fn (first head))
 		  (or (not tail)
 		      (not (listp next))
@@ -300,28 +353,43 @@
 		      (eq :fn (first next))
 		      (and (eq :op (first next))
 			   (eq :right (second next)))))
+	     ;; finish assembling the operation if the token list is at its end, the next item is not a
+	     ;; function or operator, or the next item is another function or right operand
 	     (values (get-function (second head))
 		     tail))
+
 	    ((and (eq :fn (first head))
 		  (eq :op (first next))
 		  (eq :center (second next)))
+	     ;; if the next glyph is a center operator glyph, perform the first stage of its assembly
+	     ;; and then execute the resulting operation on the head glyph, thus completing the assembly
 	     (multiple-value-bind (following-op from-following-op)
-		 (assemble-operation idiom meta tail)
-	       ;;(print (list :ao following-op))
+		 (assemble-operation idiom meta subprocessor precedent tail)
 	       (values (funcall following-op meta (cons 'list axes)
 				(get-function (second head)))
 		       from-following-op)))
+
 	    ((and (eq :op (first head))
+		  (or from-pivot (not (eq :center (second head))))
+		  ;; note: center operator glyphs cannot be overloaded as function glyphs if they follow
+		  ;; another center operator glyph
 		  (or (not tail)
 		      (not (and (listp next)
 				(eq :fn (first next))))))
+	     ;; if no function follows a right operator glyph, check whether it's actually an overloaded
+	     ;; function glyph and reassign if so
 	     (if (of-overloaded? idiom (first (last head)))
 		 (values (get-function (first (last head)))
 			 tail)
 		 (error "Found operator with no accompanying function.")))
+
 	    ((eq :op (first head))
+	     ;;(print (list :hh head tail))
+	     ;; handle any other operator
 	     (multiple-value-bind (following-op from-following-op)
-		 (assemble-operation idiom meta tail)
+		 (if (listp next)
+		     (assemble-operation idiom meta subprocessor precedent tail :from-pivot t)
+		     (assemble-value idiom meta subprocessor precedent tail))
 	       (values (funcall (of-operators idiom (first (last head)))
 				meta (cons 'list axes)
 				following-op)
@@ -497,19 +565,37 @@
 		       (funcall function meta axes (if alpha alpha omega)
 				omega)))
  	      (tests (is "5-⍨10" #(5))))
- 	   (∘ (has :title "Composition")
-	      (center (macro (lambda (meta axes left-function)
+ 	   (∘ (has :title "Compose")
+	      (center (macro (lambda (meta axes left-operand)
 			       (declare (ignore meta axes))
 			       (let ((composed-function nil))
 				 (labels ((enclose (meta unused omega &optional alpha)
 					    (declare (ignore unused alpha))
-					    ;;(print (list :oom omega))
-					    (cond ((not composed-function)
+					    ;; (print (list :eg composed-function left-operand omega))
+					    (cond ((and (not composed-function)
+							(not (functionp left-operand)))
+						   ;; mode 2: curry function with left argument
+						   (setq composed-function
+							 `(funcall (lambda (omega alpha)
+								     ,(funcall omega meta nil 'omega 'alpha))
+								   ,left-operand omega))
+						   #'enclose)
+						  ((and (not composed-function)
+							(not (functionp omega)))
+						   ;; mode 3: curry function with right argument
+						   `(lambda (omega)
+						      (declare (ignorable alpha))
+						      (funcall (lambda (omega alpha)
+								 ,(funcall left-operand
+									   meta nil 'omega 'alpha))
+							       omega ,omega)))
+						  ((and (not composed-function)
+							(functionp left-operand))
 						   (setq composed-function
 							 `(funcall (lambda (omega)
 								     ,(funcall omega meta nil 'omega))
 								   (funcall (lambda (omega)
-									      ,(funcall left-function
+									      ,(funcall left-operand
 											meta nil 'omega))
 									    omega)))
 						   #'enclose)
@@ -519,17 +605,18 @@
 								     ,(funcall omega meta nil 'omega))
 								   ,composed-function))
 						   #'enclose)
-						  ((listp omega)
+						  ((eq :fun-comp omega)
+						   `(lambda (omega &optional alpha)
+						      (declare (ignorable alpha))
+						      ,composed-function))
+						  ((or (listp omega)
+						       (symbolp omega))
 						   ;; a list passed as omega means that a calculated value is
 						   ;; on the right side of the composite
 						   `(funcall (lambda (omega &optional alpha)
 							       (declare (ignorable alpha))
 							       ,composed-function)
 							     ,omega))
-						  ((eq :fun-comp omega)
-						   `(lambda (omega &optional alpha)
-						      (declare (ignorable alpha))
-						      ,composed-function))
 						  (t #'enclose))))
 				   #'enclose)))))
 	      (tests (is "a←⍴∘⍴ ◊ a 2 3 4⍴⍳9" #(3))
@@ -538,30 +625,27 @@
 	   (⍣ (has :title "Power")
 	      (center (macro (lambda (meta axes left-function)
 			       (declare (ignore meta axes))
-			       ;; (print 1)
-			       (lambda (meta axes right-function)
-				 (declare (ignore meta axes))
-				 ;; (print (list 2 right-function left-function))
-				 ;; 90
-				 (cond ((functionp right-function)
-					(lambda (meta unused omega &optional alpha)
-					  (declare (ignore meta unused))
-					  ;; (print (list :eoi omega alpha))
-					  (if t;alpha
-					      (let ((arg (gensym)))
-						`(lambda (meta unused omega &optional alpha)
-						   (let ((,arg ,omega))
-						     (loop for index from 0 to (1- ,left-function)
-							do (setq ,arg (funcall ,right-function ,arg)))))))))
-				       ((and (listp right-function)
-					     (integerp (second right-function)))
+			       (lambda (meta axes right-operand)
+				 (declare (ignore axes))
+				 (cond ((and (listp right-operand)
+					     (integerp (second right-operand)))
 					(let ((arg (gensym)))
 					  `(lambda (omega &optional alpha)
+					     (declare (ignorable alpha))
 					     (let ((,arg omega))
-					       (loop for index from 0 to ,(1- (second right-function))
+					       (loop for index from 0 to ,(1- (second right-operand))
 						  do (setq ,arg ,(funcall left-function meta nil arg)))
 					       ,arg))))
-				 )))))))
+				       ((listp right-operand)
+					(let ((arg (gensym)))
+					  `(lambda (omega &optional alpha)
+					     (declare (ignorable alpha))
+					     (let ((,arg omega))
+					       (loop while (not (= 0 (aref (funcall ,right-operand ,arg) 0)))
+						  do (setq ,arg ,(funcall left-function meta nil arg)))
+					       ,arg)))))))))
+	      (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" #(11))
+		     (is "fn←{2+⍵}⍣{10>⍵} ◊ fn 2" #(10)))))
  (functions (← (has :title "Assign")
 	       (dyadic (macro (lambda (meta axes alpha omega)
 				(declare (ignorable axes))
@@ -577,7 +661,7 @@
 				      (setf (gethash :functions meta)
 					    (cons symbol (gethash :functions meta))))
 				  `(setq ,symbol ,omega)))))
-	       (tests (is "x←55 ◊ 1+3 ◊ x" #(55))))
+	       (tests (is "x←55 ◊ 1+3 ◊ x" 55)))
 	    (⊣ (has :title "Left")
 	       (ambivalent (args :any (lambda (omega)
 	    				(declare (ignore omega))
@@ -1185,6 +1269,21 @@
 					  ((3 6) (7 1) (2 5)) ((4 7) (8 2) (3 6))))
 		      (is "1 3 2⍉2 3 4⍴⍳9" #3A(((1 5 9) (2 6 1) (3 7 2) (4 8 3))
 					       ((4 8 3) (5 9 4) (6 1 5) (7 2 6))))))
+	    ;; TODO: left inversion for non-square matrices is nyi
+	    (⌹ (has :titles ("Matrix Inverse" "Matrix Divide"))
+	       (ambivalent (args :any (lambda (omega)
+	    				(if (and (= 1 (rank omega))
+	    					 (= 1 (length omega)))
+	    				    (/ (aref omega 0))
+	    				    (invert-matrix omega))))
+	    		   (args :any :any (lambda (alpha omega)
+					     (array-inner-product (invert-matrix omega)
+								  alpha (lambda (arg1 arg2)
+									  (apply-scalar-dyadic #'* arg1 arg2))
+								  #'+))))
+	       (tests (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
+		      (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
+		      (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
 	    (⍋ (has :titles ("Grade Up" "Grade Up By"))
 	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *apex-idiom*
 	    										    :atomic-vector)
@@ -1215,21 +1314,6 @@
 	       (tests (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
 		      (is "⍒5 6 ⍴⍳12" #(2 4 1 3 5))
 		      (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
-	    ;; TODO: inversion does not yet work for non-square matrices
-	    (⌹ (has :titles ("Matrix Inverse" "Matrix Divide"))
-	       (ambivalent (args :any (lambda (omega)
-	    				(if (and (= 1 (rank omega))
-	    					 (= 1 (length omega)))
-	    				    (/ (aref omega 0))
-	    				    (invert-matrix omega))))
-	    		   (args :any :any (lambda (alpha omega)
-					     (array-inner-product (invert-matrix omega)
-								  alpha (lambda (arg1 arg2)
-									  (apply-scalar-dyadic #'* arg1 arg2))
-								  #'+))))
-	       (tests (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
-		      (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
-		      (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
 	    (⊤ (has :title "Encode")
 	       (dyadic (args :any :any (lambda (alpha omega)
 	    				 (flet ((rebase (bases number)
@@ -1307,4 +1391,7 @@
 		      :ex #(6 7 8))
 		(with :title "Dyadic inline function."
 		      :in ("1 2 3 {⍺×⍵+3} 3 4 5")
-		      :ex #(6 14 24))))
+		      :ex #(6 14 24))
+		(with :title "Variable-referenced values, including a component specified by axes, in a vector."
+		      :in ("a←9 ◊ b←2 3 4⍴⍳9 ◊ 1 2 a 3 b[1;2;1]")
+		      :ex #(1 2 9 3 4))))

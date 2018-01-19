@@ -32,23 +32,28 @@
 
 (defgeneric of-state (idiom property))
 (defmethod of-state ((idiom idiom) property)
+  "Retrieve a property of the idiom state."
   (getf (idiom-state idiom) property))
 
 (defgeneric of-utilities (idiom utility))
 (defmethod of-utilities ((idiom idiom) utility)
+  "Retrieve one of the idiom's utilities used for parsing and language processing."
   (getf (idiom-utilities idiom) utility))
 
 (defgeneric of-functions (idiom key))
 (defmethod of-functions ((idiom idiom) key)
+  "Retrive one of the idiom's functions."
   (gethash key (idiom-functions idiom)))
 
 (defgeneric of-operators (idiom key))
 (defmethod of-operators ((idiom idiom) key)
+  "Retrive one of the idiom's operators."
   (gethash key (idiom-operators idiom)))
 
 
 (defgeneric of-overloaded? (idiom key))
 (defmethod of-overloaded? ((idiom idiom) key)
+  "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
   (member key (idiom-overloaded-lexicon idiom)))
 
 (defmacro boolean-op (operation omega &optional alpha)
@@ -240,6 +245,7 @@
 					      options input-string)))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
+  "Extract a list of function/operator glyphs from part of a Vex language specification."
   (if (not glyph-list)
       output (derive-opglyphs (rest glyph-list)
 			      (let ((glyph (first glyph-list)))
@@ -249,14 +255,8 @@
 					(append output (loop for char from 0 to (1- (length glyph))
 							  collect (aref glyph char)))))))))
 
-(defun process-reverse (function input &optional output)
-  (if input
-      (process-reverse function (rest input)
-		       (cons (funcall function (first input))
-			     output))
-      output))
-
-(defun =vex-tree (idiom meta &optional output)
+(defun =vex-string (idiom meta &optional output)
+  "Parse a string of text, converting its contents into nested lists of Vex tokens."
   (labels ((?blank-character () (?satisfies (of-utilities idiom :match-blank-character)))
 
 	   (?token-character () (?satisfies (of-utilities idiom :match-token-character)))
@@ -294,9 +294,9 @@
 										(char= char #\;)))))))))
 			(=subseq (%any (?satisfies 'characterp))))
 	       (if (< 0 (length rest))
-		   (cons (parse element (=vex-tree idiom meta))
+		   (cons (parse element (=vex-string idiom meta))
 			 (parse rest (=vex-axes)))
-		   (list (parse element (=vex-tree idiom meta))))))
+		   (list (parse element (=vex-string idiom meta))))))
 
 	   (=vex-closure (boundary-chars &optional transform-by)
 	     (let ((balance 1))
@@ -310,7 +310,7 @@
 								    (< 0 balance)))))
 				      (if transform-by transform-by
 					  (lambda (string-content)
-					    (parse string-content (=vex-tree idiom meta)))))
+					    (parse string-content (=vex-string idiom meta)))))
 			  (?eq (aref boundary-chars 1)))
 		 enclosed)))
 	   
@@ -362,38 +362,38 @@
       ;; (if (< 0 (length nextlines))
       ;; 	  (print (list :o1 output item rest)))
       (if (< 0 (length nextlines))
-	  (setq output (parse nextlines (=vex-tree idiom meta))))
+	  (setq output (parse nextlines (=vex-string idiom meta))))
       ;; (print (list :t output nextlines))
       ;; (if (< 0 (length nextlines))
       ;; 	  (print (list :oo output nextlines)))
       (if (< 0 (length rest))
-	  (parse rest (=vex-tree idiom meta (if output (if (< 0 (length nextlines))
-							   (cons (list item)
-								 output)
-							   (cons (cons item (first output))
-								 (rest output)))
-						(list (list item)))))
+	  (parse rest (=vex-string idiom meta (if output (if (< 0 (length nextlines))
+							     (cons (list item)
+								   output)
+							     (cons (cons item (first output))
+								   (rest output)))
+						  (list (list item)))))
 	  (cons (cons item (first output))
 		(rest output))))))
 
-(defun vex-exp (idiom meta exp &optional precedent)
-  "Convert a Vex parse object into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
+(defun vex-expression (idiom meta exp &optional precedent)
+  "Convert a list of Vex tokens into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
   (if (not exp)
       precedent
       (if (not precedent)
 	  (multiple-value-bind (right-value from-value)
 	      (funcall (of-utilities idiom :assemble-value)
-		       idiom meta #'vex-exp precedent exp)
+		       idiom meta #'vex-expression precedent exp)
 	    ;; (print (list :rv right-value from-value))
-	    (vex-exp idiom meta from-value right-value))
+	    (vex-expression idiom meta from-value right-value))
 	  (multiple-value-bind (operation from-operation)
 	      (funcall (of-utilities idiom :assemble-operation)
-		       idiom meta exp)
+		       idiom meta #'vex-expression precedent exp)
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
-			 idiom meta #'vex-exp precedent from-operation)
-	      ;;(print (list :mm operation precedent right-value))
-	      (vex-exp idiom meta from-value
+			 idiom meta #'vex-expression precedent from-operation)
+	      ;; (print (list :op operation precedent))
+	      (vex-expression idiom meta from-value
 		       (apply operation (append (list meta nil)
 						(if right-value (list right-value))
 						(list precedent)))))))))
@@ -426,8 +426,8 @@
 		 (output-vars (getf (idiom-state idiom) :out))
 		 (compiled-expressions (loop for exp in (parse (funcall (of-utilities idiom :prep-code-string)
 									string)
-							       (=vex-tree idiom meta))
-					  collect (vex-exp idiom meta exp)))
+							       (=vex-string idiom meta))
+					  collect (vex-expression idiom meta exp)))
 		 (vars-declared (loop for key being the hash-keys of (gethash :variables meta)
 				   when (not (member (string (gethash key (gethash :variables meta)))
 						     (mapcar #'first input-vars)))
