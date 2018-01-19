@@ -261,14 +261,6 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 
 Actually, it's easier to list what's -not- implemented.
 
-## What's Not Implemented But Will Be Soon
-
-#### Operators:
-
-```
-⍣ Power
-```
-
 ## What's Not Implemented And Won't Be
 
 #### Functions:
