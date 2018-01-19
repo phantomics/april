@@ -8,10 +8,12 @@
 	 (= 1 (length adims)))))
 
 (defun scale-array (singleton to-match)
+  "Scale up a 1-element array to fill the dimensions of the given array."
   (make-array (dims to-match)
 	      :initial-element (aref singleton 0)))
 
 (defun array-promote (array)
+  "Promote an array to the next rank. The existing content will occupy 1 unit of the new dimension."
   (make-array (cons 1 (dims array))
 	      :initial-contents (list (array-to-list array))))
 
@@ -46,6 +48,7 @@
 		(list alpha omega))))))
 
 (defun array-depth (array &optional layer)
+  "Find the maximum depth of nested arrays within an array."
   (let ((layer (if layer layer 1)))
     (aops:each (lambda (item)
 		 (if (arrayp item)
@@ -72,6 +75,7 @@
     (reverse! v 0 (- len 1))))
 
 (defun make-rotator (&optional degrees)
+  "Create a function to rotate an array by a given number of degrees, or otherwise reverse it."
   (lambda (vector)
     (if degrees (rotate! degrees vector)
 	(reverse! vector 0 (1- (length vector))))))
@@ -83,6 +87,7 @@
   (rotate-left (- (length l) n) l))
 
 (defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
+  "Take a slice of an array in multiple dimensions."
   (if (= 1 (length dimensions))
       (apply #'aops:stack
 	     (append (list 0 (aops:partition array (if inverse (first dimensions)
