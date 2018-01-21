@@ -333,7 +333,7 @@
 				     ,@(if alpha (list (macroexpand alpha)))
 				     ,(macroexpand omega)))))))
 
-    (setf (fdefinition '=vex-axes-parser) (=vex-axes))
+    ;;(setf (fdefinition '=vex-axes-parser) (=vex-axes))
 
     (=destructure (_ item _ rest _ nextlines)
 	(=list (%any (?blank-character))
