@@ -257,7 +257,8 @@
 	  (and (listp (first exp))
 	       (keywordp (caar exp))
 	       (or (not (eq :axes (caar exp)))
-		   (listp (second exp)))
+		   (and (listp (second exp))
+			(keywordp (caadr exp))))
 	       ;; break on axes if the next element is an operation rather than a value
 	       (or (not (eq :fn (caar exp)))
 		   (not (functionp (cadar exp)))
@@ -286,9 +287,21 @@
 					(not (keywordp (caar exp))))
 				   ;; if the element is a list and doesn't begin with a keyword,
 				   ;; it's a closure and should be handled by the expression processor
-				   (cons 'progn (mapcar (lambda (sub-exp)
-							  (funcall subprocessor idiom meta sub-exp))
-							(first exp))))
+				   (let ((enclose (if axes
+						       (lambda (body)
+							 `(apply #'aref-eliding
+								 (cons ,body
+								       (mapcar (lambda (vector)
+										 (if vector
+										     (- (aref vector 0)
+											(of-state *apex-idiom*
+												  :count-from))))
+									       ,(cons 'list axes)))))
+						       (lambda (body) body))))
+				     (funcall enclose (cons 'progn (mapcar (lambda (sub-exp)
+									     (funcall subprocessor
+										      idiom meta sub-exp))
+									   (first exp))))))
 				  ((and (listp (first exp))
 					(eq :fn (caar exp)))
 				   `(lambda (alpha &optional omega)
@@ -296,9 +309,13 @@
 						meta nil 'omega 'alpha)))
 				  ((symbolp (first exp))
 				   (if axes
-				       `(apply #'aref (cons (apl-symbol ,(first exp))
-							    (mapcar (lambda (vector) (aref vector 0))
-								    ,(cons 'list axes))))
+				       `(apply #'aref-eliding (cons (apl-symbol ,(first exp))
+								    (mapcar (lambda (vector)
+									      (if vector
+										  (- (aref vector 0)
+										     (of-state *apex-idiom*
+											       :count-from))))
+									    ,(cons 'list axes))))
 				       ;; symbol preprocessing is not applied to ⍺ and ⍵
 				       ;; since they represent arguments to a function that already went
 				       ;; through processing
@@ -441,6 +458,8 @@
 					      "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
 					      "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
 				 string ""))
+	    :process-axis-string
+	    (lambda (string) (cl-ppcre:split #\; string))
 	    :format-value #'format-value
 	    :format-object #'format-array
 	    :format-function #'format-function
@@ -682,7 +701,7 @@
 					    (cons symbol (gethash :functions meta))))
 				  `(setq ,symbol ,omega)))))
 	       (tests (is "x←55 ◊ 1+3 ◊ x" 55)))
-	    (⊣ (has :title "Left")
+	    (⊣ (has :titles ("Empty" "Left"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(declare (ignore omega))
 	    				(make-array (list 0))))
@@ -691,7 +710,7 @@
 	    				     alpha)))
 	       (tests (is "⊣77" #())
 		      (is "55⊣77" #(55))))
-	    (⊢ (has :title "Right")
+	    (⊢ (has :titles ("Identity" "Right"))
 	       (ambivalent (args :any (lambda (omega) omega))
 	    		   (args :any :any (lambda (alpha omega)
 	    				     (declare (ignore alpha))
@@ -712,7 +731,7 @@
 	       (ambivalent :symmetric-scalar -)
 	       (tests (is "2-1" #(1))
 		      (is "7-2 3 4" #(5 4 3))))
-     	    (× (has :titles ("Sign" "Multiply"))
+     	    (× (has :titles ("Direction" "Multiply"))
 	       (ambivalent :asymmetric-scalar signum *)
 	       (tests (is "×20 5 0 ¯5 5 ¯9" #(1 1 0 -1 1 -1))
 		      (is "2×3" #(6))
@@ -953,25 +972,34 @@
 		      (is "2↓[2]2 3 4⍴⍳9" #3A(((9 1 2 3)) ((3 4 5 6))))
 		      (is "2↓[3]2 3 4⍴⍳9" #3A(((3 4) (7 8) (2 3)) ((6 7) (1 2) (5 6))))))
 	    (⌷ (has :title "Axis")
-	       (dyadic (args :any :any (lambda (alpha omega)
-	    				 (let ((found (apply #'aref (cons omega
-									  (mapcar (lambda (coord)
-										    (- coord
-										       (of-state *apex-idiom*
-												 :count-from)))
-										  (array-to-list alpha))))))
-					   (if (not (arrayp found))
-					       (vector found)
-					       found)))))
+	       (dyadic (args :any :any :axes
+			     (lambda (alpha omega &optional axes)
+			       (if axes
+				   (let ((elided-coords (loop for i from 0 to (1- (rank omega))
+							   collect nil)))
+				     (loop for index from 0 to (1- (length (first axes)))
+					do (setf (nth (- (aref (first axes) index)
+							 (of-state *apex-idiom* :count-from))
+						      elided-coords)
+						 (- (aref alpha index)
+						    (of-state *apex-idiom* :count-from))))
+				     (apply #'aref-eliding (cons omega elided-coords)))
+				   (let* ((coords (mapcar (lambda (coord) (- coord
+									     (of-state *apex-idiom* :count-from)))
+							  (array-to-list alpha)))
+					  (found (apply #'aref (cons omega coords))))
+				     (if (not (arrayp found))
+					 (vector found)
+					 found))))))
 	       (tests (is "3⌷⍳9" #(3))
 		      (is "2 2⌷4 5⍴⍳9" #(7))
-		      (is "2 3 4⌷4 5 6⍴⍳9" #(1))))
+		      (is "2 3 4⌷4 5 6⍴⍳9" #(1))
+		      (is "1 3⌷[1 2]2 3 4⍴⍳5" #(4 5 1 2))))
 	    (\, (has :titles ("Ravel" "Catenate or Laminate"))
-	    	(ambivalent (args :any (lambda (omega)
-	    				 (if (vectorp omega)
-	    				     omega (make-array (list (array-total-size omega))
-							       :element-type (element-type omega)
-	    						       :displaced-to (copy-array omega)))))
+	    	(ambivalent (args :any :axes
+				  (lambda (omega &optional axes)
+				    (ravel (of-state *apex-idiom* :count-from)
+					   omega axes)))
 	    		    (args :any :any :axes
 	    			  (lambda (alpha omega &optional axes)
 	    			    (if (and (or (not axes)
@@ -1014,6 +1042,12 @@
 							      (scale-array omega p-alpha)
 							      p-omega))))))))
 	    	(tests (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
+		       (is ",[0.5]3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
+		       (is ",[1.5]3 4⍴⍳9" #3A(((1 2 3 4)) ((5 6 7 8)) ((9 1 2 3))))
+		       (is ",[2.5]3 4⍴⍳9" #3A(((1) (2) (3) (4)) ((5) (6) (7) (8)) ((9) (1) (2) (3))))
+		       (is ",[1 2]2 3 3⍴⍳12" #2A((1 2 3) (4 5 6) (7 8 9) (10 11 12) (1 2 3) (4 5 6)))
+		       (is ",[2 3]2 3 3⍴⍳12" #2A((1 2 3 4 5 6 7 8 9) (10 11 12 1 2 3 4 5 6)))
+		       (is ",[1 2 3]2 3 3⍴⍳12" #(1 2 3 4 5 6 7 8 9 10 11 12 1 2 3 4 5 6))
 	    	       (is "(3 6⍴⍳6),3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
 	    					 (1 2 3 4 5 6 9 1 2 3)))
 		       (is "(5 4⍴⍳6),[1]3 4⍴⍳9" #2A((1 2 3 4) (5 6 1 2) (3 4 5 6) (1 2 3 4)
@@ -1057,7 +1091,7 @@
 	    					(5 6 1 2) (1 2 3 4) (5 6 7 8) (9 1 2 3)))
 		      (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
 						   (1 2 3 4 5 6 9 1 2 3)))))
-	    (/ (has :title "Compress")
+	    (/ (has :title "Replicate")
 	       (dyadic (args :any :any :axes
 	    		     (lambda (alpha omega &optional axes)
 	    		       (expand-array (array-to-list alpha)
@@ -1074,7 +1108,7 @@
 						   (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))
 		      (is "1 ¯2 3/[1]3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
 						 (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6)))))
-	    (⌿ (has :title "Compress First")
+	    (⌿ (has :title "Replicate First")
 	       (dyadic (args :any :any :axes
 	    		     (lambda (alpha omega &optional axes)
 	    		       (expand-array (array-to-list alpha)
@@ -1114,6 +1148,20 @@
 	       (dyadic (args :any :any find-array))
 	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
 						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
+	    (⍧ (has :title "Partitioned Enclose")
+	       (dyadic (args :any :any :axes
+			     (lambda (alpha omega &optional axes)
+			       (partitioned-enclose alpha omega
+						    (if axes (- (rank omega)
+								(- (aref (first axes) 0)
+								   (1- (of-state *apex-idiom* :count-from)))))
+						    0))))
+	       (tests (is "0 1 0 0 1 1 0 0 0⍧⍳9" #(#(2 3 4) #(5) #(6 7 8 9)))
+		      (is "0 1 0 0 1 1 0 0 0⍧4 8⍴⍳9"
+			  #(#2A((2 3 4) (1 2 3) (9 1 2) (8 9 1)) #2A((5) (4) (3) (2))
+			    #2A((6 7 8) (5 6 7) (4 5 6) (3 4 5))))
+		      (is "0 1 0 1 0⍧[1]4 8⍴⍳9"
+			  #(#2A((9 1 2 3 4 5 6 7) (8 9 1 2 3 4 5 6)) #2A((7 8 9 1 2 3 4 5))))))
 	    (⊂ (has :titles ("Enclose" "Partition"))
 	       (ambivalent (args :any :axes
 				 (lambda (omega &optional axes)
