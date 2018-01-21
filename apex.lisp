@@ -673,7 +673,6 @@
 	    			(let ((symbol (if (listp alpha)
 						  (second alpha)
 						  alpha)))
-				  ;;(print (list :om omega))
 				  (if (or (eql 'lambda (first omega))
 					  (and (listp (second omega))
 					       (eql 'lambda (caadr omega))))
@@ -1116,18 +1115,12 @@
 	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
 						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
 	    (⊂ (has :titles ("Enclose" "Partition"))
-	       ;; TODO: add multi-axis option
 	       (ambivalent (args :any :axes
 				 (lambda (omega &optional axes)
 				   (if axes
-				       (aops:split (aops:permute (sort (alexandria:iota (rank omega))
-								       (lambda (a b)
-									 (declare (ignore a))
-									 (= b (- (aref (first axes) 0)
-										 (of-state *apex-idiom*
-											   :count-from)))))
-								 omega)
-						   (1- (rank omega)))
+				       (re-enclose omega (aops:each (lambda (axel)
+								      (- axel (of-state *apex-idiom* :count-from)))
+								    (first axes)))
 				       (if (loop for dim in (dims omega) always (= 1 dim))
 					   omega (make-array (list 1) :initial-element omega)))))
 	    		   (args :any :any (lambda (alpha omega)
@@ -1164,6 +1157,16 @@
 			  #2A(("GGB" "ROL" "ALU" "YDE") ("SWY" "IOA" "LOR" "KLN")))
 		      (is "⊂[1]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
 			  #2A(("GS" "RI" "AL" "YK") ("GW" "OO" "LO" "DL") ("BY" "LA" "UR" "EN")))
+		      (is "⊂[2 3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #(#2A((#\G #\R #\A #\Y) (#\G #\O #\L #\D) (#\B #\L #\U #\E))
+			    #2A((#\S #\I #\L #\K) (#\W #\O #\O #\L) (#\Y #\A #\R #\N))))
+		      (is "⊂[1 3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #(#2A((#\G #\R #\A #\Y) (#\S #\I #\L #\K))
+			    #2A((#\G #\O #\L #\D) (#\W #\O #\O #\L))
+			    #2A((#\B #\L #\U #\E) (#\Y #\A #\R #\N))))
+		      (is "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			  #(#2A((#\G #\G #\B) (#\S #\W #\Y)) #2A((#\R #\O #\L) (#\I #\O #\A))
+			    #2A((#\A #\L #\U) (#\L #\O #\R)) #2A((#\Y #\D #\E) (#\K #\L #\N))))
 	    	      (is "1 1 2 2 2 3 3 3 3⊂⍳9" #(#(1 2) #(3 4 5) #(6 7 8 9)))))
 	    (⊃ (has :titles ("Mix" "Pick"))
 	       (ambivalent (args :any :axes

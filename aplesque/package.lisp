@@ -5,7 +5,7 @@
 	   #:array-to-list #:apply-marginal #:expand-array #:enlist #:array-inner-product #:index-of
 	   #:grade #:array-grade #:alpha-compare #:array-compare #:find-array #:run-dim
 	   #:reshape-array-fitting #:sprfact #:binomial #:make-rotator #:scale-array #:mix-arrays
-	   #:rotate-left #:rotate-right #:invert-matrix)
+	   #:rotate-left #:rotate-right #:re-enclose #:invert-matrix)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))
 
