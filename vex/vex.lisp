@@ -315,8 +315,8 @@
 		 enclosed)))
 	   
 	   (handle-axes (input-string)
-	     (cons :axes (mapcar (lambda (item) (list 'vector item))
-				 (mapcar #'caar (parse input-string (=vex-axes))))))
+	     (cons :axes (mapcar (lambda (item) (cons 'vector (reverse item)))
+				 (mapcar #'first (parse input-string (=vex-axes))))))
 
 	   (handle-function (input-string)
 	     (let ((formatted-function (funcall (of-utilities idiom :format-function)

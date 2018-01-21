@@ -514,6 +514,74 @@
 				   (mix-arrays axis sub-arrays max-dims))
 				 (aops:split arrays 1))))))
 
+(defun re-enclose (matrix axes)
+  (labels ((make-enclosure (inner-dims type dimensions)
+	     (loop for d from 0 to (1- (first dimensions))
+		collect (if (= 1 (length dimensions))
+			    (make-array inner-dims :element-type type)
+			    (make-enclosure-contents inner-dims type (rest dimensions))))))
+    (cond ((= 1 (length axes))
+	   ;; if there is only one axis just split the array, with permutation first if not splitting
+	   ;; along the last axis
+	   (if (= (1- (rank matrix))
+		  (aref axes 0))
+	       (aops:split matrix (1- (rank matrix)))
+	       (aops:split (aops:permute (sort (alexandria:iota (rank matrix))
+					       (lambda (a b)
+						 (declare (ignore a))
+						 (= b (aref axes 0))))
+					 matrix)
+			   (1- (rank matrix)))))
+	  ((not (apply #'< (array-to-list axes)))
+	   (error "Elements in an axis argument to the enclose function must be in ascending order."))
+	  ((let ((indices (mapcar (lambda (item) (+ item (aref axes 0)))
+				  (alexandria:iota (- (rank matrix)
+						      (- (rank matrix)
+							 (length axes)))))))
+	     (and (= (first (last indices))
+		     (1- (rank matrix)))
+		  (loop for index from 0 to (1- (length indices))
+		     always (= (nth index indices)
+			       (aref axes index)))))
+	   ;; if there are multiple indices in the axis argument leading up to the last axis,
+	   ;; all that's needed is to split the array along the first of the indices
+	   (if (> (rank matrix)
+		  (length axes))
+	       (aops:split matrix (aref axes 0))
+	       (make-array (list 1) :initial-element matrix)))
+	  (t (let* ((matrix-dims (dims matrix))
+		    (axis-list (array-to-list axes))
+		    (outer-dims nil)
+		    (inner-dims nil))
+	       ;; otherwise, start by separating the dimensions of the original array into sets of dimensions
+	       ;; for the output array and each of its enclosed arrays
+	       (loop for axis from 0 to (1- (rank matrix))
+		  do (if (find axis axis-list)
+			 (setq inner-dims (cons axis inner-dims))
+			 (setq outer-dims (cons axis outer-dims))))
+	       (setq inner-dims (reverse inner-dims)
+		     outer-dims (reverse outer-dims))
+	       ;; create a new blank array of the outer dimensions containing blank arrays of the inner dimensions
+	       (let ((new-matrix (make-array (loop for dm in outer-dims
+						collect (nth dm matrix-dims))
+					     :initial-contents
+					     (make-enclosure (loop for dm in inner-dims
+								collect (nth dm matrix-dims))
+							     (element-type matrix)
+							     (loop for dm in outer-dims
+								collect (nth dm matrix-dims))))))
+		 ;; iterate through the original array and for each element, apply the same separation
+		 ;; to their coordinates that was done to the original array's dimensions and apply the two sets
+		 ;; of coordinates to set each value in the nested output arrays to the corresponding values in
+		 ;; the original array
+		 (run-dim matrix (lambda (item coords)
+				   (setf (apply #'aref (cons (apply #'aref (cons new-matrix
+										 (loop for d in outer-dims
+										    collect (nth d coords))))
+							     (loop for d in inner-dims collect (nth d coords))))
+					 item)))
+		 new-matrix))))))
+
 (defun invert-matrix (in-matrix)
   (let ((dim (array-dimension in-matrix 0))   ;; dimension of matrix
 	(det 1)                               ;; determinant of matrix
