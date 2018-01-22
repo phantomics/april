@@ -261,11 +261,9 @@
 	  (and (symbolp (first exp))
 	       (member (first exp)
 		       (gethash :functions meta)))
+	  ;; break if the next symbol represents a function and should be processed by assembleOperation
 	  (and (listp (first exp))
-	       (or (keywordp (caar exp))
-		   (and (listp (caar exp))
-			(listp (caaar exp))
-		    	(eq :fn (caaaar exp))))
+	       (keywordp (caar exp))
 	       (or (not (eq :axes (caar exp)))
 		   (and (listp (second exp))
 			(keywordp (caadr exp))))
@@ -287,8 +285,19 @@
 			      (listp (first output))
 			      (arrayp (first output))))
 		     (first output))
+		    ((and (listp (first output))
+		    	  (eql 'progn (caar output))
+		    	  (eql 'lambda (caadar output)))
+		     ;; break if the last element was a composed operation
+		     (cons 'vector (rest output)))
 		    (t (cons 'vector output)))
-	      exp)
+	      (if (and (listp (first output))
+		       (eql 'progn (caar output))
+		       (eql 'lambda (caadar output)))
+		  ;; if the last element was a composed operaiton
+		  (cons (list :composed-operation (cadar output))
+			exp)
+		  exp))
       (assemble-value idiom meta subprocessor precedent (rest exp)
 		      (cons (cond ((and (listp (first exp))
 					(eq :axes (caar exp)))
@@ -298,17 +307,19 @@
 					(not (keywordp (caar exp))))
 				   ;; if the element is a list and doesn't begin with a keyword,
 				   ;; it's a closure and should be handled by the expression processor
-				   (let ((enclose (if axes
-						       (lambda (body)
-							 `(apply #'aref-eliding
-								 (cons ,body
-								       (mapcar (lambda (vector)
-										 (if vector
-										     (- (aref vector 0)
-											(of-state *apex-idiom*
-												  :count-from))))
-									       ,(cons 'list axes)))))
-						       (lambda (body) body))))
+				   (let ((enclose
+					  (if axes
+					      (lambda (body)
+						`(aref-eliding ,body
+							       (mapcar
+								(lambda (vector)
+								  (if vector
+								      (- (aref vector 0)
+									 (of-state *apex-idiom* :count-from))))
+								,(cons 'list
+								       (rest (funcall subprocessor idiom meta
+										      (list axes)))))))
+					      (lambda (body) body))))
 				     (funcall enclose (cons 'progn (mapcar (lambda (sub-exp)
 									     (funcall subprocessor
 										      idiom meta sub-exp))
@@ -320,13 +331,13 @@
 						meta nil 'omega 'alpha)))
 				  ((symbolp (first exp))
 				   (if axes
-				       `(apply #'aref-eliding (cons (apl-symbol ,(first exp))
-								    (mapcar (lambda (vector)
-									      (if vector
-										  (- (aref vector 0)
-										     (of-state *apex-idiom*
-											       :count-from))))
-									    ,(cons 'list axes))))
+				       `(aref-eliding (apl-symbol ,(first exp))
+						      (mapcar (lambda (vector)
+								(if vector
+								    (- (aref vector 0)
+								       ,(of-state *apex-idiom* :count-from))))
+							      ,(cons 'list (rest (funcall subprocessor idiom meta
+											  (list axes))))))
 				       ;; symbol preprocessing is not applied to ⍺ and ⍵
 				       ;; since they represent arguments to a function that already went
 				       ;; through processing
@@ -335,9 +346,11 @@
 					   (first exp)
 					   `(apl-symbol ,(first exp)))))
 				  (t (if axes
-					 `(apply #'aref (cons ,(first exp)
-							      (mapcar (lambda (item) (aref item 0))
-								      ,(cons 'list axes))))
+					 `(aref-eliding ,(first exp)
+							(mapcar (lambda (item) (aref item 0))
+								,(cons 'list
+								       (rest (funcall subprocessor idiom meta
+										      (list axes))))))
 					 (first exp))))
 			    ;; :axes-placeholder is removed here if axes are being processed this iteration
 			    (if axes (rest output)
@@ -358,22 +371,23 @@
 				      ,symbol)))
 		    (if axes (lambda (meta unused omega &optional alpha)
 			       (declare (ignore unused))
-			       (funcall function meta axes omega alpha))
+			       (funcall function meta
+					(rest (funcall subprocessor idiom meta (list axes)))
+					omega alpha))
 			function))))
       (cond ((symbolp head)
+	     ;; if the head is a function-denoting symbol, wrap the symbol in the appropriate function call
+	     ;; syntax and return it with the tail
 	     (values (lambda (meta axes alpha &optional omega)
 		       (declare (ignore meta axes))
 		       `(funcall ,head ,alpha ,@(if omega (list omega))))
 		     tail))
 
-	    ((and (listp (first head))
-		  (listp (caar head))
-		  (eq :fn (caaar head)))
-	     ;;(print :ghjgh)
+	    ((and (eq :composed-operation (first head)))
+	     ;; if the head is a composed operation, wrap appropriately and return with the tail
 	     (values (lambda (meta axes alpha &optional omega)
-		       (declare (ignore axes))
-		       `(funcall ,(funcall subprocessor idiom meta (first head))
-				 ,alpha ,@(if omega (list omega))))
+		       (declare (ignore meta axes))
+		       `(funcall ,(second head) ,alpha ,@(if omega (list omega))))
 		     tail))
 	    
 	    ((eq :axes (first head))
@@ -386,7 +400,11 @@
 	    ((and (eq :fn (first head))
 		  (or (not tail)
 		      (not (listp next))
-		      (not (keywordp (first next)))
+		      (not (and (listp next)
+				(keywordp (first next))))
+		      (and (eq :axes (first next))
+			   (or (not (listp (second tail)))
+			       (not (keywordp (first (second tail))))))
 		      (eq :fn (first next))
 		      (and (eq :op (first next))
 			   (eq :right (second next)))))
@@ -421,14 +439,14 @@
 		 (error "Found operator with no accompanying function.")))
 
 	    ((eq :op (first head))
-	     ;;(print (list :hh head tail))
 	     ;; handle any other operator
 	     (multiple-value-bind (following-op from-following-op)
 		 (if (listp next)
 		     (assemble-operation idiom meta subprocessor precedent tail :from-pivot t)
 		     (assemble-value idiom meta subprocessor precedent tail))
 	       (values (funcall (of-operators idiom (first (last head)))
-				meta (cons 'list axes)
+				meta (cons 'list (mapcar (lambda (item) (cons 'vector item))
+							 axes))
 				following-op)
 		       from-following-op)))))))
 
@@ -442,12 +460,11 @@
 		  (invert-matrix (array-inner-product (aops:permute (reverse (iota (rank input)))
 								    input)
 						      input
-						      (lambda (arg1 arg2)
-							(apex::apply-scalar-dyadic #'* arg1 arg2))
+						      (lambda (arg1 arg2) (apply-scalar-dyadic #'* arg1 arg2))
 						      #'+))
 		  (aops:permute (reverse (iota (rank input)))
 				input)
-		  (lambda (arg1 arg2) (apex::apply-scalar-dyadic #'* arg1 arg2))
+		  (lambda (arg1 arg2) (apply-scalar-dyadic #'* arg1 arg2))
 		  #'+)))
     (if (= 1 (rank in-matrix))
 	(aref (aops:split result 1) 0)
@@ -473,7 +490,7 @@
 		  (member char (list #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
 	    :prep-code-string
 	    (lambda (string)
-	      ;; remove comments, including comment-only lines
+	      ;; this code preprocessor removes comments, including comment-only lines
 	      (regex-replace-all (concatenate 'string "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
 					      "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
 					      "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
@@ -493,11 +510,22 @@
 			       (declare (ignore meta axes))
 			       (lambda (meta unused omega alpha)
 				 (declare (ignore unused))
-				 `(setq ,(second omega)
-					(funcall (lambda (alpha omega)
-						   ,(funcall right-function meta nil 'alpha 'omega))
-						 ,alpha ,omega))))))
-	       (tests (is "a←3 2 1 ◊ a+←5 ◊ a" #(8 7 6))))
+				 (if (and (listp omega)
+					  (eql 'aref-eliding (first omega)))
+				     (append omega (list :set `(lambda (item)
+								 (funcall (lambda (alpha omega)
+									    ,(funcall right-function
+										      meta nil 'alpha 'omega))
+								  ,alpha item))))
+				     (let ((symbol (if (listp omega)
+						       (second omega)
+						       omega)))
+				       `(setq ,symbol
+					      (funcall (lambda (alpha omega)
+							 ,(funcall right-function meta nil 'alpha 'omega))
+						       ,alpha ,omega))))))))
+	       (tests (is "a←3 2 1 ◊ a+←5 ◊ a" #(8 7 6))
+		      (is "a←3 2 1 ◊ a[2]+←5 ◊ a" #(3 7 1))))
 	    (/ (has :title "Reduce")
 	       (right (lambda (meta unused omega &optional alpha)
 			(declare (ignore alpha unused))
@@ -564,17 +592,17 @@
  	    	      (is "+⍀3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))
 		      (is "+⍀[2]3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))))
  	    (\. (has :title "Inner/Outer Product")
-	    	(center (macro (lambda (meta axes right-function)
+	    	(center (macro (lambda (meta axes left-operand)
 				 (declare (ignore meta axes))
-				 (if (eq :outer-product-designator right-function)
-				     (lambda (meta axes left-function)
+				 (if (eq :outer-product-designator left-operand)
+				     (lambda (meta axes right-function)
 				       (declare (ignore meta axes))
 				       (lambda (meta unused omega alpha)
 					 (declare (ignore unused))
 					 `(aops:outer (lambda (alpha omega)
-							,(funcall left-function meta nil 'alpha 'omega))
+							,(funcall right-function meta nil 'alpha 'omega))
 						      ,omega ,alpha)))
-				     (lambda (meta axes left-function)
+				     (lambda (meta axes right-function)
 				       (declare (ignore meta axes))
 				       (lambda (meta unused omega alpha)
 					 (declare (ignore unused))
@@ -584,15 +612,15 @@
 					      (make-array (list 1)
 							  :initial-element
 							  (reduce (lambda (alpha omega)
-								    ,(funcall right-function
+								    ,(funcall left-operand
 									      meta nil 'alpha 'omega))
 								  (aops:each (lambda (alpha omega)
-									       ,(funcall left-function
+									       ,(funcall right-function
 											 meta nil 'alpha 'omega))
 									     ,alpha ,omega)))
 					      (array-inner-product ,omega ,alpha
 					      			   (let ((f1 (lambda (alpha omega)
-					      				       ,(funcall left-function
+					      				       ,(funcall right-function
 					      						 meta nil 'alpha 'omega))))
 					      			     (lambda (arg1 arg2)
 					      			       (if (or (arrayp arg1)
@@ -600,7 +628,8 @@
 					      				   (apply-scalar-dyadic f1 arg1 arg2)
 					      				   (funcall f1 arg1 arg2))))
 					      			   (lambda (alpha omega)
-					      			     ,(funcall right-function
+					      			     ,(funcall left-operand
+									       
 					      				       meta nil 'alpha 'omega))))))))))
  	    	(tests (is "2 3 4+.×8 15 21" #(145))
 	    	       (is "2 3 4+.×3 3⍴3 1 4 1 5 9 2 6 5" #(17 41 55))
@@ -630,107 +659,113 @@
 					       new-array))))))
  	   	(tests (is "⍳¨1 2 3" #(#(1) #(1 2) #(1 2 3)))
 		       (is "1 ¯1 ⌽¨⊂1 2 3 4 5" #(#(2 3 4 5 1) #(5 1 2 3 4)))))
- 	   (⍨ (has :title "Commute")
-	      (right (lambda (meta axes omega &optional alpha)
-		       (funcall function meta axes (if alpha alpha omega)
-				omega)))
- 	      (tests (is "5-⍨10" #(5))))
- 	   (∘ (has :title "Compose")
-	      (center (macro (lambda (meta axes left-operand)
-			       (declare (ignore meta axes))
-			       (let ((composed-function nil))
-				 (labels ((enclose (meta unused omega &optional alpha)
-					    (declare (ignore unused alpha))
-					    ;; (print (list :eg composed-function left-operand omega))
-					    (cond ((and (not composed-function)
-							(not (functionp left-operand)))
-						   ;; mode 2: curry function with left argument
-						   (setq composed-function
-							 `(funcall (lambda (omega alpha)
-								     ,(funcall omega meta nil 'omega 'alpha))
-								   ,left-operand omega))
-						   #'enclose)
-						  ((and (not composed-function)
-							(not (functionp omega)))
-						   ;; mode 3: curry function with right argument
-						   `(lambda (omega)
-						      (declare (ignorable alpha))
-						      (funcall (lambda (omega alpha)
-								 ,(funcall left-operand
-									   meta nil 'omega 'alpha))
-							       omega ,omega)))
-						  ((and (not composed-function)
-							(functionp left-operand))
-						   (setq composed-function
-							 `(funcall (lambda (omega)
-								     ,(funcall omega meta nil 'omega))
-								   (funcall (lambda (omega)
-									      ,(funcall left-operand
-											meta nil 'omega))
-									    omega)))
-						   #'enclose)
-						  ((functionp omega)
-						   (setq composed-function
-							 `(funcall (lambda (omega)
-								     ,(funcall omega meta nil 'omega))
-								   ,composed-function))
-						   #'enclose)
-						  ((eq :fun-comp omega)
-						   `(lambda (omega &optional alpha)
-						      (declare (ignorable alpha))
-						      ,composed-function))
-						  ((or (listp omega)
-						       (symbolp omega))
-						   ;; a list passed as omega means that a calculated value is
-						   ;; on the right side of the composite
-						   `(funcall (lambda (omega &optional alpha)
-							       (declare (ignorable alpha))
-							       ,composed-function)
-							     ,omega))
-						  (t #'enclose))))
-				   #'enclose)))))
-	      (tests (is "a←⍴∘⍴ ◊ a 2 3 4⍴⍳9" #(3))
-		     (is "⍴∘⍴2 3 4⍴⍳9" #(3))
-		     (is "⍴∘⍴∘⍴2 3 4⍴⍳9" #(1))))
-	   (⍣ (has :title "Power")
-	      (center (macro (lambda (meta axes left-function)
-			       (declare (ignore meta axes))
-			       (lambda (meta axes right-operand)
-				 (declare (ignore axes))
-				 (cond ((and (listp right-operand)
-					     (integerp (second right-operand)))
-					(let ((arg (gensym)))
-					  `(lambda (omega &optional alpha)
-					     (declare (ignorable alpha))
-					     (let ((,arg omega))
-					       (loop for index from 0 to ,(1- (second right-operand))
-						  do (setq ,arg ,(funcall left-function meta nil arg)))
-					       ,arg))))
-				       ((listp right-operand)
-					(let ((arg (gensym)))
-					  `(lambda (omega &optional alpha)
-					     (declare (ignorable alpha))
-					     (let ((,arg omega))
-					       (loop while (not (= 0 (aref (funcall ,right-operand ,arg) 0)))
-						  do (setq ,arg ,(funcall left-function meta nil arg)))
-					       ,arg)))))))))
-	      (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" #(11))
-		     (is "fn←{2+⍵}⍣{10>⍵} ◊ fn 2" #(10)))))
+	    (⍨ (has :title "Commute")
+	       (right (lambda (meta axes omega &optional alpha)
+			(funcall function meta axes (if alpha alpha omega)
+				 omega)))
+	       (tests (is "5-⍨10" #(5))))
+	    (∘ (has :title "Compose")
+	       (center (macro (lambda (meta axes left-operand)
+				(declare (ignore meta axes))
+				(let ((composed-function nil))
+				  (labels ((enclose (meta unused omega &optional alpha)
+					     (declare (ignore unused alpha))
+					     ;; (print (list :eg composed-function left-operand omega))
+					     (cond ((and (not composed-function)
+							 (not (functionp left-operand)))
+						    ;; mode 2: curry function with left argument
+						    (setq composed-function
+							  `(funcall (lambda (omega alpha)
+								      ,(funcall omega meta nil 'omega 'alpha))
+								    ,left-operand omega))
+						    #'enclose)
+						   ((and (not composed-function)
+							 (not (functionp omega)))
+						    ;; mode 3: curry function with right argument
+						    `(lambda (omega)
+						       (declare (ignorable alpha))
+						       (funcall (lambda (omega alpha)
+								  ,(funcall left-operand
+									    meta nil 'omega 'alpha))
+								omega ,omega)))
+						   ((and (not composed-function)
+							 (functionp left-operand))
+						    (setq composed-function
+							  `(funcall (lambda (omega)
+								      ,(funcall omega meta nil 'omega))
+								    (funcall (lambda (omega)
+									       ,(funcall left-operand
+											 meta nil 'omega))
+									     omega)))
+						    #'enclose)
+						   ((functionp omega)
+						    (setq composed-function
+							  `(funcall (lambda (omega)
+								      ,(funcall omega meta nil 'omega))
+								    ,composed-function))
+						    #'enclose)
+						   ((eq :fun-comp omega)
+						    `(lambda (omega &optional alpha)
+						       (declare (ignorable alpha))
+						       ,composed-function))
+						   ((or (listp omega)
+							(symbolp omega))
+						    ;; a list passed as omega means that a calculated value is
+						    ;; on the right side of the composite
+						    `(funcall (lambda (omega &optional alpha)
+								(declare (ignorable alpha))
+								,composed-function)
+							      ,omega))
+						   (t #'enclose))))
+				    #'enclose)))))
+	       (tests (is "a←⍴∘⍴ ◊ a 2 3 4⍴⍳9" #(3))
+		      (is "⍴∘⍴2 3 4⍴⍳9" #(3))
+		      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" #(1))))
+	    (⍣ (has :title "Power")
+	       (center (macro (lambda (meta axes left-function)
+				(declare (ignore meta axes))
+				(lambda (meta axes right-operand)
+				  (declare (ignore axes))
+				  (cond ((and (listp right-operand)
+					      (integerp (second right-operand)))
+					 (let ((arg (gensym)))
+					   `(lambda (omega &optional alpha)
+					      (declare (ignorable alpha))
+					      (let ((,arg omega))
+						(loop for index from 0 to ,(1- (second right-operand))
+						   do (setq ,arg ,(funcall left-function meta nil arg)))
+						,arg))))
+					((listp right-operand)
+					 (let ((arg (gensym)))
+					   `(lambda (omega &optional alpha)
+					      (declare (ignorable alpha))
+					      (let ((,arg omega))
+						(loop while (not (= 0 (aref (funcall ,right-operand ,arg) 0)))
+						   do (setq ,arg ,(funcall left-function meta nil arg)))
+						,arg)))))))))
+	       (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" #(11))
+		      (is "({2+⍵}⍣3) 9" #(15))
+		      (is "fn←{2+⍵}⍣{10>⍵} ◊ fn 2" #(10)))))
  (functions (← (has :title "Assign")
 	       (dyadic (macro (lambda (meta axes alpha omega)
 				(declare (ignorable axes))
-	    			(let ((symbol (if (listp alpha)
-						  (second alpha)
-						  alpha)))
-				  (if (or (eql 'lambda (first omega))
-					  (and (listp (second omega))
-					       (eql 'lambda (caadr omega))))
-				      ;; assign from either a disclosed or enclosed function definition,
-				      ;; i.e. a←⍴∘⍴ or a←(⍴∘⍴).
-				      (setf (gethash :functions meta)
-					    (cons symbol (gethash :functions meta))))
-				  `(setq ,symbol ,omega)))))
-	       (tests (is "x←55 ◊ 1+3 ◊ x" 55)))
+	    			(if (and (listp alpha)
+					 (eql 'aref-eliding (first alpha)))
+				    (append alpha (list :set omega))
+				    (let ((symbol (if (listp alpha)
+						      (second alpha)
+						      alpha)))
+				      (if (or (eql 'lambda (first omega))
+					      (and (listp (second omega))
+						   (eql 'lambda (caadr omega))))
+					  ;; assign from either a disclosed or enclosed function definition,
+					  ;; i.e. a←⍴∘⍴ or a←(⍴∘⍴).
+					  (setf (gethash :functions meta)
+						(cons symbol (gethash :functions meta))))
+				      `(setq ,symbol ,omega))))))
+	       (tests (is "x←55 ◊ 1+3 ◊ x" 55)
+		      (is "x←2 3 4⍴⍳9 ◊ x[;1;]←7 ◊ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
+							  ((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
 	    (⊣ (has :titles ("Empty" "Left"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(declare (ignore omega))
@@ -956,6 +991,10 @@
 	    				       output))))
 	       (tests (is "∊2 2 2⍴⍳9" #(1 2 3 4 5 6 7 8))
 	    	      (is "2 5 7∊1 2 3 4 5" #(1 1 0))))
+	    (⍷ (has :title "Find")
+	       (dyadic (args :any :any find-array))
+	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
+						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
 	    (↑ (has :titles ("Disclose" "Take"))
 	       (ambivalent (args :any (lambda (omega)
 	    				(if (or (not (vectorp omega))
@@ -1001,7 +1040,7 @@
 		      (is "1↓[2]2 3 4⍴⍳9" #3A(((5 6 7 8) (9 1 2 3)) ((8 9 1 2) (3 4 5 6))))
 		      (is "2↓[2]2 3 4⍴⍳9" #3A(((9 1 2 3)) ((3 4 5 6))))
 		      (is "2↓[3]2 3 4⍴⍳9" #3A(((3 4) (7 8) (2 3)) ((6 7) (1 2) (5 6))))))
-	    (⌷ (has :title "Axis")
+	    (⌷ (has :title "At Axes")
 	       (dyadic (args :any :any :axes
 			     (lambda (alpha omega &optional axes)
 			       (if axes
@@ -1013,7 +1052,7 @@
 						      elided-coords)
 						 (- (aref alpha index)
 						    (of-state *apex-idiom* :count-from))))
-				     (apply #'aref-eliding (cons omega elided-coords)))
+				     (aref-eliding omega elided-coords))
 				   (let* ((coords (mapcar (lambda (coord) (- coord
 									     (of-state *apex-idiom* :count-from)))
 							  (array-to-list alpha)))
@@ -1174,10 +1213,6 @@
 	    				     (1- (rank omega))))))
 	       (tests (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
 		      (is "1 0 1⍀3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
-	    (⍷ (has :title "Find")
-	       (dyadic (args :any :any find-array))
-	       (tests (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
-						       ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
 	    (⍧ (has :title "Partitioned Enclose")
 	       (dyadic (args :any :any :axes
 			     (lambda (alpha omega &optional axes)
@@ -1530,4 +1565,4 @@
 		      :ex #(6 14 24))
 		(with :title "Variable-referenced values, including a component specified by axes, in a vector."
 		      :in ("a←9 ◊ b←2 3 4⍴⍳9 ◊ 1 2 a 3 b[1;2;1]")
-		      :ex #(1 2 9 3 4))))
+		      :ex #(1 2 9 3 5))))

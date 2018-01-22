@@ -319,9 +319,8 @@
 	   (handle-axes (input-string)
 	     (let ((each-axis (funcall (of-utilities idiom :process-axis-string)
 				       input-string)))
-	       (cons :axes (mapcar (lambda (item) (if item (cons 'vector (reverse item))))
-				   (mapcar (lambda (string) (first (parse string (=vex-string idiom meta))))
-					   each-axis)))))
+	       (cons :axes (mapcar (lambda (string) (first (parse string (=vex-string idiom meta))))
+				   each-axis))))
 
 	   (handle-function (input-string)
 	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
@@ -397,7 +396,7 @@
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
 			 idiom meta #'vex-expression precedent from-operation)
-	      ;;(print (list :op operation precedent))
+	      ;; (print (list :op operation precedent right-value))
 	      (vex-expression idiom meta from-value
 		       (apply operation (append (list meta nil)
 						(if right-value (list right-value))
