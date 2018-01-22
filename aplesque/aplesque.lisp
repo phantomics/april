@@ -529,7 +529,8 @@
 	   (= (length indices)
 	      (rank array))
 	   (loop for index in indices always index))
-      (apply #'aref (cons array indices))
+      ;; wrap discrete elements in vectors in keeping with APL's data model
+      (vector (apply #'aref (cons array indices)))
       (let* ((adims (dims array))
 	     (el-indices nil)
 	     (indices (if (= (length indices)
