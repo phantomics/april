@@ -460,13 +460,16 @@
 	    (let ((code `(,@(if vars-declared
 				`(let ,vars-declared)
 				'(progn))
-			    ,@compiled-expressions
+			    ,@(funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
+				       compiled-expressions)
 			    ,@(if output-vars
-				  (list (cons 'values (mapcar (lambda (return-var)
-								(gethash (intern (lisp->camel-case return-var)
-										 "KEYWORD")
-									 (gethash :variables meta)))
-							      output-vars)))))))
+				  (list (cons 'values
+					      (mapcar (lambda (return-var)
+							(funcall (of-utilities idiom :postprocess-value)
+								 (gethash (intern (lisp->camel-case return-var)
+										  "KEYWORD")
+									  (gethash :variables meta))))
+						      output-vars)))))))
 
 	      (if (assoc :compile-only options)
 		  `(quote ,code)

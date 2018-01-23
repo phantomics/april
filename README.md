@@ -135,8 +135,8 @@ Set is the workhorse of Apex parameters, allowing you to configure your Apex ins
                      :out (a c)))
         "c←a+b×11")
 
-#(1)
-#(23)
+1
+23
 ```
 
 Let's learn some more about what's going on in that code. The sub-parameters of (:state) are:
@@ -168,7 +168,7 @@ Note also that variables are converted from Lisp-style dash-separated format int
                           (other-var 5))))
         "myVar×otherVar+5")
 
-#(20)
+20
 ```
 
 #### :out
@@ -180,7 +180,7 @@ Lists variables to be output when the code has finished evaluating. By default, 
          2+3
          3+4")
 
-#(7)
+7
 ```
 
 The last value calculated is displayed. The :out sub-parameter allows you to list a set of variables that whose values will be returned once evaluation is complete. For example:
@@ -191,10 +191,28 @@ The last value calculated is displayed. The :out sub-parameter allows you to lis
          b←5+3
          c←2×9")
 
-#(11)
-#(8)
-#(18)
+11
+8
+18
 ```
+
+#### :disclose-output
+
+In APL, there's really no such thing as a value outside an array. Every piece of data used within an Apex instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When Apex returns arrays like this, its default behavior is to disclose them like this:
+
+```
+* (apex "1+1")
+
+2
+```
+But if you set the :disclose-output option to nil, you can change this:
+```
+* (apex (set (:state :disclose-output nil)) "1+1")
+
+#(2)
+```
+
+With :disclose-output set to nil, unitary vectors will be passed directly back without having their values disclosed.
 
 ### (:state-persistent)
 
