@@ -30,25 +30,25 @@
 			      (recurse (1+ n))))))
       (recurse 0))))
 
-(defun array-match (alpha omega)
-  (let ((singleton-alpha (is-singleton alpha))
-	(singleton-omega (is-singleton omega)))
-    (if (or singleton-alpha singleton-omega
-	    (loop for dimension in (funcall (lambda (a o) (mapcar #'= a o))
-					    (dims alpha)
-					    (dims omega))
-	       always dimension))
-	(if singleton-alpha
-	    (if singleton-omega
-		(list alpha omega)
-		(list (scale-array alpha omega)
-		      omega))
-	    (if singleton-omega
-		(list alpha (scale-array omega alpha))
-		(list alpha omega))))))
+;; (defun array-match (alpha omega)
+;;   (let ((singleton-alpha (is-singleton alpha))
+;; 	(singleton-omega (is-singleton omega)))
+;;     (if (or singleton-alpha singleton-omega
+;; 	    (loop for dimension in (funcall (lambda (a o) (mapcar #'= a o))
+;; 					    (dims alpha)
+;; 					    (dims omega))
+;; 	       always dimension))
+;; 	(if singleton-alpha
+;; 	    (if singleton-omega
+;; 		(list alpha omega)
+;; 		(list (scale-array alpha omega)
+;; 		      omega))
+;; 	    (if singleton-omega
+;; 		(list alpha (scale-array omega alpha))
+;; 		(list alpha omega))))))
 
 (defun array-compare (item1 item2)
-  "Compare all elements in two arrays, which may be multidimensional or nested."
+  "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (and (not (arrayp item1))
 	   (not (arrayp item2)))
       (or (and (numberp item1)
@@ -171,6 +171,7 @@
 				     output)))))
 
 (defun make-back-scanner (function)
+  "Build a function to scan across an array, modifying each value as determined by prior values."
   (lambda (sub-array)
     (let ((args (list (aref sub-array 0))))
       (loop for index from 1 to (1- (length sub-array))
@@ -199,6 +200,7 @@
 		   new-array)))))
 
 (defun expand-array (degrees array axis default-axis &key (compress-mode nil))
+  "Expand or replicate sections of an array as specified by an array of 'degrees.'"
   (let* ((new-array (copy-array array))
 	 (a-rank (rank array))
 	 (axis (if axis axis default-axis))
@@ -253,6 +255,7 @@
 		       output)))))))
 
 (defun partitioned-enclose (positions array axis default-axis)
+  "Enclose parts of an input array partitioned according to the 'positions' argument."
   (let* ((indices (loop for p from 0 to (1- (length positions))
 		     when (not (= 0 (aref positions p)))
 		     collect p))
@@ -312,6 +315,7 @@
 	(apply #'aops:stack (cons 0 (reverse segments))))))
 
 (defun reshape-array-fitting (array adims)
+  "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (let* ((original-length (array-total-size array))
 	 (total-length (apply #'* adims))
 	 (displaced-array (make-array (list original-length)
@@ -348,6 +352,7 @@
       (ash r shift))))
 
 (defun binomial (k n)
+  "Find a binomial using the above sprfact function."
   (labels ((prod-enum (s e)
 	     (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
 	   (sprfact (n) (prod-enum 1 n)))
@@ -589,31 +594,31 @@
 				   (mix-arrays axis sub-arrays max-dims))
 				 (aops:split arrays 1))))))
 
-(defun ravel (count-from omega &optional axes)
+(defun ravel (count-from array &optional axes)
   (flet ((linsert (newelt lst index)
 	   (if (= 0 index)
 	       (setq lst (cons newelt lst))
 	       (push newelt (cdr (nthcdr (1- index) lst))))
 	   lst))
     (if (and (not axes)
-	     (vectorp omega))
-	omega (if axes
+	     (vectorp array))
+	array (if axes
 		  (cond ((and (= 1 (length (first axes)))
 			      (not (integerp (aref (first axes) 0))))
 			 (make-array (if (and (vectorp (aref (first axes) 0))
 					      (= 0 (length (aref (first axes) 0))))
-					 (append (dims omega)
+					 (append (dims array)
 						 (list 1))
-					 (linsert 1 (dims omega)
+					 (linsert 1 (dims array)
 						  (- (ceiling (aref (first axes) 0))
 						     count-from)))
-				     :displaced-to (copy-array omega)))
+				     :displaced-to (copy-array array)))
 			((and (< 1 (length (first axes)))
 			      (or (< (aref (first axes) 0)
 				     0)
 				  (> (aref (first axes)
 					   (1- (length (first axes))))
-				     (rank omega))
+				     (rank array))
 				  (not (loop for index from 1 to (1- (length (first axes)))
 					  always (= (aref (first axes) index)
 						    (1+ (aref (first axes)
@@ -623,7 +628,7 @@
 			((< 1 (length (first axes)))
 			 (let* ((axl (mapcar (lambda (item) (- item count-from))
 					     (array-to-list (first axes))))
-				(collapsed (apply #'* (mapcar (lambda (index) (nth index (dims omega)))
+				(collapsed (apply #'* (mapcar (lambda (index) (nth index (dims array)))
 							      axl))))
 			   (labels ((dproc (dms &optional index output)
 				      (let ((index (if index index 0)))
@@ -636,11 +641,11 @@
 						   (cons (if (= index (first axl))
 							     collapsed (first dms))
 							 output))))))
-			     (make-array (dproc (dims omega))
-					 :displaced-to (copy-array omega))))))
-		  (make-array (list (array-total-size omega))
-			      :element-type (element-type omega)
-			      :displaced-to (copy-array omega))))))
+			     (make-array (dproc (dims array))
+					 :displaced-to (copy-array array))))))
+		  (make-array (list (array-total-size array))
+			      :element-type (element-type array)
+			      :displaced-to (copy-array array))))))
 
 (defun re-enclose (matrix axes)
   (labels ((make-enclosure (inner-dims type dimensions)

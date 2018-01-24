@@ -212,8 +212,7 @@
 		   (make-hash-table :test #'eq)))
 	 (let ((variable-found (gethash (intern element "KEYWORD")
 					(gethash :variables meta))))
-	   (if variable-found
-	       variable-found
+	   (if variable-found variable-found
 	       ;; create a new variable if no variable is found matching the string
 	       (setf (gethash (intern element "KEYWORD")
 			      (gethash :variables meta))
@@ -247,6 +246,11 @@
 			 ,content)
 		       ,⍵ ,⍺)
 	     (funcall (lambda (,⍵) ,content) ,⍺)))))
+
+(defun enclose (item)
+  "Enclose non-array values, passing through arguments that are already arrays."
+  (if (arrayp item)
+      item (vector item)))
 
 (defun disclose (item)
   "Handle APL symbols encountered by the parser. Currently, this means disclosing them if they are singletons referenced in arrays."
@@ -375,7 +379,7 @@
 			  (cdar exp)))))
 
 (defun assemble-operation (idiom meta subprocessor precedent exp &key (axes nil) (from-pivot nil))
-  "Assemble an APL operation from parsed tokens. The simplest operations consist of a single function, like '+', while operators can be used to combine functions for more complex operations."
+  "Assemble an APL operation from parsed tokens. The simplest operations consist of a single function, like '+', while operators can be combined with functions to form more complex operations."
   (let ((head (first exp))
 	(next (second exp))
 	(tail (rest exp)))
@@ -431,32 +435,36 @@
 	    ((and (eq :fn (first head))
 		  (eq :op (first next))
 		  (eq :center (second next)))
+	     ;;(print (list :cen next))
 	     ;; if the next glyph is a center operator glyph, perform the first stage of its assembly
 	     ;; and then execute the resulting operation on the head glyph, thus completing the assembly
 	     (multiple-value-bind (following-op from-following-op)
 		 (assemble-operation idiom meta subprocessor precedent tail)
+	       ;; (print (list :eo (funcall following-op meta (cons 'list axes)
+	       ;; 				 (get-function (second head)))))
 	       (values (funcall following-op meta (cons 'list axes)
 				(get-function (second head)))
 		       from-following-op)))
 
 	    ((and (eq :op (first head))
-		  (or from-pivot (not (eq :center (second head))))
-		  ;; note: center operator glyphs cannot be overloaded as function glyphs if they follow
-		  ;; another center operator glyph
-		  (or (not tail)
-		      (not (and (listp next)
-				(eq :fn (first next))))))
+	    	  (or from-pivot (not (eq :center (second head))))
+	    	  ;; note: center operator glyphs cannot be overloaded as function glyphs if they follow
+	    	  ;; another center operator glyph
+	    	  (or (not tail)
+	    	      (not (and (listp next)
+	    			(eq :fn (first next))))))
 	     ;; if no function follows a right operator glyph, check whether it's actually an overloaded
 	     ;; function glyph and reassign if so
 	     (if (of-overloaded? idiom (first (last head)))
-		 (values (get-function (first (last head)))
-			 tail)
-		 (error "Found operator with no accompanying function.")))
+	    	 (values (get-function (first (last head)))
+	    		 tail)
+	    	 (error "Found operator with no accompanying function.")))
 
 	    ((eq :op (first head))
 	     ;; handle any other operator
 	     (multiple-value-bind (following-op from-following-op)
-		 (if (listp next)
+		 (if (and (listp next)
+			  (keywordp (first next)))
 		     (assemble-operation idiom meta subprocessor precedent tail :from-pivot t)
 		     (assemble-value idiom meta subprocessor precedent tail))
 	       (values (funcall (of-operators idiom (first (last head)))
@@ -484,6 +492,130 @@
     (if (= 1 (rank in-matrix))
 	(aref (aops:split result 1) 0)
 	result)))
+
+;; (defun compose-stage (function-form left-operand)
+;;   (lambda (meta unused omega &optional alpha)
+;;     (declare (ignore unused alpha))
+;;     (print (list :eg function-form left-operand omega
+;; 		 (funcall left-operand meta nil 'omega 'alpha)))
+;;     (cond ((and (not function-form)
+;; 		(not (functionp left-operand)))
+;; 	   ;; mode 2: curry function with left argument
+;; 	   (setq function-form
+;; 		 `(funcall (lambda (omega alpha) ,(funcall omega meta nil 'omega 'alpha))
+;; 			   ,left-operand omega))
+;; 	   (compose-stage function-form left-operand))
+;; 	  ((and (not function-form)
+;; 		(not (functionp omega)))
+;; 	   ;; mode 3: curry function with right argument
+;; 	   `(lambda (omega)
+;; 	      (declare (ignorable alpha))
+;; 	      (funcall (lambda (omega alpha) ,(funcall left-operand meta nil 'omega 'alpha))
+;; 		       omega ,omega)))
+;; 	  ((and (not function-form)
+;; 		(functionp left-operand))
+;; 	   (setq function-form
+;; 		 `(funcall (lambda (omega)
+;; 			     ,(funcall left-operand meta nil 'omega))
+;; 			   (funcall (lambda (omega)
+;; 				      ,(funcall omega meta nil 'omega))
+;; 				    omega)))
+;; 	   (compose-stage function-form left-operand))
+;; 	  ((functionp omega)
+;; 	   (setq function-form
+;; 		 `(funcall (lambda (omega) ,(funcall omega meta nil 'omega))
+;; 			   ,function-form))
+;; 	   (compose-stage function-form left-operand))
+;; 	  ((eq :fun-comp omega)
+;; 	   `(lambda (omega &optional alpha)
+;; 	      (declare (ignorable alpha))
+;; 	      ,function-form))
+;; 	  ((or (listp omega)
+;; 	       (symbolp omega))
+;; 	   ;; a list passed as omega means that a calculated value is
+;; 	   ;; on the right side of the composite
+;; 	   `(funcall (lambda (omega &optional alpha)
+;; 		       (declare (ignorable alpha))
+;; 		       ,function-form)
+;; 		     ,omega))
+;; 	  (t (compose-stage function-form left-operand)))))
+
+;; (defun compose-stage2 (left-operand)
+;;   (flet ((fgen (operand meta &optional second-symbol)
+;; 	   (let ((result (funcall operand meta nil 'omega second-symbol)))
+;; 	     (if (eql 'marker (fourth (second result)))
+;; 		 `(funcall (lambda (omega-comp) ,(fourth (fourth result)))
+;; 			   omega-comp)
+;; 		 result)))
+;; 	 (rgen (operand meta)
+;; 	   (let ((result (funcall operand meta nil 'omega 'alpha)))
+;; 	     (if (eql 'marker (fourth (second result)))
+;; 		 `(funcall (lambda (omega-comp) ,(third (fourth result)))
+;; 			   omega-comp)
+;; 		 result))))
+;;     (lambda (meta unused right-operand &optional alpha)
+;;       (declare (ignore meta unused alpha))
+;;       (lambda (meta axes omega &optional alpha)
+;; 	(declare (ignore axes))
+;; 	(print (list :om omega alpha
+;; 		     :left (rgen left-operand meta)
+;; 	 	     :right (fgen right-operand meta)))
+;; 	`(lambda (omega-comp &optional alpha-comp marker)
+;; 	   (declare (ignore marker))
+;; 	   (if alpha-comp (funcall (lambda (omega alpha) ,(rgen left-operand meta))
+;; 				   omega-comp (funcall (lambda (omega) ,(fgen right-operand meta))
+;; 						       alpha-comp))
+;; 	       (funcall (lambda (omega) ,(fgen left-operand meta))
+;; 			(funcall (lambda (omega) ,(fgen right-operand meta))
+;; 				 omega-comp))))))))
+
+(defun compose-stage (left-operand)
+  (let* ((left-evaluated (funcall left-operand nil :marker 'alpha 'omega))
+	 ;(left-evaluated (funcall left-operand nil :marker 'omega 'alpha))
+	 (functions nil))
+    (lambda (meta unused right-operand &optional alpha)
+      (declare (ignore meta unused alpha))
+      (lambda (meta &optional axes omega alpha)
+	(declare (ignore axes))
+	(print (list :om omega alpha axes left-operand right-operand))
+	(if (not (eq :fun-comp omega))
+	    (setq functions (if (functionp (first left-evaluated))
+				(cons right-operand left-evaluated)
+				(list right-operand left-operand))))
+	(labels ((wrap (with-alpha fnlist body)
+		   (if fnlist
+		       (wrap with-alpha (rest fnlist)
+			     `(funcall (lambda (omega ,@(if (and with-alpha (not (rest fnlist)))
+						      (list 'alpha)))
+					 ,(if (functionp (first fnlist))
+					      (funcall (first fnlist)
+						       meta nil 'omega (if (and with-alpha (not (rest fnlist)))
+									   'alpha))
+					      (first fnlist)))
+				       ,@(if (and with-alpha (not (rest fnlist)))
+					     (list 'alpha-comp))
+				       ,body))
+		       body)))
+	  (if (not (eq :marker axes))
+	      (funcall (if (eq :fun-comp omega)
+			   #'values
+			   ;; (lambda (body) `(lambda (omega &optional alpha)
+			   ;; 		     (funcall ,body omega alpha)))
+			   (lambda (body) `(funcall ,body ,omega ,alpha)))
+		       `(lambda ;;(omega-comp &optional alpha-comp)
+			  (alpha-comp &optional omega-comp)
+			  (if omega-comp
+			      ,(wrap t (if (functionp (first left-evaluated))
+					   left-evaluated
+					   (list left-operand))
+				     `(funcall (lambda (omega) ,(funcall right-operand meta nil 'omega))
+					       omega-comp))
+			      ,(wrap nil (if (functionp (first left-evaluated))
+					     left-evaluated
+					     (list left-operand))
+				     `(funcall (lambda (omega) ,(funcall right-operand meta nil 'omega))
+					       omega-comp)))))
+	      functions))))))
 
 (vex-spec
  apex
@@ -573,7 +705,7 @@
 											   omega (vector omega))))
 									    (disclose
 									     ,(funcall function
-										       meta nil 'alpha 'omega))))
+										       meta nil 'omega 'alpha))))
 									sub-array))
 					    new-array (if ,axes (1- (aref (first ,axes) 0))
 							  (1- (rank new-array))))))))
@@ -733,60 +865,10 @@
 	    (∘ (has :title "Compose")
 	       (center (macro (lambda (meta axes left-operand)
 				(declare (ignore meta axes))
-				(let ((composed-function nil))
-				  (labels ((enclose (meta unused omega &optional alpha)
-					     (declare (ignore unused alpha))
-					     ;; (print (list :eg composed-function left-operand omega))
-					     (cond ((and (not composed-function)
-							 (not (functionp left-operand)))
-						    ;; mode 2: curry function with left argument
-						    (setq composed-function
-							  `(funcall (lambda (omega alpha)
-								      ,(funcall omega meta nil 'omega 'alpha))
-								    ,left-operand omega))
-						    #'enclose)
-						   ((and (not composed-function)
-							 (not (functionp omega)))
-						    ;; mode 3: curry function with right argument
-						    `(lambda (omega)
-						       (declare (ignorable alpha))
-						       (funcall (lambda (omega alpha)
-								  ,(funcall left-operand
-									    meta nil 'omega 'alpha))
-								omega ,omega)))
-						   ((and (not composed-function)
-							 (functionp left-operand))
-						    (setq composed-function
-							  `(funcall (lambda (omega)
-								      ,(funcall omega meta nil 'omega))
-								    (funcall (lambda (omega)
-									       ,(funcall left-operand
-											 meta nil 'omega))
-									     omega)))
-						    #'enclose)
-						   ((functionp omega)
-						    (setq composed-function
-							  `(funcall (lambda (omega)
-								      ,(funcall omega meta nil 'omega))
-								    ,composed-function))
-						    #'enclose)
-						   ((eq :fun-comp omega)
-						    `(lambda (omega &optional alpha)
-						       (declare (ignorable alpha))
-						       ,composed-function))
-						   ((or (listp omega)
-							(symbolp omega))
-						    ;; a list passed as omega means that a calculated value is
-						    ;; on the right side of the composite
-						    `(funcall (lambda (omega &optional alpha)
-								(declare (ignorable alpha))
-								,composed-function)
-							      ,omega))
-						   (t #'enclose))))
-				    #'enclose)))))
+				(compose-stage left-operand))))
 	       (tests (is "a←⍴∘⍴ ◊ a 2 3 4⍴⍳9" 3)
-		      (is "⍴∘⍴2 3 4⍴⍳9" 3)
-		      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" 1)))
+		      ;; (is "⍴∘⍴2 3 4⍴⍳9" 3)
+		      (is "⌊10000×+∘÷/40/1" 16180)))
 	    (⍣ (has :title "Power")
 	       (center (macro (lambda (meta axes left-function)
 				(declare (ignore meta axes))
@@ -799,15 +881,15 @@
 					      (declare (ignorable alpha))
 					      (let ((,arg omega))
 						(loop for index from 0 to ,(1- (second right-operand))
-						   do (setq ,arg ,(funcall left-function meta nil arg)))
+						   do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 						,arg))))
 					((listp right-operand)
 					 (let ((arg (gensym)))
 					   `(lambda (omega &optional alpha)
 					      (declare (ignorable alpha))
 					      (let ((,arg omega))
-						(loop while (not (= 0 (aref (funcall ,right-operand ,arg) 0)))
-						   do (setq ,arg ,(funcall left-function meta nil arg)))
+						(loop while (not (= 0 (funcall ,right-operand ,arg)))
+						   do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 						,arg)))))))))
 	       (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" 11)
 		      (is "({2+⍵}⍣3) 9" 15)
