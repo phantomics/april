@@ -387,7 +387,7 @@
 								operand2)
 						  1))))))
 
-(defun index-of (set to-search)
+(defun index-of (to-search set)
   (if (not (vectorp set))
       (error "Rank error.")
       (let* ((to-find (remove-duplicates set :from-end t))
@@ -467,7 +467,7 @@
 			     :initial-contents (reverse coords))))
 	     array))
 
-(defun find-array (target array)
+(defun find-array (array target)
   "Find instances of an array within a larger array."
   (let ((target-head (row-major-aref target 0))
 	(target-dims (append (if (< (rank target)

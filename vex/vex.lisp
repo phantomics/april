@@ -65,6 +65,21 @@
   			(list omega)))
   	 1 0)))
 
+(defmacro reverse-op (operation omega &optional alpha)
+  (declare (ignore omega))
+  (if alpha `(lambda (omega alpha) (funcall (function ,operation)
+					    alpha omega))
+      `(function, operation)))
+
+(defmacro reverse-boolean-op (operation omega &optional alpha)
+  "Converts output of a boolean operation from t/nil to 1/0."
+  `(lambda ,(if alpha (list omega alpha)
+  		(list omega))
+     (if (funcall (function ,operation)
+  		  ,@(if alpha (list alpha omega)
+  			(list omega)))
+  	 1 0)))
+
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
@@ -329,14 +344,9 @@
 				   each-axis))))
 
 	   (handle-function (input-string)
-	     (let ((formatted-function (funcall (of-utilities idiom :format-function)
-						(string-upcase (idiom-name idiom))
-						(vex-program idiom nil input-string))))
-	       (list :fn (lambda (meta axes omega &optional alpha)
-			   (declare (ignorable meta axes))
-			   `(funcall ,formatted-function
-				     ,@(if alpha (list (macroexpand alpha)))
-				     ,(macroexpand omega)))))))
+	     (list :fn (funcall (of-utilities idiom :format-function)
+				(string-upcase (idiom-name idiom))
+				(vex-program idiom nil input-string)))))
 
     ;;(setf (fdefinition '=vex-axes-parser) (=vex-axes))
 
@@ -403,10 +413,10 @@
 		(funcall (of-utilities idiom :assemble-value)
 			 idiom meta #'vex-expression precedent from-operation)
 	      ;; (print (list :op operation precedent right-value))
+	      ;; (print (list :ri right-value precedent))
 	      (vex-expression idiom meta from-value
-		       (apply operation (append (list meta nil)
-						(if right-value (list right-value))
-						(list precedent)))))))))
+			      (apply operation (append (list meta nil precedent)
+						       (if right-value (list right-value))))))))))
 
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
