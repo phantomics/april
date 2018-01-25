@@ -834,9 +834,10 @@
  	       (ambivalent (args :one (lambda (omega)
  	    				(make-array (list omega)
  	    					    :initial-contents
- 	    					    (mapcar (lambda (i) (+ i (of-state *apex-idiom* :count-from)))
- 	    						    (alexandria:iota omega)))))
- 	    		   (args :any :any index-of))
+ 	    					    (alexandria:iota omega
+								     :start (of-state *apex-idiom*
+										      :count-from)))))
+			   (args :any :any index-of))
  	       (tests (is "⍳5" #(1 2 3 4 5))
  	    	      (is "3⍳1 2 3 4 5" #(2 2 1 2 2))))
      	    (⍴ (has :titles ("Shape" "Reshape"))
