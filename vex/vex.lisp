@@ -255,14 +255,13 @@
 				  (copy-alist (idiom-base-state ,,idiom-symbol))))
 			  ;; the (set-default) setting is used to restore the instance settings
 			  ;; to the defaults from the spec
-			  (t (vex-program ,idiom-symbol
-					  (if (or input-string (and options (listp options)))
-						(if (eq :set (intern (string-upcase (first options))
-								     "KEYWORD"))
-						    (rest options)
-						    (error "Incorrect option syntax.")))
-					  (eval (if (not (listp options))
-						    options input-string))))))))))))
+			  (t `(eval (vex-program ,,idiom-symbol
+						 (quote ,(if input-string
+							     (if (eq :set (intern (string-upcase (first options))
+										  "KEYWORD"))
+								 (rest options)
+								 (error "Incorrect option syntax."))))
+						 ,(if input-string input-string options))))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
