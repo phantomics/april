@@ -402,7 +402,6 @@
 	  (multiple-value-bind (right-value from-value)
 	      (funcall (of-utilities idiom :assemble-value)
 		       idiom meta #'vex-expression precedent exp)
-	    ;; (print (list :rv right-value from-value))
 	    (vex-expression idiom meta from-value right-value))
 	  (multiple-value-bind (operation from-operation)
 	      (funcall (of-utilities idiom :assemble-operation)
@@ -410,7 +409,6 @@
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
 			 idiom meta #'vex-expression precedent from-operation)
-	      ;; (print (list :op operation precedent right-value))
 	      ;; (print (list :ri right-value precedent))
 	      (vex-expression idiom meta from-value
 			      (apply operation (append (list meta nil precedent)
