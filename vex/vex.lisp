@@ -246,8 +246,7 @@
 						,(length general-tests))
 					     2))
 				   ,@',(append function-tests operator-tests general-tests)
-				   (finalize)
-				   ))
+				   (finalize)))
 			  ;; the (test) setting is used to run tests
 			  ((and options (listp options)
 				(eq :restore-defaults (intern (string-upcase (first options))
@@ -258,12 +257,12 @@
 			  ;; to the defaults from the spec
 			  (t (vex-program ,idiom-symbol
 					  (if (or input-string (and options (listp options)))
-					      (if (eq :set (intern (string-upcase (first options))
-								   "KEYWORD"))
-						  (rest options)
-						  (error "Incorrect option syntax.")))
-					  (if (not (listp options))
-					      options input-string)))))))))))
+						(if (eq :set (intern (string-upcase (first options))
+								     "KEYWORD"))
+						    (rest options)
+						    (error "Incorrect option syntax.")))
+					  (eval (if (not (listp options))
+						    options input-string))))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
