@@ -482,6 +482,7 @@
 	result)))
 
 (defun compose-stage (left-operand)
+  "Perform a stage of function composition for the compose operation (∘)."
   (let* ((left-evaluated (if (functionp left-operand)
 			     (funcall left-operand nil :marker 'omega 'alpha)
 			     left-operand))
@@ -489,26 +490,40 @@
     (lambda (meta unused right-operand &optional alpha)
       (declare (ignore unused alpha))
       (cond ((not (functionp right-operand))
+	     ;; if the right operand isn't a function, curry accordingly
 	     `(lambda (omega)
 		(funcall (lambda (omega alpha) ,(funcall left-operand meta nil 'omega 'alpha))
 			 ,right-operand omega)))
 	    ((not (functionp left-operand))
-	     ;; TODO: this composition cannot yet be chained.
+	     ;; if the left operand isn't a function, curry by building the appropriate function and passing it
+	     ;; to the next operation assembly stage if there is no :fun-comp omega value denoting that this is
+	     ;; the only stage of assembly
 	     (lambda (meta axes omega &optional alpha)
-	       (declare (ignore axes omega alpha))
-	       `(lambda (omega)
-		  (funcall (lambda (omega alpha) ,(funcall right-operand meta nil 'omega 'alpha))
-			   omega ,left-operand))))
+	       (declare (ignore axes alpha))
+	       (if (eq :fun-comp omega)
+		   `(lambda (omega)
+		      (funcall (lambda (omega alpha) ,(funcall right-operand meta nil 'omega 'alpha))
+			       omega ,left-operand))
+		   (list (lambda (meta axes omega &optional alpha)
+			   (declare (ignore axes omega alpha))
+			   `(funcall (lambda (omega &optional alpha)
+				       ,(funcall right-operand meta nil 'omega 'alpha))
+				     omega ,left-operand))))))
 	    (t (lambda (meta &optional axes omega alpha)
 		 (if (not (eq :fun-comp omega))
 		     (setq functions (if (functionp (first left-evaluated))
 					 (cons right-operand left-evaluated)
 					 (list right-operand left-operand))))
+		 ;; note: the alpha-comp and omega-comp variables are enclosed below in case they are passed in as
+		 ;; scalars; this causes slowdown when iterating over many values
 		 (labels ((wrap (with-alpha fnlist body)
 			    (if fnlist
 				(wrap with-alpha (rest fnlist)
 				      `(funcall (lambda (omega ,@(if (and with-alpha (not (rest fnlist)))
 								     (list 'alpha)))
+						  ,@(if (and with-alpha (not (rest fnlist)))
+							`((declare (ignorable alpha))))
+						  ;; alpha is ignorable in the case of a left-curried value
 						  ,(if (functionp (first fnlist))
 						       (funcall (first fnlist)
 								meta nil 'omega (if (and with-alpha
@@ -516,7 +531,7 @@
 										    'alpha))
 						       (first fnlist)))
 						,@(if (and with-alpha (not (rest fnlist)))
-						      (list 'alpha-comp))
+						      `((enclose alpha-comp)))
 						,body))
 				body)))
 		   (if (not (eq :marker axes))
@@ -527,12 +542,12 @@
 				       ,(wrap t (if (functionp (first left-evaluated))
 						    left-evaluated (list left-operand))
 					      `(funcall (lambda (omega) ,(funcall right-operand meta nil 'omega))
-							omega-comp))
+							(enclose omega-comp)))
 				       ,(wrap nil (if (functionp (first left-evaluated))
 						      left-evaluated
 						      (list left-operand))
 					      `(funcall (lambda (omega) ,(funcall right-operand meta nil 'omega))
-							omega-comp)))))
+							(enclose omega-comp))))))
 		       functions))))))))
 
 (defun over-operator-template (axes function &key (first-axis nil) (for-vector nil) (for-array nil))
@@ -1560,7 +1575,9 @@
  	    	      (is "⍴∘⍴2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" 1)
 		      (is "(÷∘5) 30" 6)
+		      (is "⌊10000×(+∘*∘0.5)4 16 25" #(56487 176487 266487))
 		      (is "fn←5∘- ◊ fn 2" 3)
+		      (is "⌊(0.5∘+∘*)5 8 12" #(148 2981 162755))
  	    	      (is "⌊10000×+∘÷/40/1" 16180)
 		      (is "+/∘⍳¨2 5 8" #(3 15 36))))
  	    (⍣ (has :title "Power")
