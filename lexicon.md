@@ -49,8 +49,6 @@
 
 [≠] Not Equal
 
-[^] And
-
 [∧] And
 
 [⍲] Nand
