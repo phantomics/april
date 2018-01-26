@@ -185,6 +185,7 @@
 						    (list `(princ (format nil "~%~%")) nil))
 					    output))
 		       output))))
+
 	     (process-gentests (specs &optional output)
 	       (if specs
 		   (let ((this-spec (cdar specs)))

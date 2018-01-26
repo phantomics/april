@@ -261,134 +261,111 @@
 
 (defun assemble-value (idiom meta subprocessor precedent exp &optional output axes)
   "Assemble a value from tokens output by the parser; this may be a space-separated vector or a unitary value (processed as a 1-element vector by APL)."
-  (if (or (not exp)
-	  (and (symbolp (first exp))
-	       (member (first exp)
-		       (gethash :functions meta)))
-	  ;; break if the next symbol represents a function and should be processed by assembleOperation
-	  (and (listp (first exp))
-	       (keywordp (caar exp))
-	       (or (not (eq :axes (caar exp)))
-		   (and (listp (second exp))
-			(keywordp (caadr exp))))
-	       ;; break on axes if the next element is an operation rather than a value
-	       (or (not (eq :fn (caar exp)))
-		   ;; if the first element in the expression is a function, it's a function composition expression
-		   (not (functionp (cadar exp)))
-		   output precedent)))
-      (values (cond ((not output)
-		     (if (and (not precedent)
-			      (eq :fn (caar exp)))
-			 :fun-comp))
-		    ((and (= 1 (length output))
-			  ;; disclose strings since they're treated as arrays
-			  ;; disclose arrays and lists (which specify computed values)
-			  ;; disclose single symbols since any value they represent will be vectorized
-			  (or (stringp (first output))
-			      (symbolp (first output))
-			      (listp (first output))
-			      (arrayp (first output))))
-		     (first output))
-		    ((and (listp (first output))
-		    	  (eql 'progn (caar output))
-		    	  (eql 'lambda (caadar output)))
-		     ;; break if the last element was a composed operation, remove the first element of output,
-		     ;; which is instead prepended to the remaining elements in the expression
-		     (cons 'vector (process-output-vector (rest output))))
-		    (t (cons 'vector (process-output-vector output))))
-	      (if (and (listp (first output))
-		       (eql 'progn (caar output))
-		       (eql 'lambda (caadar output)))
-		  ;; if the last element was a composed operation, prepend it to the remaining expression
-		  (cons (list :composed-operation (cadar output))
-			exp)
-		  exp))
-      (assemble-value idiom meta subprocessor precedent (rest exp)
-		      (cons (cond ((and (listp (first exp))
-					(eq :axes (caar exp)))
-				   ;; this placeholder keyword is removed in the next iteration
-				   :axes-placeholder)
-				  ((and (listp (first exp))
-					(not (keywordp (caar exp))))
-				   ;; if the element is a list and doesn't begin with a keyword,
-				   ;; it's a closure and should be handled by the expression processor
-				   (let ((enclose
-					  (if axes
-					      (lambda (body)
-						`(aref-eliding ,body
-							       (mapcar
-								(lambda (vector)
-								  (if vector
-								      (if (= 1 (length vector))
-									  (- (aref vector 0)
-									     (of-state *apex-idiom* :count-from))
-									  (mapcar (lambda (elem)
-										    (- elem (of-state
-											     *apex-idiom*
-											     :count-from)))
-										  (array-to-list vector)))))
-								,(cons 'list
-								       (rest (funcall subprocessor idiom meta
-										      (list axes)))))))
-					      #'values)))
-				     (funcall enclose (cons 'progn (mapcar (lambda (sub-exp)
-									     (funcall subprocessor
-										      idiom meta sub-exp))
-									   (first exp))))))
-				  ((and (listp (first exp))
-					(eq :fn (caar exp)))
-				   `(lambda (omega &optional alpha)
-				      ,(funcall (cadar exp)
-						meta nil 'omega 'alpha)))
-				  ((symbolp (first exp))
-				   (if axes
-				       `(aref-eliding (disclose ,(first exp))
-						      (mapcar (lambda (vector)
-								(if vector
-								    (if (= 1 (length vector))
-									(- (aref vector 0)
-									   (of-state *apex-idiom* :count-from))
-									(mapcar (lambda (elem)
-										  (- elem (of-state
-											   *apex-idiom*
-											   :count-from)))
-										(array-to-list vector)))))
-							      ,(cons 'list (rest (funcall subprocessor idiom meta
-											  (list axes))))))
-				       ;; symbol preprocessing is not applied to ⍺ and ⍵
-				       ;; since they represent arguments to a function that already went
-				       ;; through processing
-				       (if (or (eql '⍺ (first exp))
-					       (eql '⍵ (first exp))
-					       (and (not output)
-						    (not precedent)))
-					   ;; don't disclose unitary vectors if the expression content is ⍺ or ⍵
-					   ;; and thus referring to preprocessed variables or if the symbol is
-					   ;; the only element in the expression,with no output or
-					   ;; precedent present.
-					   (first exp)
-					   `(disclose ,(first exp)))))
-				  (t (if axes
-					 `(aref-eliding ,(first exp)
-							(mapcar (lambda (vector)
-								  (if vector
-								      (if (= 1 (length vector))
-									  (- (aref vector 0)
-									     (of-state *apex-idiom* :count-from))
-									  (mapcar (lambda (elem)
-										    (- elem (of-state
-											     *apex-idiom*
-											     :count-from)))
-										  (array-to-list vector)))))
-								,(cons 'list (rest (funcall subprocessor idiom meta
-											    (list axes))))))
-					 (first exp))))
-			    ;; :axes-placeholder is removed here if axes are being processed this iteration
-			    (if axes (rest output)
-				output))
-		      (if (and (listp (first exp))
-			       (eq :axes (caar exp)))
-			  (cdar exp)))))
+  (labels ((axis-enclose (body axis-specs)
+	     (if (not axis-specs)
+		 body
+		 (axis-enclose `(aref-eliding ,body
+					      (mapcar (lambda (vector)
+							(if vector (if (= 1 (length vector))
+								       (- (aref vector 0)
+									  (of-state *apex-idiom* :count-from))
+								       (mapcar (lambda (elem)
+										 (- elem (of-state *apex-idiom*
+												   :count-from)))
+									       (array-to-list vector)))))
+						      ,(cons 'list (rest (funcall subprocessor idiom meta
+										  (list (first axis-specs)))))))
+			       (rest axis-specs)))))
+    (if (or (not exp)
+	    (and (symbolp (first exp))
+		 (member (first exp)
+			 (gethash :functions meta)))
+	    ;; break if the next symbol represents a function and should be processed by assembleOperation
+	    (and (listp (first exp))
+		 (keywordp (caar exp))
+		 (or (not (eq :axes (caar exp)))
+		     (let ((found-operation nil))
+		       (loop for element in (rest exp)
+			  when (and (listp element)
+				    (keywordp (first element))
+				    (not (eq :axes (first element))))
+			  do (setq found-operation t))
+		       found-operation))
+		 ;; break on axes if the next element is an operation rather than a value
+		 (or (not (eq :fn (caar exp)))
+		     ;; if the first element in the expression is a function, it's a function composition expression
+		     (not (functionp (cadar exp)))
+		     output precedent)))
+	(values (cond ((not output)
+		       (if (and (not precedent)
+				(eq :fn (caar exp)))
+			   :fun-comp))
+		      ((and (= 1 (length output))
+			    ;; disclose strings since they're treated as arrays
+			    ;; disclose arrays and lists (which specify computed values)
+			    ;; disclose single symbols since any value they represent will be vectorized
+			    (or (stringp (first output))
+				(symbolp (first output))
+				(listp (first output))
+				(arrayp (first output))))
+		       (first output))
+		      ((and (listp (first output))
+			    (eql 'progn (caar output))
+			    (eql 'lambda (caadar output)))
+		       ;; break if the last element was a composed operation, remove the first element of output,
+		       ;; which is instead prepended to the remaining elements in the expression
+		       (cons 'vector (process-output-vector (rest output))))
+		      (t (cons 'vector (process-output-vector output))))
+		(if (and (listp (first output))
+			 (eql 'progn (caar output))
+			 (eql 'lambda (caadar output)))
+		    ;; if the last element was a composed operation, prepend it to the remaining expression
+		    (cons (list :composed-operation (cadar output))
+			  exp)
+		    exp))
+	(assemble-value idiom meta subprocessor precedent (rest exp)
+			(cons (cond ((and (listp (first exp))
+					  (eq :axes (caar exp)))
+				     ;; this placeholder keyword is removed in the next iteration
+				     :axes-placeholder)
+				    ((and (listp (first exp))
+					  (not (keywordp (caar exp))))
+				     ;; if the element is a list and doesn't begin with a keyword,
+				     ;; it's a closure and should be handled by the expression processor
+				     (axis-enclose (cons 'progn (mapcar (lambda (sub-exp)
+									  (funcall subprocessor idiom meta sub-exp))
+									(first exp)))
+						   axes))
+				    ((and (listp (first exp))
+					  (eq :fn (caar exp)))
+				     `(lambda (omega &optional alpha)
+					,(funcall (cadar exp)
+						  meta nil 'omega 'alpha)))
+				    ((symbolp (first exp))
+				     (axis-enclose
+				      ;; symbol preprocessing is not applied to ⍺ and ⍵
+				      ;; since they represent arguments to a function that already went
+				      ;; through processing
+				      (if (or (eql '⍺ (first exp))
+					      (eql '⍵ (first exp))
+					      (and (not output)
+						   (not precedent)))
+					  ;; don't disclose unitary vectors if the expression content is ⍺ or ⍵
+					  ;; and thus referring to preprocessed variables or if the symbol is
+					  ;; the only element in the expression,with no output or
+					  ;; precedent present.
+					  (first exp)
+					  `(disclose ,(first exp)))
+				      axes))
+				    (t (axis-enclose (first exp)
+						     axes)))
+			      ;; :axes-placeholder is removed here if axes are being processed this iteration
+			      (if axes (rest output)
+				  output))
+			(if (and (listp (first exp))
+				 (eq :axes (caar exp)))
+			    (cons (cdar exp)
+				  axes))))))
 
 (defun assemble-operation (idiom meta subprocessor precedent exp &key (axes nil) (from-pivot nil))
   "Assemble an APL operation from parsed tokens. The simplest operations consist of a single function, like '+', while operators can be combined with functions to form more complex operations."
@@ -1684,6 +1661,9 @@
 		      :in ("(6 8 5⍴⍳9)[1 4;;2 1]")
 		      :ex #3A(((2 1) (7 6) (3 2) (8 7) (4 3) (9 8) (5 4) (1 9))
 			      ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
+		(with :title "Indices of indices."
+		      :in ("(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]")
+		      :ex #2A((7 6) (8 7) (4 3)))
 		(with :title "Operation over portions of an array."
 		      :in ("a←4 8⍴⍳9 ◊ a[2 4;1 6 7 8]+←10 ◊ a")
 		      :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
