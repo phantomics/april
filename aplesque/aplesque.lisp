@@ -30,23 +30,6 @@
 			      (recurse (1+ n))))))
       (recurse 0))))
 
-;; (defun array-match (alpha omega)
-;;   (let ((singleton-alpha (is-singleton alpha))
-;; 	(singleton-omega (is-singleton omega)))
-;;     (if (or singleton-alpha singleton-omega
-;; 	    (loop for dimension in (funcall (lambda (a o) (mapcar #'= a o))
-;; 					    (dims alpha)
-;; 					    (dims omega))
-;; 	       always dimension))
-;; 	(if singleton-alpha
-;; 	    (if singleton-omega
-;; 		(list alpha omega)
-;; 		(list (scale-array alpha omega)
-;; 		      omega))
-;; 	    (if singleton-omega
-;; 		(list alpha (scale-array omega alpha))
-;; 		(list alpha omega))))))
-
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (and (not (arrayp item1))
@@ -80,12 +63,13 @@
 
 (defun array-depth (array &optional layer)
   "Find the maximum depth of nested arrays within an array."
-  (let ((layer (if layer layer 1)))
+  (let* ((layer (if layer layer 1))
+	 (new-layer layer))
     (aops:each (lambda (item)
 		 (if (arrayp item)
-		     (setq layer (array-depth item (1+ layer)))))
+		     (setq new-layer (max new-layer (array-depth item (1+ layer))))))
 	       array)
-    layer))
+    new-layer))
 
 (defun swap! (v i j)
   (let ((tt (aref v i)))
@@ -182,6 +166,7 @@
       sub-array)))
 
 (defun apply-marginal (function array axis default-axis)
+  "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
   (let* ((new-array (copy-array array))
 	 (a-rank (rank array))
 	 (axis (if axis axis default-axis)))
@@ -288,6 +273,7 @@
 					   sub-matrix))))))))
 
 (defun enlist (vector)
+  "Create a vector containing all elements of the argument in ravel order, breaking down nested and multidimensional arrays."
   (if (arrayp vector)
       (setq vector (aops:flatten vector)))
   (if (and (vectorp vector)
@@ -327,7 +313,8 @@
 						   collect (aref displaced-array (mod index original-length))))
 		  adims)))
 
-(defun sprfact (n) ; recursive factorial-computing function based on P. Luschny's code
+(defun sprfact (n)
+  "Recursive factorial-computing function. Based on P. Luschny's code."
   (let ((p 1) (r 1) (NN 1) (log2n (floor (log n 2)))
 	(h 0) (shift 0) (high 1) (len 0))
     (labels ((prod (n)
@@ -351,7 +338,7 @@
 		  (setf r (* r p)))))
       (ash r shift))))
 
-(defun binomial (k n)
+(defun binomial (n k)
   "Find a binomial using the above sprfact function."
   (labels ((prod-enum (s e)
 	     (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
@@ -359,6 +346,7 @@
     (/ (prod-enum (- (1+ n) k) n) (sprfact k))))
 
 (defun array-inner-product (operand1 operand2 function1 function2)
+  "Find the inner product of two arrays with two functions."
   (funcall (lambda (result)
 	     ;; disclose the result if the right argument was a vector and there is
 	     ;; a superfluous second dimension
@@ -387,23 +375,23 @@
 								operand2)
 						  1))))))
 
-(defun index-of (to-search set)
+(defun index-of (to-search set count-from)
+  "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
   (if (not (vectorp set))
       (error "Rank error.")
       (let* ((to-find (remove-duplicates set :from-end t))
-	     (maximum (+ 1 (length set)))
-	     (results (if (stringp to-search)
-			  (make-array (list (length to-search)))
-			  (alexandria:copy-array to-search))))
+	     (maximum (+ count-from (length set)))
+	     (results (make-array (dims to-search) :element-type 'number)))
 	(dotimes (index (array-total-size results))
-	  (setf (row-major-aref results index)
-		(let ((found (position (row-major-aref to-search index)
-				       to-find)))
-		  (if found (1+ found)
+	  (let* ((search-index (row-major-aref to-search index))
+		 (found (position search-index to-find)))
+	    (setf (row-major-aref results index)
+		  (if found (+ count-from found)
 		      maximum))))
 	results)))
 
 (defun alpha-compare (atomic-vector compare-by)
+  "Compare the contents of a vector according to their positions in an array, as when comparing an array of letters by their positions in the alphabet."
   (lambda (item1 item2)
     (flet ((assign-char-value (char)
 	     (let ((vector-pos (position char atomic-vector)))
@@ -419,6 +407,7 @@
 				      (assign-char-value item2)))))))))
   
 (defun vector-grade (compare-by vector1 vector2 &optional index)
+  "Compare two vectors by the values of each element, giving priority to elements proportional to their position in the array, as when comparing words by the alphabetical order of the letters."
   (let ((index (if index index 0)))
     (cond ((>= index (length vector1))
 	   (not (>= index (length vector2))))
@@ -430,6 +419,7 @@
 		   compared))))))
 
 (defun grade (array compare-by count-from)
+  "Grade an array, using vector grading if 1-dimensional or decomposing the array into vectors and comparing those if multidimensional."
   (let* ((array (if (= 1 (rank array))
 		    array (aops:split array 1)))
 	 (vector (make-array (list (length array))))
@@ -458,6 +448,7 @@
     graded-array))
 
 (defun array-grade (compare-by array)
+  "Grade an array."
   (aops:each (lambda (item)
 	       (let ((coords nil))
 		 (run-dim compare-by (lambda (found indices)
@@ -529,6 +520,7 @@
 	       do (for-element elix)))))))
 
 (defun aref-eliding (array indices &key (set nil))
+  "Find an element in an array with aref or a sub-array of elements which may be elided or located along multiple elements of given axes in an array."
   (if (and (not set)
 	   (= (length indices)
 	      (rank array))
@@ -573,6 +565,7 @@
 	sub-array)))
 
 (defun mix-arrays (axis arrays &optional max-dims)
+  "Combine multiple arrays into a single array one rank higher. Vectors may be stacked to form a 2D array, 2D arrays may be stacked to form a 3D array, etc. Arrays with smaller dimensions than the largest array in the stack have missing elements replaced with 0s for numeric arrays or blanks for character arrays."
   (let ((permute-dims (if (vectorp arrays)
 			  (alexandria:iota (1+ (rank (aref arrays 0))))))
 	(max-dims (if max-dims max-dims
@@ -581,13 +574,21 @@
 			(loop for dx from 0 to (1- (length (aref mdims 0)))
 			   collect (apply #'max (array-to-list (aops:each (lambda (n) (nth dx n))
 									  mdims))))))))
+    ;;(print (list ))
     (if (vectorp arrays)
 	(apply #'aops:stack
 	       (cons axis (loop for index from 0 to (1- (length arrays))
 			     collect (aops:permute (rotate-right axis permute-dims)
 						   (array-promote
 						    (if (not (equalp max-dims (dims (aref arrays index))))
-							(let ((out-array (make-array max-dims)))
+							(let* ((this-eltype (element-type (aref arrays index)))
+							       (out-array (make-array max-dims
+										      :element-type this-eltype
+										      :initial-element
+										      (cond ((eql 'character
+												  this-eltype)
+											     #\ )
+											    (t 0)))))
 							  (run-dim (aref arrays index)
 								   (lambda (item coords)
 								     (setf (apply #'aref (cons out-array coords))
@@ -599,6 +600,7 @@
 				 (aops:split arrays 1))))))
 
 (defun ravel (count-from array &optional axes)
+  "Produce a vector from the elements of a multidimensional array."
   (flet ((linsert (newelt lst index)
 	   (if (= 0 index)
 	       (setq lst (cons newelt lst))
@@ -652,6 +654,7 @@
 			      :displaced-to (copy-array array))))))
 
 (defun re-enclose (matrix axes)
+  "Convert an array into a set of sub-arrays listed within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array be be composed into a 3-element vector containing 2 x 4 dimensional arrays."
   (labels ((make-enclosure (inner-dims type dimensions)
 	     (loop for d from 0 to (1- (first dimensions))
 		collect (if (= 1 (length dimensions))
@@ -720,6 +723,7 @@
 		 new-matrix))))))
 
 (defun invert-matrix (in-matrix)
+  "Find the inverse of a square matrix."
   (let ((dim (array-dimension in-matrix 0))   ;; dimension of matrix
 	(det 1)                               ;; determinant of matrix
 	(l nil)                               ;; permutation vector
