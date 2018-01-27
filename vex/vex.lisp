@@ -130,24 +130,7 @@
 							;; assign operators in hash table
 							((eql 'op-specs table-symbol)
 							 `((gethash ,glyph-char ,table-symbol)
-							   ,(if (eq :macro
-								    (intern (string-upcase
-									     (first (second (third (first pairs)))))
-									    "KEYWORD"))
-								(macroexpand
-								 (second (second (third (first pairs)))))
-								`(lambda
-								     ,(mapcar (lambda (item)
-										(intern item
-											(package-name *package*)))
-									      (list "META" "AXES" "FUNCTION"))
-								   (declare
-								    (ignore ,(intern "META"
-										     (package-name *package*)))
-								    (ignorable ,(intern "AXES"
-											(package-name *package*))))
-								   ,(macroexpand
-								     (second (third (first pairs))))))))))
+							   ,(macroexpand (second (third (first pairs))))))))
 					  accumulator)))
 		   output))
 
@@ -366,10 +349,14 @@
 					     ((gethash char (idiom-functions idiom))
 					      :fn))
 				       ,@(if (gethash char (idiom-operators idiom))
-					     (list (cond ((member char (getf (idiom-opindex idiom) :right))
-							  :right)
-							 ((member char (getf (idiom-opindex idiom) :center))
-							  :center))))
+					     (list (let ((result nil))
+						     (loop for tix from 0 to (/ (length (idiom-opindex idiom))
+										2)
+							when (member char (nth (1+ (* 2 tix))
+									       (idiom-opindex idiom)))
+							do (setq result (nth (* 2 tix)
+									     (idiom-opindex idiom))))
+						     result)))
 				       ,char))))
 		    (=transform (=subseq (%some (?token-character)))
 				(lambda (string) (funcall (of-utilities idiom :format-value)
