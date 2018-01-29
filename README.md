@@ -37,6 +37,14 @@ To complete the installation, just start a Common Lisp REPL and enter:
 
 And the system will be built and ready.
 
+## APL Functions and Operators
+
+The APL language uses single characters to represent its primitive functions and operators. Most of these symbols are not part of the standard ASCII character set but are unique to APL. To see a list of the glyphs that are supported by Apex, visit the link below.
+
+#### [The complete Apex lexicon](./apex/blob/master/lexicon.md)
+
+Some APL functions and operators won't be added to Apex since they don't make sense for Apex's design as a compiler from APL to Lisp. [See the list of features not planned for implementation here.](#whats-not-implemented-and-wont-be)
+
 ## Examples
 
 Evaluating an APL expression is as simple as:
@@ -127,7 +135,7 @@ To run Apex's test suite, just enter:
 
 ### (set)
 
-Set is the workhorse of Apex parameters, allowing you to configure your Apex instance in many ways. The most common sub-parameter passed via (set) is (:state). To wit:
+(set) is the workhorse of Apex parameters, allowing you to configure your Apex instance in many ways. The most common sub-parameter passed via (set) is (:state). To wit:
 
 ```
 * (apex (set (:state :count-from 1
@@ -138,6 +146,8 @@ Set is the workhorse of Apex parameters, allowing you to configure your Apex ins
 1
 23
 ```
+
+### (:state) parameters
 
 Let's learn some more about what's going on in that code. The sub-parameters of (:state) are:
 
@@ -214,7 +224,7 @@ But if you set the :disclose-output option to nil, you can change this:
 
 With :disclose-output set to nil, unitary vectors will be passed directly back without having their values disclosed.
 
-### (:state-persistent)
+### (:state-persistent) parameters
 
 You can use the :state-persistent parameter to set state values within the Apex instance, just like :state. The difference is that when you change the state using :state-persistent, those changes will stay until you reverse them, whereas the changes you make with :state are reverted once the following code is done evaluating.
 
@@ -251,7 +261,27 @@ You can use :state-persistent to set persistent input variables that will stay a
 #(3.0)
 ```
 
-### (:compile-only)
+### (:space) parameter
+
+If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to Apex, use the (:space) parameter. For example:
+
+```
+* (apex (set (:space *space1*)) "a←5+2 ◊ b←3×9")
+
+27
+
+* (apex (set (:space *space1*)) "c←{⍵+2}")
+
+#<FUNCTION ... >
+
+* (apex (set (:space *space1*)) "c a+b")
+
+36
+```
+
+In the above example, a workspace called *space1* is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the (:space) parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
+
+### (:compile-only) parameter
 
 If you just want to compile the code you enter into Apex without running it, use this option. For example:
 
@@ -273,11 +303,6 @@ To restore all of Apex's state variables to the default values, enter:
 ```
 
 All :in and :out values will be nullified, :count-from will return to its default setting, etc.
-
-
-## What APL Features are Implemented
-
-Actually, it's easier to list what's -not- implemented.
 
 ## What's Not Implemented And Won't Be
 
@@ -308,7 +333,7 @@ Actually, it's easier to list what's -not- implemented.
 
 See a pattern? The functions not planned for implentation are all those that manifest low-level interactions between the APL instance and the underlying computer system. Common Lisp already has powerful tools for system interaction, so it's presumed that developers will do things like this outside of Apex.
 
-## Also not implemented
+## Also Not Implemented
 
 System functions and variables within APL are not implemented, along with APL's control flow statements. This type of functionality is also readily accessible through standard Common Lisp.
 

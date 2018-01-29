@@ -261,7 +261,7 @@
 				      (list 'disclose item)
 				      item)))
 
-(defun assemble-value (idiom meta subprocessor precedent exp &optional output axes)
+(defun assemble-value (idiom meta subprocessor precedent exp &optional output axes prior-expression)
   "Assemble a value from tokens output by the parser; this may be a space-separated vector or a unitary value (processed as a 1-element vector by APL)."
   (labels ((axis-enclose (body axis-specs)
 	     (if (not axis-specs)
@@ -280,8 +280,10 @@
 			       (rest axis-specs)))))
     (if (or (not exp)
 	    (and (symbolp (first exp))
-		 (member (first exp)
-			 (gethash :functions meta)))
+		 (or (not (listp (first prior-expression)))
+		     (not (eql #\← (third (first prior-expression)))))
+		 (gethash (first exp)
+			  (gethash :functions meta)))
 	    ;; break if the next symbol represents a function and should be processed by assembleOperation
 	    (and (listp (first exp))
 		 (keywordp (caar exp))
@@ -295,7 +297,8 @@
 		       found-operation))
 		 ;; break on axes if the next element is an operation rather than a value
 		 (or (not (eq :fn (caar exp)))
-		     ;; if the first element in the expression is a function, it's a function composition expression
+		     ;; if the first element in the expression is a function,
+		     ;; it's a function composition expression
 		     (not (functionp (cadar exp)))
 		     output precedent)))
 	(values (cond ((not output)
@@ -442,7 +445,8 @@
 	    	      (not (or (and (listp next)
 				    (eq :fn (first next)))
 			       (and (symbolp next)
-				    (member next (gethash :functions meta)))))))
+				    (not (eql #\← (third head)))
+				    (gethash next (gethash :functions meta)))))))
 	     ;; if no function follows a right operator glyph, check whether it's actually an overloaded
 	     ;; function glyph and reassign if so
 	     (if (of-overloaded? idiom (first (last head)))
@@ -456,7 +460,8 @@
 		 (if (or (and (listp next)
 			      (keywordp (first next)))
 			 (and (symbolp next)
-			      (member next (gethash :functions meta))))
+			      (not (eql #\← (third head)))
+			      (gethash next (gethash :functions meta))))
 		     (assemble-operation idiom meta subprocessor precedent tail :from-pivot t)
 		     (assemble-value idiom meta subprocessor precedent tail))
 	       (values (funcall (of-operators idiom (first (last head)))
@@ -558,13 +563,13 @@
   "Build a function to generate code apply functions over arrays, as for APL's reduce and scan operators."
   (lambda (meta unused omega &optional alpha)
     (declare (ignore unused alpha))
-    (let ((wrapped-function `(lambda (omega alpha) (disclose ,(funcall function meta nil 'omega 'alpha)))))
+    (let ((wrapped-function `(lambda (omega alpha) ,(funcall function meta nil 'omega 'alpha))))
       `(let ((new-array (copy-array ,omega)))
-	 (if (vectorp new-array)
-	     (funcall ,for-vector ,wrapped-function new-array)
-	     (funcall ,for-array ,wrapped-function new-array
-		      (if ,axes (1- (aref (first ,axes) 0))
-			  ,(if first-axis 0 `(1- (rank new-array))))))))))
+	 (disclose (if (vectorp new-array)
+		       (funcall ,for-vector ,wrapped-function new-array)
+		       (funcall ,for-array ,wrapped-function new-array
+				(if ,axes (1- (aref (first ,axes) 0))
+				    ,(if first-axis 0 `(1- (rank new-array)))))))))))
 
 (vex-spec
  apex
@@ -631,8 +636,10 @@
 							(eql 'lambda (caadr omega)))))
 	    				  ;; assign from either a disclosed or enclosed function definition,
 	    				  ;; i.e. a←⍴∘⍴ or a←(⍴∘⍴).
-	    				  (setf (gethash :functions meta)
-	    					(cons symbol (gethash :functions meta))))
+	    				  (setf (gethash symbol (gethash :functions meta))
+						omega)
+					  (setf (gethash symbol (gethash :values meta))
+						omega))
 	    			      `(setq ,symbol ,omega))))))
 	       (tests (is "x←55 ◊ x" 55)
 	    	      (is "x←2 3 4⍴⍳9 ◊ x[;1;]←7 ◊ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
@@ -1446,10 +1453,9 @@
 				(let ((symbol (if (listp alpha)
 						  (second alpha)
 						  alpha)))
-				  `(setq ,symbol
-					 (funcall (lambda (omega alpha)
-						    ,(funcall right-function meta nil 'omega 'alpha))
-						  ,omega ,alpha)))))))
+				  `(setq ,symbol (funcall (lambda (omega alpha)
+							    ,(funcall right-function meta nil 'omega 'alpha))
+							  ,omega ,alpha)))))))
  	       (tests (is "a←3 2 1 ◊ a+←5 ◊ a" #(8 7 6))
  		      (is "a←3 2 1 ◊ a[2]+←5 ◊ a" #(3 7 1))))
  	    (/ (has :title "Reduce")
