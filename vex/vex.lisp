@@ -365,6 +365,7 @@
 				       ,char))))
 		    (=transform (=subseq (%some (?token-character)))
 				(lambda (string) (funcall (of-utilities idiom :format-value)
+							  (string-upcase (idiom-name idiom))
 							  meta string))))
 	       (%any (?blank-character))
 	       (=subseq (%any (?but-newline-character)))
@@ -422,7 +423,7 @@
 			  (assign-from (cddr source)
 				       dest))
 		   dest)))
-      
+
       (if (not meta)
 	  (setf meta (make-hash-table :test #'eq)))
 
@@ -436,15 +437,18 @@
 
       (if (not (gethash :functions meta))
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
-      
-      (setf (idiom-state idiom) (idiom-base-state idiom))
+
+      (setf (idiom-state idiom)
+	    (assign-from (gethash :state meta) (idiom-base-state idiom)))
 
       (if state (setf (idiom-state idiom)
 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
 
       (if state-persistent (setf (idiom-state idiom)
-      				 (assign-from state-persistent (idiom-base-state idiom))))
-      
+      				 (assign-from state-persistent (idiom-base-state idiom))
+				 (gethash :state meta)
+				 (assign-from state-persistent (gethash :state meta))))
+
       (if string
 	  (let* ((input-vars (getf (idiom-state idiom) :in))
 		 (output-vars (getf (idiom-state idiom) :out))

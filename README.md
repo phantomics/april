@@ -10,9 +10,9 @@ Apex compiles a subset of the APL programming language into Common Lisp. Leverag
 
 ## Why Apex?
 
-APL veritably hums with semantic power. As a handful of characters run through the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic (and often costly) runtime environments. If you have a store of data you'd like to use with APL, getting it there can be an ordeal. Like hauling tons of cargo on donkeys' backs through a narrow mountain pass, it's not fun, and the prospect of it has ended many conversations about APL before they could begin.
+APL veritably hums with algorithmic power. As a handful of characters run past the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic runtime environments. If you have a store of data you'd like to use with APL, getting it there can be an ordeal. Like hauling tons of cargo on donkeys' backs through a narrow mountain pass, it's not fun, and the prospect of it has ended many discussions of APL before they could begin.
 
-But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL transforms numeric patterns. With APL inside of Lisp, databases, streams, binary files and other expressive media are just a few lines of code away from processing with APL.
+But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL transforms numeric patterns. With APL inside of Lisp, databases, streams, binary files and other media are just a few lines of code away from processing with APL.
 
 ## Installation
 
@@ -41,9 +41,9 @@ And the system will be built and ready.
 
 The APL language uses single characters to represent its primitive functions and operators. Most of these symbols are not part of the standard ASCII character set but are unique to APL. To see a list of the glyphs that are supported by Apex, visit the link below.
 
-#### [The complete Apex lexicon](./lexicon.md)
+#### [See the complete Apex APL lexicon here.](./lexicon.md)
 
-Some APL functions and operators won't be added to Apex since they don't make sense for Apex's design as a compiler from APL to Lisp. [See the list of features not planned for implementation here.](#whats-not-implemented-and-wont-be)
+Some APL functions and operators won't be added to Apex since they don't make sense for Apex's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-implemented-and-may-be)
 
 ## Examples
 
@@ -55,7 +55,7 @@ Evaluating an APL expression is as simple as:
 #(3 4 5)
 ```
 
-The * indicates a REPL prompt. The following line contains the expression's output.
+The * indicates a REPL prompt. The text two lines down is the expression's output.
 
 The macro (apex) will evaluate any APL string passed to it as the sole argument, returning the final result.
 
@@ -67,7 +67,7 @@ Setting state properties for the APL instance can be done like this:
 #(0 1 2 3 4 5 6 7 8)
 ```
 
-Instead of an APL string, the first argument to (apex) may be a property list containing an :env variable corresponding to a property list specifying features of the APL environment. The APL expression is then passed in the second argument.
+Instead of an APL string, the first argument to (apex) may be a list of specifications for the APL environment. The APL expression is then passed in the second argument.
 
 For example, you can use this configuration setting to determine whether the APL instance will start counting from 0 or 1.
 
@@ -75,6 +75,10 @@ For example, you can use this configuration setting to determine whether the APL
 * (apex (set (:state :count-from 1)) "⍳9")
 
 #(1 2 3 4 5 6 7 8 9)
+
+* (apex (set (:state :count-from 0)) "⍳9")
+
+#(0 1 2 3 4 5 6 7 8)
 ```
 
 More APL expressions:
@@ -147,7 +151,7 @@ To run Apex's test suite, just enter:
 23
 ```
 
-### (:state) parameters
+### (:state) sub-parameters
 
 Let's learn some more about what's going on in that code. The sub-parameters of (:state) are:
 
@@ -160,6 +164,11 @@ Sets the index from which Apex counts. Almost always set to 0 or 1. The default 
 Passes variables into the Apex instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the Apex instance.
 
 Please note that Apex variables follow a stricter naming convention than Lisp variables. When naming variables, only alphanumeric characters, periods and dashes may be used. Punctuation marks like ?, > and ! must not be used as they have separate meanings in Apex.
+
+These characters may be used in Apex variable names:
+```
+0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.∆⍙
+```
 
 Ok:
 ```
@@ -224,44 +233,7 @@ But if you set the :disclose-output option to nil, you can change this:
 
 With :disclose-output set to nil, unitary vectors will be passed directly back without having their values disclosed.
 
-### (:state-persistent) parameters
-
-You can use the :state-persistent parameter to set state values within the Apex instance, just like :state. The difference is that when you change the state using :state-persistent, those changes will stay until you reverse them, whereas the changes you make with :state are reverted once the following code is done evaluating.
-
-For example:
-
-```
-* (apex (set (:state-persistent :count-from 0)) "⍳7")
-
-#(0 1 2 3 4 5 6)
-
-* (apex "⍳7")
-
-#(0 1 2 3 4 5 6)
-```
-
-You can use :state-persistent to set persistent input variables that will stay avaialable for each piece of code you run in your Apex instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to Apex. Like this:
-
-```
-* (defvar *dynamic-var* 2)
-
-*DYNAMIC-VAR*
-
-* (apex (set (:state-persistent :in ((dyn-var *dynamic-var*))))
-        "dynVar⍟512")
-
-#(9.0)
-
-* (setq *dynamic-var* 8)
-
-8
-
-* (apex "dynVar⍟512")
-
-#(3.0)
-```
-
-### (:space) parameter
+### (:space) sub-parameter
 
 If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to Apex, use the (:space) parameter. For example:
 
@@ -281,6 +253,50 @@ If you want to create a persistent workspace where the functions and variables y
 
 In the above example, a workspace called *space1* is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the (:space) parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
 
+### (:state-persistent) sub-parameters
+
+You can use the :state-persistent parameter to set state values within the workspace. It works like :state, but the difference is that when you change the state using :state-persistent, those changes will stay saved in the workspace until you reverse them, whereas the changes you make with :state are lost once the following code is done evaluating.
+
+For example:
+
+```
+* (apex (set (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
+
+#(0 1 2 3 4 5 6)
+
+* (apex (set (:space *space1*)) "⍳7")
+
+#(0 1 2 3 4 5 6)
+
+* (apex (set (:space *space2*)) "⍳7")
+
+#(1 2 3 4 5 6 7)
+```
+
+Did you notice that when switching to a different space, in this case *space2*, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
+
+You can use :state-persistent to set persistent input variables that will stay avaialable for each piece of code you run in your Apex instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to Apex. Like this:
+
+```
+* (defvar *dynamic-var* 2)
+
+*DYNAMIC-VAR*
+
+* (apex (set (:state-persistent :in ((dyn-var *dynamic-var*)))
+             (:space *space1*))
+        "dynVar⍟512")
+
+#(9.0)
+
+* (setq *dynamic-var* 8)
+
+8
+
+* (apex (set (:space *space1*)) "dynVar⍟512")
+
+#(3.0)
+```
+
 ### (:compile-only) parameter
 
 If you just want to compile the code you enter into Apex without running it, use this option. For example:
@@ -289,9 +305,8 @@ If you just want to compile the code you enter into Apex without running it, use
 * (apex (set (:compile-only)) "1+1 2 3")
 
 (PROGN
- (FUNCALL #'APPLY-SCALAR-DYADIC #<FUNCTION +>
-          (MAKE-ARRAY (LIST 1) :INITIAL-CONTENTS (LIST 1))
-          (MAKE-ARRAY (LIST 3) :INITIAL-CONTENTS (LIST 1 2 3))))
+ (DISCLOSE	
+  (FUNCALL #'APPLY-SCALAR-DYADIC #<FUNCTION +> (VECTOR 1 2 3) (VECTOR 1))))
 ```
 
 ### (restore-defaults)
@@ -304,16 +319,22 @@ To restore all of Apex's state variables to the default values, enter:
 
 All :in and :out values will be nullified, :count-from will return to its default setting, etc.
 
+## What's Not Implemented and May Be
+
+#### Functions:
+
+```
+⍕ Format
+⍕ Format by specification
+⍕ Format by example
+```
+
 ## What's Not Implemented And Won't Be
 
 #### Functions:
 
 ```
 → Branch
-⍺ Picture format
-⍕ Format
-⍕ Format by specification
-⍕ Format by example
 ⍇ File read
 ⍈ File write
 ⍐ File hold
