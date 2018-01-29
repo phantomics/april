@@ -239,13 +239,18 @@
 				  (copy-alist (idiom-base-state ,,idiom-symbol))))
 			  ;; the (set-default) setting is used to restore the instance settings
 			  ;; to the defaults from the spec
-			  (t `(eval (vex-program ,,idiom-symbol
-						 (quote ,(if input-string
-							     (if (eq :set (intern (string-upcase (first options))
-										  "KEYWORD"))
-								 (rest options)
-								 (error "Incorrect option syntax."))))
-						 ,(if input-string input-string options))))))))))))
+			  (t `(progn ,@(if (and (listp options)
+						(string= "SET" (string (first options)))
+						(assoc :space (rest options))
+						(not (boundp (second (assoc :space (rest options))))))
+					   `((defvar ,(second (assoc :space (rest options)))
+					       (make-hash-table :test #'eq))))
+				     (eval (vex-program ,,idiom-symbol
+							(quote ,(if input-string
+								    (if (string= "SET" (string (first options)))
+									(rest options)
+									(error "Incorrect option syntax."))))
+							,(if input-string input-string options)))))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
@@ -396,17 +401,20 @@
 		       idiom meta #'vex-expression precedent exp)
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
-			 idiom meta #'vex-expression precedent from-operation)
-	      ;; (print (list :ri right-value precedent))
+			 idiom meta #'vex-expression precedent from-operation nil nil exp)
+	      ;; (print (list :ri right-value precedent operation))
 	      (vex-expression idiom meta from-value
 			      (apply operation (append (list meta nil precedent)
 						       (if right-value (list right-value))))))))))
 
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
-  (let ((meta (if meta meta (make-hash-table :test #'eq)))
-	(state (rest (assoc :state options)))
-	(state-persistent (rest (assoc :state-persistent options))))
+  (let* ((state (rest (assoc :state options)))
+	 (meta (if meta meta (if (assoc :space options)
+				 (symbol-value (second (assoc :space options)))
+				 (make-hash-table :test #'eq))))
+	 (state-persistent (rest (assoc :state-persistent options)))
+	 (preexisting-vars nil))
     (labels ((assign-from (source dest)
 	       (if source
 		   (progn (setf (getf dest (first source))
@@ -414,17 +422,29 @@
 			  (assign-from (cddr source)
 				       dest))
 		   dest)))
+      
+      (if (not meta)
+	  (setf meta (make-hash-table :test #'eq)))
 
-      (setf (gethash :functions meta) nil
-	    (gethash :variables meta) (make-hash-table :test #'eq)
-	    (idiom-state idiom) (idiom-base-state idiom))
+      (if (not (gethash :variables meta))
+	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
+	  (setq preexisting-vars (loop for vk being the hash-values of (gethash :variables meta)
+				    collect vk)))
+
+      (if (not (gethash :values meta))
+	  (setf (gethash :values meta) (make-hash-table :test #'eq)))
+
+      (if (not (gethash :functions meta))
+	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
+      
+      (setf (idiom-state idiom) (idiom-base-state idiom))
 
       (if state (setf (idiom-state idiom)
 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
 
       (if state-persistent (setf (idiom-state idiom)
       				 (assign-from state-persistent (idiom-base-state idiom))))
-
+      
       (if string
 	  (let* ((input-vars (getf (idiom-state idiom) :in))
 		 (output-vars (getf (idiom-state idiom) :out))
@@ -436,7 +456,19 @@
 				   when (not (member (string (gethash key (gethash :variables meta)))
 						     (mapcar #'first input-vars)))
 				   collect (list (gethash key (gethash :variables meta))
-						 :undefined))))
+						 (if (or (member (gethash key (gethash :variables meta))
+								 preexisting-vars)
+							 (member (gethash key (gethash :functions meta))
+								 preexisting-vars))
+						     (if (gethash (gethash key (gethash :variables meta))
+								  (gethash :values meta))
+							 (gethash (gethash key (gethash :variables meta))
+								  (gethash :values meta))
+							 (if (gethash (gethash key (gethash :variables meta))
+								      (gethash :functions meta))
+							     (gethash (gethash key (gethash :variables meta))
+								      (gethash :functions meta))))
+						     :undefined)))))
 
 	    (if input-vars
 		(loop for var-entry in input-vars
@@ -470,7 +502,6 @@
 										  "KEYWORD")
 									  (gethash :variables meta))))
 						      output-vars)))))))
-
 	      (if (assoc :compile-only options)
 		  `(quote ,code)
 		  code)))))))
