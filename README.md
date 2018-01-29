@@ -41,7 +41,7 @@ And the system will be built and ready.
 
 The APL language uses single characters to represent its primitive functions and operators. Most of these symbols are not part of the standard ASCII character set but are unique to APL. To see a list of the glyphs that are supported by Apex, visit the link below.
 
-#### [The complete Apex lexicon](./apex/blob/master/lexicon.md)
+#### [The complete Apex lexicon](./lexicon.md)
 
 Some APL functions and operators won't be added to Apex since they don't make sense for Apex's design as a compiler from APL to Lisp. [See the list of features not planned for implementation here.](#whats-not-implemented-and-wont-be)
 
