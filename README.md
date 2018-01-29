@@ -170,12 +170,12 @@ These characters may be used in Apex variable names:
 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.∆⍙
 ```
 
-Ok:
+These variable names are ok:
 ```
 a var my-var my-var.testing
 ```
 
-Not ok:
+These are not ok:
 ```
 true! this->that pass/fail?
 ```
