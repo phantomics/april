@@ -178,7 +178,7 @@
 	;; either the macron or combining_macron character may be used as the high minus sign
 	(parse-number:parse-number (regex-replace-all "[¯̄]" nstring "-")))))
 
-(defun format-value (meta element)
+(defun format-value (idiom-name meta element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((and (vectorp element)
 	      (string= element "⍬"))
@@ -188,7 +188,7 @@
 	      (or (string= element "⍺")
 		  (string= element "⍵")))
 	 ;; alpha and omega characters are directly changed to symbols
- 	 (intern element))
+ 	 (intern element idiom-name))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
 	((or (and (char= #\" (aref element 0))
