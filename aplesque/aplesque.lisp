@@ -7,10 +7,15 @@
     (and (= 1 (first adims))
 	 (= 1 (length adims)))))
 
-(defun scale-array (singleton to-match)
+(defun scale-array (singleton to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
-  (make-array (dims to-match)
-	      :initial-element (aref singleton 0)))
+  (let ((match-dims (dims to-match)))
+    (make-array (if axis
+		    (loop for this-dim from 0 to (1- (length match-dims))
+		       collect (if (= this-dim axis)
+				   1 (nth this-dim match-dims)))
+		    match-dims)
+		:initial-element (aref singleton 0))))
 
 (defun array-promote (array)
   "Promote an array to the next rank. The existing content will occupy 1 unit of the new dimension."
