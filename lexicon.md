@@ -83,9 +83,9 @@
 
 [⍀] Expand First
 
-[⍧] Partitioned Enclose
-
 [⊂] Enclose / Partition
+
+[⍧] Partitioned Enclose
 
 [⊃] Mix / Pick
 

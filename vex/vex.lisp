@@ -165,7 +165,7 @@
 						   (rest (first specs)))
 					    (append output (list `(princ ,heading))
 						    (for-tests tests)
-						    (list `(princ (format nil "~%~%")) nil))
+						    (list `(princ (format nil "~%~%"))))
 					    output))
 		       output))))
 
@@ -223,18 +223,13 @@
 		    ;; this macro is the point of contact between users and the language, used to
 		    ;; evaluate expressions and control properties of the language instance
 		    (cond ((and options (listp options)
-				(eq :test (intern (string-upcase (first options))
-						  "KEYWORD")))
-			   `(progn (plan ,(/ (+ ,(length function-tests)
-						,(length operator-tests)
-						,(length general-tests))
-					     2))
-				   ,@',(append function-tests operator-tests general-tests)
-				   (finalize)))
+				(string= "TEST" (string (first options))))
+			   (let ((all-tests ',(append function-tests operator-tests general-tests)))
+			     `(progn (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
+				     ,@all-tests (finalize))))
 			  ;; the (test) setting is used to run tests
 			  ((and options (listp options)
-				(eq :restore-defaults (intern (string-upcase (first options))
-							      "KEYWORD")))
+				(string= "RESTORE-DEFAULTS" (string (first options))))
 			   `(setf (idiom-state ,,idiom-symbol)
 				  (copy-alist (idiom-base-state ,,idiom-symbol))))
 			  ;; the (set-default) setting is used to restore the instance settings
