@@ -225,7 +225,7 @@
 		    (cond ((and options (listp options)
 				(string= "TEST" (string (first options))))
 			   (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			     `(progn (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
+			     `(progn (plan ,(loop for test in all-tests counting (eql 'is (first exp))))
 				     ,@all-tests (finalize))))
 			  ;; the (test) setting is used to run tests
 			  ((and options (listp options)
