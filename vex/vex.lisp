@@ -225,14 +225,14 @@
 		    (cond ((and options (listp options)
 				(string= "TEST" (string (first options))))
 			   (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			     `(progn (plan ,(loop for test in all-tests counting (eql 'is (first exp))))
+			     `(progn (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
 				     ,@all-tests (finalize))))
 			  ;; the (test) setting is used to run tests
 			  ((and options (listp options)
 				(string= "RESTORE-DEFAULTS" (string (first options))))
 			   `(setf (idiom-state ,,idiom-symbol)
 				  (copy-alist (idiom-base-state ,,idiom-symbol))))
-			  ;; the (set-default) setting is used to restore the instance settings
+			  ;; the (restore-defaults) setting is used to restore the workspace settings
 			  ;; to the defaults from the spec
 			  (t `(progn ,@(if (and (listp options)
 						(string= "SET" (string (first options)))
@@ -287,22 +287,6 @@
 			  (?satisfies (lambda (c) (char= c delimiter))))
 		 content)))
 
-	   ;; (=vex-axes () ;; handle axes, separated by semicolons
-	   ;;   (=destructure (element _ rest)
-	   ;; 	 (=list (=subseq (%any (?satisfies (lambda (char) (not (char= char #\;))))))
-	   ;; 		(=subseq (%some (%or (?satisfies (funcall (lambda () (let ((index 0))
-	   ;; 								       (lambda (char)
-	   ;; 									 (incf index 1)
-	   ;; 									 (and (not (< 1 index))
-	   ;; 									      (char= char #\;)))))))
-	   ;; 				     (?end))))
-	   ;; 		(=subseq (%any (?satisfies 'characterp))))
-	   ;;     (print (list :rr element rest))
-	   ;;     (if (< 0 (length rest))
-	   ;; 	   (cons (parse element (=vex-string idiom meta))
-	   ;; 		 (parse rest (=vex-axes)))
-	   ;; 	   (list (parse element (=vex-string idiom meta))))))
-
 	   (=vex-closure (boundary-chars &optional transform-by)
 	     (let ((balance 1))
 	       (=destructure (_ enclosed _)
@@ -329,8 +313,6 @@
 	     (list :fn (funcall (of-utilities idiom :format-function)
 				(string-upcase (idiom-name idiom))
 				(vex-program idiom nil input-string)))))
-
-    ;;(setf (fdefinition '=vex-axes-parser) (=vex-axes))
 
     (=destructure (_ item _ rest _ nextlines)
 	(=list (%any (?blank-character))
