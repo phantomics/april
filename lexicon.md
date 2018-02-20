@@ -1,6 +1,6 @@
 <!-- TITLE/ -->
 
-## Apex APL Lexicon
+## April APL Lexicon
 
 <!-- /TITLE -->
 

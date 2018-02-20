@@ -1,14 +1,14 @@
 <!-- TITLE/ -->
 
-# Apex
+# April
 
 <!-- /TITLE -->
 
 Ken Iverson's masterpiece reflected in the medium of Lisp.
 
-Apex compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numerical processing faculties, it brings APL's expressive potential to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
+April compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numerical processing faculties, it brings APL's expressive potential to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
 
-## Why Apex?
+## Why April?
 
 APL veritably hums with algorithmic power. As a handful of characters run past the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic runtime environments. If you have a store of data you'd like to use with APL, getting it there can be an ordeal. Like hauling tons of cargo on donkeys' backs through a narrow mountain pass, it's not fun, and the prospect of it has ended many discussions of APL before they could begin.
 
@@ -16,67 +16,67 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 ## Installation
 
-Apex depends on Common Lisp, ASDF and Quicklisp. The only Common Lisp implementation tested so far has been Steel Bank Common Lisp (SBCL).
+April depends on Common Lisp, ASDF and Quicklisp. The only Common Lisp implementation tested so far has been Steel Bank Common Lisp (SBCL).
 
 ### Preparing Quicklisp
 
-Enter your Quicklisp local-projects directory (usually ~/quicklisp/local-projects) and create a symbolic link to the directory where you cloned the Apex repository. For example, if you cloned the repo to ~/mystuff/apex and your Quicklisp directory is ~/quicklisp/, enter:
+Enter your Quicklisp local-projects directory (usually ~/quicklisp/local-projects) and create a symbolic link to the directory where you cloned the April repository. For example, if you cloned the repo to ~/mystuff/april and your Quicklisp directory is ~/quicklisp/, enter:
 
 ```
 cd ~/quicklisp/local-projects
-ln -s ~/mystuff/apex
+ln -s ~/mystuff/april
 ```
 
-### Installing Apex
+### Installing April
 
 To complete the installation, just start a Common Lisp REPL and enter:
 
 ```
-(ql:quickload 'apex)
+(ql:quickload 'april)
 ```
 
 And the system will be built and ready.
 
 ## APL Functions and Operators
 
-The APL language uses single characters to represent its primitive functions and operators. Most of these symbols are not part of the standard ASCII character set but are unique to APL. To see a list of the glyphs that are supported by Apex, visit the link below.
+The APL language uses single characters to represent its primitive functions and operators. Most of these symbols are not part of the standard ASCII character set but are unique to APL. To see a list of the glyphs that are supported by April, visit the link below.
 
-#### [See the complete Apex APL lexicon here.](./lexicon.md)
+#### [See the complete April APL lexicon here.](./lexicon.md)
 
-Some APL functions and operators won't be added to Apex since they don't make sense for Apex's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-implemented-and-may-be)
+Some APL functions and operators won't be added to April since they don't make sense for April's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-implemented-and-may-be)
 
 ## Examples
 
 Evaluating an APL expression is as simple as:
 
 ```
-* (apex "1+2 3 4")
+* (april "1+2 3 4")
 
 #(3 4 5)
 ```
 
 The * indicates a REPL prompt. The text two lines down is the expression's output.
 
-The macro (apex) will evaluate any APL string passed to it as the sole argument, returning the final result.
+The macro (april) will evaluate any APL string passed to it as the sole argument, returning the final result.
 
 Setting state properties for the APL instance can be done like this:
 
 ```
-* (apex (set (:state :count-from 0)) "⍳9")
+* (april (set (:state :count-from 0)) "⍳9")
 
 #(0 1 2 3 4 5 6 7 8)
 ```
 
-Instead of an APL string, the first argument to (apex) may be a list of specifications for the APL environment. The APL expression is then passed in the second argument.
+Instead of an APL string, the first argument to (april) may be a list of specifications for the APL environment. The APL expression is then passed in the second argument.
 
 For example, you can use this configuration setting to determine whether the APL instance will start counting from 0 or 1.
 
 ```
-* (apex (set (:state :count-from 1)) "⍳9")
+* (april (set (:state :count-from 1)) "⍳9")
 
 #(1 2 3 4 5 6 7 8 9)
 
-* (apex (set (:state :count-from 0)) "⍳9")
+* (april (set (:state :count-from 0)) "⍳9")
 
 #(0 1 2 3 4 5 6 7 8)
 ```
@@ -84,68 +84,68 @@ For example, you can use this configuration setting to determine whether the APL
 More APL expressions:
 
 ```
-* (apex "⍳12")
+* (april "⍳12")
 
 #(1 2 3 4 5 6 7 8 9 10 11 12)
 
-* (apex "3 4⍴⍳12")
+* (april "3 4⍴⍳12")
 
 #2A((1 2 3 4) (5 6 7 8) (9 10 11 12))
 
-* (apex "+/3 4⍴⍳12")
+* (april "+/3 4⍴⍳12")
 
 #(10 26 42)
 
-* (apex "+⌿3 4⍴⍳12")
+* (april "+⌿3 4⍴⍳12")
 
 #(15 18 21 24)
 
-* (apex "+/[1]3 4⍴⍳12")
+* (april "+/[1]3 4⍴⍳12")
 
 #(15 18 21 24)
 
-* (apex "⌽3 4⍴⍳12")
+* (april "⌽3 4⍴⍳12")
 
 #2A((4 3 2 1) (8 7 6 5) (12 11 10 9))
 
-* (apex "1⌽3 4⍴⍳12")
+* (april "1⌽3 4⍴⍳12")
 
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
 ## Parameter reference
 
-When the (apex) macro is called, you may pass it either a single text string:
+When the (april) macro is called, you may pass it either a single text string:
 
 ```
-* (apex "1+1 2 3")
+* (april "1+1 2 3")
 ```
 
 Or a parameter object followed by a text string:
 
 ```
-* (apex (set (:state :count-from 0)) "⍳9")
+* (april (set (:state :count-from 0)) "⍳9")
 ```
 
-This section details the parameters you can pass to Apex.
+This section details the parameters you can pass to April.
 
 ### (test)
 
-To run Apex's test suite, just enter:
+To run April's test suite, just enter:
 
 ```
-* (apex (test))
+* (april (test))
 ```
 
 ### (set)
 
-(set) is the workhorse of Apex parameters, allowing you to configure your Apex instance in many ways. The most common sub-parameter passed via (set) is (:state). To wit:
+(set) is the workhorse of April parameters, allowing you to configure your April instance in many ways. The most common sub-parameter passed via (set) is (:state). To wit:
 
 ```
-* (apex (set (:state :count-from 1
-                     :in ((a 1) (b 2))
-                     :out (a c)))
-        "c←a+b×11")
+* (april (set (:state :count-from 1
+                      :in ((a 1) (b 2))
+                      :out (a c)))
+         "c←a+b×11")
 
 1
 23
@@ -157,15 +157,15 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 #### :count-from
 
-Sets the index from which Apex counts. Almost always set to 0 or 1. The default value is 1.
+Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1.
 
 #### :in
 
-Passes variables into the Apex instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the Apex instance.
+Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
 
-Please note that Apex variables follow a stricter naming convention than Lisp variables. When naming variables, only alphanumeric characters, periods and dashes may be used. Punctuation marks like ?, > and ! must not be used as they have separate meanings in Apex.
+Please note that April variables follow a stricter naming convention than Lisp variables. When naming variables, only alphanumeric characters, periods and dashes may be used. Punctuation marks like ?, > and ! must not be used as they have separate meanings in April.
 
-These characters may be used in Apex variable names:
+These characters may be used in April variable names:
 ```
 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.∆⍙
 ```
@@ -180,24 +180,24 @@ These are not ok:
 true! this->that pass/fail?
 ```
 
-Note also that variables are converted from Lisp-style dash-separated format into camel case for use within Apex code. For example:
+Note also that variables are converted from Lisp-style dash-separated format into camel case for use within April code. For example:
 
 ```
-* (apex (set (:state :in ((my-var 2)
+* (april (set (:state :in ((my-var 2)
                           (other-var 5))))
-        "myVar×otherVar+5")
+         "myVar×otherVar+5")
 
 20
 ```
 
 #### :out
 
-Lists variables to be output when the code has finished evaluating. By default, the value of the last evaluated expression is passed back after an Apex evaluation is finished. For example:
+Lists variables to be output when the code has finished evaluating. By default, the value of the last evaluated expression is passed back after an April evaluation is finished. For example:
 
 ```
-* (apex "1+2
-         2+3
-         3+4")
+* (april "1+2
+          2+3
+          3+4")
 
 7
 ```
@@ -205,10 +205,10 @@ Lists variables to be output when the code has finished evaluating. By default, 
 The last value calculated is displayed. The :out sub-parameter allows you to list a set of variables that whose values will be returned once evaluation is complete. For example:
 
 ```
-* (apex (set (:state :out (a b c)))
-        "a←9+2
-         b←5+3
-         c←2×9")
+* (april (set (:state :out (a b c)))
+         "a←9+2
+          b←5+3
+          c←2×9")
 
 11
 8
@@ -217,16 +217,16 @@ The last value calculated is displayed. The :out sub-parameter allows you to lis
 
 #### :disclose-output
 
-In APL, there's really no such thing as a value outside an array. Every piece of data used within an Apex instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When Apex returns arrays like this, its default behavior is to disclose them like this:
+In APL, there's really no such thing as a value outside an array. Every piece of data used within an April instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When April returns arrays like this, its default behavior is to disclose them like this:
 
 ```
-* (apex "1+1")
+* (april "1+1")
 
 2
 ```
 But if you set the :disclose-output option to nil, you can change this:
 ```
-* (apex (set (:state :disclose-output nil)) "1+1")
+* (april (set (:state :disclose-output nil)) "1+1")
 
 #(2)
 ```
@@ -235,18 +235,18 @@ With :disclose-output set to nil, unitary vectors will be passed directly back w
 
 ### (:space) sub-parameter
 
-If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to Apex, use the (:space) parameter. For example:
+If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the (:space) parameter. For example:
 
 ```
-* (apex (set (:space *space1*)) "a←5+2 ◊ b←3×9")
+* (april (set (:space *space1*)) "a←5+2 ◊ b←3×9")
 
 27
 
-* (apex (set (:space *space1*)) "c←{⍵+2}")
+* (april (set (:space *space1*)) "c←{⍵+2}")
 
 #<FUNCTION ... >
 
-* (apex (set (:space *space1*)) "c a+b")
+* (april (set (:space *space1*)) "c a+b")
 
 36
 ```
@@ -260,30 +260,30 @@ You can use the :state-persistent parameter to set state values within the works
 For example:
 
 ```
-* (apex (set (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
+* (april (set (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
 
 #(0 1 2 3 4 5 6)
 
-* (apex (set (:space *space1*)) "⍳7")
+* (april (set (:space *space1*)) "⍳7")
 
 #(0 1 2 3 4 5 6)
 
-* (apex (set (:space *space2*)) "⍳7")
+* (april (set (:space *space2*)) "⍳7")
 
 #(1 2 3 4 5 6 7)
 ```
 
 Did you notice that when switching to a different space, in this case *space2*, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
 
-You can use :state-persistent to set persistent input variables that will stay avaialable for each piece of code you run in your Apex instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to Apex. Like this:
+You can use :state-persistent to set persistent input variables that will stay avaialable for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. Like this:
 
 ```
 * (defvar *dynamic-var* 2)
 
 *DYNAMIC-VAR*
 
-* (apex (set (:state-persistent :in ((dyn-var *dynamic-var*)))
-             (:space *space1*))
+* (april (set (:state-persistent :in ((dyn-var *dynamic-var*)))
+              (:space *space1*))
         "dynVar⍟512")
 
 #(9.0)
@@ -292,17 +292,17 @@ You can use :state-persistent to set persistent input variables that will stay a
 
 8
 
-* (apex (set (:space *space1*)) "dynVar⍟512")
+* (april (set (:space *space1*)) "dynVar⍟512")
 
 #(3.0)
 ```
 
 ### (:compile-only) parameter
 
-If you just want to compile the code you enter into Apex without running it, use this option. For example:
+If you just want to compile the code you enter into April without running it, use this option. For example:
 
 ```
-* (apex (set (:compile-only)) "1+1 2 3")
+* (april (set (:compile-only)) "1+1 2 3")
 
 (PROGN
  (DISCLOSE	
@@ -311,10 +311,10 @@ If you just want to compile the code you enter into Apex without running it, use
 
 ### (restore-defaults)
 
-To restore all of Apex's state variables to the default values, enter:
+To restore all of April's state variables to the default values, enter:
 
 ```
-* (apex (restore-defaults))
+* (april (restore-defaults))
 ```
 
 All :in and :out values will be nullified, :count-from will return to its default setting, etc.
@@ -352,7 +352,7 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 ⌶ I-Beam
 ```
 
-See a pattern? The functions not planned for implentation are all those that manifest low-level interactions between the APL instance and the underlying computer system. Common Lisp already has powerful tools for system interaction, so it's presumed that developers will do things like this outside of Apex.
+See a pattern? The functions not planned for implentation are all those that manifest low-level interactions between the APL instance and the underlying computer system. Common Lisp already has powerful tools for system interaction, so it's presumed that developers will do things like this outside of April.
 
 ## Also Not Implemented
 
@@ -363,11 +363,11 @@ System functions and variables within APL are not implemented, along with APL's 
 If you missed it earlier, you can run tests for the implemented APL functions and operators by entering:
 
 ```
-(apex (test))
+(april (test))
 ```
 
 ## Thanks to:
 
-Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which Apex makes heavy use.
+Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which April makes heavy use.
 
-Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heart of Apex's parsing engine.
+Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heart of April's parsing engine.
