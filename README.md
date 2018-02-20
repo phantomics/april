@@ -224,6 +224,7 @@ In APL, there's really no such thing as a value outside an array. Every piece of
 
 2
 ```
+
 But if you set the :disclose-output option to nil, you can change this:
 ```
 * (april (set (:state :disclose-output nil)) "1+1")
