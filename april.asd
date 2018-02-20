@@ -1,7 +1,7 @@
-;;;; apex.asd
+;;;; april.asd
 
-(asdf:defsystem #:apex
-  :description "Apex is a subset of the APL programming language that compiles to Common Lisp."
+(asdf:defsystem #:april
+  :description "April is a subset of the APL programming language that compiles to Common Lisp."
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
@@ -9,4 +9,4 @@
 	       :cl-ppcre :parse-number :symbol-munger :prove)
   :components 
   ((:file "package")
-   (:file "apex")))
+   (:file "april")))

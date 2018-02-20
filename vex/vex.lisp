@@ -50,7 +50,6 @@
   "Retrive one of the idiom's operators."
   (gethash key (idiom-operators idiom)))
 
-
 (defgeneric of-overloaded? (idiom key))
 (defmethod of-overloaded? ((idiom idiom) key)
   "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."

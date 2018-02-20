@@ -1,6 +1,6 @@
-;;;; apex.lisp
+;;;; april.lisp
 
-(in-package #:apex)
+(in-package #:april)
  
 (defun is-singleton (value)
   "Determine whether an array is a singleton, i.e. possesses just one member."
@@ -270,9 +270,9 @@
 					      (mapcar (lambda (vector)
 							(if vector (if (= 1 (length vector))
 								       (- (aref vector 0)
-									  (of-state *apex-idiom* :count-from))
+									  (of-state *april-idiom* :count-from))
 								       (mapcar (lambda (elem)
-										 (- elem (of-state *apex-idiom*
+										 (- elem (of-state *april-idiom*
 												   :count-from)))
 									       (array-to-list vector)))))
 						      ,(cons 'list (rest (funcall subprocessor idiom meta
@@ -572,7 +572,7 @@
 				    ,(if first-axis 0 `(1- (rank new-array)))))))))))
 
 (vex-spec
- apex
+ april
  (state :count-from 1
 	:disclose-output t
 	:atomic-vector
@@ -611,13 +611,13 @@
 	    :postprocess-compiled
 	    (lambda (form)
 	      ;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
-	      (if (of-state *apex-idiom* :disclose-output)
+	      (if (of-state *april-idiom* :disclose-output)
 		  (append (butlast form)
 			  (list (list 'disclose (first (last form)))))
 		  form))
 	    :postprocess-value
 	    (lambda (item)
-	      (if (of-state *apex-idiom* :disclose-output)
+	      (if (of-state *april-idiom* :disclose-output)
 		  (list 'disclose item)
 		  item)))
 
@@ -717,13 +717,13 @@
  	    (? (has :titles ("Random" "Deal"))
  	       (ambivalent (args :scalar (lambda (omega)
  	    				   (+ (random omega)
- 	    				      (of-state *apex-idiom* :count-from))))
+ 	    				      (of-state *april-idiom* :count-from))))
  	    		   (args :one :one (lambda (omega alpha)
  	    				     (make-array (list alpha)
  	    						 :initial-contents
  	    						 (loop for i from 0 to (1- alpha)
  	    						    collect (+ (random omega)
- 	    							       (of-state *apex-idiom* :count-from))))))))
+ 	    							       (of-state *april-idiom* :count-from))))))))
      	    (○ (has :titles ("Pi Times" "Circular"))
  	       (ambivalent (args :scalar (lambda (omega) (* pi omega)))
  	    		   (args :any :one (lambda (omega alpha)
@@ -833,9 +833,9 @@
  	    				(make-array (list omega)
  	    					    :initial-contents
  	    					    (alexandria:iota omega
-								     :start (of-state *apex-idiom* :count-from)))))
+								     :start (of-state *april-idiom* :count-from)))))
 			   (args :any :any (lambda (omega alpha)
-					     (index-of omega alpha (of-state *apex-idiom* :count-from)))))
+					     (index-of omega alpha (of-state *april-idiom* :count-from)))))
  	       (tests (is "⍳5" #(1 2 3 4 5))
  	    	      (is "3⍳1 2 3 4 5" #(2 2 1 2 2))))
      	    (⍴ (has :titles ("Shape" "Reshape"))
@@ -856,13 +856,13 @@
  							   collect nil)))
  				     (loop for index from 0 to (1- (length (first axes)))
  					do (setf (nth (- (aref (first axes) index)
- 							 (of-state *apex-idiom* :count-from))
+ 							 (of-state *april-idiom* :count-from))
  						      elided-coords)
  						 (- (aref alpha index)
- 						    (of-state *apex-idiom* :count-from))))
+ 						    (of-state *april-idiom* :count-from))))
  				     (aref-eliding omega elided-coords))
  				   (let* ((coords (mapcar (lambda (coord) (- coord
- 									     (of-state *apex-idiom* :count-from)))
+ 									     (of-state *april-idiom* :count-from)))
  							  (array-to-list alpha)))
  					  (found (apply #'aref (cons omega coords))))
  				     (if (not (arrayp found))
@@ -909,7 +909,7 @@
  	    			   (multidim-slice omega (if axes
  							     (loop for axis from 0 to (1- (rank omega))
  								collect (if (= axis (- (aref (first axes) 0)
- 										       (of-state *apex-idiom*
+ 										       (of-state *april-idiom*
  												 :count-from)))
  									    (aref alpha 0)
  									    (nth axis (dims omega))))
@@ -931,7 +931,7 @@
  	    			   (multidim-slice omega
  						   (if axes (loop for axis from 0 to (1- (rank omega))
  							       collect (if (= axis (- (aref (first axes) 0)
- 										      (of-state *apex-idiom*
+ 										      (of-state *april-idiom*
  												:count-from)))
  									   (aref alpha 0)
  									   0))
@@ -947,7 +947,7 @@
  	    (\, (has :titles ("Ravel" "Catenate or Laminate"))
  	    	(ambivalent (args :any :axes
  				  (lambda (omega &optional axes)
- 				    (ravel (of-state *apex-idiom* :count-from)
+ 				    (ravel (of-state *april-idiom* :count-from)
  					   omega axes)))
  	    		    (args :any :any :axes
  	    			  (lambda (omega alpha &optional axes)
@@ -956,19 +956,19 @@
  					     (vectorp alpha)
  	    				     (vectorp omega))
  	    				(if (and axes (< 0 (- (aref (first axes) 0)
- 							      (of-state *apex-idiom* :count-from))))
+ 							      (of-state *april-idiom* :count-from))))
  					    (error (concatenate
  						    'string "Specified axis is greater than 1, vectors"
  						    " have only one axis along which to catenate."))
  					    (if (and axes (> 0 (- (aref (first axes) 0)
- 								  (of-state *apex-idiom* :count-from))))
+ 								  (of-state *april-idiom* :count-from))))
  						(error (format nil "Specified axis is less than ~a."
- 							       (of-state *apex-idiom* :count-from)))
+ 							       (of-state *april-idiom* :count-from)))
  						(concatenate 'vector alpha omega)))
  	    				(if (or (not axes)
  						(integerp (aref (first axes) 0)))
  					    (let* ((axis (if axes (- (aref (first axes) 0)
-								     (of-state *apex-idiom* :count-from))
+								     (of-state *april-idiom* :count-from))
 							     (1- (max (array-rank alpha)
 								      (array-rank omega)))))
 						   (scale-alpha (if (not (is-singleton alpha))
@@ -978,7 +978,7 @@
 					      (aops:stack axis scale-alpha scale-omega))
  					    ;; laminate in the case of a fractional axis argument
  					    (let* ((axis (ceiling (- (aref (first axes) 0)
- 								     (of-state *apex-idiom* :count-from))))
+ 								     (of-state *april-idiom* :count-from))))
  						   (permute-dims (alexandria:iota (1+ (rank alpha))))
  						   (p-alpha (if (not (is-singleton alpha))
  								(aops:permute (rotate-right axis permute-dims)
@@ -1033,19 +1033,19 @@
 				   (if (and (vectorp alpha)
 					    (vectorp omega))
  	    				(if (and axes (< 0 (- (aref (first axes) 0)
- 							      (of-state *apex-idiom* :count-from))))
+ 							      (of-state *april-idiom* :count-from))))
  					    (error (concatenate
  						    'string "Specified axis is greater than 1, vectors"
  						    " have only one axis along which to catenate."))
  					    (if (and axes (> 0 (- (aref (first axes) 0)
- 								  (of-state *apex-idiom* :count-from))))
+ 								  (of-state *april-idiom* :count-from))))
  						(error (format nil "Specified axis is less than ~a."
- 							       (of-state *apex-idiom* :count-from)))
+ 							       (of-state *april-idiom* :count-from)))
  						(concatenate 'vector alpha omega)))
  	    				(if (or (not axes)
  						(integerp (aref (first axes) 0)))
  					    (let* ((axis (if axes (- (aref (first axes) 0)
-								     (of-state *apex-idiom* :count-from))
+								     (of-state *april-idiom* :count-from))
 							     0))
 						   (scale-alpha (if (not (is-singleton alpha))
 								    alpha (scale-array alpha omega axis)))
@@ -1068,7 +1068,7 @@
  	    		       (expand-array (array-to-list alpha)
  	    				     omega (if axes (- (rank omega)
  	    						       (- (aref (first axes) 0)
- 	    							  (1- (of-state *apex-idiom* :count-from)))))
+ 	    							  (1- (of-state *april-idiom* :count-from)))))
  	    				     0 :compress-mode t))))
  	       (tests (is "5/3" #(3 3 3 3 3))
  		      (is "1 0 1 0 1/⍳5" #(1 3 5))
@@ -1085,7 +1085,7 @@
  	    		       (expand-array (array-to-list alpha)
  	    				     omega (if axes (- (rank omega)
  	    						       (- (aref (first axes) 0)
- 	    							  (1- (of-state *apex-idiom* :count-from)))))
+ 	    							  (1- (of-state *april-idiom* :count-from)))))
  	    				     (1- (rank omega))
  	    				     :compress-mode t))))
  	       (tests (is "1 0 1 0 1⌿⍳5" #(1 3 5))
@@ -1100,7 +1100,7 @@
  	    			(expand-array (array-to-list alpha)
  	    				      omega (if axes (- (rank omega)
  	    							(- (aref (first axes) 0)
- 	    							   (1- (of-state *apex-idiom* :count-from)))))
+ 	    							   (1- (of-state *april-idiom* :count-from)))))
  	    				      0))))
  		(tests (is "1 ¯2 3 ¯4 5\\ '.'" ".  ...    .....")
  		       (is "1 ¯2 2 0 1\\3+2 3⍴⍳6" #2A((4 0 0 5 5 0 6) (7 0 0 8 8 0 9)))
@@ -1111,7 +1111,7 @@
  	    		       (expand-array (array-to-list alpha)
  	    				     omega (if axes (- (rank omega)
  	    						       (- (aref (first axes) 0)
- 	    							  (1- (of-state *apex-idiom* :count-from)))))
+ 	    							  (1- (of-state *april-idiom* :count-from)))))
  	    				     (1- (rank omega))))))
  	       (tests (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
  		      (is "1 0 1⍀3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
@@ -1120,7 +1120,7 @@
  				 (lambda (omega &optional axes)
  				   (if axes
  				       (re-enclose omega (aops:each (lambda (axel)
- 								      (- axel (of-state *apex-idiom* :count-from)))
+ 								      (- axel (of-state *april-idiom* :count-from)))
  								    (first axes)))
  				       (if (loop for dim in (dims omega) always (= 1 dim))
  					   omega (make-array (list 1) :initial-element omega)))))
@@ -1175,7 +1175,7 @@
  			       (partitioned-enclose alpha omega
  						    (if axes (- (rank omega)
  								(- (aref (first axes) 0)
- 								   (1- (of-state *apex-idiom* :count-from)))))
+ 								   (1- (of-state *april-idiom* :count-from)))))
  						    0))))
  	       (tests (is "0 1 0 0 1 1 0 0 0⍧⍳9" #(#(2 3 4) #(5) #(6 7 8 9)))
  		      (is "0 1 0 0 1 1 0 0 0⍧4 8⍴⍳9"
@@ -1188,14 +1188,14 @@
  				 (lambda (omega &optional axes)
  				   (mix-arrays (if axes (ceiling (- (1+ (rank omega))
  								    (aref (first axes) 0)
- 								    (of-state *apex-idiom* :count-from)))
+ 								    (of-state *april-idiom* :count-from)))
  						   0)
  					       omega)))
  	    		   (args :any :any (lambda (omega alpha)
  					     (labels ((layer-index (object indices)
  							(if indices
  							    (layer-index (aref object (- (first indices)
- 											 (of-state *apex-idiom*
+ 											 (of-state *april-idiom*
  												   :count-from)))
  									 (rest indices))
  							    object)))
@@ -1328,7 +1328,7 @@
  	    					      omega)))
  	    		   (args :any :any (lambda (omega alpha)
  	    				     (aops:permute (mapcar (lambda (i)
- 	    							     (- i (of-state *apex-idiom* :count-from)))
+ 	    							     (- i (of-state *april-idiom* :count-from)))
  	    							   (array-to-list alpha))
  	    						   omega))))
  	       (tests (is "⍉2 3 4⍴⍳9" #3A(((1 4) (5 8) (9 3)) ((2 5) (6 9) (1 4))
@@ -1358,37 +1358,37 @@
  		      (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
  		      (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
  	    (⍋ (has :titles ("Grade Up" "Grade Up By"))
- 	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *apex-idiom*
+ 	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *april-idiom*
  	    										    :atomic-vector)
  	    									  #'<=)
- 							     (of-state *apex-idiom* :count-from))))
+ 							     (of-state *april-idiom* :count-from))))
  	    		   (args :any :any (lambda (omega alpha) (grade (if (vectorp alpha)
  									    (index-of alpha omega
-										      (of-state *apex-idiom*
+										      (of-state *april-idiom*
 												:count-from))
  									    (array-grade alpha omega))
- 	    								(alpha-compare (of-state *apex-idiom*
+ 	    								(alpha-compare (of-state *april-idiom*
  	    											 :atomic-vector)
  	    									       #'<)
- 									(of-state *apex-idiom* :count-from)))))
+ 									(of-state *april-idiom* :count-from)))))
  	       (tests (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
  		      (is "⍋5 6⍴⍳16" #(1 4 2 5 3))
 		      (is "st←'aodjeignwug' ◊ st[⍋st]" "adeggijnouw")
  		      (is "(2 5⍴'ABCDEabcde')⍋'ACaEed'" #(1 3 2 6 4 5))))
  	    (⍒ (has :titles ("Grade Down" "Grade Down By"))
- 	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *apex-idiom*
+ 	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *april-idiom*
  	    										    :atomic-vector)
  	    									  #'>=)
- 							     (of-state *apex-idiom* :count-from))))
+ 							     (of-state *april-idiom* :count-from))))
  	    		   (args :any :any (lambda (omega alpha) (grade (if (vectorp alpha)
  									    (index-of alpha omega
-										      (of-state *apex-idiom*
+										      (of-state *april-idiom*
 												:count-from))
  									    (array-grade alpha omega))
- 	    								(alpha-compare (of-state *apex-idiom*
+ 	    								(alpha-compare (of-state *april-idiom*
  	    											 :atomic-vector)
  	    									       #'>)
- 									(of-state *apex-idiom* :count-from)))))
+ 									(of-state *april-idiom* :count-from)))))
  	       (tests (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
  		      (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
 		      (is "st←'aodjeignwug' ◊ st[⍒st]" "wuonjiggeda")
@@ -1455,7 +1455,7 @@
  	    (⍎ (has :title "Evaluate")
  	       (monadic (macro (lambda (meta axes omega)
  				 (declare (ignore meta axes))
- 				 `(apex ,omega))))
+ 				 `(april ,omega))))
  	       (tests (is "⍎'1+1'" 2)))
  	    (∘ (has :title "Find Outer Product, Not Inner")
 	       (symbolic :outer-product-designator)))
