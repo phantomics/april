@@ -14,12 +14,20 @@
                   :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
+   (utilities-spec :accessor idiom-utilities-spec
+		   :initarg :utilities-spec)
    (functions :accessor idiom-functions
 	      :initform nil
 	      :initarg :functions)
+   (functions-spec :accessor idiom-functions-spec
+		   :initform nil
+		   :initarg :functions-spec)
    (operators :accessor idiom-operators
 	      :initform nil
 	      :initarg :operators)
+   (operators-spec :accessor idiom-operators-spec
+		   :initform nil
+		   :initarg :operators-spec)
    (operational-glyphs :accessor idiom-opglyphs
 		       :initform nil
 		       :initarg :operational-glyphs)
@@ -54,6 +62,21 @@
 (defmethod of-overloaded? ((idiom idiom) key)
   "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
   (member key (idiom-overloaded-lexicon idiom)))
+
+(defmethod make-load-form ((idiom idiom) &optional environment)
+  (declare (ignore environment))
+  ;; Note that this definition only works because X and Y do not
+  ;; contain information which refers back to the object itself.
+  ;; For a more general solution to this problem, see revised example below.
+  `(make-instance ',(class-of idiom)
+		  :name ',(idiom-name idiom)
+		  :state ',(idiom-state idiom)
+		  :utilities ,(cons 'list (idiom-utilities-spec idiom))
+		  :functions ,(idiom-functions-spec idiom)
+		  :operators ,(idiom-operators-spec idiom)
+		  :operational-glyphs ',(idiom-opglyphs idiom)
+		  :operator-index ',(idiom-opindex idiom)
+		  :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)))
 
 (defmacro boolean-op (operation omega &optional alpha)
   "Converts output of a boolean operation from t/nil to 1/0."
@@ -190,61 +213,71 @@
 	     (general-tests (process-gentests (rest (assoc (intern "GENERAL-TESTS" (package-name *package*))
 							   subspecs)))))
 	`(progn (defvar ,idiom-symbol)
-		(let ((fn-specs (make-hash-table))
-		      (op-specs (make-hash-table)))
-		  (setf ,idiom-symbol
-			(make-instance 'idiom
-				       :name ,(intern (string-upcase symbol) "KEYWORD")
-				       :state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
-									subspecs)))
-				       :utilities ,(cons 'list
-							 (rest (assoc (intern "UTILITIES" (package-name *package*))
-								      subspecs))))
+		(setf ,idiom-symbol
+		      (make-instance 'idiom
+				     :name ,(intern (string-upcase symbol) "KEYWORD")
+				     :state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
+								      subspecs)))
+				     :utilities ,(cons 'list
+						       (rest (assoc (intern "UTILITIES" (package-name *package*))
+								    subspecs)))
+				     :utilities-spec (quote ,(rest (assoc (intern "UTILITIES"
+										  (package-name *package*))
+									  subspecs))))
+		      (idiom-opglyphs ,idiom-symbol)
+		      (list ,@(derive-opglyphs (append (first function-specs)
+						       (first operator-specs))))
+		      (idiom-functions ,idiom-symbol)
+		      (let ((fn-specs (make-hash-table)))
+			(setf ,@(second function-specs))
+			fn-specs)
+		      (idiom-functions-spec ,idiom-symbol)
+		      `(let ((fn-specs (make-hash-table)))
+			 (setf ,@',(second function-specs))
+			 fn-specs)
+		      (idiom-operators ,idiom-symbol)
+		      (let ((op-specs (make-hash-table)))
+			(setf ,@(second operator-specs))
+			op-specs)
+		      (idiom-operators-spec ,idiom-symbol)
+		      `(let ((op-specs (make-hash-table)))
+			 (setf ,@',(second operator-specs))
+			 op-specs)
+		      (idiom-overloaded-lexicon ,idiom-symbol)
+		      (list ,@(intersection (first function-specs)
+					    (first operator-specs)))
+		      (idiom-opindex ,idiom-symbol)
+		      (list ,@(third operator-specs)))
 
-			,@(second function-specs)
-			,@(second operator-specs)
-			(idiom-opglyphs ,idiom-symbol)
-			(list ,@(derive-opglyphs (append (first function-specs)
-							 (first operator-specs))))
-			(idiom-functions ,idiom-symbol)
-			fn-specs
-			(idiom-operators ,idiom-symbol)
-			op-specs
-			(idiom-overloaded-lexicon ,idiom-symbol)
-			(list ,@(intersection (first function-specs)
-					      (first operator-specs)))
-			(idiom-opindex ,idiom-symbol)
-			(list ,@(third operator-specs)))
-
-		  (defmacro ,(intern (string-upcase symbol)
-				     (package-name *package*))
-		      (options &optional input-string)
-		    ;; this macro is the point of contact between users and the language, used to
-		    ;; evaluate expressions and control properties of the language instance
-		    (cond ((and options (listp options)
-				(string= "TEST" (string (first options))))
-			   (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			     `(progn (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
-				     ,@all-tests (finalize))))
-			  ;; the (test) setting is used to run tests
-			  ((and options (listp options)
-				(string= "RESTORE-DEFAULTS" (string (first options))))
-			   `(setf (idiom-state ,,idiom-symbol)
-				  (copy-alist (idiom-base-state ,,idiom-symbol))))
-			  ;; the (restore-defaults) setting is used to restore the workspace settings
-			  ;; to the defaults from the spec
-			  (t `(progn ,@(if (and (listp options)
-						(string= "SET" (string (first options)))
-						(assoc :space (rest options))
-						(not (boundp (second (assoc :space (rest options))))))
-					   `((defvar ,(second (assoc :space (rest options)))
-					       (make-hash-table :test #'eq))))
-				     (eval (vex-program ,,idiom-symbol
-							(quote ,(if input-string
-								    (if (string= "SET" (string (first options)))
-									(rest options)
-									(error "Incorrect option syntax."))))
-							,(if input-string input-string options)))))))))))))
+		(defmacro ,(intern (string-upcase symbol)
+				   (package-name *package*))
+		    (options &optional input-string)
+		  ;; this macro is the point of contact between users and the language, used to
+		  ;; evaluate expressions and control properties of the language instance
+		  (cond ((and options (listp options)
+			      (string= "TEST" (string (first options))))
+			 (let ((all-tests ',(append function-tests operator-tests general-tests)))
+			   `(progn (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
+				   ,@all-tests (finalize))))
+			;; the (test) setting is used to run tests
+			((and options (listp options)
+			      (string= "RESTORE-DEFAULTS" (string (first options))))
+			 `(setf (idiom-state ,,idiom-symbol)
+				(copy-alist (idiom-base-state ,,idiom-symbol))))
+			;; the (restore-defaults) setting is used to restore the workspace settings
+			;; to the defaults from the spec
+			(t `(progn ,@(if (and (listp options)
+					      (string= "SET" (string (first options)))
+					      (assoc :space (rest options))
+					      (not (boundp (second (assoc :space (rest options))))))
+					 `((defvar ,(second (assoc :space (rest options)))
+					     (make-hash-table :test #'eq))))
+				   (eval (vex-program ,,idiom-symbol
+						      (quote ,(if input-string
+								  (if (string= "SET" (string (first options)))
+								      (rest options)
+								      (error "Incorrect option syntax."))))
+						      ,(if input-string input-string options))))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
