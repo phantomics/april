@@ -1689,7 +1689,7 @@
 					  (loop for index from 0 to (1- (disclose ,(second right-operand)))
 					     do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 					  ,arg))))
-				  ((listp right-operand)
+				  ((listp right-operand)-(⍳1+2×⍵)-1+⍵
 				   (let ((arg (gensym)))
 				     `(lambda (omega &optional alpha)
 					(declare (ignorable alpha))
