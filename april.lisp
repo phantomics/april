@@ -110,7 +110,7 @@
 			 (funcall ,,fn
 				  ,,(cond ((eq :one omega)
 					   ``(if (arrayp ,(macroexpand ,omega-sym))
-						 (aref ,(macroexpand ,omega-sym) 0)
+						 (disclose ,(macroexpand ,omega-sym))
 						 ,(macroexpand ,omega-sym)))
 					  ((eq :sym omega)
 					   ``(quote ,(if (listp (macroexpand ,omega-sym))
@@ -119,7 +119,7 @@
 							 (macroexpand ,omega-sym))))
 					  (t `(macroexpand ,omega-sym)))
 				  ,,@(if alpha (list (cond ((eq :one alpha)
-							    ``(aref ,(macroexpand ,alpha-sym) 0))
+							    ``(disclose ,(macroexpand ,alpha-sym)))
 							   ((eq :axes alpha)
 							    (cons 'list (macroexpand axes)))
 							   ;; alpha is equal to :axes when
@@ -1348,7 +1348,7 @@
  	       (ambivalent (args :any (lambda (omega)
  	    				(if (and (= 1 (rank omega))
  	    					 (= 1 (length omega)))
- 	    				    (/ (aref omega 0))
+ 	    				    (/ (disclose omega))
  	    				    (if (< 2 (rank omega))
  						(error "Matrix inversion only works on arrays of rank 2 or 1.")
  						(if (let ((odims (dims omega)))
@@ -1550,24 +1550,35 @@
 				 (declare (ignore meta axes))
 				 (lambda (meta unused omega alpha)
 				   (declare (ignore unused))
-				   `(aops:outer (lambda (omega alpha)
-						  ,(funcall right-function meta nil 'omega 'alpha))
-						,alpha ,omega)))
+				   (let ((fn-clause (funcall right-function meta nil 'omega 'alpha)))
+				     `(let ((inverse (aops:outer (lambda (omega alpha)
+								   (let ((omega (enclose omega))
+									 (alpha (enclose alpha)))
+								     (if (is-singleton omega)
+									 ;; swap arguments in case of a singleton
+									 ;; omega argument
+									 (let ((placeholder alpha))
+									   (setq alpha omega
+										 omega placeholder)))
+								     (disclose ,fn-clause)))
+								 ,alpha ,omega)))
+					(if (not (is-singleton ,alpha))
+					    inverse (aops:permute (reverse (alexandria:iota (rank inverse)))
+								  inverse))))))
 			       (lambda (meta axes right-function)
 				 (declare (ignore meta axes))
 				 (lambda (meta unused omega alpha)
 				   (declare (ignore unused))
 				   `(if (and (vectorp ,omega)
 					     (vectorp ,alpha))
-					;; TODO: improve logic for the argument?
 					(make-array (list 1)
 						    :initial-element
 						    (reduce (lambda (omega alpha)
 							      ,(funcall left-operand meta nil 'omega 'alpha))
-							    (aops:each (lambda (omega alpha)
-									 ,(funcall right-function
-										   meta nil 'omega 'alpha))
-								       ,alpha ,omega)))
+							    (apply-scalar-dyadic
+							     (lambda (omega alpha)
+							       ,(funcall right-function meta nil 'omega 'alpha))
+							     ,alpha ,omega)))
 					(array-inner-product ,alpha ,omega
 							     (let ((f1 (lambda (omega alpha)
 									 ,(funcall right-function
@@ -1580,10 +1591,14 @@
 							     (lambda (omega alpha)
 							       ,(funcall left-operand
 									 meta nil 'omega 'alpha)))))))))
- 	    	(tests (is "2 3 4+.×8 15 21" 145)
+ 	    	(tests (is "2+.×3 4 5" 24)
+		       (is "2 3 4+.×8 15 21" 145)
  	    	       (is "2 3 4+.×3 3⍴3 1 4 1 5 9 2 6 5" #(17 41 55))
  	    	       (is "(3 3⍴3 1 4 1 5 9 2 6 5)+.×2 3 4" #(25 53 42))
- 	    	       (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))))
+ 	    	       (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))
+		       (is "1 2 3∘.-1 2 3" #2A((0 -1 -2) (1 0 -1) (2 1 0)))
+		       (is "1 2 3∘.⍴1 2 3" #2A((1 2 3) (#(1 1) #(2 2) #(3 3)) (#(1 1 1) #(2 2 2) #(3 3 3))))
+		       (is "1 2 3∘.⍴⊂1 2 3" #2A((1) (#(1 2)) (#(1 2 3))))))
  	    (\¨ (has :title "Each")
  	    	(lateral (lambda (meta axes function)
 			   (declare (ignore meta axes))
