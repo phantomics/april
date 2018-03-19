@@ -1320,7 +1320,6 @@
  	    							      0)))))
  	    		   (args :any :one :axes
  	    			 (lambda (omega alpha &optional axes)
-				   (print (list :oo omega alpha))
  	    			   (if (vectorp omega)
  	    			       (let ((new-array (copy-array omega)))
  	    				 (funcall (make-rotator alpha)
