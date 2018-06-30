@@ -276,7 +276,7 @@ For example:
 
 Did you notice that when switching to a different space, in this case *space2*, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
 
-You can use :state-persistent to set persistent input variables that will stay avaialable for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. Like this:
+You can use :state-persistent to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. Like this:
 
 ```
 * (defvar *dynamic-var* 2)
