@@ -457,7 +457,7 @@
       				 (assign-from state-persistent (idiom-base-state idiom))
 				 (gethash :state meta)
 				 (assign-from state-persistent (gethash :state meta))))
-
+      
       (if string
 	  (let* ((input-vars (getf (idiom-state idiom) :in))
 		 (output-vars (getf (idiom-state idiom) :out))
