@@ -24,16 +24,18 @@
 
 (defun array-to-list (array)
   "Convert array to list."
-  (let* ((dimensions (dims array))
-         (depth (1- (length dimensions)))
-         (indices (make-list (1+ depth) :initial-element 0)))
-    (labels ((recurse (n)
-               (loop for j below (nth n dimensions)
-		  do (setf (nth n indices) j)
-		  collect (if (= n depth)
-			      (apply #'aref array indices)
-			      (recurse (1+ n))))))
-      (recurse 0))))
+  (if (not (arrayp array))
+      (list array)
+      (let* ((dimensions (dims array))
+	     (depth (1- (length dimensions)))
+	     (indices (make-list (1+ depth) :initial-element 0)))
+	(labels ((recurse (n)
+		   (loop for j below (nth n dimensions)
+		      do (setf (nth n indices) j)
+		      collect (if (= n depth)
+				  (apply #'aref array indices)
+				  (recurse (1+ n))))))
+	  (recurse 0)))))
 
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
