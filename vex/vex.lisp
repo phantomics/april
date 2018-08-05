@@ -320,17 +320,25 @@
 		 content)))
 
 	   (=vex-closure (boundary-chars &optional transform-by)
-	     (let ((balance 1))
+	     (let ((balance 1)
+		   (char-index 0))
 	       (=destructure (_ enclosed _)
 		   (=list (?eq (aref boundary-chars 0))
+			  ;; for some reason, the first character in the string is iterated over twice here,
+			  ;; so the character index is checked and nothing is done for the first character
+			  ;; TODO: fix this
 			  (=transform (=subseq (%some (?satisfies (lambda (char)
-								    (if (char= char (aref boundary-chars 0))
+								    (if (and (char= char (aref boundary-chars 0))
+									     (< 0 char-index))
 									(incf balance 1))
-								    (if (char= char (aref boundary-chars 1))
+								    (if (and (char= char (aref boundary-chars 1))
+									     (< 0 char-index))
 									(incf balance -1))
+								    (incf char-index 1)
 								    (< 0 balance)))))
 				      (if transform-by transform-by
 					  (lambda (string-content)
+					    (print (list :sc string-content))
 					    (parse string-content (=vex-string idiom meta)))))
 			  (?eq (aref boundary-chars 1)))
 		 enclosed)))
@@ -380,11 +388,9 @@
 	       (=subseq (%any (?but-newline-character)))
 	       (%any (?newline-character))
 	       (=subseq (%any (?satisfies 'characterp))))
-      ;; (if (< 0 (length nextlines))
-      ;; 	  (print (list :o1 output item rest)))
       (if (< 0 (length nextlines))
 	  (setq output (parse nextlines (=vex-string idiom meta))))
-      ;; (print (list :t output nextlines))
+      ;; (print (list :t output nextlines item rest))
       ;; (if (< 0 (length nextlines))
       ;; 	  (print (list :oo output nextlines)))
       (if (< 0 (length rest))
@@ -501,9 +507,9 @@
 										 (gethash :variables meta))
 									(gensym))
 								  (second var-entry))))))))
-
+	    ;; (print (list :decl vars-declared))
 	    (let ((code `(,@(if vars-declared
-				`(let ,vars-declared)
+				`(let* ,vars-declared)
 				'(progn))
 			    ,@(funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
 				       compiled-expressions)
