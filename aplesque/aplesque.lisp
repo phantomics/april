@@ -1,4 +1,4 @@
-;;;; aplesque.lisp
+;;; aplesque.lisp
 
 (in-package #:aplesque)
 
@@ -111,21 +111,26 @@
 (defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
   "Take a slice of an array in multiple dimensions."
   (if (= 1 (length dimensions))
-      (apply #'aops:stack
-	     (append (list 0 (aops:partition array (if inverse (first dimensions)
-						       0)
-					     (if inverse
-						 (first (dims array))
-						 (if (< (first (dims array))
-							(first dimensions))
+      (if (and inverse (> 0 (first dimensions)))
+	  ;; in the case of a negative drop operation, partition the array from 0
+	  ;; to the length minus the drop number
+	  (aops:partition array 0 (+ (first dimensions)
+				     (first (dims array))))
+	  (apply #'aops:stack
+		 (append (list 0 (aops:partition array (if inverse (first dimensions)
+							   0)
+						 (if inverse
 						     (first (dims array))
-						     (first dimensions)))))
-		     (if (and (not inverse)
-			      (< (first (dims array))
-				 (first dimensions)))
-			 (list (make-array (list (- (first dimensions)
-						    (first (dims array))))
-					   :initial-element fill-with)))))
+						     (if (< (first (dims array))
+							    (first dimensions))
+							 (first (dims array))
+							 (first dimensions)))))
+			 (if (and (not inverse)
+				  (< (first (dims array))
+				     (first dimensions)))
+			     (list (make-array (list (- (first dimensions)
+							(first (dims array))))
+					       :initial-element fill-with))))))
       (aops:combine (apply #'aops:stack
 			   (append (list 0 (aops:each (lambda (a)
 							(multidim-slice a (rest dimensions)
@@ -149,7 +154,18 @@
 							 (loop for index from 1 to (- (first dimensions)
 										      (first (dims array)))
 							    collect (make-array (rest dimensions)
-										:initial-element fill-with))))))))))
+										:initial-element fill-with))))
+				       ;; (if inverse
+				       ;; 	   (list (make-array (list (- (first dimensions)
+				       ;; 				      (first (dims array))))
+				       ;; 			     :initial-contents
+				       ;; 			     (loop for index from (+ (first dimensions)
+				       ;; 						     (first (dims array)))
+				       ;; 				downto 1
+				       ;; 				collect (make-array (rest dimensions)
+				       ;; 						    :initial-element
+				       ;; 						    fill-with)))))
+				       ))))))
 
 (defun scan-back (function input &optional output)
   (if (not input)
