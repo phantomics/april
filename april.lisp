@@ -12,7 +12,7 @@
 	     (aops:split array 1)))
 
 (defun is-singleton (value)
-  "Determine whether an array is a singleton, i.e. possesses just one member."
+  "Determine whether an array is a singleton, possessing just one member."
   (or (and (atom value)
 	   (not (arrayp value)))
       ;; non-array atoms are considered singleton values
@@ -333,7 +333,8 @@
 		       (cons 'vector (process-output-vector (rest output))))
 		      (t (cons 'vector (process-output-vector output))))
 		(if (and (listp (first output))
-			 (eql 'lambda (caar output)))
+			 (eql 'lambda (caar output))
+			 (rest output))
 		    ;; if the last element was a composed operation, prepend it to the remaining expression
 		    (cons (list :composed-operation (car output))
 			  exp)
@@ -390,6 +391,7 @@
   (let ((head (first exp))
 	(next (second exp))
 	(tail (rest exp)))
+    ;; (print (list :xx2 exp))
     (macrolet ((get-function (symbol)
 		 `(let ((function (if (or (characterp ,symbol)
 					  (symbolp ,symbol))
@@ -1688,13 +1690,12 @@
 			  (lambda (meta axes right-operand)
 			    (declare (ignore axes))
 			    (cond ((and (listp right-operand)
-					(or (not (listp (second right-operand)))
-					    (not (eql 'lambda (first (second right-operand))))))
+					(not (eql 'lambda (first right-operand))))
 				   (let ((arg (gensym)))
 				     `(lambda (omega &optional alpha)
 					(declare (ignorable alpha))
 					(let ((,arg (disclose omega)))
-					  (loop for index from 0 to (1- (disclose ,(second right-operand)))
+					  (loop for index from 0 to (1- (disclose ,right-operand))
 					     do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 					  ,arg))))
 				  ((listp right-operand)
@@ -1702,7 +1703,7 @@
 				     `(lambda (omega &optional alpha)
 					(declare (ignorable alpha))
 					(let ((,arg omega))
-					  (loop while (not (= 0 (funcall ,(second right-operand) ,arg)))
+					  (loop while (not (= 0 (funcall ,right-operand ,arg)))
 					     do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 					  ,arg))))))))
  	       (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" 11)

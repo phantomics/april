@@ -344,7 +344,7 @@
 	   (handle-function (input-string)
 	     (list :fn (funcall (of-utilities idiom :format-function)
 				(string-upcase (idiom-name idiom))
-				(vex-program idiom nil input-string meta)))))
+				(vex-program idiom nil input-string meta t)))))
 
     (=destructure (_ item _ rest)
 	(=list (%any (?blank-character))
@@ -421,7 +421,7 @@
 			  (apply operation (append (list meta nil precedent)
 						   (if right-value (list right-value))))))))))
 
-(defun vex-program (idiom options &optional string meta)
+(defun vex-program (idiom options &optional string meta internal)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
 	 (meta (if meta meta (if (assoc :space options)
@@ -511,7 +511,7 @@
 									(gensym))
 								  (second var-entry))))))))
 	    ;; (print (list :decl vars-declared))
-	    (let ((code `(,@(if vars-declared
+	    (let ((code `(,@(if (and vars-declared (not internal))
 				`(let* ,vars-declared)
 				'(progn))
 			    ,@(funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
