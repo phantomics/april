@@ -247,7 +247,7 @@
 		  ,content)
 		;; note: enclosing the arguments slows performance when iterating over many values,
 		;; but there is no other simple way to ensure the arguments received are arrays
-		,(list 'enclose (macroexpand omega))
+		(enclose ,(macroexpand omega))
 		,@(if alpha (list (list 'enclose (macroexpand alpha))))))))
 
 (defun enclose (item)
@@ -284,8 +284,11 @@
 										 (- elem (of-state *april-idiom*
 												   :count-from)))
 									       (array-to-list vector)))))
-						      ,(cons 'list (rest (funcall subprocessor idiom meta
-										  (list (first axis-specs)))))))
+						      (list ,@(mapcar (lambda (spec)
+									(funcall subprocessor
+										 idiom meta
+										 (list (list spec))))
+								      (first axis-specs)))))
 			       (rest axis-specs)))))
     (if (or (not exp)
 	    (and (symbolp (first exp))
@@ -346,9 +349,12 @@
 					  (not (keywordp (caar exp))))
 				     ;; if the element is a list and doesn't begin with a keyword,
 				     ;; it's a closure and should be handled by the expression processor
-				     (axis-enclose (cons 'progn (mapcar (lambda (sub-exp)
-									  (funcall subprocessor idiom meta sub-exp))
-									(first exp)))
+				     ;; (print (list :clos exp))
+				     ;;(print (list :ax exp axes))
+				     (axis-enclose (first (mapcar (lambda (sub-exp)
+								    (funcall subprocessor
+									     idiom meta sub-exp))
+								  (first exp)))
 						   axes))
 				    ((and (listp (first exp))
 					  (eq :fn (caar exp)))
@@ -394,7 +400,9 @@
 		    (if axes (lambda (meta unused omega &optional alpha)
 			       (declare (ignore unused))
 			       (funcall function meta
-					(rest (funcall subprocessor idiom meta (list axes)))
+					(mapcar (lambda (sub-expr)
+						  (funcall subprocessor idiom meta sub-expr))
+						axes)
 					omega alpha))
 			function))))
       (cond ((symbolp head)
@@ -416,9 +424,10 @@
 	     ;; if an axes object is found, process the next item in the list with the :axes option
 	     ;; filled with the found object
 	     (multiple-value-bind (following-axes from-following-axes)
-		 (assemble-operation idiom meta subprocessor precedent tail :axes (list (second head)))
+		 (assemble-operation idiom meta subprocessor precedent tail
+				     :axes (rest head))
 	       (values following-axes from-following-axes)))
-
+	    
 	    ((and (eq :fn (first head))
 		  (or (not tail)
 		      (not (listp next))
@@ -469,7 +478,7 @@
 		 (if (or (and (listp next)
 			      (keywordp (first next)))
 			 (and (symbolp next)
-			      (not (eql #\← (third head)))
+			      (not (char= #\← (third head)))
 			      (gethash next (gethash :functions meta))))
 		     (assemble-operation idiom meta subprocessor precedent tail :from-pivot t)
 		     (assemble-value idiom meta subprocessor precedent tail))
