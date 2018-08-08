@@ -322,6 +322,14 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 
 ## What's Not Implemented and May Be
 
+#### Operators:
+
+```
+@ At
+⍤ Rank
+⌺ Stencil
+```
+
 #### Functions:
 
 ```
