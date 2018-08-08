@@ -1753,20 +1753,3 @@
 		      :in ("a←4 8⍴⍳9 ◊ a[2 4;1 6 7 8]+←10 ◊ a")
 		      :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 			      (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))))
-
-;; (LET* ((aa :UNDEFINED))
-;;   (SETQ aa
-;; 	(LAMBDA (OMEGA &OPTIONAL ALPHA)
-;; 	  (FUNCALL
-;; 	   (LAMBDA (⍵ &OPTIONAL ⍺)
-;; 	     (DECLARE (IGNORABLE ⍺))
-;; 	     (PROGN
-;; 	       (DISCLOSE (FUNCALL #'APPLY-SCALAR-DYADIC #'+ ⍵ (VECTOR 2)))))
-;; 	   (ENCLOSE OMEGA) (ENCLOSE ALPHA))))
-;;   (DISCLOSE
-;;    (FUNCALL
-;;     (LAMBDA (⍵ &OPTIONAL ⍺)
-;;       (DECLARE (IGNORABLE ⍺))
-;;       (let ((⍵ (disclose ⍵)))
-;; 	(PROGN (DISCLOSE (FUNCALL aa (VECTOR 3 ⍵))))))
-;;     (ENCLOSE (VECTOR 9)))))
