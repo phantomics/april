@@ -415,7 +415,6 @@
 	    (multiple-value-bind (right-value from-value)
 		(funcall (of-utilities idiom :assemble-value)
 			 idiom meta #'expression precedent from-operation nil nil exp)
-	      ;; (print (list :ri right-value precedent operation))
 	      (expression idiom meta from-value
 			  (apply operation (append (list meta nil precedent)
 						   (if right-value (list right-value))))))))))
