@@ -137,35 +137,18 @@
 									:inverse inverse
 									:fill-with fill-with))
 						      (subseq (aops:split array 1)
-							      (if inverse (first dimensions)
+							      (if (and inverse (< 0 (first dimensions)))
+								  (first dimensions)
 								  0)
 							      (if inverse
-								  (first (dims array))
+								  (if (> 0 (first dimensions))
+								      (+ (first dimensions)
+									 (first (dims array)))
+								      (first (dims array)))
 								  (if (< (first (dims array))
 									 (first dimensions))
 								      (first (dims array))
-								      (first dimensions))))))
-				   (if (and (not inverse)
-					    (< (first (dims array))
-					       (first dimensions)))
-				       (list (make-array (list (- (first dimensions)
-								  (first (dims array))))
-							 :initial-contents
-							 (loop for index from 1 to (- (first dimensions)
-										      (first (dims array)))
-							    collect (make-array (rest dimensions)
-										:initial-element fill-with))))
-				       ;; (if inverse
-				       ;; 	   (list (make-array (list (- (first dimensions)
-				       ;; 				      (first (dims array))))
-				       ;; 			     :initial-contents
-				       ;; 			     (loop for index from (+ (first dimensions)
-				       ;; 						     (first (dims array)))
-				       ;; 				downto 1
-				       ;; 				collect (make-array (rest dimensions)
-				       ;; 						    :initial-element
-				       ;; 						    fill-with)))))
-				       ))))))
+								      (first dimensions)))))))))))
 
 (defun scan-back (function input &optional output)
   (if (not input)
