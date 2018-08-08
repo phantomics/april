@@ -27,6 +27,16 @@
 			       (funcall function arg))))
     (aops:each #'apply-fn omega)))
 
+(defmacro normalizing-vector (&rest items)
+  (cons 'vector (loop for item in items
+		   collect (if (and (listp item)
+				    (eql 'disclose-within-vector (first item)))
+			       `(disclose ,item)
+			       item))))
+
+(defmacro disclose-within-vector (item)
+  item)
+
 (defun apply-scalar-dyadic (function alpha omega)
   "Apply a scalar function across objects as appropriate in APL. Handles scalars as well as nested and multidimensional arrays."
   (let* ((alpha-scalar? (not (arrayp alpha)))
@@ -300,13 +310,10 @@
 	    (and (listp (first exp))
 		 (keywordp (caar exp))
 		 (or (not (eq :axes (caar exp)))
-		     (let ((found-operation nil))
-		       (loop for element in (rest exp)
-			  when (and (listp element)
-				    (keywordp (first element))
-				    (not (eq :axes (first element))))
-			  do (setq found-operation t))
-		       found-operation))
+		     (let ((element (second exp)))
+		       (and (listp element)
+			    (keywordp (first element))
+			    (not (eq :axes (first element))))))
 		 ;; break on axes if the next element is an operation rather than a value
 		 (or (not (eq :fn (caar exp)))
 		     ;; if the first element in the expression is a function,
@@ -331,8 +338,8 @@
 			    (eql 'lambda (caar output)))
 		       ;; break if the last element was a composed operation, remove the first element of output,
 		       ;; which is instead prepended to the remaining elements in the expression
-		       (cons 'vector (process-output-vector (rest output))))
-		      (t (cons 'vector (process-output-vector output))))
+		       (cons 'normalizing-vector (process-output-vector (rest output))))
+		      (t (cons 'normalizing-vector (process-output-vector output))))
 		(if (and (listp (first output))
 			 (eql 'lambda (caar output))
 			 (rest output))
@@ -349,8 +356,6 @@
 					  (not (keywordp (caar exp))))
 				     ;; if the element is a list and doesn't begin with a keyword,
 				     ;; it's a closure and should be handled by the expression processor
-				     ;; (print (list :clos exp))
-				     ;;(print (list :ax exp axes))
 				     (axis-enclose (first (mapcar (lambda (sub-exp)
 								    (funcall subprocessor
 									     idiom meta sub-exp))
@@ -374,7 +379,7 @@
 					  ;; and thus referring to preprocessed variables or if the symbol is
 					  ;; the only element in the expression,with no output or
 					  ;; precedent present.
-					  (first exp)
+					  `(disclose-within-vector ,(first exp))
 					  `(disclose ,(first exp)))
 				      axes))
 				    (t (axis-enclose (first exp)
@@ -392,7 +397,6 @@
   (let ((head (first exp))
 	(next (second exp))
 	(tail (rest exp)))
-    ;; (print (list :xx2 exp))
     (macrolet ((get-function (symbol)
 		 `(let ((function (if (or (characterp ,symbol)
 					  (symbolp ,symbol))
@@ -448,7 +452,7 @@
 	    ((and (eq :fn (first head))
 		  (eq :op (first next))
 		  (eq :pivotal (second next)))
-	     ;; if the next glyph is a center operator glyph, perform the first stage of its assembly
+	     ;; if the next glyph is a pivotal operator glyph, perform the first stage of its assembly
 	     ;; and then execute the resulting operation on the head glyph, thus completing the assembly
 	     (multiple-value-bind (following-op from-following-op)
 		 (assemble-operation idiom meta subprocessor precedent tail)
@@ -1724,6 +1728,9 @@
  		(with :title "Dyadic inline function."
  		      :in ("1 2 3 {⍺×⍵+3} 3 4 5")
  		      :ex #(6 14 24))
+		(with :title "Vector of input variables and discrete values processed within a function."
+		      :in ("fn←{3+⍵} ◊ {fn 8 ⍵} 9")
+		      :ex #(11 12))
  		(with :title "Variable-referenced values, including an element within an array, in a vector."
  		      :in ("a←9 ◊ b←2 3 4⍴⍳9 ◊ 1 2 a 3 b[1;2;1]")
  		      :ex #(1 2 9 3 5))
