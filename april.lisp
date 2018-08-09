@@ -1734,6 +1734,9 @@
  		(with :title "Variable-referenced values, including an element within an array, in a vector."
  		      :in ("a←9 ◊ b←2 3 4⍴⍳9 ◊ 1 2 a 3 b[1;2;1]")
  		      :ex #(1 2 9 3 5))
+		(with :title "Application of functions to indexed array elements."
+		      :in ("g←2 3 4 5 ◊ 9,g[2],3 4")
+		      :ex #(9 3 3 4))
  		(with :title "Assignment of an element within an array."
  		      :in ("a←2 3⍴⍳9 ◊ a[1;2]←20 ◊ a")
  		      :ex #2A((1 20 3) (4 5 6)))
