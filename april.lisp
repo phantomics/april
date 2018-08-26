@@ -1,4 +1,4 @@
-;;;; april.lisp
+ ;;;; april.lisp
 
 (in-package #:april)
 
@@ -253,7 +253,7 @@
     (lambda (meta axes omega &optional alpha)
       (declare (ignorable meta axes))
       `(funcall (lambda (,⍵ &optional ,⍺)
-		  (declare (ignorable ,⍺))
+		  (declare (ignorable ,⍺ ,⍵))
 		  ,content)
 		;; note: enclosing the arguments slows performance when iterating over many values,
 		;; but there is no other simple way to ensure the arguments received are arrays
@@ -556,9 +556,9 @@
 						  ;; alpha is ignorable in the case of a left-curried value
 						  ,(if (functionp (first fnlist))
 						       (funcall (first fnlist)
-								meta nil 'omega (if (and with-alpha
-											 (not (rest fnlist)))
-										    'alpha))
+								meta nil 'omega
+								(if (and with-alpha (not (rest fnlist)))
+								    'alpha))
 						       (first fnlist)))
 						,@(if (and with-alpha (not (rest fnlist)))
 						      `((enclose alpha-comp)))
@@ -599,13 +599,13 @@
 	:atomic-vector
 	(concatenate 'string "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
 		     "abcdefghijklmnopqrstuvwxyz{|}~¥€⇄∧∼≬⋆⋸⌸⌺⌼⌾⍁¡⍣⍅⎕⍞⌹⍆⍤⍇⍈⍊⊤λ⍍⍏£⊥⍶⌶⍐⍑χ≢⍖⍗"
-		     "⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣◊┘┌█▄▌▐▀"
+		     "⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣⋄┘┌█▄▌▐▀"
 		     "⍺⍹⊂⊃⍝⍲⍴⍱⌽⊖○∨⍳⍉∈∩⌿⍀≥≤≠×÷⍙∘⍵⍫⍋⍒¯¨"))
 
  (utilities :match-blank-character
 	    (lambda (char) (member char (list #\  #\Tab)))
 	    :match-newline-character
-	    (lambda (char) (member char (list #\◊ #\Newline #\Return)))
+	    (lambda (char) (member char (list #\◊ #\⋄ #\Newline #\Return)))
 	    :match-token-character
 	    (lambda (char)
 	      ;; the ¯ character must be expressed as #\macron to be correctly processed
@@ -662,8 +662,8 @@
 					  (setf (gethash symbol (gethash :values meta))
 						omega))
 	    			      `(setq ,symbol ,omega))))))
-	       (tests (is "x←55 ◊ x" 55)
-	    	      (is "x←2 3 4⍴⍳9 ◊ x[;1;]←7 ◊ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
+	       (tests (is "x←55 ⋄ x" 55)
+	    	      (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
 	    						  ((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
 	    (⊣ (has :titles ("Empty" "Left"))
 	       (ambivalent (args :any (lambda (omega)
@@ -1397,7 +1397,7 @@
  									(of-state *april-idiom* :count-from)))))
  	       (tests (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
  		      (is "⍋5 6⍴⍳16" #(1 4 2 5 3))
-		      (is "st←'aodjeignwug' ◊ st[⍋st]" "adeggijnouw")
+		      (is "st←'aodjeignwug' ⋄ st[⍋st]" "adeggijnouw")
  		      (is "(2 5⍴'ABCDEabcde')⍋'ACaEed'" #(1 3 2 6 4 5))))
  	    (⍒ (has :titles ("Grade Down" "Grade Down By"))
  	       (ambivalent (args :any (lambda (omega) (grade omega (alpha-compare (of-state *april-idiom*
@@ -1415,7 +1415,7 @@
  									(of-state *april-idiom* :count-from)))))
  	       (tests (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
  		      (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
-		      (is "st←'aodjeignwug' ◊ st[⍒st]" "wuonjiggeda")
+		      (is "st←'aodjeignwug' ⋄ st[⍒st]" "wuonjiggeda")
  		      (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
  	    (⊤ (has :title "Encode")
  	       (dyadic (args :any :any (lambda (omega alpha)
@@ -1502,8 +1502,8 @@
 				  `(setq ,symbol (funcall (lambda (omega alpha)
 							    ,(funcall right-function meta nil 'omega 'alpha))
 							  ,omega ,alpha)))))))
- 	       (tests (is "a←3 2 1 ◊ a+←5 ◊ a" #(8 7 6))
- 		      (is "a←3 2 1 ◊ a[2]+←5 ◊ a" #(3 7 1))))
+ 	       (tests (is "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
+ 		      (is "a←3 2 1 ⋄ a[2]+←5 ⋄ a" #(3 7 1))))
  	    (/ (has :title "Reduce")
  	       (lateral (lambda (meta axes function)
 			  (declare (ignore meta))
@@ -1516,7 +1516,7 @@
  	       (tests (is "+/1 2 3 4 5" 15)
  	    	      (is "+/3 4⍴⍳12" #(10 26 42))
  	    	      (is "+/[1]3 4⍴⍳12" #(15 18 21 24))
-		      (is "fn←{⍺+⍵} ◊ fn/1 2 3 4 5" 15)
+		      (is "fn←{⍺+⍵} ⋄ fn/1 2 3 4 5" 15)
  	    	      (is "⌊10000×{⍺+÷⍵}/40/1" 16180)))
   	    (⌿ (has :title "Reduce First")
  	       (lateral (lambda (meta axes function)
@@ -1621,7 +1621,7 @@
 		       (is "1 2 3∘.⍴1 2 3" #2A((1 2 3) (#(1 1) #(2 2) #(3 3)) (#(1 1 1) #(2 2 2) #(3 3 3))))
 		       (is "1 2 3∘.⍴⊂1 2 3" #(1 #(1 2) #(1 2 3)))
 		       (is "1 2 3∘.⌽⊂1 2 3" #(#(2 3 1) #(3 1 2) #(1 2 3)))
-		       (is "1 2 3∘.⌽[1]⊂4 5 6 7" #(#(7 8 5 6) #(8 5 6 7) #(5 6 7 8)))))
+		       (is "1 2 3∘.⌽[1]⊂4 5 6 7" #(#(5 6 7 4) #(6 7 4 5) #(7 4 5 6)))))
  	    (\¨ (has :title "Each")
  	    	(lateral (lambda (meta axes function)
 			   (declare (ignore meta axes))
@@ -1680,12 +1680,12 @@
  	       (pivotal (lambda (meta axes left-operand)
 			  (declare (ignore meta axes))
 			  (compose-stage left-operand)))
- 	       (tests (is "fn←⍴∘⍴ ◊ fn 2 3 4⍴⍳9" 3)
+ 	       (tests (is "fn←⍴∘⍴ ⋄ fn 2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" 1)
 		      (is "(÷∘5) 30" 6)
 		      (is "⌊10000×(+∘*∘0.5)4 16 25" #(56487 176487 266487))
-		      (is "fn←5∘- ◊ fn 2" 3)
+		      (is "fn←5∘- ⋄ fn 2" 3)
 		      (is "⌊(0.5∘+∘*)5 8 12" #(148 2981 162755))
  	    	      (is "⌊10000×+∘÷/40/1" 16180)
 		      (is "+/∘⍳¨2 5 8" #(3 15 36))))
@@ -1704,20 +1704,24 @@
 					     do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
 					  ,arg))))
 				  ((listp right-operand)
-				   (let ((arg (gensym)))
+				   (let ((arg (gensym))
+					 (prior-arg (gensym)))
 				     `(lambda (omega &optional alpha)
 					(declare (ignorable alpha))
-					(let ((,arg omega))
-					  (loop while (not (= 0 (funcall ,right-operand ,arg)))
-					     do (setq ,arg (enclose ,(funcall left-function meta nil arg))))
+					(let ((,arg omega)
+					      (,prior-arg omega))
+					  (loop while (= 0 (funcall ,right-operand ,prior-arg ,arg))
+					     do (setq ,prior-arg ,arg
+						      ,arg (enclose ,(funcall left-function meta nil arg))))
 					  ,arg))))))))
- 	       (tests (is "fn←{2+⍵}⍣3 ◊ fn 5" 11)
+ 	       (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
  	    	      (is "({2+⍵}⍣3) 9" 15)
- 	    	      (is "fn←{2+⍵}⍣{10>⍵} ◊ fn 2" 10))))
+ 	    	      (is "fn←{2+⍵}⍣{10<⍺} ⋄ fn 2" 12)
+		      (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14))))
 
  (general-tests (with :title "Basic function definition and use, with comments."
  		      :in ("⍝ This code starts with a comment.
-                            f1←{⍵+3} ◊ f2←{⍵×2} ⍝ A comment after the functions are defined.
+                            f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
                             ⍝ This is another comment.
                             f2 f1 1 2 3 4 5")
  		      :ex #(8 10 12 14 16))
@@ -1728,25 +1732,25 @@
  		      :in ("1 2 3 {⍺×⍵+3} 3 4 5")
  		      :ex #(6 14 24))
 		(with :title "Vector of input variables and discrete values processed within a function."
-		      :in ("fn←{3+⍵} ◊ {fn 8 ⍵} 9")
+		      :in ("fn←{3+⍵} ⋄ {fn 8 ⍵} 9")
 		      :ex #(11 12))
  		(with :title "Variable-referenced values, including an element within an array, in a vector."
- 		      :in ("a←9 ◊ b←2 3 4⍴⍳9 ◊ 1 2 a 3 b[1;2;1]")
+ 		      :in ("a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]")
  		      :ex #(1 2 9 3 5))
 		(with :title "Application of functions to indexed array elements."
-		      :in ("g←2 3 4 5 ◊ 9,g[2],3 4")
+		      :in ("g←2 3 4 5 ⋄ 9,g[2],3 4")
 		      :ex #(9 3 3 4))
  		(with :title "Assignment of an element within an array."
- 		      :in ("a←2 3⍴⍳9 ◊ a[1;2]←20 ◊ a")
+ 		      :in ("a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a")
  		      :ex #2A((1 20 3) (4 5 6)))
  		(with :title "Selection from an array with multiple elided dimensions."
  		      :in ("(2 3 3 4 5⍴⍳9)[2;;3;;2]")
  		      :ex #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
  		(with :title "Elided assignment."
- 		      :in ("a←2 3 4⍴⍳9 ◊ a[2;;3]←0 ◊ a")
+ 		      :in ("a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a")
  		      :ex #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
  		(with :title "Elided assignment of applied function's results."
- 		      :in ("a←2 3 4⍴⍳9 ◊ a[2;;3]+←10 ◊ a")
+ 		      :in ("a←2 3 4⍴⍳9 ⋄ a[2;;3]+←10 ⋄ a")
  		      :ex #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 16 7) (8 9 11 2) (3 4 15 6))))
 		(with :title "Elision and indexed array elements."
 		      :in ("(6 8⍴⍳9)[1 4;]")
@@ -1759,6 +1763,6 @@
 		      :in ("(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]")
 		      :ex #2A((7 6) (8 7) (4 3)))
 		(with :title "Operation over portions of an array."
-		      :in ("a←4 8⍴⍳9 ◊ a[2 4;1 6 7 8]+←10 ◊ a")
+		      :in ("a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a")
 		      :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 			      (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))))

@@ -239,7 +239,7 @@ With :disclose-output set to nil, unitary vectors will be passed directly back w
 If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the (:space) parameter. For example:
 
 ```
-* (april (set (:space *space1*)) "a←5+2 ◊ b←3×9")
+* (april (set (:space *space1*)) "a←5+2 ⋄ b←3×9")
 
 27
 
@@ -327,6 +327,7 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 ```
 @ At
 ⍤ Rank
+⌸ Key
 ⌺ Stencil
 ```
 
