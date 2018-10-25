@@ -748,29 +748,24 @@
      	    (○ (has :titles ("Pi Times" "Circular"))
  	       (ambivalent (args :scalar (lambda (omega) (* pi omega)))
  	    		   (args :any :one (lambda (omega alpha)
- 	    				     (let ((fn (vector (lambda (input) (exp (* input #C(0 1))))
- 	    						       (lambda (input) (* input #C(0 1)))
- 	    						       (lambda (input) (if (complexp input)
- 	    									   (complex (realpart input)
- 	    										    (- (imagpart input)))
- 	    									   input))
- 	    						       #'values
- 	    						       (lambda (input) (expt (- -1 (* 2 input))
- 	    									     1/2))
- 	    						       #'atanh #'acosh #'asinh
- 	    						       (lambda (input) (* (expt (/ (1+ input) (1- input))
- 	    										1/2)
- 	    									  (1+ input)))
- 	    						       #'atan #'acos #'asin
- 	    						       (lambda (input) (expt (- 1 (* 2 input))
- 	    									     1/2))
- 	    						       #'sin #'cos #'tan
- 	    						       (lambda (input) (expt (1+ (* 2 input))
- 	    									     1/2))
- 	    						       #'sinh #'cosh #'tanh
- 	    						       (lambda (input) (expt (- -1 (* 2 input))
- 	    									     1/2))
- 	    						       #'realpart #'abs #'imagpart #'phase)))
+					     (let ((fn (vector (lambda (input) (exp (* input #C(0 1))))
+							       (lambda (input) (* input #C(0 1)))
+							       (lambda (input) (if (complexp input)
+										   (complex (realpart input)
+											    (- (imagpart input)))
+										   input))
+							       #'values
+							       (lambda (input) (sqrt (- -1 (* 2 input))))
+							       #'atanh #'acosh #'asinh
+							       (lambda (input) (* (sqrt (/ (1+ input) (1- input)))
+										  (1+ input)))
+							       #'atan #'acos #'asin
+							       (lambda (input) (sqrt (- 1 (* 2 input))))
+							       #'sin #'cos #'tan
+							       (lambda (input) (sqrt (1+ (* 2 input))))
+							       #'sinh #'cosh #'tanh
+							       (lambda (input) (sqrt (- -1 (* 2 input))))
+							       #'realpart #'abs #'imagpart #'phase)))
  	    				       ;; the twelfth element of the vector corresponds to
  	    				       ;; index 0, hence an offset of 12 from the vector's first element
  	    				       (apply-scalar-monadic (aref fn (+ 12 alpha))
