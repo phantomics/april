@@ -211,19 +211,23 @@
 	     (operator-tests (process-optests (rest (assoc (intern "OPERATORS" (package-name *package*))
 							   subspecs))))
 	     (general-tests (process-gentests (rest (assoc (intern "GENERAL-TESTS" (package-name *package*))
-							   subspecs)))))
+							   subspecs))))
+	     (idiom-definition `(make-instance 'idiom
+					       :name ,(intern (string-upcase symbol) "KEYWORD")
+					       :state
+					       ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
+									 subspecs)))
+					       :utilities
+					       ,(cons 'list
+						      (rest (assoc (intern "UTILITIES" (package-name *package*))
+								   subspecs)))
+					       :utilities-spec
+					       (quote ,(rest (assoc (intern "UTILITIES"
+									    (package-name *package*))
+								    subspecs))))))
 	`(progn (defvar ,idiom-symbol)
 		(setf ,idiom-symbol
-		      (make-instance 'idiom
-				     :name ,(intern (string-upcase symbol) "KEYWORD")
-				     :state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
-								      subspecs)))
-				     :utilities ,(cons 'list
-						       (rest (assoc (intern "UTILITIES" (package-name *package*))
-								    subspecs)))
-				     :utilities-spec (quote ,(rest (assoc (intern "UTILITIES"
-										  (package-name *package*))
-									  subspecs))))
+		      ,idiom-definition
 		      (idiom-opglyphs ,idiom-symbol)
 		      (list ,@(derive-opglyphs (append (first function-specs)
 						       (first operator-specs))))
@@ -254,32 +258,39 @@
 		    (options &optional input-string)
 		  ;; this macro is the point of contact between users and the language, used to
 		  ;; evaluate expressions and control properties of the language instance
-		  (cond ((and options (listp options)
-			      (string= "TEST" (string (first options))))
-			 (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			   `(progn (setq prove:*enable-colors* nil)
-				   (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
-				   ,@all-tests (finalize)
-				   (setq prove:*enable-colors* t))))
-			;; the (test) setting is used to run tests
-			((and options (listp options)
-			      (string= "RESTORE-DEFAULTS" (string (first options))))
-			 `(setf (idiom-state ,,idiom-symbol)
-				(copy-alist (idiom-base-state ,,idiom-symbol))))
-			;; the (restore-defaults) setting is used to restore the workspace settings
-			;; to the defaults from the spec
-			(t `(progn ,@(if (and (listp options)
-					      (string= "SET" (string (first options)))
-					      (assoc :space (rest options))
-					      (not (boundp (second (assoc :space (rest options))))))
-					 `((defvar ,(second (assoc :space (rest options)))
-					     (make-hash-table :test #'eq))))
-				   (eval (vex-program ,,idiom-symbol
-						      (quote ,(if input-string
-								  (if (string= "SET" (string (first options)))
-								      (rest options)
-								      (error "Incorrect option syntax."))))
-						      ,(if input-string input-string options))))))))))))
+		  `(progn (defvar ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))
+			  (if (not (boundp (quote ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))))
+			      (setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
+				    ,',idiom-definition))
+			  ,(cond ((and options (listp options)
+				       (string= "TEST" (string (first options))))
+				  (let ((all-tests ',(append function-tests operator-tests general-tests)))
+				    `(progn
+				       (setq prove:*enable-colors* nil)
+				       (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
+				       ,@all-tests (finalize)
+				       (setq prove:*enable-colors* t))))
+				 ;; the (test) setting is used to run tests
+				 ((and options (listp options)
+				       (string= "RESTORE-DEFAULTS" (string (first options))))
+				  `(setf (idiom-state ,,idiom-symbol)
+					 (copy-alist (idiom-base-state ,,idiom-symbol))))
+				 ;; the (restore-defaults) setting is used to restore the workspace settings
+				 ;; to the defaults from the spec
+				 (t `(progn ,@(if (and (listp options)
+						       (string= "SET" (string (first options)))
+						       (assoc :space (rest options))
+						       (not (boundp (second (assoc :space (rest options))))))
+						  `((defvar ,(second (assoc :space (rest options)))
+						      (make-hash-table :test #'eq))))
+					    (eval (vex-program ,,idiom-symbol
+							       (quote
+								,(if input-string
+								     (if (string= "SET" (string (first options)))
+									 (rest options)
+									 (error "Incorrect option syntax."))))
+							       ,(if input-string input-string
+								    options)))))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
@@ -428,6 +439,7 @@
 				 (symbol-value (second (assoc :space options)))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
+	 (state-to-use nil)
 	 (preexisting-vars nil))
     (labels ((assign-from (source dest)
 	       (if source
@@ -455,11 +467,17 @@
       (if (not (gethash :functions meta))
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
 
-      (setf (idiom-state idiom)
-	    (assign-from (gethash :state meta) (idiom-base-state idiom)))
+      (setf ;; (idiom-state idiom)
+	    ;; (assign-from (gethash :state meta)
+	    ;; 		 (idiom-base-state idiom))
+	    state-to-use
+	    (assign-from state
+			 (assign-from state-persistent
+				      (assign-from (gethash :state meta)
+						   (idiom-base-state idiom)))))
 
-      (if state (setf (idiom-state idiom)
-		      (assign-from state (copy-alist (idiom-base-state idiom)))))
+      ;; (if state (setf (idiom-state idiom)
+      ;; 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
 
       (if state-persistent (setf (idiom-state idiom)
       				 (assign-from state-persistent (idiom-base-state idiom))
@@ -467,8 +485,8 @@
 				 (assign-from state-persistent (gethash :state meta))))
       
       (if string
-	  (let* ((input-vars (getf (idiom-state idiom) :in))
-		 (output-vars (getf (idiom-state idiom) :out))
+	  (let* ((input-vars (getf state-to-use :in))
+		 (output-vars (getf state-to-use :out))
 		 (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
 							       string)))
 		 (var-symbols (loop for key being the hash-keys of (gethash :variables meta)
