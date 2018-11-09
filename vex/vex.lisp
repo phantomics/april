@@ -164,7 +164,7 @@
 					  (rest (first specs)))))
 		      (props (rest (assoc (intern "HAS" (package-name *package*))
 					  (rest (first specs)))))
-		      (heading (format nil "[~a] ~a~a"
+		      (heading (format nil "[~a] ~a~a~%"
 				       (caar specs)
 				       (if (getf props :title)
 					   (getf props :title)
@@ -176,7 +176,7 @@
 		 (labels ((for-tests (tests &optional output)
 			    (if tests
 				(for-tests (rest tests)
-					   (append output (list `(princ (format nil "~%  _ ~a"
+					   (append output (list `(princ (format nil "  _ ~a"
 										,(cadr (first tests))))
 								(cond ((eql 'is (caar tests))
 								       `(is (,(intern (string-upcase symbol)
