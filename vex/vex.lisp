@@ -176,7 +176,9 @@
 		 (labels ((for-tests (tests &optional output)
 			    (if tests
 				(for-tests (rest tests)
-					   (append output (list (cond ((eql 'is (caar tests))
+					   (append output (list `(princ (format nil "~%  _ ~a"
+										,(cadr (first tests))))
+								(cond ((eql 'is (caar tests))
 								       `(is (,(intern (string-upcase symbol)
 										      (package-name *package*))
 									      ,(cadar tests))
@@ -199,6 +201,8 @@
 		   (let ((this-spec (cdar specs)))
 		     (process-gentests (rest specs)
 				       (append output `((princ ,(getf this-spec :title))
+							(princ (format nil "~%  _ ~a"
+								       ,@(getf this-spec :in)))
 							(is (,(intern (string-upcase symbol)
 								      (package-name *package*))
 							      ,@(getf this-spec :in))
@@ -263,7 +267,8 @@
 				    `(progn
 				       (setq prove:*enable-colors* nil)
 				       (plan ,(loop for exp in all-tests counting (eql 'is (first exp))))
-				       ,@all-tests (finalize)
+				       ,@all-tests
+				       (finalize)
 				       (setq prove:*enable-colors* t))))
 				 ;; the (test) setting is used to run tests
 				 ((and options (listp options)
