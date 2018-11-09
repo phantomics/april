@@ -308,6 +308,15 @@
 		     (not (eql #\← (third (first prior-expression)))))
 		 (gethash (first exp)
 			  (gethash :functions meta)))
+	    ;; break if the current expression is a pivotal operator expression composing a function
+	    ;; and there is a preceding expression, which in this case must be a monadic function with
+	    ;; something on its right side
+	    (and prior-expression
+	    	 (listp (first exp))
+	    	 (listp (caar exp))
+		 (not (loop for subex in (caar exp) never (and (listp subex)
+							       (eq :op (first subex))
+							       (eq :pivotal (second subex))))))
 	    ;; break if the next symbol represents a function and should be processed by assembleOperation
 	    (and (listp (first exp))
 		 (keywordp (caar exp))
@@ -332,7 +341,6 @@
 			    ;; disclose single symbols since any value they represent will be vectorized
 			    (or (stringp (first output))
 				(symbolp (first output))
-				;;(symbolp (first output))
 				(listp (first output))
 				(arrayp (first output))))
 		       (first output))
@@ -399,6 +407,7 @@
   (let ((head (first exp))
 	(next (second exp))
 	(tail (rest exp)))
+    ;; (print (list :asop exp precedent))
     (macrolet ((get-function (symbol)
 		 `(let ((function (if (or (characterp ,symbol)
 					  (symbolp ,symbol))
@@ -462,15 +471,15 @@
 
 	    ((and (eq :op (first head))
 	    	  (or from-pivot (not (eq :pivotal (second head))))
-	    	  ;; note: center operator glyphs cannot be overloaded as function glyphs if they follow
-	    	  ;; another center operator glyph
+	    	  ;; note: pivotal operator glyphs cannot be overloaded as function glyphs if they follow
+	    	  ;; another pivotal operator glyph
 	    	  (or (not tail)
 	    	      (not (or (and (listp next)
 				    (eq :fn (first next)))
 			       (and (symbolp next)
 				    (not (eql #\← (third head)))
 				    (gethash next (gethash :functions meta)))))))
-	     ;; if no function follows a right operator glyph, check whether it's actually an overloaded
+	     ;; if no function follows a lateral operator glyph, check whether it's actually an overloaded
 	     ;; function glyph and reassign if so
 	     (if (of-overloaded? idiom (first (last head)))
 	    	 (values (get-function (first (last head)))
@@ -491,7 +500,19 @@
 				meta (cons 'list (mapcar (lambda (item) (cons 'vector item))
 							 axes))
 				following-op)
-		       from-following-op)))))))
+		       from-following-op)))
+	    ((and exp precedent (listp (first exp))
+		  (listp (caar exp)))
+	     ;; if this is the beginning of a composed operation following a function character,
+	     ;; build the operation using the subprocessor and pass back the function to combine it
+	     ;; with the precedent
+	     ;; (print (list :erer exp precedent))
+	     ;; (print (funcall subprocessor idiom meta exp))
+	     (values (lambda (meta axes omega &optional alpha)
+		       (declare (ignore meta axes))
+		       `(funcall ,(funcall subprocessor idiom meta exp)
+				 ,omega ,@(if alpha (list alpha))))
+		     tail))))))
 
 (defun left-invert-matrix (in-matrix)
   (let* ((input (if (= 2 (rank in-matrix))
@@ -1767,7 +1788,8 @@
 						    (funcall right-operand meta axes 'omega))))
 				   (at-alpha (cond ((listp left-operand)
 						    left-operand)
-						   ((functionp right-operand)
+						   ((or (functionp left-operand)
+							(functionp right-operand))
 						    (funcall left-operand meta axes 'omega))
 						   (t (funcall left-operand meta axes
 							       `(let* ((,new-array
@@ -1813,13 +1835,16 @@
 									(of-state (local-idiom april)
 										  :count-from)))
 							 (aref ,alpha-var ,index)))
-					    omega))))))))))
+					    omega))))))))
+	       (tests (is "(20 20@3 8) ⍳9" #(1 2 20 4 5 6 7 20 9))
+		      (is "(0@(3∘|)) ⍳9" #(0 0 3 0 0 6 0 0 9))
+		      (is "({⍵×2}@{⍵>3}) ⍳9" #(1 2 3 8 10 12 14 16 18)))))
 
  (general-tests (with :title "Basic function definition and use, with comments."
  		      :in ("⍝ This code starts with a comment.
-                            f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
-                            ⍝ This is another comment.
-                            f2 f1 1 2 3 4 5")
+    f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
+    ⍝ This is another comment.
+    f2 f1 1 2 3 4 5")
  		      :ex #(8 10 12 14 16))
  		(with :title "Monadic inline function."
  		      :in ("{⍵+3} 3 4 5")
