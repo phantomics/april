@@ -2,6 +2,9 @@
 
 (in-package #:vex)
 
+(defmacro local-idiom (symbol)
+  (intern (format nil "*~a-IDIOM*" (string-upcase symbol))))
+
 ;; The idiom object defines a vector language instance with a persistent state.
 (defclass idiom ()
   ((name :accessor idiom-name
@@ -224,44 +227,36 @@
 					       :utilities-spec
 					       (quote ,(rest (assoc (intern "UTILITIES"
 									    (package-name *package*))
-								    subspecs))))))
+								    subspecs)))
+					       :functions (let ((fn-specs (make-hash-table)))
+							     (setf ,@(second function-specs))
+							     fn-specs)
+					       :functions-spec `(let ((fn-specs (make-hash-table)))
+								  (setf ,@',(second function-specs))
+								  fn-specs)
+					       :operators (let ((op-specs (make-hash-table)))
+							    (setf ,@(second operator-specs))
+							    op-specs)
+					       :operators-spec `(let ((op-specs (make-hash-table)))
+								  (setf ,@',(second operator-specs))
+								  op-specs)
+					       :operational-glyphs (list ,@(derive-opglyphs
+									    (append (first function-specs)
+										    (first operator-specs))))
+					       :overloaded-lexicon (list ,@(intersection (first function-specs)
+											 (first operator-specs)))
+					       :operator-index (list ,@(third operator-specs)))))
 	`(progn (defvar ,idiom-symbol)
-		(setf ,idiom-symbol
-		      ,idiom-definition
-		      (idiom-opglyphs ,idiom-symbol)
-		      (list ,@(derive-opglyphs (append (first function-specs)
-						       (first operator-specs))))
-		      (idiom-functions ,idiom-symbol)
-		      (let ((fn-specs (make-hash-table)))
-			(setf ,@(second function-specs))
-			fn-specs)
-		      (idiom-functions-spec ,idiom-symbol)
-		      `(let ((fn-specs (make-hash-table)))
-			 (setf ,@',(second function-specs))
-			 fn-specs)
-		      (idiom-operators ,idiom-symbol)
-		      (let ((op-specs (make-hash-table)))
-			(setf ,@(second operator-specs))
-			op-specs)
-		      (idiom-operators-spec ,idiom-symbol)
-		      `(let ((op-specs (make-hash-table)))
-			 (setf ,@',(second operator-specs))
-			 op-specs)
-		      (idiom-overloaded-lexicon ,idiom-symbol)
-		      (list ,@(intersection (first function-specs)
-					    (first operator-specs)))
-		      (idiom-opindex ,idiom-symbol)
-		      (list ,@(third operator-specs)))
-
+		(setf ,idiom-symbol ,idiom-definition)
 		(defmacro ,(intern (string-upcase symbol)
 				   (package-name *package*))
 		    (options &optional input-string)
 		  ;; this macro is the point of contact between users and the language, used to
 		  ;; evaluate expressions and control properties of the language instance
 		  `(progn (defvar ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))
-			  (if (not (boundp (quote ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))))
-			      (setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
-				    ,',idiom-definition))
+			  ,(if (not (boundp (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
+			       `(setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
+				      ,',idiom-definition))
 			  ,(cond ((and options (listp options)
 				       (string= "TEST" (string (first options))))
 				  (let ((all-tests ',(append function-tests operator-tests general-tests)))
@@ -283,14 +278,23 @@
 						       (not (boundp (second (assoc :space (rest options))))))
 						  `((defvar ,(second (assoc :space (rest options)))
 						      (make-hash-table :test #'eq))))
-					    (eval (vex-program ,,idiom-symbol
-							       (quote
-								,(if input-string
-								     (if (string= "SET" (string (first options)))
-									 (rest options)
-									 (error "Incorrect option syntax."))))
-							       ,(if input-string input-string
-								    options)))))))))))))
+					    (eval (vex-program ,(intern ,(format nil "*~a-IDIOM*"
+					    					 (string-upcase symbol)))
+					    		       (quote
+					    			,(if input-string
+					    			     (if (string= "SET" (string (first options)))
+					    				 (rest options)
+					    				 (error "Incorrect option syntax."))))
+					    		       ,(if input-string input-string
+					    			    options)))
+					    ;; ,(vex-program (eval (intern ,(format nil "*~a-IDIOM*"
+					    ;; 					 (string-upcase symbol))))
+					    ;; 		  (if input-string
+					    ;; 		      (if (string= "SET" (string (first options)))
+					    ;; 			  (rest options)
+					    ;; 			  (error "Incorrect option syntax.")))
+					    ;; 		  (if input-string input-string options))
+					    ))))))))))
   
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
@@ -467,14 +471,9 @@
       (if (not (gethash :functions meta))
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
 
-      (setf ;; (idiom-state idiom)
-	    ;; (assign-from (gethash :state meta)
-	    ;; 		 (idiom-base-state idiom))
-	    state-to-use
-	    (assign-from state
-			 (assign-from state-persistent
-				      (assign-from (gethash :state meta)
-						   (idiom-base-state idiom)))))
+      (setf state-to-use
+	    (assign-from state (assign-from state-persistent (assign-from (gethash :state meta)
+									  (idiom-base-state idiom)))))
 
       ;; (if state (setf (idiom-state idiom)
       ;; 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
