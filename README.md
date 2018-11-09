@@ -287,7 +287,7 @@ You can use :state-persistent to set persistent input variables that will stay a
               (:space *space1*))
         "dynVar⍟512")
 
-#(9.0)
+9.0
 
 * (setq *dynamic-var* 8)
 
@@ -295,7 +295,7 @@ You can use :state-persistent to set persistent input variables that will stay a
 
 * (april (set (:space *space1*)) "dynVar⍟512")
 
-#(3.0)
+3.0
 ```
 
 ### (:compile-only) parameter
