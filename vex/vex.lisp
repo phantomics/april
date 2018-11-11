@@ -192,7 +192,7 @@
 						   (rest (first specs)))
 					    (append output (list `(princ ,heading))
 						    (for-tests tests)
-						    (list `(princ (format nil "~%~%"))))
+						    (list `(princ (format nil "~%"))))
 					    output))
 		       output))))
 
@@ -257,10 +257,11 @@
 		    (options &optional input-string)
 		  ;; this macro is the point of contact between users and the language, used to
 		  ;; evaluate expressions and control properties of the language instance
-		  `(progn (defvar ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))
-			  ,(if (not (boundp (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
-			       `(setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
-				      ,',idiom-definition))
+		  `(progn ,@(if (not (boundp (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
+				;; create idiom object within host package if it does not already exist
+				`((defvar ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))
+				  (setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
+					,',idiom-definition)))
 			  ,(cond ((and options (listp options)
 				       (string= "TEST" (string (first options))))
 				  (let ((all-tests ',(append function-tests operator-tests general-tests)))

@@ -3,9 +3,16 @@
 (in-package #:aplesque)
 
 (defun is-singleton (value)
-  (let ((adims (dims value)))
-    (and (= 1 (first adims))
-	 (= 1 (length adims)))))
+  "Check whether this array has only one member, returning true if the argument is not an array."
+  (if (not (arrayp value))
+      t (loop for dim in (dims value) always (= 1 dim))))
+
+(defun disclose (item)
+  "If the argument is an array with only one member, disclose it, otherwise do nothing."
+  (if (and (arrayp item)
+	   (is-singleton item))
+      (aref item 0)
+      item))
 
 (defun scale-array (singleton to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
@@ -33,7 +40,10 @@
 		   (loop for j below (nth n dimensions)
 		      do (setf (nth n indices) j)
 		      collect (if (= n depth)
-				  (apply #'aref array indices)
+				  (let ((item (apply #'aref array indices)))
+				    (if (arrayp item)
+					(array-to-list item)
+					item))
 				  (recurse (1+ n))))))
 	  (recurse 0)))))
 
@@ -78,29 +88,26 @@
 	       array)
     new-layer))
 
-(defun swap! (v i j)
-  (let ((tt (aref v i)))
-    (setf (aref v i)
-	  (aref v j))
-    (setf (aref v j) tt)))
-
-(defun reverse! (v lo hi)
-  (when (< lo hi)
-    (swap! v lo hi)
-    (reverse! v (+ lo 1) (- hi 1))))
-
-(defun rotate! (n v)
-  (let* ((len (length v))
-	 (n (mod n len)))
-    (reverse! v 0 (- n 1))
-    (reverse! v n (- len 1))
-    (reverse! v 0 (- len 1))))
-
 (defun make-rotator (&optional degrees)
   "Create a function to rotate an array by a given number of degrees, or otherwise reverse it."
-  (lambda (vector)
-    (if degrees (rotate! degrees vector)
-	(reverse! vector 0 (1- (length vector))))))
+  (labels ((swap! (v i j)
+	     (let ((tt (aref v i)))
+	       (setf (aref v i)
+		     (aref v j))
+	       (setf (aref v j) tt)))
+	   (reverse! (v lo hi)
+	     (when (< lo hi)
+	       (swap! v lo hi)
+	       (reverse! v (+ lo 1) (- hi 1))))
+	   (rotate! (n v)
+	     (let* ((len (length v))
+		    (n (mod n len)))
+	       (reverse! v 0 (- n 1))
+	       (reverse! v n (- len 1))
+	       (reverse! v 0 (- len 1)))))
+    (lambda (vector)
+      (if degrees (rotate! degrees vector)
+	  (reverse! vector 0 (1- (length vector)))))))
 
 (defun rotate-left (n l)
   (append (nthcdr n l) (butlast l (- (length l) n))))
@@ -284,7 +291,7 @@
       (setq vector (aops:flatten vector)))
   (if (and (vectorp vector)
 	   (loop for element from 0 to (1- (length vector))
-	      always (not (arrayp (aref vector element)))))
+	      never (arrayp (aref vector element))))
       vector
       (let ((current-segment nil)
 	    (segments nil))
@@ -518,9 +525,8 @@
 		   do (for-element elix (nth elix elided)))
 		(for-element elided))
 	    (loop for elix from (if this-start this-start 0)
-	       to (min (if limit
-			   (+ (if this-start this-start 0)
-			      -1 (nth (length indices) limit))
+	       to (min (if limit (+ (if this-start this-start 0)
+				    -1 (nth (length indices) limit))
 			   (1- (nth (length indices) dimensions)))
 		       (1- (nth (length indices) dimensions)))
 	       do (for-element elix)))))))
@@ -553,14 +559,16 @@
 	(run-dim array (lambda (value coords)
 			 (if set (if (functionp set)
 				     (setf (apply #'aref array coords)
-					   (let ((out-val (funcall set value)))
-					     (if (is-singleton out-val)
+					   (let ((out-val (funcall set value coords)))
+					     (if (and (arrayp set)
+						      (is-singleton out-val))
 						 (aref out-val 0)
-						 out-val)))
+						 (disclose out-val))))
 				     (setf (apply #'aref array coords)
-					   (if (is-singleton set)
+					   (if (and (arrayp set)
+						    (is-singleton set))
 					       (aref set 0)
-					       set)))
+					       (disclose set))))
 			     (setf (apply #'aref (cons sub-array (loop for index in el-indices
 								    collect (if (nth index indices)
 										(position (nth index coords)
@@ -570,7 +578,7 @@
 		 :elision indices)
 	sub-array)))
 
-(defun mix-arrays (axis arrays &optional max-dims)
+(defun mix-arrays (axis arrays &key (max-dims nil) (disclose-items nil))
   "Combine multiple arrays into a single array one rank higher. Vectors may be stacked to form a 2D array, 2D arrays may be stacked to form a 3D array, etc. Arrays with smaller dimensions than the largest array in the stack have missing elements replaced with 0s for numeric arrays or blanks for character arrays."
   (let ((permute-dims (if (vectorp arrays)
 			  (alexandria:iota (1+ (rank (aref arrays 0))))))
@@ -579,31 +587,41 @@
 					       :displaced-to (aops:each #'dims arrays))))
 			(loop for dx from 0 to (1- (length (aref mdims 0)))
 			   collect (apply #'max (array-to-list (aops:each (lambda (n) (nth dx n))
-									  mdims))))))))
-    ;;(print (list ))
-    (if (vectorp arrays)
-	(apply #'aops:stack
-	       (cons axis (loop for index from 0 to (1- (length arrays))
-			     collect (aops:permute (rotate-right axis permute-dims)
-						   (array-promote
-						    (if (not (equalp max-dims (dims (aref arrays index))))
-							(let* ((this-eltype (element-type (aref arrays index)))
-							       (out-array (make-array max-dims
-										      :element-type this-eltype
-										      :initial-element
-										      (cond ((eql 'character
-												  this-eltype)
-											     #\ )
-											    (t 0)))))
-							  (run-dim (aref arrays index)
-								   (lambda (item coords)
-								     (setf (apply #'aref (cons out-array coords))
-									   item)))
-							  out-array)
-							(aref arrays index)))))))
-	(aops:combine (aops:each (lambda (sub-arrays)
-				   (mix-arrays axis sub-arrays max-dims))
-				 (aops:split arrays 1))))))
+									  mdims)))))))
+	(first-element (apply #'aref (cons arrays (loop for i from 0 to (1- (rank arrays))
+						     collect 0)))))
+    (if (and disclose-items (is-singleton first-element)
+	     (arrayp first-element)
+	     (is-singleton (aref first-element 0)))
+	(aops:each (lambda (item) (aref (aref item 0) 0))
+		   arrays)
+	(if (vectorp arrays)
+	    (apply #'aops:stack
+		   (cons axis (loop for index from 0 to (1- (length arrays))
+				 collect (aops:permute (rotate-right axis permute-dims)
+						       (array-promote
+							(if (not (equalp max-dims (dims (aref arrays index))))
+							    (let* ((this-eltype (element-type (aref arrays index)))
+								   (out-array (make-array max-dims
+											  :element-type this-eltype
+											  :initial-element
+											  (cond ((eql 'character
+												      this-eltype)
+												 #\ )
+												(t 0)))))
+							      (run-dim (aref arrays index)
+								       (lambda (item coords)
+									 (setf (apply #'aref
+										      (cons out-array coords))
+									       item)))
+							      out-array)
+							    (let ((this-item (aref arrays index)))
+							      (if (not (and disclose-items
+									    (is-singleton this-item)))
+								  this-item (disclose this-item)))))))))
+	    (aops:combine (aops:each (lambda (sub-arrays)
+				       (mix-arrays axis sub-arrays :max-dims max-dims))
+				     (aops:split arrays 1)))))))
 
 (defun ravel (count-from array &optional axes)
   "Produce a vector from the elements of a multidimensional array."
