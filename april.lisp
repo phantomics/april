@@ -626,7 +626,7 @@
 	      ;; the ¯ character must be expressed as #\macron to be correctly processed
 	      ;; the ̄ (combining_macron) character can be denoted normally, however
 	      (or (alphanumericp char)
-		  (member char (list #\∆ #\⍙ #\macron #\̄ #\. #\⍺ #\⍵ #\⍬))))
+		  (member char (list #\∆ #\⍙ #\¯ #\. #\⍺ #\⍵ #\⍬))))
 	    :prep-code-string
 	    (lambda (string)
 	      ;; this code preprocessor removes comments, including comment-only lines
