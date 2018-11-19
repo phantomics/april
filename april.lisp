@@ -981,11 +981,10 @@
  april
  (state :count-from 1
 	:disclose-output t
-	:atomic-vector
-	(concatenate 'string "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`"
-		     "abcdefghijklmnopqrstuvwxyz{|}~¥€⇄∧∼≬⋆⋸⌸⌺⌼⌾⍁¡⍣⍅⎕⍞⌹⍆⍤⍇⍈⍊⊤λ⍍⍏£⊥⍶⌶⍐⍑χ≢⍖⍗"
-		     "⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣⋄┘┌█▄▌▐▀"
-		     "⍺⍹⊂⊃⍝⍲⍴⍱⌽⊖○∨⍳⍉∈∩⌿⍀≥≤≠×÷⍙∘⍵⍫⍋⍒¯¨"))
+	:atomic-vector (concatenate 'string "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+				    "[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~¥€⇄∧∼≬⋆⋸⌸⌺⌼⌾⍁¡⍣⍅⎕⍞⌹⍆⍤⍇⍈⍊⊤λ⍍⍏"
+				    "£⊥⍶⌶⍐⍑χ≢⍖⍗⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣⋄┘┌█▄▌▐▀"
+				    "⍺⍹⊂⊃⍝⍲⍴⍱⌽⊖○∨⍳⍉∈∩⌿⍀≥≤≠×÷⍙∘⍵⍫⍋⍒¯¨"))
 
  (utilities :match-blank-character
 	    (lambda (char) (member char (list #\  #\Tab)))
