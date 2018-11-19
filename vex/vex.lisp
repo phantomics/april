@@ -39,7 +39,28 @@
 		   :initarg :operator-index)
    (overloaded-lexicon :accessor idiom-overloaded-lexicon
 		       :initform nil
-		       :initarg :overloaded-lexicon)))
+		       :initarg :overloaded-lexicon)
+
+   ;;;
+   (lexicons :accessor idiom-lexicons
+	     :initform nil
+	     :initarg :lexicons)
+   (functions-2 :accessor idiom-functions-2
+		:initform nil
+		:initarg :functions-2)
+   
+   (composer :accessor idiom-composer
+	   :initform nil
+	   :initarg :composer)
+   (composer-primitives :accessor idiom-composer-primitives
+			:initform (make-hash-table :test #'eq)
+			:initarg :composer-primitives)
+   (composer-opening-patterns :accessor idiom-composer-opening-patterns
+			      :initform nil
+			      :initarg :composer-opening-patterns)
+   (composer-following-patterns :accessor idiom-composer-following-patterns
+				:initform nil
+				:initarg :composer-following-patterns)))
 
 (defgeneric of-state (idiom property))
 (defmethod of-state ((idiom idiom) property)
@@ -81,6 +102,20 @@
 		  :operator-index ',(idiom-opindex idiom)
 		  :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)))
 
+;;;
+
+(defgeneric of-lexicon (idiom lexicon glyph))
+(defmethod of-lexicon (idiom lexicon glyph)
+  (member glyph (getf (idiom-lexicons idiom) lexicon)))
+
+(defgeneric lexicon-add (idiom lexicon glyph))
+(defmethod lexicon-add ((idiom idiom) lexicon glyph)
+  (if (not (of-lexicon idiom lexicon glyph))
+      (setf (getf (idiom-lexicons idiom) lexicon)
+	    (cons glyph (getf (idiom-lexicons idiom) lexicon)))))
+
+;;;
+
 (defmacro boolean-op (operation omega &optional alpha)
   "Converts output of a boolean operation from t/nil to 1/0."
   `(lambda ,(if alpha (list omega alpha)
@@ -108,7 +143,11 @@
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-			      (package-name *package*))))
+			      (package-name *package*)))
+	;;;
+	(lexicon-data nil)
+	(functions-data (list :monadic (make-hash-table)
+			      :dyadic (make-hash-table))))
     (labels ((process-pairs (table-symbol pairs &optional output)
 	       (if pairs
 		   (process-pairs table-symbol (rest pairs)
@@ -118,6 +157,30 @@
 					 (oprocess (getf (rest (assoc (intern "UTILITIES" (package-name *package*))
 								      subspecs))
 							 :mediate-operation-macro)))
+				    ;;;
+				    (let* ((lexicon-processor
+					    (getf (rest (assoc (intern "UTILITIES" (package-name *package*))
+							       subspecs))
+						  :process-lexicon-macro))
+					   (this-lex (macroexpand (list (second lexicon-processor)
+									:functions glyph-char
+									(third (first pairs))))))
+				      (loop for lexicon in (getf (rest this-lex) :lexicons)
+				      	 do (if (not (getf lexicon-data lexicon))
+				      		(setf (getf lexicon-data lexicon) nil))
+				      	   (if (not (member glyph-char (getf lexicon-data lexicon)))
+				      	       (setf (getf lexicon-data lexicon)
+				      		     (cons glyph-char (getf lexicon-data lexicon)))))
+				      ;; (setf lexicon-data (cons (getf (rest this-lex) :lexicons)
+				      ;; 			       lexicon-data))
+				      ;; (setf functions-data (cons (getf (getf (rest this-lex) :functions) :monadic)
+				      ;; 				 functions-data))
+				      (if (getf (getf (rest this-lex) :functions) :monadic)
+				      	  (setf (gethash glyph-char (getf functions-data :monadic))
+				      		(getf (getf (rest this-lex) :functions) :monadic)))
+				      (if (getf (getf (rest this-lex) :functions) :dyadic)
+				      	  (setf (gethash glyph-char (getf functions-data :dyadic))
+				      		(getf (getf (rest this-lex) :functions) :dyadic))))
 				    (if (and (eql 'op-specs table-symbol))
 					(setf (getf accumulator
 						    (intern (string-upcase (first (third (first pairs))))
@@ -249,7 +312,11 @@
 										    (first operator-specs))))
 					       :overloaded-lexicon (list ,@(intersection (first function-specs)
 											 (first operator-specs)))
-					       :operator-index (list ,@(third operator-specs)))))
+					       :operator-index (list ,@(third operator-specs))
+					       ;;;
+					       :lexicons (quote ,lexicon-data)
+					       :functions-2 (quote ,functions-data)
+					       )))
 	`(progn (defvar ,idiom-symbol)
 		(setf ,idiom-symbol ,idiom-definition)
 		(defmacro ,(intern (string-upcase symbol)
@@ -301,7 +368,7 @@
 					    ;; 			  (error "Incorrect option syntax.")))
 					    ;; 		  (if input-string input-string options))
 					    ))))))))))
-  
+
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
   (if (not glyph-list)
@@ -365,9 +432,11 @@
 				   each-axis))))
 
 	   (handle-function (input-string)
-	     (list :fn (funcall (of-utilities idiom :format-function)
-				(string-upcase (idiom-name idiom))
-				(vex-program idiom nil input-string meta t)))))
+	     (list :fn ;; (funcall (of-utilities idiom :format-function)
+		       ;; 		(string-upcase (idiom-name idiom))
+		       ;; 		(vex-program idiom nil(list (list :compile-only))
+		       ;; 			     input-string meta t))
+		   (print (first (parse input-string (=vex-lines idiom meta)))))))
 
     (=destructure (_ item _ rest)
 	(=list (%any (?blank-character))
@@ -442,6 +511,26 @@
 			  (apply operation (append (list meta nil precedent)
 						   (if right-value (list right-value))))))))))
 
+(defmacro set-composer-primitives (with &rest params)
+  (let* ((with (rest with))
+	 (idiom (gensym))
+	 (name (second (assoc :name with)))
+	 (items (second (assoc :items-symbol with)))
+	 (properties (second (assoc :properties-symbol with)))
+	 (process (second (assoc :processor-symbol with))))
+    `(defun ,(intern (string-upcase name)
+		     (package-name *package*))
+	 (,idiom)
+       ,@(loop for param in params
+	    collect (let ((param-name (first param)))
+		      `(setf (gethash ,(intern (string-upcase param-name)
+					       "KEYWORD")
+				      (idiom-composer-primitives ,idiom))
+			     (lambda (,items &optional ,properties ,process)
+			       (declare (ignorable ,properties ,process))
+			       (print (list :ccc ,items ,properties ,process))
+			       ,(second param))))))))
+
 (defun vex-program (idiom options &optional string meta internal)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
@@ -463,8 +552,7 @@
 		   output
 		   (destructuring-bind (out remaining)
 		       (parse lines (=vex-lines idiom meta))
-		     (process-lines remaining
-				    (append output (list (expression idiom meta (list out)))))))))
+		     (process-lines remaining (append output (list (expression idiom meta (list out)))))))))
 
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
@@ -502,7 +590,7 @@
 				   when (not (member (string (gethash (first key-symbol)
 								      (gethash :variables meta)))
 						     (mapcar #'first input-vars)))
-				   collect (let* ((key (first key-symbol))
+				   collect (let* (;(key (first key-symbol))
 						  (sym (second key-symbol))
 						  (fun-ref (gethash sym (gethash :functions meta)))
 						  (val-ref (gethash sym (gethash :values meta))))
