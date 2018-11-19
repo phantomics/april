@@ -754,18 +754,27 @@
   ;; 	  (funcall (gethash ,function (getf (vex::idiom-functions-2 ,idiom)
   ;; 					    ,(if value :dyadic :monadic)))
   ;; 		   )))
-  (if (member function (getf (vex::idiom-lexicons idiom) :functions))
-      `(call-scalar ,(gethash function (getf (vex::idiom-functions-2 idiom)
-					     (if value :dyadic :monadic)))
-		    ,precedent ,@(if value
-				     (if (listp value)
-					 `((vector ,@value))
-					 (list value)))))
+  (process-function-spec idiom function precedent value)
   (list :type (list :value :evaluated))
   ))
 
 (progn (setf (vex::idiom-composer-following-patterns *april-idiom*) nil)
 	      (composer-following-patterns-apl-standard *april-idiom*))
+
+(defun process-function-spec (idiom function precedent value)
+  (if (member function (getf (vex::idiom-lexicons idiom) :functions))
+      (let ((function-data (gethash function (getf (vex::idiom-functions-2 idiom)
+						   (if value :dyadic :monadic)))))
+	;; (print (vex::idiom-lexicons idiom))
+	(if (member function (getf (vex::idiom-lexicons idiom) :scalar-functions))
+	    `(call-scalar ,function-data ,precedent ,@(if value (if (listp value)
+								    `((vector ,@value))
+								    (list value))))
+	    `(funcall ,(if (eql 'args (first function-data))
+			   (first (last function-data)))
+		      ,precedent ,@(if value (if (listp value)
+						 `((vector ,@value))
+						 (list value))))))))
 
  ;; a function assignment opening occurs when the entire expression consists of a function assignment
  ;; like fn←{⍵+5}. In this case, the entire assignment can be composed in one shot.
@@ -985,7 +994,6 @@
 				    "[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~¥€⇄∧∼≬⋆⋸⌸⌺⌼⌾⍁¡⍣⍅⎕⍞⌹⍆⍤⍇⍈⍊⊤λ⍍⍏"
 				    "£⊥⍶⌶⍐⍑χ≢⍖⍗⍘⍚⍛⌈⍜⍢∪⍨⍕⍎⍬⍪∣│┤⍟∆∇→╣║╗╝←⌊┐└┴┬├─┼↑↓╔╚╩╦╠═╬≡⍸⍷∵⌷⍂⌻⊢⊣⋄┘┌█▄▌▐▀"
 				    "⍺⍹⊂⊃⍝⍲⍴⍱⌽⊖○∨⍳⍉∈∩⌿⍀≥≤≠×÷⍙∘⍵⍫⍋⍒¯¨"))
-
  (utilities :match-blank-character
 	    (lambda (char) (member char (list #\  #\Tab)))
 	    :match-newline-character
