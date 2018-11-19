@@ -2,6 +2,27 @@
 
 (in-package #:april)
 
+(defparameter *circular-functions*
+  ;; APL's set of circular functions called using the ○ function with an alpha argument
+  (vector (lambda (input) (exp (* input #C(0 1))))
+	  (lambda (input) (* input #C(0 1)))
+	  (lambda (input) (if (complexp input)
+			      (complex (realpart input)
+				       (- (imagpart input)))
+			      input))
+	  #'values
+	  (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'atanh #'acosh #'asinh
+	  (lambda (input) (* (sqrt (/ (1+ input) (1- input)))
+			     (1+ input)))
+	  #'atan #'acos #'asin
+	  (lambda (input) (sqrt (- 1 (* 2 input))))
+	  #'sin #'cos #'tan
+	  (lambda (input) (sqrt (1+ (* 2 input))))
+	  #'sinh #'cosh #'tanh
+	  (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'realpart #'abs #'imagpart #'phase))
+
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
   (aops:each (lambda (member)
@@ -556,12 +577,12 @@
  (function (if (and (listp (first items))
 		    (eq :fn (caar items)))
 	       (let ((fn (cadar items)))
-		 (print (list :pr properties))
+		 ;; (print (list :pr properties))
 		 (cond ((getf properties :glyph)
 			(if (char= fn (aref (string (getf properties :glyph)) 0))
 			    (values fn (list :type (list :functional-symbol))
 				    (rest items))))
-		       ((characterp fn)
+ 		       ((characterp fn)
 			(values fn (list :type (list :functional-symbol))
 				(rest items)))
 		       ((listp fn)
@@ -584,31 +605,28 @@
 
 (composer-primitives-apl-standard *april-idiom*)
 
-(defun composer (idiom items &optional precedent props)
-  (print (list :comp items precedent))
+(defun composer (idiom items &optional precedent properties)
+  (print (list :comp items precedent properties))
   (if (not items)
-      (values precedent props)
-      (let ((unmatched t)
-	    (processed nil)
-	    (properties nil)
-	    (remaining nil))
-	(print (list :prec precedent))
-	(loop :while unmatched
+      (values precedent properties)
+      (let ((processed nil))
+	;; (print (list :prec precedent))
+	;; (print (list :items-b items))
+	(loop :while (not processed)
 	   :for pattern :in (if (not precedent)
 				(vex::idiom-composer-opening-patterns idiom)
 				(vex::idiom-composer-following-patterns idiom))
-	   :do (multiple-value-bind (proc prop rem)
+	   :do (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (getf pattern :function)
-			    items #'composer precedent)
-		 (print (list :pr proc prop rem))
-		 (setq processed proc properties prop remaining rem)
-		 (if processed (setq unmatched nil))))
-	(if unmatched
-	    (error "Can't process this.")
-	    ;; (values processed properties remaining)
-	    (composer idiom remaining processed properties)))))
+			    items #'composer precedent properties)
+		 ;; (print (list :pr new-processed new-props remaining))
+		 (if new-processed (setq processed new-processed properties new-props items remaining))))
+	;; (print (list :items items))
+	(if (not processed)
+	    (values precedent properties items)
+	    (composer idiom items processed properties)))))
 
-(defun build-composer-pattern (sequence idiom items-symbol invalid-symbol)
+(defun build-composer-pattern (sequence idiom items-symbol invalid-symbol properties-symbol)
   (labels ((element-check (base-type)
 	     `(funcall (gethash ,(intern (string-upcase (cond ((and (listp base-type)
 								    (= 1 (length (string (second base-type)))))
@@ -628,9 +646,13 @@
 		      `(if (not ,invalid-symbol)
 			   (multiple-value-bind (item properties remaining)
 			       (composer ,idiom ,items-symbol)
-			     (if (and (getf )))
-			     (setq ,item-symbol item
-				   ,items-symbol remaining))))
+			     (if ,(cond ((getf pattern-type :type)
+					 `(loop for type in (list ,@(getf pattern-type :type))
+					     always (member type (getf properties :type))))
+					(t t))
+				 (setq ,item-symbol item
+				       ,items-symbol remaining)
+				 (setq ,invalid-symbol t)))))
 		     (element-type
 		      `(if (not ,invalid-symbol)
 			   (let ((matching t)
@@ -641,8 +663,8 @@
 					 `(:for x from 0 to 0))
 				:do (multiple-value-bind (item properties remaining)
 					,(element-check element-type)
-				      (print (list :iiv item properties remaining))
-				      (print (list :el (quote ,item-properties)))
+				      ;; (print (list :iiv item properties remaining))
+				      ;; (print (list :el (quote ,item-properties)))
 				      (if item (setq collected (cons item collected)
 						     rem remaining)
 					  (setq matching nil))))
@@ -652,12 +674,14 @@
 							collected (first collected))
 				       ,items-symbol rem)
 				 (setq ,invalid-symbol t))
-			     (print (list :out ,item-symbol ,items-symbol collected ,optional)))))))))
+			     (list :out ,item-symbol ,items-symbol collected ,optional))))))))
     (loop for item in sequence
        collect (let* ((item-symbol (first item)))
-		 (print (list :item item-symbol))
 		 (if (keywordp item-symbol)
-		     (cond ((eq :rest item-symbol)
+		     (cond ((eq :with-preceding-type item-symbol)
+			    `(setq ,invalid-symbol (loop for item in (getf ,properties-symbol :type)
+						      never (eq item ,(second item)))))
+			   ((eq :rest item-symbol)
 			    `(setq ,invalid-symbol (< 0 (length ,items-symbol)))))
 		     (let ((item-properties (rest item)))
 		       (process-item item-symbol item-properties)))))))
@@ -679,19 +703,19 @@
 	 (setf ,(if precedent-symbol `(vex::idiom-composer-following-patterns ,idiom)
 		    `(vex::idiom-composer-opening-patterns ,idiom))
 	       (append (list ,@(loop for param in params
-				  collect `(list :name ,(intern (string-upcase (first param))
-								"KEYWORD")
+				  collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
 						 :function
-						 (lambda (,item ,process &optional ,precedent)
-						   (declare (ignorable ,item ,process ,precedent))
-						   (print (list :it ,item))
+						 (lambda (,item ,process &optional ,precedent ,properties)
+						   (declare (ignorable ,item ,process ,precedent ,properties))
+						   ;; (print (list :it ,item))
+						   ;; (print (list :props ,properties))
 						   (let ((,invalid nil)
 							 ,@(loop for item in (second param)
 							      when (not (keywordp (first item)))
 							      collect (list (first item) nil)))
 						     ,@(build-composer-pattern (second param)
-									       idiom item invalid)
-						     (print (list :inv ,invalid ));,(third param) (fourth param)))
+									       idiom item invalid properties)
+						     ;; (print (list :inv ,invalid ));
 						     (if (not ,invalid)
 							 (values ,(third param)
 								 ,(fourth param)
@@ -722,8 +746,9 @@
        (:properties-symbol properties)
        (:idiom-symbol idiom))
  (evaluation
-  ((function :element function :times 1)
-   ;;;(function :pattern (:type (:function)))
+  ((:with-preceding-type :value)
+   ;; (function :element function :times 1)
+   (function :pattern (:type (:function)))
    (value :element value :times :any :optional t))
   ;; `(cond ((member ,function (getf (vex::idiom-lexicons ,idiom) :functions))
   ;; 	  (funcall (gethash ,function (getf (vex::idiom-functions-2 ,idiom)
@@ -741,47 +766,6 @@
 
 (progn (setf (vex::idiom-composer-following-patterns *april-idiom*) nil)
 	      (composer-following-patterns-apl-standard *april-idiom*))
-
-;; (:COMP (5 4 3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL) 
-;; (:PREC NIL) 
-;; (:IT (5 4 3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:CCC (5 4 3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:IIV 5 (:TYPE (:NUMBER))
-;;  (4 3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:EL (:ELEMENT VALUE :TIMES :ANY)) 
-;; (:CCC (4 3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:IIV 4 (:TYPE (:NUMBER)) (3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:EL (:ELEMENT VALUE :TIMES :ANY)) 
-;; (:CCC (3 (:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:IIV 3 (:TYPE (:NUMBER)) ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:EL (:ELEMENT VALUE :TIMES :ANY)) 
-;; (:CCC ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:IIV NIL NIL ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:EL (:ELEMENT VALUE :TIMES :ANY)) 
-;; (:INV NIL) 
-;; (:PR (VECTOR 3 4 5) (:TYPE :VALUE)
-;;  ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:COMP ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) (VECTOR 3 4 5)) 
-;; (:PREC (VECTOR 3 4 5)) 
-;; (:IT ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING))) 
-;; (:CCC ((:FN #\MULTIPLICATION_SIGN) (:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:PR NIL) 
-;; (:III #\MULTIPLICATION_SIGN (:TYPE (:FUNCTIONAL-SYMBOL)) ((:FN #\LEFT_CEILING))) 
-;; (:CCC ((:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:IIV NIL NIL ((:FN #\LEFT_CEILING))) 
-;; (:EL (:ELEMENT VALUE :TIMES :ANY :OPTIONAL T)) 
-;; (:INV NIL) 
-;; (:PR (CALL-SCALAR #'SIGNUM (VECTOR 3 4 5)) NIL ((:FN #\LEFT_CEILING))) 
-;; (:COMP ((:FN #\LEFT_CEILING)) (CALL-SCALAR #'SIGNUM (VECTOR 3 4 5))) 
-;; (:PREC (CALL-SCALAR #'SIGNUM (VECTOR 3 4 5))) 
-;; (:IT ((:FN #\LEFT_CEILING))) 
-;; (:CCC ((:FN #\LEFT_CEILING)) NIL NIL) 
-;; (:PR NIL) 
-;; (:III #\LEFT_CEILING (:TYPE (:FUNCTIONAL-SYMBOL)) NIL) 
-;; (:INV NIL) 
-;; (:PR (CALL-SCALAR #'CEILING (CALL-SCALAR #'SIGNUM (VECTOR 3 4 5))) NIL NIL) 
-;; (:COMP NIL (CALL-SCALAR #'CEILING (CALL-SCALAR #'SIGNUM (VECTOR 3 4 5)))) 
-
 
  ;; a function assignment opening occurs when the entire expression consists of a function assignment
  ;; like fn←{⍵+5}. In this case, the entire assignment can be composed in one shot.
@@ -1011,7 +995,7 @@
 	    (lambda (char)
 	      ;; the ¯ character must be expressed as #\macron to be correctly processed
 	      (or (alphanumericp char)
-		  (member char (list #\∆ #\⍙ #\macron #\. #\⍺ #\⍵ #\⍬))))
+		  (member char (list #\∆ #\⍙ #\¯ #\. #\⍺ #\⍵ #\⍬))))
 	    :prep-code-string
 	    (lambda (string)
 	      ;; this code preprocessor removes comments, including comment-only lines
@@ -1150,28 +1134,10 @@
      	    (○ (has :titles ("Pi Times" "Circular"))
  	       (ambivalent (args :scalar (lambda (omega) (* pi omega)))
  	    		   (args :any :one (lambda (omega alpha)
-					     (let ((fn (vector (lambda (input) (exp (* input #C(0 1))))
-							       (lambda (input) (* input #C(0 1)))
-							       (lambda (input) (if (complexp input)
-										   (complex (realpart input)
-											    (- (imagpart input)))
-										   input))
-							       #'values
-							       (lambda (input) (sqrt (- -1 (* 2 input))))
-							       #'atanh #'acosh #'asinh
-							       (lambda (input) (* (sqrt (/ (1+ input) (1- input)))
-										  (1+ input)))
-							       #'atan #'acos #'asin
-							       (lambda (input) (sqrt (- 1 (* 2 input))))
-							       #'sin #'cos #'tan
-							       (lambda (input) (sqrt (1+ (* 2 input))))
-							       #'sinh #'cosh #'tanh
-							       (lambda (input) (sqrt (- -1 (* 2 input))))
-							       #'realpart #'abs #'imagpart #'phase)))
- 	    				       ;; the twelfth element of the vector corresponds to
- 	    				       ;; index 0, hence an offset of 12 from the vector's first element
- 	    				       (apply-scalar-monadic (aref fn (+ 12 alpha))
- 								     omega)))))
+					     ;; the twelfth element of the vector corresponds to
+					     ;; index 0, hence an offset of 12 from the vector's first element
+					     (apply-scalar-monadic (aref *circular-functions* (+ 12 alpha))
+								   omega))))
  	       (tests (is "⌊100000×○1" 314159)
  		      (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)))
  	    (\~ (has :titles ("Not" "Without"))

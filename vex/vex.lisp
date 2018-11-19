@@ -528,7 +528,6 @@
 				      (idiom-composer-primitives ,idiom))
 			     (lambda (,items &optional ,properties ,process)
 			       (declare (ignorable ,properties ,process))
-			       (print (list :ccc ,items ,properties ,process))
 			       ,(second param))))))))
 
 (defun vex-program (idiom options &optional string meta internal)
