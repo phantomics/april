@@ -48,6 +48,9 @@
    (functions-2 :accessor idiom-functions-2
 		:initform nil
 		:initarg :functions-2)
+   (operators-2 :accessor idiom-operators-2
+		:initform nil
+		:initarg :operators-2)
    
    (composer :accessor idiom-composer
 	   :initform nil
@@ -125,11 +128,14 @@
   			(list omega)))
   	 1 0)))
 
-(defmacro reverse-op (operation omega &optional alpha)
-  (declare (ignore omega))
-  (if alpha `(lambda (omega alpha) (funcall (function ,operation)
-					    alpha omega))
-      `(function, operation)))
+;; (defmacro reverse-op (operation omega &optional alpha)
+;;   (declare (ignore omega))
+;;   (if alpha `(lambda (omega alpha) (funcall (function ,operation)
+;; 					    alpha omega))
+;;       `(function, operation)))
+
+(defmacro reverse-op (operation)
+  `(lambda (omega alpha) (funcall (function ,operation) alpha omega)))
 
 (defmacro reverse-boolean-op (operation omega &optional alpha)
   "Converts output of a boolean operation from t/nil to 1/0."
@@ -147,10 +153,12 @@
 	;;;
 	(lexicon-data nil)
 	(functions-data (list :monadic (make-hash-table)
-			      :dyadic (make-hash-table))))
-    (labels ((process-pairs (table-symbol pairs &optional output)
+			      :dyadic (make-hash-table)))
+	(operators-data (list :lateral (make-hash-table)
+			      :pivotal (make-hash-table))))
+    (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
 	       (if pairs
-		   (process-pairs table-symbol (rest pairs)
+		   (process-pairs table-symbol type-symbol (rest pairs)
 				  (let* ((glyph-char (character (caar pairs)))
 					 (accumulator (third output))
 					 ;; name of macro to process operation specs
@@ -163,7 +171,7 @@
 							       subspecs))
 						  :process-lexicon-macro))
 					   (this-lex (macroexpand (list (second lexicon-processor)
-									:functions glyph-char
+									type-symbol glyph-char
 									(third (first pairs))))))
 				      (loop for lexicon in (getf (rest this-lex) :lexicons)
 				      	 do (if (not (getf lexicon-data lexicon))
@@ -171,6 +179,7 @@
 				      	   (if (not (member glyph-char (getf lexicon-data lexicon)))
 				      	       (setf (getf lexicon-data lexicon)
 				      		     (cons glyph-char (getf lexicon-data lexicon)))))
+
 				      ;; (setf lexicon-data (cons (getf (rest this-lex) :lexicons)
 				      ;; 			       lexicon-data))
 				      ;; (setf functions-data (cons (getf (getf (rest this-lex) :functions) :monadic)
@@ -180,46 +189,54 @@
 				      		(getf (getf (rest this-lex) :functions) :monadic)))
 				      (if (getf (getf (rest this-lex) :functions) :dyadic)
 				      	  (setf (gethash glyph-char (getf functions-data :dyadic))
-				      		(getf (getf (rest this-lex) :functions) :dyadic))))
-				    (if (and (eql 'op-specs table-symbol))
-					(setf (getf accumulator
-						    (intern (string-upcase (first (third (first pairs))))
-							    "KEYWORD"))
-					      (cons 'list (cons glyph-char (rest (getf accumulator
-										       (intern (string-upcase
-												(first
-												 (third (first
-													 pairs))))
-											       "KEYWORD")))))))
+				      		(getf (getf (rest this-lex) :functions) :dyadic)))
+				      (if (member :lateral-operators (getf (rest this-lex) :lexicons))
+				      	  (setf (gethash glyph-char (getf operators-data :lateral))
+				      		(getf (rest this-lex) :operators)))
+				      (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
+				      	  (setf (gethash glyph-char (getf operators-data :pivotal))
+				      		(getf (rest this-lex) :operators)))
+				      )
+				    ;; (if (and (eql 'op-specs table-symbol))
+				    ;; 	(setf (getf accumulator
+				    ;; 		    (intern (string-upcase (first (third (first pairs))))
+				    ;; 			    "KEYWORD"))
+				    ;; 	      (cons 'list (cons glyph-char (rest (getf accumulator
+				    ;; 						       (intern (string-upcase
+				    ;; 								(first
+				    ;; 								 (third (first
+				    ;; 									 pairs))))
+				    ;; 							       "KEYWORD")))))))
 				    (list (cons glyph-char (first output))
-					  (append (second output)
-						  (cond ((and (eql 'fn-specs table-symbol)
-							      (eq :symbolic
-								  (intern (string-upcase
-									   (first (third (first pairs))))
-									  "KEYWORD")))
-							 ;; assign symbolic functions as just keywords in the table
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(second (third (first pairs)))))
-							;; assign functions in hash table
-							((eql 'fn-specs table-symbol)
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(if (and (listp (second (third (first pairs))))
-								     (eq :macro
-									 (intern (string-upcase
-										  (first (second (third
-												  (first pairs)))))
-										 "KEYWORD")))
-								(macroexpand
-								 (second (second (third (first pairs)))))
-								(macroexpand
-								 (cons (second oprocess)
-								       (list (third (first pairs))))))))
-							;; assign operators in hash table
-							((eql 'op-specs table-symbol)
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(macroexpand (second (third (first pairs))))))))
-					  accumulator)))
+				    	  (append (second output)
+				    		  (cond ((and (eql 'fn-specs table-symbol)
+				    			      (eq :symbolic
+				    				  (intern (string-upcase
+				    					   (first (third (first pairs))))
+				    					  "KEYWORD")))
+				    			 ;; assign symbolic functions as just keywords in the table
+				    			 `((gethash ,glyph-char ,table-symbol)
+				    			   ,(second (third (first pairs)))))
+				    			;; assign functions in hash table
+				    			;; ((eql 'fn-specs table-symbol)
+				    			;;  `((gethash ,glyph-char ,table-symbol)
+				    			;;    ,(if (and (listp (second (third (first pairs))))
+				    			;; 	     (eq :macro
+				    			;; 		 (intern (string-upcase
+				    			;; 			  (first (second (third
+				    			;; 					  (first pairs)))))
+				    			;; 			 "KEYWORD")))
+				    			;; 	(macroexpand
+				    			;; 	 (second (second (third (first pairs)))))
+				    			;; 	(macroexpand
+				    			;; 	 (cons (second oprocess)
+				    			;; 	       (list (third (first pairs))))))))
+				    			;; assign operators in hash table
+				    			((eql 'op-specs table-symbol)
+				    			 `((gethash ,glyph-char ,table-symbol)
+				    			   ,(macroexpand (second (third (first pairs))))))))
+				    	  accumulator)
+				    ))
 		   output))
 
 	     (process-optests (specs &optional output)
@@ -272,10 +289,12 @@
 							    ,(getf this-spec :ex)
 							    :test #'equalp)))))
 		   output)))
-      (let* ((function-specs (process-pairs 'fn-specs (rest (assoc (intern "FUNCTIONS" (package-name *package*))
-								   subspecs))))
-	     (operator-specs (process-pairs 'op-specs (rest (assoc (intern "OPERATORS" (package-name *package*))
-								   subspecs))))
+      (let* ((function-specs (process-pairs 'fn-specs :functions
+					    (rest (assoc (intern "FUNCTIONS" (package-name *package*))
+							 subspecs))))
+	     (operator-specs (process-pairs 'op-specs :operators
+					    (rest (assoc (intern "OPERATORS" (package-name *package*))
+							 subspecs))))
 	     (function-tests (process-optests (rest (assoc (intern "FUNCTIONS" (package-name *package*))
 							   subspecs))))
 	     (operator-tests (process-optests (rest (assoc (intern "OPERATORS" (package-name *package*))
@@ -295,18 +314,18 @@
 					       (quote ,(rest (assoc (intern "UTILITIES"
 									    (package-name *package*))
 								    subspecs)))
-					       :functions (let ((fn-specs (make-hash-table)))
-							     (setf ,@(second function-specs))
-							     fn-specs)
-					       :functions-spec `(let ((fn-specs (make-hash-table)))
-								  (setf ,@',(second function-specs))
-								  fn-specs)
-					       :operators (let ((op-specs (make-hash-table)))
-							    (setf ,@(second operator-specs))
-							    op-specs)
-					       :operators-spec `(let ((op-specs (make-hash-table)))
-								  (setf ,@',(second operator-specs))
-								  op-specs)
+					       ;; :functions (let ((fn-specs (make-hash-table)))
+					       ;; 		     (setf ,@(second function-specs))
+					       ;; 		     fn-specs)
+					       ;; :functions-spec `(let ((fn-specs (make-hash-table)))
+					       ;; 			  (setf ,@',(second function-specs))
+					       ;; 			  fn-specs)
+					       ;; :operators (let ((op-specs (make-hash-table)))
+					       ;; 		    (setf ,@(second operator-specs))
+					       ;; 		    op-specs)
+					       ;; :operators-spec `(let ((op-specs (make-hash-table)))
+					       ;; 			  (setf ,@',(second operator-specs))
+					       ;; 			  op-specs)
 					       :operational-glyphs (list ,@(derive-opglyphs
 									    (append (first function-specs)
 										    (first operator-specs))))
@@ -316,6 +335,7 @@
 					       ;;;
 					       :lexicons (quote ,lexicon-data)
 					       :functions-2 (quote ,functions-data)
+					       :operators-2 (quote ,operators-data)
 					       )))
 	`(progn (defvar ,idiom-symbol)
 		(setf ,idiom-symbol ,idiom-definition)
@@ -450,19 +470,13 @@
 								     (member char (idiom-opglyphs idiom))))))))
 				(lambda (string)
 				  (let ((char (character string)))
-				    `(,(cond ((gethash char (idiom-operators idiom))
+				    `(,(cond ((of-lexicon idiom :operators char)
 					      :op)
-					     ((gethash char (idiom-functions idiom))
+					     ((of-lexicon idiom :functions char)
 					      :fn))
-				       ,@(if (gethash char (idiom-operators idiom))
-					     (list (let ((result nil))
-						     (loop for tix from 0 to (/ (length (idiom-opindex idiom))
-										2)
-							when (member char (nth (1+ (* 2 tix))
-									       (idiom-opindex idiom)))
-							do (setq result (nth (* 2 tix)
-									     (idiom-opindex idiom))))
-						     result)))
+				       ,@(if (of-lexicon idiom :operators char)
+					     (list (if (of-lexicon idiom :pivotal-operators char)
+						       :pivotal :lateral)))
 				       ,char))))
 		    (=transform (=subseq (%some (?token-character)))
 				(lambda (string)
@@ -551,8 +565,13 @@
 		   output
 		   (destructuring-bind (out remaining)
 		       (parse lines (=vex-lines idiom meta))
-		     (process-lines remaining (append output (list (expression idiom meta (list out)))))))))
+		     (print (list :oo out remaining))
+		     ;; (process-lines remaining (append output (list (expression idiom meta (list out)))))
+		     (process-lines remaining (print (append output (list (april::composer idiom (first out))))))
+		     ))))
 
+      (print meta)
+      
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
 	  (setq preexisting-vars (loop for vk being the hash-values of (gethash :variables meta)
@@ -579,8 +598,8 @@
       (if string
 	  (let* ((input-vars (getf state-to-use :in))
 		 (output-vars (getf state-to-use :out))
-		 (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
-							       string)))
+		 (compiled-expressions (print (process-lines (funcall (of-utilities idiom :prep-code-string)
+							       string))))
 		 (var-symbols (loop for key being the hash-keys of (gethash :variables meta)
 				 when (not (member (string (gethash key (gethash :variables meta)))
 						   (mapcar #'first input-vars)))
