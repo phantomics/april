@@ -119,14 +119,30 @@
 
 ;;;
 
-(defmacro boolean-op (operation omega &optional alpha)
-  "Converts output of a boolean operation from t/nil to 1/0."
-  `(lambda ,(if alpha (list omega alpha)
-  		(list omega))
-     (if (funcall (function ,operation)
-  		  ,@(if alpha (list omega alpha)
-  			(list omega)))
-  	 1 0)))
+;; (defmacro boolean-op (operation omega &optional alpha)
+;;   "Converts output of a boolean operation from t/nil to 1/0."
+;;   `(lambda ,(if alpha (list omega alpha)
+;;   		(list omega))
+;;      (if (funcall (function ,operation)
+;;   		  ,@(if alpha (list omega alpha)
+;;   			(list omega)))
+;;   	 1 0)))
+
+(defmacro boolean-op (operation)
+  `(lambda (omega &optional alpha)
+     (let ((outcome (if alpha (funcall (function ,operation)
+				       alpha omega)
+			(funcall (function ,operation)
+				 omega))))
+       (if outcome 1 0))))
+
+(defmacro reverse-boolean-op (operation)
+  `(lambda (omega &optional alpha)
+     (let ((outcome (if alpha (funcall (function ,operation)
+				       alpha omega)
+			(funcall (function ,operation)
+				 omega))))
+       (if outcome 1 0))))
 
 ;; (defmacro reverse-op (operation omega &optional alpha)
 ;;   (declare (ignore omega))
@@ -135,16 +151,19 @@
 ;;       `(function, operation)))
 
 (defmacro reverse-op (operation)
-  `(lambda (omega alpha) (funcall (function ,operation) alpha omega)))
+  `(lambda (omega &optional alpha)
+     (if alpha (funcall (function ,operation) alpha omega)
+	 (funcall (function ,operation)
+		  omega))))
 
-(defmacro reverse-boolean-op (operation omega &optional alpha)
-  "Converts output of a boolean operation from t/nil to 1/0."
-  `(lambda ,(if alpha (list omega alpha)
-  		(list omega))
-     (if (funcall (function ,operation)
-  		  ,@(if alpha (list alpha omega)
-  			(list omega)))
-  	 1 0)))
+;; (defmacro reverse-boolean-op (operation omega &optional alpha)
+;;   "Converts output of a boolean operation from t/nil to 1/0."
+;;   `(lambda ,(if alpha (list omega alpha)
+;;   		(list omega))
+;;      (if (funcall (function ,operation)
+;;   		  ,@(if alpha (list alpha omega)
+;;   			(list omega)))
+;;   	 1 0)))
 
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
@@ -456,7 +475,7 @@
 		       ;; 		(string-upcase (idiom-name idiom))
 		       ;; 		(vex-program idiom nil(list (list :compile-only))
 		       ;; 			     input-string meta t))
-		   (print (first (parse input-string (=vex-lines idiom meta)))))))
+		   (first (parse input-string (=vex-lines idiom meta))))))
 
     (=destructure (_ item _ rest)
 	(=list (%any (?blank-character))
@@ -525,14 +544,14 @@
 			  (apply operation (append (list meta nil precedent)
 						   (if right-value (list right-value))))))))))
 
-(defmacro set-composer-primitives (with &rest params)
+(defmacro set-composer-primitives (name with &rest params)
   (let* ((with (rest with))
 	 (idiom (gensym))
-	 (name (second (assoc :name with)))
-	 (items (second (assoc :items-symbol with)))
-	 (properties (second (assoc :properties-symbol with)))
-	 (process (second (assoc :processor-symbol with)))
-	 (idiom (second (assoc :idiom-symbol with))))
+	 (items (getf with :items-symbol))
+	 (idiom (getf with :idiom-symbol))
+	 (space (getf with :space-symbol with))
+	 (properties (getf with :properties-symbol))
+	 (process (getf with :processor-symbol with)))
     `(defun ,(intern (string-upcase name)
 		     (package-name *package*))
 	 (,idiom)
@@ -541,8 +560,8 @@
 		      `(setf (gethash ,(intern (string-upcase param-name)
 					       "KEYWORD")
 				      (idiom-composer-primitives ,idiom))
-			     (lambda (,items &optional ,properties ,process ,idiom)
-			       (declare (ignorable ,properties ,process ,idiom))
+			     (lambda (,items &optional ,properties ,process ,idiom ,space)
+			       (declare (ignorable ,properties ,process ,idiom ,space))
 			       ,(second param))))))))
 
 (defun vex-program (idiom options &optional string meta internal)
@@ -566,12 +585,12 @@
 		   output
 		   (destructuring-bind (out remaining)
 		       (parse lines (=vex-lines idiom meta))
-		     (print (list :oo out remaining))
+		     ;;(print (list :oo out remaining))
 		     ;; (process-lines remaining (append output (list (expression idiom meta (list out)))))
-		     (process-lines remaining (print (append output (list (april::composer idiom (first out))))))
+		     (process-lines remaining (append output (list (april::composer idiom meta (first out)))))
 		     ))))
 
-      (print meta)
+      ;;(print meta)
       
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
@@ -599,8 +618,8 @@
       (if string
 	  (let* ((input-vars (getf state-to-use :in))
 		 (output-vars (getf state-to-use :out))
-		 (compiled-expressions (print (process-lines (funcall (of-utilities idiom :prep-code-string)
-							       string))))
+		 (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
+							       string)))
 		 (var-symbols (loop for key being the hash-keys of (gethash :variables meta)
 				 when (not (member (string (gethash key (gethash :variables meta)))
 						   (mapcar #'first input-vars)))
