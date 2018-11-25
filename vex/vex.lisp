@@ -199,10 +199,6 @@
 				      	       (setf (getf lexicon-data lexicon)
 				      		     (cons glyph-char (getf lexicon-data lexicon)))))
 
-				      ;; (setf lexicon-data (cons (getf (rest this-lex) :lexicons)
-				      ;; 			       lexicon-data))
-				      ;; (setf functions-data (cons (getf (getf (rest this-lex) :functions) :monadic)
-				      ;; 				 functions-data))
 				      (if (getf (getf (rest this-lex) :functions) :monadic)
 				      	  (setf (gethash glyph-char (getf functions-data :monadic))
 				      		(getf (getf (rest this-lex) :functions) :monadic)))
@@ -214,18 +210,7 @@
 				      		(getf (rest this-lex) :operators)))
 				      (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
 				      	  (setf (gethash glyph-char (getf operators-data :pivotal))
-				      		(getf (rest this-lex) :operators)))
-				      )
-				    ;; (if (and (eql 'op-specs table-symbol))
-				    ;; 	(setf (getf accumulator
-				    ;; 		    (intern (string-upcase (first (third (first pairs))))
-				    ;; 			    "KEYWORD"))
-				    ;; 	      (cons 'list (cons glyph-char (rest (getf accumulator
-				    ;; 						       (intern (string-upcase
-				    ;; 								(first
-				    ;; 								 (third (first
-				    ;; 									 pairs))))
-				    ;; 							       "KEYWORD")))))))
+				      		(getf (rest this-lex) :operators))))
 				    (list (cons glyph-char (first output))
 				    	  (append (second output)
 				    		  (cond ((and (eql 'fn-specs table-symbol)
@@ -333,18 +318,6 @@
 					       (quote ,(rest (assoc (intern "UTILITIES"
 									    (package-name *package*))
 								    subspecs)))
-					       ;; :functions (let ((fn-specs (make-hash-table)))
-					       ;; 		     (setf ,@(second function-specs))
-					       ;; 		     fn-specs)
-					       ;; :functions-spec `(let ((fn-specs (make-hash-table)))
-					       ;; 			  (setf ,@',(second function-specs))
-					       ;; 			  fn-specs)
-					       ;; :operators (let ((op-specs (make-hash-table)))
-					       ;; 		    (setf ,@(second operator-specs))
-					       ;; 		    op-specs)
-					       ;; :operators-spec `(let ((op-specs (make-hash-table)))
-					       ;; 			  (setf ,@',(second operator-specs))
-					       ;; 			  op-specs)
 					       :operational-glyphs (list ,@(derive-opglyphs
 									    (append (first function-specs)
 										    (first operator-specs))))
@@ -525,29 +498,29 @@
       (list (parse content (=vex-string idiom meta))
 	    nextlines))))
 
-(defun expression (idiom meta exp &optional precedent)
-  "Convert a list of Vex tokens into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
-  (if (not exp)
-      precedent
-      (if (not precedent)
-	  (multiple-value-bind (right-value from-value)
-	      (funcall (of-utilities idiom :assemble-value)
-		       idiom meta #'expression precedent exp)
-	    (expression idiom meta from-value right-value))
-	  (multiple-value-bind (operation from-operation)
-	      (funcall (of-utilities idiom :assemble-operation)
-		       idiom meta #'expression precedent exp)
-	    (multiple-value-bind (right-value from-value)
-		(funcall (of-utilities idiom :assemble-value)
-			 idiom meta #'expression precedent from-operation nil nil exp)
-	      (expression idiom meta from-value
-			  (apply operation (append (list meta nil precedent)
-						   (if right-value (list right-value))))))))))
+;; (defun expression (idiom meta exp &optional precedent)
+;;   "Convert a list of Vex tokens into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
+;;   (if (not exp)
+;;       precedent
+;;       (if (not precedent)
+;; 	  (multiple-value-bind (right-value from-value)
+;; 	      (funcall (of-utilities idiom :assemble-value)
+;; 		       idiom meta #'expression precedent exp)
+;; 	    (expression idiom meta from-value right-value))
+;; 	  (multiple-value-bind (operation from-operation)
+;; 	      (funcall (of-utilities idiom :assemble-operation)
+;; 		       idiom meta #'expression precedent exp)
+;; 	    (multiple-value-bind (right-value from-value)
+;; 		(funcall (of-utilities idiom :assemble-value)
+;; 			 idiom meta #'expression precedent from-operation nil nil exp)
+;; 	      (expression idiom meta from-value
+;; 			  (apply operation (append (list meta nil precedent)
+;; 						   (if right-value (list right-value))))))))))
 
 (defmacro set-composer-primitives (name with &rest params)
   (let* ((with (rest with))
 	 (idiom (gensym))
-	 (items (getf with :items-symbol))
+	 (tokens (getf with :tokens-symbol))
 	 (idiom (getf with :idiom-symbol))
 	 (space (getf with :space-symbol with))
 	 (properties (getf with :properties-symbol))
@@ -560,7 +533,7 @@
 		      `(setf (gethash ,(intern (string-upcase param-name)
 					       "KEYWORD")
 				      (idiom-composer-primitives ,idiom))
-			     (lambda (,items &optional ,properties ,process ,idiom ,space)
+			     (lambda (,tokens &optional ,properties ,process ,idiom ,space)
 			       (declare (ignorable ,properties ,process ,idiom ,space))
 			       ,(second param))))))))
 
