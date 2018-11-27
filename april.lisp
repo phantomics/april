@@ -559,9 +559,11 @@
 #||#
 
 (defun extract-axes (process tokens &optional axes)
+  ;;(print (list :to tokens))
   (if (and (listp (first tokens))
 	   (eq :axes (caar tokens)))
-      (extract-axes process (rest tokens)
+      (progn ;(print (list :ax tokens))
+	     (extract-axes process (rest tokens)
 		    (cons (loop for axis in (cdar tokens)
 			     collect (multiple-value-bind (item item-props remaining)
 					 (funcall process axis)
@@ -569,7 +571,7 @@
 				       (if (or (not item)
 					       (eq :array (first (getf item-props :type))))
 					   item (error "Invalid axis."))))
-			  axes))
+			  axes)))
       (values axes (first tokens)
 	      (rest tokens))))
       
