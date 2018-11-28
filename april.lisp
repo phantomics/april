@@ -261,8 +261,8 @@
 			(values output out-properties remaining))
 		 (values nil nil tokens))))
 	  ((and (numberp this-item)
-		(if (not (getf properties :type))
-		    t (eq :number (first (getf properties :type)))))
+		(or (not (getf properties :type))
+		    (eq :number (first (getf properties :type)))))
 	   (if axes (error "Axes cannot be applied to numbers.")
 	       (values this-item (list :type (list :array :number))
 		       (rest tokens))))
@@ -277,8 +277,8 @@
 		    (getf properties :symbol-overriding)
 		    (gethash this-item (gethash :values space))
 		    (not (gethash this-item (gethash :functions space))))
-		(if (not (getf properties :type))
-		    t (eq :symbol (first (getf properties :type)))))
+		(or (not (getf properties :type))
+		    (eq :symbol (first (getf properties :type)))))
 	   (values this-item (list :axes axes :type (list :symbol))
 		  remaining))
 	  (t (values nil nil tokens)))))
@@ -329,7 +329,7 @@
 	  (cdar tokens)
 	(let ((valid-by-valence (or (not (getf properties :valence))
 				    (eq op-type (getf properties :valence)))))
-	  ;; (print (list 11 (cdar tokens) op-type properties (getf properties :valence)))
+	  ;;(print (list 11 (cdar tokens) op-type properties (getf properties :valence)))
 	  (cond ((and valid-by-valence (getf properties :glyph))
 		 (if (char= op-symbol (aref (string (getf properties :glyph)) 0))
 		     (values op-symbol (list :type (list :operator op-type))
@@ -432,12 +432,12 @@
 (defmacro set-composer-patterns (name with &rest params)
   (let* ((with (rest with))
 	 (idiom (gensym)) (token (gensym)) (invalid (gensym)) (properties (gensym))
-	 (space (or (second (assoc :space-symbol with)) (gensym)))
-	 (precedent-symbol (second (assoc :precedent-symbol with)))
+	 (space (or (getf with :space-symbol) (gensym)))
+	 (precedent-symbol (getf with :precedent-symbol))
 	 (precedent (or precedent-symbol (gensym)))
-	 (process (or (second (assoc :process-symbol with)) (gensym)))
-	 (sub-properties (or (second (assoc :properties-symbol with)) (gensym)))
-	 (idiom-symbol (second (assoc :idiom-symbol with))))
+	 (process (or (getf with :process-symbol) (gensym)))
+	 (sub-properties (or (getf with :properties-symbol) (gensym)))
+	 (idiom-symbol (getf with :idiom-symbol)))
     `(defun ,(intern (string-upcase name)
 		     (package-name *package*))
 	 (,idiom)
@@ -1166,9 +1166,9 @@
  	    		   (args :one :one (lambda (omega alpha)
 					     (let ((omega (disclose omega))
 						   (alpha (disclose alpha)))
-					       (if (or (not numberp (omega))
-						       (not (numberp alpha)))
-						   (error "Both arguments to ? must be single numbers.")
+					       (if (or (not (integerp omega))
+						       (not (integerp alpha)))
+						   (error "Both arguments to ? must be single integers.")
 						   (make-array (list alpha)
 							       :initial-contents
 							       (loop for i from 0 to (1- alpha)
@@ -1262,13 +1262,12 @@
  	    (⍳ (has :titles ("Index" "Index Of"))
  	       (ambivalent (args :one (lambda (omega)
 					(let ((omega (disclose omega)))
-					  (if (not (numberp omega))
-					      (error "The argument to ⍳ must be a single number, i.e. ⍳9.")
+					  (if (not (integerp omega))
+					      (error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
 					      (make-array (list omega)
 							  :initial-contents
-							  (alexandria:iota omega
-									   :start (of-state (local-idiom april)
-											    :count-from)))))))
+							  (iota omega :start (of-state (local-idiom april)
+										       :count-from)))))))
 			   (args :any :any (lambda (omega alpha)
 					     (index-of omega alpha (of-state (local-idiom april)
 									     :count-from)))))
@@ -1744,8 +1743,8 @@
  	    		   (args :any :one :axes
  	    			 (lambda (omega alpha &optional axes)
 				   (let ((alpha (disclose alpha)))
-				     (if (not (numberp alpha))
-					 (error "The left argument to ⌽ must be a single number, i.e. 2⌽⍳10.")
+				     (if (not (integerp alpha))
+					 (error "The left argument to ⌽ must be a single integer, i.e. 2⌽⍳10.")
 					 (if (vectorp omega)
 					     (let ((new-array (copy-array omega)))
 					       (funcall (make-rotator alpha)
@@ -1772,8 +1771,8 @@
  	    		   (args :any :one :axes
  	    			 (lambda (omega alpha &optional axes)
 				   (let ((alpha (disclose alpha)))
-				     (if (not (numberp alpha))
-					 (error "The left argument to ⊖ must be a single number, i.e. 2⊖⍳10.")
+				     (if (not (integerp alpha))
+					 (error "The left argument to ⊖ must be a single integer, i.e. 2⊖⍳10.")
 					 (if (vectorp omega)
 					     (let ((new-array (copy-array omega)))
 					       (funcall (make-rotator alpha)
@@ -2097,7 +2096,7 @@
 	    ;; 	(tests (is "⍳¨1 2 3" #(1 #(1 2) #(1 2 3)))
 	    ;; 	       (is "1 ¯1⌽¨⊂1 2 3 4 5" #(#(2 3 4 5 1) #(5 1 2 3 4)))))
  	    (⍨ (has :title "Commute")
-	       (lateral (lambda (operand)
+	       (lateral (lambda (operand workspace)
 			  `(lambda (omega &optional alpha)
 			     (apl-call ,(if (not (characterp operand))
 					   operand (get-function-data (local-idiom april)
@@ -2107,20 +2106,31 @@
  	       (tests (is "5-⍨10" 5)
 		      (is "+⍨10" 20)))
  	    (∘ (has :title "Compose")
- 	       (pivotal (lambda (right left)
-			  `(lambda (omega &optional alpha)
-			     (apl-call (if alpha
-					   ,(if (not (characterp left))
-						left (get-function-data (local-idiom april)
-									left :dyadic))
-					   ,(if (not (characterp left))
-						left (get-function-data (local-idiom april)
-									left :monadic)))
-				       (apl-call ,(if (not (characterp right))
-						      right (get-function-data (local-idiom april)
-									       right :monadic))
-						 omega)
-				       alpha))))
+ 	       (pivotal (lambda (right left workspace)
+			  (flet ((is-fn (item)
+				   (or (characterp item)
+				       (and (listp item)
+					    (eql 'lambda (first item))))))
+			    `(lambda (omega &optional alpha)
+			       ,(cond ((and (is-fn right)
+					    (is-fn left))
+				       `(apl-call (if alpha
+						      ,@(loop for type in (list :dyadic :monadic)
+							   collect (if (not (characterp left))
+								       left (get-function-data (local-idiom april)
+											       left type))))
+						  (apl-call ,(if (not (characterp right))
+								 right (get-function-data (local-idiom april)
+											  right :monadic))
+							    omega)
+						  alpha))
+				      (t `(apl-call ,(get-function-data (local-idiom april)
+									(if (is-fn right) right left)
+									:dyadic)
+						    ,(if (not (is-fn right))
+							 right 'omega)
+						    ,(if (not (is-fn left))
+							 left 'omega))))))))
  	       (tests (is "fn←⍴∘⍴ ⋄ fn 2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" 1)
@@ -2322,15 +2332,9 @@
 	(with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
 	      :properties-symbol properties :processor-symbol process)
 	;; match an array, either inline line "1 2 3", referenced by a variable, or contained within a (closure)
-	(array	(destructure-tokens-array tokens idiom space properties process))
+	(array (destructure-tokens-array tokens idiom space properties process))
 	;; match a function, whether lexical like ⍳, symbolic like fn, or inline like {⍵+5}
 	(function (destructure-tokens-function tokens idiom space properties process))
-	;; match either an array or function reference
-	;; this is necessary for pivotal operators that may take array operands like ∘ and @
-	(function-or-array (multiple-value-bind (processed properties-output remaining)
-			       (destructure-tokens-function tokens idiom space properties process)
-			     (if processed (values processed properties-output remaining)
-				 (destructure-tokens-array tokens idiom space properties process))))
 	;; match a reference to an operator, this must be a lexical reference like ⍣
 	(operator (destructure-tokens-operator tokens idiom space properties process)))
 
@@ -2338,10 +2342,7 @@
 
        (set-composer-patterns
 	composer-opening-patterns-apl-standard
-	(with (:idiom-symbol idiom)
-	      (:space-symbol space)
-	      (:process-symbol process)
-	      (:properties-symbol properties))
+	(with :idiom-symbol idiom :space-symbol space :process-symbol process :properties-symbol properties)
 	(value
 	 ;; match an array like 1 2 3, marking the beginning of an array expression
 	 ;; ...or a functional expression if the array is an operand to a pivotal operator
@@ -2361,7 +2362,7 @@
 	 ((operator :element (operator :valence :lateral))
 	  (operand :pattern (:type (:function))))
 	 (funcall (get-operator-data idiom operator :lateral)
-		  operand)
+		  operand space)
 	 (list :type (list :function :operator-composed :lateral))))
 
        (progn (setf (vex::idiom-composer-opening-patterns *april-idiom*) nil)
@@ -2369,11 +2370,8 @@
 
        (set-composer-patterns
 	composer-following-patterns-apl-standard
-	(with (:idiom-symbol idiom)
-	      (:space-symbol space)
-	      (:process-symbol process)
-	      (:properties-symbol properties)
-	      (:precedent-symbol precedent))
+	(with :idiom-symbol idiom :space-symbol space :process-symbol process
+	      :properties-symbol properties :precedent-symbol precedent)
 	(value-assignment
 	 ;; match a value assignment like a←1 2 3, part of an array expression
 	 ((:with-preceding-type :array)
@@ -2401,9 +2399,9 @@
 	 ;; match a pivotal function composition like ×.+, part of a functional expression
 	 ;; it may come after either a function or an array, since some operators take array operands
 	 ((operator :element (operator :valence :pivotal))
-	  (operand :pattern (:type (:function))))
+	  (operand :pattern (:match :any)));(:type (:function))))
 	 (funcall (get-operator-data idiom operator :pivotal)
-		  precedent operand)
+		  precedent operand space)
 	 (list :type (list :function :operator-composed :pivotal)))
 	(operation
 	 ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
