@@ -17,29 +17,29 @@
                   :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
-   (utilities-spec :accessor idiom-utilities-spec
-		   :initarg :utilities-spec)
-   (functions :accessor idiom-functions
-	      :initform nil
-	      :initarg :functions)
-   (functions-spec :accessor idiom-functions-spec
-		   :initform nil
-		   :initarg :functions-spec)
-   (operators :accessor idiom-operators
-	      :initform nil
-	      :initarg :operators)
-   (operators-spec :accessor idiom-operators-spec
-		   :initform nil
-		   :initarg :operators-spec)
-   (operational-glyphs :accessor idiom-opglyphs
-		       :initform nil
-		       :initarg :operational-glyphs)
-   (operator-index :accessor idiom-opindex
-		   :initform nil
-		   :initarg :operator-index)
-   (overloaded-lexicon :accessor idiom-overloaded-lexicon
-		       :initform nil
-		       :initarg :overloaded-lexicon)
+   ;; (utilities-spec :accessor idiom-utilities-spec
+   ;; 		   :initarg :utilities-spec)
+   ;; (functions :accessor idiom-functions
+   ;; 	      :initform nil
+   ;; 	      :initarg :functions)
+   ;; (functions-spec :accessor idiom-functions-spec
+   ;; 		   :initform nil
+   ;; 		   :initarg :functions-spec)
+   ;; (operators :accessor idiom-operators
+   ;; 	      :initform nil
+   ;; 	      :initarg :operators)
+   ;; (operators-spec :accessor idiom-operators-spec
+   ;; 		   :initform nil
+   ;;		   :initarg :operators-spec)
+   ;; (operational-glyphs :accessor idiom-opglyphs
+   ;; 		       :initform nil
+   ;; 		       :initarg :operational-glyphs)
+   ;; (operator-index :accessor idiom-opindex
+   ;; 		   :initform nil
+   ;; 		   :initarg :operator-index)
+   ;; (overloaded-lexicon :accessor idiom-overloaded-lexicon
+   ;; 		       :initform nil
+   ;; 		       :initarg :overloaded-lexicon)
 
    ;;;
    (lexicons :accessor idiom-lexicons
@@ -75,20 +75,24 @@
   "Retrieve one of the idiom's utilities used for parsing and language processing."
   (getf (idiom-utilities idiom) utility))
 
-(defgeneric of-functions (idiom key))
-(defmethod of-functions ((idiom idiom) key)
-  "Retrive one of the idiom's functions."
-  (gethash key (idiom-functions idiom)))
+;; (defgeneric of-functions (idiom key))
+;; (defmethod of-functions ((idiom idiom) key)
+;;   "Retrive one of the idiom's functions."
+;;   (gethash key (idiom-functions idiom)))
 
-(defgeneric of-operators (idiom key))
-(defmethod of-operators ((idiom idiom) key)
-  "Retrive one of the idiom's operators."
-  (gethash key (idiom-operators idiom)))
+;; (defgeneric of-operators (idiom key))
+;; (defmethod of-operators ((idiom idiom) key)
+;;   "Retrive one of the idiom's operators."
+;;   (gethash key (idiom-operators idiom)))
 
-(defgeneric of-overloaded? (idiom key))
-(defmethod of-overloaded? ((idiom idiom) key)
-  "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
-  (member key (idiom-overloaded-lexicon idiom)))
+;; (defgeneric of-overloaded? (idiom key))
+;; (let ((overloaded-lexicon nil))
+;;   (defmethod of-overloaded? ((idiom idiom) key)
+;;     "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
+;;     (if (not overloaded-lexicon)
+;; 	(setq overloaded-lexicon (intersection (getf (idiom-lexicons idiom) :functions)
+;; 					       (getf (idiom-lexicons idiom) :operators))))
+;;     (member key overloaded-lexicon)))
 
 (defmethod make-load-form ((idiom idiom) &optional environment)
   (declare (ignore environment))
@@ -98,12 +102,13 @@
   `(make-instance ',(class-of idiom)
 		  :name ',(idiom-name idiom)
 		  :state ',(idiom-state idiom)
-		  :utilities ,(cons 'list (idiom-utilities-spec idiom))
-		  :functions ,(idiom-functions-spec idiom)
-		  :operators ,(idiom-operators-spec idiom)
-		  :operational-glyphs ',(idiom-opglyphs idiom)
-		  :operator-index ',(idiom-opindex idiom)
-		  :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)))
+		  ;; :utilities ,(cons 'list (idiom-utilities-spec idiom))
+		  ;; :functions ,(idiom-functions-spec idiom)
+		  ;; :operators ,(idiom-operators-spec idiom)
+		  ;; :operational-glyphs ',(idiom-opglyphs idiom)
+		  ;; :operator-index ',(idiom-opindex idiom)
+		  ;; :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)
+		  ))
 
 ;;;
 
@@ -173,8 +178,9 @@
 	(lexicon-data nil)
 	(functions-data (list :monadic (make-hash-table)
 			      :dyadic (make-hash-table)))
-	(operators-data (list :lateral (make-hash-table)
-			      :pivotal (make-hash-table))))
+	;; (operators-data (list :lateral (make-hash-table)
+	;; 		      :pivotal (make-hash-table)))
+	(operators-data (list :lateral nil :pivotal nil)))
     (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
 	       (if pairs
 		   (process-pairs table-symbol type-symbol (rest pairs)
@@ -205,42 +211,34 @@
 				      (if (getf (getf (rest this-lex) :functions) :dyadic)
 				      	  (setf (gethash glyph-char (getf functions-data :dyadic))
 				      		(getf (getf (rest this-lex) :functions) :dyadic)))
-				      (if (member :lateral-operators (getf (rest this-lex) :lexicons))
-				      	  (setf (gethash glyph-char (getf operators-data :lateral))
-				      		(getf (rest this-lex) :operators)))
-				      (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
-				      	  (setf (gethash glyph-char (getf operators-data :pivotal))
-				      		(getf (rest this-lex) :operators))))
-				    (list (cons glyph-char (first output))
-				    	  (append (second output)
-				    		  (cond ((and (eql 'fn-specs table-symbol)
-				    			      (eq :symbolic
-				    				  (intern (string-upcase
-				    					   (first (third (first pairs))))
-				    					  "KEYWORD")))
-				    			 ;; assign symbolic functions as just keywords in the table
-				    			 `((gethash ,glyph-char ,table-symbol)
-				    			   ,(second (third (first pairs)))))
-				    			;; assign functions in hash table
-				    			;; ((eql 'fn-specs table-symbol)
-				    			;;  `((gethash ,glyph-char ,table-symbol)
-				    			;;    ,(if (and (listp (second (third (first pairs))))
-				    			;; 	     (eq :macro
-				    			;; 		 (intern (string-upcase
-				    			;; 			  (first (second (third
-				    			;; 					  (first pairs)))))
-				    			;; 			 "KEYWORD")))
-				    			;; 	(macroexpand
-				    			;; 	 (second (second (third (first pairs)))))
-				    			;; 	(macroexpand
-				    			;; 	 (cons (second oprocess)
-				    			;; 	       (list (third (first pairs))))))))
-				    			;; assign operators in hash table
-				    			((eql 'op-specs table-symbol)
-				    			 `((gethash ,glyph-char ,table-symbol)
-				    			   ,(macroexpand (second (third (first pairs))))))))
-				    	  accumulator)
-				    ))
+				      ;; (if (member :lateral-operators (getf (rest this-lex) :lexicons))
+				      ;; 	  (setf (gethash glyph-char (getf operators-data :lateral))
+				      ;; 		(getf (rest this-lex) :operators)))
+				      ;; (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
+				      ;; 	  (setf (gethash glyph-char (getf operators-data :pivotal))
+				      ;; 		(getf (rest this-lex) :operators)))
+				      (append output
+					      (if (member :lateral-operators (getf (rest this-lex) :lexicons))
+						  `((gethash ,glyph-char (getf ,table-symbol :lateral))
+						    ,(getf (rest this-lex) :operators))
+						  (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
+						      `((gethash ,glyph-char (getf ,table-symbol :pivotal))
+							,(getf (rest this-lex) :operators))))
+					  ;;     (list (cons glyph-char (first output))
+				    	  ;; (append (second output)
+				    	  ;; 	  (cond ((and (eql 'fn-specs table-symbol)
+				    	  ;; 		      (eq :symbolic
+				    	  ;; 			  (intern (string-upcase
+				    	  ;; 				   (first (third (first pairs))))
+				    	  ;; 				  "KEYWORD")))
+				    	  ;; 		 ;; assign symbolic functions as just keywords in the table
+				    	  ;; 		 `((gethash ,glyph-char ,table-symbol)
+				    	  ;; 		   ,(second (third (first pairs)))))
+				    	  ;; 		((eql 'op-specs table-symbol)
+				    	  ;; 		 `((gethash ,glyph-char ,table-symbol)
+				    	  ;; 		   ,(macroexpand (second (third (first pairs))))))))
+				    	  ;; accumulator)
+					      ))))
 		   output))
 
 	     (process-optests (specs &optional output)
@@ -293,6 +291,9 @@
 							    ,(getf this-spec :ex)
 							    :test #'equalp)))))
 		   output)))
+      (setf (getf lexicon-data :overloaded)
+	    (intersection (getf lexicon-data :functions)
+			  (getf lexicon-data :operators)))
       (let* ((function-specs (process-pairs 'fn-specs :functions
 					    (rest (assoc (intern "FUNCTIONS" (package-name *package*))
 							 subspecs))))
@@ -314,20 +315,23 @@
 					       ,(cons 'list
 						      (rest (assoc (intern "UTILITIES" (package-name *package*))
 								   subspecs)))
-					       :utilities-spec
-					       (quote ,(rest (assoc (intern "UTILITIES"
-									    (package-name *package*))
-								    subspecs)))
-					       :operational-glyphs (list ,@(derive-opglyphs
-									    (append (first function-specs)
-										    (first operator-specs))))
-					       :overloaded-lexicon (list ,@(intersection (first function-specs)
-											 (first operator-specs)))
-					       :operator-index (list ,@(third operator-specs))
+					       ;; :utilities-spec
+					       ;; (quote ,(rest (assoc (intern "UTILITIES"
+					       ;; 				    (package-name *package*))
+					       ;; 			    subspecs)))
+					       ;; :operational-glyphs (list ,@(derive-opglyphs
+					       ;; 				    (append (first function-specs)
+					       ;; 					    (first operator-specs))))
+					       ;; :overloaded-lexicon (list ,@(intersection (first function-specs)
+					       ;; 						 (first operator-specs)))
+					       ;; :operator-index (list ,@(third operator-specs))
 					       ;;;
 					       :lexicons (quote ,lexicon-data)
 					       :functions-2 (quote ,functions-data)
-					       :operators-2 (quote ,operators-data)
+					       :operators-2 (let ((op-specs (list :lateral (make-hash-table)
+										  :pivotal (make-hash-table))))
+							      (setf ,@operator-specs)
+							      op-specs)
 					       )))
 	`(progn (defvar ,idiom-symbol)
 		(setf ,idiom-symbol ,idiom-definition)
@@ -444,11 +448,7 @@
 				   each-axis))))
 
 	   (handle-function (input-string)
-	     (list :fn ;; (funcall (of-utilities idiom :format-function)
-		       ;; 		(string-upcase (idiom-name idiom))
-		       ;; 		(vex-program idiom nil(list (list :compile-only))
-		       ;; 			     input-string meta t))
-		   (parse input-string (=vex-lines idiom meta)))))
+	     (list :fn (parse input-string (=vex-lines idiom meta)))))
 
     (=destructure (_ item _ rest)
 	(=list (%any (?blank-character))
@@ -459,13 +459,15 @@
 		    (=transform (=subseq (%some (?satisfies (let ((ix 0))
 							      (lambda (char)
 								(and (not (< 2 (incf ix 1)))
-								     (member char (idiom-opglyphs idiom))))))))
+								     (or (of-lexicon idiom :functions char)
+									 (of-lexicon idiom :operators char))
+								     ;; (member char (idiom-opglyphs idiom))
+								     ))))))
 				(lambda (string)
 				  (let ((char (character string)))
-				    `(,(cond ((of-lexicon idiom :operators char)
-					      :op)
-					     ((of-lexicon idiom :functions char)
-					      :fn))
+				    `(,(if (of-lexicon idiom :operators char)
+					   :op (if (of-lexicon idiom :functions char)
+						   :fn))
 				       ,@(if (of-lexicon idiom :operators char)
 					     (list (if (of-lexicon idiom :pivotal-operators char)
 						       :pivotal :lateral)))
@@ -477,12 +479,6 @@
 					   meta string))))
 	       (%any (?blank-character))
 	       (=subseq (%any (?satisfies 'characterp))))
-      ;; (if (< 0 (length rest))
-      ;; 	  (parse rest (=vex-string idiom meta (if output (cons (cons item (first output))
-      ;; 							       (rest output))
-      ;; 						  (list (list item)))))
-      ;; 	  (cons (cons item (first output))
-      ;; 		(rest output)))
       (if (< 0 (length rest))
 	  (parse rest (=vex-string idiom meta (if output (cons item output)
 						  (list item))))
@@ -563,10 +559,7 @@
 		   (destructuring-bind (out remaining)
 		       (parse lines (=vex-lines idiom meta))
 		     ;;(print (list :oo out remaining))
-		     ;; (process-lines remaining (append output (list (expression idiom meta (list out)))))
-		     ;; (process-lines remaining (append output (list (april::composer idiom meta (first out)))))
-		     (process-lines remaining (append output (list (april::composer idiom meta out))))
-		     ))))
+		     (process-lines remaining (append output (list (april::composer idiom meta out))))))))
 
       ;;(print meta)
       
