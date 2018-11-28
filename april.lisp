@@ -339,25 +339,6 @@
 					  (rest tokens)))
 		(t (values nil nil tokens)))))))
 
-(set-composer-primitives
- composer-primitives-apl-standard
- (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
-       :properties-symbol properties :processor-symbol process)
- ;; match an array, either inline line "1 2 3", referenced by a variable, or contained within a (closure)
- (array	(destructure-tokens-array tokens idiom space properties process))
- ;; match a function, whether lexical like ⍳, symbolic like fn, or inline like {⍵+5}
- (function (destructure-tokens-function tokens idiom space properties process))
- ;; match either an array or function reference
- ;; this is necessary for pivotal operators that may take array operands like ∘ and @
- (function-or-array (multiple-value-bind (processed properties-output remaining)
-			(destructure-tokens-function tokens idiom space properties process)
-		      (if processed (values processed properties-output remaining)
-			  (destructure-tokens-array tokens idiom space properties process))))
- ;; match a reference to an operator, this must be a lexical reference like ⍣
- (operator (destructure-tokens-operator tokens idiom space properties process)))
-
-(composer-primitives-apl-standard *april-idiom*)
-
 (defun composer (idiom space tokens &optional precedent properties)
   ;; (print (list :comp tokens precedent properties))
   (if (not tokens)
@@ -494,106 +475,40 @@
 			    `(vex::idiom-composer-opening-patterns ,idiom))))))))
 
 (defmacro apl-call (function &rest arguments)
-  `(,(if (eql 'scalar-function (first function))
-	 (if (= 1 (length arguments))
-	     'apply-scalar-monadic 'apply-scalar-dyadic)
-	 'funcall)
-	 ,function ,@arguments))
+  `(apply (function ,(if (eql 'scalar-function (first function))
+			 (if (= 1 (length arguments))
+			     'apply-scalar-monadic 'apply-scalar-dyadic)
+			 'funcall))
+	  (append (list ,function ,(first arguments))
+		  (if ,(second arguments)
+		      (list ,(second arguments)))
+		  (if ,(third arguments)
+		      (list ,(third arguments))))))
 
 (defmacro scalar-function (function)
   (if (symbolp function)
       `(function ,function)
       function))
 
-(set-composer-patterns
- composer-opening-patterns-apl-standard
- (with (:idiom-symbol idiom)
-       (:space-symbol space)
-       (:process-symbol process)
-       (:properties-symbol properties))
- (value
-  ;; match an array like 1 2 3, marking the beginning of an array expression
-  ;; ...or a functional expression if the array is an operand to a pivotal operator
-  ((value :element array :times :any))
-  (let ((value (output-value value properties)))
-    value)
-  (list :type (list :array :explicit)))
- (function
-  ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
-  ((function-element :element function :times 1))
-  ;; (assemble-operation idiom function-element)
-  function-element
-  (list :type (list :function :symbol-function)
-	:axes (getf (first properties) :axes)))
- (lateral-composition
-  ;; match a lateral function composition like +/, marking the beginning of a functional expression
-  ((operator :element (operator :valence :lateral))
-   (function :pattern (:type (:function))))
-  `(funcall ,(get-operator-data idiom operator :lateral)
-	    ,function)
-  (list :type (list :function :operator-composed :lateral))))
+;; (progn ;(print (list :prec precedent operator))
+;; 	 `(funcall ,(get-operator-data idiom operator :pivotal)
+;; 		   ,function ,precedent))
+;; (funcall (get-operator-data idiom operator :pivotal)
+;; 	    (if (not (characterp precedent))
+;; 		precedent (get-function-data idiom precedent :dyadic))
+;; 	    (if (not (characterp operand))
+;; 		operand (get-function-data idiom operand :dyadic)))
 
-(progn (setf (vex::idiom-composer-opening-patterns *april-idiom*) nil)
-       (composer-opening-patterns-apl-standard *april-idiom*))
-
-(set-composer-patterns
- composer-following-patterns-apl-standard
- (with (:idiom-symbol idiom)
-       (:space-symbol space)
-       (:process-symbol process)
-       (:properties-symbol properties)
-       (:precedent-symbol precedent))
- (value-assignment
-  ;; match a value assignment like a←1 2 3, part of an array expression
-  ((:with-preceding-type :array)
-   (assignment-function :element (function :glyph ←))
-   (symbol :element (array :symbol-overriding t)))
-  (progn (setf (gethash symbol (gethash :values space))
-	       precedent)
-	 (if (gethash symbol (gethash :functions space))
-	     (setf (gethash symbol (gethash :functions space))
-		   nil))
-	 `(setq ,symbol ,precedent))
-  (list :type (list :array :assigned)))
- (function-assignment
-  ;; match a function assignment like f←{⍵×2}, part of a functional expression
-  ((:with-preceding-type :function)
-   (assignment-function :element (function :glyph ←))
-   (symbol :element (array :symbol-overriding t)))
-  (progn (setf (gethash symbol (gethash :functions space))
-	       precedent)
-	  (if (gethash symbol (gethash :values space))
-	      (setf (gethash symbol (gethash :values space))
-		    nil))
-	 `(setq ,symbol ,precedent)))
- (pivotal-composition
-  ;; match a pivotal function composition like ×.+, part of a functional expression
-  ;; it may come after either a function or an array, since some operators take array operands
-  ((operator :element (operator :valence :pivotal))
-   (function :pattern (:type (:function))))
-  (progn ;(print (list :prec precedent operator))
-	 `(funcall ,(get-operator-data idiom operator :pivotal)
-		   ,function ,precedent))
-  (list :type (list :function :operator-composed :pivotal)))
- (operation
-  ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
-  ((:with-preceding-type :array)
-   (function-element :pattern (:type (:function)))
-   (value :element array :times :any :optional t))
-  (let ((function-assembler (if (or (functionp function-element)
-				    (member :operator-composed (getf (first properties) :type)))
-				function-element (assemble-operation idiom function-element))))
-    ;; (print (list :prop properties))
-    (if (functionp function-assembler)
-	(funcall function-assembler :right-arg precedent :left-arg (output-value value (rest properties))
-		 :axes (getf (first properties) :axes))
-	`(eval (funcall ,function-assembler :right-arg ,precedent
-			:left-arg ,(output-value value (rest properties))
-			:axes ,(getf (first properties) :axes)))))
-  (list :type (list :array :evaluated))))
-
-(progn (setf (vex::idiom-composer-following-patterns *april-idiom*) nil)
-       (composer-following-patterns-apl-standard *april-idiom*))
+;; (let ((function-assembler (if (or (functionp function-element)
+;; 				    (member :operator-composed (getf (first properties) :type)))
+;; 				function-element (assemble-operation idiom function-element))))
+;;   ;; (print (list :prop properties))
+;;   (if (functionp function-assembler)
+;; 	(funcall function-assembler :right-arg precedent :left-arg (output-value value (rest properties))
+;; 		 :axes (getf (first properties) :axes))
+;; 	`(eval (funcall ,function-assembler :right-arg ,precedent
+;; 			:left-arg ,(output-value value (rest properties))
+;; 			:axes ,(getf (first properties) :axes)))))
 
 ;; (multiple-value-bind (function-object-left format-function-left verify-omega-left verify-alpha-left)
 ;;     (process-function-spec idiom function nil)
@@ -630,12 +545,6 @@
 					     :lateral :pivotal)))
 		,right ,@(if left (list left)))))
 
-(defun format-operation (type function omega &optional alpha axes)
-  `(;; ,(if (eq :scalar type)
-    ;; 	 'call-scalar 'funcall)
-     apl-call
-     ,function ,omega ,@(if alpha (list alpha)) ,@(if axes `((list ,@(first axes))))))
-
 (defun validate-arg-unitary (value)
   (or (symbolp value)
       (numberp value)
@@ -671,6 +580,23 @@
   (lambda (&key (right-arg nil) (left-arg nil) (axes nil))
     (multiple-value-bind (function-content arg-specs lexicons)
 	(get-function-data idiom function (if left-arg :dyadic :monadic))
+      (let* ((right-unitary (and arg-specs (eq :one (first arg-specs))))
+	     (left-unitary (and arg-specs left-arg (eq :one (second arg-specs))))
+	     (verify-right (if right-unitary #'validate-arg-unitary (lambda (i) (declare (ignore i)) t)))
+	     (verify-left (if left-unitary #'validate-arg-unitary (lambda (i) (declare (ignore i)) t)))
+	     (right-arg (if right-unitary `(disclose ,right-arg) right-arg))
+	     (left-arg (if left-unitary `(disclose ,left-arg) left-arg)))
+	(if (not (funcall verify-right right-arg))
+	    (error "Right argument must be unitary.")
+	    (if (and left-arg (not (funcall verify-left left-arg)))
+		(error "Left argument must be unitary.")
+		`(apl-call ,function-content ,right-arg ,@(if left-arg (list left-arg))
+			   ,@(if axes `((list ,@(first axes)))))))))))
+
+(defun assemble-operation-old (idiom function)
+  (lambda (&key (right-arg nil) (left-arg nil) (axes nil))
+    (multiple-value-bind (function-content arg-specs lexicons)
+	(get-function-data idiom function (if left-arg :dyadic :monadic))
       (let* ((function-type (if (or (and left-arg (member :scalar-dyadic-functions lexicons))
 				    (and (not left-arg)
 					 (member :scalar-monadic-functions lexicons)))
@@ -685,7 +611,8 @@
 	    (error "Right argument must be unitary.")
 	    (if (and left-arg (not (funcall verify-left left-arg)))
 		(error "Left argument must be unitary.")
-		(format-operation function-type function-content right-arg left-arg axes)))))))
+		`(apl-call ,function-content ,right-arg ,@(if left-arg (list left-arg))
+			   ,@(if axes `((list ,@(first axes)))))))))))
 
 (defun rev-fun (function)
   (lambda (&key (right-arg nil) (left-arg nil) (axes nil))
@@ -1045,18 +972,10 @@
 					     (list :dyadic-functions :scalar-dyadic-functions)))
 		 :functions (,@(if (or (eq :ambivalent function-type)
 				       (eq :monadic function-type))
-				   (list :monadic ;; (let ((fn (second spec-body)))
-						  ;;   (if (symbolp fn)
-						  ;; 	`(scalar-function ,fn)
-						  ;; 	fn))
-					 `(scalar-function ,(second spec-body))))
+				   (list :monadic `(scalar-function ,(second spec-body))))
 			       ,@(if (or (eq :ambivalent function-type)
 					 (eq :dyadic function-type))
-				     (list :dyadic ;; (let ((fn (first (last spec-body))))
-						   ;;   (if (symbolp fn)
-						   ;; 	 `(scalar-function ,fn)
-						   ;; 	 fn))
-					   `(scalar-function ,(first (last spec-body)))))))
+				     (list :dyadic `(scalar-function ,(first (last spec-body)))))))
 	`(,glyph :lexicons (,@(cond ((eq :functions type)
 				     `(:functions ,@(if (eq :ambivalent function-type)
 							(list :monadic-functions :dyadic-functions)
@@ -1089,7 +1008,7 @@
 					  ,@(if (eq :ambivalent function-type)
 						(list :dyadic (if (and (eql 'args (caadr spec-body))
 								       (eq :scalar (cadadr spec-body)))
-								  (third (second spec-body))
+								  `(scalar-function ,(third (second spec-body)))
 								  (second spec-body)))
 						(if (eq :dyadic function-type)
 						    (list :dyadic (if (and (eql 'args (caar spec-body))
@@ -1098,7 +1017,6 @@
 								      (first spec-body))))))))
 			 ((eq :operators type)
 			  `(:operators ,(first spec-body))))))))
-
 
 (vex-spec
  april
@@ -1116,7 +1034,7 @@
 	    (lambda (char)
 	      ;; the ¯ character must be expressed as #\macron to be correctly processed
 	      (or (alphanumericp char)
-		  (member char (list #\∆ #\⍙ #\¯ #\. #\⍺ #\⍵ #\⍬))))
+		  (member char (list #\. #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
 	    :prep-code-string
 	    (lambda (string)
 	      ;; this code preprocessor removes comments, including comment-only lines
@@ -1246,19 +1164,28 @@
  	    				      (of-state (local-idiom april)
 							:count-from))))
  	    		   (args :one :one (lambda (omega alpha)
- 	    				     (make-array (list alpha)
- 	    						 :initial-contents
- 	    						 (loop for i from 0 to (1- alpha)
- 	    						    collect (+ (random omega)
- 	    							       (of-state (local-idiom april)
-										 :count-from))))))))
+					     (let ((omega (disclose omega))
+						   (alpha (disclose alpha)))
+					       (if (or (not numberp (omega))
+						       (not (numberp alpha)))
+						   (error "Both arguments to ? must be single numbers.")
+						   (make-array (list alpha)
+							       :initial-contents
+							       (loop for i from 0 to (1- alpha)
+								  collect (+ (random omega)
+									     (of-state (local-idiom april)
+										       :count-from))))))))))
      	    (○ (has :titles ("Pi Times" "Circular"))
  	       (ambivalent (args :scalar (lambda (omega) (* pi omega)))
- 	    		   (args :any :one (lambda (omega alpha)
-					     ;; the twelfth element of the vector corresponds to
-					     ;; index 0, hence an offset of 12 from the vector's first element
-					     (apply-scalar-monadic (aref *circular-functions* (+ 12 alpha))
-								   omega))))
+ 	    		   (args :any :one
+				 (lambda (omega alpha)
+				   (let ((alpha (disclose alpha)))
+				     (if (not (numberp alpha))
+					 (error "The left argument to ○ must be a single number, i.e. 2○10.")
+					 ;; the twelfth element of the vector corresponds to
+					 ;; index 0, hence an offset of 12 from the vector's first element
+					 (apply-scalar-monadic (aref *circular-functions* (+ 12 alpha))
+							       omega))))))
  	       (tests (is "⌊100000×○1" 314159)
  		      (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)))
  	    (\~ (has :titles ("Not" "Without"))
@@ -1334,11 +1261,14 @@
  	       (tests (is "0 1 0 1 ⍱ 0 0 1 1" #(1 0 0 0))))
  	    (⍳ (has :titles ("Index" "Index Of"))
  	       (ambivalent (args :one (lambda (omega)
- 	    				(make-array (list omega)
- 	    					    :initial-contents
- 	    					    (alexandria:iota omega
-								     :start (of-state (local-idiom april)
-										      :count-from)))))
+					(let ((omega (disclose omega)))
+					  (if (not (numberp omega))
+					      (error "The argument to ⍳ must be a single number, i.e. ⍳9.")
+					      (make-array (list omega)
+							  :initial-contents
+							  (alexandria:iota omega
+									   :start (of-state (local-idiom april)
+											    :count-from)))))))
 			   (args :any :any (lambda (omega alpha)
 					     (index-of omega alpha (of-state (local-idiom april)
 									     :count-from)))))
@@ -1813,15 +1743,18 @@
  	    							      (1- (rank omega)))))))
  	    		   (args :any :one :axes
  	    			 (lambda (omega alpha &optional axes)
- 	    			   (if (vectorp omega)
- 	    			       (let ((new-array (copy-array omega)))
- 	    				 (funcall (make-rotator alpha)
- 	    					  new-array)
- 	    				 new-array)
- 	    			       (if (arrayp omega)
- 	    				   (apply-marginal (make-rotator alpha)
- 	    						   omega (if axes (1- (aref (first axes) 0)))
- 	    						   (1- (rank omega))))))))
+				   (let ((alpha (disclose alpha)))
+				     (if (not (numberp alpha))
+					 (error "The left argument to ⌽ must be a single number, i.e. 2⌽⍳10.")
+					 (if (vectorp omega)
+					     (let ((new-array (copy-array omega)))
+					       (funcall (make-rotator alpha)
+							new-array)
+					       new-array)
+					     (if (arrayp omega)
+						 (apply-marginal (make-rotator alpha)
+								 omega (if axes (1- (aref (first axes) 0)))
+								 (1- (rank omega))))))))))
  	       (tests (is "⌽1 2 3 4 5" #(5 4 3 2 1))
  	    	      (is "⌽3 4⍴⍳9" #2A((4 3 2 1) (8 7 6 5) (3 2 1 9)))
  	    	      (is "2⌽3 4⍴⍳9" #2A((3 4 1 2) (7 8 5 6) (2 3 9 1)))))
@@ -1838,15 +1771,18 @@
  	    							      0)))))
  	    		   (args :any :one :axes
  	    			 (lambda (omega alpha &optional axes)
- 	    			   (if (vectorp omega)
- 	    			       (let ((new-array (copy-array omega)))
- 	    				 (funcall (make-rotator alpha)
- 	    					  new-array)
- 	    				 new-array)
- 	    			       (if (arrayp omega)
- 	    				   (apply-marginal (make-rotator alpha)
- 	    						   omega (if axes (1- (aref (first axes) 0)))
- 	    						   0))))))
+				   (let ((alpha (disclose alpha)))
+				     (if (not (numberp alpha))
+					 (error "The left argument to ⊖ must be a single number, i.e. 2⊖⍳10.")
+					 (if (vectorp omega)
+					     (let ((new-array (copy-array omega)))
+					       (funcall (make-rotator alpha)
+							new-array)
+					       new-array)
+					     (if (arrayp omega)
+						 (apply-marginal (make-rotator alpha)
+								 omega (if axes (1- (aref (first axes) 0)))
+								 0))))))))
  	       (tests (is "⊖1 2 3 4 5" #(5 4 3 2 1))
  	    	      (is "⊖3 4⍴⍳9" #2A((9 1 2 3) (5 6 7 8) (1 2 3 4)))
  	    	      (is "1⊖3 4⍴⍳9" #2a((5 6 7 8) (9 1 2 3) (1 2 3 4)))))
@@ -2161,30 +2097,30 @@
 	    ;; 	(tests (is "⍳¨1 2 3" #(1 #(1 2) #(1 2 3)))
 	    ;; 	       (is "1 ¯1⌽¨⊂1 2 3 4 5" #(#(2 3 4 5 1) #(5 1 2 3 4)))))
  	    (⍨ (has :title "Commute")
- 	       (lateral (lambda (function)
-			  (lambda (&key (right-arg nil) (left-arg nil) (axes nil))
-			    (funcall (assemble-operation (local-idiom april) function)
-				     :left-arg (if right-arg right-arg left-arg)
-				     :axes axes :right-arg left-arg))))
+	       (lateral (lambda (operand)
+			  `(lambda (omega &optional alpha)
+			     (apl-call ,(if (not (characterp operand))
+					   operand (get-function-data (local-idiom april)
+								      operand :dyadic))
+				       (if alpha alpha omega)
+				       omega))))
  	       (tests (is "5-⍨10" 5)
 		      (is "+⍨10" 20)))
  	    (∘ (has :title "Compose")
  	       (pivotal (lambda (right left)
-			  (lambda (&key (right-arg nil) (left-arg nil) (axes nil))
-			    (declare (ignorable axes))
-			    (funcall (assemble-operation (local-idiom april) left)
-				     :left-arg left-arg ;; :axes axes
-				     :right-arg (funcall (assemble-operation (local-idiom april) right)
-							 :right-arg right-arg)))
-			  ;; (lambda (omega &optional alpha)
-			  ;;   (funcall left (funcall right omega)
-			  ;; 	     ;; (if alpha alpha)
-			  ;; 	     ))
-			  )
-			;; (lambda (meta axes left-operand)
-	    		;;   (declare (ignore meta axes))
-	    		;;   (compose-stage left-operand))
-			)
+			  `(lambda (omega &optional alpha)
+			     (apl-call (if alpha
+					   ,(if (not (characterp left))
+						left (get-function-data (local-idiom april)
+									left :dyadic))
+					   ,(if (not (characterp left))
+						left (get-function-data (local-idiom april)
+									left :monadic)))
+				       (apl-call ,(if (not (characterp right))
+						      right (get-function-data (local-idiom april)
+									       right :monadic))
+						 omega)
+				       alpha))))
  	       (tests (is "fn←⍴∘⍴ ⋄ fn 2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴2 3 4⍴⍳9" 3)
  	    	      (is "⍴∘⍴∘⍴2 3 4⍴⍳9" 1)
@@ -2374,3 +2310,112 @@
 		      :in ("a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a")
 		      :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 			      (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))))
+
+
+
+
+
+
+
+(progn (set-composer-primitives
+	composer-primitives-apl-standard
+	(with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
+	      :properties-symbol properties :processor-symbol process)
+	;; match an array, either inline line "1 2 3", referenced by a variable, or contained within a (closure)
+	(array	(destructure-tokens-array tokens idiom space properties process))
+	;; match a function, whether lexical like ⍳, symbolic like fn, or inline like {⍵+5}
+	(function (destructure-tokens-function tokens idiom space properties process))
+	;; match either an array or function reference
+	;; this is necessary for pivotal operators that may take array operands like ∘ and @
+	(function-or-array (multiple-value-bind (processed properties-output remaining)
+			       (destructure-tokens-function tokens idiom space properties process)
+			     (if processed (values processed properties-output remaining)
+				 (destructure-tokens-array tokens idiom space properties process))))
+	;; match a reference to an operator, this must be a lexical reference like ⍣
+	(operator (destructure-tokens-operator tokens idiom space properties process)))
+
+       (composer-primitives-apl-standard *april-idiom*)
+
+       (set-composer-patterns
+	composer-opening-patterns-apl-standard
+	(with (:idiom-symbol idiom)
+	      (:space-symbol space)
+	      (:process-symbol process)
+	      (:properties-symbol properties))
+	(value
+	 ;; match an array like 1 2 3, marking the beginning of an array expression
+	 ;; ...or a functional expression if the array is an operand to a pivotal operator
+	 ((value :element array :times :any))
+	 (let ((value (output-value value properties)))
+	   value)
+	 (list :type (list :array :explicit)))
+	(function
+	 ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
+	 ((function-element :element function :times 1))
+	 ;; (assemble-operation idiom function-element)
+	 function-element
+	 (list :type (list :function :symbol-function)
+	       :axes (getf (first properties) :axes)))
+	(lateral-composition
+	 ;; match a lateral function composition like +/, marking the beginning of a functional expression
+	 ((operator :element (operator :valence :lateral))
+	  (operand :pattern (:type (:function))))
+	 (funcall (get-operator-data idiom operator :lateral)
+		  operand)
+	 (list :type (list :function :operator-composed :lateral))))
+
+       (progn (setf (vex::idiom-composer-opening-patterns *april-idiom*) nil)
+	      (composer-opening-patterns-apl-standard *april-idiom*))
+
+       (set-composer-patterns
+	composer-following-patterns-apl-standard
+	(with (:idiom-symbol idiom)
+	      (:space-symbol space)
+	      (:process-symbol process)
+	      (:properties-symbol properties)
+	      (:precedent-symbol precedent))
+	(value-assignment
+	 ;; match a value assignment like a←1 2 3, part of an array expression
+	 ((:with-preceding-type :array)
+	  (assignment-function :element (function :glyph ←))
+	  (symbol :element (array :symbol-overriding t)))
+	 (progn (setf (gethash symbol (gethash :values space))
+		      precedent)
+		(if (gethash symbol (gethash :functions space))
+		    (setf (gethash symbol (gethash :functions space))
+			  nil))
+		`(setq ,symbol ,precedent))
+	 (list :type (list :array :assigned)))
+	(function-assignment
+	 ;; match a function assignment like f←{⍵×2}, part of a functional expression
+	 ((:with-preceding-type :function)
+	  (assignment-function :element (function :glyph ←))
+	  (symbol :element (array :symbol-overriding t)))
+	 (progn (setf (gethash symbol (gethash :functions space))
+		      precedent)
+		(if (gethash symbol (gethash :values space))
+		    (setf (gethash symbol (gethash :values space))
+			  nil))
+		`(setq ,symbol ,precedent)))
+	(pivotal-composition
+	 ;; match a pivotal function composition like ×.+, part of a functional expression
+	 ;; it may come after either a function or an array, since some operators take array operands
+	 ((operator :element (operator :valence :pivotal))
+	  (operand :pattern (:type (:function))))
+	 (funcall (get-operator-data idiom operator :pivotal)
+		  precedent operand)
+	 (list :type (list :function :operator-composed :pivotal)))
+	(operation
+	 ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
+	 ((:with-preceding-type :array)
+	  (fn-element :pattern (:type (:function)))
+	  (value :element array :times :any :optional t))
+	 (let ((fn-content (if (not (characterp fn-element))
+			       fn-element (get-function-data idiom fn-element (if value :dyadic :monadic))))
+	       (axes (getf (first properties) :axes)))
+	   `(apl-call ,fn-content ,precedent ,@(if value (list (output-value value (rest properties))))
+		      ,@(if axes `((list ,@(first axes))))))
+	 (list :type (list :array :evaluated))))
+
+       (progn (setf (vex::idiom-composer-following-patterns *april-idiom*) nil)
+	      (composer-following-patterns-apl-standard *april-idiom*)))
