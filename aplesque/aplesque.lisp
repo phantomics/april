@@ -4,8 +4,8 @@
 
 (defun is-singleton (value)
   "Check whether this array has only one member, returning true if the argument is not an array."
-  (if (not (arrayp value))
-      t (loop for dim in (dims value) always (= 1 dim))))
+  (or (not (arrayp value))
+      (loop for dim in (dims value) always (= 1 dim))))
 
 (defun disclose (item)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
@@ -27,6 +27,7 @@
 (defun array-promote (array)
   "Promote an array to the next rank. The existing content will occupy 1 unit of the new dimension."
   (make-array (cons 1 (dims array))
+	      ;; TODO: this is very inefficient...
 	      :initial-contents (list (array-to-list array))))
 
 (defun array-to-list (array)

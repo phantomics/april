@@ -3,12 +3,11 @@
 (in-package #:april)
 
 (defparameter *circular-functions*
-  ;; APL's set of circular functions called using the ○ function with an alpha argument
+  ;; APL's set of circular functions called using the ○ function with a left argument
   (vector (lambda (input) (exp (* input #C(0 1))))
 	  (lambda (input) (* input #C(0 1)))
 	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'atanh #'acosh #'asinh (lambda (input) (* (sqrt (/ (1+ input) (1- input)))
-						     (1+ input)))
+	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
 	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
 	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
@@ -112,8 +111,8 @@
 		   (< 0 (length (second halves))))
 	      (complex (parse-apl-number-string (first halves) t)
 		       (parse-apl-number-string (second halves) t))))
-	;; either the macron or combining_macron character may be used as the high minus sign
-	(parse-number:parse-number (regex-replace-all "[¯̄]" nstring "-")))))
+	;; the macron character is converted to the high minus sign
+	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
 
 (defun format-value (idiom-name meta element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
@@ -220,6 +219,7 @@
 (defun destructure-tokens-array (tokens idiom space properties process)
   (multiple-value-bind (axes this-item remaining)
       (extract-axes process tokens)
+    ;; if the item is a closure, evaluate it and return the result
     (cond ((and (listp this-item)
 		(not (or (eq :fn (first this-item))
 			 (eq :op (first this-item)))))
@@ -233,17 +233,20 @@
 			      (getf out-properties :axes) axes)
 			(values output out-properties remaining))
 		 (values nil nil tokens))))
+	  ;; process numerical values
 	  ((and (numberp this-item)
 		(or (not (getf properties :type))
 		    (eq :number (first (getf properties :type)))))
 	   (if axes (error "Axes cannot be applied to numbers.")
 	       (values this-item (list :type (list :array :number))
 		       (rest tokens))))
+	  ;; process string values
 	  ((and (stringp this-item)
 		(or (not (getf properties :type))
 		    (eq :string (first (getf properties :type)))))
 	   (values this-item (list :axes axes :type (list :array :string))
 		   remaining))
+	  ;; process symbol-referenced values
 	  ((and (symbolp this-item)
 		(or (eql '⍵ this-item)
 		    (eql '⍺ this-item)
@@ -253,7 +256,16 @@
 		(or (not (getf properties :type))
 		    (eq :symbol (first (getf properties :type)))))
 	   (values this-item (list :axes axes :type (list :symbol))
-		  remaining))
+		   remaining))
+	  ;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
+	  ;; the appropriate cancellation flag
+	  ((and (getf properties :cancel-if)
+		(eq :pivotal-composition (getf properties :cancel-if))
+		(listp this-item)
+		(eq :op (first this-item))
+		(eq :pivotal (second this-item)))
+	   (values nil (list :cancel-flag :pivotal-composition)
+		   tokens))
 	  (t (values nil nil tokens)))))
 
 (defun destructure-tokens-function (tokens idiom space properties process)
@@ -355,7 +367,7 @@
 			   (multiple-value-bind (item item-props remaining)
 			       ;; (composer ,idiom ,tokens-symbol)
 			       (funcall ,process ,tokens-symbol)
-			     ;; (print 919)
+			     ;; (print (list 919 (quote ,item-properties)))
 			     ;; (print (list :composed item item-props remaining ,sub-props))
 			     (setq ,sub-props (cons item-props ,sub-props))
 			     ;; (setq ,sub-props item-props)
@@ -371,16 +383,20 @@
 			   (let ((matching t)
 				 (collected nil)
 				 (rem ,tokens-symbol)
-				 ;; (,sub-props nil)
-				 )
+				 (initial-remaining ,tokens-symbol))
 			     ;; (print (list :elem rem))
+			     (declare (ignorable initial-remaining))
 			     (loop ,@(if (eq :any multiple)
 					 `(:while (and matching rem))
-					 `(:for x from 0 to 0))
+					 `(:for x from 0 to ,(if multiple (1- multiple) 0)))
 				:do (multiple-value-bind (item item-props remaining)
 					,(element-check element-type)
 				      (setq ,sub-props (cons item-props ,sub-props))
-				      ;; (print (list :subs ,sub-props))
+				      ;; if a cancel-flag property is returned, void the collected items
+				      ;; and reset the remaining items back to the original list of tokens
+				      (if (getf item-props :cancel-flag)
+					  (setq rem initial-remaining
+						collected nil))
 				      (if item (setq collected (cons item collected)
 						     rem remaining)
 					  (setq matching nil))))
@@ -2091,6 +2107,7 @@
 				       (and (listp item)
 					    (eql 'lambda (first item))))))
 			    `(lambda (omega &optional alpha)
+			       (declare (ignorable alpha))
 			       ,(cond ((and (is-fn right)
 					    (is-fn left))
 				       `(apl-call (if alpha
@@ -2403,7 +2420,9 @@
     ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
     ((:with-preceding-type :array)
      (fn-element :pattern (:type (:function)))
-     (value :element array :times :any :optional t))
+     ;; the value match is canceled when encountering a pivotal operator composition on the left side
+     ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
+     (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
     (let ((fn-content (if (not (characterp fn-element))
 			  fn-element (get-function-data idiom fn-element (if value :dyadic :monadic))))
 	  (axes (getf (first properties) :axes)))
