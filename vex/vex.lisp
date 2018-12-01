@@ -17,40 +17,17 @@
                   :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
-   ;; (utilities-spec :accessor idiom-utilities-spec
-   ;; 		   :initarg :utilities-spec)
-   ;; (functions :accessor idiom-functions
-   ;; 	      :initform nil
-   ;; 	      :initarg :functions)
-   ;; (functions-spec :accessor idiom-functions-spec
-   ;; 		   :initform nil
-   ;; 		   :initarg :functions-spec)
-   ;; (operators :accessor idiom-operators
-   ;; 	      :initform nil
-   ;; 	      :initarg :operators)
-   ;; (operators-spec :accessor idiom-operators-spec
-   ;; 		   :initform nil
-   ;;		   :initarg :operators-spec)
-   ;; (operational-glyphs :accessor idiom-opglyphs
-   ;; 		       :initform nil
-   ;; 		       :initarg :operational-glyphs)
-   ;; (operator-index :accessor idiom-opindex
-   ;; 		   :initform nil
-   ;; 		   :initarg :operator-index)
-   ;; (overloaded-lexicon :accessor idiom-overloaded-lexicon
-   ;; 		       :initform nil
-   ;; 		       :initarg :overloaded-lexicon)
 
    ;;;
    (lexicons :accessor idiom-lexicons
 	     :initform nil
 	     :initarg :lexicons)
-   (functions-2 :accessor idiom-functions-2
+   (functions :accessor idiom-functions
 		:initform nil
-		:initarg :functions-2)
-   (operators-2 :accessor idiom-operators-2
+		:initarg :functions)
+   (operators :accessor idiom-operators
 		:initform nil
-		:initarg :operators-2)
+		:initarg :operators)
    
    (composer :accessor idiom-composer
 	   :initform nil
@@ -85,15 +62,6 @@
 ;;   "Retrive one of the idiom's operators."
 ;;   (gethash key (idiom-operators idiom)))
 
-;; (defgeneric of-overloaded? (idiom key))
-;; (let ((overloaded-lexicon nil))
-;;   (defmethod of-overloaded? ((idiom idiom) key)
-;;     "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
-;;     (if (not overloaded-lexicon)
-;; 	(setq overloaded-lexicon (intersection (getf (idiom-lexicons idiom) :functions)
-;; 					       (getf (idiom-lexicons idiom) :operators))))
-;;     (member key overloaded-lexicon)))
-
 (defmethod make-load-form ((idiom idiom) &optional environment)
   (declare (ignore environment))
   ;; Note that this definition only works because X and Y do not
@@ -124,15 +92,6 @@
 
 ;;;
 
-;; (defmacro boolean-op (operation omega &optional alpha)
-;;   "Converts output of a boolean operation from t/nil to 1/0."
-;;   `(lambda ,(if alpha (list omega alpha)
-;;   		(list omega))
-;;      (if (funcall (function ,operation)
-;;   		  ,@(if alpha (list omega alpha)
-;;   			(list omega)))
-;;   	 1 0)))
-
 (defmacro boolean-op (operation)
   `(lambda (omega &optional alpha)
      (let ((outcome (if alpha (funcall (function ,operation)
@@ -149,26 +108,11 @@
 				 omega))))
        (if outcome 1 0))))
 
-;; (defmacro reverse-op (operation omega &optional alpha)
-;;   (declare (ignore omega))
-;;   (if alpha `(lambda (omega alpha) (funcall (function ,operation)
-;; 					    alpha omega))
-;;       `(function, operation)))
-
 (defmacro reverse-op (operation)
   `(lambda (omega &optional alpha)
      (if alpha (funcall (function ,operation) alpha omega)
 	 (funcall (function ,operation)
 		  omega))))
-
-;; (defmacro reverse-boolean-op (operation omega &optional alpha)
-;;   "Converts output of a boolean operation from t/nil to 1/0."
-;;   `(lambda ,(if alpha (list omega alpha)
-;;   		(list omega))
-;;      (if (funcall (function ,operation)
-;;   		  ,@(if alpha (list alpha omega)
-;;   			(list omega)))
-;;   	 1 0)))
 
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
@@ -177,9 +121,8 @@
 	;;;
 	(lexicon-data nil)
 	(functions-data (list :monadic (make-hash-table)
-			      :dyadic (make-hash-table)))
-	;; (operators-data (list :lateral (make-hash-table)
-	;; 		      :pivotal (make-hash-table)))
+			      :dyadic (make-hash-table)
+			      :symbolic (make-hash-table)))
 	(operators-data (list :lateral nil :pivotal nil)))
     (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
 	       (if pairs
@@ -211,12 +154,9 @@
 				      (if (getf (getf (rest this-lex) :functions) :dyadic)
 				      	  (setf (gethash glyph-char (getf functions-data :dyadic))
 				      		(getf (getf (rest this-lex) :functions) :dyadic)))
-				      ;; (if (member :lateral-operators (getf (rest this-lex) :lexicons))
-				      ;; 	  (setf (gethash glyph-char (getf operators-data :lateral))
-				      ;; 		(getf (rest this-lex) :operators)))
-				      ;; (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
-				      ;; 	  (setf (gethash glyph-char (getf operators-data :pivotal))
-				      ;; 		(getf (rest this-lex) :operators)))
+				      (if (getf (getf (rest this-lex) :functions) :symbolic)
+				      	  (setf (gethash glyph-char (getf functions-data :symbolic))
+				      		(getf (getf (rest this-lex) :functions) :symbolic)))
 				      (append output
 					      (if (member :lateral-operators (getf (rest this-lex) :lexicons))
 						  `((gethash ,glyph-char (getf ,table-symbol :lateral))
@@ -291,9 +231,6 @@
 							    ,(getf this-spec :ex)
 							    :test #'equalp)))))
 		   output)))
-      (setf (getf lexicon-data :overloaded)
-	    (intersection (getf lexicon-data :functions)
-			  (getf lexicon-data :operators)))
       (let* ((function-specs (process-pairs 'fn-specs :functions
 					    (rest (assoc (intern "FUNCTIONS" (package-name *package*))
 							 subspecs))))
@@ -315,20 +252,9 @@
 					       ,(cons 'list
 						      (rest (assoc (intern "UTILITIES" (package-name *package*))
 								   subspecs)))
-					       ;; :utilities-spec
-					       ;; (quote ,(rest (assoc (intern "UTILITIES"
-					       ;; 				    (package-name *package*))
-					       ;; 			    subspecs)))
-					       ;; :operational-glyphs (list ,@(derive-opglyphs
-					       ;; 				    (append (first function-specs)
-					       ;; 					    (first operator-specs))))
-					       ;; :overloaded-lexicon (list ,@(intersection (first function-specs)
-					       ;; 						 (first operator-specs)))
-					       ;; :operator-index (list ,@(third operator-specs))
-					       ;;;
 					       :lexicons (quote ,lexicon-data)
-					       :functions-2 (quote ,functions-data)
-					       :operators-2 (let ((op-specs (list :lateral (make-hash-table)
+					       :functions (quote ,functions-data)
+					       :operators (let ((op-specs (list :lateral (make-hash-table)
 										  :pivotal (make-hash-table))))
 							      (setf ,@operator-specs)
 							      op-specs)
@@ -497,25 +423,6 @@
 	       (=subseq (%any (?satisfies 'characterp))))
       (list (parse content (=vex-string idiom meta))
 	    nextlines))))
-
-;; (defun expression (idiom meta exp &optional precedent)
-;;   "Convert a list of Vex tokens into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
-;;   (if (not exp)
-;;       precedent
-;;       (if (not precedent)
-;; 	  (multiple-value-bind (right-value from-value)
-;; 	      (funcall (of-utilities idiom :assemble-value)
-;; 		       idiom meta #'expression precedent exp)
-;; 	    (expression idiom meta from-value right-value))
-;; 	  (multiple-value-bind (operation from-operation)
-;; 	      (funcall (of-utilities idiom :assemble-operation)
-;; 		       idiom meta #'expression precedent exp)
-;; 	    (multiple-value-bind (right-value from-value)
-;; 		(funcall (of-utilities idiom :assemble-value)
-;; 			 idiom meta #'expression precedent from-operation nil nil exp)
-;; 	      (expression idiom meta from-value
-;; 			  (apply operation (append (list meta nil precedent)
-;; 						   (if right-value (list right-value))))))))))
 
 (defmacro set-composer-primitives (name with &rest params)
   (let* ((with (rest with))
