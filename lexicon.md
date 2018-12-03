@@ -65,6 +65,8 @@
 
 [⍷] Find
 
+[⍸] When / Interval Index
+
 [↑] Disclose / Take
 
 [↓] Split / Drop
@@ -132,6 +134,8 @@
 [⍨] Commute
 
 [∘] Compose
+
+[⍤] Rank
 
 [⍣] Power
 
