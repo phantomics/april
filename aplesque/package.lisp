@@ -5,6 +5,7 @@
 	   #:array-to-list #:apply-marginal #:expand-array #:enlist #:array-inner-product #:index-of
 	   #:grade #:array-grade #:alpha-compare #:array-compare #:find-array #:ravel #:run-dim #:disclose
 	   #:reshape-array-fitting #:sprfact #:binomial #:make-rotator #:scale-array #:mix-arrays
-	   #:aref-eliding #:rotate-left #:rotate-right #:partitioned-enclose #:re-enclose #:invert-matrix)
+	   #:is-unitary #:aref-eliding #:vector-subprocess #:rotate-left #:rotate-right
+	   #:partitioned-enclose #:re-enclose #:invert-matrix)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))
