@@ -17,29 +17,26 @@
                   :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
-   (utilities-spec :accessor idiom-utilities-spec
-		   :initarg :utilities-spec)
+
+   (lexicons :accessor idiom-lexicons
+	     :initform nil
+	     :initarg :lexicons)
    (functions :accessor idiom-functions
-	      :initform nil
-	      :initarg :functions)
-   (functions-spec :accessor idiom-functions-spec
-		   :initform nil
-		   :initarg :functions-spec)
+		:initform nil
+		:initarg :functions)
    (operators :accessor idiom-operators
-	      :initform nil
-	      :initarg :operators)
-   (operators-spec :accessor idiom-operators-spec
-		   :initform nil
-		   :initarg :operators-spec)
-   (operational-glyphs :accessor idiom-opglyphs
-		       :initform nil
-		       :initarg :operational-glyphs)
-   (operator-index :accessor idiom-opindex
-		   :initform nil
-		   :initarg :operator-index)
-   (overloaded-lexicon :accessor idiom-overloaded-lexicon
-		       :initform nil
-		       :initarg :overloaded-lexicon)))
+		:initform nil
+		:initarg :operators)
+   
+   (grammar-elements :accessor idiom-grammar-elements
+			:initform (make-hash-table :test #'eq)
+			:initarg :grammar-elements)
+   (composer-opening-patterns :accessor idiom-composer-opening-patterns
+			      :initform nil
+			      :initarg :composer-opening-patterns)
+   (composer-following-patterns :accessor idiom-composer-following-patterns
+				:initform nil
+				:initarg :composer-following-patterns)))
 
 (defgeneric of-state (idiom property))
 (defmethod of-state ((idiom idiom) property)
@@ -51,20 +48,15 @@
   "Retrieve one of the idiom's utilities used for parsing and language processing."
   (getf (idiom-utilities idiom) utility))
 
-(defgeneric of-functions (idiom key))
-(defmethod of-functions ((idiom idiom) key)
-  "Retrive one of the idiom's functions."
-  (gethash key (idiom-functions idiom)))
+;; (defgeneric of-functions (idiom key))
+;; (defmethod of-functions ((idiom idiom) key)
+;;   "Retrive one of the idiom's functions."
+;;   (gethash key (idiom-functions idiom)))
 
-(defgeneric of-operators (idiom key))
-(defmethod of-operators ((idiom idiom) key)
-  "Retrive one of the idiom's operators."
-  (gethash key (idiom-operators idiom)))
-
-(defgeneric of-overloaded? (idiom key))
-(defmethod of-overloaded? ((idiom idiom) key)
-  "Check whether the argument is part of the idiom's overloaded lexicon (glyphs that may be functions or operators)."
-  (member key (idiom-overloaded-lexicon idiom)))
+;; (defgeneric of-operators (idiom key))
+;; (defmethod of-operators ((idiom idiom) key)
+;;   "Retrive one of the idiom's operators."
+;;   (gethash key (idiom-operators idiom)))
 
 (defmethod make-load-form ((idiom idiom) &optional environment)
   (declare (ignore environment))
@@ -74,89 +66,99 @@
   `(make-instance ',(class-of idiom)
 		  :name ',(idiom-name idiom)
 		  :state ',(idiom-state idiom)
-		  :utilities ,(cons 'list (idiom-utilities-spec idiom))
-		  :functions ,(idiom-functions-spec idiom)
-		  :operators ,(idiom-operators-spec idiom)
-		  :operational-glyphs ',(idiom-opglyphs idiom)
-		  :operator-index ',(idiom-opindex idiom)
-		  :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)))
+		  ;; :utilities ,(cons 'list (idiom-utilities-spec idiom))
+		  ;; :functions ,(idiom-functions-spec idiom)
+		  ;; :operators ,(idiom-operators-spec idiom)
+		  ;; :operational-glyphs ',(idiom-opglyphs idiom)
+		  ;; :operator-index ',(idiom-opindex idiom)
+		  ;; :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)
+		  ))
 
-(defmacro boolean-op (operation omega &optional alpha)
-  "Converts output of a boolean operation from t/nil to 1/0."
-  `(lambda ,(if alpha (list omega alpha)
-  		(list omega))
-     (if (funcall (function ,operation)
-  		  ,@(if alpha (list omega alpha)
-  			(list omega)))
-  	 1 0)))
+;;;
 
-(defmacro reverse-op (operation omega &optional alpha)
-  (declare (ignore omega))
-  (if alpha `(lambda (omega alpha) (funcall (function ,operation)
-					    alpha omega))
-      `(function, operation)))
+(defgeneric of-lexicon (idiom lexicon glyph))
+(defmethod of-lexicon (idiom lexicon glyph)
+  (member glyph (getf (idiom-lexicons idiom) lexicon)))
 
-(defmacro reverse-boolean-op (operation omega &optional alpha)
-  "Converts output of a boolean operation from t/nil to 1/0."
-  `(lambda ,(if alpha (list omega alpha)
-  		(list omega))
-     (if (funcall (function ,operation)
-  		  ,@(if alpha (list alpha omega)
-  			(list omega)))
-  	 1 0)))
+(defgeneric lexicon-add (idiom lexicon glyph))
+(defmethod lexicon-add ((idiom idiom) lexicon glyph)
+  (if (not (of-lexicon idiom lexicon glyph))
+      (setf (getf (idiom-lexicons idiom) lexicon)
+	    (cons glyph (getf (idiom-lexicons idiom) lexicon)))))
+
+;;;
+
+(defmacro boolean-op (operation)
+  `(lambda (omega &optional alpha)
+     (let ((outcome (if alpha (funcall (function ,operation)
+				       alpha omega)
+			(funcall (function ,operation)
+				 omega))))
+       (if outcome 1 0))))
+
+(defmacro reverse-boolean-op (operation)
+  `(lambda (omega &optional alpha)
+     (let ((outcome (if alpha (funcall (function ,operation)
+				       alpha omega)
+			(funcall (function ,operation)
+				 omega))))
+       (if outcome 1 0))))
+
+(defmacro reverse-op (operation)
+  `(lambda (omega &optional alpha)
+     (if alpha (funcall (function ,operation) alpha omega)
+	 (funcall (function ,operation)
+		  omega))))
 
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-			      (package-name *package*))))
-    (labels ((process-pairs (table-symbol pairs &optional output)
+			      (package-name *package*)))
+	;;;
+	(lexicon-data nil)
+	(functions-data (list :monadic (make-hash-table)
+			      :dyadic (make-hash-table)
+			      :symbolic (make-hash-table)))
+	(operators-data (list :lateral nil :pivotal nil)))
+    (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
 	       (if pairs
-		   (process-pairs table-symbol (rest pairs)
+		   (process-pairs table-symbol type-symbol (rest pairs)
 				  (let* ((glyph-char (character (caar pairs)))
 					 (accumulator (third output))
 					 ;; name of macro to process operation specs
 					 (oprocess (getf (rest (assoc (intern "UTILITIES" (package-name *package*))
 								      subspecs))
 							 :mediate-operation-macro)))
-				    (if (and (eql 'op-specs table-symbol))
-					(setf (getf accumulator
-						    (intern (string-upcase (first (third (first pairs))))
-							    "KEYWORD"))
-					      (cons 'list (cons glyph-char (rest (getf accumulator
-										       (intern (string-upcase
-												(first
-												 (third (first
-													 pairs))))
-											       "KEYWORD")))))))
-				    (list (cons glyph-char (first output))
-					  (append (second output)
-						  (cond ((and (eql 'fn-specs table-symbol)
-							      (eq :symbolic
-								  (intern (string-upcase
-									   (first (third (first pairs))))
-									  "KEYWORD")))
-							 ;; assign symbolic functions as just keywords in the table
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(second (third (first pairs)))))
-							;; assign functions in hash table
-							((eql 'fn-specs table-symbol)
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(if (and (listp (second (third (first pairs))))
-								     (eq :macro
-									 (intern (string-upcase
-										  (first (second (third
-												  (first pairs)))))
-										 "KEYWORD")))
-								(macroexpand
-								 (second (second (third (first pairs)))))
-								(macroexpand
-								 (cons (second oprocess)
-								       (list (third (first pairs))))))))
-							;; assign operators in hash table
-							((eql 'op-specs table-symbol)
-							 `((gethash ,glyph-char ,table-symbol)
-							   ,(macroexpand (second (third (first pairs))))))))
-					  accumulator)))
+				    (let* ((lexicon-processor
+					    (getf (rest (assoc (intern "UTILITIES" (package-name *package*))
+							       subspecs))
+						  :process-lexicon-macro))
+					   (this-lex (macroexpand (list (second lexicon-processor)
+									type-symbol glyph-char
+									(third (first pairs))))))
+				      (loop for lexicon in (getf (rest this-lex) :lexicons)
+				      	 do (if (not (getf lexicon-data lexicon))
+				      		(setf (getf lexicon-data lexicon) nil))
+				      	   (if (not (member glyph-char (getf lexicon-data lexicon)))
+				      	       (setf (getf lexicon-data lexicon)
+				      		     (cons glyph-char (getf lexicon-data lexicon)))))
+
+				      (if (getf (getf (rest this-lex) :functions) :monadic)
+				      	  (setf (gethash glyph-char (getf functions-data :monadic))
+				      		(getf (getf (rest this-lex) :functions) :monadic)))
+				      (if (getf (getf (rest this-lex) :functions) :dyadic)
+				      	  (setf (gethash glyph-char (getf functions-data :dyadic))
+				      		(getf (getf (rest this-lex) :functions) :dyadic)))
+				      (if (getf (getf (rest this-lex) :functions) :symbolic)
+				      	  (setf (gethash glyph-char (getf functions-data :symbolic))
+				      		(getf (getf (rest this-lex) :functions) :symbolic)))
+				      (append output
+					      (if (member :lateral-operators (getf (rest this-lex) :lexicons))
+						  `((gethash ,glyph-char (getf ,table-symbol :lateral))
+						    ,(getf (rest this-lex) :operators))
+						  (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
+						      `((gethash ,glyph-char (getf ,table-symbol :pivotal))
+							,(getf (rest this-lex) :operators))))))))
 		   output))
 
 	     (process-optests (specs &optional output)
@@ -209,49 +211,47 @@
 							    ,(getf this-spec :ex)
 							    :test #'equalp)))))
 		   output)))
-      (let* ((function-specs (process-pairs 'fn-specs (rest (assoc (intern "FUNCTIONS" (package-name *package*))
-								   subspecs))))
-	     (operator-specs (process-pairs 'op-specs (rest (assoc (intern "OPERATORS" (package-name *package*))
-								   subspecs))))
+      (let* ((function-specs (process-pairs 'fn-specs :functions
+					    (rest (assoc (intern "FUNCTIONS" (package-name *package*))
+							 subspecs))))
+	     (operator-specs (process-pairs 'op-specs :operators
+					    (rest (assoc (intern "OPERATORS" (package-name *package*))
+							 subspecs))))
+	     (grammar-specs (rest (assoc (intern "GRAMMAR" (package-name *package*))
+					 subspecs)))
 	     (function-tests (process-optests (rest (assoc (intern "FUNCTIONS" (package-name *package*))
 							   subspecs))))
 	     (operator-tests (process-optests (rest (assoc (intern "OPERATORS" (package-name *package*))
 							   subspecs))))
 	     (general-tests (process-gentests (rest (assoc (intern "GENERAL-TESTS" (package-name *package*))
 							   subspecs))))
-	     (idiom-definition `(make-instance 'idiom
-					       :name ,(intern (string-upcase symbol) "KEYWORD")
-					       :state
-					       ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
-									 subspecs)))
-					       :utilities
-					       ,(cons 'list
-						      (rest (assoc (intern "UTILITIES" (package-name *package*))
-								   subspecs)))
-					       :utilities-spec
-					       (quote ,(rest (assoc (intern "UTILITIES"
-									    (package-name *package*))
-								    subspecs)))
-					       :functions (let ((fn-specs (make-hash-table)))
-							     (setf ,@(second function-specs))
-							     fn-specs)
-					       :functions-spec `(let ((fn-specs (make-hash-table)))
-								  (setf ,@',(second function-specs))
-								  fn-specs)
-					       :operators (let ((op-specs (make-hash-table)))
-							    (setf ,@(second operator-specs))
-							    op-specs)
-					       :operators-spec `(let ((op-specs (make-hash-table)))
-								  (setf ,@',(second operator-specs))
-								  op-specs)
-					       :operational-glyphs (list ,@(derive-opglyphs
-									    (append (first function-specs)
-										    (first operator-specs))))
-					       :overloaded-lexicon (list ,@(intersection (first function-specs)
-											 (first operator-specs)))
-					       :operator-index (list ,@(third operator-specs)))))
+	     (utility-specs (rest (assoc (intern "UTILITIES" (package-name *package*))
+					 subspecs)))
+	     (idiom-definition
+	      `(make-instance 'idiom
+			      :name ,(intern (string-upcase symbol) "KEYWORD")
+			      :state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
+							       subspecs)))
+			      :utilities ,(cons 'list utility-specs)
+			      :lexicons (quote ,lexicon-data)
+			      :functions (quote ,functions-data)
+			      :operators (let ((op-specs (list :lateral (make-hash-table)
+							       :pivotal (make-hash-table))))
+					   (setf ,@operator-specs)
+					   op-specs))))
 	`(progn (defvar ,idiom-symbol)
 		(setf ,idiom-symbol ,idiom-definition)
+		(let ((el (funcall (function ,(second (assoc :elements grammar-specs)))
+				   ,idiom-symbol)))
+		  (loop :for elem :in el :do (setf (gethash (first elem)
+							    (idiom-grammar-elements ,idiom-symbol))
+						   (second elem))))
+		(setf (idiom-composer-opening-patterns ,idiom-symbol)
+				 (append ,@(loop :for pset :in (rest (assoc :opening-patterns grammar-specs))
+					      :collect `(funcall (function ,pset) ,idiom-symbol)))
+				 (idiom-composer-following-patterns ,idiom-symbol)
+				 (append ,@(loop :for pset :in (rest (assoc :following-patterns grammar-specs))
+					      :collect `(funcall (function ,pset) ,idiom-symbol))))
 		(defmacro ,(intern (string-upcase symbol)
 				   (package-name *package*))
 		    (options &optional input-string)
@@ -301,7 +301,7 @@
 					    ;; 			  (error "Incorrect option syntax.")))
 					    ;; 		  (if input-string input-string options))
 					    ))))))))))
-  
+
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
   (if (not glyph-list)
@@ -361,13 +361,11 @@
 	   (handle-axes (input-string)
 	     (let ((each-axis (funcall (of-utilities idiom :process-axis-string)
 				       input-string)))
-	       (cons :axes (mapcar (lambda (string) (first (parse string (=vex-string idiom meta))))
+	       (cons :axes (mapcar (lambda (string) (parse string (=vex-string idiom meta)))
 				   each-axis))))
 
 	   (handle-function (input-string)
-	     (list :fn (funcall (of-utilities idiom :format-function)
-				(string-upcase (idiom-name idiom))
-				(vex-program idiom nil input-string meta t)))))
+	     (list :fn (parse input-string (=vex-lines idiom meta)))))
 
     (=destructure (_ item _ rest)
 	(=list (%any (?blank-character))
@@ -378,22 +376,18 @@
 		    (=transform (=subseq (%some (?satisfies (let ((ix 0))
 							      (lambda (char)
 								(and (not (< 2 (incf ix 1)))
-								     (member char (idiom-opglyphs idiom))))))))
+								     (or (of-lexicon idiom :functions char)
+									 (of-lexicon idiom :operators char))
+								     ;; (member char (idiom-opglyphs idiom))
+								     ))))))
 				(lambda (string)
 				  (let ((char (character string)))
-				    `(,(cond ((gethash char (idiom-operators idiom))
-					      :op)
-					     ((gethash char (idiom-functions idiom))
-					      :fn))
-				       ,@(if (gethash char (idiom-operators idiom))
-					     (list (let ((result nil))
-						     (loop for tix from 0 to (/ (length (idiom-opindex idiom))
-										2)
-							when (member char (nth (1+ (* 2 tix))
-									       (idiom-opindex idiom)))
-							do (setq result (nth (* 2 tix)
-									     (idiom-opindex idiom))))
-						     result)))
+				    `(,(if (of-lexicon idiom :operators char)
+					   :op (if (of-lexicon idiom :functions char)
+						   :fn))
+				       ,@(if (of-lexicon idiom :operators char)
+					     (list (if (of-lexicon idiom :pivotal-operators char)
+						       :pivotal :lateral)))
 				       ,char))))
 		    (=transform (=subseq (%some (?token-character)))
 				(lambda (string)
@@ -403,11 +397,9 @@
 	       (%any (?blank-character))
 	       (=subseq (%any (?satisfies 'characterp))))
       (if (< 0 (length rest))
-	  (parse rest (=vex-string idiom meta (if output (cons (cons item (first output))
-							       (rest output))
-						  (list (list item)))))
-	  (cons (cons item (first output))
-		(rest output))))))
+	  (parse rest (=vex-string idiom meta (if output (cons item output)
+						  (list item))))
+	  (cons item output)))))
 
 (defun =vex-lines (idiom meta)
   (labels ((?blank-character () (?satisfies (of-utilities idiom :match-blank-character)))
@@ -423,24 +415,168 @@
       (list (parse content (=vex-string idiom meta))
 	    nextlines))))
 
-(defun expression (idiom meta exp &optional precedent)
-  "Convert a list of Vex tokens into Lisp code, composing objects and invoking the corresponding spec-defined functions accordingly."
-  (if (not exp)
-      precedent
-      (if (not precedent)
-	  (multiple-value-bind (right-value from-value)
-	      (funcall (of-utilities idiom :assemble-value)
-		       idiom meta #'expression precedent exp)
-	    (expression idiom meta from-value right-value))
-	  (multiple-value-bind (operation from-operation)
-	      (funcall (of-utilities idiom :assemble-operation)
-		       idiom meta #'expression precedent exp)
-	    (multiple-value-bind (right-value from-value)
-		(funcall (of-utilities idiom :assemble-value)
-			 idiom meta #'expression precedent from-operation nil nil exp)
-	      (expression idiom meta from-value
-			  (apply operation (append (list meta nil precedent)
-						   (if right-value (list right-value))))))))))
+(defmacro set-composer-elements (name with &rest params)
+  (let* ((with (rest with))
+	 (idiom (gensym))
+	 (tokens (getf with :tokens-symbol))
+	 (idiom (getf with :idiom-symbol))
+	 (space (getf with :space-symbol with))
+	 (properties (getf with :properties-symbol))
+	 (process (getf with :processor-symbol with)))
+    `(defun ,(intern (string-upcase name)
+		     (package-name *package*))
+	 (,idiom)
+       (list ,@(loop for param in params
+		  ;; collect (let ((param-name (first param)))
+		  ;; 	    `(setf (gethash ,(intern (string-upcase param-name) "KEYWORD")
+		  ;; 			    (idiom-grammar-elements ,idiom))
+		  ;; 		   (lambda (,tokens &optional ,properties ,process ,idiom ,space)
+		  ;; 		     (declare (ignorable ,properties ,process ,idiom ,space))
+		  ;; 		     ,(second param)))
+		  collect `(list ,(intern (string-upcase (first param)) "KEYWORD")
+				 (lambda (,tokens &optional ,properties ,process ,idiom ,space)
+				   (declare (ignorable ,properties ,process ,idiom ,space))
+				   ,(second param))))))))
+
+(defun composer (idiom space tokens &optional precedent properties)
+  ;; (print (list :comp tokens precedent properties))
+  (if (not tokens)
+      (values precedent properties)
+      (let ((processed nil)
+	    (special-params (getf properties :special)))
+	;; (print (list :prec precedent))
+	;; (print (list :tokens-b precedent tokens))
+	(loop :while (not processed)
+	   :for pattern :in (if (not precedent)
+				(vex::idiom-composer-opening-patterns idiom)
+				(vex::idiom-composer-following-patterns idiom))
+	   :when (or (not (getf special-params :omit))
+		     (not (member (getf pattern :name)
+				  (getf special-params :omit))))
+	   :do ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
+	   (multiple-value-bind (new-processed new-props remaining)
+		   (funcall (getf pattern :function)
+			    tokens space (lambda (item &optional sub-props)
+					   (declare (ignorable sub-props))
+					   (composer idiom space item nil sub-props))
+			    precedent properties)
+		 ;; (print (list :pr new-processed new-props remaining))
+		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
+	(if special-params (setf (getf properties :special) special-params))
+	(if (not processed)
+	    (values precedent properties tokens)
+	    (composer idiom space tokens processed properties)))))
+
+(defun build-composer-pattern (sequence idiom tokens-symbol invalid-symbol properties-symbol
+			       process space sub-props)
+  (labels ((element-check (base-type)
+	     `(funcall (gethash ,(intern (string-upcase (cond ((listp base-type)
+							       (first base-type))
+							      (t base-type)))
+	   				 "KEYWORD")
+	   			(vex::idiom-grammar-elements ,idiom))
+	   	       rem ,(cond ((listp base-type) `(quote ,(rest base-type))))
+		       ;; (lambda (item) (composer idiom item))
+		       ,process ,idiom ,space))
+	   (process-item (item-symbol item-properties)
+	     (let ((multiple (getf item-properties :times))
+		   (optional (getf item-properties :optional))
+		   (element-type (getf item-properties :element))
+		   (pattern-type (getf item-properties :pattern)))
+	       (cond (pattern-type
+		      `(if (not ,invalid-symbol)
+			   (multiple-value-bind (item item-props remaining)
+			       ;; (composer ,idiom ,tokens-symbol)
+			       (funcall ,process ,tokens-symbol
+					,@(if (and (listp (second item-properties))
+						   (getf (second item-properties) :special))
+					      `((list :special ,(getf (second item-properties) :special)))))
+			     ;; (print (list :composed item item-props remaining ,sub-props))
+			     (setq ,sub-props (cons item-props ,sub-props))
+			     ;; (setq ,sub-props item-props)
+			     (if ,(cond ((getf pattern-type :type)
+					 `(loop for type in (list ,@(getf pattern-type :type))
+					     always (member type (getf item-props :type))))
+					(t t))
+				 (setq ,item-symbol item
+				       ,tokens-symbol remaining)
+				 (setq ,invalid-symbol t)))))
+		     (element-type
+		      `(if (not ,invalid-symbol)
+			   (let ((matching t)
+				 (collected nil)
+				 (rem ,tokens-symbol)
+				 (initial-remaining ,tokens-symbol))
+			     ;; (print (list :elem rem))
+			     (declare (ignorable initial-remaining))
+			     (loop ,@(if (eq :any multiple)
+					 `(:while (and matching rem))
+					 `(:for x from 0 to ,(if multiple (1- multiple) 0)))
+				:do (multiple-value-bind (item item-props remaining)
+					,(element-check element-type)
+				      ;; only push the returned properties onto the list if the item matched
+				      (if (and item-props (not (getf item-props :cancel-flag)))
+					  (setq ,sub-props (cons item-props ,sub-props)))
+				      ;; if a cancel-flag property is returned, void the collected items
+				      ;; and reset the remaining items back to the original list of tokens
+				      (if (getf item-props :cancel-flag)
+					  (setq rem initial-remaining
+						collected nil))
+				      (if item (setq collected (cons item collected)
+						     rem remaining)
+					  (setq matching nil))))
+			     (if ,(if (not optional)
+				      'collected t)
+				 (setq ,item-symbol (if (< 1 (length collected))
+							collected (first collected))
+				       ,tokens-symbol rem)
+				 (setq ,invalid-symbol t))
+			     (list :out ,item-symbol ,tokens-symbol collected ,optional))))))))
+    (loop for item in sequence
+       collect (let* ((item-symbol (first item)))
+		 (if (keywordp item-symbol)
+		     (cond ((eq :with-preceding-type item-symbol)
+			    `(setq ,invalid-symbol (loop for item in (getf ,properties-symbol :type)
+						      never (eq item ,(second item)))))
+			   ((eq :rest item-symbol)
+			    `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
+		     (let ((item-properties (rest item)))
+		       (process-item item-symbol item-properties)))))))
+
+(defmacro set-composer-patterns (name with &rest params)
+  (let* ((with (rest with))
+	 (idiom (gensym)) (token (gensym)) (invalid (gensym)) (properties (gensym))
+	 (space (or (getf with :space-symbol) (gensym)))
+	 (precedent-symbol (getf with :precedent-symbol))
+	 (precedent (or precedent-symbol (gensym)))
+	 (process (or (getf with :process-symbol) (gensym)))
+	 (sub-properties (or (getf with :properties-symbol) (gensym)))
+	 (idiom-symbol (getf with :idiom-symbol)))
+    `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
+       (let ((,idiom-symbol ,idiom))
+	 (list ,@(loop for param in params
+		    collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
+				   :function (lambda (,token ,space ,process &optional ,precedent ,properties)
+					       (declare (ignorable ,token ,space ,process ,precedent ,properties))
+					       ;; (print (list :it ,token))
+					       ;; (print (list :props ,properties))
+					       ;; (print (list :prpr ,precedent))
+					       (let ((,invalid nil)
+						     (,sub-properties nil)
+						     ,@(loop for token in (second param)
+							  when (not (keywordp (first token)))
+							  collect (list (first token) nil)))
+						 ;; (print (list :pro ,space ,process))
+						 ,@(build-composer-pattern (second param)
+									   idiom-symbol token invalid properties
+									   process space sub-properties)
+						 ;; (print (list :inv ,invalid))
+						 (setq ,sub-properties (reverse ,sub-properties))
+						 ;; reverse the sub-properties since they are consed into the list
+						 (if (not ,invalid)
+						     (values ,(third param)
+							     ,(fourth param)
+							     ,token)))))))))))
 
 (defun vex-program (idiom options &optional string meta internal)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
@@ -463,8 +599,8 @@
 		   output
 		   (destructuring-bind (out remaining)
 		       (parse lines (=vex-lines idiom meta))
-		     (process-lines remaining
-				    (append output (list (expression idiom meta (list out)))))))))
+		     ;;(print (list :oo out remaining))
+		     (process-lines remaining (append output (list (composer idiom meta out))))))))
 
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
@@ -480,9 +616,6 @@
       (setf state-to-use
 	    (assign-from state (assign-from state-persistent (assign-from (gethash :state meta)
 									  (idiom-base-state idiom)))))
-
-      ;; (if state (setf (idiom-state idiom)
-      ;; 		      (assign-from state (copy-alist (idiom-base-state idiom)))))
 
       (if state-persistent (setf (idiom-state idiom)
       				 (assign-from state-persistent (idiom-base-state idiom))
@@ -502,8 +635,7 @@
 				   when (not (member (string (gethash (first key-symbol)
 								      (gethash :variables meta)))
 						     (mapcar #'first input-vars)))
-				   collect (let* ((key (first key-symbol))
-						  (sym (second key-symbol))
+				   collect (let* ((sym (second key-symbol))
 						  (fun-ref (gethash sym (gethash :functions meta)))
 						  (val-ref (gethash sym (gethash :values meta))))
 					     (list sym (if (member sym preexisting-vars)

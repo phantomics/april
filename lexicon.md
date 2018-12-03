@@ -13,7 +13,7 @@
 
 [⊢] Identity / Right
 
-[+] Identity or Negate Imaginary / Add
+[+] Conjugate / Add
 
 [-] Negate / Subtract
 

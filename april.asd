@@ -9,4 +9,6 @@
 	       :cl-ppcre :parse-number :symbol-munger :prove)
   :components 
   ((:file "package")
-   (:file "april")))
+   (:file "utilities")
+   (:file "grammar")
+   (:file "spec")))
