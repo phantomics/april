@@ -163,31 +163,38 @@ Sets the index from which April counts. Almost always set to 0 or 1. The default
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
 
-Please note that April variables follow a stricter naming convention than Lisp variables. When naming variables, only alphanumeric characters, periods and dashes may be used. Punctuation marks like ?, > and ! must not be used as they have separate meanings in April.
+Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters and dashes may be used. In keeping with APL tradition, the triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
 
 These characters may be used in April variable names:
 ```
-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.∆⍙
+0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz∆⍙
 ```
 
 These variable names are ok:
 ```
-a var my-var my-var.testing
+a var my-var
 ```
 
 These are not ok:
 ```
-true! this->that pass/fail?
+true! this->that pass/fail? var.name
 ```
 
 Note also that variables are converted from Lisp-style dash-separated format into camel case for use within April code. For example:
 
 ```
 * (april (set (:state :in ((my-var 2)
-                          (other-var 5))))
+                           (other-var 5))))
          "myVar×otherVar+5")
 
 20
+```
+
+One more caveat: it's best to avoid using input variable names with a dash before a number or other non-letter symbol. The dash will be removed and the character following it will cannot be capitalized so information will have been lost.
+
+```
+my-var-2 → myVar2
+my-var-∆ → myVar∆
 ```
 
 #### :out
