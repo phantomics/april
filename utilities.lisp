@@ -2,6 +2,8 @@
 
 (in-package #:april)
 
+(define-symbol-macro index-origin (of-state (local-idiom april) :count-from))
+
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ function with a left argument
   (vector (lambda (input) (exp (* input #C(0 1))))
@@ -273,12 +275,9 @@
 	body (enclose-axes `(aref-eliding ,body (mapcar (lambda (vector)
 							  (if vector (if (= 1 (length vector))
 									 (- (aref vector 0)
-									    (of-state (local-idiom april)
-										      :count-from))
+									    index-origin)
 									 (mapcar (lambda (elem)
-										   (- elem (of-state
-											    (local-idiom april)
-											    :count-from)))
+										   (- elem index-origin))
 										 (array-to-list vector)))))
 							(list ,@axes))
 					  ,@(if set (list :set set)))
