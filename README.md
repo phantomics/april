@@ -332,7 +332,6 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 #### Operators:
 
 ```
-⍤ Rank
 ⌸ Key
 ⌺ Stencil
 ```
