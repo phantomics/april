@@ -235,10 +235,9 @@
 (defun process-operator-spec (idiom operator right &optional left)
   ;; (print (list 9999 idiom operator right left))
   (if (member operator (getf (vex::idiom-lexicons idiom) :operators))
-      `(funcall ,(gethash operator (getf (vex::idiom-operators idiom)
-					 (if (member operator (getf (vex::idiom-lexicons idiom)
-								    :lateral-operators))
-					     :lateral :pivotal)))
+      `(funcall ,(of-operators idiom operator (if (member operator (getf (vex::idiom-lexicons idiom)
+									 :lateral-operators))
+						  :lateral :pivotal))
 		,right ,@(if left (list left)))))
 
 (defun validate-arg-unitary (value)
@@ -257,7 +256,7 @@
 						    output)
 					      output)))))
     (if (characterp functional-character)
-	(let ((data (gethash functional-character (getf (vex::idiom-functions idiom) mode))))
+	(let ((data (of-functions idiom functional-character mode)))
 	  (if (or (not data)
 		  (not (listp data)))
 	      data (let ((fn (if (not (eql 'args (first data)))
@@ -268,7 +267,7 @@
 	functional-character)))
 
 (defun get-operator-data (idiom functional-character mode)
-  (gethash functional-character (getf (vex::idiom-operators idiom) mode)))
+  (of-operators idiom functional-character mode))
 
 (defun enclose-axes (body axis-sets &key (set nil))
   (let ((axes (first axis-sets)))

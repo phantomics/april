@@ -204,7 +204,7 @@
 	 (axis (if axis axis default-axis)))
     (do-permuted new-array axis (aops:margin function new-array (1- a-rank)))))
 
-(defun vector-subprocess (array per-vector axis function)
+(defun subprocess (array per-vector axis function)
   (let ((new-array (copy-array array)))
     (do-permuted new-array axis
       (let ((main (make-array (list (array-total-size new-array))
