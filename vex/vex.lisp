@@ -427,12 +427,6 @@
 		     (package-name *package*))
 	 (,idiom)
        (list ,@(loop :for param :in params
-		  ;; collect (let ((param-name (first param)))
-		  ;; 	    `(setf (gethash ,(intern (string-upcase param-name) "KEYWORD")
-		  ;; 			    (idiom-grammar-elements ,idiom))
-		  ;; 		   (lambda (,tokens &optional ,properties ,process ,idiom ,space)
-		  ;; 		     (declare (ignorable ,properties ,process ,idiom ,space))
-		  ;; 		     ,(second param)))
 		  :collect `(list ,(intern (string-upcase (first param)) "KEYWORD")
 				  (lambda (,tokens &optional ,properties ,process ,idiom ,space)
 				    (declare (ignorable ,properties ,process ,idiom ,space))

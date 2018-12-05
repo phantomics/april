@@ -3,6 +3,7 @@
 (in-package #:april)
 
 (define-symbol-macro index-origin (of-state (local-idiom april) :count-from))
+(define-symbol-macro atomic-vector (of-state (local-idiom april) :atomic-vector))
 
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ function with a left argument
