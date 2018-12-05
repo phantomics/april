@@ -17,7 +17,6 @@
                   :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
-
    (lexicons :accessor idiom-lexicons
 	     :initform nil
 	     :initarg :lexicons)
@@ -27,7 +26,6 @@
    (operators :accessor idiom-operators
 		:initform nil
 		:initarg :operators)
-   
    (grammar-elements :accessor idiom-grammar-elements
 			:initform (make-hash-table :test #'eq)
 			:initarg :grammar-elements)
@@ -48,15 +46,15 @@
   "Retrieve one of the idiom's utilities used for parsing and language processing."
   (getf (idiom-utilities idiom) utility))
 
-;; (defgeneric of-functions (idiom key))
-;; (defmethod of-functions ((idiom idiom) key)
-;;   "Retrive one of the idiom's functions."
-;;   (gethash key (idiom-functions idiom)))
+(defgeneric of-functions (idiom key type))
+(defmethod of-functions ((idiom idiom) key type)
+  "Retrive one of the idiom's functions."
+  (gethash key (getf (idiom-functions idiom) type)))
 
-;; (defgeneric of-operators (idiom key))
-;; (defmethod of-operators ((idiom idiom) key)
-;;   "Retrive one of the idiom's operators."
-;;   (gethash key (idiom-operators idiom)))
+(defgeneric of-operators (idiom key type))
+(defmethod of-operators ((idiom idiom) key type)
+  "Retrive one of the idiom's operators."
+  (gethash key (getf (idiom-operators idiom) type)))
 
 (defmethod make-load-form ((idiom idiom) &optional environment)
   (declare (ignore environment))
@@ -74,8 +72,6 @@
 		  ;; :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)
 		  ))
 
-;;;
-
 (defgeneric of-lexicon (idiom lexicon glyph))
 (defmethod of-lexicon (idiom lexicon glyph)
   (member glyph (getf (idiom-lexicons idiom) lexicon)))
@@ -86,17 +82,7 @@
       (setf (getf (idiom-lexicons idiom) lexicon)
 	    (cons glyph (getf (idiom-lexicons idiom) lexicon)))))
 
-;;;
-
 (defmacro boolean-op (operation)
-  `(lambda (omega &optional alpha)
-     (let ((outcome (if alpha (funcall (function ,operation)
-				       alpha omega)
-			(funcall (function ,operation)
-				 omega))))
-       (if outcome 1 0))))
-
-(defmacro reverse-boolean-op (operation)
   `(lambda (omega &optional alpha)
      (let ((outcome (if alpha (funcall (function ,operation)
 				       alpha omega)
@@ -110,16 +96,47 @@
 	 (funcall (function ,operation)
 		  omega))))
 
+(defun process-tests-for (symbol operator)
+  (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
+			     (rest operator))))
+	 (props (rest (assoc (intern "HAS" (package-name *package*))
+			     (rest operator))))
+	 (heading (format nil "[~a] ~a~a~%"
+			  (first operator)
+			  (if (getf props :title)
+			      (getf props :title)
+			      (if (getf props :titles)
+				  (first (getf props :titles))))
+			  (if (getf props :titles)
+			      (concatenate 'string " / " (second (getf props :titles)))
+			      ""))))
+    (labels ((for-tests (tests &optional output)
+	       (if tests (for-tests (rest tests)
+				    (append output (list `(princ (format nil "  _ ~a" ,(cadr (first tests))))
+							 (cond ((eql 'is (caar tests))
+								`(is (,(intern (string-upcase symbol)
+									       (package-name *package*))
+								       ,(cadar tests))
+								     ,(third (first tests))
+								     :test #'equalp))))))
+		   output)))
+      (if tests (append `((princ ,heading))
+			(for-tests tests)
+			`((princ (format nil "~%"))))))))
+
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (let ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
 			      (package-name *package*)))
-	;;;
 	(lexicon-data nil)
-	(functions-data (list :monadic (make-hash-table)
-			      :dyadic (make-hash-table)
-			      :symbolic (make-hash-table)))
-	(operators-data (list :lateral nil :pivotal nil)))
+	(functions-data (list :monadic (make-hash-table) :dyadic (make-hash-table) :symbolic (make-hash-table)))
+	(operators-data (list :lateral nil :pivotal nil))
+	(function-tests (loop :for function :in (rest (assoc (intern "FUNCTIONS" (package-name *package*))
+							     subspecs))
+			   :append (process-tests-for symbol function)))
+	(operator-tests (loop :for operator :in (rest (assoc (intern "OPERATORS" (package-name *package*))
+							     subspecs))
+			   :append (process-tests-for symbol operator))))
     (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
 	       (if pairs
 		   (process-pairs table-symbol type-symbol (rest pairs)
@@ -160,56 +177,17 @@
 						      `((gethash ,glyph-char (getf ,table-symbol :pivotal))
 							,(getf (rest this-lex) :operators))))))))
 		   output))
-
-	     (process-optests (specs &optional output)
-	       (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
-					  (rest (first specs)))))
-		      (props (rest (assoc (intern "HAS" (package-name *package*))
-					  (rest (first specs)))))
-		      (heading (format nil "[~a] ~a~a~%"
-				       (caar specs)
-				       (if (getf props :title)
-					   (getf props :title)
-					   (if (getf props :titles)
-					       (first (getf props :titles))))
-				       (if (getf props :titles)
-					   (concatenate 'string " / " (second (getf props :titles)))
-					   ""))))
-		 (labels ((for-tests (tests &optional output)
-			    (if tests
-				(for-tests (rest tests)
-					   (append output (list `(princ (format nil "  _ ~a"
-										,(cadr (first tests))))
-								(cond ((eql 'is (caar tests))
-								       `(is (,(intern (string-upcase symbol)
-										      (package-name *package*))
-									      ,(cadar tests))
-									    ,(third (first tests))
-									    :test #'equalp))))))
-				output)))
-		   
-		   (if specs
-		       (process-optests (rest specs)
-					(if (assoc (intern "TESTS" (package-name *package*))
-						   (rest (first specs)))
-					    (append output (list `(princ ,heading))
-						    (for-tests tests)
-						    (list `(princ (format nil "~%"))))
-					    output))
-		       output))))
-
 	     (process-gentests (specs &optional output)
-	       (if specs
-		   (let ((this-spec (cdar specs)))
-		     (process-gentests (rest specs)
-				       (append output `((princ ,(getf this-spec :title))
-							(princ (format nil "~%  _ ~a"
-								       ,@(getf this-spec :in)))
-							(is (,(intern (string-upcase symbol)
-								      (package-name *package*))
-							      ,@(getf this-spec :in))
-							    ,(getf this-spec :ex)
-							    :test #'equalp)))))
+	       (if specs (let ((this-spec (cdar specs)))
+			   (process-gentests (rest specs)
+					     (append output `((princ ,(getf this-spec :title))
+							      (princ (format nil "~%  _ ~a"
+									     ,@(getf this-spec :in)))
+							      (is (,(intern (string-upcase symbol)
+									    (package-name *package*))
+								    ,@(getf this-spec :in))
+								  ,(getf this-spec :ex)
+								  :test #'equalp)))))
 		   output)))
       (let* ((function-specs (process-pairs 'fn-specs :functions
 					    (rest (assoc (intern "FUNCTIONS" (package-name *package*))
@@ -219,10 +197,6 @@
 							 subspecs))))
 	     (grammar-specs (rest (assoc (intern "GRAMMAR" (package-name *package*))
 					 subspecs)))
-	     (function-tests (process-optests (rest (assoc (intern "FUNCTIONS" (package-name *package*))
-							   subspecs))))
-	     (operator-tests (process-optests (rest (assoc (intern "OPERATORS" (package-name *package*))
-							   subspecs))))
 	     (general-tests (process-gentests (rest (assoc (intern "GENERAL-TESTS" (package-name *package*))
 							   subspecs))))
 	     (utility-specs (rest (assoc (intern "UTILITIES" (package-name *package*))
@@ -264,7 +238,8 @@
 					,',idiom-definition)))
 			  ,(cond ((and options (listp options)
 				       (string= "TEST" (string (first options))))
-				  (let ((all-tests ',(append function-tests operator-tests general-tests)))
+				  (let ((all-tests ',(append function-tests operator-tests
+							     general-tests)))
 				    `(progn
 				       (setq prove:*enable-colors* nil)
 				       (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
