@@ -23,12 +23,14 @@
 		       :collect (if (= this-dim axis)
 				    1 (nth this-dim match-dims)))
 		    match-dims)
+		:element-type (element-type to-match)
 		:initial-element (aref singleton 0))))
 
 (defun array-promote (array)
   "Promote an array to the next rank. The existing content will occupy 1 unit of the new dimension."
   (make-array (cons 1 (dims array))
 	      ;; TODO: this is very inefficient...
+	      :element-type (element-type array)
 	      :initial-contents (list (array-to-list array))))
 
 (defun array-to-list (array)
@@ -134,6 +136,7 @@
 				    (> (abs d1)
 				       ad1))
 			       (list (make-array (list (abs (+ d1 ad1)))
+						 :element-type (element-type array)
 						 :initial-element fill-with)))
 			   (list (aops:partition array (if inverse d1 (if (> 0 d1)
 									  (+ d1 ad1)
@@ -144,6 +147,7 @@
 			   (if (and (not inverse)
 				    (< ad1 d1))
 			       (list (make-array (list (- d1 ad1))
+						 :element-type (element-type array)
 						 :initial-element fill-with))))))
 	(aops:combine (apply #'aops:stack
 			     (append (list 0 (aops:each (lambda (a)
@@ -185,28 +189,28 @@
       sub-array)))
 
 
-(defmacro do-permuted (array axis &body body)
-  `(let ((a-rank (rank ,array)))
-     (if (> ,axis (1- a-rank))
-	 (error "Invalid axis.")
-	 (progn (if (not (= ,axis (1- a-rank)))
-		    (setq ,array (aops:permute (rotate-left (1+ axis) (iota a-rank))
-					       ,array)))
-		,@body
-		(if (not (= ,axis (1- a-rank)))
-		    (aops:permute (rotate-right (1+ axis) (iota a-rank))
-				  ,array)
-		    ,array)))))
+(defmacro do-permuted (array axis arank &body body)
+  `(if (> ,axis (1- arank))
+       (error "Invalid axis.")
+       (progn (if (not (= ,axis (1- arank)))
+		  (setq ,array (aops:permute (rotate-left (1+ axis) (iota arank))
+					     ,array)))
+	      ,@body (if (not (= ,axis (1- arank)))
+			 (aops:permute (rotate-right (1+ axis) (iota arank))
+				       ,array)
+			 ,array))))
 
 (defun apply-marginal (function array axis default-axis)
   "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
-  (let* ((new-array (copy-array array))
+  (let* ((arank (rank array))
+	 (new-array (copy-array array))
 	 (axis (if axis axis default-axis)))
-    (do-permuted new-array axis (aops:margin function new-array (1- a-rank)))))
+    (do-permuted new-array axis arank (aops:margin function new-array (1- arank)))))
 
 (defun subprocess (array per-vector axis function)
-  (let ((new-array (copy-array array)))
-    (do-permuted new-array axis
+  (let ((arank (rank array))
+	(new-array (copy-array array)))
+    (do-permuted new-array axis arank
       (let ((main (make-array (list (array-total-size new-array))
 			      :displaced-to new-array))
 	    (vector-arguments (make-array (list (array-total-size per-vector))
@@ -228,8 +232,7 @@
 	 (char-array? (or (eql 'character (element-type array))
 			  (eql 'base-char (element-type array)))))
     (if (and singleton-array (< 1 a-rank))
-    	(setq array (make-array (list 1) :element-type (element-type array)
-				:displaced-to array)))
+    	(setq array (make-array (list 1) :displaced-to array)))
     (if (> axis (1- a-rank))
 	(error "Invalid axis.")
 	(progn (if (not (= axis (1- a-rank)))
@@ -396,16 +399,15 @@
 			(if (vectorp sub-vector)
 			    (reduce function2 sub-vector)
 			    (funcall function2 sub-vector)))
-		      (aops:outer function1
-				  ;; enclose the argument if it is a vector
-				  (if (vectorp operand1)
-				      (vector operand1)
-				      (aops:split (aops:permute (alexandria:iota (rank operand1))
-								operand1)
-						  1))
+		      (aops:outer function1 (if (vectorp operand1)
+						;; enclose the argument if it is a vector
+						(vector operand1)
+						(aops:split (aops:permute (iota (rank operand1))
+									  operand1)
+							    1))
 				  (if (vectorp operand2)
 				      (vector operand2)
-				      (aops:split (aops:permute (reverse (alexandria:iota (rank operand2)))
+				      (aops:split (aops:permute (reverse (iota (rank operand2)))
 								operand2)
 						  1))))))
 
@@ -501,7 +503,8 @@
 								     (rank target)))
 				    :collect 1))
 			     (dims target)))
-	(output (make-array (dims array) :initial-element 0))
+	(output (make-array (dims array)
+			    :element-type 'bit :initial-element 0))
 	(match-coords nil)
 	(confirmed-matches nil))
     (run-dim array (lambda (element coords)
@@ -718,6 +721,7 @@
 					 (linsert 1 (dims array)
 						  (- (ceiling (aref (first axes) 0))
 						     count-from)))
+				     :element-type (element-type array)
 				     :displaced-to (copy-array array)))
 			((and (< 1 (length (first axes)))
 			      (or (< (aref (first axes) 0)
@@ -748,13 +752,14 @@
 							     collapsed (first dms))
 							 output))))))
 			     (make-array (dproc (dims array))
+					 :element-type (element-type array)
 					 :displaced-to (copy-array array))))))
 		  (make-array (list (array-total-size array))
 			      :element-type (element-type array)
 			      :displaced-to (copy-array array))))))
 
 (defun re-enclose (matrix axes)
-  "Convert an array into a set of sub-arrays listed within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array be be composed into a 3-element vector containing 2 x 4 dimensional arrays."
+  "Convert an array into a set of sub-arrays listed within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
   (labels ((make-enclosure (inner-dims type dimensions)
 	     (loop :for d :from 0 :to (1- (first dimensions))
 		:collect (if (= 1 (length dimensions))
@@ -774,6 +779,10 @@
 			   (1- (rank matrix)))))
 	  ((not (apply #'< (array-to-list axes)))
 	   (error "Elements in an axis argument to the enclose function must be in ascending order."))
+	  ((= (length axes)
+	      (rank matrix))
+	   ;; if the number of axes is the same as the matrix's rank, just pass it back
+	   matrix)
 	  ((let ((indices (mapcar (lambda (item) (+ item (aref axes 0)))
 				  (alexandria:iota (- (rank matrix)
 						      (- (rank matrix)
