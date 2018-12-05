@@ -3,6 +3,7 @@
 (in-package #:vex)
 
 (defmacro local-idiom (symbol)
+  "Shorthand macro to output the name of a Vex idiom in the local package."
   (intern (format nil "*~a-IDIOM*" (string-upcase symbol))))
 
 ;; The idiom object defines a vector language instance with a persistent state.
@@ -74,15 +75,11 @@
 
 (defgeneric of-lexicon (idiom lexicon glyph))
 (defmethod of-lexicon (idiom lexicon glyph)
+  "Check whether a character belongs to a given Vex lexicon."
   (member glyph (getf (idiom-lexicons idiom) lexicon)))
 
-(defgeneric lexicon-add (idiom lexicon glyph))
-(defmethod lexicon-add ((idiom idiom) lexicon glyph)
-  (if (not (of-lexicon idiom lexicon glyph))
-      (setf (getf (idiom-lexicons idiom) lexicon)
-	    (cons glyph (getf (idiom-lexicons idiom) lexicon)))))
-
 (defmacro boolean-op (operation)
+  "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
   `(lambda (omega &optional alpha)
      (let ((outcome (if alpha (funcall (function ,operation)
 				       alpha omega)
@@ -91,12 +88,14 @@
        (if outcome 1 0))))
 
 (defmacro reverse-op (operation)
+  "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
   `(lambda (omega &optional alpha)
      (if alpha (funcall (function ,operation) alpha omega)
 	 (funcall (function ,operation)
 		  omega))))
 
 (defun process-tests-for (symbol operator)
+  "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
 			     (rest operator))))
 	 (props (rest (assoc (intern "HAS" (package-name *package*))
@@ -368,6 +367,7 @@
 	  (cons item output)))))
 
 (defun =vex-lines (idiom meta)
+  "Parse lines of a vector language."
   (labels ((?blank-character () (?satisfies (of-utilities idiom :match-blank-character)))
 	   (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
 	   (?but-newline-character ()
@@ -400,6 +400,7 @@
 				    ,(second param))))))))
 
 (defun composer (idiom space tokens &optional precedent properties)
+  "Compile processed tokens output by the parser into code according to an idiom's grammars and primitive elements."
   ;; (print (list :comp tokens precedent properties))
   (if (not tokens)
       (values precedent properties)
@@ -428,8 +429,42 @@
 	    (values precedent properties tokens)
 	    (composer idiom space tokens processed properties)))))
 
+
+(defmacro set-composer-patterns (name with &rest params)
+  "Generate part of a Vex grammar from entered specifications."
+  (let* ((with (rest with))
+	 (idiom (gensym)) (token (gensym)) (invalid (gensym)) (properties (gensym))
+	 (space (or (getf with :space-symbol) (gensym)))
+	 (precedent-symbol (getf with :precedent-symbol))
+	 (precedent (or precedent-symbol (gensym)))
+	 (process (or (getf with :process-symbol) (gensym)))
+	 (sub-properties (or (getf with :properties-symbol) (gensym)))
+	 (idiom-symbol (getf with :idiom-symbol)))
+    `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
+       (let ((,idiom-symbol ,idiom))
+	 (declare (ignorable ,idiom-symbol))
+	 (list ,@(loop :for param :in params
+		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
+				    :function (lambda (,token ,space ,process &optional ,precedent ,properties)
+						(declare (ignorable ,precedent ,properties))
+						(let ((,invalid nil)
+						      (,sub-properties nil)
+						      ,@(loop :for token :in (second param)
+							   :when (not (keywordp (first token)))
+							   :collect (list (first token) nil)))
+						  ,@(build-composer-pattern (second param)
+									    idiom-symbol token invalid properties
+									    process space sub-properties)
+						  (setq ,sub-properties (reverse ,sub-properties))
+						  ;; reverse the sub-properties since they are consed into the list
+						  (if (not ,invalid)
+						      (values ,(third param)
+							      ,(fourth param)
+							      ,token)))))))))))
+
 (defun build-composer-pattern (sequence idiom tokens-symbol invalid-symbol properties-symbol
 			       process space sub-props)
+  "Generate a pattern for language compilation from a set of specs entered as part of a grammar."
   (labels ((element-check (base-type)
 	     `(funcall (gethash ,(intern (string-upcase (cond ((listp base-type)
 							       (first base-type))
@@ -500,37 +535,6 @@
 			     `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
 		      (let ((item-properties (rest item)))
 			(process-item item-symbol item-properties)))))))
-
-(defmacro set-composer-patterns (name with &rest params)
-  (let* ((with (rest with))
-	 (idiom (gensym)) (token (gensym)) (invalid (gensym)) (properties (gensym))
-	 (space (or (getf with :space-symbol) (gensym)))
-	 (precedent-symbol (getf with :precedent-symbol))
-	 (precedent (or precedent-symbol (gensym)))
-	 (process (or (getf with :process-symbol) (gensym)))
-	 (sub-properties (or (getf with :properties-symbol) (gensym)))
-	 (idiom-symbol (getf with :idiom-symbol)))
-    `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
-       (let ((,idiom-symbol ,idiom))
-	 (declare (ignorable ,idiom-symbol))
-	 (list ,@(loop :for param :in params
-		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
-				    :function (lambda (,token ,space ,process &optional ,precedent ,properties)
-						(declare (ignorable ,precedent ,properties))
-						(let ((,invalid nil)
-						      (,sub-properties nil)
-						      ,@(loop :for token :in (second param)
-							   :when (not (keywordp (first token)))
-							   :collect (list (first token) nil)))
-						  ,@(build-composer-pattern (second param)
-									    idiom-symbol token invalid properties
-									    process space sub-properties)
-						  (setq ,sub-properties (reverse ,sub-properties))
-						  ;; reverse the sub-properties since they are consed into the list
-						  (if (not ,invalid)
-						      (values ,(third param)
-							      ,(fourth param)
-							      ,token)))))))))))
 
 (defun vex-program (idiom options &optional string meta internal)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
