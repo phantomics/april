@@ -1273,26 +1273,3 @@
 		;;       :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 		;; 	      (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
 		))
-
-
-
-
- ;; (if nil;(= orank ,at-omega)
- ;; 	   (vector (if alpha (funcall fn omega alpha)
- ;; 		       (funcall fn omega)))
- ;; 	   (let ((encr (make-array (list ,at-omega)
- ;; 				   :initial-contents
- ;; 				   (iota ,at-omega :start (- orank (1- ,at-omega)
- ;; 							     index-origin)))))
- ;; 	     (print (list :aom ,at-omega omega alpha
- ;; 			  (- (rank omega) index-origin)
- ;; 			  encr))
- ;; 	     (mix-arrays (- ,at-omega index-origin)
- ;; 			 (aops:margin (lambda (s)
- ;; 					(print (list :ss s))
- ;; 					(disclose (funcall fn s)))
- ;; 				      alpha (- (rank alpha) index-origin)))
- ;; 	     ;; (mix-arrays 0 (aops:each (lambda (item) (vector (funcall fn item)))
- ;; 	     ;; 			      (re-enclose omega encr))
- ;; 	     ;; 		 :disclose-items t)
- ;; 	     ))
