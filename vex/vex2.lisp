@@ -15,21 +15,21 @@
    (base-state :accessor idiom-base-state
 	       :initarg :state)
    (default-state :accessor idiom-default-state
-     :initarg :state)
+                  :initarg :state)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
    (lexicons :accessor idiom-lexicons
 	     :initform nil
 	     :initarg :lexicons)
    (functions :accessor idiom-functions
-	      :initform nil
-	      :initarg :functions)
+		:initform nil
+		:initarg :functions)
    (operators :accessor idiom-operators
-	      :initform nil
-	      :initarg :operators)
+		:initform nil
+		:initarg :operators)
    (grammar-elements :accessor idiom-grammar-elements
-		     :initform (make-hash-table :test #'eq)
-		     :initarg :grammar-elements)
+			:initform (make-hash-table :test #'eq)
+			:initarg :grammar-elements)
    (composer-opening-patterns :accessor idiom-composer-opening-patterns
 			      :initform nil
 			      :initarg :composer-opening-patterns)
@@ -57,6 +57,22 @@
   "Retrive one of the idiom's operators."
   (gethash key (getf (idiom-operators idiom) type)))
 
+(defmethod make-load-form ((idiom idiom) &optional environment)
+  (declare (ignore environment))
+  ;; Note that this definition only works because X and Y do not
+  ;; contain information which refers back to the object itself.
+  ;; For a more general solution to this problem, see revised example below.
+  `(make-instance ',(class-of idiom)
+		  :name ',(idiom-name idiom)
+		  :state ',(idiom-state idiom)
+		  ;; :utilities ,(cons 'list (idiom-utilities-spec idiom))
+		  ;; :functions ,(idiom-functions-spec idiom)
+		  ;; :operators ,(idiom-operators-spec idiom)
+		  ;; :operational-glyphs ',(idiom-opglyphs idiom)
+		  ;; :operator-index ',(idiom-opindex idiom)
+		  ;; :overloaded-lexicon ',(idiom-overloaded-lexicon idiom)
+		  ))
+
 (defgeneric of-lexicon (idiom lexicon glyph))
 (defmethod of-lexicon (idiom lexicon glyph)
   "Check whether a character belongs to a given Vex lexicon."
@@ -78,7 +94,7 @@
 	 (funcall (function ,operation)
 		  omega))))
 
-(defun process-lex-tests-for (symbol operator)
+(defun process-tests-for (symbol operator)
   "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
 			     (rest operator))))
@@ -107,26 +123,12 @@
 			(for-tests tests)
 			`((princ (format nil "~%"))))))))
 
-(defun process-general-tests-for (symbol test-set)
-  `((princ ,(getf test-set :title))
-    (princ (format nil "~%  _ ~a" ,@(getf test-set :in)))
-    (is (,(intern (string-upcase symbol) (package-name *package*))
-	  ,@(getf test-set :in))
-	,(getf test-set :ex)
-	:test #'equalp)))
-
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
 	       `(rest (assoc (intern ,(string-upcase symbol-string)
 				     (package-name *package*))
-			     subspecs)))
-	     (build-lexicon () `(loop for lexicon in (getf (rest this-lex) :lexicons)
-				   do (if (not (getf lexicon-data lexicon))
-					  (setf (getf lexicon-data lexicon) nil))
-				     (if (not (member glyph-char (getf lexicon-data lexicon)))
-					 (setf (getf lexicon-data lexicon)
-					       (cons glyph-char (getf lexicon-data lexicon)))))))
+			     subspecs))))
     (let* ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
 				 (package-name *package*)))
 	   (lexicon-data nil)
@@ -134,8 +136,7 @@
 	   (function-specs (loop :for spec :in (of-subspec functions)
 			      :append (let* ((glyph-char (character (first spec)))
 					     (this-lex (macroexpand (list (second lexicon-processor)
-									  :functions glyph-char (third spec)))))
-					(build-lexicon)
+									  'fn-specs glyph-char (third spec)))))
 					`(,@(if (getf (getf (rest this-lex) :functions) :monadic)
 						`((gethash ,glyph-char (getf fn-specs :monadic))
 						  ',(getf (getf (rest this-lex) :functions) :monadic)))
@@ -148,8 +149,7 @@
 	   (operator-specs (loop :for spec :in (of-subspec operators)
 			      :append (let* ((glyph-char (character (first spec)))
 					     (this-lex (macroexpand (list (second lexicon-processor)
-									  :operators glyph-char (third spec)))))
-					(build-lexicon)
+									  'op-specs glyph-char (third spec)))))
 					(if (member :lateral-operators (getf (rest this-lex) :lexicons))
 					    `((gethash ,glyph-char (getf op-specs :lateral))
 					      ,(getf (rest this-lex) :operators))
@@ -157,62 +157,109 @@
 						`((gethash ,glyph-char (getf op-specs :pivotal))
 						  ,(getf (rest this-lex) :operators)))))))
 	   (function-tests (loop :for function :in (of-subspec functions)
-			      :append (process-lex-tests-for symbol function)))
+			      :append (process-tests-for symbol function)))
 	   (operator-tests (loop :for operator :in (of-subspec operators)
-			      :append (process-lex-tests-for symbol operator)))
-	   (general-tests (loop :for test-set :in (of-subspec general-tests)
-			     :append (process-general-tests-for symbol (rest test-set)))))
-      (let* ((grammar-specs (of-subspec grammar))
-	     (utility-specs (of-subspec utilities))
-	     (pattern-settings `((idiom-composer-opening-patterns ,idiom-symbol)
-				 (append ,@(loop :for pset :in (rest (assoc :opening-patterns grammar-specs))
-					      :collect `(funcall (function ,pset) ,idiom-symbol)))
-				 (idiom-composer-following-patterns ,idiom-symbol)
-				 (append ,@(loop :for pset :in (rest (assoc :following-patterns grammar-specs))
-					      :collect `(funcall (function ,pset) ,idiom-symbol)))))
-	     (idiom-definition `(make-instance 'idiom :name ,(intern (string-upcase symbol) "KEYWORD")
-					       :state ,(cons 'list (of-subspec state))
-					       :utilities ,(cons 'list utility-specs)
-					       :lexicons (quote ,lexicon-data)
-					       :functions (let ((fn-specs (list :monadic (make-hash-table)
-										:dyadic (make-hash-table)
-										:symbolic (make-hash-table))))
-							    (setf ,@function-specs)
-							    fn-specs)
-					       :operators (let ((op-specs (list :lateral (make-hash-table)
-										:pivotal (make-hash-table))))
-							    (setf ,@operator-specs)
-							    op-specs))))
-	`(progn (defvar ,idiom-symbol)
-		(setf ,idiom-symbol ,idiom-definition)
-		(let ((el (funcall (function ,(second (assoc :elements grammar-specs)))
-				   ,idiom-symbol)))
-		  (loop :for elem :in el :do (setf (gethash (first elem)
-							    (idiom-grammar-elements ,idiom-symbol))
-						   (second elem))))
-		(setf ,@pattern-settings)
-		(defmacro ,(intern (string-upcase symbol) (package-name *package*))
-		    (options &optional input-string)
-		  ;; this macro is the point of contact between users and the language, used to
-		  ;; evaluate expressions and control properties of the language instance
-		  (let* ((local-idiom (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
+			      :append (process-tests-for symbol operator))))
+      (labels ((process-pairs (table-symbol type-symbol pairs &optional output)
+		 (if pairs
+		     (process-pairs table-symbol type-symbol (rest pairs)
+				    (let* ((glyph-char (character (caar pairs))))
+				      (let* ((lexicon-processor
+					      (getf (of-subspec utilities) :process-lexicon-macro))
+					     (this-lex (macroexpand (list (second lexicon-processor)
+									  type-symbol glyph-char
+									  (third (first pairs))))))
+					(loop for lexicon in (getf (rest this-lex) :lexicons)
+					   do (if (not (getf lexicon-data lexicon))
+						  (setf (getf lexicon-data lexicon) nil))
+					     (if (not (member glyph-char (getf lexicon-data lexicon)))
+						 (setf (getf lexicon-data lexicon)
+						       (cons glyph-char (getf lexicon-data lexicon)))))
+
+					(append output
+						;; (if (eq :functions type-symbol)
+						;;     `(,@(if (getf (getf (rest this-lex) :functions) :monadic)
+						;; 	    `((gethash ,glyph-char (getf ,table-symbol :monadic))
+						;; 	      ',(getf (getf (rest this-lex) :functions) :monadic)))
+						;; 	,@(if (getf (getf (rest this-lex) :functions) :dyadic)
+						;; 	      `((gethash ,glyph-char (getf ,table-symbol :dyadic))
+						;; 		',(getf (getf (rest this-lex) :functions) :dyadic)))
+						;; 	,@(if (getf (getf (rest this-lex) :functions) :symbolic)
+						;; 	      `((gethash ,glyph-char (getf ,table-symbol :symbolic))
+						;; 		',(getf (getf (rest this-lex) :functions)
+						;; 			:symbolic))))
+						;;     (if (eq :operators type-symbol)
+						;; 	(if (member :lateral-operators (getf (rest this-lex)
+						;; 					     :lexicons))
+						;; 	    `((gethash ,glyph-char (getf ,table-symbol :lateral))
+						;; 	      ,(getf (rest this-lex) :operators))
+						;; 	    (if (member :pivotal-operators (getf (rest this-lex)
+						;; 						 :lexicons))
+						;; 		`((gethash ,glyph-char
+						;; 			   (getf ,table-symbol :pivotal))
+						;; 		  ,(getf (rest this-lex) :operators))))))
+						nil
+						))))
+		     output))
+	       (process-gentests (specs &optional output)
+		 (if specs (let ((this-spec (cdar specs)))
+			     (process-gentests (rest specs)
+					       (append output `((princ ,(getf this-spec :title))
+								(princ (format nil "~%  _ ~a"
+									       ,@(getf this-spec :in)))
+								(is (,(intern (string-upcase symbol)
+									      (package-name *package*))
+								      ,@(getf this-spec :in))
+								    ,(getf this-spec :ex)
+								    :test #'equalp)))))
+		     output)))
+	(process-pairs 'fn-specs :functions (of-subspec functions))
+	(let* (;; (operator-specs (process-pairs 'op-specs :operators (of-subspec operators)))
+	       ;; (function-specs (process-pairs 'fn-specs :functions (of-subspec functions)))
+	       (grammar-specs (of-subspec grammar))
+	       (general-tests (process-gentests (of-subspec general-tests)))
+	       (utility-specs (of-subspec utilities))
+	       (idiom-definition
+		`(make-instance 'idiom
+				:name ,(intern (string-upcase symbol) "KEYWORD")
+				:state ,(cons 'list (rest (assoc (intern "STATE" (package-name *package*))
+								 subspecs)))
+				:utilities ,(cons 'list utility-specs)
+				:lexicons (quote ,lexicon-data)
+				;; :functions (quote ,functions-data)
+				:functions (let ((fn-specs (list :monadic (make-hash-table)
+								 :dyadic (make-hash-table)
+								 :symbolic (make-hash-table))))
+					     (setf ,@function-specs)
+					     fn-specs)
+				:operators (let ((op-specs (list :lateral (make-hash-table)
+								 :pivotal (make-hash-table))))
+					     (setf ,@operator-specs)
+					     op-specs))))
+	  `(progn (defvar ,idiom-symbol)
+		  (setf ,idiom-symbol ,idiom-definition)
+		  (let ((el (funcall (function ,(second (assoc :elements grammar-specs)))
+				     ,idiom-symbol)))
+		    (loop :for elem :in el :do (setf (gethash (first elem)
+							      (idiom-grammar-elements ,idiom-symbol))
+						     (second elem))))
+		  (setf (idiom-composer-opening-patterns ,idiom-symbol)
+			(append ,@(loop :for pset :in (rest (assoc :opening-patterns grammar-specs))
+				     :collect `(funcall (function ,pset) ,idiom-symbol)))
+			(idiom-composer-following-patterns ,idiom-symbol)
+			(append ,@(loop :for pset :in (rest (assoc :following-patterns grammar-specs))
+				     :collect `(funcall (function ,pset) ,idiom-symbol))))
+		  (defmacro ,(intern (string-upcase symbol)
+				     (package-name *package*))
+		      (options &optional input-string)
+		    ;; this macro is the point of contact between users and the language, used to
+		    ;; evaluate expressions and control properties of the language instance
 		    `(progn ,@(if (not (boundp (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
 				  ;; create idiom object within host package if it does not already exist
-				  `((defvar ,local-idiom)
-				    (setq ,local-idiom ,',idiom-definition)
-				    (setf (idiom-composer-opening-patterns ,local-idiom)
-					  (append ,@(loop :for pset :in ',(rest (assoc :opening-patterns
-										       grammar-specs))
-						       :collect `(funcall (function ,pset) ,local-idiom)))
-					  (idiom-composer-following-patterns ,local-idiom)
-					  (append ,@(loop :for pset :in ',(rest (assoc :following-patterns
-										       grammar-specs))
-						       :collect `(funcall (function ,pset) ,local-idiom))))
-				    (let ((el (funcall (function ,',(second (assoc :elements grammar-specs)))
-						       ,local-idiom)))
-				      (loop :for elem :in el
-					 :do (setf (gethash (first elem) (idiom-grammar-elements ,local-idiom))
-						   (second elem))))))
+				  `((defvar ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol))))
+				    (print (list :ee (quote ,',idiom-definition)))
+				    (setq ,(intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))
+					  ,',idiom-definition)))
 			    ,(cond ((and options (listp options)
 					 (string= "TEST" (string (first options))))
 				    (let ((all-tests ',(append function-tests operator-tests
@@ -242,7 +289,8 @@
 								       (if (string= "SET" (string (first options)))
 									   (rest options)
 									   (error "Incorrect option syntax."))))
-								 ,(if input-string input-string options)))
+								 ,(if input-string input-string
+								      options)))
 					      ;; ,(vex-program (eval (intern ,(format nil "*~a-IDIOM*"
 					      ;; 					 (string-upcase symbol))))
 					      ;; 		  (if input-string
