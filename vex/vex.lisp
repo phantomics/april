@@ -196,7 +196,7 @@
 		  ;; this macro is the point of contact between users and the language, used to
 		  ;; evaluate expressions and control properties of the language instance
 		  (let* ((local-idiom (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
-		    `(progn ,@(if (not (boundp (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
+		    `(progn ,@(if (not (boundp local-idiom))
 				  ;; create idiom object within host package if it does not already exist
 				  `((defvar ,local-idiom)
 				    (setq ,local-idiom ,',idiom-definition)
@@ -235,8 +235,7 @@
 							 (not (boundp (second (assoc :space (rest options))))))
 						    `((defvar ,(second (assoc :space (rest options)))
 							(make-hash-table :test #'eq))))
-					      (eval (vex-program ,(intern ,(format nil "*~a-IDIOM*"
-										   (string-upcase symbol)))
+					      (eval (vex-program ,local-idiom
 								 (quote
 								  ,(if input-string
 								       (if (string= "SET" (string (first options)))
