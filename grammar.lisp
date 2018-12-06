@@ -142,7 +142,7 @@
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
-  (let ((value (output-value value properties)))
+  (let ((value (output-value space value properties)))
     value)
   (list :type (list :array :explicit)))
  (function
@@ -210,6 +210,6 @@
   (let ((fn-content (if (not (characterp fn-element))
 			fn-element (get-function-data idiom fn-element (if value :dyadic :monadic))))
 	(axes (getf (first properties) :axes)))
-    `(apl-call ,fn-content ,precedent ,@(if value (list (output-value value (rest properties))))
+    `(apl-call ,fn-content ,precedent ,@(if value (list (output-value space value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   (list :type (list :array :evaluated))))
