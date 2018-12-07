@@ -164,6 +164,22 @@
  composer-following-patterns-apl-standard
  (with :idiom-symbol idiom :space-symbol space :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
+ (value-assignment-by-function-result
+  ;; match the assignment of a function result to a value, like a+←5
+  ((:with-preceding-type :array)
+   (assignment-operator :element (function :glyph ←))
+   (fn-element :pattern (:type (:function)))
+   (symbol :element (array :symbol-overriding t)))
+  (if (gethash symbol (gethash :values space))
+      (let ((fn-content (if (not (characterp fn-element))
+	    		    fn-element (get-function-data idiom fn-element :dyadic)))
+	    (symbol-axes (getf (third properties) :axes))
+	    (function-axes (getf (first properties) :axes)))
+	(if (not symbol-axes)
+	    `(setq ,symbol (apl-call ,fn-content ,symbol ,precedent
+				     ,@(if function-axes `((list ,@(first function-axes))))))
+	    (enclose-axes symbol symbol-axes :set `(lambda (item) (apl-call ,fn-content item ,precedent))))))
+  (list :type (list :array :assigned :by-result-assignment-operator)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
   ((:with-preceding-type :array)
@@ -188,7 +204,8 @@
 	 (if (gethash symbol (gethash :values space))
 	     (setf (gethash symbol (gethash :values space))
 		   nil))
-	 `(setq ,symbol ,precedent)))
+	 `(setq ,symbol ,precedent))
+  (list :type (list :function :assigned)))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands

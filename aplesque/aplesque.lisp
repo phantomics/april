@@ -18,10 +18,9 @@
 (defun scale-array (singleton to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
   (let ((match-dims (dims to-match)))
-    (make-array (if axis
-		    (loop :for this-dim :from 0 :to (1- (length match-dims))
-		       :collect (if (= this-dim axis)
-				    1 (nth this-dim match-dims)))
+    (make-array (if axis (loop :for this-dim :from 0 :to (1- (length match-dims))
+			    :collect (if (= this-dim axis)
+					 1 (nth this-dim match-dims)))
 		    match-dims)
 		:element-type (element-type to-match)
 		:initial-element (aref singleton 0))))
@@ -199,6 +198,64 @@
 			 (aops:permute (rotate-right (1+ axis) (iota arank))
 				       ,array)
 			 ,array))))
+
+(defun catenate (a1 a2 axis)
+  (let* ((scale-a1 (if (not (is-unitary a1))
+		       a1 (scale-array a1 a2 axis)))
+	 (scale-a2 (if (not (is-unitary a2))
+		       a2 (scale-array a2 a1 axis))))
+    (print (list :ss scale-a1 scale-a2))
+    (if (= (rank scale-a1)
+	   (rank scale-a2))
+	(aops:stack axis scale-a1 scale-a2)
+	(let* ((lesser (if (< (rank scale-a1)
+			      (rank scale-a2))
+			   scale-a1 scale-a2))
+	       (greater (if (< (rank scale-a1)
+			       (rank scale-a2))
+			    scale-a2 scale-a1))
+	       (gdims (dims greater))
+	       (grank (rank greater))
+	       (ldims (dims lesser))
+	       (lrank (rank lesser)))
+	  (if (and (= 1 (- grank lrank))
+		   (loop :for i :from 0 :to (1- lrank)
+		      :always (= (nth i ldims)
+				 (nth i gdims))))
+	      (if (vectorp lesser)
+		  (if (< (rank scale-a2)
+			 (rank scale-a1))
+		      (aops:stack axis greater (make-array (list (length lesser) 1)
+							   :element-type (element-type a2)
+							   :initial-contents
+							   (loop :for i :from 0
+							      :to (1- (length lesser))
+							      :collect (list (aref lesser i)))))
+		      (aops:stack axis (make-array (list (length lesser) 1)
+						   :element-type (element-type a2)
+						   :initial-contents
+						   (loop :for i :from 0
+						      :to (1- (length lesser))
+						      :collect (list (aref lesser i))))
+				  greater)))
+	      (error "Incompatible arrays."))))))
+
+(defun laminate (a1 a2 axis)
+  (let* ((permute-dims (alexandria:iota (1+ (rank a1))))
+	 (pa1 (if (not (is-unitary a1))
+		      (aops:permute (rotate-right axis permute-dims)
+				    (array-promote a1))))
+	 (pa2 (if (not (is-unitary a2))
+		      (aops:permute (rotate-right axis permute-dims)
+				    (array-promote a2)))))
+    ;; a 1-element array argument to laminate is scaled to
+    ;; match the other array's dimensions
+    (aops:stack axis (if (is-unitary a1)
+			 (scale-array a1 pa2)
+			 pa1)
+		(if (is-unitary a2)
+		    (scale-array a2 pa1)
+		    pa2))))
 
 (defun apply-marginal (function array axis default-axis)
   "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
@@ -593,7 +650,7 @@
 		   (refer-to (first dim-indices))
 		   (loop :for index :in dim-indices :collect (refer-to index)))))))
 
-(defun mix-arrays (axis arrays &key (max-dims nil) (disclose-items nil))
+(defun mix-arrays (axis arrays &key (max-dims nil) (disclose-items nil) (recombine nil))
   "Combine multiple arrays into a single array one rank higher. Vectors may be stacked to form a 2D array, 2D arrays may be stacked to form a 3D array, etc. Arrays with smaller dimensions than the largest array in the stack have missing elements replaced with 0s for numeric arrays or blanks for character arrays."
   (let ((permute-dims (if (vectorp arrays)
 			  (alexandria:iota (1+ (rank (aref arrays 0))))))
@@ -605,6 +662,9 @@
 									  mdims)))))))
 	(first-element (apply #'aref (cons arrays (loop :for i :from 0 :to (1- (rank arrays))
 						     :collect 0)))))
+    ;; TODO: the recombine option and some other things are hacks, how better to handle cases
+    ;; where subprocessed array elements should be recombined?
+    ;; (print (list :d disclose-items first-element arrays))
     (if (and disclose-items (is-unitary first-element)
 	     (arrayp first-element)
 	     (is-unitary (aref first-element 0)))
@@ -613,29 +673,33 @@
 	(if (vectorp arrays)
 	    (apply #'aops:stack
 		   (cons axis (loop :for index :from 0 :to (1- (length arrays))
-				 :collect (aops:permute (rotate-right axis permute-dims)
-							(array-promote
-							 (if (not (equalp max-dims (dims (aref arrays index))))
-							     (let* ((etype (element-type (aref arrays index)))
-								    (out-array (make-array max-dims
-											   :element-type etype
-											   :initial-element
-											   (cond ((eql 'character
-												       etype)
-												  #\ )
-												 (t 0)))))
-							       (run-dim (aref arrays index)
-									(lambda (item coords)
-									  (setf (apply #'aref
-										       (cons out-array coords))
-										item)))
-							       out-array)
-							     (let ((this-item (aref arrays index)))
-							       (if (not (and disclose-items
-									     (is-unitary this-item)))
-								   this-item (disclose this-item)))))))))
+				 :collect (if (and recombine (is-unitary (aref arrays index)))
+					      ;; (array-promote (disclose (aref arrays index)))
+					      (aref arrays index)
+					      (aops:permute
+					       (rotate-right axis permute-dims)
+					       (array-promote
+						(if (not (equalp max-dims (dims (aref arrays index))))
+						    (let* ((etype (element-type (aref arrays index)))
+							   (out-array (make-array max-dims
+										  :element-type etype
+										  :initial-element
+										  (cond ((eql 'character
+											      etype)
+											 #\ )
+											(t 0)))))
+						      (run-dim (aref arrays index)
+							       (lambda (item coords)
+								 (setf (apply #'aref
+									      (cons out-array coords))
+								       item)))
+						      out-array)
+						    (let ((this-item (aref arrays index)))
+						      (if (not (and disclose-items
+								    (is-unitary this-item)))
+							  this-item (disclose this-item))))))))))
 	    (aops:combine (aops:each (lambda (sub-arrays)
-				       (mix-arrays axis sub-arrays :max-dims max-dims))
+				       (mix-arrays axis sub-arrays :max-dims max-dims :recombine recombine))
 				     (aops:split arrays 1)))))))
 
 (defun ravel (count-from array &optional axes)
