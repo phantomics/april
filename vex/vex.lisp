@@ -108,11 +108,11 @@
 			`((princ (format nil "~%"))))))))
 
 (defun process-general-tests-for (symbol test-set)
-  `((princ ,(getf test-set :title))
-    (princ (format nil "~%  _ ~a" ,@(getf test-set :in)))
+  `((princ ,(first test-set))
+    (princ (format nil "~%  _ ~a" ,(second test-set)))
     (is (,(intern (string-upcase symbol) (package-name *package*))
-	  ,@(getf test-set :in))
-	,(getf test-set :ex)
+	  ,(second test-set))
+	,(third test-set)
 	:test #'equalp)))
 
 (defmacro vex-spec (symbol &rest subspecs)

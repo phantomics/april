@@ -17,7 +17,7 @@
 
 [-] Negate / Subtract
 
-[×] Direction / Multiply
+[×] Sign / Multiply
 
 [÷] Reciprocal / Divide
 

@@ -151,9 +151,8 @@
 		  (lambda (omega alpha)
 		    (let ((to-exclude (if (stringp omega)
 					  (array-to-list omega)
-					  (array-to-list (make-array
-							  (list (array-total-size omega))
-							  :displaced-to omega))))
+					  (array-to-list (make-array (list (array-total-size omega))
+								     :displaced-to omega))))
 			  (included nil))
 		      (aops:each (lambda (element)
 				   (if (not (member element to-exclude))
@@ -266,8 +265,7 @@
 						  (= input (row-major-aref alpha index)))
 					     (setq found t))
 					    ((and (characterp input)
-						  (characterp (row-major-aref alpha
-									      index))
+						  (characterp (row-major-aref alpha index))
 						  (char= input (row-major-aref alpha index)))
 					     (setq found t))))
 				    omega)
@@ -285,17 +283,16 @@
 		   (let ((indices nil)
 			 (match-count 0)
 			 (orank (rank omega)))
-		     (run-dim omega
-			      (lambda (index coords)
-				(if (= 1 index)
-				    (let ((coords (mapcar (lambda (i) (+ i index-origin))
-							  coords)))
-				      (incf match-count)
-				      (setq indices (cons (if (< 1 orank)
-							      (make-array (list orank)
-									  :initial-contents coords)
-							      (first coords))
-							  indices))))))
+		     (run-dim omega (lambda (index coords)
+				      (if (= 1 index)
+					  (let ((coords (mapcar (lambda (i) (+ i index-origin))
+								coords)))
+					    (incf match-count)
+					    (setq indices (cons (if (< 1 orank)
+								    (make-array (list orank)
+										:initial-contents coords)
+								    (first coords))
+								indices))))))
 		     (make-array (list match-count) :initial-contents (reverse indices))))
 		 (lambda (omega alpha)
 		   ;; TODO: add higher rank and nested functionality
@@ -320,12 +317,11 @@
   (↑ (has :titles ("Disclose" "Take"))
      (ambivalent #'disclose
 		 (lambda (omega alpha &optional axes)
-		   (multidim-slice omega (if axes
-					     (loop :for axis :from 0 :to (1- (rank omega))
-						:collect (if (= axis (- (aref (first axes) 0)
-									index-origin))
-							     (aref alpha 0)
-							     (nth axis (dims omega))))
+		   (multidim-slice omega (if axes (loop :for axis :from 0 :to (1- (rank omega))
+						     :collect (if (= axis (- (aref (first axes) 0)
+									     index-origin))
+								  (aref alpha 0)
+								  (nth axis (dims omega))))
 					     (array-to-list alpha))
 				   :fill-with 0)))
      (tests (is "↑⊂1 2 3 4" #(1 2 3 4))
@@ -342,13 +338,12 @@
 		   (aops:split omega (if axes (aref (first axes) 0)
 					 (1- (rank omega)))))
 		 (lambda (omega alpha &optional axes)
-		   (multidim-slice omega
-				   (if axes (loop :for axis :from 0 :to (1- (rank omega))
-					       :collect (if (= axis (- (aref (first axes) 0)
-								       index-origin))
-							    (aref alpha 0)
-							    0))
-				       (array-to-list alpha))
+		   (multidim-slice omega (if axes (loop :for axis :from 0 :to (1- (rank omega))
+						     :collect (if (= axis (- (aref (first axes) 0)
+									     index-origin))
+								  (aref alpha 0)
+								  0))
+					     (array-to-list alpha))
 				   :inverse t)))
      (tests (is "↓3 4⍴⍳9" #(#(1 2 3 4) #(5 6 7 8) #(9 1 2 3)))
 	    (is "2 2 2↓4 5 6⍴⍳9" #3A(((3 4 5 6) (9 1 2 3) (6 7 8 9))
@@ -360,8 +355,7 @@
 	    (is "¯2↓⍳9" #(1 2 3 4 5 6 7))
 	    (is "¯2 ¯2↓5 8⍴⍳9" #2A((1 2 3 4 5 6) (9 1 2 3 4 5) (8 9 1 2 3 4)))))
   (\, (has :titles ("Ravel" "Catenate or Laminate"))
-      (ambivalent (lambda (omega &optional axes)
-		    (ravel index-origin omega axes))
+      (ambivalent (lambda (omega &optional axes) (ravel index-origin omega axes))
 		  (lambda (omega alpha &optional axes)
 		    (if (and (or (not axes)
 				 (integerp (aref (first axes) 0)))
@@ -369,42 +363,22 @@
 			     (vectorp omega))
 			(if (and axes (< 0 (- (aref (first axes) 0)
 					      index-origin)))
-			    (error (concatenate
-				    'string "Specified axis is greater than 1, vectors"
-				    " have only one axis along which to catenate."))
+			    (error (concatenate 'string "Specified axis is greater than 1; vectors"
+						" have only one axis along which to catenate."))
 			    (if (and axes (> 0 (- (aref (first axes) 0)
 						  index-origin)))
 				(error (format nil "Specified axis is less than ~a." index-origin))
 				(concatenate 'vector alpha omega)))
 			(if (or (not axes)
 				(integerp (aref (first axes) 0)))
-			    (let* ((axis (if axes (- (aref (first axes) 0)
-						     index-origin)
-					     (1- (max (array-rank alpha)
-						      (array-rank omega)))))
-				   (scale-alpha (if (not (is-unitary alpha))
-						    alpha (scale-array alpha omega axis)))
-				   (scale-omega (if (not (is-unitary omega))
-						    omega (scale-array omega alpha axis))))
-			      (aops:stack axis scale-alpha scale-omega))
+			    ;; simply stack the arrays if there is no axis argument
+			    (catenate alpha omega (if axes (- (aref (first axes) 0)
+							      index-origin)
+						      (1- (max (rank alpha)
+							       (rank omega)))))
 			    ;; laminate in the case of a fractional axis argument
-			    (let* ((axis (ceiling (- (aref (first axes) 0)
-						     index-origin)))
-				   (permute-dims (alexandria:iota (1+ (rank alpha))))
-				   (p-alpha (if (not (is-unitary alpha))
-						(aops:permute (rotate-right axis permute-dims)
-							      (array-promote alpha))))
-				   (p-omega (if (not (is-unitary omega))
-						(aops:permute (rotate-right axis permute-dims)
-							      (array-promote omega)))))
-			      ;; a 1-element array argument to laminate is scaled to
-			      ;; match the other array's dimensions
-			      (aops:stack axis (if (is-unitary alpha)
-						   (scale-array alpha p-omega)
-						   p-alpha)
-					  (if (is-unitary omega)
-					      (scale-array omega p-alpha)
-					      p-omega)))))))
+			    (laminate alpha omega (ceiling (- (aref (first axes) 0)
+							      index-origin)))))))
       (tests (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
 	     (is ",[0.5]3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
 	     (is ",[1.5]3 4⍴⍳9" #3A(((1 2 3 4)) ((5 6 7 8)) ((9 1 2 3))))
@@ -443,9 +417,8 @@
 			    (vectorp omega))
 		       (if (and axes (< 0 (- (aref (first axes) 0)
 					     index-origin)))
-			   (error (concatenate
-				   'string "Specified axis is greater than 1, vectors"
-				   " have only one axis along which to catenate."))
+			   (error (concatenate 'string "Specified axis is greater than 1, vectors"
+					       " have only one axis along which to catenate."))
 			   (if (and axes (> 0 (- (aref (first axes) 0)
 						 index-origin)))
 			       (error (format nil "Specified axis is less than ~a." index-origin))
@@ -763,8 +736,7 @@
 			       (left-invert-matrix omega)))))
 		 (lambda (omega alpha)
 		   (array-inner-product (invert-matrix omega)
-					alpha (lambda (arg1 arg2)
-						(apply-scalar-dyadic #'* arg1 arg2))
+					alpha (lambda (arg1 arg2) (apply-scalar-dyadic #'* arg1 arg2))
 					#'+)))
      (tests (is "⌹1 2 3 4" #(1/30 1/15 1/10 2/15))
 	    (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
@@ -857,27 +829,6 @@
      (symbolic :outer-product-designator)))
 
  (operators
-  ;; (← (has :title "Assign Result Of")
-  ;;    (lateral (lambda (meta axes right-function)
-  ;; 		  (declare (ignore meta axes))
-  ;; 		  (lambda (meta unused omega alpha)
-  ;; 		    (declare (ignore unused))
-  ;; 		    (if (and (listp alpha)
-  ;; 			     (eql 'aref-eliding (first alpha)))
-  ;; 			(append alpha (list :set `(lambda (item coords)
-  ;; 						    (declare (ignore coords))
-  ;; 						    (funcall (lambda (omega alpha)
-  ;; 							       ,(funcall right-function
-  ;; 									 meta nil 'omega 'alpha))
-  ;; 							     ,omega item))))
-  ;; 			(let ((symbol (if (listp alpha)
-  ;; 					  (second alpha)
-  ;; 					  alpha)))
-  ;; 			  `(setq ,symbol (funcall (lambda (omega alpha)
-  ;; 						    ,(funcall right-function meta nil 'omega 'alpha))
-  ;; 						  ,omega ,alpha)))))))
-  ;;    (tests (is "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
-  ;; 	      (is "a←3 2 1 ⋄ a[2]+←5 ⋄ a" #(3 7 1))))
   (/ (has :title "Reduce")
      (lateral (lambda (function workspace axes)
 		(declare (ignore workspace))
@@ -1100,11 +1051,6 @@
 									    (nthcdr (- arank rank)
 										    (iota arank :start
 											  index-origin))))))))
-			 ;; (print (list rank (< rank orank)
-			 ;; 	      (iota (rank omega) :start index-origin)
-			 ;; 	      (nthcdr (- (rank omega) rank)
-			 ;; 		      (iota (rank omega) :start index-origin))))
-			 ;; (print (list :rrr romega ralpha))
 			 (if alpha (mix-arrays 0 (if romega (if ralpha (each fn romega ralpha)
 								(each fn romega
 								      (make-array (dims romega)
@@ -1113,7 +1059,7 @@
 										     :initial-element omega)
 								      ralpha)
 							 (funcall fn omega alpha))))
-			     (if romega (mix-arrays 0 (each fn romega))
+			     (if romega (mix-arrays 0 (each fn romega) :recombine t)
 				 (funcall fn omega)))
 			 ;; (mix-arrays 0 (aops:each (lambda (item) (vector (funcall fn item)))
 			 ;; 			  (re-enclose omega
@@ -1221,51 +1167,45 @@
 	    (is "÷@3 5 ⍳9" #(1 2 1/3 4 1/5 6 7 8 9))
 	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18)))))
 
- (general-tests (with :title "Basic function definition and use, with comments."
- 		      :in ("⍝ This code starts with a comment.
+ (general-tests (for "Basic function definition and use, with comments."
+ 		     "⍝ This code starts with a comment.
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
     ⍝ This is another comment.
-    f2 f1 1 2 3 4 5")
- 		      :ex #(8 10 12 14 16))
- 		(with :title "Monadic inline function."
- 		      :in ("{⍵+3} 3 4 5")
- 		      :ex #(6 7 8))
- 		(with :title "Dyadic inline function."
- 		      :in ("1 2 3 {⍺×⍵+3} 3 4 5")
- 		      :ex #(6 14 24))
-		(with :title "Vector of input variables and discrete values processed within a function."
-		      :in ("fn←{3+⍵} ⋄ {fn 8 ⍵} 9")
-		      :ex #(11 12))
- 		(with :title "Variable-referenced values, including an element within an array, in a vector."
- 		      :in ("a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]")
- 		      :ex #(1 2 9 3 5))
-		(with :title "Application of functions to indexed array elements."
-		      :in ("g←2 3 4 5 ⋄ 9,g[2],3 4")
-		      :ex #(9 3 3 4))
- 		(with :title "Assignment of an element within an array."
- 		      :in ("a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a")
- 		      :ex #2A((1 20 3) (4 5 6)))
- 		(with :title "Selection from an array with multiple elided dimensions."
- 		      :in ("(2 3 3 4 5⍴⍳9)[2;;3;;2]")
- 		      :ex #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
- 		(with :title "Elided assignment."
- 		      :in ("a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a")
- 		      :ex #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
- 		;; (with :title "Elided assignment of applied function's results."
- 		;;       :in ("a←2 3 4⍴⍳9 ⋄ a[2;;3]+←10 ⋄ a")
- 		;;       :ex #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 16 7) (8 9 11 2) (3 4 15 6))))
-		(with :title "Elision and indexed array elements."
-		      :in ("(6 8⍴⍳9)[1 4;]")
-		      :ex #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
-		(with :title "As above but more complex."
-		      :in ("(6 8 5⍴⍳9)[1 4;;2 1]")
-		      :ex #3A(((2 1) (7 6) (3 2) (8 7) (4 3) (9 8) (5 4) (1 9))
-			      ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
-		(with :title "Indices of indices."
-		      :in ("(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]")
-		     :ex #2A((7 6) (8 7) (4 3)))
-		;; (with :title "Operation over portions of an array."
-		;;       :in ("a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a")
-		;;       :ex #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
-		;; 	      (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
-		))
+    f2 f1 1 2 3 4 5"
+ 		      #(8 10 12 14 16))
+ 		(for "Monadic inline function."
+		     "{⍵+3} 3 4 5" #(6 7 8))
+ 		(for "Dyadic inline function."
+ 		     "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
+		(for "Vector of input variables and discrete values processed within a function."
+		     "fn←{3+⍵} ⋄ {fn 8 ⍵} 9" #(11 12))
+ 		(for "Variable-referenced values, including an element within an array, in a vector."
+ 		     "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]" #(1 2 9 3 5))
+		(for "Application of functions to indexed array elements."
+		     "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
+ 		(for "Assignment of an element within an array."
+ 		     "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
+ 		(for "Selection from an array with multiple elided dimensions."
+ 		     "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
+ 		(for "Elided assignment."
+ 		     "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a"
+		     #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
+		(for "Elision and indexed array elements."
+		     "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
+		(for "As above but more complex."
+		     "(6 8 5⍴⍳9)[1 4;;2 1]"
+		     #3A(((2 1) (7 6) (3 2) (8 7) (4 3) (9 8) (5 4) (1 9))
+			 ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
+		(for "Indices of indices."
+		     "(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]" #2A((7 6) (8 7) (4 3)))
+		(for "Assignment by function."
+		     "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
+		(for "Assignment by function at index."
+		     "a←3 2 1 ⋄ a[2]+←5 ⋄ a" #(3 7 1))
+ 		(for "Elided assignment of applied function's results."
+ 		     "a←2 3 4⍴⍳9 ⋄ a[2;;3]+←10 ⋄ a"
+		     #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 16 7) (8 9 11 2) (3 4 15 6))))
+		(for "Operation over portions of an array."
+		     "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
+		      #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
+			  (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))))
