@@ -206,6 +206,7 @@
 	 (if (gethash symbol (gethash :values space))
 	     (setf (gethash symbol (gethash :values space))
 		   nil))
+	 (print (list :fn precedent symbol))
 	 `(setq ,symbol ,precedent))
   (list :type (list :function :assigned)))
  (pivotal-composition
