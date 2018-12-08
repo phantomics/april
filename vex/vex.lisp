@@ -69,9 +69,9 @@
        (if outcome 1 0))))
 
 (defmacro reverse-op (is-dyadic &optional operation)
+  "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
   (let ((is-dyadic (if operation is-dyadic))
 	(operation (if operation operation is-dyadic)))
-    "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
     `(lambda (omega &optional alpha)
        ,(if is-dyadic `(funcall (function ,operation) alpha omega)
 	    `(if alpha (funcall (function ,operation) alpha omega)
@@ -108,6 +108,7 @@
 			`((princ (format nil "~%"))))))))
 
 (defun process-general-tests-for (symbol test-set)
+  "Process specs for general tests not associated with a specific function or operator."
   `((princ ,(first test-set))
     (princ (format nil "~%  _ ~a" ,(second test-set)))
     (is (,(intern (string-upcase symbol) (package-name *package*))
@@ -118,8 +119,7 @@
 (defmacro vex-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
-	       `(rest (assoc (intern ,(string-upcase symbol-string)
-				     (package-name *package*))
+	       `(rest (assoc (intern ,(string-upcase symbol-string) (package-name *package*))
 			     subspecs)))
 	     (build-lexicon () `(loop for lexicon in (getf (rest this-lex) :lexicons)
 				   do (if (not (getf lexicon-data lexicon))
@@ -215,8 +215,7 @@
 						   (second elem))))))
 			    ,(cond ((and options (listp options)
 					 (string= "TEST" (string (first options))))
-				    (let ((all-tests ',(append function-tests operator-tests
-							       general-tests)))
+				    (let ((all-tests ',(append function-tests operator-tests general-tests)))
 				      `(progn (setq prove:*enable-colors* nil)
 					      (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
 					      ,@all-tests
