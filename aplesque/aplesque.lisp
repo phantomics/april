@@ -113,9 +113,11 @@
 	  (reverse! vector 0 (1- (length vector)))))))
 
 (defun rotate-left (n l)
+  "Rotate an array n units to the left."
   (append (nthcdr n l) (butlast l (- (length l) n))))
 
 (defun rotate-right (n l)
+  "Rotate an array n units to the right."
   (rotate-left (- (length l) n) l))
 
 (defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
@@ -200,6 +202,7 @@
 			 ,array))))
 
 (defun catenate (a1 a2 axis)
+  "Join two arrays together along the specified axis."
   (flet ((upgrade (array) (make-array (append (dims array)
 					      (list 1))
 				      :element-type (element-type array)
@@ -540,6 +543,7 @@
 	     array))
 
 (defun interval-index (atomic-vector)
+  "Return a function to find the locations of indices of an array between the indices of a reference array."
   (lambda (items reference)
     ;; TODO: add higher rank and nested functionality
     (labels ((interval-compare (ref)
@@ -648,6 +652,7 @@
 	       :do (for-element elix)))))))
 
 (defun aref-eliding (array indices &key (adims (dims array)) (path nil) (fn #'identity) (set nil) (set-coords nil))
+  "Reference an element or sub-array within an array, allowing the use of elided array indices. Array values may also be set or operated on by passing functions with keyword options."
   (macrolet ((refer-to (value-form)
 	       `(let ((coords (reverse (cons ,value-form path))))
 		  (if (rest indices)
