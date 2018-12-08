@@ -2,8 +2,9 @@
 
 (in-package #:april)
 
-(define-symbol-macro index-origin (of-state (local-idiom april) :count-from))
-(define-symbol-macro atomic-vector (of-state (local-idiom april) :atomic-vector))
+(define-symbol-macro this-idiom (local-idiom april))
+(define-symbol-macro index-origin (of-state this-idiom :count-from))
+(define-symbol-macro atomic-vector (of-state this-idiom :atomic-vector))
 
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ function with a left argument
@@ -26,6 +27,7 @@
 	     (aops:split array 1)))
 
 (defmacro avector (&rest items)
+  "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
   (cons 'vector (loop for item in items
 		   collect (if (and (listp item)
 				    (eql 'avatom (first item)))
@@ -33,6 +35,7 @@
 			       item))))
 
 (defmacro avatom (item)
+  "An APL vector atom. This passthrough macro provides information to the (avector) macro."
   item)
 
 (defun apply-scalar-monadic (function omega)
@@ -199,7 +202,9 @@
       (values axes (first tokens)
 	      (rest tokens))))
 
-(defmacro apl-call (function &rest arguments)
+(defmacro apl-call (symbol function &rest arguments)
+  "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for greater efficiency."
+  (declare (ignore symbol))
   `(,(if (and (listp function)
 	      (eql 'scalar-function (first function)))
 	 (if (= 1 (length arguments))
@@ -226,12 +231,12 @@
 		       (list (third arguments)))))))
 
 (defmacro scalar-function (function)
+  "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (apl-call)."
   (if (symbolp function)
       `(function ,function)
       function))
 
 (defun process-operator-spec (idiom operator right &optional left)
-  ;; (print (list 9999 idiom operator right left))
   (if (member operator (getf (vex::idiom-lexicons idiom) :operators))
       `(funcall ,(of-operators idiom operator (if (member operator (getf (vex::idiom-lexicons idiom)
 									 :lateral-operators))
@@ -239,35 +244,47 @@
 		,right ,@(if left (list left)))))
 
 (defun validate-arg-unitary (value)
+  "Verify that a form like (vector 5) represents a unitary value."
   (or (symbolp value)
       (numberp value)
       (and (listp value)
 	   (or (not (eql 'vector (first value)))
 	       (not (third value))))))
 
-(defun get-function-data (idiom functional-character mode)
-  (labels ((find-in-lexicons (character lexicons &optional output)
-	     (if (not lexicons)
-		 output (find-in-lexicons character (cddr lexicons)
-					  (if (member character (second lexicons))
-					      (cons (first lexicons)
-						    output)
-					      output)))))
-    (if (characterp functional-character)
-	(let ((data (of-functions idiom functional-character mode)))
-	  (if (or (not data)
-		  (not (listp data)))
-	      data (let ((fn (if (not (eql 'args (first data)))
-				 data (first (last data)))))
-		     (if (symbolp fn)
-			 `(function ,fn)
-			 fn))))
-	functional-character)))
+(defmacro verify-function (reference)
+  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
+  `(if (characterp ,reference)
+       (or (of-functions this-idiom ,reference :monadic)
+	   (of-functions this-idiom ,reference :dyadic)
+	   (of-functions this-idiom ,reference :symbolic))
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
 
-(defun get-operator-data (idiom functional-character mode)
-  (of-operators idiom functional-character mode))
+(defmacro resolve-function (reference mode)
+  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
+  `(if (characterp ,reference)
+       (of-functions this-idiom ,reference ,mode)
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
+
+(defmacro resolve-operator (reference mode)
+  "Retrive an operator's composing function."
+  `(of-operators this-idiom ,reference ,mode))
+
+(defmacro or-functional-character (reference symbol)
+  `(if (not (characterp ,reference))
+       ,symbol (intern (string-upcase ,reference))))
 
 (defun enclose-axes (body axis-sets &key (set nil))
+  "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
   (let ((axes (first axis-sets)))
     (if (not axis-sets)
 	body (enclose-axes `(aref-eliding ,body (mapcar (lambda (vector)
@@ -278,6 +295,7 @@
 			   (rest axis-sets)))))
 
 (defun output-value (space form &optional properties)
+  "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
   (flet ((apply-props (item form-props)
 	   (let ((form-props (if (listp (first form-props))
 				 (first form-props)
@@ -306,12 +324,15 @@
 		       `(avector ,form)))))))
 
 (defun output-function (form)
+  "Express an APL inline function like {⍵+5}."
   `(lambda (⍵ &optional ⍺)
      (declare (ignorable ⍺))
      (let ((⍵ (disclose ⍵)))
+       (declare (ignorable ⍵))
        ,form)))
 
 (defun left-invert-matrix (in-matrix)
+  "Perform left inversion of matrix, used in the ⌹ function."
   (let* ((input (if (= 2 (rank in-matrix))
 		    in-matrix (make-array (list (length in-matrix) 1)
 					  :element-type (element-type in-matrix)
@@ -343,6 +364,7 @@
 				       (if first-axis 0 `(1- (rank new-array)))))))))))
 
 (defmacro april-function-glyph-processor (type glyph spec)
+  "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
   (let ((type (intern (string-upcase type) "KEYWORD"))
 	(function-type (intern (string-upcase (first spec)) "KEYWORD"))
 	(spec-body (rest spec)))

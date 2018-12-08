@@ -70,13 +70,12 @@
 				  (vex::of-lexicon idiom :symbolic-functions (third this-item)))
 			      ;; check that the following item is a value and not a function, otherwise it
 			      ;; must be an operator
+			      ;; it appears that no clause is needed to test for closures returning a value
+			      ;; to the left of the overloaded glyph as in (3+5)∘× 8, but keep an eye on this
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
 					   (gethash (first remaining)
-						    (gethash :variables space))))
-				  ;; TODO: add a clause to test for closures returning
-				  ;; a value to left of overloaded glyph
-				  )))
+						    (gethash :variables space)))))))
 		     
 		     (let ((fn (first (last this-item)))
 			   (obligate-dyadic (and (eq :op (first this-item))
@@ -121,7 +120,7 @@
 	       (extract-axes process tokens)
 	     (if (and (listp this-item)
 		      (eq :op (first this-item)))
-		 ;; process an operator token
+		 ;; process an operator token, allowing specification of the valence, either :monadic or :dyadic
 		 (destructuring-bind (op-type op-symbol)
 		     (rest this-item)
 		   (let ((valid-by-valence (or (not (getf properties :valence))
@@ -156,7 +155,7 @@
   ((operator :element (operator :valence :lateral))
    (operand :pattern (:type (:function))))
   (let ((axes (first (getf (first properties) :axes))))
-    (funcall (get-operator-data idiom operator :lateral)
+    (funcall (resolve-operator operator :lateral)
 	     operand space axes))
   (list :type (list :function :operator-composed :lateral))))
 
@@ -173,12 +172,15 @@
   (if (gethash symbol (gethash :values space))
       (let ((fn-content (if (not (characterp fn-element))
 	    		    fn-element (get-function-data idiom fn-element :dyadic)))
+	    (fn-sym (if (not (characterp fn-element))
+			:fn (intern (string-upcase fn-element))))
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
 	(if (not symbol-axes)
-	    `(setq ,symbol (apl-call ,fn-content ,symbol ,precedent
+	    `(setq ,symbol (apl-call ,fn-sym ,fn-content ,symbol ,precedent
 				     ,@(if function-axes `((list ,@(first function-axes))))))
-	    (enclose-axes symbol symbol-axes :set `(lambda (item) (apl-call ,fn-content item ,precedent))))))
+	    (enclose-axes symbol symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item
+									    ,precedent))))))
   (list :type (list :array :assigned :by-result-assignment-operator)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
@@ -214,7 +216,7 @@
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
-  (funcall (get-operator-data idiom operator :pivotal)
+  (funcall (resolve-operator operator :pivotal)
 	   precedent operand space)
   (list :type (list :function :operator-composed :pivotal)))
  (operation
@@ -226,7 +228,9 @@
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
   (let ((fn-content (if (not (characterp fn-element))
 			fn-element (get-function-data idiom fn-element (if value :dyadic :monadic))))
+	(fn-sym (if (not (characterp fn-element))
+		    :fn (intern (string-upcase fn-element))))
 	(axes (getf (first properties) :axes)))
-    `(apl-call ,fn-content ,precedent ,@(if value (list (output-value space value (rest properties))))
+    `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value space value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   (list :type (list :array :evaluated))))

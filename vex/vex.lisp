@@ -65,18 +65,18 @@
 (defmacro boolean-op (operation)
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
   `(lambda (omega &optional alpha)
-     (let ((outcome (if alpha (funcall (function ,operation)
-				       alpha omega)
-			(funcall (function ,operation)
-				 omega))))
+     (let ((outcome (funcall (function ,operation) alpha omega)))
        (if outcome 1 0))))
 
-(defmacro reverse-op (operation)
-  "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
-  `(lambda (omega &optional alpha)
-     (if alpha (funcall (function ,operation) alpha omega)
-	 (funcall (function ,operation)
-		  omega))))
+(defmacro reverse-op (is-dyadic &optional operation)
+  (let ((is-dyadic (if operation is-dyadic))
+	(operation (if operation operation is-dyadic)))
+    "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
+    `(lambda (omega &optional alpha)
+       ,(if is-dyadic `(funcall (function ,operation) alpha omega)
+	    `(if alpha (funcall (function ,operation) alpha omega)
+		 (funcall (function ,operation) omega))))))
+
 
 (defun process-lex-tests-for (symbol operator)
   "Process a set of tests for Vex functions or operators."
@@ -313,22 +313,21 @@
 	   (handle-function (input-string)
 	     (list :fn (parse input-string (=vex-lines idiom meta)))))
 
-    (let ((oltchar))
-      ;; the oltchar flags are needed to handle characters that may be functional or part
-      ;; of a token based on their context; in APL it's the . character, which may begin a number like .5
+    (let ((olnchar))
+      ;; the olnchar flags are needed to handle characters that may be functional or part
+      ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
       ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
       (symbol-macrolet ((functional-character-matcher
 			 ;; this saves space below
 			 (let ((ix 0))
 			   (lambda (char)
 			     (if (and (> 2 ix)
-				      (funcall (of-utilities idiom :match-overloaded-token-character)
+				      (funcall (of-utilities idiom :match-overloaded-numeric-character)
 					       char))
-				 (setq oltchar char))
-			     (if (and oltchar (= 2 ix)
-				      (not (funcall (of-utilities idiom :match-token-character)
-						    char)))
-				 (setq oltchar nil))
+				 (setq olnchar char))
+			     (if (and olnchar (= 2 ix)
+				      (not (digit-char-p char)))
+				 (setq olnchar nil))
 			     (incf ix 1)
 			     (and (not (< 2 ix))
 				  (or (of-lexicon idiom :functions char)
@@ -342,7 +341,7 @@
 			(=transform (=subseq (%some (?satisfies functional-character-matcher)))
 				    (lambda (string)
 				      (let ((char (character string)))
-					(if (not oltchar)
+					(if (not olnchar)
 					    `(,(if (of-lexicon idiom :operators char)
 						   :op (if (of-lexicon idiom :functions char)
 							   :fn))
@@ -356,9 +355,9 @@
 					       (string-upcase (idiom-name idiom))
 					       ;; if there's an overloaded token character passed in
 					       ;; the special precedent, prepend it to the token being processed
-					       meta (if (getf special-precedent :overloaded-token-char)
+					       meta (if (getf special-precedent :overloaded-num-char)
 							(concatenate 'string (list (getf special-precedent
-											 :overloaded-token-char))
+											 :overloaded-num-char))
 								     string)
 							string)))))
 		   (%any (?blank-character))
@@ -368,7 +367,7 @@
 	      (parse rest (=vex-string idiom meta (if output (if item (cons item output)
 								 output)
 						      (if item (list item)))
-				       (if oltchar (list :overloaded-token-char oltchar))))
+				       (if olnchar (list :overloaded-num-char olnchar))))
 	      (if item (cons item output)
 		  output)))))))
 
