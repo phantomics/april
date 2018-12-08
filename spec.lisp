@@ -147,7 +147,7 @@
       (ambivalent (scalar-function (lambda (omega)
 				     (cond ((= 0 omega) 1)
 					   ((= 1 omega) 0)
-					   (t (error "Domain error: arguments to ~ must be 1 or 0.")))))
+					   (t (error "Domain error: arguments to ~~ must be 1 or 0.")))))
 		  (lambda (omega alpha)
 		    (let ((to-exclude (if (stringp omega)
 					  (array-to-list omega)

@@ -6,7 +6,7 @@
  composer-elements-apl-standard
  (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
        :properties-symbol properties :processor-symbol process)
- ;; match an array, either inline line "1 2 3", referenced by a variable, or contained within a (closure)
+ ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
 	    (extract-axes process tokens)
 	  ;; if the item is a closure, evaluate it and return the result
