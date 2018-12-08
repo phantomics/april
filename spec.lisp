@@ -19,6 +19,7 @@
 	    (lambda (char)
 	      (or (alphanumericp char)
 		  (member char (list #\. #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+	    :match-overloaded-token-character (lambda (char) (char= #\. char))
 	    :prep-code-string
 	    (lambda (string)
 	      ;; this code preprocessor removes comments, including comment-only lines
