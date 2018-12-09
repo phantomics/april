@@ -153,7 +153,8 @@
  (lateral-composition
   ;; match a lateral function composition like +/, marking the beginning of a functional expression
   ((operator :element (operator :valence :lateral))
-   (operand :pattern (:type (:function))))
+   (operand :pattern (:type (:function)
+		      :special (list :omit (list :value-assignment :function-assignment :operation)))))
   (let ((axes (first (getf (first properties) :axes))))
     (funcall (resolve-operator operator :lateral)
 	     operand workspace axes))
@@ -177,8 +178,8 @@
 	(if (not symbol-axes)
 	    `(setq ,symbol (apl-call ,fn-sym ,fn-content ,symbol ,precedent
 				     ,@(if function-axes `((list ,@(first function-axes))))))
-	    (enclose-axes symbol symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item
-									    ,precedent))))))
+	    (enclose-axes symbol symbol-axes :set `(lambda (item)
+						     (apl-call ,fn-sym ,fn-content item ,precedent))))))
   (list :type (list :array :assigned :by-result-assignment-operator)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
