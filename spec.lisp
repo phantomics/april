@@ -18,7 +18,7 @@
  (state :count-from 1
 	:disclose-output t
 	:atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-				    "%'._¤#&\"’¶@‘:?! £€$ ()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
+				    "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				    "⌶¯⍬∆⍙⌿⍀⊣⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
  (grammar (:elements composer-elements-apl-standard)
 	  (:opening-patterns composer-opening-patterns-apl-standard)

@@ -313,7 +313,7 @@
 	     (list :fn (parse input-string (=vex-lines idiom meta)))))
 
     (let ((olnchar))
-      ;; the olnchar flags are needed to handle characters that may be functional or part
+      ;; the olnchar variable is needed to handle characters that may be functional or part
       ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
       ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
       (symbol-macrolet ((functional-character-matcher
@@ -375,8 +375,7 @@
   (labels ((?blank-character () (?satisfies (of-utilities idiom :match-blank-character)))
 	   (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
 	   (?but-newline-character ()
-	     (?satisfies (lambda (char) (not (funcall (of-utilities idiom :match-newline-character)
-						      char))))))
+	     (?satisfies (lambda (char) (not (funcall (of-utilities idiom :match-newline-character) char))))))
     (=destructure (_ content _ nextlines)
 	(=list (%any (?blank-character))
 	       (=subseq (%any (?but-newline-character)))
