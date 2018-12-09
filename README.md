@@ -332,7 +332,6 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 #### Operators:
 
 ```
-⌸ Key
 ⌺ Stencil
 ```
 
@@ -366,6 +365,8 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 & Spawn
 ⌶ I-Beam
 ```
+
+[(Click here to see the functions and operators that have been implemented.)](./lexicon.md)
 
 See a pattern? The functions not planned for implentation are all those that manifest low-level interactions between the APL instance and the underlying computer system. Common Lisp already has powerful tools for system interaction, so it's presumed that developers will do things like this outside of April.
 

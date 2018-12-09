@@ -133,6 +133,8 @@
 
 [⍨] Commute
 
+[⌸] Key
+
 [∘] Compose
 
 [⍤] Rank
