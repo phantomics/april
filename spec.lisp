@@ -2,6 +2,17 @@
 
 (in-package #:april)
 
+(defparameter *circular-functions*
+  ;; APL's set of circular functions called using the ○ function with a left argument
+  (vector (lambda (input) (exp (* input #C(0 1))))
+	  (lambda (input) (* input #C(0 1)))
+	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
+	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
+	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
+	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'realpart #'abs #'imagpart #'phase))
+
 (vex-spec
  april
  (state :count-from 1
@@ -141,7 +152,8 @@
 			 (apply-scalar-monadic (aref *circular-functions* (+ 12 alpha))
 					       omega)))))
      (tests (is "⌊100000×○1" 314159)
-	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)))
+	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)
+	    (is "⌊1000×1○⍳9" #(841 909 141 -757 -959 -280 656 989 412))))
   (\~ (has :titles ("Not" "Without"))
       (ambivalent (scalar-function (lambda (omega)
 				     (cond ((= 0 omega) 1)
@@ -991,7 +1003,7 @@
 	    (is "fn←5∘- ⋄ fn 2" 3)
 	    (is "⌊0.5∘+∘*5 8 12" #(148 2981 162755))
 	    (is "⌊10000×+∘÷/40/1" 16180)
-	    (is "fn←(+/) ⋄ fn∘⍳¨2 5 8" #(3 15 36))))
+	    (is "fn←+/ ⋄ fn∘⍳¨2 5 8" #(3 15 36))))
   (⍤ (has :title "Rank")
      (pivotal (lambda (right left workspace)
 		`(lambda (omega &optional alpha)

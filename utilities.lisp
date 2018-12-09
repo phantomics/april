@@ -6,17 +6,6 @@
 (define-symbol-macro index-origin (of-state this-idiom :count-from))
 (define-symbol-macro atomic-vector (of-state this-idiom :atomic-vector))
 
-(defparameter *circular-functions*
-  ;; APL's set of circular functions called using the ○ function with a left argument
-  (vector (lambda (input) (exp (* input #C(0 1))))
-	  (lambda (input) (* input #C(0 1)))
-	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
-	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
-	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
-	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'realpart #'abs #'imagpart #'phase))
-
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
   (aops:each (lambda (member)
@@ -203,7 +192,7 @@
 	      (rest tokens))))
 
 (defmacro apl-call (symbol function &rest arguments)
-  "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for greater efficiency."
+  "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
   (declare (ignore symbol))
   `(,(if (and (listp function)
 	      (eql 'scalar-function (first function)))
