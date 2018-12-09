@@ -301,6 +301,8 @@
 		   (if (not (or (numberp (first form))
 				(listp (first form))
 				(stringp (first form))
+				(eql '⍺ (first form))
+				(eql '⍵ (first form))
 				(and (symbolp (first form))
 				     (gethash (string (first form))
 					      (gethash :variables space)))))
