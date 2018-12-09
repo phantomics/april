@@ -4,7 +4,7 @@
 
 (set-composer-elements
  composer-elements-apl-standard
- (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
+ (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
        :properties-symbol properties :processor-symbol process)
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
@@ -41,8 +41,8 @@
 		      (or (eql '⍵ this-item)
 			  (eql '⍺ this-item)
 			  (getf properties :symbol-overriding)
-			  (gethash this-item (gethash :values space))
-			  (not (gethash this-item (gethash :functions space))))
+			  (gethash this-item (gethash :values workspace))
+			  (not (gethash this-item (gethash :functions workspace))))
 		      (or (not (getf properties :type))
 			  (eq :symbol (first (getf properties :type)))))
 		 (values this-item (list :axes axes :type (list :symbol))
@@ -75,7 +75,7 @@
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
 					   (gethash (first remaining)
-						    (gethash :variables space)))))))
+						    (gethash :variables workspace)))))))
 		     
 		     (let ((fn (first (last this-item)))
 			   (obligate-dyadic (and (eq :op (first this-item))
@@ -110,8 +110,8 @@
 		 (let ((fn this-item))
 		   (if (and (symbolp fn)
 			    (not (getf properties :glyph))
-			    (gethash fn (gethash :functions space))
-			    (not (gethash fn (gethash :values space))))
+			    (gethash fn (gethash :functions workspace))
+			    (not (gethash fn (gethash :values workspace))))
 		       (values fn (list :type (list :function :referenced))
 			       remaining)
 		       (values nil nil tokens))))))
@@ -136,12 +136,12 @@
 
 (set-composer-patterns
  composer-opening-patterns-apl-standard
- (with :idiom-symbol idiom :space-symbol space :process-symbol process :properties-symbol properties)
+ (with :idiom-symbol idiom :space-symbol workspace :process-symbol process :properties-symbol properties)
  (value
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
-  (let ((value (output-value space value properties)))
+  (let ((value (output-value workspace value properties)))
     value)
   (list :type (list :array :explicit)))
  (function
@@ -156,12 +156,12 @@
    (operand :pattern (:type (:function))))
   (let ((axes (first (getf (first properties) :axes))))
     (funcall (resolve-operator operator :lateral)
-	     operand space axes))
+	     operand workspace axes))
   (list :type (list :function :operator-composed :lateral))))
 
 (set-composer-patterns
  composer-following-patterns-apl-standard
- (with :idiom-symbol idiom :space-symbol space :process-symbol process
+ (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
  (value-assignment-by-function-result
   ;; match the assignment of a function result to a value, like a+←5
@@ -169,11 +169,9 @@
    (assignment-operator :element (function :glyph ←))
    (fn-element :pattern (:type (:function)))
    (symbol :element (array :symbol-overriding t)))
-  (if (gethash symbol (gethash :values space))
-      (let ((fn-content (if (not (characterp fn-element))
-	    		    fn-element (get-function-data idiom fn-element :dyadic)))
-	    (fn-sym (if (not (characterp fn-element))
-			:fn (intern (string-upcase fn-element))))
+  (if (gethash symbol (gethash :values workspace))
+      (let ((fn-content (resolve-function fn-element :dyadic))
+	    (fn-sym (or-functional-character fn-element :fn))
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
 	(if (not symbol-axes)
@@ -188,10 +186,10 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
-    (setf (gethash symbol (gethash :values space))
+    (setf (gethash symbol (gethash :values workspace))
 	  precedent)
-    (if (gethash symbol (gethash :functions space))
-	(setf (gethash symbol (gethash :functions space))
+    (if (gethash symbol (gethash :functions workspace))
+	(setf (gethash symbol (gethash :functions workspace))
 	      nil))
     (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
 	`(setq ,symbol ,precedent)))
@@ -201,10 +199,10 @@
   ((:with-preceding-type :function)
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
-  (progn (setf (gethash symbol (gethash :functions space))
+  (progn (setf (gethash symbol (gethash :functions workspace))
 	       precedent)
-	 (if (gethash symbol (gethash :values space))
-	     (setf (gethash symbol (gethash :values space))
+	 (if (gethash symbol (gethash :values workspace))
+	     (setf (gethash symbol (gethash :values workspace))
 		   nil))
 	 `(setq ,symbol ,precedent))
   (list :type (list :function :assigned)))
@@ -217,7 +215,7 @@
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
   (funcall (resolve-operator operator :pivotal)
-	   precedent operand space)
+	   precedent operand workspace)
   (list :type (list :function :operator-composed :pivotal)))
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
@@ -226,11 +224,9 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (if (not (characterp fn-element))
-			fn-element (get-function-data idiom fn-element (if value :dyadic :monadic))))
-	(fn-sym (if (not (characterp fn-element))
-		    :fn (intern (string-upcase fn-element))))
+  (let ((fn-content (resolve-function fn-element (if value :dyadic :monadic)))
+	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
-    `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value space value (rest properties))))
+    `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   (list :type (list :array :evaluated))))
