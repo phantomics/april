@@ -104,9 +104,7 @@
 								     :test #'equalp))))))
 		   output)))
       (if tests (append `((princ ,(format nil "~%~a" heading)))
-			(for-tests tests)
-			;; `((princ (format nil "~%")))
-			)))))
+			(for-tests tests))))))
 
 (defun process-general-tests-for (symbol test-set)
   "Process specs for general tests not associated with a specific function or operator."
