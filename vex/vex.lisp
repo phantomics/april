@@ -84,8 +84,7 @@
 			     (rest operator))))
 	 (props (rest (assoc (intern "HAS" (package-name *package*))
 			     (rest operator))))
-	 (heading (format nil "[~a] ~a~a~%"
-			  (first operator)
+	 (heading (format nil "[~a] ~a~a~%" (first operator)
 			  (if (getf props :title)
 			      (getf props :title)
 			      (if (getf props :titles)
