@@ -944,7 +944,7 @@
 		       ;; 		   :initial-contents item-sets)
 		       (mix-arrays 0 (apply #'vector item-sets)))))))
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
-   quantities ← 12 3 2 6 8 16 5 ⋄ fruit {⍺ ⍵}⌸ quantities"
+    quantities ← 12 3 2 6 8 16 5 ⋄ fruit {⍺ ⍵}⌸ quantities"
 		#2A(((#\A #\p #\p #\l #\e) (2 12)) ((#\O #\r #\a #\n #\g #\e) (8 3))
 		    ((#\P #\e #\a #\r) (6)) ((#\P #\e #\a #\c #\h) (16))))))
   (\. (has :title "Inner/Outer Product")
@@ -1127,7 +1127,7 @@
 	    (is "2{⍺×2+⍵}⍣3⊢9" 100)
 	    (is "fn←{2+⍵}⍣{10<⍺} ⋄ fn 2" 12)
 	    (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14)
-	    (if "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)))
+	    (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)))
   (@ (has :title "At")
      (pivotal (lambda (right left workspace)
 		(let* ((index (gensym)) (omega-var (gensym))
