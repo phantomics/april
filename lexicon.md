@@ -57,7 +57,7 @@
 
 [⍱] Nor
 
-[⍳] Index / Index Of
+[⍳] Interval / Index Of
 
 [⍴] Shape / Reshape
 
@@ -71,7 +71,7 @@
 
 [↓] Split / Drop
 
-[⌷] At Axes
+[⌷] Index
 
 [,] Ravel / Catenate or Laminate
 
