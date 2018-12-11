@@ -41,37 +41,48 @@
   "Retrive an operator's composing function."
   `(of-operators this-idiom ,reference ,mode))
 
+;; top-level specification for the April language
 (vex-spec
  april
+ ;; default state of an April workspace, with :count-from as the index-origin,
+ ;; output disclosed by default and the APL atomic vector
  (state :count-from 1
 	:disclose-output t
 	:atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				    "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				    "⌶¯⍬∆⍙⌿⍀⊣⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
+ ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
+ ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
 	  (:opening-patterns composer-opening-patterns-apl-standard)
 	  (:following-patterns composer-following-patterns-apl-standard))
+ ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char (list #\  #\Tab)))
 	    :match-newline-character (lambda (char) (member char (list #\◊ #\⋄ #\Newline #\Return)))
+	    ;; set the language's valid blank, newline characters and token characters
 	    :match-token-character
 	    (lambda (char)
 	      (or (alphanumericp char)
 		  (member char (list #\. #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+	    ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
+	    ;; depending on their context
 	    :match-overloaded-numeric-character (lambda (char) (char= #\. char))
+	    ;; this code preprocessor removes comments, including comment-only lines
 	    :prep-code-string
 	    (lambda (string)
-	      ;; this code preprocessor removes comments, including comment-only lines
 	      (regex-replace-all (concatenate 'string "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
 					      "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
 					      "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
 				 string ""))
+	    ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
 	    :process-axis-string (lambda (string) (cl-ppcre:split #\; string))
+	    ;; macro to process lexical specs of functions and operators
+	    :process-lexicon-macro 'april-function-glyph-processor
 	    :format-value #'format-value
-	    :format-object #'format-array
-	    :format-function #'format-function
-	    :mediate-operation-macro 'mediate-operation
+	    ;; functions to apply operations over arrays
 	    :apply-scalar-monadic #'apply-scalar-monadic
 	    :apply-scalar-dyadic #'apply-scalar-dyadic
+	    ;; postprocessors for language output
 	    :postprocess-compiled
 	    (lambda (form)
 	      ;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
@@ -83,8 +94,8 @@
 	    (lambda (item)
 	      (if (of-state this-idiom :disclose-output)
 		  (list 'disclose item)
-		  item))
-	    :process-lexicon-macro 'april-function-glyph-processor)
+		  item)))
+ ;; APL's set of functions represented by characters
  (functions
   (← (has :title "Assign")
      (symbolic :special-lexical-form-set)
@@ -166,9 +177,8 @@
 			     (not (integerp alpha)))
 			 (error "Both arguments to ? must be single integers.")
 			 (make-array (list alpha)
-				     :initial-contents
-				     (loop :for i :from 0 :to (1- alpha)
-					:collect (+ index-origin (random omega)))))))))
+				     :initial-contents (loop :for i :from 0 :to (1- alpha)
+							  :collect (+ index-origin (random omega)))))))))
   (○ (has :titles ("Pi Times" "Circular"))
      (ambivalent (scalar-function (lambda (omega) (* pi omega)))
 		 (lambda (omega alpha)
@@ -408,7 +418,7 @@
 				(concatenate 'vector alpha omega)))
 			(if (or (not axes)
 				(integerp (aref (first axes) 0)))
-			    ;; simply stack the arrays if there is no axis argument
+			    ;; simply stack the arrays if there is no axis argument or it's an integer
 			    (catenate alpha omega (if axes (- (aref (first axes) 0)
 							      index-origin)
 						      (1- (max (rank alpha)
@@ -856,7 +866,8 @@
      (tests (is "⍎'1+1'" 2)))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
-
+ ;; APL's character-represented operators, which take one or two functions or arrays as input
+ ;; and generate a function
  (operators
   (/ (has :title "Reduce")
      (lateral (lambda (operand workspace axes)
@@ -965,11 +976,6 @@
 									(make-array (list (length items))
 										    :initial-contents items)))
 							     key))))
-		       ;; (print item-sets)
-		       ;; (print (mix-arrays 0 (print (apply #'vector item-sets))))
-		       ;; (set-length (length (first item-sets)))
-		       ;; (make-array (list (length item-sets) set-length)
-		       ;; 		   :initial-contents item-sets)
 		       (mix-arrays 0 (apply #'vector item-sets)))))))
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
     quantities ← 12 3 2 6 8 16 5 ⋄ fruit {⍺ ⍵}⌸ quantities"
@@ -1212,7 +1218,7 @@
 	    (is "÷@3 5 ⍳9" #(1 2 1/3 4 1/5 6 7 8 9))
 	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18))
 	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148)))))
-
+ ;; tests for general language functions not associated with a particular function or operator
  (general-tests (for "Basic function definition and use, with comments."
  		     "⍝ This code starts with a comment.
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
