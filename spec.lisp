@@ -1009,11 +1009,12 @@
      (pivotal (lambda (right left workspace)
 		(let* ((fn-right (verify-function right))
 		       (fn-left (verify-function left))
-		       ;; check that the right function is monadic so that the (if alpha) clause
+		       ;; check whether the left function is monadic so that the (if alpha) clause
 		       ;; can be omitted if so
-		       (is-confirmed-monadic (and (listp fn-right)
-						  (eql 'lambda (first fn-right))
-						  (= 1 (length (second fn-right))))))
+		       (is-confirmed-monadic (or (and (listp left)
+						      (eql 'lambda (first left))
+						      (= 1 (length (second left))))
+						 (not (resolve-function left :dyadic)))))
 		  `(lambda (omega &optional alpha)
 		     (declare (ignorable alpha))
 		     ,(if (and fn-right fn-left)
@@ -1040,7 +1041,8 @@
 	    (is "fn←5∘- ⋄ fn 2" 3)
 	    (is "⌊0.5∘+∘*5 8 12" #(148 2981 162755))
 	    (is "⌊10000×+∘÷/40/1" 16180)
-	    (is "fn←+/ ⋄ fn∘⍳¨2 5 8" #(3 15 36))))
+	    (is "fn←+/ ⋄ fn∘⍳¨2 5 8" #(3 15 36))
+	    (is "3 4⍴∘⍴2 4 5⍴9" #2A((2 4 5 2) (4 5 2 4) (5 2 4 5)))))
   (⍤ (has :title "Rank")
      (pivotal (lambda (right left workspace)
 		`(lambda (omega &optional alpha)
