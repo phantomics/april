@@ -2,17 +2,6 @@
 
 (in-package #:april)
 
-(defparameter *circular-functions*
-  ;; APL's set of circular functions called using the ○ function with a left argument
-  (vector (lambda (input) (exp (* input #C(0 1))))
-	  (lambda (input) (* input #C(0 1)))
-	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
-	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
-	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
-	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'realpart #'abs #'imagpart #'phase))
-
 (defmacro verify-function (reference)
   "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
   `(if (characterp ,reference)
@@ -40,6 +29,17 @@
 (defmacro resolve-operator (reference mode)
   "Retrive an operator's composing function."
   `(of-operators this-idiom ,reference ,mode))
+
+(defparameter *circular-functions*
+  ;; APL's set of circular functions called using the ○ function with a left argument
+  (vector (lambda (input) (exp (* input #C(0 1))))
+	  (lambda (input) (* input #C(0 1)))
+	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
+	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
+	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
+	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
+	  #'realpart #'abs #'imagpart #'phase))
 
 ;; top-level specification for the April language
 (vex-spec
