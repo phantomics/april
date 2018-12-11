@@ -240,34 +240,6 @@
 	   (or (not (eql 'vector (first value)))
 	       (not (third value))))))
 
-(defmacro verify-function (reference)
-  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
-  `(if (characterp ,reference)
-       (or (of-functions this-idiom ,reference :monadic)
-	   (of-functions this-idiom ,reference :dyadic)
-	   (of-functions this-idiom ,reference :symbolic))
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
-
-(defmacro resolve-function (reference mode)
-  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
-  `(if (characterp ,reference)
-       (of-functions this-idiom ,reference ,mode)
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
-
-(defmacro resolve-operator (reference mode)
-  "Retrive an operator's composing function."
-  `(of-operators this-idiom ,reference ,mode))
-
 (defmacro or-functional-character (reference symbol)
   `(if (not (characterp ,reference))
        ,symbol (intern (string-upcase ,reference))))

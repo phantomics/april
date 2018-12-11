@@ -13,6 +13,34 @@
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'realpart #'abs #'imagpart #'phase))
 
+(defmacro verify-function (reference)
+  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
+  `(if (characterp ,reference)
+       (or (of-functions this-idiom ,reference :monadic)
+	   (of-functions this-idiom ,reference :dyadic)
+	   (of-functions this-idiom ,reference :symbolic))
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
+
+(defmacro resolve-function (reference mode)
+  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
+  `(if (characterp ,reference)
+       (of-functions this-idiom ,reference ,mode)
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
+
+(defmacro resolve-operator (reference mode)
+  "Retrive an operator's composing function."
+  `(of-operators this-idiom ,reference ,mode))
+
 (vex-spec
  april
  (state :count-from 1
@@ -1026,9 +1054,8 @@
 			    `(let ((processed (apl-call ,(or-functional-character right :fn)
 							,(resolve-function right :monadic)
 							omega)))
-			       ,(if (not is-confirmed-monadic)
-				    `(if alpha ,@clauses)
-				    (second clauses))))
+			       ,(if is-confirmed-monadic (second clauses)
+				    `(if alpha ,@clauses))))
 			  `(apl-call :fn ,(resolve-function (if fn-right right left)
 							    :dyadic)
 				     ,(if (not fn-right) right 'omega)
