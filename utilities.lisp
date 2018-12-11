@@ -132,34 +132,6 @@
 		     (gensym)))))
 	(t element)))
 
-(defun format-array (values)
-  "Format an APL array, passing through values that are already arrays."
-  (if (or (stringp (first values))
-	  (symbolp (first values))
-	  (and (not (second values))
-	       (or (listp (first values))
-		   (functionp (first values)))))
-      ;; if the first item is a list (i.e. code to generate an array of some kind),
-      ;; pass it through with no changes. Also pass through strings, which are already arrays,
-      ;; any symbols
-      (first values)
-      `(make-array (list ,(length values))
-		   :initial-contents (list ,@values))))
-
-(defun format-function (idiom-name content)
-  "Format an APL function, reversing the order of alpha and omega arguments to reflect the argument order of Lisp as opposed to APL."
-  (let ((⍺ (intern "⍺" idiom-name))
-	(⍵ (intern "⍵" idiom-name)))
-    (lambda (meta axes omega &optional alpha)
-      (declare (ignorable meta axes))
-      `(funcall (lambda (,⍵ &optional ,⍺)
-		  (declare (ignorable ,⍺ ,⍵))
-		  ,content)
-		;; note: enclosing the arguments slows performance when iterating over many values,
-		;; but there is no other simple way to ensure the arguments received are arrays
-		(enclose ,(macroexpand omega))
-		,@(if alpha (list (list 'enclose (macroexpand alpha))))))))
-
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
   (if (arrayp item)
