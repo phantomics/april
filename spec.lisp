@@ -980,7 +980,9 @@
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
     quantities ← 12 3 2 6 8 16 5 ⋄ fruit {⍺ ⍵}⌸ quantities"
 		#2A(((#\A #\p #\p #\l #\e) (2 12)) ((#\O #\r #\a #\n #\g #\e) (8 3))
-		    ((#\P #\e #\a #\r) (6)) ((#\P #\e #\a #\c #\h) (16))))))
+		    ((#\P #\e #\a #\r) (6)) ((#\P #\e #\a #\c #\h) (16))))
+	    (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
+		#2A((2) (2) (1) (1)))))
   (\. (has :title "Inner/Outer Product")
       (pivotal (lambda (right left workspace)
 		 (let ((op-right `(lambda (alpha omega)
