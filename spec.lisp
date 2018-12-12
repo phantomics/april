@@ -834,7 +834,8 @@
 	    (is "st←'aodjeignwug' ⋄ st[⍒st]" "wuonjiggeda")
 	    (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
   (⍎ (has :title "Evaluate")
-     (monadic (lambda (omega) (april omega)))
+     ;; TODO: eval here prevents the evaluated code from having access to lexical variables, make this a macro
+     (monadic (lambda (omega) (eval (vex-program this-idiom nil omega))))
      (tests (is "⍎'1+1'" 2)))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
