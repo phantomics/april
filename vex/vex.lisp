@@ -197,60 +197,32 @@
 		  ;; this macro is the point of contact between users and the language, used to
 		  ;; evaluate expressions and control properties of the language instance
 		  (let* ((local-idiom (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
-		    `(progn ,@(if (not (boundp local-idiom))
-				  ;; create idiom object within host package if it does not already exist
-				  `((defvar ,local-idiom)
-				    (setq ,local-idiom ,',idiom-definition)
-				    (setf (idiom-composer-opening-patterns ,local-idiom)
-					  (append ,@(loop :for pset :in ',(rest (assoc :opening-patterns
-										       grammar-specs))
-						       :collect `(funcall (function ,pset) ,local-idiom)))
-					  (idiom-composer-following-patterns ,local-idiom)
-					  (append ,@(loop :for pset :in ',(rest (assoc :following-patterns
-										       grammar-specs))
-						       :collect `(funcall (function ,pset) ,local-idiom))))
-				    (let ((el (funcall (function ,',(second (assoc :elements grammar-specs)))
-						       ,local-idiom)))
-				      (loop :for elem :in el
-					 :do (setf (gethash (first elem) (idiom-grammar-elements ,local-idiom))
-						   (second elem))))))
-			    ,(cond ((and options (listp options)
-					 (string= "TEST" (string (first options))))
-				    (let ((all-tests ',(append function-tests operator-tests general-tests)))
-				      `(progn (setq prove:*enable-colors* nil)
-					      (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
-					      ,@all-tests
-					      (finalize)
-					      (setq prove:*enable-colors* t))))
-				   ;; the (test) setting is used to run tests
-				   ((and options (listp options)
-					 (string= "RESTORE-DEFAULTS" (string (first options))))
-				    `(setf (idiom-state ,,idiom-symbol)
-					   (copy-alist (idiom-base-state ,,idiom-symbol))))
-				   ;; the (restore-defaults) setting is used to restore the workspace settings
-				   ;; to the defaults from the spec
-				   (t `(progn ,@(if (and (listp options)
-							 (string= "SET" (string (first options)))
-							 (assoc :space (rest options))
-							 (not (boundp (second (assoc :space (rest options))))))
-						    `((defvar ,(second (assoc :space (rest options)))
-							(make-hash-table :test #'eq))))
-					      (eval (vex-program ,local-idiom
-								 (quote
-								  ,(if input-string
-								       (if (string= "SET" (string (first options)))
-									   (rest options)
-									   (error "Incorrect option syntax."))))
-								 ,(if input-string input-string options)))
-					      ;; ,(vex-program (eval (intern ,(format nil "*~a-IDIOM*"
-					      ;; 					 (string-upcase symbol))))
-					      ;; 		  (if input-string
-					      ;; 		      (if (string= "SET" (string (first options)))
-					      ;; 			  (rest options)
-					      ;; 			  (error "Incorrect option syntax.")))
-					      ;; 		  (if input-string input-string options))
-					      )))))))))))
-
+		    (cond ((and options (listp options)
+				(string= "TEST" (string-upcase (first options))))
+			   (let ((all-tests ',(append function-tests operator-tests general-tests)))
+			     `(progn (setq prove:*enable-colors* nil)
+				     (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
+				     ,@all-tests (finalize)
+				     (setq prove:*enable-colors* t))))
+			  ;; the (test) setting is used to run tests
+			  ((and options (listp options)
+			  	 (string= "RESTORE-DEFAULTS" (string-upcase (first options))))
+			   `(setf (idiom-state ,,idiom-symbol)
+			  	   (copy-alist (idiom-base-state ,,idiom-symbol))))
+			  ;; the (restore-defaults) setting is used to restore the workspace settings
+			  ;; to the defaults from the spec
+			  (t `(progn ,@(if (and (listp options)
+						(string= "SET" (string (first options)))
+						(assoc :space (rest options))
+						(not (boundp (second (assoc :space (rest options))))))
+					   `((defvar ,(second (assoc :space (rest options)))
+					       (make-hash-table :test #'eq))))
+				     ,(vex-program ,idiom-symbol
+						   (if input-string
+						       (if (string= "SET" (string (first options)))
+							   (rest options)
+							   (error "Incorrect option syntax.")))
+						   (if input-string input-string options))))))))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
