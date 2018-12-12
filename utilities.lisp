@@ -145,6 +145,34 @@
 				      (list 'disclose item)
 				      item)))
 
+(defmacro verify-function (reference)
+  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
+  `(if (characterp ,reference)
+       (or (of-functions this-idiom ,reference :monadic)
+	   (of-functions this-idiom ,reference :dyadic)
+	   (of-functions this-idiom ,reference :symbolic))
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
+
+(defmacro resolve-function (mode reference)
+  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
+  `(if (characterp ,reference)
+       (of-functions this-idiom ,reference ,mode)
+       (if (symbolp ,reference)
+	   (if (gethash ,reference (gethash :functions workspace))
+	       ,reference)
+	   (if (and (listp ,reference)
+		    (eql 'lambda (first ,reference)))
+	       ,reference))))
+
+(defmacro resolve-operator (mode reference)
+  "Retrive an operator's composing function."
+  `(of-operators this-idiom ,reference ,mode))
+
 (defun extract-axes (process tokens &optional axes)
   "Given a list of tokens starting with axis specifications, build the code for the axis specifications to be applied to the subsequent function or value."
   ;;(print (list :to tokens))

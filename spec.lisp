@@ -2,34 +2,6 @@
 
 (in-package #:april)
 
-(defmacro verify-function (reference)
-  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
-  `(if (characterp ,reference)
-       (or (of-functions this-idiom ,reference :monadic)
-	   (of-functions this-idiom ,reference :dyadic)
-	   (of-functions this-idiom ,reference :symbolic))
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
-
-(defmacro resolve-function (mode reference)
-  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
-  `(if (characterp ,reference)
-       (of-functions this-idiom ,reference ,mode)
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
-
-(defmacro resolve-operator (reference mode)
-  "Retrive an operator's composing function."
-  `(of-operators this-idiom ,reference ,mode))
-
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ function with a left argument
   (vector (lambda (input) (exp (* input #C(0 1))))

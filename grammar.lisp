@@ -156,7 +156,7 @@
    (operand :pattern (:type (:function)
 		      :special (list :omit (list :value-assignment :function-assignment :operation)))))
   (let ((axes (first (getf (first properties) :axes))))
-    (funcall (resolve-operator operator :lateral)
+    (funcall (resolve-operator :lateral operator)
 	     operand workspace axes))
   (list :type (list :function :operator-composed :lateral))))
 
@@ -171,7 +171,7 @@
    (fn-element :pattern (:type (:function)))
    (symbol :element (array :symbol-overriding t)))
   (if (gethash symbol (gethash :values workspace))
-      (let ((fn-content (resolve-function fn-element :dyadic))
+      (let ((fn-content (resolve-function :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn))
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
@@ -215,7 +215,7 @@
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
-  (funcall (resolve-operator operator :pivotal)
+  (funcall (resolve-operator :pivotal operator)
 	   precedent operand workspace)
   (list :type (list :function :operator-composed :pivotal)))
  (operation
@@ -225,7 +225,7 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (resolve-function fn-element (if value :dyadic :monadic)))
+  (let ((fn-content (resolve-function (if value :dyadic :monadic) fn-element))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
     `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
