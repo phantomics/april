@@ -194,6 +194,8 @@
 (defmacro apl-call (symbol function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
   (declare (ignore symbol))
+  ;; the symbol passed in the first argument does nothing; it is intended as a signal for processes that modify
+  ;; April's generated code
   `(,(if (and (listp function)
 	      (eql 'scalar-function (first function)))
 	 (if (= 1 (length arguments))
@@ -248,12 +250,14 @@
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
   (let ((axes (first axis-sets)))
     (if (not axis-sets)
-	body (enclose-axes `(aref-eliding ,body (mapcar (lambda (vector)
-							  (if vector (mapcar (lambda (elem) (- elem index-origin))
-									     (array-to-list vector))))
-							(list ,@axes))
-					  ,@(if set (list :set set)))
-			   (rest axis-sets)))))
+	body (enclose-axes
+	      `(aref-eliding ,body (mapcar (lambda (array)
+					     (if array (aops:each (lambda (elem)
+								    (apply-scalar-dyadic #'- elem index-origin))
+								  array)))
+					   (list ,@axes))
+			     ,@(if set (list :set set)))
+	      (rest axis-sets)))))
 
 (defun output-value (space form &optional properties)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."

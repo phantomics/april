@@ -312,9 +312,7 @@ If you just want to compile the code you enter into April without running it, us
 ```
 * (april (set (:compile-only)) "1+1 2 3")
 
-(PROGN
- (DISCLOSE	
-  (FUNCALL #'APPLY-SCALAR-DYADIC #<FUNCTION +> (VECTOR 1 2 3) (VECTOR 1))))
+(PROGN (DISCLOSE (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1))))
 ```
 
 ### (restore-defaults)
