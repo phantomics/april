@@ -13,6 +13,22 @@
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'realpart #'abs #'imagpart #'phase))
 
+;; (let ((life-array nil))
+;;   (defun life (&optional new-width new-height)
+;;     (setq life-array (if (or new-width (not life-array))
+;; 			 (let* ((new-width (if new-width new-width 16))
+;; 				(new-height (if new-height new-height new-width)))
+;; 			   (april (set (:state :count-from 1 :in ((-w new-width) (-h new-height))))
+;; 				  "¯1+?H W⍴2"))
+;; 			 (april (set (:state :in ((-l life-array))))
+;; 				"1 L∨.∧3 4=⊂+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L")))
+;;     (let ((to-print (april (set (:state :in ((-l life-array))))
+;; 			   "' ⍬║-▀▐'[1+(0,(1⌷⍴L)/3)⍪(2,L,5)⍪4]")))
+;;       (loop :for row :from 0 :to (1- (first (dims to-print)))
+;; 	 :do (loop :for cell :from 0 :to (1- (second (dims to-print)))
+;; 		:do (princ (aref to-print row cell)))
+;; 	 (princ #\Newline)))))
+
 ;; top-level specification for the April language
 (vex-spec
  april
@@ -1163,7 +1179,7 @@
 			    omega))
 			(t `(lambda (omega)
 			      (let* ((,omega-var (apply-scalar-dyadic #'- ,right index-origin))
-				     (coord nil))
+				     (coord))
 				(loop :for ,index :from 0 :to (1- (length ,omega-var))
 				   :do (setq coord (aref ,omega-var ,index))
 				   (aref-eliding omega (if (arrayp coord)
@@ -1224,6 +1240,12 @@
 			 ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
 		(for "Indices of indices."
 		     "(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]" #2A((7 6) (8 7) (4 3)))
+		(for "Array as array index."
+		     "(10+⍳9)[2 3⍴⍳9]" #2A((11 12 13) (14 15 16)))
+		(for "Sub-coordinates of nested arrays."
+		     "(3 4⍴⍳9)[(1 2)(3 1)]" #(2 9))
+		(for "Array of nested array sub-coordinates."
+		     "(3 4⍴⍳9)[2 2⍴⊂(2 3)]" #2A((7 7) (7 7)))
 		(for "Assignment by function."
 		     "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
 		(for "Assignment by function at index."
