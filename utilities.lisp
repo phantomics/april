@@ -318,23 +318,6 @@
 	(aref (aops:split result 1) 0)
 	result)))
 
-(Let ((life-array nil))
-  (defun life (&optional new-width new-height)
-    (setq life-array (if (or new-width (not life-array))
-                      (let* ((new-width (if new-width new-width 16))
-                             (new-height (if new-height new-height new-width)))
-                        (april (set (:state :count-from 1 :in ((-w new-width) (-h new-height))))
-                               "¯1+?H W⍴2"))
-                      (april (set (:state :in ((-l life-array))))
-                             "⊃1 L∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L")))
-    (let ((to-print (april (set (:state :in ((-l life-array))))
-			   "' ⍬_║▐▀'[1+2⍪(3,L,4)⍪5]")))
-      (loop :for row :from 0 :to (1- (first (dims to-print)))
-      :do (loop :for cell :from 0 :to (1- (second (dims to-print)))
-             :do (princ (aref to-print row cell)))
-      	 (princ #\Newline)))))
-
-
 (defun over-operator-template (axes function &key (first-axis nil) (for-vector nil) (for-array nil))
   "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
   `(lambda (omega)
