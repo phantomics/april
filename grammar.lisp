@@ -70,13 +70,15 @@
 				  (vex::of-lexicon idiom :symbolic-functions (third this-item)))
 			      ;; check that the following item is a value and not a function, otherwise it
 			      ;; must be an operator
-			      ;; it appears that no clause is needed to test for closures returning a value
-			      ;; to the left of the overloaded glyph as in (3+5)∘× 8, but keep an eye on this
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
-					   (gethash (first remaining)
-						    (gethash :variables workspace)))))))
-		     
+					   (gethash (first remaining) (gethash :variables workspace))))
+				  ;; this clause is needed to test for closures returning a value
+				  ;; to the left of the overloaded glyph as in (1⌷3 4)/5
+				  (multiple-value-bind (output out-properties)
+				      (funcall process (list (first remaining)))
+				    (declare (ignore output))
+				    (eq :array (first (getf out-properties :type)))))))
 		     (let ((fn (first (last this-item)))
 			   (obligate-dyadic (and (eq :op (first this-item))
 						 (vex::of-lexicon idiom :dyadic-functions (third this-item)))))

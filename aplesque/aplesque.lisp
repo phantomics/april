@@ -273,7 +273,7 @@
 
 (defun expand-array (degrees array axis default-axis &key (compress-mode nil))
   "Expand or replicate sections of an array as specified by an array of 'degrees.'"
-  (let* ((new-array (copy-array array))
+  (let* ((new-array (copy-array (disclose-unitary-array array)))
 	 (a-rank (rank array))
 	 (axis (if axis axis default-axis))
 	 (singleton-array (loop :for dim :in (dims array) :always (= 1 dim)))
@@ -385,6 +385,13 @@
 						 segments)))
 	(apply #'aops:stack (cons 0 (reverse segments))))))
 
+(defun disclose-unitary-array (item)
+  (if (and (arrayp item)
+	   (is-unitary item)
+	   (arrayp (aref item 0)))
+      (aref item 0)
+      item))
+
 (defun reshape-array-fitting (array adims)
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (let* ((original-length (array-total-size array))
@@ -394,8 +401,10 @@
 				      :displaced-to array)))
     (aops:reshape (make-array (list total-length)
 			      :element-type (element-type array)
-			      :initial-contents (loop :for index :from 0 :to (1- total-length)
-						   :collect (aref displaced-array (mod index original-length))))
+			      :initial-contents
+			      (loop :for index :from 0 :to (1- total-length)
+				 :collect (disclose-unitary-array
+					   (aref displaced-array (mod index original-length)))))
 		  adims)))
 
 (defun sprfact (n)
@@ -652,26 +661,29 @@
 	       :do (for-element elix)))))))
 
 (defun aref-eliding (array aindices &key (fn #'identity) (set nil) (set-coords nil))
+  ;; (print (list :ar array aindices))
   (let* ((adims (dims array))
-	 (output (let* ((nested-index-found)
-			(dims-out (loop :for dx :from 0 :to (1- (length adims))
-				     :while (not nested-index-found)
-				     :append (let ((index (nth dx aindices)))
-					       (if (or (and (listp index)
-					       		    (arrayp (first index)))
-					       	       (and (arrayp index)
-					       		    (arrayp (apply #'aref
-									   (cons index (loop :for x :from 0
-											  :to (1- (rank index))
-											  :collect 0))))))
-					       	   (setq nested-index-found t))
-					       (if (and (or (listp index) (vectorp index))
-							(< 1 (length index)))
-						   (list (length index))
-						   (if (and (arrayp index) (< 1 (array-total-size index)))
-						       (dims index)
-						       (if (not index)
-							   (list (nth dx adims)))))))))
+	 (output (let ((dims-out (if (or (and (listp (first aindices))
+					      (arrayp (caar aindices)))
+					 (and (arrayp (first aindices))
+					      (arrayp (apply #'aref (cons (first aindices)
+									  (loop :for x :from 0
+									     :to (1- (rank (first aindices)))
+									     :collect 0))))))
+				     (dims (first aindices))
+				     ;; if the first if the first indices is an array, that means that choose
+				     ;; indexing is being used, so the shape of the first index will be
+				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
+				     ;; to determine the shape of the output array
+				     (loop :for dx :from 0 :to (1- (length adims))
+					:append (let ((index (nth dx aindices)))
+						  (if (and (or (listp index) (vectorp index))
+							   (< 1 (length index)))
+						      (list (length index))
+						      (if (and (arrayp index) (< 1 (array-total-size index)))
+							  (dims index)
+							  (if (not index)
+							      (list (nth dx adims))))))))))
 		   (if (not dims-out)
 		       :unitary (make-array dims-out :element-type (element-type array))))))
     (labels ((process (indices &optional out-path in-path)
@@ -680,6 +692,7 @@
 		    (target-cell (apply #'aref (cons output (reverse out-path))))
 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
 		 (cond ((and (not indices) (= (rank array) (length in-path)))
+			;; if the output is not a unitary value, set the target cell appropriately
 			(if (and out-path (not (eq :unitary output)))
 			    (setf target-cell (if set (setf source-cell
 							    (disclose (if (functionp set) apply-set-function set)))
@@ -688,7 +701,8 @@
 				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
 				      (vector source-cell)))))
 		       ((and (not indices) (vectorp (first in-path)))
-		       	;; (print (list out-path output))
+		       	;; if using choose indexing, recurse using the index as the coordinates
+			;; TODO: logic for choose indexing could be simpler
 		       	(setf target-cell
 		       	      (disclose (aref-eliding (if (not (rest in-path))
 		       					  array (apply #'aref
@@ -727,110 +741,6 @@
 					      out-path (cons this-index in-path))))))))))
       (process aindices)
       output)))
-
-;; (defun aref-eliding (array aindices &key (fn #'identity) (set nil) (set-coords nil))
-;;   (let* ((adims (dims array))
-;; 	 (output (let ((dims-out (loop :for dx :from 0 :to (1- (length adims))
-;; 				    :append (let ((index (nth dx aindices)))
-;; 					      (if (and (or (listp index) (vectorp index))
-;; 						       (< 1 (length index)))
-;; 						  (list (length index))
-;; 						  (if (and (arrayp index) (< 1 (array-total-size index)))
-;; 						      (dims index)
-;; 						      (if (not index)
-;; 							  (list (nth dx adims)))))))))
-;; 		   (if (not dims-out)
-;; 		       :unitary (make-array dims-out :element-type (element-type array))))))
-;;     (labels ((process (indices &optional out-path in-path)
-;; 	       ;(print (list :in-path in-path))
-;; 	       (symbol-macrolet
-;; 		   ((source-cell (apply #'aref (cons array (reverse in-path))))
-;; 		    (target-cell (apply #'aref (cons output (reverse out-path))))
-;; 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
-;; 		 (if (and (not indices) (= (rank array) (length in-path)))
-;; 		     (if (and out-path (not (eq :unitary output)))
-;; 			 (setf target-cell (if set (setf source-cell
-;; 							 (disclose (if (functionp set) apply-set-function set)))
-;; 					       (funcall fn source-cell)))
-;; 			 (setq output
-;; 			       (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
-;; 				   (vector source-cell))))
-;; 		     (let ((this-index (first indices)))
-;; 		       ;(print (list :this-index this-index))
-;; 		       (cond ((arrayp this-index)
-;; 				   ;; iterate over the index if it's an array, unless it's a unitary vector
-;; 				   (if (and (vectorp this-index)
-;; 					    (= 1 (length this-index)))
-;; 				       (process (rest indices)
-;; 						out-path (cons (aref this-index 0) in-path))
-;; 				       (run-dim this-index (lambda (value coords)
-;; 							     (process (rest indices)
-;; 								      (append (reverse coords) out-path)
-;; 								      (cons value in-path))))))
-;; 			     ((not this-index)
-;; 			      (let ((count 0))
-;; 				(loop :for ix :from 0 :to (1- (nth (length in-path) adims))
-;; 				   :do (process (rest indices) (cons count out-path)
-;; 						(cons ix in-path))
-;; 				   (incf count 1))))
-;; 			     ((listp this-index)
-;; 			      (if (= 1 (length this-index))
-;; 				  (process (rest indices)
-;; 					   out-path (cons (first this-index) in-path))
-;; 				  (let ((count 0))
-;; 				    (loop :for ix :in this-index :do (process (rest indices) (cons count out-path)
-;; 									      (cons ix in-path))
-;; 				       (incf count 1)))))
-;; 			     (t (process (rest indices)
-;; 					 out-path (cons this-index in-path)))))))))
-;;       (process aindices)
-;;       output)))
-
-;; (defun aref-eliding (array indices &key (adims (dims array)) (path nil) (fn #'identity) (set nil) (set-coords nil))
-;;   "Reference an element or sub-array within an array, allowing the use of elided array indices. Array values may also be set or operated on by passing functions with keyword options."
-;;   (macrolet ((refer-to (value-form)
-;; 	       `(let ((coords (reverse (cons ,value-form path))))
-;; 		  (if (rest indices)
-;; 		      (aref-eliding array (rest indices)
-;; 				    :set set :set-coords set-coords :fn fn :adims adims
-;; 				    :path (cons ,value-form path))
-;; 		      ;; set value using provided function or value if present, otherwise just fetch the
-;; 		      ;; corresponding value from the other array
-;; 		      (funcall fn (symbol-macrolet ((other-value (apply #'aref (cons array coords))))
-;; 				    (cond ((functionp set)
-;; 					   (setf other-value
-;; 						 (disclose (apply set (cons other-value
-;; 									    (if set-coords (list coords)))))))
-;; 					  (set (setf other-value set))
-;; 					  (t other-value))))))))
-;;     (if (not path)
-;; 	(if (< (length indices)
-;; 	       (length adims))
-;; 	    (setq indices (append indices (loop :for i :from 0 :to (- (length adims) (length indices) 1)
-;; 					     :collect nil)))))
-;;     (let ((dim-indices (if (first indices)
-;; 			   (if (listp (first indices))
-;; 			       (first indices)
-;; 			       (list (first indices)))
-;; 			   (iota (nth (length path) adims)))))
-;;       (funcall (if path #'identity (lambda (contents)
-;; 				     (make-array (if (< 1 (length adims))
-;; 						     (or (loop :for dim :from 0 :to (1- (length adims))
-;; 							    :append (if (listp (nth dim indices))
-;; 									(if (nth dim indices)
-;; 									    (if (< 1 (length (nth dim indices)))
-;; 										(list (length (nth dim indices))))
-;; 									    (list (nth dim adims)))))
-;; 							 1)
-;; 						     ;; if the indices are just a single number, the length is 1
-;; 						     (if (not (listp (first indices)))
-;; 							 1 (length (first indices))))
-;; 						 :element-type (element-type array)
-;; 						 :initial-contents (if (listp contents)
-;; 								       contents (list contents)))))
-;; 	       (if (= 1 (length dim-indices))
-;; 		   (refer-to (first dim-indices))
-;; 		   (loop :for index :in dim-indices :collect (refer-to index)))))))
 
 (defun mix-arrays (axis arrays &key (max-dims nil) (disclose-items nil) (recombine nil))
   "Combine multiple arrays into a single array one rank higher. Vectors may be stacked to form a 2D array, 2D arrays may be stacked to form a 3D array, etc. Arrays with smaller dimensions than the largest array in the stack have missing elements replaced with 0s for numeric arrays or blanks for character arrays."
