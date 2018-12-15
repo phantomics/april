@@ -57,12 +57,12 @@
 	      ;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
 	      (if (of-state this-idiom :disclose-output)
 		  (append (butlast form)
-			  (list (list 'disclose (first (last form)))))
+			  (list (list 'disclose-atom (first (last form)))))
 		  form))
 	    :postprocess-value
 	    (lambda (item)
 	      (if (of-state this-idiom :disclose-output)
-		  (list 'disclose item)
+		  (list 'disclose-atom item)
 		  item)))
  ;; APL's set of functions represented by characters
  (functions
@@ -253,8 +253,8 @@
   (⌷ (has :title "Index")
      (dyadic (lambda (omega alpha &optional axes)
 	       ;; (print (list :al alpha))
-	       (enclose (aref-eliding omega (let ((coords (array-to-list (disclose (apply-scalar #'- alpha
-												 index-origin))))
+	       (enclose (aref-eliding omega (let ((coords (array-to-list (apply-scalar #'- alpha
+										       index-origin)))
 						  (axis (if (first axes)
 							    (array-to-list (apply-scalar #'- (first axes)
 											 index-origin)))))
@@ -347,6 +347,7 @@
 	    (is "2 3 4↑4 5 6⍴⍳9" #3A(((1 2 3 4) (7 8 9 1) (4 5 6 7))
 				     ((4 5 6 7) (1 2 3 4) (7 8 9 1))))
 	    (is "2 ¯2 ¯2↑4 5 6⍴⍳9" #3A(((5 6) (2 3)) ((8 9) (5 6))))
+	    (is "5 ¯5↑(3 3⍴⍳9)∊1 2 3 4 8" #2A((0 0 1 1 1) (0 0 1 0 0) (0 0 0 1 0) (0 0 0 0 0) (0 0 0 0 0)))
 	    (is "1↑[1]2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
 	    (is "1↑[2]2 3 4⍴⍳9" #3A(((1 2 3 4)) ((4 5 6 7))))
 	    (is "2↑[2]2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8)) ((4 5 6 7) (8 9 1 2))))
@@ -413,6 +414,10 @@
 	     (is "(6 7 8 9 0),⍪1 2 3 4 5" #2A((6 1) (7 2) (8 3) (9 4) (0 5)))
 	     (is "(2 3 4⍴⍳5),2 3⍴9" #3A(((1 2 3 4 9) (5 1 2 3 9) (4 5 1 2 9))
 					((3 4 5 1 9) (2 3 4 5 9) (1 2 3 4 9))))
+	     (is "(4 4⍴5),4 4 4⍴3" #3A(((5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3))
+				       ((5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3))
+				       ((5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3))
+				       ((5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3))))
 	     (is "1 2 3,4 5 6" #(1 2 3 4 5 6))
 	     (is "1 2 3,[1]4 5 6" #(1 2 3 4 5 6))
 	     (is "1 2 3 4,[0.5]1 2 3 4" #2A((1 2 3 4) (1 2 3 4)))
@@ -446,20 +451,16 @@
 			       (concatenate 'vector alpha omega)))
 		       (if (or (not axes)
 			       (integerp (aref (first axes) 0)))
-			   (let* ((axis (if axes (- (aref (first axes) 0)
-						    index-origin)
-					    0))
-				  (scale-alpha (if (not (is-unitary alpha))
-						   alpha (scale-array alpha omega axis)))
-				  (scale-omega (if (not (is-unitary omega))
-						   omega (scale-array omega alpha axis))))
-			     (aops:stack axis scale-alpha scale-omega))))))
+			   (catenate alpha omega (if axes (- (aref (first axes) 0)
+							     index-origin)
+						     0))))))
      (tests (is "⍪'MAKE'" #2A((#\M) (#\A) (#\K) (#\E)))
 	    (is "⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 7 8) (9 1 2 3)))
 	    (is "⍪2 3 4⍴⍳24" #2A((1 2 3 4 5 6 7 8 9 10 11 12)
 				 (13 14 15 16 17 18 19 20 21 22 23 24)))
 	    (is "0⍪3 4⍴⍳9" #2A((0 0 0 0) (1 2 3 4) (5 6 7 8) (9 1 2 3)))
 	    (is "0⍪[2]3 4⍴⍳9" #2A((0 1 2 3 4) (0 5 6 7 8) (0 9 1 2 3)))
+	    (is "(3⍴5)⍪3 3⍴3" #2A((5 5 5) (3 3 3) (3 3 3) (3 3 3)))
 	    (is "(5 4⍴⍳6)⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 1 2) (3 4 5 6) (1 2 3 4)
 				      (5 6 1 2) (1 2 3 4) (5 6 7 8) (9 1 2 3)))
 	    (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
@@ -518,9 +519,7 @@
 		   (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
 							 (first axes)))
 		       (if (loop :for dim :in (dims omega) :always (= 1 dim))
-			   omega (if (< 1 (rank omega))
-				     (vector omega)
-				     (vector (vector omega))))))
+			   omega (vector omega))))
 		 (lambda (omega alpha)
 		   (if (/= (length alpha) (length omega))
 		       (error "Length mismatch.")
@@ -849,7 +848,7 @@
      (lateral (lambda (operand workspace axes)
 		(over-operator-template
 		 axes (resolve-function :dyadic operand)
-		 :for-vector '(lambda (function input) (vector (reduce function (reverse input))))
+		 :for-vector '(lambda (function input) (reduce function (reverse input)))
 		 :for-array '(lambda (function input axis)
 			      (aops:margin (lambda (s) (reduce function (reverse s)))
 			       input axis)))))
@@ -968,8 +967,7 @@
 					      omega alpha)))
 		       (op-left (let ((left-op (or (resolve-function :symbolic left)
 						   (resolve-function :dyadic left)))
-				      (left-sym (if (not (characterp left))
-						    :fn (intern (string-upcase left)))))
+				      (left-sym (or-functional-character left :fn)))
 				  (if (not (eq :outer-product-designator left-op))
 				      `(lambda (alpha omega) (apl-call ,left-sym ,left-op omega alpha))
 				      left-op))))
@@ -981,16 +979,16 @@
 						 (omega (disclose-unitary-array (disclose omega))))
 					     (disclose (apl-call :fn ,op-right alpha omega))))
 					 alpha)
-			      (let ((inverse (aops:outer (lambda (omega alpha)
-							   (let ((omega (enclose omega))
-								 (alpha (enclose alpha)))
-							     (if (is-unitary omega)
+			      (let ((inverse (aops:outer (lambda (o a)
+							   (let ((o (if (arrayp o) o (vector o)))
+								 (a (if (arrayp a) a (vector a))))
+							     (if (is-unitary o)
 								 ;; swap arguments in case of a
 								 ;; singleton omega argument
-								 (let ((placeholder alpha))
-								   (setq alpha omega
-									 omega placeholder)))
-							     (disclose (apl-call :fn ,op-right alpha omega))))
+								 (let ((placeholder a))
+								   (setq a o
+									 o placeholder)))
+							     (disclose (apl-call :fn ,op-right a o))))
 							 alpha omega)))
 				(if (not (is-unitary alpha))
 				    inverse (aops:permute (reverse (alexandria:iota (rank inverse)))
@@ -1001,7 +999,7 @@
 			      (funcall (lambda (result)
 					 (if (not (and (arrayp result)
 						       (< 1 (rank result))))
-					     result (vector (vector result))))
+					     result (vector result)))
 				       ;; enclose the result in a vector if its rank is > 1
 				       ;; to preserve the rank of the result
 				       (reduce ,op-left (apply-scalar ,op-right alpha omega)))
@@ -1249,4 +1247,9 @@
 		(for "Operation over portions of an array."
 		     "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
 		      #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
-			  (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))))
+			  (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+		(for "Glider 1."
+		     "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
+		(for "Glider 2."
+		     "3 3⍴⊃∨/1 2 3 4 8=⊂⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))))
+
