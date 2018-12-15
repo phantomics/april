@@ -334,7 +334,6 @@
              :do (princ (aref to-print row cell)))
       	 (princ #\Newline)))))
 
-
 (defun over-operator-template (axes function &key (first-axis nil) (for-vector nil) (for-array nil))
   "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
   `(lambda (omega)
