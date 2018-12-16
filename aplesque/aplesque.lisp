@@ -11,8 +11,7 @@
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
   (if (and (arrayp item)
 	   (is-unitary item))
-      (apply #'aref (cons item (loop :for i :from 0 :to (1- (rank item))
-				  :collect 0)))
+      (row-major-aref item 0)
       item))
 
 (defun scale-array (singleton to-match &optional axis)
@@ -50,6 +49,11 @@
 				   (recurse (1+ n))))))
 	  (recurse 0)))))
 
+(defmacro apl-default-element (array)
+  `(if (or (eql 'character (element-type ,array))
+	   (eql 'base-char (element-type ,array)))
+       #\  0))
+
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (and (not (arrayp item1))
@@ -60,36 +64,43 @@
 	  (and (characterp item1)
 	       (characterp item2)
 	       (char= item1 item2)))
-      (if (and (= (rank item1)
-		  (rank item2))
+      (if (and (= (rank item1) (rank item2))
 	       (let ((dims1 (dims item1))
 		     (dims2 (dims item2)))
 		 (loop :for d :from 0 :to (1- (length dims1))
-		    :always (= (nth d dims1)
-			       (nth d dims2)))))
+		    :always (= (nth d dims1) (nth d dims2)))))
 	  (let ((match t))
 	    (run-dim item1 (lambda (item coords)
 			     (let ((alternate (apply #'aref (cons item2 coords))))
-			       (setq match (and match (or (and (arrayp item)
-							       (arrayp alternate)
+			       (setq match (and match (or (and (arrayp item) (arrayp alternate)
 							       (array-compare item alternate))
-							  (and (numberp item)
-							       (numberp alternate)
+							  (and (numberp item) (numberp alternate)
 							       (= item alternate))
-							  (and (characterp item)
-							       (characterp alternate)
+							  (and (characterp item) (characterp alternate)
 							       (char= item alternate))))))))
 	    match))))
 
-(defun array-depth (array &optional layer)
+(defun array-depth (array &optional layer (uniform t) possible-depth)
   "Find the maximum depth of nested arrays within an array."
-  (let* ((layer (if layer layer 1))
+  (let* ((first-level (not layer))
+	 (layer (if layer layer 1))
 	 (new-layer layer))
     (aops:each (lambda (item)
 		 (if (arrayp item)
-		     (setq new-layer (max new-layer (array-depth item (1+ layer))))))
+		     (multiple-value-bind (next-layer new-uniform new-possible-depth)
+			 (array-depth item (1+ layer) uniform possible-depth)
+		       (setq new-layer (max new-layer next-layer)
+			     uniform new-uniform
+			     possible-depth new-possible-depth))
+		     (if (not possible-depth)
+			 (setq possible-depth new-layer)
+			 (if (/= layer possible-depth)
+			     (setq uniform nil)))))
 	       array)
-    new-layer))
+    (values (funcall (if (and first-level (not uniform))
+			 #'- #'identity)
+		     new-layer)
+	    uniform possible-depth)))
 
 (defun make-rotator (&optional degrees)
   "Create a function to rotate an array by a given number of degrees, or otherwise reverse it."
@@ -120,14 +131,15 @@
   "Rotate an array n units to the right."
   (rotate-left (- (length l) n) l))
 
-(defun multidim-slice (array dimensions &key (inverse nil) (fill-with 0))
+(defun multidim-slice (array dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
   (let* ((adims (dims array))
 	 (output (make-array (mapcar (lambda (outdim indim)
 				      (if (not inverse)
 					  (abs outdim) (- indim (abs outdim))))
 				     dimensions adims)
-			     :initial-element fill-with :element-type (type-of array))))
+			     :initial-element (if fill-with fill-with (apl-default-element array))
+			     :element-type (type-of array))))
     (run-dim array (lambda (element coords)
 		     (declare (ignore element))
 		     (let* ((coord t)
@@ -257,11 +269,10 @@
 (defun expand-array (degrees array axis default-axis &key (compress-mode nil))
   "Expand or replicate sections of an array as specified by an array of 'degrees.'"
   (let* ((new-array (copy-array array))
+	 (default-element (apl-default-element array))
 	 (a-rank (rank array))
 	 (axis (if axis axis default-axis))
-	 (singleton-array (loop :for dim :in (dims array) :always (= 1 dim)))
-	 (char-array? (or (eql 'character (element-type array))
-			  (eql 'base-char (element-type array)))))
+	 (singleton-array (loop :for dim :in (dims array) :always (= 1 dim))))
     (if (and singleton-array (< 1 a-rank))
     	(setq array (make-array (list 1) :displaced-to array)))
     (if (> axis (1- a-rank))
@@ -281,21 +292,21 @@
 						    (list (if (arrayp (aref array-segments 0))
 							      (make-array (dims (aref array-segments 0))
 									  :element-type (element-type array)
-									  :initial-element (if char-array? #\  0))
-							      (if char-array? #\  0))))
+									  :initial-element default-element)
+							      default-element)))
 						   ((> 0 degree)
 						    (loop :for items :from -1 :downto degree
 						       :collect (if (arrayp (aref array-segments 0))
 								    (make-array (dims (aref array-segments 0))
 										:element-type (element-type array)
 										:initial-element
-										(if char-array? #\  0))
-								    (if char-array? #\  0)))))
+										default-element)
+								    default-element))))
 				     :do (if (and (not singleton-array)
 						  (or compress-mode (< 0 degree)))
 					     (incf segment-index 1))))
 			(output (funcall (if (< 1 (rank array))
-					     #'aops:combine (lambda (x) x))
+					     #'aops:combine #'identity)
 					 ;; combine the resulting arrays if the original is multidimensional,
 					 ;; otherwise just make a vector
 					 (make-array (length expanded)
@@ -323,7 +334,7 @@
 							     source-array)
 					       source-array)
 					   1))
-	      (output-segments nil))
+	      (output-segments))
 	  (loop :for index :from 0 :to (1- (length source-segments))
 	     :when (or output-segments (find index indices))
 	     :do (setq output-segments (if (find index indices)
@@ -348,8 +359,8 @@
 	   (loop :for element :from 0 :to (1- (length vector))
 	      :never (arrayp (aref vector element))))
       vector
-      (let ((current-segment nil)
-	    (segments nil))
+      (let ((current-segment)
+	    (segments))
 	(dotimes (index (length vector))
 	  (let ((element (aref vector index)))
 	    (if (arrayp element)
@@ -417,8 +428,7 @@
 
 (defun binomial (n k)
   "Find a binomial using the above sprfact function."
-  (labels ((prod-enum (s e)
-	     (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
+  (labels ((prod-enum (s e) (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
 	   (sprfact (n) (prod-enum 1 n)))
     (/ (prod-enum (- (1+ n) k) n) (sprfact k))))
 
@@ -526,7 +536,7 @@
 (defun array-grade (compare-by array)
   "Grade an array."
   (aops:each (lambda (item)
-	       (let ((coords nil))
+	       (let ((coords))
 		 (run-dim compare-by (lambda (found indices)
 				       (if (char= found item)
 					   (setq coords indices))))
@@ -588,7 +598,7 @@
 				    :collect 1))
 			     (dims target)))
 	(output (make-array (dims array) :element-type 'bit :initial-element 0)))
-    (loop :for match :in (let ((match-coords nil))
+    (loop :for match :in (let ((match-coords))
 			   (run-dim array (lambda (element coords)
 					    (if (equal element target-head)
 						(setq match-coords (cons coords match-coords)))))
@@ -624,15 +634,11 @@
 			(append indices (list elix)))))))
 
 (defun aref-eliding (array aindices &key (fn #'identity) (set nil) (set-coords nil))
-  ;; (print (list :ar array aindices))
   (let* ((adims (dims array))
 	 (output (let ((dims-out (if (or (and (listp (first aindices))
 					      (arrayp (caar aindices)))
 					 (and (arrayp (first aindices))
-					      (arrayp (apply #'aref (cons (first aindices)
-									  (loop :for x :from 0
-									     :to (1- (rank (first aindices)))
-									     :collect 0))))))
+					      (arrayp (row-major-aref (first aindices) 0))))
 				     (dims (first aindices))
 				     ;; if the first if the first indices is an array, that means that choose
 				     ;; indexing is being used, so the shape of the first index will be
@@ -715,8 +721,7 @@
 			(loop :for dx :from 0 :to (1- (length (aref mdims 0)))
 			   :collect (apply #'max (array-to-list (aops:each (lambda (n) (nth dx n))
 									   mdims)))))))
-	(first-element (apply #'aref (cons arrays (loop :for i :from 0 :to (1- (rank arrays))
-						     :collect 0)))))
+	(first-element (row-major-aref arrays 0)))
     ;; TODO: the recombine option and some other things are hacks, how better to handle cases
     ;; where subprocessed array elements should be recombined?
     ;; (print (list :d disclose-items first-element arrays))
@@ -729,23 +734,19 @@
 	    (apply #'aops:stack
 		   (cons axis (loop :for index :from 0 :to (1- (length arrays))
 				 :collect (if (and recombine (is-unitary (aref arrays index)))
-					      ;; (array-promote (disclose (aref arrays index)))
 					      (aref arrays index)
 					      (aops:permute
 					       (rotate-right axis permute-dims)
 					       (array-promote
 						(if (not (equalp max-dims (dims (aref arrays index))))
 						    (let* ((etype (element-type (aref arrays index)))
+							   (fill-with (apl-default-element (aref arrays index)))
 							   (out-array (make-array max-dims
 										  :element-type etype
-										  :initial-element
-										  (cond ((eql 'character etype)
-											 #\ )
-											(t 0)))))
+										  :initial-element fill-with)))
 						      (run-dim (aref arrays index)
 							       (lambda (item coords)
-								 (setf (apply #'aref
-									      (cons out-array coords))
+								 (setf (apply #'aref (cons out-array coords))
 								       item)))
 						      out-array)
 						    (let ((this-item (aref arrays index)))
@@ -849,8 +850,8 @@
 	       (make-array (list 1) :initial-element matrix)))
 	  (t (let* ((matrix-dims (dims matrix))
 		    (axis-list (array-to-list axes))
-		    (outer-dims nil)
-		    (inner-dims nil))
+		    (outer-dims)
+		    (inner-dims))
 	       ;; otherwise, start by separating the dimensions of the original array into sets of dimensions
 	       ;; for the output array and each of its enclosed arrays
 	       (loop :for axis :from 0 :to (1- (rank matrix))
@@ -883,8 +884,8 @@
   "Find the inverse of a square matrix."
   (let ((dim (array-dimension in-matrix 0))   ;; dimension of matrix
 	(det 1)                               ;; determinant of matrix
-	(l nil)                               ;; permutation vector
-	(m nil)                               ;; permutation vector
+	(l)                                   ;; permutation vector
+	(m)                                   ;; permutation vector
 	(temp 0)
 	(out-matrix (make-array (dims in-matrix))))
 
