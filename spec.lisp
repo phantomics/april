@@ -35,7 +35,7 @@
 	    :match-token-character
 	    (lambda (char)
 	      (or (alphanumericp char)
-		  (member char (list #\. #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+		  (member char (list #\. #\_ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
 	    ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
 	    ;; depending on their context
 	    :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -56,8 +56,7 @@
 	    (lambda (form)
 	      ;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
 	      (if (of-state this-idiom :disclose-output)
-		  (append (butlast form)
-			  (list (list 'disclose-atom (first (last form)))))
+		  (append (butlast form) (list (list 'disclose-atom (first (last form)))))
 		  form))
 	    :postprocess-value
 	    (lambda (item)
@@ -236,8 +235,7 @@
 		   (let ((omega (disclose omega)))
 		     (if (not (integerp omega))
 			 (error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
-			 (make-array (list omega)
-				     :initial-contents (iota omega :start index-origin)))))
+			 (make-array (list omega) :initial-contents (iota omega :start index-origin)))))
 		 (lambda (omega alpha) (index-of omega alpha index-origin)))
      (tests (is "⍳5" #(1 2 3 4 5))
 	    (is "3⍳1 2 3 4 5" #(2 2 1 2 2))))
@@ -252,13 +250,10 @@
 	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
   (⌷ (has :title "Index")
      (dyadic (lambda (omega alpha &optional axes)
-	       ;; (print (list :al alpha))
-	       (enclose (aref-eliding omega (let ((coords (array-to-list (apply-scalar #'- alpha
-										       index-origin)))
+	       (enclose (aref-eliding omega (let ((coords (array-to-list (apply-scalar #'- alpha index-origin)))
 						  (axis (if (first axes)
 							    (array-to-list (apply-scalar #'- (first axes)
 											 index-origin)))))
-					      ;; (print (list :cc coords))
 					      (if (not axis)
 						  coords (loop :for dim :from 0 :to (1- (rank omega))
 							    :collect (if (member dim axis)
@@ -434,13 +429,11 @@
 						 (loop :for i :from 0 :to (1- (length omega))
 						    :collect (list (aref omega i))))
 				     (let ((o-dims (dims omega)))
-				       (make-array (list (first o-dims)
-							 (apply #'* (rest o-dims)))
+				       (make-array (list (first o-dims) (apply #'* (rest o-dims)))
 						   :element-type (element-type omega)
 						   :displaced-to (copy-array omega)))))
 		 (lambda (omega alpha &optional axes)
-		   (if (and (vectorp alpha)
-			    (vectorp omega))
+		   (if (and (vectorp alpha) (vectorp omega))
 		       (if (and axes (< 0 (- (aref (first axes) 0)
 					     index-origin)))
 			   (error (concatenate 'string "Specified axis is greater than 1, vectors"
@@ -451,9 +444,8 @@
 			       (concatenate 'vector alpha omega)))
 		       (if (or (not axes)
 			       (integerp (aref (first axes) 0)))
-			   (catenate alpha omega (if axes (- (aref (first axes) 0)
-							     index-origin)
-						     0))))))
+			   (catenate alpha omega (if (not axes) 0 (- (aref (first axes) 0)
+								     index-origin)))))))
      (tests (is "⍪'MAKE'" #2A((#\M) (#\A) (#\K) (#\E)))
 	    (is "⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 7 8) (9 1 2 3)))
 	    (is "⍪2 3 4⍴⍳24" #2A((1 2 3 4 5 6 7 8 9 10 11 12)
@@ -946,17 +938,17 @@
 							     ,(resolve-function :dyadic operand)
 							     (let ((items (if alpha (gethash key key-table)
 									      (funcall indices-of key keys))))
-							       (funcall (if (= 1 (length items))
-									    (lambda (v) (vector (vector v)))
-									    #'identity)
+							       (funcall (if (< 1 (length items))
+									    #'identity (lambda (v) (vector v)))
 									(make-array (list (length items))
-										    :initial-contents items)))
+										    :initial-contents
+										    (reverse items))))
 							     key))))
 		       (mix-arrays 0 (apply #'vector item-sets)))))))
-     (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
-    quantities ← 12 3 2 6 8 16 5 ⋄ fruit {⍺ ⍵}⌸ quantities"
-		#2A(((#\A #\p #\p #\l #\e) (2 12)) ((#\O #\r #\a #\n #\g #\e) (8 3))
-		    ((#\P #\e #\a #\r) (6)) ((#\P #\e #\a #\c #\h) (16))))
+     (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' 'Pear' 'Pear'
+    quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
+		#2A(((#\A #\p #\p #\l #\e) (12 2)) ((#\O #\r #\a #\n #\g #\e) (3 8))
+		    ((#\P #\e #\a #\r) (6 7 3)) ((#\P #\e #\a #\c #\h) 16)))
 	    (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
 		#2A((2) (2) (1) (1)))))
   (\. (has :title "Inner/Outer Product")
@@ -984,7 +976,7 @@
 								 (a (if (arrayp a) a (vector a))))
 							     (if (is-unitary o)
 								 ;; swap arguments in case of a
-								 ;; singleton omega argument
+								 ;; unitary omega argument
 								 (let ((placeholder a))
 								   (setq a o
 									 o placeholder)))
@@ -1004,8 +996,7 @@
 				       ;; to preserve the rank of the result
 				       (reduce ,op-left (apply-scalar ,op-right alpha omega)))
 			      (array-inner-product alpha omega (lambda (arg1 arg2)
-								 (if (or (arrayp arg1)
-									 (arrayp arg2))
+								 (if (or (arrayp arg1) (arrayp arg2))
 								     (apply-scalar ,op-right arg1 arg2)
 								     (funcall ,op-right arg1 arg2)))
 						   ,op-left)))))))
@@ -1085,9 +1076,8 @@
 										  (iota arank :start
 											index-origin))))))))
 		     (if alpha (mix-arrays 0 (if romega (if ralpha (each fn romega ralpha)
-							    (each fn romega
-								  (make-array (dims romega)
-									      :initial-element alpha)))
+							    (each fn romega (make-array (dims romega)
+											:initial-element alpha)))
 						 (if ralpha (each fn (make-array (dims ralpha)
 										 :initial-element omega)
 								  ralpha)
