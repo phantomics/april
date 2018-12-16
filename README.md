@@ -16,7 +16,7 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 ## Installation
 
-April depends on Common Lisp, ASDF and Quicklisp. The only Common Lisp implementation tested so far has been Steel Bank Common Lisp (SBCL).
+April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Armed Bear Common Lisp (ABCL) and LispWorks.
 
 ### Preparing Quicklisp
 
@@ -31,7 +31,7 @@ ln -s ~/mystuff/april
 
 To complete the installation, just start a Common Lisp REPL and enter:
 
-```
+```lisp
 (ql:quickload 'april)
 ```
 
@@ -49,7 +49,7 @@ Some APL functions and operators won't be added to April since they don't make s
 
 Evaluating an APL expression is as simple as:
 
-```
+```lisp
 * (april "1+2 3 4")
 
 #(3 4 5)
@@ -61,7 +61,7 @@ The macro (april) will evaluate any APL string passed to it as the sole argument
 
 Setting state properties for the APL instance can be done like this:
 
-```
+```lisp
 * (april (set (:state :count-from 0)) "⍳9")
 
 #(0 1 2 3 4 5 6 7 8)
@@ -71,7 +71,7 @@ Instead of an APL string, the first argument to (april) may be a list of specifi
 
 For example, you can use this configuration setting to determine whether the APL instance will start counting from 0 or 1.
 
-```
+```lisp
 * (april (set (:state :count-from 1)) "⍳9")
 
 #(1 2 3 4 5 6 7 8 9)
@@ -83,7 +83,7 @@ For example, you can use this configuration setting to determine whether the APL
 
 More APL expressions:
 
-```
+```lisp
 * (april "⍳12")
 
 #(1 2 3 4 5 6 7 8 9 10 11 12)
@@ -117,13 +117,13 @@ More APL expressions:
 
 When the (april) macro is called, you may pass it either a single text string:
 
-```
+```lisp
 * (april "1+1 2 3")
 ```
 
 Or a parameter object followed by a text string:
 
-```
+```lisp
 * (april (set (:state :count-from 0)) "⍳9")
 ```
 
@@ -133,7 +133,7 @@ This section details the parameters you can pass to April.
 
 To run April's test suite, just enter:
 
-```
+```lisp
 * (april (test))
 ```
 
@@ -141,7 +141,7 @@ To run April's test suite, just enter:
 
 (set) is the workhorse of April parameters, allowing you to configure your April instance in many ways. The most common sub-parameter passed via (set) is (:state). To wit:
 
-```
+```lisp
 * (april (set (:state :count-from 1
                       :in ((a 1) (b 2))
                       :out (a c)))
@@ -163,26 +163,26 @@ Sets the index from which April counts. Almost always set to 0 or 1. The default
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
 
-Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters and dashes may be used. In keeping with APL tradition, the triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
+Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
 
 These characters may be used in April variable names:
 ```
-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz∆⍙
+0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_∆⍙
 ```
 
 These variable names are ok:
 ```
-a var my-var
+a var my_var
 ```
 
 These are not ok:
 ```
-true! this->that pass/fail? var.name
+true! this->that pass/fail? another-var var.name
 ```
 
-Note also that variables are converted from Lisp-style dash-separated format into camel case for use within April code. For example:
+You can use dashes in the names of Lisp variables you pass into April, but inside April they will be converted to camel case. For example:
 
-```
+```lisp
 * (april (set (:state :in ((my-var 2)
                            (other-var 5))))
          "myVar×otherVar+5")
@@ -201,7 +201,7 @@ my-var-∆ → myVar∆
 
 Lists variables to be output when the code has finished evaluating. By default, the value of the last evaluated expression is passed back after an April evaluation is finished. For example:
 
-```
+```lisp
 * (april "1+2
           2+3
           3+4")
@@ -211,7 +211,7 @@ Lists variables to be output when the code has finished evaluating. By default, 
 
 The last value calculated is displayed. The :out sub-parameter allows you to list a set of variables that whose values will be returned once evaluation is complete. For example:
 
-```
+```lisp
 * (april (set (:state :out (a b c)))
          "a←9+2
           b←5+3
@@ -226,14 +226,14 @@ The last value calculated is displayed. The :out sub-parameter allows you to lis
 
 In APL, there's really no such thing as a value outside an array. Every piece of data used within an April instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When April returns arrays like this, its default behavior is to disclose them like this:
 
-```
+```lisp
 * (april "1+1")
 
 2
 ```
 
 But if you set the :disclose-output option to nil, you can change this:
-```
+```lisp
 * (april (set (:state :disclose-output nil)) "1+1")
 
 #(2)
@@ -245,7 +245,7 @@ With :disclose-output set to nil, unitary vectors will be passed directly back w
 
 If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the (:space) parameter. For example:
 
-```
+```lisp
 * (april (set (:space *space1*)) "a←5+2 ⋄ b←3×9")
 
 27
@@ -267,7 +267,7 @@ You can use the :state-persistent parameter to set state values within the works
 
 For example:
 
-```
+```lisp
 * (april (set (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
 
 #(0 1 2 3 4 5 6)
@@ -285,7 +285,7 @@ Did you notice that when switching to a different space, in this case *space2*, 
 
 You can use :state-persistent to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. Like this:
 
-```
+```lisp
 * (defvar *dynamic-var* 2)
 
 *DYNAMIC-VAR*
@@ -309,17 +309,17 @@ You can use :state-persistent to set persistent input variables that will stay a
 
 If you just want to compile the code you enter into April without running it, use this option. For example:
 
-```
+```lisp
 * (april (set (:compile-only)) "1+1 2 3")
 
-(PROGN (DISCLOSE (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1))))
+(DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))
 ```
 
 ### (restore-defaults)
 
 To restore all of April's state variables to the default values, enter:
 
-```
+```lisp
 * (april (restore-defaults))
 ```
 
@@ -376,7 +376,7 @@ System functions and variables within APL are not implemented, along with APL's 
 
 If you missed it earlier, you can run tests for the implemented APL functions and operators by entering:
 
-```
+```lisp
 (april (test))
 ```
 

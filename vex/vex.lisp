@@ -404,7 +404,6 @@
 	    (values precedent properties tokens)
 	    (composer idiom space tokens processed properties)))))
 
-
 (defmacro set-composer-patterns (name with &rest params)
   "Generate part of a Vex grammar from entered specifications."
   (let* ((with (rest with))
@@ -588,20 +587,25 @@
 										  (gethash :variables meta))
 									 (gensym))
 								   (second var-entry))))))))
-	    (let ((code `(,@(if (and vars-declared (not internal))
-				`(let* ,vars-declared
-				   (declare (ignorable ,@(mapcar #'second var-symbols))))
-				'(progn))
-			    ,@(funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
-				       compiled-expressions)
-			    ,@(if output-vars
-				  (list (cons 'values
-					      (mapcar (lambda (return-var)
-							(funcall (of-utilities idiom :postprocess-value)
-								 (gethash (intern (lisp->camel-case return-var)
-										  "KEYWORD")
-									  (gethash :variables meta))))
-						      output-vars)))))))
+	    (let ((code (funcall (lambda (exps)
+				   (if (and vars-declared (not internal))
+				       `(let* ,vars-declared
+					  (declare (ignorable ,@(mapcar #'second var-symbols)))
+					  ,@exps)
+				       (if (= 1 (length exps))
+					   (first exps)
+					   `(progn ,@exps))))
+				 `(,@(funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
+					      compiled-expressions)
+				     ,@(if output-vars
+					   (list (cons 'values
+						       (mapcar (lambda (return-var)
+								 (funcall (of-utilities idiom :postprocess-value)
+									  (gethash (intern (lisp->camel-case
+											    return-var)
+											   "KEYWORD")
+										   (gethash :variables meta))))
+						      output-vars))))))))
 	      (if (assoc :compile-only options)
 		  `(quote ,code)
 		  code)))))))
