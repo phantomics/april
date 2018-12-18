@@ -244,13 +244,16 @@
 		      			,(macroexpand (first arguments))))))
 		      ;; otherwise, just list the function and its arguments
 		      (t (cons function arguments))))))))
+#|
+This is a minimalistic implementation of (apl-call) that doesn't perform any function composition. It remains here as a standard against which to compare methods for composing APL functions.
 
-;; (defmacro apl-call (symbol function &rest arguments)
-;;   (declare (ignore symbol))
-;;   `(,(if (and (listp function)
-;; 	      (eql 'scalar-function (first function)))
-;; 	 'apply-scalar 'funcall)
-;;      ,function  ,@arguments))
+(defmacro apl-call (symbol function &rest arguments)
+  (declare (ignore symbol))
+  `(,(if (and (listp function)
+	      (eql 'scalar-function (first function)))
+	 'apply-scalar 'funcall)
+     ,function  ,@arguments))
+|#
 
 (defmacro scalar-function (function)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (apl-call)."
