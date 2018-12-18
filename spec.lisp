@@ -22,7 +22,7 @@
 	:disclose-output t
 	:atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				    "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
-				    "⌶¯⍬∆⍙⌿⍀⊣⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
+				    "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
