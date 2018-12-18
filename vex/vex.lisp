@@ -542,15 +542,44 @@
       (if (not (gethash :functions meta))
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
 
+      (if (not (gethash :system meta))
+	  (setf (gethash :system meta)
+		(list :state nil)))
+
       (setf state-to-use
 	    (assign-from state (assign-from state-persistent (assign-from (gethash :state meta)
 									  (idiom-base-state idiom)))))
+
+      (setf (getf (gethash :system meta) :state)
+	    (list :i-origin (getf state-to-use :count-from)))
+      
+      ;; (setf state-to-use
+      ;; 	    (assign-from state-input (assign-from state-persistent-input
+      ;; 						  (assign-from (idiom-base-state idiom)
+      ;; 							       (gethash :system meta)))))
+
+      ;; (setq state-to-use (assign-from (idiom-base-state idiom) state-to-use)
+      ;; 	    state-to-use (assign-from state-persistent-input state-to-use)
+      ;; 	    state-to-use (assign-from state-input state-to-use))
+
+      ;; (setf state-to-use
+      ;; 	    (assign-from state-input (setf (gethash :system meta)
+      ;; 					   (assign-from (idiom-base-state idiom)
+      ;; 							(gethash :system meta)))))
+
+      ;; (print (list :st state-to-use ;state-input state-persistent-input
+      ;; 		   (gethash :system meta)))
+
+      ;; (if state-persistent-input (setf (idiom-state idiom)
+      ;; 				       (assign-from state-persistent-input (idiom-base-state idiom))
+      ;; 				       (gethash :state meta)
+      ;; 				       (assign-from state-persistent-input (gethash :state meta))))
 
       (if state-persistent (setf (idiom-state idiom)
       				 (assign-from state-persistent (idiom-base-state idiom))
 				 (gethash :state meta)
 				 (assign-from state-persistent (gethash :state meta))))
-      
+
       (if string
 	  (let* ((input-vars (getf state-to-use :in))
 		 (output-vars (getf state-to-use :out))
@@ -560,6 +589,14 @@
 				 :when (not (member (string (gethash key (gethash :variables meta)))
 						    (mapcar #'first input-vars)))
 				 :collect (list key (gethash key (gethash :variables meta)))))
+		 (system-vars (labels ((process-vars (state &optional output)
+					 (if (not state)
+					     output (process-vars (cddr state)
+								  (cons (list (intern (string-upcase
+										       (first state)))
+									      (second state))
+									output)))))
+				(process-vars (getf (gethash :system meta) :state))))
 		 (vars-declared (loop :for key-symbol :in var-symbols
 				   :when (not (member (string (gethash (first key-symbol)
 								       (gethash :variables meta)))
@@ -600,7 +637,7 @@
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))
 		       (if (and vars-declared (not internal))
-			   `(let* ,vars-declared
+			   `(let* (,@system-vars ,@vars-declared)
 			      (declare (ignorable ,@(mapcar #'second var-symbols)))
 			      ,@exps)
 			   (if (< 1 (length exps))

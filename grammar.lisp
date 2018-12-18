@@ -223,7 +223,7 @@
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
   ((:with-preceding-type :array)
-   (fn-element :pattern (:type (:function)))
+   (fn-element :pattern (:type (:function) :special (list :omit (list :value-assignment :function-assignment))))
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
