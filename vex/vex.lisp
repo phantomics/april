@@ -219,7 +219,7 @@
 				   		 (if ,input-string (if (string= "SET" (string (first ,options)))
 				   				       (rest ,options)
 				   				       (error "Incorrect option syntax.")))
-				   		 (if ,input-string ,input-string ,options)))))))))))
+				   		 (eval (if ,input-string ,input-string ,options))))))))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
