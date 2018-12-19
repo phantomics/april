@@ -4,7 +4,8 @@
 
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
-  (intern (format nil "*~a-IDIOM*" (string-upcase symbol))))
+  (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
+	  "APRIL"))
 
 ;; The idiom object defines a vector language instance with a persistent state.
 (defclass idiom ()
