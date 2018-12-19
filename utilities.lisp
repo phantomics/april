@@ -3,8 +3,7 @@
 (in-package #:april)
 
 (define-symbol-macro this-idiom (local-idiom april))
-(define-symbol-macro index-origin (of-state this-idiom :count-from))
-(define-symbol-macro atomic-vector (of-state this-idiom :atomic-vector))
+(define-symbol-macro atomic-vector (of-system this-idiom :atomic-vector))
 
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
@@ -244,6 +243,7 @@
 		      			,(macroexpand (first arguments))))))
 		      ;; otherwise, just list the function and its arguments
 		      (t (cons function arguments))))))))
+
 #|
 This is a minimalistic implementation of (apl-call) that doesn't perform any function composition. It remains here as a standard against which to compare methods for composing APL functions.
 
@@ -345,20 +345,22 @@ This is a minimalistic implementation of (apl-call) that doesn't perform any fun
 	(aref (aops:split result 1) 0)
 	result)))
 
-(defun over-operator-template (axes function &key (first-axis nil) (for-vector nil) (for-array nil))
+(defun over-operator-template (axes function &key (for-vector nil) (for-array nil))
   "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
-  `(lambda (omega)
-     ,(let ((wrapped-function `(lambda (omega alpha) (apl-call :fn ,function omega alpha))))
-	`(let ((new-array (copy-array omega)))
-	   ;; wrap the result in an extra array layer if it is already an enclosed array of rank > 1,
-	   ;; this ensures that the returned result will be enclosed
-	   (funcall (lambda (item) (if (= 1 (array-depth omega))
-				       item (vector item)))
-		    (if (vectorp new-array)
-			(funcall ,for-vector ,wrapped-function new-array)
-			(funcall ,for-array ,wrapped-function new-array
-				 ,(if axes `(1- (disclose ,(first axes)))
-				      (if first-axis 0 `(1- (rank new-array)))))))))))
+  (let ((omega (gensym)) (o (gensym)) (a (gensym)) (new-array (gensym)) (item (gensym)))
+    `(lambda (,omega)
+       ,(let ((wrapped-function `(lambda (,o ,a) (apl-call :fn ,function ,o ,a))))
+	  `(let ((,new-array (copy-array ,omega)))
+	     ;; wrap the result in an extra array layer if it is already an enclosed array of rank > 1,
+	     ;; this ensures that the returned result will be enclosed
+	     (funcall (lambda (,item) (if (= 1 (array-depth ,omega))
+					 ,item (vector ,item)))
+		      (if (vectorp ,new-array)
+			  (funcall ,for-vector ,wrapped-function ,new-array)
+			  (funcall ,for-array ,wrapped-function ,new-array
+				   ,(if (eq :first axes)
+					0 (if axes `(1- (disclose ,(first axes)))
+					      `(1- (rank ,new-array))))))))))))
 
 (defun april-function-glyph-processor (type glyph spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
