@@ -1,5 +1,8 @@
 # April files to ignore
 
+# APL instance history files
+.apl.history
+
 # Emacs backup files
 *~
 
