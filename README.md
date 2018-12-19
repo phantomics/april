@@ -14,9 +14,21 @@ APL veritably hums with algorithmic power. As a handful of characters run past t
 
 But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL transforms numeric patterns. With APL inside of Lisp, databases, streams, binary files and other media are just a few lines of code away from processing with APL.
 
-## Installation
+## Automatic Installation
 
-April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Armed Bear Common Lisp (ABCL) and LispWorks.
+April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. To install April using Quicklisp, enter:
+
+```lisp
+(ql:quickload 'april)
+```
+
+## Manual Installation
+
+If you'd like to install April manually from this repository, you can follow these instructions. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Armed Bear Common Lisp (ABCL) and LispWorks.
+
+### Cloning the Repository
+
+First, clone the repository to a location on your system. For this example, let's say you cloned it to the directory ~/mystuff/april.
 
 ### Preparing Quicklisp
 
@@ -27,7 +39,7 @@ cd ~/quicklisp/local-projects
 ln -s ~/mystuff/april
 ```
 
-### Installing April
+### Installing Dependencies
 
 To complete the installation, just start a Common Lisp REPL and enter:
 
@@ -35,7 +47,7 @@ To complete the installation, just start a Common Lisp REPL and enter:
 (ql:quickload 'april)
 ```
 
-And the system will be built and ready.
+This will download and install April's dependencies, and with that the package will be built and ready.
 
 ## APL Functions and Operators
 
@@ -159,6 +171,16 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1.
 
+#### :index-origin
+
+This is another, more technical name for the :count-from sub-parameter. You can use it instead of :count-from:
+
+```lisp
+* (april (set (:state :index-origin 0)) "⍳9")
+
+#(0 1 2 3 4 5 6 7 8)
+```
+
 #### :in
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
@@ -190,7 +212,7 @@ You can use dashes in the names of Lisp variables you pass into April, but insid
 20
 ```
 
-One more caveat: it's best to avoid using input variable names with a dash before a number or other non-letter symbol. The dash will be removed and the character following it will cannot be capitalized so information will have been lost.
+One more caveat: it's best to avoid using input variable names with a dash before a number or other non-letter symbol. The dash will be removed and the character following it will cannot be capitalized so information will have been lost. For example:
 
 ```
 my-var-2 → myVar2
@@ -283,7 +305,7 @@ For example:
 
 Did you notice that when switching to a different space, in this case *space2*, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
 
-You can use :state-persistent to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. Like this:
+You can use :state-persistent to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. For example:
 
 ```lisp
 * (defvar *dynamic-var* 2)
@@ -315,12 +337,12 @@ If you just want to compile the code you enter into April without running it, us
 (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))
 ```
 
-### (restore-defaults)
+### (:restore-defaults) parameter
 
-To restore all of April's state variables to the default values, enter:
+You can use this parameter to clear a workspace and return it to its default state. For example, to clear a workspace called *space1* enter:
 
 ```lisp
-* (april (restore-defaults))
+* (april (set (:restore-defaults) (:space *space1*)))
 ```
 
 All :in and :out values will be nullified, :count-from will return to its default setting, etc.

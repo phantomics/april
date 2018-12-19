@@ -10,12 +10,8 @@
 (defclass idiom ()
   ((name :accessor idiom-name
     	 :initarg :name)
-   (state :accessor idiom-state
-	  :initarg :state)
-   (base-state :accessor idiom-base-state
-	       :initarg :state)
-   (default-state :accessor idiom-default-state
-                  :initarg :state)
+   (system :accessor idiom-system
+	   :initarg :system)
    (utilities :accessor idiom-utilities
 	      :initarg :utilities)
    (lexicons :accessor idiom-lexicons
@@ -37,10 +33,10 @@
 				:initform nil
 				:initarg :composer-following-patterns)))
 
-(defgeneric of-state (idiom property))
-(defmethod of-state ((idiom idiom) property)
-  "Retrieve a property of the idiom state."
-  (getf (idiom-state idiom) property))
+(defgeneric of-system (idiom property))
+(defmethod of-system ((idiom idiom) property)
+  "Retrieve a property of the idiom's system."
+  (getf (idiom-system idiom) property))
 
 (defgeneric of-utilities (idiom utility))
 (defmethod of-utilities ((idiom idiom) utility)
@@ -123,38 +119,48 @@
 	     (build-lexicon () `(loop :for lexicon :in (getf (rest this-lex) :lexicons)
 				   :do (if (not (getf lexicon-data lexicon))
 					   (setf (getf lexicon-data lexicon) nil))
-				   (if (not (member glyph-char (getf lexicon-data lexicon)))
+				   (if (not (member char (getf lexicon-data lexicon)))
 				       (setf (getf lexicon-data lexicon)
-					     (cons glyph-char (getf lexicon-data lexicon)))))))
+					     (cons char (getf lexicon-data lexicon)))))))
     (let* ((idiom-symbol (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
 				 (package-name *package*)))
 	   (lexicon-data)
 	   (lexicon-processor (getf (of-subspec utilities) :process-lexicon))
 	   (function-specs (loop :for spec :in (of-subspec functions)
-			      :append (let* ((glyph-char (character (first spec)))
-					     (this-lex (funcall (second lexicon-processor)
-								:functions glyph-char (third spec))))
-					(build-lexicon)
-					`(,@(if (getf (getf (rest this-lex) :functions) :monadic)
-						`((gethash ,glyph-char (getf fn-specs :monadic))
-						  ',(getf (getf (rest this-lex) :functions) :monadic)))
-					    ,@(if (getf (getf (rest this-lex) :functions) :dyadic)
-						  `((gethash ,glyph-char (getf fn-specs :dyadic))
-						    ',(getf (getf (rest this-lex) :functions) :dyadic)))
-					    ,@(if (getf (getf (rest this-lex) :functions) :symbolic)
-						  `((gethash ,glyph-char (getf fn-specs :symbolic))
-						    ',(getf (getf (rest this-lex) :functions) :symbolic)))))))
+			      :append (let ((glyph-chars (cons (character (first spec))
+							       (mapcar #'character (getf (rest (second spec))
+											 :aliases)))))
+					(loop :for char :in glyph-chars
+					   :append (let ((this-lex (funcall (second lexicon-processor)
+									    :functions char (third spec))))
+						     (build-lexicon)
+						     `(,@(if (getf (getf (rest this-lex) :functions) :monadic)
+							     `((gethash ,char (getf fn-specs :monadic))
+							       ',(getf (getf (rest this-lex) :functions) :monadic)))
+							 ,@(if (getf (getf (rest this-lex) :functions) :dyadic)
+							       `((gethash ,char (getf fn-specs :dyadic))
+								 ',(getf (getf (rest this-lex) :functions)
+									 :dyadic)))
+							 ,@(if (getf (getf (rest this-lex) :functions) :symbolic)
+							       `((gethash ,char (getf fn-specs :symbolic))
+								 ',(getf (getf (rest this-lex) :functions)
+									 :symbolic)))))))))
 	   (operator-specs (loop :for spec :in (of-subspec operators)
-			      :append (let* ((glyph-char (character (first spec)))
-					     (this-lex (funcall (second lexicon-processor)
-								:operators glyph-char (third spec))))
-					(build-lexicon)
-					(if (member :lateral-operators (getf (rest this-lex) :lexicons))
-					    `((gethash ,glyph-char (getf op-specs :lateral))
-					      ,(getf (rest this-lex) :operators))
-					    (if (member :pivotal-operators (getf (rest this-lex) :lexicons))
-						`((gethash ,glyph-char (getf op-specs :pivotal))
-						  ,(getf (rest this-lex) :operators)))))))
+			      :append (let ((glyph-chars (cons (character (first spec))
+							       (mapcar #'character (getf (rest (second spec))
+											 :aliases)))))
+					(loop :for char :in glyph-chars
+					   :append (let ((this-lex (funcall (second lexicon-processor)
+									    :operators char (third spec))))
+						     (build-lexicon)
+						     (if (member :lateral-operators
+								 (getf (rest this-lex) :lexicons))
+							 `((gethash ,char (getf op-specs :lateral))
+							   ,(getf (rest this-lex) :operators))
+							 (if (member :pivotal-operators
+								     (getf (rest this-lex) :lexicons))
+							     `((gethash ,char (getf op-specs :pivotal))
+							       ,(getf (rest this-lex) :operators)))))))))
 	   (function-tests (cons `(princ (format nil "∘○( Lexical Function Tests )○∘~%"))
 				 (loop :for function :in (of-subspec functions)
 				    :append (process-lex-tests-for symbol function))))
@@ -171,7 +177,7 @@
 			       (append ,@(loop :for pset :in (rest (assoc :following-patterns (of-subspec grammar)))
 					    :collect `(funcall (function ,pset) ,idiom-symbol)))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern (string-upcase symbol) "KEYWORD")
-					     :state ,(cons 'list (of-subspec state))
+					     :system ,(cons 'list (of-subspec system))
 					     :utilities ,(cons 'list (of-subspec utilities))
 					     :lexicons (quote ,lexicon-data)
 					     :functions (let ((fn-specs (list :monadic (make-hash-table)
@@ -207,12 +213,6 @@
 				   ,@all-tests (finalize)
 				   (setq prove:*enable-colors* t))))
 			;; the (test) setting is used to run tests
-			((and ,options (listp ,options)
-			      (string= "RESTORE-DEFAULTS" (string-upcase (first ,options))))
-			 `(setf (idiom-state ,,idiom-symbol)
-				(copy-alist (idiom-base-state ,,idiom-symbol))))
-			;; the (restore-defaults) setting is used to restore the workspace settings
-			;; to the defaults from the spec
 			(t `(progn (if (not (boundp ',,local-idiom))
 				       (defvar ,,local-idiom ,,idiom-symbol))
 				   ,(vex-program ,idiom-symbol
@@ -311,13 +311,13 @@
 				    (lambda (string)
 				      (let ((char (character string)))
 					(if (not olnchar)
-					    `(,(if (of-lexicon idiom :operators char)
-						   :op (if (of-lexicon idiom :functions char)
-							   :fn))
-					       ,@(if (of-lexicon idiom :operators char)
-						     (list (if (of-lexicon idiom :pivotal-operators char)
-							       :pivotal :lateral)))
-					       ,char)))))
+					    (append (list (if (of-lexicon idiom :operators char)
+							      :op (if (of-lexicon idiom :functions char)
+								      :fn)))
+						    (if (of-lexicon idiom :operators char)
+							(list (if (of-lexicon idiom :pivotal-operators char)
+								  :pivotal :lateral)))
+						    (list char))))))
 			(=transform (=subseq (%some (?token-character)))
 				    (lambda (string)
 				      (funcall (of-utilities idiom :format-value)
@@ -360,9 +360,7 @@
 	 (space (getf with :space-symbol with))
 	 (properties (getf with :properties-symbol))
 	 (process (getf with :processor-symbol with)))
-    `(defun ,(intern (string-upcase name)
-		     (package-name *package*))
-	 (,idiom)
+    `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
        (declare (ignorable ,idiom))
        (list ,@(loop :for param :in params
 		  :collect `(list ,(intern (string-upcase (first param)) "KEYWORD")
@@ -439,8 +437,7 @@
   (let ((item (gensym)) (item-props (gensym)) (remaining (gensym)) (matching (gensym))
 	(collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
     (labels ((element-check (base-type)
-	       `(funcall (gethash ,(intern (string-upcase (cond ((listp base-type)
-								 (first base-type))
+	       `(funcall (gethash ,(intern (string-upcase (cond ((listp base-type) (first base-type))
 								(t base-type)))
 					   "KEYWORD")
 				  (vex::idiom-grammar-elements ,idiom))
@@ -489,8 +486,7 @@
 					(if ,item (setq ,collected (cons ,item ,collected)
 							,rem ,remaining)
 					    (setq ,matching nil))))
-			       (if ,(if (not optional)
-					collected t)
+			       (if ,(if (not optional) collected t)
 				   (setq ,item-symbol (if (< 1 (length ,collected))
 							  ,collected (first ,collected))
 					 ,tokens-symbol ,rem)
@@ -507,15 +503,14 @@
 			(let ((item-properties (rest item)))
 			  (process-item item-symbol item-properties))))))))
 
-(defun vex-program (idiom options &optional string meta internal)
+(defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
 	 (meta (if meta meta (if (assoc :space options)
 				 (let ((meta-symbol (second (assoc :space options))))
 				   (if (boundp meta-symbol)
 				       (symbol-value meta-symbol)
-				       (setf (symbol-value meta-symbol)
-					     (make-hash-table :test #'eq))))
+				       (setf (symbol-value meta-symbol) (make-hash-table :test #'eq))))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use)
@@ -543,42 +538,27 @@
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
 
       (if (not (gethash :system meta))
-	  (setf (gethash :system meta)
-		(list :state nil)))
+	  (setf (gethash :system meta) (idiom-system idiom)))
 
-      (setf state-to-use
-	    (assign-from state (assign-from state-persistent (assign-from (gethash :state meta)
-									  (idiom-base-state idiom)))))
-
-      (setf (getf (gethash :system meta) :state)
-	    (list :i-origin (getf state-to-use :count-from)))
+      ;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
+      ;; to the defaults from the spec
+      (if (assoc :restore-defaults options)
+	  (setf (getf (gethash :system meta) :state)
+		(getf (gethash :system meta) :base-state)))
       
-      ;; (setf state-to-use
-      ;; 	    (assign-from state-input (assign-from state-persistent-input
-      ;; 						  (assign-from (idiom-base-state idiom)
-      ;; 							       (gethash :system meta)))))
+      (setq state (funcall (of-utilities idiom :preprocess-state-input)
+			   state))
 
-      ;; (setq state-to-use (assign-from (idiom-base-state idiom) state-to-use)
-      ;; 	    state-to-use (assign-from state-persistent-input state-to-use)
-      ;; 	    state-to-use (assign-from state-input state-to-use))
+      (setq state-persistent (funcall (of-utilities idiom :preprocess-state-input)
+				      state-persistent))
 
-      ;; (setf state-to-use
-      ;; 	    (assign-from state-input (setf (gethash :system meta)
-      ;; 					   (assign-from (idiom-base-state idiom)
-      ;; 							(gethash :system meta)))))
+      (if state-persistent (setf (getf (gethash :system meta) :state)
+				 (assign-from state-persistent (getf (gethash :system meta) :state))))
 
-      ;; (print (list :st state-to-use ;state-input state-persistent-input
-      ;; 		   (gethash :system meta)))
-
-      ;; (if state-persistent-input (setf (idiom-state idiom)
-      ;; 				       (assign-from state-persistent-input (idiom-base-state idiom))
-      ;; 				       (gethash :state meta)
-      ;; 				       (assign-from state-persistent-input (gethash :state meta))))
-
-      (if state-persistent (setf (idiom-state idiom)
-      				 (assign-from state-persistent (idiom-base-state idiom))
-				 (gethash :state meta)
-				 (assign-from state-persistent (gethash :state meta))))
+      (setf state-to-use (assign-from (getf (gethash :system meta) :base-state) state-to-use)
+	    state-to-use (assign-from (getf (gethash :system meta) :state) state-to-use)
+	    state-to-use (assign-from state-persistent state-to-use)
+	    state-to-use (assign-from state state-to-use))
 
       (if string
 	  (let* ((input-vars (getf state-to-use :in))
@@ -589,14 +569,8 @@
 				 :when (not (member (string (gethash key (gethash :variables meta)))
 						    (mapcar #'first input-vars)))
 				 :collect (list key (gethash key (gethash :variables meta)))))
-		 (system-vars (labels ((process-vars (state &optional output)
-					 (if (not state)
-					     output (process-vars (cddr state)
-								  (cons (list (intern (string-upcase
-										       (first state)))
-									      (second state))
-									output)))))
-				(process-vars (getf (gethash :system meta) :state))))
+		 (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
+				       state-to-use))
 		 (vars-declared (loop :for key-symbol :in var-symbols
 				   :when (not (member (string (gethash (first key-symbol)
 								       (gethash :variables meta)))
@@ -623,7 +597,9 @@
 										  (gethash :variables meta))
 									 (gensym))
 								   (second var-entry))))))))
-	    (let ((exps (append (funcall (if output-vars #'values (of-utilities idiom :postprocess-compiled))
+	    (let ((exps (append (funcall (if output-vars #'values
+					     (funcall (of-utilities idiom :postprocess-compiled)
+						      (gethash :system meta)))
 					 compiled-expressions)
 				;; if multiple values are to be output, add the (values) form at bottom
 				(if output-vars
@@ -632,13 +608,15 @@
 							  (funcall (of-utilities idiom :postprocess-value)
 								   (gethash (intern (lisp->camel-case return-var)
 										    "KEYWORD")
-									    (gethash :variables meta))))
+									    (gethash :variables meta))
+								   (gethash :system meta)))
 							output-vars)))))))
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))
-		       (if (and vars-declared (not internal))
+		       (if (or system-vars vars-declared)
 			   `(let* (,@system-vars ,@vars-declared)
-			      (declare (ignorable ,@(mapcar #'second var-symbols)))
+			      (declare (ignorable ,@(mapcar #'first system-vars)
+						  ,@(mapcar #'second var-symbols)))
 			      ,@exps)
 			   (if (< 1 (length exps))
 			       `(progn ,@exps)
