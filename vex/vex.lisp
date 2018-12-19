@@ -202,24 +202,19 @@
 		  (,options &optional ,input-string)
 		;; this macro is the point of contact between users and the language, used to
 		;; evaluate expressions and control properties of the language instance
-		(let* ((,local-idiom (intern ,(format nil "*~a-IDIOM*" (string-upcase symbol)))))
-		  (cond ((and ,options (listp ,options)
-			      (string= "TEST" (string-upcase (first ,options))))
-			 (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			   `(progn (if (not (boundp ',,local-idiom))
-				       (defvar ,,local-idiom ,,idiom-symbol))
-				   (setq prove:*enable-colors* nil)
-				   (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
-				   ,@all-tests (finalize)
-				   (setq prove:*enable-colors* t))))
-			;; the (test) setting is used to run tests
-			(t `(progn (if (not (boundp ',,local-idiom))
-				       (defvar ,,local-idiom ,,idiom-symbol))
-				   ,(vex-program ,idiom-symbol
-				   		 (if ,input-string (if (string= "SET" (string (first ,options)))
-				   				       (rest ,options)
-				   				       (error "Incorrect option syntax.")))
-				   		 (eval (if ,input-string ,input-string ,options))))))))))))
+		(cond ((and ,options (listp ,options)
+			    (string= "TEST" (string-upcase (first ,options))))
+		       (let ((all-tests ',(append function-tests operator-tests general-tests)))
+			 `(progn (setq prove:*enable-colors* nil)
+				 (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
+				 ,@all-tests (finalize)
+				 (setq prove:*enable-colors* t))))
+		      ;; the (test) setting is used to run tests
+		      (t (vex-program ,idiom-symbol
+				      (if ,input-string (if (string= "SET" (string (first ,options)))
+							    (rest ,options)
+							    (error "Incorrect option syntax.")))
+				      (eval (if ,input-string ,input-string ,options))))))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
