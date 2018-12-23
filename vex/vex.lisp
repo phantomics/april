@@ -510,6 +510,7 @@
 	     (process-lines (lines &optional output)
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
+			      ;; (parse lines (=vex-lines idiom meta))
 			      (parse lines (=vex-string idiom meta))
 			    (process-lines remaining (append output (list (composer idiom meta out))))))))
 
