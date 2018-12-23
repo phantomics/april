@@ -19,6 +19,13 @@
       (row-major-aref item 0)
       item))
 
+(defmacro apl-output (form)
+  (let ((result (gensym)))
+    `(let ((,result (disclose-atom ,form)))
+       (if (or (stringp ,result)
+	       (not (arrayp ,result)))
+	   ,result (values ,result (matrix-print ,result :indent-with #\Newline))))))
+
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
   (aops:each (lambda (member)
@@ -98,6 +105,21 @@
 		       (parse-apl-number-string (second halves) t))))
 	;; the macron character is converted to the minus sign
 	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
+
+(defun print-apl-number-string (number &optional coerce-rational precision)
+  (cond ((complexp number)
+	 (format nil "~aJ~a" (print-apl-number-string (realpart number) coerce-rational precision)
+		 (print-apl-number-string (imagpart number) coerce-rational precision)))
+	((> 0 number)
+	 (format nil "¯~a" (print-apl-number-string (abs number) coerce-rational precision)))
+	((integerp number)
+	 (format nil "~D" number))
+	((or (floatp number) (and coerce-rational (rationalp number)))
+	 (format nil (if (not precision)
+			 "~F" (format nil "~~,~DF" precision))
+		 number))
+	((rationalp number)
+	 (write-to-string number))))
 
 (defun format-value (idiom-name meta element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
