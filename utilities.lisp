@@ -19,12 +19,13 @@
       (row-major-aref item 0)
       item))
 
-(defmacro apl-output (form)
+(defmacro apl-output (form &rest options)
   (let ((result (gensym)))
     `(let ((,result ,form))
        (if (not (or (stringp ,result)
 		    (not (arrayp ,result))))
-	   (princ (matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t)))))
+	   ,(if (member :print-output options)
+		`(princ (matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t))))))
        ,result)))
 
 (defun array-to-nested-vector (array)
