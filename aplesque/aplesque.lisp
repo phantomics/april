@@ -713,14 +713,14 @@
       (process aindices)
       output)))
 
+;; TODO: add array promotion and vector axis functionality
 (defun mix-arrays (axis arrays)
   (flet ((sort-dimensions (outer inner)
 	   (loop :for odix :from 0 :to (length outer)
 	      :append (append (if (= odix axis) inner)
 			      (if (< odix (length outer))
 				  (list (nth odix outer)))))))
-    (let* ((arrays-disp (make-array (list (array-total-size arrays))
-				    :displaced-to arrays))
+    (let* ((arrays-disp (make-array (list (array-total-size arrays)) :displaced-to arrays))
 	   (each-dims (loop :for aix :from 0 :to (1- (length arrays-disp))
 			 :collect (dims (elt arrays-disp aix))))
 	   (output (make-array (sort-dimensions (dims arrays)

@@ -12,4 +12,5 @@
   ((:file "package")
    (:file "utilities")
    (:file "grammar")
+   (:file "patterns")
    (:file "spec")))
