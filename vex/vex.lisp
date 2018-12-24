@@ -115,7 +115,7 @@
 	,(third test-set)
 	:test #'equalp)))
 
-(defmacro vex-spec (symbol &rest subspecs)
+(defmacro vex-idiom-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
 	       `(rest (assoc (intern ,(string-upcase symbol-string) (package-name *package*))
@@ -174,11 +174,16 @@
 	   (general-tests (cons `(princ (format nil "~%∘○( General Language Tests )○∘~%"))
 				(loop :for test-set :in (of-subspec general-tests)
 				   :append (process-general-tests-for symbol (rest test-set)))))
+	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
+	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
+	   ;; less specific ones like the baseline grammar
 	   (pattern-settings `((idiom-composer-opening-patterns ,idiom-symbol)
-			       (append ,@(loop :for pset :in (rest (assoc :opening-patterns (of-subspec grammar)))
+			       (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
+										   (of-subspec grammar))))
 					    :collect `(funcall (function ,pset) ,idiom-symbol)))
 			       (idiom-composer-following-patterns ,idiom-symbol)
-			       (append ,@(loop :for pset :in (rest (assoc :following-patterns (of-subspec grammar)))
+			       (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
+										   (of-subspec grammar))))
 					    :collect `(funcall (function ,pset) ,idiom-symbol)))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern (string-upcase symbol) "KEYWORD")
 					     :system ,(cons 'list (of-subspec system))

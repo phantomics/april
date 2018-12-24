@@ -25,7 +25,8 @@
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
 	  (:opening-patterns composer-opening-patterns-apl-standard)
-	  (:following-patterns composer-following-patterns-apl-standard))
+	  (:following-patterns composer-following-patterns-apl-standard
+			       composer-optimized-patterns-common))
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char (list #\  #\Tab)))
 	    :match-newline-character (lambda (char) (member char (list #\◊ #\⋄ #\Newline #\Return)))
