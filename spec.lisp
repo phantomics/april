@@ -14,7 +14,7 @@
 	  #'realpart #'abs #'imagpart #'phase))
 
 ;; top-level specification for the April language
-(vex-spec
+(vex-idiom-spec
  april
  ;; default state of an April system
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

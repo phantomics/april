@@ -22,6 +22,6 @@
    (shape-function-1 :element (function :glyph ⍴))
    (shape-function-2 :element (function :glyph ⍴))
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (if value `(reshape-array-fitting (vector (rank ,precedent)) ,(if (numberp value)
-								    `(list ,value) `(enclose ,value)))
+  (if value `(reshape-array-fitting (apply #'vector (dims ,precedent))
+				    ,(if (numberp value) `(list ,value) `(enclose ,value)))
       `(rank ,precedent))))
