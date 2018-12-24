@@ -74,9 +74,6 @@
 	    (lambda (system)
 	      (lambda (form)
 		;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
-		;; (if (getf system :disclose-output)
-		;;     (append (butlast form) (list (list 'disclose-atom (first (last form)))))
-		;;     form)
 		(append (butlast form)
 			(list (list 'apl-output
 				    (funcall (if (not (getf system :disclose-output))
@@ -84,16 +81,9 @@
 					     (first (last form))))))))
 	    :postprocess-value
 	    (lambda (form system)
-	      ;; (if (getf system :disclose-output)
-	      ;; 	  (list 'disclose-atom item)
-	      ;; 	  item)
 	      (list 'apl-output (funcall (if (not (getf system :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
-					 form)))
-	    ;; facilitates printing output in a reader-friendly format
-	    :format-to-print
-	    (lambda (form)
-	      `(matrix-print ,form :indent-with #\Newline :format (lambda (n) (print-apl-number-string n t)))))
+					 form))))
  ;; APL's set of functions represented by characters
  (functions
   (← (has :title "Assign")
@@ -1010,7 +1000,7 @@
 										       :initial-contents
 										       (reverse ,items))))
 								,key))))
-			 (mix-arrays 1 (print (apply #'vector ,item-sets)))))))))
+			 (mix-arrays 1 (apply #'vector ,item-sets))))))))
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' 'Pear' 'Pear'
     quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
     	        #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" 16)))
