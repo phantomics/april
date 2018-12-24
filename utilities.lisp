@@ -22,9 +22,10 @@
 (defmacro apl-output (form)
   (let ((result (gensym)))
     `(let ((,result (disclose-atom ,form)))
-       (if (or (stringp ,result)
-	       (not (arrayp ,result)))
-	   ,result (values ,result (matrix-print ,result :indent-with #\Newline))))))
+       (if (not (or (stringp ,result)
+		    (not (arrayp ,result))))
+	   (princ (matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t)))))
+       ,result)))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."

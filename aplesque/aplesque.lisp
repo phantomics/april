@@ -1024,17 +1024,16 @@
     det ;; return determinant
     out-matrix))
 
-(defun matrix-render (array &key (indent-with nil) (collate nil) (format nil))
+(defun matrix-render (array &key (prepend nil) (append nil) (collate nil) (format nil))
   (cond ((not (arrayp array))
 	 (funcall (if format format #'write-to-string)
 		  array))
 	;; if indenting with a character, prepend it to the string;
 	;; strings are otherwise passed back as-is
-	((stringp array) (if (not indent-with)
-			     array (concatenate 'string (list indent-with)
-						array)))
+	((stringp array) (if (not prepend)
+			     array (concatenate 'string (list prepend) array)))
 	(t (let* ((adims (dims array))
-		  ;; the x-offset and y-offset for each colum and row; each array has an extra element to
+		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
 		  (x-offsets (make-array (list (1+ (first (last adims)))) :initial-element 0))
 		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse adims))))) :initial-element 0))
@@ -1051,9 +1050,9 @@
 				    (indent-char (if (not (and (stringp elem) (< 0 last-coord)))
 						     output-default-char)))
 			       (cond ((arrayp elem)
-				      ;; recurse to handle nested arrays, pass back the rendered character
+				      ;; recurse to handle nested arrays, passing back the rendered character
 				      ;; array and adjust the offsets to allow for its height and width
-				      (let ((rendered (matrix-render elem :indent-with indent-char)))
+				      (let ((rendered (matrix-render elem :prepend indent-char)))
 					;; in the case a 1D array (string) is passed back, height defaults to 1
 					(destructuring-bind (ren-width &optional (ren-height 1))
 					    (reverse (dims rendered))
@@ -1131,15 +1130,15 @@
 						 (1+ row))))))))
 	     ;; (print (list :xoyo x-offsets y-offsets))
 	     ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
-	     ;; versions of the original sub-matrices, as per APL's ⍕ format function. If an indent-with
+	     ;; versions of the original sub-matrices, as per APL's ⍕ format function. If a prepend
 	     ;; character is set, the output array has an extra element in its last dimension to hold the
 	     ;; indenting character
 	     (let ((output (if collate (make-array (append (butlast adims)
-							   (list (+ (if indent-with 1 0)
+							   (list (+ (if (or prepend append) 1 0)
 								    (aref x-offsets (1- (length x-offsets))))))
 						   :element-type 'character :initial-element output-default-char)
 			       (make-array (list (aref y-offsets (1- (length y-offsets)))
-						 (+ (if indent-with 1 0)
+						 (+ (if (or prepend append) 1 0)
 						    (aref x-offsets (1- (length x-offsets)))))
 					   :element-type 'character :initial-element output-default-char))))
 	       ;; (print (list :out (dims output) output))
@@ -1158,7 +1157,7 @@
 						       (let ((x-coord (+ (if (second ecoords)
 									     (second ecoords) (first ecoords))
 									 (aref x-offsets last-coord)
-									 (if indent-with 1 0)
+									 (if prepend 1 0)
 									 (- (aref x-offsets (1+ last-coord))
 									    (aref x-offsets last-coord)
 									    (first (last (dims chars)))))))
@@ -1173,7 +1172,7 @@
 									 x-coord)
 								   element)))))
 				       ;; print a single character
-				       (let ((x-coord (+ (if indent-with 1 0)
+				       (let ((x-coord (+ (if prepend 1 0)
 							 (aref x-offsets last-coord))))
 					 (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
 											      (list x-coord))))
@@ -1181,20 +1180,24 @@
 					     (setf (aref output (aref y-offsets row)
 							 x-coord)
 						   chars)))))))
-	       ;; if indenting with a character, it is placed in the array here; this is more complicated for
-	       ;; a collated array and it is not needed if the indenting character is the same as the default
-	       ;; "blank" character for the array
-	       (if (and indent-with (not (char= indent-with output-default-char)))
-		   (if collate (let ((elided (loop :for dim :from 0 :to (- (rank output) 2)
-						:collect nil)))
-				 (across output (lambda (elem coords)
-						  (declare (ignore elem))
-						  (setf (apply #'aref (cons output coords))
-							indent-with))
-					 :start-at (append elided (list 0))
-					 :limit (append elided (list 0))))
-		       (loop :for row :from 0 :to (1- (first (dims output)))
-			  :do (setf (aref output row 0) indent-with))))
+	       ;; if prepending or appending a character, it is placed in the array here;
+	       ;; this is more complicated for a collated array and it is not needed if the
+	       ;; character is the same as the default "blank" character for the array
+	       (if (or (and append (not (char= append output-default-char)))
+		       (and prepend (not (char= prepend output-default-char))))
+		   (let ((last-dim (first (last (dims output)))))
+		       (if collate (let ((elided (loop :for dim :from 0 :to (- (rank output) 2)
+						    :collect nil)))
+				     (across output (lambda (elem coords)
+						      (declare (ignore elem))
+						      (setf (apply #'aref (cons output coords))
+							    (if prepend prepend append)))
+					     :start-at (append elided (list (if prepend 0 (1- last-dim))))
+					     :limit (append elided (list (if prepend 0 (1- last-dim))))))
+			   (if prepend (loop :for row :from 0 :to (1- (first (dims output)))
+					  :do (setf (aref output row 0) prepend))
+			       (loop :for row :from 0 :to (1- (first (dims output)))
+				  :do (setf (aref output row (1- last-dim)) append))))))
 	       output)))))
 
   ;; (labels ((measure-height (dims &optional index count)
