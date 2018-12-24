@@ -1,13 +1,14 @@
- ;;;; grammar.lisp
+ ;;;; patterns.lisp
 
 (in-package #:april)
 
 (set-composer-patterns
  composer-optimized-patterns-common
+ ;; optimized code for common APL idioms
  (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
  (sum-until-pattern
-  ;; match the assignment of a function result to a value, like a+←5
+  ;; optimize the pattern +/⍳Y to sum until Y
   ((:with-preceding-type :array)
    (index-function :element (function :glyph ⍳))
    (reduce-operator :element (operator :glyph /))
@@ -16,6 +17,7 @@
     `(loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var))
   (list :type (list :array :evaluated :via-sum-until-pattern)))
  (rank-or-reshape-rank-pattern
+  ;; optimize the patterns ⍴⍴Y and X⍴⍴Y to get the rank of an array or shape the rank of an array
   ((:with-preceding-type :array)
    (shape-function-1 :element (function :glyph ⍴))
    (shape-function-2 :element (function :glyph ⍴))
