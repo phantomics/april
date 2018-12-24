@@ -191,7 +191,7 @@ This is another, more technical name for the :count-from sub-parameter. You can 
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
 
-Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
+Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters, underscores and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
 
 These characters may be used in April variable names:
 ```
@@ -200,23 +200,24 @@ These characters may be used in April variable names:
 
 These variable names are ok:
 ```
-a var my_var
+a var my_var another-var
 ```
 
 These are not ok:
 ```
-true! this->that pass/fail? another-var var.name
+true! this->that pass/fail? var.name
 ```
 
-You can use dashes in the names of Lisp variables you pass into April, but inside April they will be converted to camel case. For example:
+If you use dashes in the names of Lisp variables you pass into April, note that inside April they will be converted to camel case. For example:
 
 ```lisp
 * (april (set (:state :in ((my-var 2)
                            (other-var 5))))
          "myVar×otherVar+5")
-
 20
 ```
+
+THe dash "-" is used as the subtraction function inside April, so you may not use dashes in variable names within the language.
 
 One more caveat: it's best to avoid using input variable names with a dash before a number or other non-letter symbol. The dash will be removed and the character following it will cannot be capitalized so information will have been lost. For example:
 
@@ -233,7 +234,6 @@ Lists variables to be output when the code has finished evaluating. By default, 
 * (april "1+2
           2+3
           3+4")
-
 7
 ```
 
@@ -244,7 +244,6 @@ The last value calculated is displayed. The :out sub-parameter allows you to lis
          "a←9+2
           b←5+3
           c←2×9")
-
 11
 8
 18
@@ -256,14 +255,12 @@ In APL, there's really no such thing as a value outside an array. Every piece of
 
 ```lisp
 * (april "1+1")
-
 2
 ```
 
 But if you set the :disclose-output option to nil, you can change this:
 ```lisp
 * (april (set (:state :disclose-output nil)) "1+1")
-
 #(2)
 ```
 
@@ -275,15 +272,12 @@ If you want to create a persistent workspace where the functions and variables y
 
 ```lisp
 * (april (set (:space *space1*)) "a←5+2 ⋄ b←3×9")
-
 27
 
 * (april (set (:space *space1*)) "c←{⍵+2}")
-
 #<FUNCTION ... >
 
 * (april (set (:space *space1*)) "c a+b")
-
 36
 ```
 
@@ -315,21 +309,17 @@ You can use :state-persistent to set persistent input variables that will stay a
 
 ```lisp
 * (defvar *dynamic-var* 2)
-
 *DYNAMIC-VAR*
 
 * (april (set (:state-persistent :in ((dyn-var *dynamic-var*)))
               (:space *space1*))
         "dynVar⍟512")
-
 9.0
 
 * (setq *dynamic-var* 8)
-
 8
 
 * (april (set (:space *space1*)) "dynVar⍟512")
-
 3.0
 ```
 
@@ -339,7 +329,6 @@ If you just want to compile the code you enter into April without running it, us
 
 ```lisp
 * (april (set (:compile-only)) "1+1 2 3")
-
 (LET* ((INDEX-ORIGIN 1))
   (DECLARE (IGNORABLE INDEX-ORIGIN))
   (APL-OUTPUT (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))))

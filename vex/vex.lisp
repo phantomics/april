@@ -500,7 +500,7 @@
 				       (setf (symbol-value meta-symbol) (make-hash-table :test #'eq))))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
-	 (state-to-use)
+	 (state-to-use) (system-to-use)
 	 (preexisting-vars))
     (labels ((assign-from (source dest)
 	       (if source (progn (setf (getf dest (first source))
@@ -547,6 +547,9 @@
 	    state-to-use (assign-from (getf (gethash :system meta) :state) state-to-use)
 	    state-to-use (assign-from state-persistent state-to-use)
 	    state-to-use (assign-from state state-to-use))
+      
+      (setf system-to-use (assign-from (gethash :system meta) system-to-use)
+	    system-to-use (assign-from state system-to-use))
 
       (if string
 	  (let* ((input-vars (getf state-to-use :in))
@@ -587,7 +590,7 @@
 								   (second var-entry))))))))
 	    (let ((exps (append (funcall (if output-vars #'values
 					     (funcall (of-utilities idiom :postprocess-compiled)
-						      state-to-use))
+						      system-to-use))
 					 compiled-expressions)
 				;; if multiple values are to be output, add the (values) form at bottom
 				(if output-vars
@@ -597,7 +600,7 @@
 								   (gethash (intern (lisp->camel-case return-var)
 										    "KEYWORD")
 									    (gethash :variables meta))
-								   state-to-use))
+								   system-to-use))
 							output-vars)))))))
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))
