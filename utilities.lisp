@@ -21,7 +21,7 @@
 
 (defmacro apl-output (form)
   (let ((result (gensym)))
-    `(let ((,result (disclose-atom ,form)))
+    `(let ((,result ,form))
        (if (not (or (stringp ,result)
 		    (not (arrayp ,result))))
 	   (princ (matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t)))))
