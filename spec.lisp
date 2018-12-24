@@ -20,7 +20,7 @@
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
-	 :disclose-output t :base-state (list :index-origin 1))
+	 :disclose-output t :print-output t :base-state (list :index-origin 1))
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
@@ -78,12 +78,14 @@
 			(list (list 'apl-output
 				    (funcall (if (not (getf state :disclose-output))
 						 #'identity (lambda (item) (list 'disclose-atom item)))
-					     (first (last form))))))))
+					     (first (last form)))
+				    (if (getf state :print-output) :print-output))))))
 	    :postprocess-value
 	    (lambda (form state)
 	      (list 'apl-output (funcall (if (not (getf state :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
-					 form))))
+					 form)
+		    (if (getf state :print-output) :print-output))))
  ;; APL's set of functions represented by characters
  (functions
   (← (has :title "Assign")
@@ -279,8 +281,7 @@
 											 index-origin)))))
 					      (if (not axis)
 						  coords (loop :for dim :from 0 :to (1- (rank omega))
-							    :collect (if (member dim axis)
-									 (first coords))
+							    :collect (if (member dim axis) (first coords))
 							    :when (member dim axis)
 							    :do (setq coords (rest coords)))))))))
      (tests (is "3⌷⍳9" 3)

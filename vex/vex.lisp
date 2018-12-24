@@ -76,6 +76,7 @@
 	    `(if ,alpha (funcall (function ,operation) ,alpha ,omega)
 		 (funcall (function ,operation) ,omega))))))
 
+;; TODO: the testing framework has April-specific :print-output directives to prevent printing; move these into spec
 (defun process-lex-tests-for (symbol operator)
   "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
@@ -96,6 +97,7 @@
 							 (cond ((eql 'is (caar tests))
 								`(is (,(intern (string-upcase symbol)
 									       (package-name *package*))
+								       (set (:state :print-output nil))
 								       ,(cadar tests))
 								     ,(third (first tests))
 								     :test #'equalp))))))
@@ -108,6 +110,7 @@
   `((princ ,(format nil "~%~a" (first test-set)))
     (princ (format nil "~%  _ ~a~%" ,(second test-set)))
     (is (,(intern (string-upcase symbol) (package-name *package*))
+	  (set (:state :print-output nil))
 	  ,(second test-set))
 	,(third test-set)
 	:test #'equalp)))
