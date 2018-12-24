@@ -71,17 +71,17 @@
 				(getf state var))))
 	    ;; postprocessors for language output
 	    :postprocess-compiled
-	    (lambda (system)
+	    (lambda (state)
 	      (lambda (form)
 		;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
 		(append (butlast form)
 			(list (list 'apl-output
-				    (funcall (if (not (getf system :disclose-output))
+				    (funcall (if (not (getf state :disclose-output))
 						 #'identity (lambda (item) (list 'disclose-atom item)))
 					     (first (last form))))))))
 	    :postprocess-value
-	    (lambda (form system)
-	      (list 'apl-output (funcall (if (not (getf system :disclose-output))
+	    (lambda (form state)
+	      (list 'apl-output (funcall (if (not (getf state :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
 					 form))))
  ;; APL's set of functions represented by characters
@@ -862,7 +862,7 @@
 	    (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
 	    (is "st←'aodjeignwug' ⋄ st[⍒st]" "wuonjiggeda")
 	    (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
-  (⍕ (has :title "Format")
+  (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (lambda (omega)
 		   (matrix-render omega :collate t :format (lambda (n) (print-apl-number-string n t))))
 		 (lambda (omega alpha)
@@ -871,7 +871,13 @@
 			 (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
 					     " the precision at which to print floating-point numbers."))
 			 (matrix-render omega :collate t
-					:format (lambda (n) (print-apl-number-string n t alpha))))))))
+					:format (lambda (n) (print-apl-number-string n t alpha)))))))
+     (tests (is "⍕3 4⍴⍳9" #2A((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)
+			      (#\9 #\  #\1 #\  #\2 #\  #\3)))
+	    (is "⍕2 3 4⍴⍳9" #3A(((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)
+				 (#\9 #\  #\1 #\  #\2 #\  #\3))
+				((#\4 #\  #\5 #\  #\6 #\  #\7) (#\8 #\  #\9 #\  #\1 #\  #\2)
+				 (#\3 #\  #\4 #\  #\5 #\  #\6))))))
   (⍎ (has :title "Evaluate")
      ;; TODO: eval here prevents the evaluated code from having access to lexical variables, make this a macro
      (monadic (lambda (omega) (eval (vex-program this-idiom nil omega))))

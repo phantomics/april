@@ -63,7 +63,7 @@ Evaluating an APL expression is as simple as:
 
 ```lisp
 * (april "1+2 3 4")
-
+3 4 5
 #(3 4 5)
 ```
 
@@ -75,7 +75,7 @@ Setting state properties for the APL instance can be done like this:
 
 ```lisp
 * (april (set (:state :count-from 0)) "⍳9")
-
+0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
 
@@ -85,11 +85,11 @@ For example, you can use this configuration setting to determine whether the APL
 
 ```lisp
 * (april (set (:state :count-from 1)) "⍳9")
-
+1 2 3 4 5 6 7 8 9
 #(1 2 3 4 5 6 7 8 9)
 
 * (april (set (:state :count-from 0)) "⍳9")
-
+0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
 
@@ -97,31 +97,37 @@ More APL expressions:
 
 ```lisp
 * (april "⍳12")
-
+1 2 3 4 5 6 7 8 9 10 11 12
 #(1 2 3 4 5 6 7 8 9 10 11 12)
 
 * (april "3 4⍴⍳12")
-
+1  2  3  4
+5  6  7  8
+9 10 11 12
 #2A((1 2 3 4) (5 6 7 8) (9 10 11 12))
 
 * (april "+/3 4⍴⍳12")
-
+10 26 42
 #(10 26 42)
 
 * (april "+⌿3 4⍴⍳12")
-
+15 18 21 24
 #(15 18 21 24)
 
 * (april "+/[1]3 4⍴⍳12")
-
+15 18 21 24
 #(15 18 21 24)
 
 * (april "⌽3 4⍴⍳12")
-
+ 4  3  2 1
+ 8  7  6 5
+12 11 10 9
 #2A((4 3 2 1) (8 7 6 5) (12 11 10 9))
 
 * (april "1⌽3 4⍴⍳12")
-
+ 2  3  4 1
+ 6  7  8 5
+10 11 12 9
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
@@ -177,7 +183,7 @@ This is another, more technical name for the :count-from sub-parameter. You can 
 
 ```lisp
 * (april (set (:state :index-origin 0)) "⍳9")
-
+0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
 
@@ -291,15 +297,15 @@ For example:
 
 ```lisp
 * (april (set (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
-
+0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
 * (april (set (:space *space1*)) "⍳7")
-
+0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
 * (april (set (:space *space2*)) "⍳7")
-
+1 2 3 4 5 6 7
 #(1 2 3 4 5 6 7)
 ```
 
@@ -334,7 +340,9 @@ If you just want to compile the code you enter into April without running it, us
 ```lisp
 * (april (set (:compile-only)) "1+1 2 3")
 
-(DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))
+(LET* ((INDEX-ORIGIN 1))
+  (DECLARE (IGNORABLE INDEX-ORIGIN))
+  (APL-OUTPUT (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))))
 ```
 
 ### (:restore-defaults) parameter
@@ -353,14 +361,6 @@ All :in and :out values will be nullified, :count-from will return to its defaul
 
 ```
 ⌺ Stencil
-```
-
-#### Functions:
-
-```
-⍕ Format
-⍕ Format by specification
-⍕ Format by example
 ```
 
 ## What's Not Implemented And Won't Be

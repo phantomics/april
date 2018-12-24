@@ -587,7 +587,7 @@
 								   (second var-entry))))))))
 	    (let ((exps (append (funcall (if output-vars #'values
 					     (funcall (of-utilities idiom :postprocess-compiled)
-						      (gethash :system meta)))
+						      state-to-use))
 					 compiled-expressions)
 				;; if multiple values are to be output, add the (values) form at bottom
 				(if output-vars
@@ -597,7 +597,7 @@
 								   (gethash (intern (lisp->camel-case return-var)
 										    "KEYWORD")
 									    (gethash :variables meta))
-								   (gethash :system meta)))
+								   state-to-use))
 							output-vars)))))))
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))

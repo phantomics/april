@@ -111,6 +111,8 @@
 
 [⊥] Decode
 
+[⍕] Format / Format At Precision
+
 [⍎] Evaluate
 ```
 
