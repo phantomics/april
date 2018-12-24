@@ -67,7 +67,7 @@
 
 [⍸] When / Interval Index
 
-[↑] Disclose / Take
+[↑] Mix / Take
 
 [↓] Split / Drop
 
@@ -89,7 +89,7 @@
 
 [⍧] Partitioned Enclose
 
-[⊃] Mix / Pick
+[⊃] Disclose / Pick
 
 [∪] Unique / Union
 
