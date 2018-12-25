@@ -17,9 +17,11 @@
     `(loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var))
   (list :type (list :array :evaluated :via-sum-until-pattern)))
  (rank-or-reshape-rank-pattern
-  ;; optimize the patterns ⍴⍴Y and X⍴⍴Y to get the rank of an array or shape the rank of an array
+  ;; optimize the pattern ⍴⍴Y to get the rank of an array
   ((:with-preceding-type :array)
+   ;; TODO: the :times 2 option does not work right here...
    (shape-function-1 :element (function :glyph ⍴))
    (shape-function-2 :element (function :glyph ⍴))
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (if (not value) `(rank ,precedent))))
+  (if (not value) `(aops:rank ,precedent)))
+ )
