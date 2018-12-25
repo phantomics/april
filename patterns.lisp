@@ -20,6 +20,7 @@
   ;; optimize the pattern ⍴⍴Y to get the rank of an array
   ((:with-preceding-type :array)
    ;; TODO: the :times 2 option does not work right here...
+   ;; (shape-function-1 :element (function :glyph ⍴) :times 2)
    (shape-function-1 :element (function :glyph ⍴))
    (shape-function-2 :element (function :glyph ⍴))
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))

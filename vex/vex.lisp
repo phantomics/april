@@ -470,17 +470,24 @@
 					   `(:for x from 0 to ,(if multiple (1- multiple) 0)))
 				  :do (multiple-value-bind (,item ,item-props ,remaining)
 					  ,(element-check element-type)
+					;; (print (list :it ,item))
 					;; only push the returned properties onto the list if the item matched
-					(if (and ,item-props (not (getf ,item-props :cancel-flag)))
+					(if (and ,item ,item-props (not (getf ,item-props :cancel-flag)))
 					    (setq ,sub-props (cons ,item-props ,sub-props)))
 					;; if a cancel-flag property is returned, void the collected items
 					;; and reset the remaining items back to the original list of tokens
 					(if (getf ,item-props :cancel-flag)
 					    (setq ,rem ,initial-remaining
 						  ,collected nil))
-					(if ,item (setq ,collected (cons ,item ,collected)
-							,rem ,remaining)
-					    (setq ,matching nil))))
+					;; (if (not ,item) (setq ,matching nil))
+					(if ;; (and ,item ,matching ,@(if (numberp multiple)
+					    ;; 			       `((= x ,(1- multiple)))))
+					    ,item
+					    (setq ,collected (cons ,item ,collected)
+						  ,rem ,remaining)
+					    ;; (setq ,rem ,remaining)
+					    (setq ,matching nil)
+					    )))
 			       (if ,(if (not optional) collected t)
 				   (setq ,item-symbol (if (< 1 (length ,collected))
 							  ,collected (first ,collected))
