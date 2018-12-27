@@ -14,15 +14,12 @@
    (reduce-operator :element (operator :glyph /))
    (add-function :element (function :glyph +)))
   (let ((var (gensym)))
-    `(loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var))
+    `(avector (loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var)))
   (list :type (list :array :evaluated :via-sum-until-pattern)))
- (rank-or-reshape-rank-pattern
+ (rank-pattern
   ;; optimize the pattern ⍴⍴Y to get the rank of an array
   ((:with-preceding-type :array)
-   ;; TODO: the :times 2 option does not work right here...
-   ;; (shape-function-1 :element (function :glyph ⍴) :times 2)
-   (shape-function-1 :element (function :glyph ⍴))
-   (shape-function-2 :element (function :glyph ⍴))
+   (shape-functions :element (function :glyph ⍴) :times 2)
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (if (not value) `(aops:rank ,precedent)))
- )
+  (if (not value) `(avector (aops:rank ,precedent)))
+  (list :type (list :array :evaluated :via-rank-pattern))))
