@@ -166,6 +166,17 @@
  composer-following-patterns-apl-standard
  (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
+ (evaluation-of-character-array
+  ;; match the use of the code string evaluation function ⍎, evaluating the code with access to
+  ;; the local workspace as cannot be done through a normal function
+  ((:with-preceding-type :array)
+   (evaluate-function :element (function :glyph ⍎)))
+  (let ((o (gensym)))
+    `(funcall (lambda (,o) (eval (vex-program this-idiom (list (list :space ,workspace)
+							       (list :state :print-output nil))
+					      ,o)))
+	      ,precedent))
+  (list :type (list :array :result-of-evaluated-string)))
  (value-assignment-by-function-result
   ;; match the assignment of a function result to a value, like a+←5
   ((:with-preceding-type :array)

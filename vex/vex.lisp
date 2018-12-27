@@ -233,7 +233,7 @@
 				(if (characterp glyph)
 				    (cons glyph output)
 				    (if (stringp glyph)
-					(append output (loop :for char :from 0 :to (1- (length glyph))
+					(append output (loop :for char :below (length glyph)
 							  :collect (aref glyph char)))))))))
 
 (defun =vex-string (idiom meta &optional output special-precedent)
@@ -470,7 +470,6 @@
 					   `(:for x from 0 to ,(if multiple (1- multiple) 0)))
 				  :do (multiple-value-bind (,item ,item-props ,remaining)
 					  ,(element-check element-type)
-					;; (print (list :it ,item))
 					;; only push the returned properties onto the list if the item matched
 					(if (and ,item ,item-props (not (getf ,item-props :cancel-flag)))
 					    (setq ,sub-props (cons ,item-props ,sub-props)))
@@ -479,15 +478,13 @@
 					(if (getf ,item-props :cancel-flag)
 					    (setq ,rem ,initial-remaining
 						  ,collected nil))
-					;; (if (not ,item) (setq ,matching nil))
-					(if ;; (and ,item ,matching ,@(if (numberp multiple)
-					    ;; 			       `((= x ,(1- multiple)))))
-					    ,item
+					;; blank the collection after a mismatch if a pattern is to be
+					;; matched multiple times, as with :times N
+					,(if (numberp multiple) `(if (not ,item) (setq ,collected nil)))
+					(if (and ,item ,matching)
 					    (setq ,collected (cons ,item ,collected)
 						  ,rem ,remaining)
-					    ;; (setq ,rem ,remaining)
-					    (setq ,matching nil)
-					    )))
+					    (setq ,matching nil))))
 			       (if ,(if (not optional) collected t)
 				   (setq ,item-symbol (if (< 1 (length ,collected))
 							  ,collected (first ,collected))
@@ -510,9 +507,11 @@
   (let* ((state (rest (assoc :state options)))
 	 (meta (if meta meta (if (assoc :space options)
 				 (let ((meta-symbol (second (assoc :space options))))
-				   (if (boundp meta-symbol)
-				       (symbol-value meta-symbol)
-				       (setf (symbol-value meta-symbol) (make-hash-table :test #'eq))))
+				   (if (hash-table-p meta-symbol)
+				       meta-symbol (if (boundp meta-symbol)
+						       (symbol-value meta-symbol)
+						       (setf (symbol-value meta-symbol)
+							     (make-hash-table :test #'eq)))))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use)
