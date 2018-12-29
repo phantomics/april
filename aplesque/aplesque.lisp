@@ -1091,6 +1091,7 @@
 				      ;; array and adjust the offsets to allow for its height and width
 				      (let ((rendered (matrix-render elem :prepend indent-char)))
 					;; in the case a 1D array (string) is passed back, height defaults to 1
+					;; (print rendered)
 					(destructuring-bind (ren-width &optional (ren-height 1))
 					    (reverse (dims rendered))
 					  (setf (apply #'aref (cons strings coords))
@@ -1099,7 +1100,11 @@
 						 (- (aref x-offsets (1+ last-coord))
 						    (aref x-offsets last-coord)))
 					      (setf (aref x-offsets (1+ last-coord))
-						    (+ ren-width (min 1 last-coord)
+						    (+ ren-width (if (/= (1+ last-coord)
+									 (1- (length x-offsets)))
+								     ;; padding next column
+								     1 0)
+						       (min 1 last-coord)
 						       (aref x-offsets last-coord))))
 					  (if (> ren-height (aref y-offsets (1+ row)))
 					      (setf (aref y-offsets (1+ row))
@@ -1179,6 +1184,7 @@
 						    (aref x-offsets (1- (length x-offsets)))))
 					   :element-type 'character :initial-element output-default-char))))
 	       ;; (print (list :out (dims output) output))
+	       ;; (print (list :xo x-offsets))
 	       (across strings (lambda (chars coords)
 				 ;; calculate the row of output currently being produced
 				 (let ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
@@ -1187,23 +1193,21 @@
 								     :in (cons 1 (rest (reverse (rest adims))))
 								     :collect (setq current (* current dim)))))))
 				       (last-coord (first (last coords))))
+				   ;; (print (list :cha chars prepend))
 				   (if (arrayp chars)
 				       ;; print a string or sub-matrix of characters; the coordinate conversion
 				       ;; is different depending on whether collated output is being produced
 				       (across chars (lambda (element ecoords)
-						       ;;(print (list :e element))
+						       ;; (print (list :e element))
 						       (let ((x-coord (+ (if (second ecoords)
 									     (second ecoords) (first ecoords))
 									 (aref x-offsets last-coord)
 									 (if prepend 1 0)
-									 ;(if (second ecoords)
-									     ;1
-									     (- (aref x-offsets (1+ last-coord))
-										(aref x-offsets last-coord)
-										(first (last (dims chars)))
-										)
-									     ;)
-									 )))
+									 (if (second ecoords)
+									     1 (- (aref x-offsets (1+ last-coord))
+										  (aref x-offsets last-coord)
+										  (first (last (dims chars))))))))
+							 ;; (print x-coord)
 							 (if collate (setf (apply #'aref
 										  (cons output
 											(append (butlast coords 1)
