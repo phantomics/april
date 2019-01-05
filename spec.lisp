@@ -419,7 +419,10 @@
 			    (if (and axes (> 0 (- (aref (first axes) 0)
 						  index-origin)))
 				(error (format nil "Specified axis is less than ~a." index-origin))
-				(concatenate 'vector alpha omega)))
+				(concatenate (if (and (stringp alpha)
+						      (stringp omega))
+						 'string 'vector)
+					     alpha omega)))
 			(if (or (not axes)
 				(integerp (aref (first axes) 0)))
 			    ;; simply stack the arrays if there is no axis argument or it's an integer
@@ -1119,8 +1122,8 @@
   (⍤ (has :title "Rank")
      (pivotal (lambda (right left workspace)
 		(let ((rank (gensym)) (orank (gensym)) (arank (gensym)) (fn (gensym))
-		      (romega (gensym)) (ralpha (gensym))
-		      (alpha (gensym)) (omega (gensym)) (o (gensym)) (a (gensym)) (r (gensym)))
+		      (romega (gensym)) (ralpha (gensym)) (alpha (gensym)) (omega (gensym))
+		      (o (gensym)) (a (gensym)) (r (gensym)))
 		  `(lambda (,omega &optional ,alpha)
 		     (let* ((,rank (disclose ,right))
 			    (,orank (rank ,omega))
@@ -1146,7 +1149,7 @@
 									      (nthcdr (- ,arank ,rank)
 										      (iota ,arank :start
 											    index-origin))))))))
-		       (if ,alpha (combine-arrays 0 (if ,romega (if ,ralpha (each ,fn ,romega ,ralpha)
+		       (if ,alpha (merge-arrays (if ,romega (if ,ralpha (each ,fn ,romega ,ralpha)
 								    (each ,fn ,romega
 									  (make-array (dims ,romega)
 										      :initial-element ,alpha)))
@@ -1154,7 +1157,7 @@
 											  :initial-element ,omega)
 									  ,ralpha)
 							    (funcall ,fn ,omega ,alpha))))
-			   (if ,romega (combine-arrays 0 (each ,fn ,romega) :recombine t)
+			   (if ,romega (merge-arrays (each ,fn ,romega))
 			       (funcall ,fn ,omega))))))))
      (tests (is "⊂⍤2⊢2 3 4⍴⍳9" #(#2A((1 2 3 4) (5 6 7 8) (9 1 2 3))
 				 #2A((4 5 6 7) (8 9 1 2) (3 4 5 6))))
@@ -1265,7 +1268,7 @@
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
     ⍝ This is another comment.
     v←⍳3 ⋄ f2 f1 v,4 5"
- 		      #(8 10 12 14 16))
+		     #(8 10 12 14 16))
  		(for "Monadic inline function."
 		     "{⍵+3} 3 4 5" #(6 7 8))
  		(for "Dyadic inline function."

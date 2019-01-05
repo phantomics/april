@@ -7,6 +7,6 @@
 	   #:reshape-array-fitting #:sprfact #:binomial #:make-rotator #:scale-array #:mix-arrays #:split-array
 	   #:is-unitary #:choose #:subprocess #:rotate-left #:rotate-right #:catenate #:laminate
 	   #:partitioned-enclose #:re-enclose #:invert-matrix #:interval-index #:disclose-unitary-array
-	   #:matrix-render #:matrix-print #:combine-arrays)
+	   #:matrix-render #:matrix-print #:merge-arrays)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))

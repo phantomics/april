@@ -754,51 +754,29 @@
 					     ielem)))))
       output)))
 
-;; TODO: find what can be simplified here
-(defun combine-arrays (axis arrays &key (max-dims nil) (disclose-items nil) (recombine nil))
-  "Combine multiple arrays into a single array one rank higher. Vectors may be stacked to form a 2D array, 2D arrays may be stacked to form a 3D array, etc. Arrays with smaller dimensions than the largest array in the stack have missing elements replaced with 0s for numeric arrays or blanks for character arrays."
-  (let ((permute-dims (if (vectorp arrays)
-			  (alexandria:iota (1+ (rank (aref arrays 0))))))
-	(max-dims (if max-dims max-dims
-		      (let ((mdims (make-array (list (array-total-size arrays))
-					       :displaced-to (aops:each #'dims arrays))))
-			(loop :for dx :below (length (aref mdims 0))
-			   :collect (apply #'max (array-to-list (aops:each (lambda (n) (nth dx n))
-									   mdims)))))))
-	(first-element (row-major-aref arrays 0)))
-    ;; TODO: the recombine option and some other things are hacks, how better to handle cases
-    ;; where subprocessed array elements should be recombined?
-    ;; (print (list :d disclose-items first-element arrays))
-    (if (and disclose-items (is-unitary first-element)
-	     (arrayp first-element)
-	     (is-unitary (aref first-element 0)))
-	(aops:each (lambda (item) (aref (aref item 0) 0))
-		   arrays)
-	(if (vectorp arrays)
-	    (apply #'aops:stack
-		   (cons axis (loop :for index :below (length arrays)
-				 :collect (if (and recombine (is-unitary (aref arrays index)))
-					      (aref arrays index)
-					      (aops:permute
-					       (rotate-right axis permute-dims)
-					       (array-promote
-						(if (not (equalp max-dims (dims (aref arrays index))))
-						    (let* ((etype (element-type (aref arrays index)))
-							   (fill-with (apl-default-element (aref arrays index)))
-							   (out-array (make-array max-dims :element-type etype
-										  :initial-element fill-with)))
-						      (across (aref arrays index)
-							      (lambda (item coords)
-								(setf (apply #'aref (cons out-array coords))
-								      item)))
-						      out-array)
-						    (let ((this-item (aref arrays index)))
-						      (if (not (and disclose-items
-								    (is-unitary this-item)))
-							  this-item (disclose this-item))))))))))
-	    (aops:combine (aops:each (lambda (sub-arrays)
-				       (combine-arrays axis sub-arrays :max-dims max-dims :recombine recombine))
-				     (aops:split arrays 1)))))))
+(defun merge-arrays (arrays)
+  (let* ((first-sub-array (row-major-aref arrays 0))
+	 (inner-dims (dims first-sub-array))
+	 (output (make-array (append (remove 1 (dims arrays))
+				     (remove 1 inner-dims))
+			     :element-type (element-type first-sub-array)))
+	 (dims-match t))
+    (across arrays (lambda (elem coords)
+		     (if (and dims-match (loop :for dim :below (length (dims elem))
+					    :always (= (nth dim (dims elem))
+						       (nth dim inner-dims))))
+			 (if (is-unitary elem)
+			     ;; if the element is a unitary array, just assign its element to the appropriate
+			     ;; output coordinates
+			     (setf (apply #'aref (cons output coords))
+				   (row-major-aref elem 0))
+			     ;; otherwise, iterate across the element and assing the element to the output
+			     ;; coordinates derived from the combined outer and inner array coordinates
+			     (across elem (lambda (sub-elem sub-coords)
+					    (setf (apply #'aref (cons output (append coords sub-coords)))
+						  sub-elem))))
+			 (setq dims-match nil))))
+    (if dims-match output)))
 
 (defun split-array (array &optional axis)
   (let* ((axis (if axis axis (1- (rank array))))
@@ -1060,6 +1038,46 @@
     det ;; return determinant
     out-matrix))
 
+(defun stencil (array process window-dims movement)
+  "Apply a given function to sub-matrices of an array with specified dimensions sampled according to a given pattern of movement across the array."
+  (let* ((adims (apply #'vector (dims array)))
+	 (output (make-array (loop :for dim :below (length window-dims)
+				:collect (ceiling (- (/ (aref adims dim) (aref movement dim))
+						     (if (and (evenp (aref window-dims dim))
+							      (= 1 (aref movement dim)))
+							 1 0)))))))
+    ;; (print output)
+    (across output (lambda (elem coords)
+		     (declare (ignore elem))
+		     (let ((window (make-array (array-to-list window-dims)))
+			   (set-value))
+		       (across window (lambda (welem wcoords)
+					(declare (ignore welem))
+					(let ((ref-coords
+					       (loop :for cix :below (length wcoords)
+						  :collect (+ (nth cix wcoords)
+							      (- (* (nth cix coords) (aref movement cix))
+								 (floor (/ (- (aref window-dims cix)
+									      (if (evenp (aref window-dims cix))
+										  1 0))
+									   2)))))))
+					  ;; (print (list :win wcoords coords ref-coords))
+					  (setf (apply #'aref (cons window wcoords))
+						(if (loop :for cix :below (length ref-coords)
+						       :always (<= 0 (nth cix ref-coords)
+								   (1- (aref adims cix))))
+						    (apply #'aref (cons array ref-coords))
+						    0)))))
+		       ;; (print window)
+		       (setf (apply #'aref (cons output coords))
+			     (funcall process (apply #'vector (loop :for cix :below (length coords)
+								 :collect (if (= 0 (nth cix coords))
+									      1 (if (= (1- (nth cix (dims output)))
+										       (nth cix coords))
+										    -1 0))))
+				      window)))))
+    output))
+
 (defun matrix-render (array &key (prepend nil) (append nil) (collate nil) (format nil))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."
   (cond ((not (arrayp array))
@@ -1099,8 +1117,9 @@
 						 (- (aref x-offsets (1+ last-coord))
 						    (aref x-offsets last-coord)))
 					      (setf (aref x-offsets (1+ last-coord))
-						    (+ ren-width (if (/= (1+ last-coord)
-									 (1- (length x-offsets)))
+						    (+ ren-width (if (and (< 1 (rank elem))
+									  (/= (1+ last-coord)
+									      (1- (length x-offsets))))
 								     ;; padding next column
 								     1 0)
 						       (min 1 last-coord)
