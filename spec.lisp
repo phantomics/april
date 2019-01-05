@@ -20,7 +20,7 @@
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
-	 :disclose-output t :print-output t :base-state (list :index-origin 1))
+	 :disclose-output t :print-output t :print-to-string nil :base-state (list :index-origin 1))
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
@@ -80,13 +80,19 @@
 				    (funcall (if (not (getf state :disclose-output))
 						 #'identity (lambda (item) (list 'disclose-atom item)))
 					     (first (last form)))
-				    (if (getf state :print-output) :print-output))))))
+				    (if (getf state :print-output) :print-output)
+				    (if (getf state :print-to-string)
+					(if (eq :only (getf state :print-to-string))
+					    :print-to-string-only :print-to-string)))))))
 	    :postprocess-value
 	    (lambda (form state)
 	      (list 'apl-output (funcall (if (not (getf state :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
 					 form)
-		    (if (getf state :print-output) :print-output))))
+		    (if (getf state :print-output) :print-output)
+		    (if (getf state :print-to-string)
+			(if (eq :only (getf state :print-to-string))
+			    :print-to-string-only :print-to-string)))))
  ;; APL's set of functions represented by characters
  (functions
   (← (has :title "Assign")
@@ -1261,7 +1267,47 @@
 	    (is "0@(3∘|) ⍳9" #(0 0 3 0 0 6 0 0 9))
 	    (is "÷@3 5 ⍳9" #(1 2 1/3 4 1/5 6 7 8 9))
 	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18))
-	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148)))))
+	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148))))
+  (⌺ (has :title "Stencil")
+     (pivotal (lambda (right left workspace)
+		(let ((omega (gensym)) (window-dims (gensym)) (movement (gensym))
+		      (op-left (or (resolve-function :dyadic left)
+				   left)))
+		  `(lambda (,omega)
+		     (cond ((< 2 (rank ,right))
+			    (error "The right operand of ⌺ may not have more than 2 dimensions."))
+			   ((not ,(verify-function left))
+			    (error "The left operand of ⌺ must be a function."))
+			   (t (let ((,window-dims (if (= 1 (rank ,right))
+						      ,right (choose ,right (list 0))))
+				    (,movement (if (= 2 (rank ,right))
+						   (choose ,right (list 1))
+						   (make-array (list (length ,right))
+							       :element-type 'fixnum :initial-element 1))))
+				(merge-arrays (stencil ,omega ,op-left ,window-dims ,movement)))))))))
+     (tests (is "{⊂⍵}⌺(⍪3 2)⍳8" #(#(0 1 2) #(2 3 4) #(4 5 6) #(6 7 8)))
+	    (is "{⊂⍵}⌺(⍪5 2)⍳9" #(#(0 0 1 2 3) #(1 2 3 4 5) #(3 4 5 6 7) #(5 6 7 8 9) #(7 8 9 0 0)))
+	    (is "{⊂⍵}⌺2⍳8" #(#(1 2) #(2 3) #(3 4) #(4 5) #(5 6) #(6 7) #(7 8)))
+	    (is "{⊂⍵}⌺4⍳8" #(#(0 1 2 3) #(1 2 3 4) #(2 3 4 5) #(3 4 5 6) #(4 5 6 7) #(5 6 7 8) #(6 7 8 0)))
+	    (is "{⊂⍵}⌺4⍳9" #(#(0 1 2 3) #(1 2 3 4) #(2 3 4 5) #(3 4 5 6)
+			     #(4 5 6 7) #(5 6 7 8) #(6 7 8 9) #(7 8 9 0)))
+	    (is "{⊂⍵}⌺(⍪4 2)⍳8" #(#(0 1 2 3) #(2 3 4 5) #(4 5 6 7) #(6 7 8 0)))
+	    (is "{⊂⍵}⌺(⍪6 2)⍳8" #(#(0 0 1 2 3 4) #(1 2 3 4 5 6) #(3 4 5 6 7 8) #(5 6 7 8 0 0)))
+	    (is "{⍵}⌺3 3⊢3 3⍴⍳9" #4A((((0 0 0) (0 1 2) (0 4 5)) ((0 0 0) (1 2 3) (4 5 6))
+				      ((0 0 0) (2 3 0) (5 6 0)))
+				     (((0 1 2) (0 4 5) (0 7 8)) ((1 2 3) (4 5 6) (7 8 9))
+				      ((2 3 0) (5 6 0) (8 9 0)))
+				     (((0 4 5) (0 7 8) (0 0 0)) ((4 5 6) (7 8 9) (0 0 0))
+				      ((5 6 0) (8 9 0) (0 0 0)))))
+	    (is "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳12" #2A((#(#(1 1) #2A((0 0 0) (0 1 2) (0 4 5)))
+					   #(#(1 0) #2A((0 0 0) (1 2 3) (4 5 6)))
+					   #(#(1 -1) #2A((0 0 0) (2 3 0) (5 6 0))))
+					 (#(#(0 1) #2A((0 1 2) (0 4 5) (0 7 8)))
+					   #(#(0 0) #2A((1 2 3) (4 5 6) (7 8 9)))
+					   #(#(0 -1) #2A((2 3 0) (5 6 0) (8 9 0))))
+					 (#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
+					   #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
+					   #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
  ;; tests for general language functions not associated with a particular function or operator
  (general-tests (for "Basic function definition and use, with comments."
  		     "⍝ This code starts with a comment.
@@ -1317,4 +1363,57 @@
 		(for "Glider 1."
 		     "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
 		(for "Glider 2."
-		     "3 3⍴⊃∨/1 2 3 4 8=⊂⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))))
+		     "3 3⍴⊃∨/1 2 3 4 8=⊂⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))
+		(for-printed "Vector printed." "1+1 2 3" "2 3 4
+")
+		(for-printed "Matrix printed." "3 4⍴⍳9" "1 2 3 4
+5 6 7 8
+9 1 2 3
+")
+		(for-printed "4D array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
+6 7 8 9 1
+         
+2 3 4 5 6
+7 8 9 1 2
+         
+3 4 5 6 7
+8 9 1 2 3
+         
+         
+4 5 6 7 8
+9 1 2 3 4
+         
+5 6 7 8 9
+1 2 3 4 5
+         
+6 7 8 9 1
+2 3 4 5 6
+")
+		(for-printed "Vector with nested vectors printed." "1 2 (1 2 3) 4 5 (6 7 8)"
+			     "1 2  1 2 3  4 5  6 7 8 
+")
+		(for-printed "Vector with initial nested vector printed." "(1 2 3) 4 5 (6 7) 8 9"
+			     " 1 2 3  4 5  6 7  8 9
+")
+		(for-printed "Vector with nested arrays printed." "1 2 (3 4⍴⍳9) 5 6 (2 2 3⍴5) 7 8"
+			     "1 2  1 2 3 4  5 6  5 5 5  7 8
+     5 6 7 8       5 5 5     
+     9 1 2 3                 
+                   5 5 5     
+                   5 5 5     
+                             
+                             
+")
+		(for-printed "3D array of characters printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
+GOLD
+BLUE
+    
+SILK
+WOOL
+YARN
+")
+		(for-printed "2D array of character strings printed." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			     " GRAY  GOLD  BLUE
+ SILK  WOOL  YARN
+")
+		))

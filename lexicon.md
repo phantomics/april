@@ -103,13 +103,13 @@
 
 [⌹] Matrix Inverse / Matrix Divide
 
-[⍋] Grade Up / Grade Up By
-
-[⍒] Grade Down / Grade Down By
-
 [⊤] Encode
 
 [⊥] Decode
+
+[⍋] Grade Up / Grade Up By
+
+[⍒] Grade Down / Grade Down By
 
 [⍕] Format / Format At Precision
 
@@ -144,4 +144,6 @@
 [⍣] Power
 
 [@] At
+
+[⌺] Stencil
 ```

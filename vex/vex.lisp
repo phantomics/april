@@ -4,8 +4,12 @@
 
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
-  (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-	  "APRIL"))
+  (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
+		     (string-upcase symbol))))
+    (if (not (boundp sym))
+	`(progn (defvar ,sym)
+		,sym)
+	sym)))
 
 ;; The idiom object defines a vector language instance with a persistent state.
 (defclass idiom ()
@@ -25,7 +29,7 @@
 	      :initform nil
 	      :initarg :operators)
    (grammar-elements :accessor idiom-grammar-elements
-		     :initform (make-hash-table :test #'eq)
+		     :initform nil
 		     :initarg :grammar-elements)
    (composer-opening-patterns :accessor idiom-composer-opening-patterns
 			      :initform nil
@@ -107,13 +111,24 @@
 
 (defun process-general-tests-for (symbol test-set)
   "Process specs for general tests not associated with a specific function or operator."
-  `((princ ,(format nil "~%~a" (first test-set)))
-    (princ (format nil "~%  _ ~a~%" ,(second test-set)))
-    (is (,(intern (string-upcase symbol) (package-name *package*))
-	  (set (:state :print-output nil))
-	  ,(second test-set))
-	,(third test-set)
-	:test #'equalp)))
+  `((princ ,(format nil "~%~a ~a" (cond ((string= "FOR" (string-upcase (first test-set)))
+					 #\∇)
+					((string= "FOR-PRINTED" (string-upcase (first test-set)))
+					 #\⎕))
+		    (second test-set)))
+    (princ (format nil "~%  _ ~a~%" ,(third test-set)))
+    ,(cond ((string= "FOR" (string-upcase (first test-set)))
+	    `(is (,(intern (string-upcase symbol) (package-name *package*))
+		   (set (:state :print-output nil))
+		   ,(third test-set))
+		 ,(fourth test-set)
+		 :test #'equalp))
+	   ((string= "FOR-PRINTED" (string-upcase (first test-set)))
+	    `(is (,(intern (string-upcase symbol) (package-name *package*))
+		   (set (:state :print-output nil :print-to-string :only))
+		   ,(third test-set))
+		 ,(fourth test-set)
+		 :test #'string=)))))
 
 (defmacro vex-idiom-spec (symbol &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
@@ -173,7 +188,7 @@
 				    :append (process-lex-tests-for symbol operator))))
 	   (general-tests (cons `(princ (format nil "~%∘○( General Language Tests )○∘~%"))
 				(loop :for test-set :in (of-subspec general-tests)
-				   :append (process-general-tests-for symbol (rest test-set)))))
+				   :append (process-general-tests-for symbol test-set))))
 	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
 	   ;; less specific ones like the baseline grammar
@@ -198,14 +213,13 @@
 									      :pivotal (make-hash-table))))
 							  (setf ,@operator-specs)
 							  op-specs)))
-	   (elem (gensym)) (elems (gensym)) (options (gensym)) (input-string (gensym))
-	   (local-idiom (gensym)))
+	   (elem (gensym)) (options (gensym)) (input-string (gensym)))
       `(progn (defvar ,idiom-symbol)
 	      (setf ,idiom-symbol ,idiom-definition)
-	      (let ((,elems (funcall (function ,(second (assoc :elements (of-subspec grammar))))
-				     ,idiom-symbol)))
-		(loop :for ,elem :in ,elems :do (setf (gethash (first ,elem) (idiom-grammar-elements ,idiom-symbol))
-						      (second ,elem))))
+	      (setf (idiom-grammar-elements ,idiom-symbol)
+		    (loop :for ,elem :in (funcall (function ,(second (assoc :elements (of-subspec grammar))))
+						 ,idiom-symbol)
+		       :append ,elem))
 	      (setf ,@pattern-settings)
 	      (defmacro ,(intern (string-upcase symbol) (package-name *package*))
 		  (,options &optional ,input-string)
@@ -349,6 +363,7 @@
 		    rest)))))))
 
 (defmacro set-composer-elements (name with &rest params)
+  "Specify basic language elements for a Vex composer."
   (let* ((with (rest with))
 	 (tokens (getf with :tokens-symbol))
 	 (idiom (getf with :idiom-symbol))
@@ -379,16 +394,16 @@
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name)
 				  (getf special-params :omit))))
-	   :do ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
-	   (multiple-value-bind (new-processed new-props remaining)
-	       (funcall (getf pattern :function)
-			tokens space (lambda (item &optional sub-props)
-				       (declare (ignorable sub-props))
-				       (composer idiom space item nil sub-props))
-			precedent properties)
-	     ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
-	     ;; 				      (list new-props remaining))))
-	     (if new-processed (setq processed new-processed properties new-props tokens remaining))))
+	   ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
+	   :do (multiple-value-bind (new-processed new-props remaining)
+		   (funcall (getf pattern :function)
+			    tokens space (lambda (item &optional sub-props)
+					   (declare (ignorable sub-props))
+					   (composer idiom space item nil sub-props))
+			    precedent properties)
+		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
+		 ;; 				      (list new-props remaining))))
+		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
 	    (values precedent properties tokens)
@@ -432,10 +447,10 @@
   (let ((item (gensym)) (item-props (gensym)) (remaining (gensym)) (matching (gensym))
 	(collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
     (labels ((element-check (base-type)
-	       `(funcall (gethash ,(intern (string-upcase (cond ((listp base-type) (first base-type))
-								(t base-type)))
-					   "KEYWORD")
-				  (vex::idiom-grammar-elements ,idiom))
+	       `(funcall (getf (vex::idiom-grammar-elements ,idiom)
+			       ,(intern (string-upcase (cond ((listp base-type) (first base-type))
+							     (t base-type)))
+					"KEYWORD"))
 			 ,rem ,(cond ((listp base-type) `(quote ,(rest base-type))))
 			 ,process ,idiom ,space))
 	     (process-item (item-symbol item-properties)
