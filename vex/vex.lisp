@@ -514,8 +514,7 @@
 							     (make-hash-table :test #'eq)))))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
-	 (state-to-use) (system-to-use)
-	 (preexisting-vars))
+	 (state-to-use) (system-to-use) (preexisting-vars))
     (labels ((assign-from (source dest)
 	       (if source (progn (setf (getf dest (first source))
 				       (second source))
@@ -524,7 +523,6 @@
 	     (process-lines (lines &optional output)
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
-			      ;; (parse lines (=vex-lines idiom meta))
 			      (parse lines (=vex-string idiom meta))
 			    (process-lines remaining (append output (list (composer idiom meta out))))))))
 
