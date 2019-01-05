@@ -344,15 +344,7 @@ You can use this parameter to clear a workspace and return it to its default sta
 
 All :in and :out values will be nullified, :count-from will return to its default setting, etc.
 
-## What's Not Implemented and May Be
-
-#### Operators:
-
-```
-⌺ Stencil
-```
-
-## What's Not Implemented And Won't Be
+## What's Not Planned for Implementation
 
 #### Functions:
 

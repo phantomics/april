@@ -25,8 +25,16 @@
        (if (not (or (stringp ,result)
 		    (not (arrayp ,result))))
 	   ,(if (member :print-output options)
-		`(princ (matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t))))))
-       ,result)))
+		`(princ (matrix-print ,result :append #\Newline
+				      :format (lambda (n) (print-apl-number-string n t))))))
+       ,(if (member :print-to-string options)
+	    `(values ,result
+		     (matrix-print ,result :append #\Newline
+				   :format (lambda (n) (print-apl-number-string n t))))
+	    (if (member :print-to-string-only options)
+		`(matrix-print ,result :append #\Newline
+			       :format (lambda (n) (print-apl-number-string n t)))
+		result)))))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
