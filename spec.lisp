@@ -14,9 +14,9 @@
 	  #'realpart #'abs #'imagpart #'phase))
 
 ;; top-level specification for the April language
-(vex-idiom-spec
+(specify-vex-idiom
  april
- ;; default state of an April system
+ ;; system variables and default state of an April workspace
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
@@ -1299,15 +1299,15 @@
 				      ((2 3 0) (5 6 0) (8 9 0)))
 				     (((0 4 5) (0 7 8) (0 0 0)) ((4 5 6) (7 8 9) (0 0 0))
 				      ((5 6 0) (8 9 0) (0 0 0)))))
-	    (is "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳12" #2A((#(#(1 1) #2A((0 0 0) (0 1 2) (0 4 5)))
-					   #(#(1 0) #2A((0 0 0) (1 2 3) (4 5 6)))
-					   #(#(1 -1) #2A((0 0 0) (2 3 0) (5 6 0))))
-					 (#(#(0 1) #2A((0 1 2) (0 4 5) (0 7 8)))
-					   #(#(0 0) #2A((1 2 3) (4 5 6) (7 8 9)))
-					   #(#(0 -1) #2A((2 3 0) (5 6 0) (8 9 0))))
-					 (#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
-					   #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
-					   #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
+	    (is "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9" #2A((#(#(1 1) #2A((0 0 0) (0 1 2) (0 4 5)))
+					  #(#(1 0) #2A((0 0 0) (1 2 3) (4 5 6)))
+					  #(#(1 -1) #2A((0 0 0) (2 3 0) (5 6 0))))
+					(#(#(0 1) #2A((0 1 2) (0 4 5) (0 7 8)))
+					  #(#(0 0) #2A((1 2 3) (4 5 6) (7 8 9)))
+					  #(#(0 -1) #2A((2 3 0) (5 6 0) (8 9 0))))
+					(#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
+					  #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
+					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
  ;; tests for general language functions not associated with a particular function or operator
  (general-tests (for "Basic function definition and use, with comments."
  		     "⍝ This code starts with a comment.
@@ -1451,7 +1451,7 @@ YARN
  BYB  LAL  URU  ENE
  YBY  ALA  RUR  NEN
 ")
-		(for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳12"
+		(for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
 			     "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
        0 1 2         1 2 3          2 3 0 
        0 4 5         4 5 6          5 6 0 
@@ -1466,3 +1466,11 @@ YARN
 			     "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
 		))
+
+;; (extend-vex-idiom
+;;  april
+;;  (utilities :process-lexicon #'april-function-glyph-processor)
+;;  (functions
+;;   (→ (has :title "Add3")
+;;      (monadic (scalar-function (lambda (omega) (+ 3 omega))))
+;;      (tests (is "→77" 80)))))

@@ -16,8 +16,10 @@
   ((name :accessor idiom-name
     	 :initarg :name)
    (system :accessor idiom-system
+	   :initform nil
 	   :initarg :system)
    (utilities :accessor idiom-utilities
+	      :initform nil
 	      :initarg :utilities)
    (lexicons :accessor idiom-lexicons
 	     :initform nil
@@ -109,6 +111,7 @@
       (if tests (append `((princ ,(format nil "~%~a" heading)))
 			(for-tests tests))))))
 
+;; TODO: this is also April-specific, move it into spec
 (defun process-general-tests-for (symbol test-set)
   "Process specs for general tests not associated with a specific function or operator."
   `((princ ,(format nil "~%~a ~a" (cond ((string= "FOR" (string-upcase (first test-set)))
@@ -130,7 +133,21 @@
 		 ,(fourth test-set)
 		 :test #'string=)))))
 
-(defmacro vex-idiom-spec (symbol &rest subspecs)
+(defmacro specify-vex-idiom (symbol &rest subspecs)
+  `(vex-idiom-spec ,symbol nil ,@subspecs))
+
+(defmacro extend-vex-idiom (symbol &rest subspecs)
+  `(vex-idiom-spec ,symbol t ,@subspecs))
+
+(defun merge-lexicons (source &optional destination)
+  (if (not source)
+      destination (merge-lexicons (cddr source)
+				  (progn (setf (getf destination (first source))
+					       (append (getf destination (first source))
+						       (second source)))
+					 destination))))
+
+(defmacro vex-idiom-spec (symbol extension &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
 	       `(rest (assoc (intern ,(string-upcase symbol-string) (package-name *package*))
@@ -193,51 +210,68 @@
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
 	   ;; less specific ones like the baseline grammar
 	   (pattern-settings `((idiom-composer-opening-patterns ,idiom-symbol)
-			       (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
-										   (of-subspec grammar))))
-					    :collect `(funcall (function ,pset) ,idiom-symbol)))
+			       (append (idiom-composer-opening-patterns ,idiom-symbol)
+				       (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
+											   (of-subspec grammar))))
+						    :collect `(funcall (function ,pset) ,idiom-symbol))))
 			       (idiom-composer-following-patterns ,idiom-symbol)
-			       (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
-										   (of-subspec grammar))))
-					    :collect `(funcall (function ,pset) ,idiom-symbol)))))
-	   (idiom-definition `(make-instance 'idiom :name ,(intern (string-upcase symbol) "KEYWORD")
-					     :system ,(cons 'list (of-subspec system))
-					     :utilities ,(cons 'list (of-subspec utilities))
-					     :lexicons (quote ,lexicon-data)
-					     :functions (let ((fn-specs (list :monadic (make-hash-table)
-									      :dyadic (make-hash-table)
-									      :symbolic (make-hash-table))))
-							  (setf ,@function-specs)
-							  fn-specs)
-					     :operators (let ((op-specs (list :lateral (make-hash-table)
-									      :pivotal (make-hash-table))))
-							  (setf ,@operator-specs)
-							  op-specs)))
+			       (append (idiom-composer-following-patterns ,idiom-symbol)
+				       (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
+											   (of-subspec grammar))))
+						    :collect `(funcall (function ,pset) ,idiom-symbol))))))
+	   (idiom-definition `(make-instance 'idiom :name ,(intern (string-upcase symbol) "KEYWORD")))
 	   (elem (gensym)) (options (gensym)) (input-string (gensym)))
-      `(progn (defvar ,idiom-symbol)
-	      (setf ,idiom-symbol ,idiom-definition)
-	      (setf (idiom-grammar-elements ,idiom-symbol)
-		    (loop :for ,elem :in (funcall (function ,(second (assoc :elements (of-subspec grammar))))
-						 ,idiom-symbol)
-		       :append ,elem))
+      `(progn ,@(if (not extension)
+		    `((defvar ,idiom-symbol)
+		      (setf ,idiom-symbol ,idiom-definition)))
+	      (setf (idiom-system ,idiom-symbol)
+		    (append (idiom-system ,idiom-symbol)
+			    ,(cons 'list (of-subspec system)))
+		    (idiom-utilities ,idiom-symbol)
+		    (append (idiom-utilities ,idiom-symbol)
+			    ,(cons 'list (of-subspec utilities)))
+		    (idiom-lexicons ,idiom-symbol)
+		    (merge-lexicons (idiom-lexicons ,idiom-symbol)
+				    (quote ,lexicon-data))
+		    (idiom-functions ,idiom-symbol)
+		    (let ((fn-specs ,(if extension `(idiom-functions ,idiom-symbol)
+					 `(list :monadic (make-hash-table)
+						:dyadic (make-hash-table)
+						:symbolic (make-hash-table)))))
+		      (setf ,@function-specs)
+		      fn-specs)
+		    (idiom-operators ,idiom-symbol)
+		    (let ((op-specs ,(if extension `(idiom-operators ,idiom-symbol)
+					 `(list :lateral (make-hash-table)
+						:pivotal (make-hash-table)))))
+		      (setf ,@operator-specs)
+		      op-specs))
+	      ,@(if (assoc :elements (of-subspec grammar))
+		    `((setf (idiom-grammar-elements ,idiom-symbol)
+			    (loop :for ,elem
+			       :in (funcall (function ,(second (assoc :elements (of-subspec grammar))))
+					    ,idiom-symbol)
+			       :append ,elem))))
 	      (setf ,@pattern-settings)
-	      (defmacro ,(intern (string-upcase symbol) (package-name *package*))
-		  (,options &optional ,input-string)
-		;; this macro is the point of contact between users and the language, used to
-		;; evaluate expressions and control properties of the language instance
-		(cond ((and ,options (listp ,options)
-			    (string= "TEST" (string-upcase (first ,options))))
-		       (let ((all-tests ',(append function-tests operator-tests general-tests)))
-			 `(progn (setq prove:*enable-colors* nil)
-				 (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
-				 ,@all-tests (finalize)
-				 (setq prove:*enable-colors* t))))
-		      ;; the (test) setting is used to run tests
-		      (t (vex-program ,idiom-symbol
-				      (if ,input-string (if (string= "SET" (string (first ,options)))
-							    (rest ,options)
-							    (error "Incorrect option syntax.")))
-				      (eval (if ,input-string ,input-string ,options))))))))))
+	      ,@(if (not extension)
+		    `((defmacro ,(intern (string-upcase symbol) (package-name *package*))
+			  (,options &optional ,input-string)
+			;; this macro is the point of contact between users and the language, used to
+			;; evaluate expressions and control properties of the language instance
+			(cond ((and ,options (listp ,options)
+				    (string= "TEST" (string-upcase (first ,options))))
+			       (let ((all-tests ',(append ;function-tests operator-tests
+							  general-tests)))
+				 `(progn (setq prove:*enable-colors* nil)
+					 (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
+					 ,@all-tests (finalize)
+					 (setq prove:*enable-colors* t))))
+			      ;; the (test) setting is used to run tests
+			      (t (vex-program ,idiom-symbol
+					      (if ,input-string (if (string= "SET" (string (first ,options)))
+								    (rest ,options)
+								    (error "Incorrect option syntax.")))
+					      (eval (if ,input-string ,input-string ,options))))))))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
