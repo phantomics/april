@@ -1097,7 +1097,8 @@
 		  (x-offsets (make-array (list (1+ (first (last adims)))) :initial-element 0))
 		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse adims))))) :initial-element 0))
 		  (strings (make-array adims))
-		  (output-default-char #\ ))
+		  (output-default-char #\ )
+		  (prior-value))
 	     (across array (lambda (elem coords)
 			     (let* ((last-coord (first (last coords)))
 				    (row (reduce #'+ (mapcar #'* (rest (reverse coords))
@@ -1111,6 +1112,8 @@
 							   (cons strings
 								 (append (butlast coords 1)
 									 (list (1- (first (last coords))))))))))
+			       (if (= 0 last-coord)
+				   (setq prior-value nil))
 			       (cond ((arrayp elem)
 				      ;; recurse to handle nested arrays, passing back the rendered character
 				      ;; array and adjust the offsets to allow for its height and width
@@ -1119,7 +1122,7 @@
 					;; in the case a 1D array (string) is passed back, height defaults to 1
 					(destructuring-bind (ren-width &optional (ren-height 1))
 					    (reverse (dims rendered))
-					  ;; (print (list :ren rendered prior-elem))
+					  ;; (print (list :ren rendered prior-elem prior-value))
 					  (setf (apply #'aref (cons strings coords))
 						rendered)
 					  ;; (print (list :rw ren-width))
@@ -1133,7 +1136,13 @@
 						   	    (= (1+ last-coord)
 						   	       (1- (length x-offsets))))
 						       -1 0)
-						   ;;1
+						   ;; supports values like #2A(("Apple" #(12 5)) ("Orange" 3)),
+						   ;; where a numeric vector follows strings in rows of an array
+						   (if (and (not (stringp elem))
+							    (stringp prior-value)
+							    (= (1+ last-coord)
+						   	       (1- (length x-offsets))))
+						       1 0)
 						   ;; prevent an extra space from being added to lines when
 						   ;; the prior element is not a string
 						   (aref x-offsets last-coord)))
@@ -1175,6 +1184,7 @@
 					    (aref x-offsets (1+ last-coord))
 					    (max 1 (+ (min 1 last-coord)
 						      (aref x-offsets last-coord))))))
+			       (setq prior-value elem)
 			       (if (= 0 last-coord)
 				   (setf (aref y-offsets row)
 					 (+ (aref y-offsets row)
