@@ -5,11 +5,6 @@
 (define-symbol-macro this-idiom (local-idiom april))
 (define-symbol-macro atomic-vector (of-system this-idiom :atomic-vector))
 
-(defun enclose (item)
-  "Enclose non-array values, passing through arguments that are already arrays."
-  (if (vectorp item)
-      item (vector item)))
-
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
   (if (and (not (stringp item))

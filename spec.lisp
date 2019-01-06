@@ -354,12 +354,12 @@
 				   (vector (rank omega)))
 			       omega))
 		 (lambda (omega alpha &optional axes)
-		   (multidim-slice omega (if axes (loop :for axis :below (rank omega)
-						     :collect (if (= axis (- (aref (first axes) 0)
-									     index-origin))
-								  (aref alpha 0)
-								  (nth axis (dims omega))))
-					     (array-to-list alpha)))))
+		   (section omega (if axes (loop :for axis :below (rank omega)
+					      :collect (if (= axis (- (aref (first axes) 0)
+								      index-origin))
+							   (aref alpha 0)
+							   (nth axis (dims omega))))
+				      (array-to-list alpha)))))
      (tests (is "↑(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))
 	    (is "↑[0.5](1)(1 2)(1 2 3)" #2A((1 1 1) (0 2 2) (0 0 3)))
 	    (is "↑(2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
@@ -394,13 +394,13 @@
 		   (split-array omega (if axes (- (aref (first axes) 0)
 						  index-origin))))
 		 (lambda (omega alpha &optional axes)
-		   (multidim-slice omega (if axes (loop :for axis :below (rank omega)
-						     :collect (if (= axis (- (aref (first axes) 0)
-									     index-origin))
-								  (aref alpha 0)
-								  0))
-					     (array-to-list alpha))
-				   :inverse t)))
+		   (section omega (if axes (loop :for axis :below (rank omega)
+					      :collect (if (= axis (- (aref (first axes) 0)
+								      index-origin))
+							   (aref alpha 0)
+							   0))
+				      (array-to-list alpha))
+			    :inverse t)))
      (tests (is "↓3 4⍴⍳9" #(#(1 2 3 4) #(5 6 7 8) #(9 1 2 3)))
 	    (is "↓[1]3 4⍴⍳9" #(#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3)))
 	    (is "2 2 2↓4 5 6⍴⍳9" #3A(((3 4 5 6) (9 1 2 3) (6 7 8 9))
@@ -1364,13 +1364,21 @@
 		     "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
 		(for "Glider 2."
 		     "3 3⍴⊃∨/1 2 3 4 8=⊂⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))
-		(for-printed "Vector printed." "1+1 2 3" "2 3 4
+		(for-printed "Numeric vector printed." "1+1 2 3" "2 3 4
 ")
-		(for-printed "Matrix printed." "3 4⍴⍳9" "1 2 3 4
+		(for-printed "Numeric matrix printed." "3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
 ")
-		(for-printed "4D array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
+		(for-printed "3D numeric array printed." "2 3 4⍴⍳9" "1 2 3 4
+5 6 7 8
+9 1 2 3
+       
+4 5 6 7
+8 9 1 2
+3 4 5 6
+")
+		(for-printed "4D numeric array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
 6 7 8 9 1
          
 2 3 4 5 6
@@ -1389,8 +1397,19 @@
 6 7 8 9 1
 2 3 4 5 6
 ")
+		
+		(for-printed "Vector of numeric matrices printed." "⊂[1 2]2 3 4⍴4 5 6"
+			     " 4 5 6  5 6 4  6 4 5  4 5 6
+ 4 5 6  5 6 4  6 4 5  4 5 6
+")
+		(for-printed "Matrix of numeric matrices printed." "2 3⍴⊂2 2⍴⍳4"
+			     " 1 2  1 2  1 2
+ 3 4  3 4  3 4
+ 1 2  1 2  1 2
+ 3 4  3 4  3 4
+")
 		(for-printed "Vector with nested vectors printed." "1 2 (1 2 3) 4 5 (6 7 8)"
-			     "1 2  1 2 3  4 5  6 7 8 
+			     "1 2  1 2 3  4 5  6 7 8
 ")
 		(for-printed "Vector with initial nested vector printed." "(1 2 3) 4 5 (6 7) 8 9"
 			     " 1 2 3  4 5  6 7  8 9
@@ -1404,7 +1423,11 @@
                              
                              
 ")
-		(for-printed "3D array of characters printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
+		(for-printed "Character vector (string) printed." "'ABCDE'" "ABCDE")
+		(for-printed "Character matrix printed." "2 5⍴'ABCDE'" "ABCDE
+ABCDE
+")
+		(for-printed "3D character array printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
 GOLD
 BLUE
     
@@ -1415,5 +1438,31 @@ YARN
 		(for-printed "2D array of character strings printed." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
 			     " GRAY  GOLD  BLUE
  SILK  WOOL  YARN
+")
+		(for-printed "Vector of character matrices printed." "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			     " GGB  ROL  ALU  YDE
+ SWY  IOA  LOR  KLN
+")
+		(for-printed "Matrix of character matrices printed." "⊂[1 2]2 3 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+			     " GSG  RIR  ALA  YKY
+ SGS  IRI  LAL  KYK
+ GWG  OOO  LOL  DLD
+ WGW  OOO  OLO  LDL
+ BYB  LAL  URU  ENE
+ YBY  ALA  RUR  NEN
+")
+		(for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳12"
+			     "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
+       0 1 2         1 2 3          2 3 0 
+       0 4 5         4 5 6          5 6 0 
+  0 1  0 1 2    0 0  1 2 3    0 ¯1  2 3 0 
+       0 4 5         4 5 6          5 6 0 
+       0 7 8         7 8 9          8 9 0 
+  ¯1 1  0 4 5   ¯1 0  4 5 6   ¯1 ¯1  5 6 0
+        0 7 8         7 8 9          8 9 0
+        0 0 0         0 0 0          0 0 0
+")
+		(for-printed "Nested vector with mixed numeric and character values printed."
+			     "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
 		))
