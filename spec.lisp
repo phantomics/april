@@ -1013,7 +1013,8 @@
 										  (funcall ,indices-of
 											   ,key ,keys))))
 								  (funcall (if (= 1 (length ,items))
-									       #'vector #'identity )
+									       (lambda (v) (vector (vector v)))
+									       #'identity )
 									   (make-array (list (length ,items))
 										       :initial-contents
 										       (reverse ,items))))
@@ -1021,7 +1022,7 @@
 			 (mix-arrays (vector 1) (apply #'vector ,item-sets))))))))
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' 'Pear' 'Pear'
     quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
-    	        #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" 16)))
+    	        #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" #(16))))
 	    (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
 		#2A((2) (2) (1) (1)))))
   (\. (has :title "Inner/Outer Product")
@@ -1420,12 +1421,10 @@
      9 1 2 3                 
                    5 5 5     
                    5 5 5     
-                             
-                             
 ")
 		(for-printed "Character vector (string) printed." "'ABCDE'" "ABCDE")
-		(for-printed "Character matrix printed." "2 5⍴'ABCDE'" "ABCDE
-ABCDE
+		(for-printed "Character matrix printed." "2 5⍴'ABCDEFGHIJ'" "ABCDE
+FGHIJ
 ")
 		(for-printed "3D character array printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
 GOLD
@@ -1451,6 +1450,18 @@ YARN
  BYB  LAL  URU  ENE
  YBY  ALA  RUR  NEN
 ")
+		(for-printed "Stacked strings printed." "⍪'A' 'Stack' 'Of' 'Strings'"
+			     " A      
+ Stack  
+ Of     
+ Strings
+")
+		(for-printed "Mixed strings printed." "↑'These' 'Strings' 'Are' 'Mixed'"
+			     "These  
+Strings
+Are    
+Mixed  
+")
 		(for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
 			     "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
        0 1 2         1 2 3          2 3 0 
@@ -1464,6 +1475,11 @@ YARN
 ")
 		(for-printed "Nested vector with mixed numeric and character values printed."
 			     "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
+")
+		(for-printed "Matrix of mixed strings and numeric vectors printed."
+			     "2 2⍴'Test' (1 2 3) 'Hello' (5)"
+			     " Test   1 2 3
+ Hello  5    
 ")
 		))
 
