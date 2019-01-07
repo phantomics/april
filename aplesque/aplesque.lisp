@@ -738,9 +738,12 @@
 				(if (< odix (length outer))
 				    (list (nth odix outer))))))))
     (let* ((max-rank 1)
+	   (is-character-array t)
 	   (each-dims (let ((dims))
 	   		(across arrays (lambda (elem coords)
 	   				 (declare (ignore coords))
+					 (if (not (eql 'character (element-type elem)))
+					     (setq is-character-array nil))
 	   				 (setq dims (cons (dims elem) dims)
 	   				       max-rank (max max-rank (rank elem)))))
 	   		dims))
@@ -749,7 +752,7 @@
 						   :collect (reduce #'max (mapcar (lambda (d) (or (nth dim d)
 												  1))
 										  each-dims))))
-			       :initial-element 0)))
+			       :initial-element (if is-character-array #\  0))))
       (across arrays (lambda (oelem ocoords)
       		       (across oelem (lambda (ielem icoords)
 				       (if (> max-rank (length icoords))
@@ -1097,94 +1100,14 @@
 		  (x-offsets (make-array (list (1+ (first (last adims)))) :initial-element 0))
 		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse adims))))) :initial-element 0))
 		  (strings (make-array adims))
-		  (output-default-char #\ )
-		  (prior-value))
+		  (output-default-char #\ ))
 	     (across array (lambda (elem coords)
 			     (let* ((last-coord (first (last coords)))
 				    (row (reduce #'+ (mapcar #'* (rest (reverse coords))
 							     (let ((current 1))
 							       (loop :for dim
 								  :in (cons 1 (rest (reverse (rest adims))))
-								  :collect (setq current (* current dim)))))))
-				    ;; don't indent strings with a space unless they're in the leftmost column
-				    (prior-elem (if (< 0 last-coord)
-						    (apply #'aref
-							   (cons strings
-								 (append (butlast coords 1)
-									 (list (1- (first (last coords))))))))))
-			       (if (= 0 last-coord)
-				   (setq prior-value nil))
-			       (cond ((arrayp elem)
-				      ;; recurse to handle nested arrays, passing back the rendered character
-				      ;; array and adjust the offsets to allow for its height and width
-				      (let ((rendered (matrix-render elem :format format
-								     :prepend output-default-char)))
-					;; in the case a 1D array (string) is passed back, height defaults to 1
-					(destructuring-bind (ren-width &optional (ren-height 1))
-					    (reverse (dims rendered))
-					  ;; (print (list :ren rendered prior-elem prior-value))
-					  (setf (apply #'aref (cons strings coords))
-						rendered)
-					  ;; (print (list :rw ren-width))
-					  (setf (aref x-offsets (1+ last-coord))
-						(+ ren-width (if (and (stringp elem)
-								      (not prior-elem))
-									0 1)
-						   ;; don't add a space to the left if this is the first
-						   ;; element in the row and it's a string
-						   (if (and (not (stringp prior-elem))
-						   	    (= (1+ last-coord)
-						   	       (1- (length x-offsets))))
-						       -1 0)
-						   ;; supports values like #2A(("Apple" #(12 5)) ("Orange" 3)),
-						   ;; where a numeric vector follows strings in rows of an array
-						   (if (and (not (stringp elem))
-							    (stringp prior-value)
-							    (= (1+ last-coord)
-						   	       (1- (length x-offsets))))
-						       1 0)
-						   ;; prevent an extra space from being added to lines when
-						   ;; the prior element is not a string
-						   (aref x-offsets last-coord)))
-					  (if (> ren-height (- (aref y-offsets (1+ row))
-							       (aref y-offsets row)))
-					      (setf (aref y-offsets (1+ row))
-						    (+ ren-height (if (= 0 (aref y-offsets (1+ row)))
-								      0 -1)
-						       (aref y-offsets (1+ row))))))))
-				     ((numberp elem)
-				      ;; use the number-formatting function to make strings out of numbers,
-				      ;; and adjust the next x-offset to allow for their width
-				      (let* ((elem-string (funcall (if format format #'write-to-string)
-								   elem))
-					     (elem-length (length elem-string)))
-					;; (print (list :num prior-elem))
-					(setf (apply #'aref (cons strings coords))
-					      elem-string)
-					(setf (aref x-offsets (1+ last-coord))
-					      (max (aref x-offsets (1+ last-coord))
-						   (+ elem-length (min 1 last-coord)
-						      ;; add a buffer space if the prior value was a vector,
-						      ;; but not if it started the parent vector, otherwise
-						      ;; three spaces appear between the end of the vector and this
-						      ;; new element
-						      (if (and prior-elem (not (stringp prior-elem))
-							       (not (= 1 last-coord)))
-							  1 0)
-						      (if (and prior-elem (stringp prior-elem)
-							       (char= output-default-char (aref prior-elem 0)))
-							  1 0)
-						      ;; add an extra space if this is the last item in the row
-						      ;; the the prior item was a string
-						      (aref x-offsets last-coord))))))
-				     ((characterp elem)
-				      ;; characters are simply passed through
-				      (setf (apply #'aref (cons strings coords))
-					    elem
-					    (aref x-offsets (1+ last-coord))
-					    (max 1 (+ (min 1 last-coord)
-						      (aref x-offsets last-coord))))))
-			       (setq prior-value elem)
+								  :collect (setq current (* current dim))))))))
 			       (if (= 0 last-coord)
 				   (setf (aref y-offsets row)
 					 (+ (aref y-offsets row)
@@ -1197,8 +1120,8 @@
 								(cons 1 (let ((last 1))
 									  (loop :for dim
 									     :in (reverse (rest (butlast adims 2)))
-									     :collect (setq last
-											    (1+ (* dim last)))))))))
+									     :collect
+									     (setq last (1+ (* dim last)))))))))
 					 (aref y-offsets (1+ row))
 					 (if (and (= 2 (length y-offsets))
 						  (< 1 (aref y-offsets (1+ row))))
@@ -1209,7 +1132,63 @@
 					     (aref y-offsets (1+ row))
 					     (if (= row (- (length y-offsets) 2))
 						 (1+ (aref y-offsets row))
-						 (1+ row))))))))
+						 (1+ row)))))
+			       (cond ((arrayp elem)
+				      ;; recurse to handle nested arrays, passing back the rendered character
+				      ;; array and adjust the offsets to allow for its height and width
+				      (let ((rendered (matrix-render elem :format format
+				     				     :prepend output-default-char))
+					    (difference (- (aref x-offsets last-coord)
+							   (if (= 0 last-coord)
+							       0 (aref x-offsets (1- last-coord))))))
+				     	;; in the case a 1D array (string) is passed back, height defaults to 1
+				     	(destructuring-bind (ren-width &optional (ren-height 1))
+				     	    (reverse (dims rendered))
+				     	  ;; (print (list :ren rendered ren-width (aref x-offsets last-coord)))
+				     	  ;; (print (list :rw ren-width difference x-offsets
+					  ;; 	       ))
+					  ;; (print (list :rr (aref y-offsets (1+ row))))
+					  ;; (print (list :yo row ren-height y-offsets))
+					  (setf (apply #'aref (cons strings coords))
+						rendered
+						(aref x-offsets (1+ last-coord))
+						(max (aref x-offsets (1+ last-coord))
+						     (+ (max ren-width (- difference
+									  ;; this solves a corner case; printing
+									  ;; 2 2⍴'Test' (1 2 3) 'Hello' (5);
+									  ;; is there a better way to handle this?x
+									  (if (= 1 (- difference ren-width))
+									      1 0)))
+							(min 1 last-coord)
+							(aref x-offsets last-coord)))
+						(aref y-offsets (1+ row))
+						(max (aref y-offsets (1+ row))
+						     (+ ren-height (aref y-offsets row))))
+					  ;; properly space the next column if this one isn't the last,
+					  ;; advancing 3 spaces from the end of this array
+					  (if (/= (1+ last-coord) (1- (length x-offsets)))
+					      (setf (aref x-offsets (+ 2 last-coord))
+						    (max (aref x-offsets (+ 2 last-coord))
+							 (+ 3 (aref x-offsets (1+ last-coord)))))))))
+				     ((numberp elem)
+				      ;; use the number-formatting function to make strings out of numbers,
+				      ;; and adjust the next x-offset to allow for their width
+				      (let ((elem-string (funcall (if format format #'write-to-string)
+								  elem)))
+					(setf (apply #'aref (cons strings coords))
+					      elem-string)
+					(setf (aref x-offsets (1+ last-coord))
+					      (max (aref x-offsets (1+ last-coord))
+						   (+ (length elem-string) (min 1 last-coord)
+						      (aref x-offsets last-coord))))))
+				     ((characterp elem)
+				      ;; characters are simply passed through
+				      (setf (apply #'aref (cons strings coords))
+					    elem
+					    (aref x-offsets (1+ last-coord))
+					    (max (aref x-offsets (1+ last-coord))
+						 (+ (min 1 (1+ last-coord))
+						    (aref x-offsets last-coord)))))))))
 	     ;; (print (list :xoyo x-offsets y-offsets))
 	     ;; (princ #\Newline)
 	     ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
@@ -1217,74 +1196,74 @@
 	     ;; character is set, the output array has an extra element in its last dimension to hold the
 	     ;; indenting character
 	     (let ((output (if collate (make-array (append (butlast adims)
-							   (list (+ (if (or prepend append) 1 0)
-								    (aref x-offsets (1- (length x-offsets))))))
-						   :element-type 'character :initial-element output-default-char)
-			       (make-array (list (aref y-offsets (1- (length y-offsets)))
-						 (+ (if (or prepend append) 1 0)
-						    (aref x-offsets (1- (length x-offsets)))))
-					   :element-type 'character :initial-element output-default-char)))
-		   (prior-rendered))
+	     						   (list (+ (if (or prepend append) 1 0)
+	     							    (aref x-offsets (1- (length x-offsets))))))
+	     					   :element-type 'character :initial-element output-default-char)
+	     		       (make-array (list (aref y-offsets (1- (length y-offsets)))
+	     					 (+ (if (or prepend append) 1 0)
+	     					    (aref x-offsets (1- (length x-offsets)))))
+	     				   :element-type 'character :initial-element output-default-char))))
 	       ;; (print (list :out y-offsets (dims output) output))
 	       (across strings (lambda (chars coords)
-				 ;; calculate the row of output currently being produced
-				 (let ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
-								(let ((current 1))
-								  (loop :for dim
-								     :in (cons 1 (rest (reverse (rest adims))))
-								     :collect (setq current (* current dim)))))))
-				       (last-coord (first (last coords))))
-				   (if (arrayp chars)
-				       ;; print a string or sub-matrix of characters; the coordinate conversion
-				       ;; is different depending on whether collated output is being produced
-				       (across chars (lambda (element ecoords)
-						       ;; (print prior-rendered)
-						       (let ((x-coord (+ (if (second ecoords)
-									     (second ecoords) (first ecoords))
-									 (aref x-offsets last-coord)
-									 (if prepend 1 0)
-									 (if (second ecoords)
-									     (if (not (stringp prior-rendered))
-										 0 1)
+	     			 ;; calculate the row of output currently being produced
+	     			 (let ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
+	     							(let ((current 1))
+	     							  (loop :for dim
+	     							     :in (cons 1 (rest (reverse (rest adims))))
+	     							     :collect (setq current (* current dim)))))))
+	     			       (last-coord (first (last coords)))
+				       (chars-width (first (last (dims chars)))))
+	     			   (if (arrayp chars)
+	     			       ;; print a string or sub-matrix of characters; the coordinate conversion
+	     			       ;; is different depending on whether collated output is being produced
+	     			       (across chars (lambda (element ecoords)
+	     					       ;; (print prior-rendered)
+	     					       (let ((x-coord (+ (if (second ecoords)
+	     								     (second ecoords) (first ecoords))
+	     								 (aref x-offsets last-coord)
+	     								 (if prepend 1 0)
+									 ;; left-justify printed arrays
+									 (if (arrayp (apply #'aref
+											    (cons array coords)))
+									     (min 1 last-coord)
 									     (- (aref x-offsets (1+ last-coord))
 										(aref x-offsets last-coord)
-										(first (last (dims chars))))))))
-							 ;; (print (list :xc element x-coord))
-							 (if collate (setf (apply #'aref
-										  (cons output
-											(append (butlast coords 1)
-												(list x-coord))))
-									   element)
-							     (setf (aref output (+ (if (not (second ecoords))
-										       0 (first ecoords))
-										   (aref y-offsets row))
-									 x-coord)
-								   element)))))
-				       ;; print a single character
-				       (let ((x-coord (+ (if prepend 1 0)
-							 (aref x-offsets last-coord))))
-					 (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
-											      (list x-coord))))
-							   chars)
-					     (setf (aref output (aref y-offsets row)
-							 x-coord)
-						   chars))))
-				   (setq prior-rendered chars))))
+										chars-width)))))
+	     						 ;; (print (list :xc element x-coord))
+	     						 (if collate (setf (apply #'aref
+	     									  (cons output
+	     										(append (butlast coords 1)
+	     											(list x-coord))))
+	     								   element)
+	     						     (setf (aref output (+ (if (not (second ecoords))
+	     									       0 (first ecoords))
+	     									   (aref y-offsets row))
+	     								 x-coord)
+	     							   element)))))
+	     			       ;; print a single character
+	     			       (let ((x-coord (+ (if prepend 1 0)
+	     						 (aref x-offsets last-coord))))
+	     				 (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
+	     										      (list x-coord))))
+	     						   chars)
+	     				     (setf (aref output (aref y-offsets row)
+	     						 x-coord)
+	     					   chars)))))))
 	       ;; if prepending or appending a character, it is placed in the array here;
 	       ;; this is more complicated for a collated array and it is not needed if the
 	       ;; character is the same as the default character for the array
 	       (if (or (and append (not (char= append output-default-char)))
-		       (and prepend (not (char= prepend output-default-char))))
-		   (let ((last-dim (first (last (dims output)))))
-		       (if collate (let ((elided (loop :for dim :below (rank output) :collect nil)))
-				     (across output (lambda (elem coords)
-						      (declare (ignore elem))
-						      (setf (apply #'aref (cons output coords))
-							    (if prepend prepend append)))))
-			   (if prepend (loop :for row :below (first (dims output))
-					  :do (setf (aref output row 0) prepend))
-			       (loop :for row :below (first (dims output))
-				  :do (setf (aref output row (1- last-dim)) append))))))
+	     	       (and prepend (not (char= prepend output-default-char))))
+	     	   (let ((last-dim (first (last (dims output)))))
+		     (if collate (across output (lambda (elem coords)
+						  (declare (ignore elem))
+						  (setf (apply #'aref (cons output coords))
+							(if prepend prepend append))))
+	     		   (if prepend (loop :for row :below (first (dims output))
+	     				  :do (setf (aref output row 0) prepend))
+	     		       (loop :for row :below (first (dims output))
+	     			  :do (setf (aref output row (1- last-dim)) append))))))
+	       ;; (princ #\Newline)
 	       output)))))
 
 ;; (labels ((measure-height (dims &optional index count)
@@ -1303,7 +1282,6 @@
   (let ((rendered (gensym)))
     `(let ((,rendered (matrix-render ,array ,@options)))
        (if (stringp ,rendered)
-	   ,rendered
-	   (make-array (list (array-total-size ,rendered))
-		       :element-type 'character :displaced-to ,rendered)))))
+	   ,rendered (make-array (list (array-total-size ,rendered))
+				 :element-type 'character :displaced-to ,rendered)))))
 
