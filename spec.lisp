@@ -1473,6 +1473,37 @@ Mixed
         0 7 8         7 8 9          8 9 0
         0 0 0         0 0 0          0 0 0
 ")
+		(for-printed "Array of differently-shaped nested arrays printed." "{⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
+			     " 1 1    0 0 0
+        0 1 2
+        0 4 5
+ 1 0    0 0 0
+        1 2 3
+        4 5 6
+ 1 ¯1   0 0 0
+        2 3 0
+        5 6 0
+             
+ 0 1    0 1 2
+        0 4 5
+        0 7 8
+ 0 0    1 2 3
+        4 5 6
+        7 8 9
+ 0 ¯1   2 3 0
+        5 6 0
+        8 9 0
+             
+ ¯1 1   0 4 5
+        0 7 8
+        0 0 0
+ ¯1 0   4 5 6
+        7 8 9
+        0 0 0
+ ¯1 ¯1  5 6 0
+        8 9 0
+        0 0 0
+")
 		(for-printed "Nested vector with mixed numeric and character values printed."
 			     "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
