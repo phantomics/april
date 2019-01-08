@@ -1107,32 +1107,24 @@
 							     (let ((current 1))
 							       (loop :for dim
 								  :in (cons 1 (rest (reverse (rest adims))))
-								  :collect (setq current (* current dim))))))))
-			       (if (= 0 last-coord)
-				   (setf (aref y-offsets row)
-					 (+ (aref y-offsets row)
-					    ;; calculate the y-offset, finding the total number of filled and empty
-					    ;; lines preceding this row by encoding the coordinates excepting
-					    ;; the last two with a series of number bases found by multiplying each
-					    ;; dimension going backwards excepting the last 2 by the previous base
-					    ;; and adding 1
-					    (reduce #'+ (mapcar #'* (cddr (reverse coords))
-								(cons 1 (let ((last 1))
-									  (loop :for dim
-									     :in (reverse (rest (butlast adims 2)))
-									     :collect
-									     (setq last (1+ (* dim last)))))))))
-					 (aref y-offsets (1+ row))
-					 (if (and (= 2 (length y-offsets))
-						  (< 1 (aref y-offsets (1+ row))))
-					     ;; don't increment the next row if it is the last, there's only
-					     ;; one row in the output and its value is higher than one;
-					     ;; this mainly applies to vectors containing nested arrays
-					     ;; of rank>1
-					     (aref y-offsets (1+ row))
-					     (if (= row (- (length y-offsets) 2))
-						 (1+ (aref y-offsets row))
-						 (1+ row)))))
+								  :collect (setq current (* current dim)))))))
+				    ;; find the total number of empty lines preceding this row by encoding
+				    ;; the coordinates excepting the last two with a series of number bases
+				    ;; found by multiplying each dimension going backwards excepting the
+				    ;; last 2 by the previous base and adding 1
+				    (empty-rows
+				     (reduce #'+ (mapcar #'* (cddr (reverse coords))
+							 (cons 1 (let ((last 1))
+								   (loop :for dim
+								      :in (reverse (rest (butlast adims 2)))
+								      :collect
+								      (setq last (1+ (* dim last)))))))))
+				    (next-elem (if (< last-coord (- (length x-offsets) 2))
+				    		   (apply #'aref (cons array (append (butlast coords)
+				    						     (list (1+ last-coord)))))))
+				    (elem-width 1)
+				    (elem-height 1))
+			       ;;(print (list :nnn elem next-elem))
 			       (cond ((arrayp elem)
 				      ;; recurse to handle nested arrays, passing back the rendered character
 				      ;; array and adjust the offsets to allow for its height and width
@@ -1145,25 +1137,27 @@
 				     	(destructuring-bind (ren-width &optional (ren-height 1))
 				     	    (reverse (dims rendered))
 				     	  ;; (print (list :ren rendered ren-width (aref x-offsets last-coord)))
-				     	  ;; (print (list :rw ren-width difference x-offsets
-					  ;; 	       ))
-					  ;; (print (list :rr (aref y-offsets (1+ row))))
-					  ;; (print (list :yo row ren-height y-offsets))
-					  (setf (apply #'aref (cons strings coords))
+				     	  ;; (print (list :rw ren-width difference x-offsets next-elem))
+					  (setf elem-height ren-height
+						(apply #'aref (cons strings coords))
 						rendered
+						elem-width (+ ren-width
+							      (if (< last-coord (- (length x-offsets) 2))
+								  (if (arrayp next-elem)
+								      1 2)
+								  0))
 						(aref x-offsets (1+ last-coord))
 						(max (aref x-offsets (1+ last-coord))
 						     (+ (max ren-width (- difference
-									  ;; this solves a corner case; printing
-									  ;; 2 2⍴'Test' (1 2 3) 'Hello' (5);
-									  ;; is there a better way to handle this?x
-									  (if (= 1 (- difference ren-width))
-									      1 0)))
+								       	  ;; this solves a corner case; printing
+								       	  ;; 2 2⍴'Test' (1 2 3) 'Hello' (5);
+								       	  ;; is there a better way to handle this?x
+								       	  (if (= 1 (- difference ren-width))
+								       	      1 0))
+							     )
 							(min 1 last-coord)
-							(aref x-offsets last-coord)))
-						(aref y-offsets (1+ row))
-						(max (aref y-offsets (1+ row))
-						     (+ ren-height (aref y-offsets row))))
+							(aref x-offsets last-coord))))
+					  ;; (print (list :elw ren-width elem-width))
 					  ;; properly space the next column if this one isn't the last,
 					  ;; advancing 3 spaces from the end of this array
 					  (if (/= (1+ last-coord) (1- (length x-offsets)))
@@ -1188,7 +1182,29 @@
 					    (aref x-offsets (1+ last-coord))
 					    (max (aref x-offsets (1+ last-coord))
 						 (+ (min 1 (1+ last-coord))
-						    (aref x-offsets last-coord)))))))))
+						    (aref x-offsets last-coord))))))
+			       ;; (print (list :ww elem-width))
+			       (setf (aref y-offsets row)
+				     (+ (if (= 0 last-coord)
+					    empty-rows 0)
+					(aref y-offsets row))
+				     ;; add the number of empty rows
+				     (aref y-offsets (1+ row))
+				     (max (aref y-offsets (1+ row))
+					  (+ elem-height (aref y-offsets row)
+					     (- empty-rows))
+				     	  (if (and (= 2 (length y-offsets))
+				     	  	   (< 1 (aref y-offsets (1+ row))))
+				     	      ;; don't increment the next row if it is the last, there's only
+				     	      ;; one row in the output and its value is higher than one;
+				     	      ;; this mainly applies to vectors containing nested arrays
+				     	      ;; of rank>1
+				     	      (aref y-offsets (1+ row))
+				     	      (if (= row (- (length y-offsets) 2))
+				     	  	  (+ elem-height (aref y-offsets row))
+				     	  	  (+ row (if (and (= 0 last-coord)
+				     	  			  (/= last-coord (1- (length y-offsets))))
+				     	  		     1 0)))))))))
 	     ;; (print (list :xoyo x-offsets y-offsets))
 	     ;; (princ #\Newline)
 	     ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
