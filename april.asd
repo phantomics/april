@@ -13,4 +13,5 @@
    (:file "utilities")
    (:file "grammar")
    (:file "patterns")
-   (:file "spec")))
+   (:file "spec")
+   (:file "game-of-life")))
