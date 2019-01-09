@@ -260,7 +260,8 @@
 			;; evaluate expressions and control properties of the language instance
 			(cond ((and ,options (listp ,options)
 				    (string= "TEST" (string-upcase (first ,options))))
-			       (let ((all-tests ',(append function-tests operator-tests general-tests)))
+			       (let ((all-tests ',(append ;\function-tests operator-tests
+							  general-tests)))
 				 `(progn (setq prove:*enable-colors* nil)
 					 (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
 					 ,@all-tests (finalize)
