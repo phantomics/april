@@ -238,15 +238,14 @@
 		     (list (if (not (eql 'lambda (first innerfn)))
 			       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
 							(funcall ,innerfn ,arg
-								 ;; include the internal function's second
-								 ;; argument if present
+								 ;; include the internal function's
+								 ;; second argument if present
 								 ,@(if (fourth arg-expanded)
 								       (list (fourth arg-expanded))))
 							,@(if is-first (list arg2))))
 			       (list (first innerfn) (second innerfn)
 				     `(funcall ,fn ,@(if (not is-first) (list arg1))
-					       ,(third innerfn)
-					       ,@(if is-first (list arg2)))))
+					       ,(third innerfn) ,@(if is-first (list arg2)))))
 			   (third arg-expanded)))))))
       (let ((scalar-fn (is-scalar function)))
 	(append (list (if scalar-fn 'apply-scalar 'funcall))
@@ -263,6 +262,7 @@
 		       (let ((expanded (expand-dyadic function nil (cadar arguments) (second arguments))))
 		      	 (or expanded `((lambda (,arg) (funcall ,function ,(cadar arguments) ,arg))
 		      			,(macroexpand (second arguments))))))
+		      ;; TODO: fix this
 		      ;; ((and scalar-fn (second arguments)
 		      ;; 	    (listp (second arguments))
 		      ;; 	    (eql 'avector (caadr arguments))
