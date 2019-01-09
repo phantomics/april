@@ -264,13 +264,16 @@
     (do-permuted new-array axis arank
       (let* ((last-dim (first (last (dims new-array))))
 	     (main (make-array (list (array-total-size new-array))
+			       :element-type (element-type array)
 			       :displaced-to new-array))
 	     (vector-arguments (make-array (list (array-total-size per-vector))
+					   :element-type (element-type per-vector)
 					   :displaced-to per-vector)))
 	;; (print (list :vv vector-arguments (/ (nth axis (dims new-array))
 	;; 				     (array-total-size new-array))))
 	(loop :for elix :below (length vector-arguments)
 	   :do (funcall function (make-array (list last-dim)
+					     :element-type (element-type array)
 					     :displaced-to main :displaced-index-offset (* elix last-dim))
 			(aref vector-arguments elix)))))))
 
@@ -319,8 +322,10 @@
 					       #'aops:combine #'identity)
 					   ;; combine the resulting arrays if the original is multidimensional,
 					   ;; otherwise just make a vector
+					   ;; TODO: this joining causes the loss of the original array type -
+					   ;; is there a better way other than aops:combine?
 					   (make-array (length expanded)
-						       :element-type (element-type array)
+						       ;;:element-type (element-type array)
 						       :initial-contents expanded))))
 		     (if (not (= axis (1- a-rank)))
 			 (aops:permute (rotate-right (- a-rank 1 axis)
@@ -681,8 +686,8 @@
 				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
 				      (vector source-cell)))))
 		       ((and (not indices) (vectorp (first in-path)) (vectorp (aref (first in-path) 0)))
-		       	;; if using reach indexing, recurse on the sub-array specified by the first coordinate vector
-			;; (print (list :in in-path (cons array (reverse (rest in-path)))))
+		       	;; if using reach indexing, recurse on the sub-array specified
+			;; by the first coordinate vector
 		       	(setf target-cell
 		       	      (disclose (choose (apply #'aref (cons array (array-to-list (aref (first in-path) 0))))
 						(loop :for ix :from 1 :to (1- (length (first in-path)))
@@ -1058,7 +1063,8 @@
 	 (output (make-array output-dims)))
     (across output (lambda (elem coords)
 		     (declare (ignore elem))
-		     (let ((window (make-array (array-to-list window-dims))))
+		     (let ((window (make-array (array-to-list window-dims)
+					       :element-type (element-type array))))
 		       (across window (lambda (welem wcoords)
 					(declare (ignore welem))
 					(let ((ref-coords
@@ -1078,14 +1084,17 @@
 						    0)))))
 		       (setf (apply #'aref (cons output coords))
 			     (funcall process window
-				      (apply #'vector (loop :for cix :below (length coords)
-							 :collect (if (= 0 (nth cix coords))
-								      1 (if (= (1- (nth cix output-dims))
-									       (nth cix coords))
-									    -1 0)))))))))
+				      (make-array (list (length coords))
+						  :element-type (list 'integer -2 2)
+						  :initial-contents
+						  (loop :for cix :below (length coords)
+						     :collect (if (= 0 (nth cix coords))
+								  1 (if (= (1- (nth cix output-dims))
+									   (nth cix coords))
+									-1 0)))))))))
     output))
 
-(defun matrix-render (array &key (prepend nil) (append nil) (collate nil) (format nil))
+(defun matrix-impress (array &key (prepend nil) (append nil) (collate nil) (format nil))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."
   (cond ((not (arrayp array))
 	 (funcall (if format format #'write-to-string)
@@ -1127,8 +1136,8 @@
 			       (cond ((arrayp elem)
 				      ;; recurse to handle nested arrays, passing back the rendered character
 				      ;; array and adjust the offsets to allow for its height and width
-				      (let ((rendered (matrix-render elem :format format
-				     				     :prepend output-default-char)))
+				      (let ((rendered (matrix-impress elem :format format
+								      :prepend output-default-char)))
 				     	;; in the case a 1D array (string) is passed back, height defaults to 1
 				     	(destructuring-bind (ren-width &optional (ren-height 1))
 				     	    (reverse (dims rendered))
@@ -1155,14 +1164,17 @@
 				      ;; characters are simply passed through
 				      (setf (apply #'aref (cons strings coords))
 					    elem)))
+			       ;; if this is the beginning of a new row, increment the row's y-offset
+			       ;; by the number of preceding empty rows
+			       (if (= 0 last-coord)
+				   (setf (aref y-offsets row)
+					 (+ empty-rows (aref y-offsets row))))
 			       (setf (aref x-offsets (1+ last-coord))
+				     ;; set as x-offset by the width of the element or the maximum width
+				     ;; of this column (whichever is greater) minus the prior x-offset
 				     (max (aref x-offsets (1+ last-coord))
 					  (+ (max elem-width (aref col-widths last-coord))
 					     (aref x-offsets last-coord)))
-				     (aref y-offsets row)
-				     (+ (if (= 0 last-coord) empty-rows 0)
-					(aref y-offsets row))
-				     ;; add the number of empty rows
 				     (aref y-offsets (1+ row))
 				     (max (aref y-offsets (1+ row))
 					  (+ elem-height (aref y-offsets row)
@@ -1215,6 +1227,8 @@
 	     					       (let ((x-coord (+ (if (second ecoords)
 									     (second ecoords) (first ecoords))
 									 (aref x-offsets last-coord)
+									 ;; if this array is prepended, shift
+									 ;; printed output right by 1 space
 									 (if prepend 1 0)
 									 ;; left-justify printed arrays, and if
 									 ;; the next element is an array, shift
@@ -1274,7 +1288,7 @@
 
 (defmacro matrix-print (array &rest options)
   (let ((rendered (gensym)))
-    `(let ((,rendered (matrix-render ,array ,@options)))
+    `(let ((,rendered (matrix-impress ,array ,@options)))
        (if (stringp ,rendered)
 	   ,rendered (make-array (list (array-total-size ,rendered))
 				 :element-type 'character :displaced-to ,rendered)))))
