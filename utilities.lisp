@@ -237,7 +237,11 @@
 		   (let ((innerfn (second arg-expanded)))
 		     (list (if (not (eql 'lambda (first innerfn)))
 			       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
-							(funcall ,innerfn ,arg)
+							(funcall ,innerfn ,arg
+								 ;; include the internal function's second
+								 ;; argument if present
+								 ,@(if (fourth arg-expanded)
+								       (list (fourth arg-expanded))))
 							,@(if is-first (list arg2))))
 			       (list (first innerfn) (second innerfn)
 				     `(funcall ,fn ,@(if (not is-first) (list arg1))
