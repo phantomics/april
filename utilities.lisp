@@ -263,15 +263,15 @@
 		       (let ((expanded (expand-dyadic function nil (cadar arguments) (second arguments))))
 		      	 (or expanded `((lambda (,arg) (funcall ,function ,(cadar arguments) ,arg))
 		      			,(macroexpand (second arguments))))))
-		      ((and scalar-fn (second arguments)
-		      	    (listp (second arguments))
-		      	    (eql 'avector (caadr arguments))
-		      	    (not (third (second arguments)))
-		      	    (numberp (cadadr arguments)))
-		       ;; same as above if the numeric argument is reversed
-		       (let ((expanded (expand-dyadic function t (first arguments) (cadadr arguments))))
-		      	 (or expanded `((lambda (,arg) (funcall ,function ,arg ,(cadadr arguments)))
-		      			,(macroexpand (first arguments))))))
+		      ;; ((and scalar-fn (second arguments)
+		      ;; 	    (listp (second arguments))
+		      ;; 	    (eql 'avector (caadr arguments))
+		      ;; 	    (not (third (second arguments)))
+		      ;; 	    (numberp (cadadr arguments)))
+		      ;;  ;; same as above if the numeric argument is reversed
+		      ;;  (let ((expanded (expand-dyadic function t (first arguments) (cadadr arguments))))
+		      ;; 	 (or expanded `((lambda (,arg) (funcall ,function ,arg ,(cadadr arguments)))
+		      ;; 			,(macroexpand (first arguments))))))
 		      ;; otherwise, just list the function and its arguments
 		      (t (cons function arguments))))))))
 
