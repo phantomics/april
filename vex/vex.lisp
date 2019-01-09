@@ -611,9 +611,8 @@
 		(getf (gethash :system meta) :base-state)))
       
       (setq state (funcall (of-utilities idiom :preprocess-state-input)
-			   state))
-
-      (setq state-persistent (funcall (of-utilities idiom :preprocess-state-input)
+			   state)
+	    state-persistent (funcall (of-utilities idiom :preprocess-state-input)
 				      state-persistent))
 
       (if state-persistent (setf (getf (gethash :system meta) :state)
@@ -622,9 +621,8 @@
       (setf state-to-use (assign-from (getf (gethash :system meta) :base-state) state-to-use)
 	    state-to-use (assign-from (getf (gethash :system meta) :state) state-to-use)
 	    state-to-use (assign-from state-persistent state-to-use)
-	    state-to-use (assign-from state state-to-use))
-      
-      (setf system-to-use (assign-from (gethash :system meta) system-to-use)
+	    state-to-use (assign-from state state-to-use)
+	    system-to-use (assign-from (gethash :system meta) system-to-use)
 	    system-to-use (assign-from state system-to-use))
 
       (if string
