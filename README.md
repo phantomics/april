@@ -193,7 +193,7 @@ Passes variables into the April instance that may be used when evaluating the su
 ```lisp
 * (april (set (:state :in ((a 5) (b 10))))
          "1+2+a×b")
-13
+53
 ```
 
 Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters, underscores and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! may not be used as they have separate meanings in April.
