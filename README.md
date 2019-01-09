@@ -164,7 +164,6 @@ To run April's test suite, just enter:
                       :in ((a 1) (b 2))
                       :out (a c)))
          "c←a+b×11")
-
 1
 23
 ```
@@ -191,14 +190,20 @@ This is another, more technical name for the :count-from sub-parameter. You can 
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables "a" and "b" are set in the code, with values 1 and 2 respectively. You can use :in to pass values from Lisp into the April instance.
 
-Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters, underscores and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! must not be used as they have separate meanings in April.
+```lisp
+* (april (set (:state :in ((a 5) (b 10))))
+         "1+2+a×b")
+13
+```
 
-These characters may be used in April variable names:
+Please note that April variables follow a stricter naming convention than Lisp variables. When naming the input variables, only alphanumeric characters, underscores and dashes may be used. In keeping with APL tradition, the delta/triangle characters ∆ and ⍙ can be used in variable names as well. Punctuation marks like ?, >, . and ! may not be used as they have separate meanings in April.
+
+These characters are allowed in variable names within April:
 ```
 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_∆⍙
 ```
 
-These variable names are ok:
+These variable names are ok for use with the :in parameter:
 ```
 a var my_var another-var
 ```
@@ -217,7 +222,7 @@ If you use dashes in the names of Lisp variables you pass into April, note that 
 20
 ```
 
-THe dash "-" is used as the subtraction function inside April, so you may not use dashes in variable names within the language.
+The dash character "-" is used to denote the subtraction function inside April, so you may not use dashes in variable names within the language.
 
 One more caveat: it's best to avoid using input variable names with a dash before a number or other non-letter symbol. The dash will be removed and the character following it will cannot be capitalized so information will have been lost. For example:
 
