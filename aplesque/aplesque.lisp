@@ -1115,8 +1115,7 @@
 					 :element-type 'fixnum))
 		  (strings (make-array adims))
 		  (output-default-char #\ )
-		  (row 0)
-		  (empty-rows 0))
+		  (row) (empty-rows ))
 	     (across array (lambda (elem coords)
 			     (let* ((last-coord (first (last coords)))
 				    (next-elem (if (< last-coord (- (length x-offsets) 2))
@@ -1124,23 +1123,6 @@
 				    						     (list (1+ last-coord)))))))
 				    (elem-width 1)
 				    (elem-height 1))
-			       ;; find the total number of empty lines preceding this row by encoding
-			       ;; the coordinates excepting the last two with a series of number bases
-			       ;; found by multiplying each dimension going backwards excepting the
-			       ;; last 2 by the previous base and adding 1
-			       (if (= 0 last-coord)
-				   (setq row (reduce #'+ (mapcar #'* (rest (reverse coords))
-								 (let ((current 1))
-								   (loop :for dim
-								      :in (cons 1 (rest (reverse (rest adims))))
-								      :collect (setq current (* current dim))))))
-					 empty-rows
-					 (reduce #'+
-						 (mapcar #'* (cddr (reverse coords))
-							 (cons 1 (let ((last 1))
-								   (loop :for dim
-								      :in (reverse (rest (butlast adims 2)))
-								      :collect (setq last (1+ (* dim last))))))))))
 			       (cond ((arrayp elem)
 				      ;; recurse to handle nested arrays, passing back the rendered character
 				      ;; array and adjust the offsets to allow for its height and width
@@ -1175,7 +1157,24 @@
 			       ;; if this is the beginning of a new row, increment the row's y-offset
 			       ;; by the number of preceding empty rows
 			       (if (= 0 last-coord)
-				   (setf (aref y-offsets row)
+				   (setf row (reduce #'+ (mapcar #'* (rest (reverse coords))
+								 (let ((current 1))
+								   (loop :for dim
+								      :in (cons 1 (rest (reverse (rest adims))))
+								      :collect (setq current (* current dim))))))
+					 
+					 ;; find the total number of empty lines preceding this row by encoding
+					 ;; the coordinates excepting the last two with a series of number bases
+					 ;; found by multiplying each dimension going backwards excepting the
+					 ;; last 2 by the previous base and adding 1
+					 empty-rows
+					 (reduce #'+
+						 (mapcar #'* (cddr (reverse coords))
+							 (cons 1 (let ((last 1))
+								   (loop :for dim
+								      :in (reverse (rest (butlast adims 2)))
+								      :collect (setq last (1+ (* dim last))))))))
+					 (aref y-offsets row)
 					 (+ empty-rows (aref y-offsets row))))
 			       (setf (aref x-offsets (1+ last-coord))
 				     ;; set as x-offset by the width of the element or the maximum width
@@ -1187,15 +1186,18 @@
 				     (max (aref y-offsets (1+ row))
 					  (+ elem-height (aref y-offsets row)
 					     (- empty-rows))
-					  ;; don't increment the next row if it is the last, there's only
-					  ;; one row in the output and its value is higher than one;
-					  ;; this mainly applies to vectors containing nested arrays
-					  ;; of rank>1
-					  (if (= row (- (length y-offsets) 2))
-					      (+ elem-height (aref y-offsets row))
-					      (+ row (if (and (= 0 last-coord)
-							      (/= last-coord (1- (length y-offsets))))
-							 1 0))))))))
+				     	  (if (and (= 2 (length y-offsets))
+				     	  	   (< 1 (aref y-offsets (1+ row))))
+				     	      ;; don't increment the next row if it is the last, there's only
+				     	      ;; one row in the output and its value is higher than one;
+				     	      ;; this mainly applies to vectors containing nested arrays
+				     	      ;; of rank>1
+				     	      (aref y-offsets (1+ row))
+				     	      (if (= row (- (length y-offsets) 2))
+				     	  	  (+ elem-height (aref y-offsets row))
+				     	  	  (+ row (if (and (= 0 last-coord)
+				     	  			  (/= last-coord (1- (length y-offsets))))
+				     	  		     1 0)))))))))
 	     ;; (print (list :xoyo x-offsets y-offsets))
 	     ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
 	     ;; versions of the original sub-matrices, as per APL's ⍕ format function. If a prepend
