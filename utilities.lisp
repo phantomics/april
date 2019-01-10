@@ -233,20 +233,41 @@
 	   (expand-dyadic (fn is-first arg1 arg2)
 	     (let* ((arg-expanded (macroexpand (if is-first arg1 arg2))))
 	       (if (and (listp arg-expanded)
-			(eql 'apply-scalar (first arg-expanded)))
-		   (let ((innerfn (second arg-expanded)))
-		     (list (if (not (eql 'lambda (first innerfn)))
-			       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
-							(funcall ,innerfn ,arg
-								 ;; include the internal function's
-								 ;; second argument if present
-								 ,@(if (fourth arg-expanded)
-								       (list (fourth arg-expanded))))
-							,@(if is-first (list arg2))))
-			       (list (first innerfn) (second innerfn)
-				     `(funcall ,fn ,@(if (not is-first) (list arg1))
-					       ,(third innerfn) ,@(if is-first (list arg2)))))
-			   (third arg-expanded)))))))
+	       		(eql 'apply-scalar (first arg-expanded))
+			;; extract the sub-arguments within the expanded argument to the function; if one
+			;; is a scalar value, the function may be merged into the containing closure
+			(let ((sub-arg1 (if (and (listp (second arg-expanded))
+						 (eql 'lambda (caadr arg-expanded)))
+					    (third (third (second arg-expanded)))
+					    (third arg-expanded)))
+			      (sub-arg2 (if (and (listp (second arg-expanded))
+						 (eql 'lambda (caadr arg-expanded)))
+					    (fourth (third (second arg-expanded)))
+					    (fourth arg-expanded))))
+			  ;; one of the sub-arguments must be a number - or if there is no second argument,
+			  ;; the inner function is monadic and the decomposition can proceed
+			  (or (or (numberp sub-arg1)
+				  (and (listp sub-arg1)
+				       (eql 'avatom (first sub-arg1))
+				       (numberp (second sub-arg1))))
+			      (not sub-arg2)
+			      (or (numberp sub-arg2)
+				  (and (listp sub-arg2)
+				       (eql 'avatom (first sub-arg2))
+				       (numberp (second sub-arg2)))))))
+	       	   (let ((innerfn (second arg-expanded)))
+	       	     (list (if (not (eql 'lambda (first innerfn)))
+	       		       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
+	       						(funcall ,innerfn ,arg
+	       							 ;; include the inner function's
+	       							 ;; second argument if present
+	       							 ,@(if (fourth arg-expanded)
+	       							       (list (fourth arg-expanded))))
+	       						,@(if is-first (list arg2))))
+	       		       (list (first innerfn) (second innerfn)
+	       			     `(funcall ,fn ,@(if (not is-first) (list arg1))
+	       				       ,(third innerfn) ,@(if is-first (list arg2)))))
+	       		   (third arg-expanded)))))))
       (let ((scalar-fn (is-scalar function)))
 	(append (list (if scalar-fn 'apply-scalar 'funcall))
 		(cond ((and scalar-fn (not (second arguments)))
@@ -262,16 +283,15 @@
 		       (let ((expanded (expand-dyadic function nil (cadar arguments) (second arguments))))
 		      	 (or expanded `((lambda (,arg) (funcall ,function ,(cadar arguments) ,arg))
 		      			,(macroexpand (second arguments))))))
-		      ;; TODO: fix this
-		      ;; ((and scalar-fn (second arguments)
-		      ;; 	    (listp (second arguments))
-		      ;; 	    (eql 'avector (caadr arguments))
-		      ;; 	    (not (third (second arguments)))
-		      ;; 	    (numberp (cadadr arguments)))
-		      ;;  ;; same as above if the numeric argument is reversed
-		      ;;  (let ((expanded (expand-dyadic function t (first arguments) (cadadr arguments))))
-		      ;; 	 (or expanded `((lambda (,arg) (funcall ,function ,arg ,(cadadr arguments)))
-		      ;; 			,(macroexpand (first arguments))))))
+		      ((and scalar-fn (second arguments)
+		      	    (listp (second arguments))
+		      	    (eql 'avector (caadr arguments))
+		      	    (not (third (second arguments)))
+		      	    (numberp (cadadr arguments)))
+		       ;; same as above if the numeric argument is reversed
+		       (let ((expanded (expand-dyadic function t (first arguments) (cadadr arguments))))
+		      	 (or expanded `((lambda (,arg) (funcall ,function ,arg ,(cadadr arguments)))
+		      		      	,(macroexpand (first arguments))))))
 		      ;; otherwise, just list the function and its arguments
 		      (t (cons function arguments))))))))
 

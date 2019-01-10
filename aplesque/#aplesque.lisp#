@@ -1226,7 +1226,6 @@
 	     			       ;; print a string or sub-matrix of characters; the coordinate conversion
 	     			       ;; is different depending on whether collated output is being produced
 	     			       (across chars (lambda (element ecoords)
-	     					       ;; (print prior-rendered)
 	     					       (let ((x-coord (+ (if (second ecoords)
 									     (second ecoords) (first ecoords))
 									 (aref x-offsets last-coord)
