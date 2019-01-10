@@ -1115,7 +1115,7 @@
 					 :element-type 'fixnum))
 		  (strings (make-array adims))
 		  (output-default-char #\ )
-		  (row) (empty-rows ))
+		  (row) (empty-rows))
 	     (across array (lambda (elem coords)
 			     (let* ((last-coord (first (last coords)))
 				    (next-elem (if (< last-coord (- (length x-offsets) 2))
