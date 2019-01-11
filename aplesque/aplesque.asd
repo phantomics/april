@@ -2,7 +2,7 @@
 
 (asdf:defsystem "aplesque"
   :description "A collection of array manipulation functions patterned after functions from the APL language."
-  :version "1.0.0"
+  :version "0.9.0"
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
