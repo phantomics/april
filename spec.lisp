@@ -64,12 +64,15 @@
 	    ;; the APL-generating macros are expanded
 	    :system-lexical-environment-interface
 	    (lambda (state)
-	      ;; all introduced symbols are interned in this package, so they can be referenced in
-	      ;; this package's specs
 	      ;; currently, the only system value passed into the local environment is the index-origin
 	      (loop :for var :in (list :index-origin)
 		 :collect (list (intern (string-upcase var) "APRIL")
 				(getf state var))))
+	    :process-compiled-as-per-workspace
+	    (lambda (workspace form)
+	      (funcall (if (not workspace)
+			   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
+		       form))
 	    ;; postprocessors for language output
 	    :postprocess-compiled
 	    (lambda (state)
