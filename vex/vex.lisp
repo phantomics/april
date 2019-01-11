@@ -82,7 +82,6 @@
 	    `(if ,alpha (funcall (function ,operation) ,alpha ,omega)
 		 (funcall (function ,operation) ,omega))))))
 
-;; TODO: the testing framework has April-specific :print-to directives to prevent printing; move these into spec
 (defun process-lex-tests-for (symbol operator)
   "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
@@ -237,6 +236,7 @@
 											   (of-subspec grammar))))
 						    :collect `(funcall (function ,pset) ,idiom-symbol))))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
+	   (alt-sym (concatenate 'string symbol-string "-P"))
 	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym))
 	   (process (gensym)) (form (gensym)) (item (gensym)))
       `(progn ,@(if (not extension)
@@ -284,13 +284,18 @@
 					 ,@all-tests (finalize)
 					 (setq prove:*enable-colors* t))))
 			      ;; the (test) setting is used to run tests
-			      (t (vex-program ,idiom-symbol
-					      (if ,input-string (if (string= "WITH" (string (first ,options)))
-								    (rest ,options)
-								    (error "Incorrect option syntax.")))
-					      (eval (if ,input-string ,input-string ,options))))))
-		      (defmacro ,(intern (concatenate 'string symbol-string "-DO")
-					 (package-name *package*))
+			      (t `(progn ,(if (and ,input-string (assoc :space (rest ,options)))
+					      `(defvar ,(second (assoc :space (rest ,options)))))
+					 ;; TODO: defvar here should not be necessary since the symbol
+					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
+					 ;; nonetheless, investigate this
+					 ,(vex-program ,idiom-symbol
+						       (if ,input-string (if (string= "WITH"
+										      (string (first ,options)))
+									     (rest ,options)
+									     (error "Incorrect option syntax.")))
+						       (eval (if ,input-string ,input-string ,options)))))))
+		      (defmacro ,(intern alt-sym (package-name *package*))
 			  (&rest ,options)
 			(cons ',(intern symbol-string (package-name *package*))
 			      (append (if (second ,options)
@@ -309,8 +314,7 @@
 				      :collect (if (and (listp ,item)
 							(or (eql ',(intern symbol-string (package-name *package*))
 								 (first ,item))
-							    (eql ',(intern (concatenate 'string symbol-string "-DO")
-									   (package-name *package*))
+							    (eql ',(intern alt-sym (package-name *package*))
 								 (first ,item))))
 						   (list (first ,item)
 							 (if (third ,item)
@@ -715,10 +719,12 @@
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))
 		       (if (or system-vars vars-declared)
-			   `(let* (,@system-vars ,@vars-declared)
-			      (declare (ignorable ,@(mapcar #'first system-vars)
-						  ,@(mapcar #'second var-symbols)))
-			      ,@exps)
+			   (funcall (of-utilities idiom :process-compiled-as-per-workspace)
+				    (second (assoc :space options))
+				    `(let* (,@system-vars ,@vars-declared)
+				       (declare (ignorable ,@(mapcar #'first system-vars)
+							   ,@(mapcar #'second var-symbols)))
+				       ,@exps))
 			   (if (< 1 (length exps))
 			       `(progn ,@exps)
 			       (first exps))))))))))

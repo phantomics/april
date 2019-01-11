@@ -85,7 +85,6 @@
 		       (cond ((and (characterp fn)
 				   (or (not (getf properties :glyph))
 				       (and (char= fn (aref (string (getf properties :glyph)) 0)))))
-			      ;; (print (list :ggg fn axes))
 			      (values fn (list :axes axes :type (list :function :glyph))
 				      remaining))
 			     ((and (listp fn)
@@ -101,7 +100,6 @@
 		     (if (not (getf properties :glyph))
 			 (multiple-value-bind (output out-properties)
 			     (funcall process this-item)
-			   ;; (print (list :fn-enc output out-properties))
 			   (if (eq :function (first (getf out-properties :type)))
 			       (progn (setf (getf out-properties :type)
 					    (cons (first (getf out-properties :type))
@@ -206,7 +204,7 @@
 	(setf (gethash symbol (gethash :functions workspace))
 	      nil))
     (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
-	`(setq ,symbol ,precedent)))
+	`(apl-assign ,symbol ,precedent)))
   (list :type (list :array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression

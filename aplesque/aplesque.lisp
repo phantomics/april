@@ -174,7 +174,7 @@
       output (if output (scan-back function (rest input)
 				   (disclose (funcall function (first input) output)))
 		 (scan-back function (cddr input)
-			    (disclose (funcall function (second input) (first input)))))))
+ 			    (disclose (funcall function (second input) (first input)))))))
 
 (defun make-back-scanner (function)
   "Build a function to scan across an array, modifying each value as determined by prior values."

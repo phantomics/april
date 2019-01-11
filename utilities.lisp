@@ -14,7 +14,26 @@
       (row-major-aref item 0)
       item))
 
+(defmacro in-apl-workspace (workspace-symbol body)
+  (labels ((process (form)
+	     (loop :for item :in form
+		:collect (if (and (listp item) (eql 'apl-assign (first item)))
+			     (list 'setq (second item)
+				   `(setf (gethash ',(second item)
+						   (gethash :values ,workspace-symbol))
+					  ,(if (listp (third item))
+					       (process (third item))
+					       (third item))))
+			     (if (listp item)
+				 (process item)
+				 item)))))
+    (process body)))
+
+(defmacro apl-assign (symbol value)
+  `(setq ,symbol ,value))
+
 (defmacro apl-output (form options)
+  "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)))
     `(let ((,result ,form))
        (if (not (or (stringp ,result) (not (arrayp ,result))))
