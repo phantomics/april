@@ -14,22 +14,20 @@
       (row-major-aref item 0)
       item))
 
-(defmacro apl-output (form &rest options)
+(defmacro apl-output (form options)
   (let ((result (gensym)))
     `(let ((,result ,form))
-       (if (not (or (stringp ,result)
-		    (not (arrayp ,result))))
-	   ,(if (member :print-output options)
-		`(princ (matrix-print ,result :append #\Newline
-				      :format (lambda (n) (print-apl-number-string n t))))))
-       ,(if (member :print-to-string options)
-	    `(values ,result
-		     (matrix-print ,result :append #\Newline
-				   :format (lambda (n) (print-apl-number-string n t))))
-	    (if (member :print-to-string-only options)
-		`(matrix-print ,result :append #\Newline
-			       :format (lambda (n) (print-apl-number-string n t)))
-		result)))))
+       (if (not (or (stringp ,result) (not (arrayp ,result))))
+	   ,(if (getf options :print-to)
+		`(write-string (matrix-print ,result :append #\Newline
+					     :format (lambda (n) (print-apl-number-string n t)))
+			       ,(getf options :print-to))))
+       ,(if (getf options :output-printed)
+	    (if (eq :only (getf options :output-printed))
+		`(matrix-print ,result :append #\Newline :format (lambda (n) (print-apl-number-string n t)))
+		`(values ,result (matrix-print ,result :append #\Newline
+					       :format (lambda (n) (print-apl-number-string n t)))))
+	    result))))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."

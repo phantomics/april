@@ -129,13 +129,13 @@
 
 [⍀] Scan First
 
-[.] Inner/Outer Product
-
 [¨] Each
 
 [⍨] Commute
 
 [⌸] Key
+
+[.] Inner/Outer Product
 
 [∘] Compose
 

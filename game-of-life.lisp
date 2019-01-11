@@ -34,13 +34,11 @@ If no playfield exists, evaluating (life) will create a new 16x16 playfield.
                       (let* ((new-width (if new-width new-width 16))
                              (new-height (if new-height new-height new-width)))
 			(setq life-generation -1)
-                        (april (set (:state :index-origin 0 :print-output nil
-					    :in ((-w new-width) (-h new-height))))
+                        (april (with (:state :index-origin 0 :in ((-w new-width) (-h new-height))))
                                "?H W⍴2"))
-                      (april (set (:state :print-output nil :in ((-l life-array))))
+                      (april (with (:state :in ((-l life-array))))
                              "⊃1 L∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L")))
     (incf life-generation)
-    (princ (april (set (:state :index-origin 0 :print-to-string :only :print-output nil
-			       :in ((-l life-array))))
+    (princ (april (with (:state :index-origin 0 :output-printed :only :in ((-l life-array))))
 		  "' ⍬_║▐▀'[(0,(1+⊃⌽⍴L)/2)⍪(3,L,4)⍪5]"))
     (list :generation life-generation)))

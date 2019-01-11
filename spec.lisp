@@ -20,7 +20,7 @@
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
-	 :disclose-output t :print-output nil :print-to-string nil :base-state (list :index-origin 1))
+	 :disclose-output t :print-to nil :output-printed nil :base-state (list :index-origin 1))
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
@@ -50,7 +50,7 @@
 	    ;; macro to process lexical specs of functions and operators
 	    :process-lexicon #'april-function-glyph-processor
 	    :format-value #'format-value
-	    ;; process system state input passed when April is invoked, i.e. with (april (set (:state ...)) "...")
+	    ;; process system state input passed when April is invoked, i.e. with (april (with (:state ...)) "...")
 	    :preprocess-state-input
 	    (lambda (state)
 	      (if (getf state :count-from)
@@ -80,19 +80,19 @@
 				    (funcall (if (not (getf state :disclose-output))
 						 #'identity (lambda (item) (list 'disclose-atom item)))
 					     (first (last form)))
-				    (if (getf state :print-output) :print-output)
-				    (if (getf state :print-to-string)
-					(if (eq :only (getf state :print-to-string))
-					    :print-to-string-only :print-to-string)))))))
+				    (append (if (getf state :print-to) (list :print-to (getf state :print-to)))
+					    (if (getf state :output-printed)
+						;; (if (eq :only (getf state :output-printed))
+						;;     :output-printed-only :output-printed)
+						(list :output-printed (getf state :output-printed)))))))))
 	    :postprocess-value
 	    (lambda (form state)
 	      (list 'apl-output (funcall (if (not (getf state :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
 					 form)
-		    (if (getf state :print-output) :print-output)
-		    (if (getf state :print-to-string)
-			(if (eq :only (getf state :print-to-string))
-			    :print-to-string-only :print-to-string)))))
+		    (if (getf state :print-to) (list :print-to (getf state :print-to)))
+		    (if (getf state :output-printed)
+			(list :output-printed (getf state :output-printed))))))
  ;; APL's set of functions represented by characters
  (functions
   (← (has :title "Assign")
@@ -896,7 +896,8 @@
 				 (#\3 #\  #\4 #\  #\5 #\  #\6))))))
   (⍎ (has :title "Evaluate")
      (symbolic :special-lexical-form-evaluate)
-     (tests (is "⍎'1+1'" 2)))
+     (tests (is "⍎'1+1'" 2))
+     (tests (is "⍎'5','+3 2 1'" #(8 7 6))))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
  ;; APL's character-represented operators, which take one or two functions or arrays as input

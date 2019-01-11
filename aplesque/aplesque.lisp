@@ -188,6 +188,7 @@
       sub-array)))
 
 (defmacro do-permuted (array axis arank &body body)
+  "Perform an operation on an array with a given permutation."
   `(if (> ,axis (1- ,arank))
        (error "Invalid axis.")
        (progn (if (not (= ,axis (1- ,arank)))
@@ -235,6 +236,7 @@
 		(error "Incompatible arrays.")))))))
 
 (defun laminate (a1 a2 axis)
+  "Join the two arrays along a new axis inserted before the specified axis, the new axis having a length of 2."
   (let* ((permute-dims (alexandria:iota (1+ (rank a1))))
 	 (pa1 (if (not (is-unitary a1))
 		  (aops:permute (rotate-right axis permute-dims)
@@ -259,6 +261,7 @@
     (do-permuted new-array axis arank (aops:margin function new-array (1- arank)))))
 
 (defun subprocess (function axis array per-vector)
+  "Process sub-vectors of an array in some way without changing their shape; unlike array-operations:margin, this function creates no new arrays but rather alters sub-vectors of an existing array."
   (let ((arank (rank array))
 	(new-array (copy-array array)))
     (do-permuted new-array axis arank
