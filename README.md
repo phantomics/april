@@ -55,7 +55,7 @@ The APL language uses single characters to represent its primitive functions and
 
 #### [See the complete April APL lexicon here.](./lexicon.md)
 
-Some APL functions and operators won't be added to April since they don't make sense for April's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-implemented-and-may-be)
+Some APL functions and operators won't be added to April since they don't make sense for April's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-planned-for-implementation)
 
 ## Basic Evaluation: (april) and (april-p)
 
