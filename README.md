@@ -57,7 +57,7 @@ The APL language uses single characters to represent its primitive functions and
 
 Some APL functions and operators won't be added to April since they don't make sense for April's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-implemented-and-may-be)
 
-## Basic Evaluation: `(april)` and `(april-do)`
+## Basic Evaluation: (april) and (april-do)
 
 Evaluating an APL expression is as simple as:
 
@@ -418,7 +418,7 @@ Inside the body of the `(with-april-context)` macro, each of the `(april)` invoc
 #(0 1 2 1 2 3 4 5)
 ```
 
-Options are passed for one of the `(april)` invocations inside the context will override the options for the context. Here, the second `(april)` invocation has its index origin set to 1 which overrides the context's 0 value.
+Options passed for one of the `(april)` invocations inside the context will override the options for the context. Here, the second `(april)` invocation has its index origin set to 1 which overrides the context's 0 value.
 
 ## What's Not Planned for Implementation
 
