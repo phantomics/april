@@ -5,19 +5,25 @@
 #|
 Just for fun, an implementation of an old APL standby - Conway's Game of Life.
 
-Usage: 
+Usage:
 
-To create a new playfield of a given size, evaluate:
+To create a new playfield of a given -width- and -height-, evaluate:
 
-(life *width* *height*)
+(life -width- -height-)
+
+The new field will contain a random arrangement of cells.
 
 For example, (life 64 32) creates a field 64 wide by 32 tall.
+
+If a single number is passed as the argument, it will be both the length and width of the field.
+
+Therefore, evaluating (life 50) will create a 50x50 playfield.
 
 To calculate the next generation, just evaluate:
 
 (life)
 
-If no playfield exists, evaluating (life) will create a 16x16 playfield.
+If no playfield exists, evaluating (life) will create a new 16x16 playfield.
 |#
 
 (let ((life-array nil)
@@ -32,9 +38,9 @@ If no playfield exists, evaluating (life) will create a 16x16 playfield.
 					    :in ((-w new-width) (-h new-height))))
                                "?H W⍴2"))
                       (april (set (:state :print-output nil :in ((-l life-array))))
-                             "⊃1 L∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L"))
-	  life-generation (1+ life-generation))
+                             "⊃1 L∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L")))
+    (incf life-generation)
     (princ (april (set (:state :index-origin 0 :print-to-string :only :print-output nil
 			       :in ((-l life-array))))
-		  "' ⍬_║▐▀'[(0,(1+1⌷⍴L)/2)⍪(3,L,4)⍪5]"))
+		  "' ⍬_║▐▀'[(0,(1+⊃⌽⍴L)/2)⍪(3,L,4)⍪5]"))
     (list :generation life-generation)))
