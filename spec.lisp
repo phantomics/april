@@ -20,7 +20,7 @@
  (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
-	 :disclose-output t :print-output t :print-to-string nil :base-state (list :index-origin 1))
+	 :disclose-output t :print-output nil :print-to-string nil :base-state (list :index-origin 1))
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
@@ -619,7 +619,9 @@
   (⊃ (has :titles ("Disclose" "Pick"))
      (ambivalent (lambda (omega)
 		   (if (vectorp omega)
-		       (aref omega 0)
+		       (let ((output (aref omega 0)))
+			 (if (arrayp output)
+			     output (enclose output)))
 		       (disclose omega)))
 		 (lambda (omega alpha)
 		   (labels ((layer-index (object indices)
