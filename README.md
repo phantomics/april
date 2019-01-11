@@ -2,6 +2,8 @@
 
 # April
 
+#### Array Programming Re-Imagined in Lisp
+
 <!-- /TITLE -->
 
 Ken Iverson's masterpiece reflected in the medium of Lisp.
