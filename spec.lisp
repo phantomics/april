@@ -82,8 +82,6 @@
 					     (first (last form)))
 				    (append (if (getf state :print-to) (list :print-to (getf state :print-to)))
 					    (if (getf state :output-printed)
-						;; (if (eq :only (getf state :output-printed))
-						;;     :output-printed-only :output-printed)
 						(list :output-printed (getf state :output-printed)))))))))
 	    :postprocess-value
 	    (lambda (form state)
@@ -1523,11 +1521,14 @@ Mixed
  Hello  5    
 ")
 		))
+#|
+This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
 
-;; (extend-vex-idiom
-;;  april
-;;  (utilities :process-lexicon #'april-function-glyph-processor)
-;;  (functions
-;;   (→ (has :title "Add3")
-;;      (monadic (scalar-function (lambda (omega) (+ 3 omega))))
-;;      (tests (is "→77" 80)))))
+(extend-vex-idiom
+ april
+ (utilities :process-lexicon #'april-function-glyph-processor)
+ (functions
+  (⍛ (has :title "Add3")
+     (monadic (scalar-function (lambda (omega) (+ 3 omega))))
+     (tests (is "→77" 80)))))
+|#
