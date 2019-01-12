@@ -53,8 +53,7 @@
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
   (aops:each (lambda (member)
-	       (if (and (arrayp member)
-			(< 1 (rank member)))
+	       (if (and (arrayp member) (< 1 (rank member)))
 		   (array-to-nested-vector member)
 		   member))
 	     (aops:split array 1)))
