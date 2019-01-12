@@ -278,8 +278,7 @@
      (ambivalent (lambda (omega)
 		   (let ((omega-dims (dims omega)))
 		     (make-array (list (length omega-dims))
-				 :element-type 'fixnum
-				 :initial-contents omega-dims)))
+				 :element-type 'fixnum :initial-contents omega-dims)))
 		 (lambda (omega alpha) (reshape-array-fitting omega (array-to-list alpha))))
      (tests (is "⍴1 2 3" 3)
 	    (is "⍴3 5⍴⍳8" #(3 5))
@@ -366,15 +365,13 @@
 	    (is "↑[0.5](1)(1 2)(1 2 3)" #2A((1 1 1) (0 2 2) (0 0 3)))
 	    (is "↑(2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
 					((1 2 0) (3 4 0) (5 6 0) (7 8 0))))
-	    (is "↑(2 5⍴⍳9)(3 2 1)(4 3⍴⍳8)"
-		#3A(((1 2 3 4 5) (6 7 8 9 1) (0 0 0 0 0) (0 0 0 0 0))
-		    ((3 2 1 0 0) (0 0 0 0 0) (0 0 0 0 0) (0 0 0 0 0))
-		    ((1 2 3 0 0) (4 5 6 0 0) (7 8 1 0 0) (2 3 4 0 0))))
-	    (is "↑[0.5](2 3⍴⍳5)(4 2⍴⍳8)"
-		#3A(((1 1) (2 2) (3 0))
-		    ((4 3) (5 4) (1 0))
-		    ((0 5) (0 6) (0 0))
-		    ((0 7) (0 8) (0 0))))
+	    (is "↑(2 5⍴⍳9)(3 2 1)(4 3⍴⍳8)" #3A(((1 2 3 4 5) (6 7 8 9 1) (0 0 0 0 0) (0 0 0 0 0))
+					       ((3 2 1 0 0) (0 0 0 0 0) (0 0 0 0 0) (0 0 0 0 0))
+					       ((1 2 3 0 0) (4 5 6 0 0) (7 8 1 0 0) (2 3 4 0 0))))
+	    (is "↑[0.5](2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 1) (2 2) (3 0))
+					     ((4 3) (5 4) (1 0))
+					     ((0 5) (0 6) (0 0))
+					     ((0 7) (0 8) (0 0))))
 	    (is "↑[1.5](2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
 					     ((1 2 0) (3 4 0) (5 6 0) (7 8 0))))
 	    (is "↑2 2 2⍴(1)(1 2)(3 4)(1 2 3)" #4A((((1 0 0) (1 2 0)) ((3 4 0) (1 2 3)))
@@ -428,16 +425,15 @@
 						      (stringp omega))
 						 'string 'vector)
 					     alpha omega)))
-			(if (or (not axes)
-				(integerp (aref (first axes) 0)))
+			(if (and axes (not (integerp (aref (first axes) 0))))
+			    ;; laminate in the case of a fractional axis argument
+			    (laminate alpha omega (ceiling (- (aref (first axes) 0)
+							      index-origin)))
 			    ;; simply stack the arrays if there is no axis argument or it's an integer
 			    (catenate alpha omega (if axes (- (aref (first axes) 0)
 							      index-origin)
 						      (1- (max (rank alpha)
-							       (rank omega)))))
-			    ;; laminate in the case of a fractional axis argument
-			    (laminate alpha omega (ceiling (- (aref (first axes) 0)
-							      index-origin)))))))
+							       (rank omega)))))))))
       (tests (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
 	     (is ",[0.5]3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
 	     (is ",[1.5]3 4⍴⍳9" #3A(((1 2 3 4)) ((5 6 7 8)) ((9 1 2 3))))
@@ -1538,6 +1534,7 @@ Mixed
 		))
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
+A not-very-useful monadic scalar function that adds 3 to its argument(s) is specified here.
 
 (extend-vex-idiom
  april
@@ -1545,5 +1542,5 @@ This is an example showing how the April idiom can be extended with Vex's extend
  (functions
   (⍛ (has :title "Add3")
      (monadic (scalar-function (lambda (omega) (+ 3 omega))))
-     (tests (is "→77" 80)))))
+     (tests (is "⍛77" 80)))))
 |#
