@@ -15,6 +15,7 @@
       item))
 
 (defmacro in-apl-workspace (workspace-symbol body)
+  "This macro encloses a body of compiled April code specifying a workspace in use for the code, and extends any assignment so as to update the workspace's stored values."
   (labels ((process (form)
 	     (loop :for item :in form
 		:collect (if (and (listp item) (eql 'apl-assign (first item)))
@@ -30,6 +31,7 @@
     (process body)))
 
 (defmacro apl-assign (symbol value)
+  "This is a simple passthrough macro that is used by (in-apl-workspace)."
   `(setq ,symbol ,value))
 
 (defmacro apl-output (form options)
@@ -129,6 +131,7 @@
 	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
 
 (defun print-apl-number-string (number &optional coerce-rational precision)
+  "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision for floats."
   (cond ((complexp number)
 	 (format nil "~aJ~a" (print-apl-number-string (realpart number) coerce-rational precision)
 		 (print-apl-number-string (imagpart number) coerce-rational precision)))
@@ -338,6 +341,7 @@ This is a minimalistic implementation of (apl-call) that doesn't perform any fun
 	       (not (third value))))))
 
 (defmacro or-functional-character (reference symbol)
+  "Return a symbol representing a functional character or, if the passed value is not a character, an arbitrary fallback symbol. Used to derive the initial symbol argument for (apl-call)."
   `(if (not (characterp ,reference))
        ,symbol (intern (string-upcase ,reference))))
 

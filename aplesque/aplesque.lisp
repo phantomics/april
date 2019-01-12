@@ -19,6 +19,14 @@
       (row-major-aref item 0)
       item))
 
+(defun disclose-unitary-array (item)
+  "Disclose an array if it's unitary, otherwise pass it back unchanged."
+  (if (and (arrayp item)
+	   (is-unitary item)
+	   (arrayp (aref item 0)))
+      (aref item 0)
+      item))
+
 (defun scale-array (singleton to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
   (let ((match-dims (dims to-match)))
@@ -170,6 +178,7 @@
     output))
 
 (defun scan-back (function input &optional output)
+  "Scan a function backwards across an array."
   (if (not input)
       output (if output (scan-back function (rest input)
 				   (disclose (funcall function (first input) output)))
@@ -264,6 +273,7 @@
   "Process sub-vectors of an array in some way without changing their shape; unlike array-operations:margin, this function creates no new arrays but rather alters sub-vectors of an existing array."
   (let ((arank (rank array))
 	(new-array (copy-array array)))
+    ;; TODO: make this more gemeral, the system for handling per-vector arguments is inflexible
     (do-permuted new-array axis arank
       (let* ((last-dim (first (last (dims new-array))))
 	     (main (make-array (list (array-total-size new-array))
@@ -272,8 +282,6 @@
 	     (vector-arguments (make-array (list (array-total-size per-vector))
 					   :element-type (element-type per-vector)
 					   :displaced-to per-vector)))
-	;; (print (list :vv vector-arguments (/ (nth axis (dims new-array))
-	;; 				     (array-total-size new-array))))
 	(loop :for elix :below (length vector-arguments)
 	   :do (funcall function (make-array (list last-dim)
 					     :element-type (element-type array)
@@ -396,13 +404,6 @@
 							     :initial-contents (reverse current-segment))
 						 segments)))
 	(apply #'aops:stack (cons 0 (reverse segments))))))
-
-(defun disclose-unitary-array (item)
-  (if (and (arrayp item)
-	   (is-unitary item)
-	   (arrayp (aref item 0)))
-      (aref item 0)
-      item))
 
 (defun reshape-array-fitting (array adims)
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
@@ -1082,7 +1083,6 @@
 									      (if (evenp (aref window-dims cix))
 										  1 0))
 									   2)))))))
-					  ;; (print (list :win wcoords coords ref-coords))
 					  (setf (apply #'aref (cons window wcoords))
 						(if (loop :for cix :below (length ref-coords)
 						       :always (<= 0 (nth cix ref-coords)
