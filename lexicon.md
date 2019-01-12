@@ -35,7 +35,7 @@
 
 [○] Pi Times / Circular
 
-[~] Not / Excluding
+[~] Not / Without
 
 [<] Less
 
@@ -49,6 +49,10 @@
 
 [≠] Not Equal
 
+[≡] Depth / Match
+
+[≢] First Dimension / Not Match
+
 [∧] And
 
 [⍲] Nand
@@ -61,17 +65,17 @@
 
 [⍴] Shape / Reshape
 
+[⌷] Index
+
 [∊] Enlist / Membership
 
 [⍷] Find
 
-[⍸] When / Interval Index
+[⍸] Where / Interval Index
 
 [↑] Mix / Take
 
 [↓] Split / Drop
-
-[⌷] Index
 
 [,] Ravel / Catenate or Laminate
 
@@ -85,9 +89,9 @@
 
 [⍀] Expand First
 
-[⊂] Enclose / Partition
+[⊂] Enclose / Partitioned Enclose
 
-[⍧] Partitioned Enclose
+[⊆] Partition
 
 [⊃] Disclose / Pick
 
