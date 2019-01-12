@@ -12,6 +12,11 @@
   (if (vectorp item)
       item (vector item)))
 
+(defun enclose-atom (item)
+  "Enclose non-array values, passing through arguments that are already arrays."
+  (if (arrayp item)
+      item (vector item)))
+
 (defun disclose (item)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
   (if (and (arrayp item)
@@ -23,8 +28,8 @@
   "Disclose an array if it's unitary, otherwise pass it back unchanged."
   (if (and (arrayp item)
 	   (is-unitary item)
-	   (arrayp (aref item 0)))
-      (aref item 0)
+	   (arrayp (row-major-aref item 0)))
+      (row-major-aref item 0)
       item))
 
 (defun scale-array (singleton to-match &optional axis)
