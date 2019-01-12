@@ -178,7 +178,7 @@
 	       ;; create a new variable if no variable is found matching the string
 	       (setf (gethash (intern element "KEYWORD")
 			      (gethash :variables meta))
-		     (gensym)))))
+		     (gensym "A")))))
 	(t element)))
 
 (defun process-output-vector (items)
@@ -236,7 +236,7 @@
 (defmacro apl-call (symbol function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
   (declare (ignore symbol))
-  (let ((arg (gensym)))
+  (let ((arg (gensym "A")))
     (flet ((is-scalar (form) (and (listp form) (eql 'scalar-function (first form))))
 	   (expand-monadic (fn argument)
 	     (let ((arg-expanded (macroexpand argument)))
@@ -316,7 +316,8 @@
 		      (t (cons function arguments))))))))
 
 #|
-This is a minimalistic implementation of (apl-call) that doesn't perform any function composition. It remains here as a standard against which to compare methods for composing APL functions.
+This is a minimalistic implementation of (apl-call) that doesn't perform any function composition. 
+It remains here as a standard against which to compare methods for composing APL functions.
 
 (defmacro apl-call (symbol function &rest arguments)
   (declare (ignore symbol))

@@ -9,13 +9,12 @@
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
 	    (extract-axes process tokens)
-	  ;; if the item is a closure, evaluate it and return the result
 	  (cond ((and (listp this-item)
 		      (not (or (eq :fn (first this-item))
 			       (eq :op (first this-item)))))
+		 ;; if the item is a closure, evaluate it and return the result
 		 (multiple-value-bind (output out-properties)
 		     (funcall process this-item)
-		   ;; (print (list :pro output out-properties))
 		   (if (eq :array (first (getf out-properties :type)))
 		       (progn (setf (getf out-properties :type)
 				    (cons (first (getf out-properties :type))

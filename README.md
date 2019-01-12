@@ -2,13 +2,15 @@
 
 # April
 
+<!-- /TITLE -->
+
 #### Array Programming Re-Imagined in Lisp
 
-<!-- /TITLE -->
+---
 
 Ken Iverson's masterpiece reflected in the medium of Lisp.
 
-April compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numerical processing faculties, it brings APL's expressive potential to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
+April compiles a subset of the APL programming language into Common Lisp. Leveraging Lisp's powerful macros and numeric processing faculties, it brings APL's expressive potential to bear for Lisp developers. Replace hundreds of lines of number-crunching code with a single line of APL.
 
 ## Why April?
 
@@ -80,7 +82,16 @@ If you don't need to see the printout, you can use the plain `(april)` macro. Li
 #(3 4 5)
 ```
 
-You shouild use `(april)` if you're using April to do calculations inside of a larger program and don't need the printout. Otherwise, especially if you're working with large data sets, the system may consume significant resources printing out the results of calculations.
+You should use `(april)` if you're using April to do calculations inside of a larger program and don't need the printout. Otherwise, especially if you're working with large data sets, the system may consume significant resources printing out the results of calculations.
+
+Also note that if the output of an April expression is a single number, `(april-p)` will not print it since the Lisp representation of the number will look the same or very similar. For example:
+
+```lisp
+* (april-p "1+2")
+3
+```
+
+Since the result of 1+2 is 3, a single number, no value printout is provided.
 
 Setting state properties for the APL instance can be done like this:
 
@@ -90,9 +101,9 @@ Setting state properties for the APL instance can be done like this:
 #(0 1 2 3 4 5 6 7 8)
 ```
 
-Instead of an APL string, the first argument to `(april)` or `(april-p)` may be a list of specifications for the APL environment. The APL expression is then passed in the second argument.
+Instead of an APL string, the first argument to `(april)` or `(april-p)` may be a list of parameters for the APL environment. The APL expression is then passed in the second argument.
 
-For example, you can use this configuration setting to determine whether the APL instance will start counting from 0 or 1.
+For example, you can use the `:count-from` parameter to determine whether the APL instance will start counting from 0 or 1. We'll get into more detail on how these parameters work later.
 
 ```lisp
 * (april-p (with (:state :count-from 1)) "⍳9")
