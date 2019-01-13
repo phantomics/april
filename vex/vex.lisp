@@ -151,6 +151,8 @@
   (let ((output (loop :for section :in target
 		   :collect (let ((source-items (rest (assoc (first section) source)))
 				  (pair-index 0)
+				  ;; the osection values are copied from (rest section), otherwise it's
+				  ;; effectively a pass-by-reference and changing osection will change section
 				  (osection (loop :for item :in (rest section) :collect item)))
 			      (loop :for (item-name item-value) :on source-items :while item-value
 				 :do (if (evenp pair-index)
@@ -290,10 +292,10 @@
 					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
 					 ;; nonetheless, investigate this
 					 ,(vex-program ,idiom-symbol
-						       (if ,input-string (if (string= "WITH"
-										      (string (first ,options)))
-									     (rest ,options)
-									     (error "Incorrect option syntax.")))
+						       (if ,input-string
+							   (if (string= "WITH" (string (first ,options)))
+							       (rest ,options)
+							       (error "Incorrect option syntax.")))
 						       (eval (if ,input-string ,input-string ,options)))))))
 		      (defmacro ,(intern alt-sym (package-name *package*))
 			  (&rest ,options)

@@ -402,8 +402,7 @@ It remains here as a standard against which to compare methods for composing APL
   (let* ((input (if (= 2 (rank in-matrix))
 		    in-matrix (make-array (list (length in-matrix) 1)
 					  :element-type (element-type in-matrix)
-					  :initial-contents (loop :for i :below (length in-matrix)
-							       :collect (list (aref in-matrix i))))))
+					  :initial-contents (loop :for i :across in-matrix :collect (list i)))))
 	 (result (array-inner-product
 		  (invert-matrix (array-inner-product (aops:permute (reverse (iota (rank input)))
 								    input)
