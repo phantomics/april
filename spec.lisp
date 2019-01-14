@@ -1039,6 +1039,7 @@
 				    (apl-call ,(or-functional-character right :fn)
 					      ,(resolve-function :dyadic right)
 					      omega alpha)))
+		       (right-resolved (resolve-function :dyadic right))
 		       (op-left (let ((left-op (or (resolve-function :symbolic left)
 						   (resolve-function :dyadic left)))
 				      (left-sym (or-functional-character left :fn)))
@@ -1059,13 +1060,19 @@
 			      (let ((,inverse (aops:outer (lambda (,o ,a)
 							    (let ((,o (if (arrayp ,o) ,o (vector ,o)))
 								  (,a (if (arrayp ,a) ,a (vector ,a))))
+							      ',(resolve-function :dyadic right)
 							      (if (is-unitary ,o)
 								  ;; swap arguments in case of a
 								  ;; unitary omega argument
+								  ;; ,op-right ',right
 								  (let ((,placeholder ,a))
 								    (setq ,a ,o
 									  ,o ,placeholder)))
-							      (disclose (apl-call :fn ,op-right ,a ,o))))
+							      (funcall ,(if (and (listp right-resolved)
+										 (eq 'scalar-function
+										     (first right-resolved)))
+									    '#'disclose '#'identity)
+								       (apl-call :fn ,op-right ,a ,o))))
 							  ,alpha ,omega)))
 				(if (not (is-unitary ,alpha))
 				    ,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
@@ -1092,7 +1099,7 @@
 	     (is "{⍵ ⍵+.+⍵ ⍵} 3 3⍴⍳9" #(#2A((4 8 12) (16 20 24) (28 32 36))))
 	     (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))
 	     (is "1 2 3∘.-1 2 3" #2A((0 -1 -2) (1 0 -1) (2 1 0)))
-	     (is "1 2 3∘.⍴1 2 3" #2A((1 2 3) (#(1 1) #(2 2) #(3 3)) (#(1 1 1) #(2 2 2) #(3 3 3))))
+	     (is "1 2 3∘.⍴1 2 3" #2A((#(1) #(2) #(3))(#(1 1) #(2 2) #(3 3)) (#(1 1 1) #(2 2 2) #(3 3 3))))
 	     (is "1 2 3∘.⍴⊂1 2 3" #(1 #(1 2) #(1 2 3)))
 	     (is "1 2 3∘.⌽⊂1 2 3" #(#(2 3 1) #(3 1 2) #(1 2 3)))
 	     (is "1 2 3∘.⌽⊂4 5 6 7" #(#(5 6 7 4) #(6 7 4 5) #(7 4 5 6)))

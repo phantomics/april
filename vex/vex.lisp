@@ -82,7 +82,7 @@
 	    `(if ,alpha (funcall (function ,operation) ,alpha ,omega)
 		 (funcall (function ,operation) ,omega))))))
 
-(defun process-lex-tests-for (symbol operator)
+(defun process-lex-tests-for (symbol operator &key (mode :test))
   "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
 			     (rest operator))))
@@ -98,19 +98,42 @@
 			      ""))))
     (labels ((for-tests (tests &optional output)
 	       (if tests (for-tests (rest tests)
-				    (append output (list `(princ (format nil "  _ ~a" ,(cadr (first tests))))
-							 (cond ((eql 'is (caar tests))
-								`(is (,(intern (string-upcase symbol)
-									       (package-name *package*))
-								       ,(cadar tests))
-								     ,(third (first tests))
-								     :test #'equalp))))))
+				    (append output `((princ (format nil "  _ ~a" ,(cadr (first tests))))
+						     ,@(cond ((and (eq :test mode)
+								   (eql 'is (caar tests)))
+							      `((is (,(intern (string-upcase symbol)
+									      (package-name *package*))
+								      ,(cadar tests))
+								    ,(third (first tests))
+								    :test #'equalp)))
+							     ((and (eq :demo mode)
+								   (eql 'is (caar tests)))
+							      `((princ #\Newline)
+								(let ((output
+								       (,(intern (string-upcase symbol)
+										 (package-name *package*))
+									 (with (:state :output-printed :only))
+									 ,(cadar tests))))
+								  (princ (concatenate
+									  'string "    "
+									  (regex-replace-all
+									   "[\\n]" output
+									   (concatenate 'string (list #\Newline)
+											"    "))))
+								  (if (or (= 0 (length output))
+									  (not (char=
+										#\Newline
+										(aref output (1- (length
+												  output))))))
+								      (princ #\Newline)))
+								,@(if (rest tests)
+								      `((princ #\Newline)))))))))
 		   output)))
       (if tests (append `((princ ,(format nil "~%~a" heading)))
 			(for-tests tests))))))
 
 ;; TODO: this is also April-specific, move it into spec
-(defun process-general-tests-for (symbol test-set)
+(defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
   `((princ ,(format nil "~%~a ~a" (cond ((string= "FOR" (string-upcase (first test-set)))
 					 #\∇)
@@ -118,17 +141,37 @@
 					 #\⎕))
 		    (second test-set)))
     (princ (format nil "~%  _ ~a~%" ,(third test-set)))
-    ,(cond ((string= "FOR" (string-upcase (first test-set)))
+    ,(cond ((and (eq :test mode)
+		 (string= "FOR" (string-upcase (first test-set))))
 	    `(is (,(intern (string-upcase symbol) (package-name *package*))
 		   ,(third test-set))
 		 ,(fourth test-set)
 		 :test #'equalp))
-	   ((string= "FOR-PRINTED" (string-upcase (first test-set)))
+	   ((and (eq :demo mode)
+		 (string= "FOR" (string-upcase (first test-set))))
+	    `(princ (concatenate
+		     'string "    "
+		     (regex-replace-all "[\\n]"
+					(,(intern (string-upcase symbol) (package-name *package*))
+					  (with (:state :output-printed :only))
+					  ,(third test-set))
+					(concatenate 'string (list #\Newline)  "    ")))))
+	   ((and (eq :test mode)
+		 (string= "FOR-PRINTED" (string-upcase (first test-set))))
 	    `(is (,(intern (string-upcase symbol) (package-name *package*))
 		   (with (:state :output-printed :only))
 		   ,(third test-set))
 		 ,(fourth test-set)
-		 :test #'string=)))))
+		 :test #'string=))
+	   ((and (eq :demo mode)
+		 (string= "FOR-PRINTED" (string-upcase (first test-set))))
+	    `(princ (concatenate
+		     'string "    "
+		     (regex-replace-all "[\\n]"
+					(,(intern (string-upcase symbol) (package-name *package*))
+					  (with (:state :output-printed :only))
+					  ,(third test-set))
+					(concatenate 'string (list #\Newline)  "    "))))))))
 
 (defmacro specify-vex-idiom (symbol &rest subspecs)
   "Wraps the idiom-spec macro for an initial specification of a Vex idiom."
@@ -224,6 +267,15 @@
 	   (general-tests (cons `(princ (format nil "~%∘○( General Language Tests )○∘~%"))
 				(loop :for test-set :in (of-subspec general-tests)
 				   :append (process-general-tests-for symbol test-set))))
+	   (function-demos (cons `(princ (format nil "∘○( Lexical Functions )○∘~%"))
+				 (loop :for function :in (of-subspec functions)
+				    :append (process-lex-tests-for symbol function :mode :demo))))
+	   (operator-demos (cons `(princ (format nil "~%∘○( Lexical Operators )○∘~%"))
+				 (loop :for operator :in (of-subspec operators)
+				    :append (process-lex-tests-for symbol operator :mode :demo))))
+	   (general-demos (cons `(princ (format nil "~%∘○( Language Features )○∘~%"))
+				(loop :for test-set :in (of-subspec general-tests)
+				   :append (process-general-tests-for symbol test-set :mode :demo))))
 	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
 	   ;; less specific ones like the baseline grammar
@@ -285,6 +337,10 @@
 					 (plan ,(loop :for exp :in all-tests :counting (eql 'is (first exp))))
 					 ,@all-tests (finalize)
 					 (setq prove:*enable-colors* t))))
+			      ((and ,options (listp ,options)
+				    (string= "DEMO" (string-upcase (first ,options))))
+			       (let ((all-demos ',(append function-demos operator-demos general-demos)))
+				 `(progn ,@all-demos "Demos complete!")))
 			      ;; the (test) setting is used to run tests
 			      (t `(progn ,(if (and ,input-string (assoc :space (rest ,options)))
 					      `(defvar ,(second (assoc :space (rest ,options)))))
