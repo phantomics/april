@@ -1140,10 +1140,11 @@
 	(t (let* ((adims (dims array))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
-		  (x-offsets (make-array (list (1+ (first (last adims)))) :element-type 'fixnum :initial-element 0))
-		  (col-widths (make-array (list (first (last adims))) :element-type 'fixnum :initial-element 1))
+		  (x-offsets (make-array (list (1+ (first (last adims)))) :initial-element 0
+					 :element-type 'fixnum))
 		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse adims))))) :initial-element 0
 					 :element-type 'fixnum))
+		  (col-widths (make-array (list (first (last adims))) :element-type 'fixnum :initial-element 1))
 		  (strings (make-array adims))
 		  (output-default-char #\ )
 		  (row) (empty-rows))
