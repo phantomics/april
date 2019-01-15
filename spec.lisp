@@ -885,8 +885,8 @@
 				 (#\3 #\  #\4 #\  #\5 #\  #\6))))))
   (⍎ (has :title "Evaluate")
      (symbolic :special-lexical-form-evaluate)
-     (tests (is "⍎'1+1'" 2))
-     (tests (is "⍎'5','+3 2 1'" #(8 7 6))))
+     (tests (is "⍎'1+1'" 2)
+	    (is "⍎'5','+3 2 1'" #(8 7 6))))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
  ;; APL's character-represented operators, which take one or two functions or arrays as input
