@@ -4,8 +4,8 @@
 
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ symbol with a left argument
-  (vector (lambda (input) (exp (* input #C(0 1))))
-	  (lambda (input) (* input #C(0 1)))
+  (vector (lambda (input) (exp (complex 0 input)))
+	  (lambda (input) (complex 0 input))
 	  #'conjugate #'values (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
 	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
