@@ -212,7 +212,7 @@
 	       ,reference))))
 
 (defmacro resolve-operator (mode reference)
-  "Retrive an operator's composing function."
+  "Retrieve an operator's composing function."
   `(of-operators this-idiom ,reference ,mode))
 
 (defun extract-axes (process tokens &optional axes)
