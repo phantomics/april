@@ -61,6 +61,24 @@ The APL language uses single characters to represent its primitive functions and
 
 Some APL functions and operators won't be added to April since they don't make sense for April's design as a compiler from APL to Lisp. Others may be added in the future. [See the list of features not implemented here.](#whats-not-planned-for-implementation)
 
+## Getting to Know APL
+
+A full guide to the APL language is far beyond the scope of this file, but here are links to some good sources.
+
+[Here is a good high-level introduction.](http://vector.org.uk/art10011550)
+
+[This is a detailed language tutorial covering most of the functions and operators in April.](http://microapl.com/APL/tutorial_contents.html)
+
+[The original paper by Ken Iverson, creator of APL, detailing the language's underlying philosophy.](http://www.eecg.toronto.edu/~jzhu/csc326/readings/iverson.pdf)
+
+If you would like a quick tour of the language, April includes a function that will print demos of all the commands and many APL syntax features. To see the demos, enter:
+
+```lisp
+(april (demo))
+```
+
+Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
+
 ## Basic Evaluation: (april) and (april-p)
 
 Evaluating an APL expression is as simple as:
