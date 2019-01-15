@@ -74,10 +74,10 @@ A full guide to the APL language is far beyond the scope of this file, but here 
 If you would like a quick tour of the language, April includes a function that will print demos of all the commands and many APL syntax features. To see the demos, enter:
 
 ```lisp
-(april (demo))
+* (april (demo))
 ```
 
-Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
+The * indicates a REPL prompt. Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
 
 ## Basic Evaluation: (april) and (april-p)
 
@@ -89,7 +89,7 @@ Evaluating an APL expression is as simple as:
 #(3 4 5)
 ```
 
-The * indicates a REPL prompt. The text below is the expression's output.
+As above, the * indicates a REPL prompt and the text below is the expression's output.
 
 The macro `(april-p)` will evaluate any APL string passed to it as the sole argument, returning the final result. Using `(april-p)` will also produce a printout of the output in APL's traditional array printing style, which appears before the actual output value. You can see above how the `3 4 5` is printed out before the value `#(3 4 5)`. APL-style printed arrays are easier to read than Lisp's style of printing arrays; APL can use a simpler style to express its output because it doesn't have as many different data types and structures as Lisp.
 
