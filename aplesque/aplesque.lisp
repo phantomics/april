@@ -264,11 +264,10 @@
 		    (scale-array a2 pa1)
 		    pa2))))
 
-(defun apply-marginal (function input axis default-axis)
+(defun apply-marginal (function input axis)
   "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
   (let* ((arank (rank input))
-	 (new-array (copy-array input))
-	 (axis (if axis axis default-axis)))
+	 (new-array (copy-array input)))
     (do-permuted new-array axis arank (aops:margin function new-array (1- arank)))))
 
 (defun subprocess (function axis array per-vector)
@@ -290,13 +289,12 @@
 					     :displaced-to main :displaced-index-offset (* vaix last-dim))
 			varg))))))
 
-(defun expand-array (degrees input axis default-axis &key (compress-mode nil))
+(defun expand-array (degrees input axis &key (compress-mode nil))
   "Expand or replicate sections of an array as specified by an array of 'degrees.'"
   ;; TODO: Replace permutation with coordinate conversion
   (let* ((new-array (copy-array input))
 	 (default-element (apl-default-element input))
 	 (a-rank (rank input))
-	 (axis (if axis axis default-axis))
 	 (singleton-array (loop :for dim :in (dims input) :always (= 1 dim))))
     (if (and singleton-array (< 1 a-rank))
     	(setq input (make-array (list 1) :displaced-to input)))

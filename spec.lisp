@@ -13,20 +13,35 @@
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'realpart #'abs #'imagpart #'phase))
 
+(defvar *atomic-vector*
+  (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	       "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
+	       "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
+
 ;; top-level specification for the April language
 (specify-vex-idiom
  april
+
  ;; system variables and default state of an April workspace
- (system :atomic-vector (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-				     "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
-				     "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│")
-	 :disclose-output t :print-to nil :output-printed nil :base-state (list :index-origin 1))
+ (system :atomic-vector *atomic-vector* :disclose-output t :print-to nil :output-printed nil
+	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14))
+
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
 	  (:opening-patterns composer-opening-patterns-apl-standard)
 	  (:following-patterns composer-following-patterns-apl-standard
 			       composer-optimized-patterns-common))
+
+ ;; parameters for describing and documenting the idiom in different ways; currently, these options give
+ ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
+ (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
+		      :lexical-functions-mixed :lexical-functions-special :lexical-operators-lateral
+		      :lexical-operators-pivotal :general-tests :printed-format-tests)
+	       (:demo :general-tests :lexical-functions-scalar-numeric
+		      :lexical-functions-scalar-logical :lexical-functions-mixed :lexical-functions-special
+		      :lexical-operators-lateral :lexical-operators-pivotal :printed-format-tests))
+
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char (list #\  #\Tab)))
 	    :match-newline-character (lambda (char) (member char (list #\◊ #\⋄ #\Newline #\Return)))
@@ -65,7 +80,7 @@
 	    :system-lexical-environment-interface
 	    (lambda (state)
 	      ;; currently, the only system value passed into the local environment is the index-origin
-	      (loop :for var :in (list :index-origin)
+	      (loop :for var :in (list :index-origin :comparison-tolerance)
 		 :collect (list (intern (string-upcase var) "APRIL")
 				(getf state var))))
 	    :process-compiled-as-per-workspace
@@ -94,29 +109,16 @@
 		    (if (getf state :print-to) (list :print-to (getf state :print-to)))
 		    (if (getf state :output-printed)
 			(list :output-printed (getf state :output-printed))))))
+
+ (symbols (:variable ⎕io index-origin ⎕ct comparison-tolerance)
+	  (:constant ⎕av *atomic-vector*))
+ 
  ;; APL's set of functions represented by characters
  (functions
-  (← (has :title "Assign")
-     (symbolic :special-lexical-form-assign)
-     (tests (is "x←55 ⋄ x" 55)
-	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
-						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
-  (⊣ (has :titles ("Empty" "Left"))
-     (ambivalent (lambda (omega)
-		   (declare (ignore omega))
-		   (make-array (list 0)))
-		 (lambda (omega alpha)
-		   (declare (ignore omega))
-		   alpha))
-     (tests (is "⊣77" #())
-	    (is "55⊣77" 55)))
-  (⊢ (has :titles ("Identity" "Right"))
-     (ambivalent #'identity
-		 (lambda (omega alpha)
-		   (declare (ignore alpha))
-		   omega))
-     (tests (is "⊢77" 77)
-	    (is "55⊢77" 77)))
+  (with (:name :lexical-functions-scalar-numeric)
+	(:tests-profile :title "Scalar Numeric Function Tests")
+	(:demo-profile :title "Scalar Numeric Function Demos"
+		       :description "Scalar numeric functions change individual numeric values. They include basic arithmetic and other numeric operations, and they can be applied over arrays."))
   (+ (has :titles ("Conjugate" "Add"))
      (ambivalent :asymmetric-scalar conjugate +)
      (tests (is "+5" 5)
@@ -212,7 +214,13 @@
       (tests (is "~1 0 1" #(0 1 0))
 	     (is "1 2 3 4 5 6 7~3 5" #(1 2 4 6 7))
 	     (is "(⍳9)~2 2⍴⍳9" #(5 6 7 8 9))
-	     (is "'MACARONI'~'ALFREDO'" "MCNI")))
+	     (is "'MACARONI'~'ALFREDO'" "MCNI"))))
+
+ (functions
+  (with (:name :lexical-functions-scalar-logical)
+	(:tests-profile :title "Scalar Logical Function Tests")
+	(:demo-profile :title "Scalar Logical Function Demos"
+		       :description "Scalar logical functions compare individual values, and like scalar numeric functions they can be applied over arrays."))
   (< (has :title "Less")
      (dyadic (scalar-function (boolean-op <)))
      (tests (is "3<1 2 3 4 5" #(0 0 0 1 1))))
@@ -236,21 +244,6 @@
   (≠ (has :title "Not Equal")
      (dyadic (scalar-function (boolean-op /=)))
      (tests (is "3≠1 2 3 4 5" #(1 1 0 1 1))))
-  (≡ (has :titles ("Depth" "Match"))
-     (ambivalent (lambda (omega)
-		   (if (is-unitary omega)
-		       0 (array-depth omega)))
-		 (boolean-op array-compare))
-     (tests (is "≡1" 0)
-	    (is "≡⍳3" 1)
-	    (is "≡(1 2)(3 4)" 2)
-	    (is "≡1 (2 3) (4 5 (6 7)) 8" -3)))
-  (≢ (has :titles ("First Dimension" "Not Match"))
-     (ambivalent (lambda (omega) (first (dims omega)))
-		 (boolean-op (lambda (omega alpha)
-			       (not (array-compare omega alpha)))))
-     (tests (is "≢1 2 3" 3)
-	    (is "≢2 3 4⍴⍳9" 2)))
   (∧ (has :title "And" :aliases (^))
      (dyadic (scalar-function (reverse-op lcm)))
      (tests (is "0 1 0 1∧0 0 1 1" #(0 0 0 1))))
@@ -262,7 +255,13 @@
      (tests (is "0 1 0 1∨0 0 1 1" #(0 1 1 1))))
   (⍱ (has :title "Nor")
      (dyadic (scalar-function (boolean-op (lambda (omega alpha) (= omega alpha 0)))))
-     (tests (is "0 1 0 1⍱0 0 1 1" #(1 0 0 0))))
+     (tests (is "0 1 0 1⍱0 0 1 1" #(1 0 0 0)))))
+
+ (functions
+  (with (:name :lexical-functions-mixed)
+	(:tests-profile :title "Mixed Function Tests")
+	(:demo-profile :title "Mixed Function Demos"
+		       :description "These functions affect entire arrays, changing their structure or deriving data from them in some way."))
   (⍳ (has :titles ("Interval" "Index Of"))
      (ambivalent (lambda (omega)
 		   (let ((omega (disclose omega)))
@@ -283,6 +282,21 @@
      (tests (is "⍴1 2 3" 3)
 	    (is "⍴3 5⍴⍳8" #(3 5))
 	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
+  (≡ (has :titles ("Depth" "Match"))
+     (ambivalent (lambda (omega)
+		   (if (is-unitary omega)
+		       0 (array-depth omega)))
+		 (boolean-op array-compare))
+     (tests (is "≡1" 0)
+	    (is "≡⍳3" 1)
+	    (is "≡(1 2)(3 4)" 2)
+	    (is "≡1 (2 3) (4 5 (6 7)) 8" -3)))
+  (≢ (has :titles ("First Dimension" "Not Match"))
+     (ambivalent (lambda (omega) (first (dims omega)))
+		 (boolean-op (lambda (omega alpha)
+			       (not (array-compare omega alpha)))))
+     (tests (is "≢1 2 3" 3)
+	    (is "≢2 3 4⍴⍳9" 2)))
   (⌷ (has :title "Index")
      (dyadic (lambda (omega alpha &optional axes)
 	       (enclose (choose omega (let ((coords (array-to-list (apply-scalar #'- alpha index-origin)))
@@ -512,8 +526,9 @@
      (dyadic (lambda (omega alpha &optional axes)
 	       (expand-array alpha omega (if axes (- (rank omega)
 						     (- (aref (first axes) 0)
-							(1- index-origin))))
-			     0 :compress-mode t)))
+							(1- index-origin)))
+					     0)
+			     :compress-mode t)))
      (tests (is "5/3" #(3 3 3 3 3))
 	    (is "1 0 1 0 1/⍳5" #(1 3 5))
 	    (is "3/⍳5" #(1 1 1))
@@ -527,8 +542,8 @@
      (dyadic (lambda (omega alpha &optional axes)
 	       (expand-array alpha omega (if axes (- (rank omega)
 						     (- (aref (first axes) 0)
-							(1- index-origin))))
-			     (1- (rank omega))
+							(1- index-origin)))
+					     (1- (rank omega)))
 			     :compress-mode t)))
      (tests (is "1 0 1 0 1⌿⍳5" #(1 3 5))
 	    (is "1 ¯2 3⌿3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
@@ -540,8 +555,8 @@
       (dyadic (lambda (omega alpha &optional axes)
 		(expand-array alpha omega (if axes (- (rank omega)
 						      (- (aref (first axes) 0)
-							 (1- index-origin))))
-			      0)))
+							 (1- index-origin)))
+					      0))))
       (tests (is "1 ¯2 3 ¯4 5\\ '.'" ".  ...    .....")
 	     (is "1 ¯2 2 0 1\\3+2 3⍴⍳6" #2A((4 0 0 5 5 0 6) (7 0 0 8 8 0 9)))
 	     (is "1 0 1\\[1]3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
@@ -549,8 +564,8 @@
      (dyadic (lambda (omega alpha &optional axes)
 	       (expand-array alpha omega (if axes (- (rank omega)
 						     (- (aref (first axes) 0)
-							(1- index-origin))))
-			     (1- (rank omega)))))
+							(1- index-origin)))
+					     (1- (rank omega))))))
      (tests (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
 	    (is "1 0 1⍀3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
@@ -690,8 +705,9 @@
 			   (funcall (make-rotator) new-array)
 			   new-array)
 			 (if (arrayp omega)
+			     ;; TODO: apply-marginal here is inefficient
 			     (apply-marginal (make-rotator)
-					     omega axis (1- (rank omega)))))))
+					     omega axis)))))
 		 (lambda (omega alpha &optional axes)
 		   (let ((alpha (disclose alpha))
 			 (axis (- (if axes (aref (first axes) 0)
@@ -726,8 +742,9 @@
 			   (funcall (make-rotator) new-array)
 			   new-array)
 			 (if (arrayp omega)
+			     ;; TODO: apply-marginal here is inefficient
 			     (apply-marginal (make-rotator)
-					     omega axis (1- (rank omega)))))))
+					     omega axis)))))
 		 (lambda (omega alpha &optional axes)
 		   (let ((alpha (disclose alpha))
 			 (axis (if axes (- (aref (first axes) 0)
@@ -768,6 +785,31 @@
 				((3 6) (7 1) (2 5)) ((4 7) (8 2) (3 6))))
 	    (is "1 3 2⍉2 3 4⍴⍳9" #3A(((1 5 9) (2 6 1) (3 7 2) (4 8 3))
 				     ((4 8 3) (5 9 4) (6 1 5) (7 2 6))))))
+
+  (⍋ (has :titles ("Grade Up" "Grade Up By"))
+     (ambivalent (lambda (omega) (grade omega (alpha-compare atomic-vector #'<=)
+					index-origin))
+		 (lambda (omega alpha) (grade (if (vectorp alpha)
+						  (index-of alpha omega index-origin)
+						  (array-grade alpha omega))
+					      (alpha-compare atomic-vector #'<)
+					      index-origin)))
+     (tests (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
+	    (is "⍋5 6⍴⍳16" #(1 4 2 5 3))
+	    (is "st←'aodjeignwug' ⋄ st[⍋st]" "adeggijnouw")
+	    (is "(2 5⍴'ABCDEabcde')⍋'ACaEed'" #(1 3 2 6 4 5))))
+  (⍒ (has :titles ("Grade Down" "Grade Down By"))
+     (ambivalent (lambda (omega) (grade omega (alpha-compare atomic-vector #'>=)
+					index-origin))
+		 (lambda (omega alpha) (grade (if (vectorp alpha)
+						  (index-of alpha omega index-origin)
+						  (array-grade alpha omega))
+					      (alpha-compare atomic-vector #'>)
+					      index-origin)))
+     (tests (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
+	    (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
+	    (is "st←'aodjeignwug' ⋄ st[⍒st]" "wuonjiggeda")
+	    (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
   (⌹ (has :titles ("Matrix Inverse" "Matrix Divide"))
      (ambivalent (lambda (omega)
 		   (if (and (= 1 (rank omega))
@@ -842,31 +884,34 @@
 				    omega 0))))))
      (tests (is "10⊥2 6 7 1" 2671)
 	    (is "1760 3 12⊥2 2 5" 101)
-	    (is "1760 3 12⊥3 3⍴1 2 1 5 0 2 2 3 7" #(98 75 67))))
-  (⍋ (has :titles ("Grade Up" "Grade Up By"))
-     (ambivalent (lambda (omega) (grade omega (alpha-compare atomic-vector #'<=)
-					index-origin))
-		 (lambda (omega alpha) (grade (if (vectorp alpha)
-						  (index-of alpha omega index-origin)
-						  (array-grade alpha omega))
-					      (alpha-compare atomic-vector #'<)
-					      index-origin)))
-     (tests (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
-	    (is "⍋5 6⍴⍳16" #(1 4 2 5 3))
-	    (is "st←'aodjeignwug' ⋄ st[⍋st]" "adeggijnouw")
-	    (is "(2 5⍴'ABCDEabcde')⍋'ACaEed'" #(1 3 2 6 4 5))))
-  (⍒ (has :titles ("Grade Down" "Grade Down By"))
-     (ambivalent (lambda (omega) (grade omega (alpha-compare atomic-vector #'>=)
-					index-origin))
-		 (lambda (omega alpha) (grade (if (vectorp alpha)
-						  (index-of alpha omega index-origin)
-						  (array-grade alpha omega))
-					      (alpha-compare atomic-vector #'>)
-					      index-origin)))
-     (tests (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
-	    (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
-	    (is "st←'aodjeignwug' ⋄ st[⍒st]" "wuonjiggeda")
-	    (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
+	    (is "1760 3 12⊥3 3⍴1 2 1 5 0 2 2 3 7" #(98 75 67)))))
+
+ (functions
+  (with (:name :lexical-functions-special)
+	(:tests-profile :title "Special Function Tests")
+	(:demo-profile :title "Special Function Demos"
+		       :description "These functions expose features of the language that aren't directly related to computing or transforming array values."))
+  (← (has :title "Assign")
+     (symbolic :special-lexical-form-assign)
+     (tests (is "x←55 ⋄ x" 55)
+	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
+						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
+  (⊣ (has :titles ("Empty" "Left"))
+     (ambivalent (lambda (omega)
+		   (declare (ignore omega))
+		   (make-array (list 0)))
+		 (lambda (omega alpha)
+		   (declare (ignore omega))
+		   alpha))
+     (tests (is "⊣77" #())
+	    (is "55⊣77" 55)))
+  (⊢ (has :titles ("Identity" "Right"))
+     (ambivalent #'identity
+		 (lambda (omega alpha)
+		   (declare (ignore alpha))
+		   omega))
+     (tests (is "⊢77" 77)
+	    (is "55⊢77" 77)))
   (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (lambda (omega)
 		   (matrix-impress omega :collate t :format (lambda (n) (print-apl-number-string n t))))
@@ -891,7 +936,12 @@
      (symbolic :outer-product-designator)))
  ;; APL's character-represented operators, which take one or two functions or arrays as input
  ;; and generate a function
+
  (operators
+  (with (:name :lexical-operators-lateral)
+	(:tests-profile :title "Lateral Operator Tests")
+	(:demo-profile :title "Lateral Operator Demos"
+		       :description "Lateral operators take a single operand function to their left, hence the name 'lateral.' The combination of operator and function yields another function which may be applied to one or two arguments depending on the operator."))
   (/ (has :title "Reduce")
      (lateral (lambda (operand workspace axes)
 		(let ((function (gensym)) (input (gensym)) (axis (gensym)) (item (gensym)))
@@ -929,7 +979,7 @@
 		    :for-vector `(lambda (,function ,input) (funcall (make-back-scanner ,function) ,input))
 		    :for-array `(lambda (,function ,input ,axis)
 				  (apply-marginal (make-back-scanner ,function)
-						  ,input ,axis (1- (rank ,input))))))))
+						  ,input (if ,axis ,axis (1- (rank ,input)))))))))
       (tests (is "+\\1 2 3 4 5" #(1 3 6 10 15))
 	     (is "+\\3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))
 	     (is "+\\[1]3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))))
@@ -941,7 +991,7 @@
 		   :for-vector `(lambda (,function ,input) (funcall (make-back-scanner ,function) ,input))
 		   :for-array `(lambda (,function ,input ,axis)
 				 (apply-marginal (make-back-scanner ,function)
-						 ,input ,axis (1- (rank ,input))))))))
+						 ,input (if ,axis ,axis (1- (rank ,input)))))))))
      (tests (is "+⍀1 2 3 4 5" #(1 3 6 10 15))
 	    (is "+⍀3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))
 	    (is "{⍺×⍵+3}⍀3 4⍴⍳12" #2A((1 2 3 4) (20 30 42 56) (288 450 660 924)))
@@ -1032,7 +1082,13 @@
     quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
     	        #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" #(16))))
 	    (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
-		#2A((2) (2) (1) (1)))))
+		#2A((2) (2) (1) (1))))))
+
+ (operators
+  (with (:name :lexical-operators-pivotal)
+	(:tests-profile :title "Pivotal Operator Tests")
+	(:demo-profile :title "Pivotal Operator Demos"
+		       :description "Pivotal operators are so called because they are entered between two operands. Depending on the operator, these operands may be functions or array values, with the combination yielding a new function."))
   (\. (has :title "Inner/Outer Product")
       (pivotal (lambda (right left workspace)
 		 (let ((op-right `(lambda (alpha omega)
@@ -1330,69 +1386,81 @@
 					(#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
 					  #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
 					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
+
  ;; tests for general language functions not associated with a particular function or operator
- (general-tests (for "Basic function definition and use, with comments."
- 		     "⍝ This code starts with a comment.
+ (test-set
+  (with (:name :general-tests)
+	(:tests-profile :title "General Tests")
+	(:demo-profile :title "General Demos"
+		       :description "These are demos of basic April language features."))
+  (for "Scalar value." "5" 5)
+  (for "Array value." "1 2 3" #(1 2 3))
+  (for "Scalar values operated upon." "3×3" 9)
+  (for "Array and scalar values operated upon." "5+1 2 3" #(6 7 8))
+  (for "Two array values operated upon." "4 12 16÷2 3 4" #(2 4 4))
+  (for "Value assigned to a variable." "x←9" 9)
+  (for "Value assigned to a variable and operated upon." "3+x←9" 12)
+  (for "Two statements on one line separated by a [⋄ diamond] character."
+       "a←9 ⋄ a×2 3 4" #(18 27 36))
+  (for "Basic function definition and use, with comments delineated by the [⍝ lamp] character."
+       "⍝ This code starts with a comment.
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
     ⍝ This is another comment.
     v←⍳3 ⋄ f2 f1 v,4 5"
-		     #(8 10 12 14 16))
- 		(for "Monadic inline function."
-		     "{⍵+3} 3 4 5" #(6 7 8))
- 		(for "Dyadic inline function."
- 		     "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
-		(for "Vector of input variables and discrete values processed within a function."
-		     "fn←{3+⍵} ⋄ {fn 8 ⍵} 9" #(11 12))
- 		(for "Variable-referenced values, including an element within an array, in a vector."
- 		     "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]" #(1 2 9 3 5))
-		(for "Application of functions to indexed array elements."
-		     "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
- 		(for "Assignment of an element within an array."
- 		     "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
- 		(for "Selection from an array with multiple elided dimensions."
- 		     "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
- 		(for "Elided assignment."
- 		     "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a"
-		     #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
-		(for "Elision and indexed array elements."
-		     "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
-		(for "As above but more complex."
-		     "(6 8 5⍴⍳9)[1 4;;2 1]"
-		     #3A(((2 1) (7 6) (3 2) (8 7) (4 3) (9 8) (5 4) (1 9))
-			 ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
-		(for "Indices of indices."
-		     "(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]" #2A((7 6) (8 7) (4 3)))
-		(for "Array as array index."
-		     "(10+⍳9)[2 3⍴⍳9]" #2A((11 12 13) (14 15 16)))
-		(for "Sub-coordinates of nested arrays."
-		     "(3 4⍴⍳9)[(1 2)(3 1)]" #(2 9))
-		(for "Choose indexing of nested array sub-coordinates."
-		     "(3 4⍴⍳9)[2 2⍴⊂(2 3)]" #2A((7 7) (7 7)))
-		(for "Reach indexing of components within sub-arrays."
-		     "(2 3⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[((2 3)1)((1 1)2)]"
-		     #("JUN" 1))
-		(for "Assignment by function."
-		     "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
-		(for "Assignment by function at index."
-		     "a←3 2 1 ⋄ a[2]+←5 ⋄ a" #(3 7 1))
- 		(for "Elided assignment of applied function's results."
- 		     "a←2 3 4⍴⍳9 ⋄ a[2;;3]+←10 ⋄ a"
-		     #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 16 7) (8 9 11 2) (3 4 15 6))))
-		(for "Operation over portions of an array."
-		     "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
-		      #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
-			  (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
-		(for "Glider 1."
-		     "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
-		(for "Glider 2."
-		     "3 3⍴⊃∨/1 2 3 4 8=⊂⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))
-		(for-printed "Numeric vector printed." "1+1 2 3" "2 3 4
+       #(8 10 12 14 16))
+  (for "Monadic inline function." "{⍵+3} 3 4 5" #(6 7 8))
+  (for "Dyadic inline function." "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
+  (for "Vector of input variables and discrete values processed within a function."
+       "fn←{3+⍵} ⋄ {fn 8 ⍵} 9" #(11 12))
+  (for "Variable-referenced values, including an element within an array, in a vector."
+       "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]" #(1 2 9 3 5))
+  (for "Application of functions to indexed array elements."
+       "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
+  (for "Assignment of an element within an array."
+       "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
+  (for "Selection from an array with multiple elided dimensions."
+       "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
+  (for "Elided assignment."
+       "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
+  (for "Elision and indexed array elements."
+       "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
+  (for "As above but more complex."
+       "(6 8 5⍴⍳9)[1 4;;2 1]"
+       #3A(((2 1) (7 6) (3 2) (8 7) (4 3) (9 8) (5 4) (1 9))
+	   ((5 4) (1 9) (6 5) (2 1) (7 6) (3 2) (8 7) (4 3))))
+  (for "Indices of indices."
+       "(6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]" #2A((7 6) (8 7) (4 3)))
+  (for "Array as array index."
+       "(10+⍳9)[2 3⍴⍳9]" #2A((11 12 13) (14 15 16)))
+  (for "Sub-coordinates of nested arrays." "(3 4⍴⍳9)[(1 2)(3 1)]" #(2 9))
+  (for "Choose indexing of nested array sub-coordinates."
+       "(3 4⍴⍳9)[2 2⍴⊂(2 3)]" #2A((7 7) (7 7)))
+  (for "Reach indexing of components within sub-arrays."
+       "(2 3⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[((2 3)1)((1 1)2)]"
+       #("JUN" 1))
+  (for "Assignment by function." "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))
+  (for "Assignment by function at index." "a←3 2 1 ⋄ a[2]+←5 ⋄ a" #(3 7 1))
+  (for "Elided assignment of applied function's results."
+       "a←2 3 4⍴⍳9 ⋄ a[2;;3]+←10 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 16 7) (8 9 11 2) (3 4 15 6))))
+  (for "Operation over portions of an array."
+       "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
+       #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
+	   (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+  (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
+  (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
+
+ (test-set
+  (with (:name :printed-format-tests)
+	(:tests-profile :title "Printed Data Format Tests")
+	(:demo-profile :title "Data Format Demos"
+		       :description "More demos showing how different types of data are formatted in April."))
+  (for-printed "Numeric vector printed." "1+1 2 3" "2 3 4
 ")
-		(for-printed "Numeric matrix printed." "3 4⍴⍳9" "1 2 3 4
+  (for-printed "Numeric matrix printed." "3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
 ")
-		(for-printed "3D numeric array printed." "2 3 4⍴⍳9" "1 2 3 4
+  (for-printed "3D numeric array printed." "2 3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
        
@@ -1400,7 +1468,7 @@
 8 9 1 2
 3 4 5 6
 ")
-		(for-printed "4D numeric array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
+  (for-printed "4D numeric array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
 6 7 8 9 1
          
 2 3 4 5 6
@@ -1419,35 +1487,35 @@
 6 7 8 9 1
 2 3 4 5 6
 ")
-		
-		(for-printed "Vector of numeric matrices printed." "⊂[1 2]2 3 4⍴4 5 6"
-			     " 4 5 6  5 6 4  6 4 5  4 5 6
+  
+  (for-printed "Vector of numeric matrices printed." "⊂[1 2]2 3 4⍴4 5 6"
+	       " 4 5 6  5 6 4  6 4 5  4 5 6
  4 5 6  5 6 4  6 4 5  4 5 6
 ")
-		(for-printed "Matrix of numeric matrices printed." "2 3⍴⊂2 2⍴⍳4"
-			     " 1 2  1 2  1 2
+  (for-printed "Matrix of numeric matrices printed." "2 3⍴⊂2 2⍴⍳4"
+	       " 1 2  1 2  1 2
  3 4  3 4  3 4
  1 2  1 2  1 2
  3 4  3 4  3 4
 ")
-		(for-printed "Vector with nested vectors printed." "1 2 (1 2 3) 4 5 (6 7 8)"
-			     "1 2  1 2 3  4 5  6 7 8
+  (for-printed "Vector with nested vectors printed." "1 2 (1 2 3) 4 5 (6 7 8)"
+	       "1 2  1 2 3  4 5  6 7 8
 ")
-		(for-printed "Vector with initial nested vector printed." "(1 2 3) 4 5 (6 7) 8 9"
-			     " 1 2 3  4 5  6 7  8 9
+  (for-printed "Vector with initial nested vector printed." "(1 2 3) 4 5 (6 7) 8 9"
+	       " 1 2 3  4 5  6 7  8 9
 ")
-		(for-printed "Vector with nested arrays printed." "1 2 (3 4⍴⍳9) 5 6 (2 2 3⍴5) 7 8"
-			     "1 2  1 2 3 4  5 6  5 5 5  7 8
+  (for-printed "Vector with nested arrays printed." "1 2 (3 4⍴⍳9) 5 6 (2 2 3⍴5) 7 8"
+	       "1 2  1 2 3 4  5 6  5 5 5  7 8
      5 6 7 8       5 5 5     
      9 1 2 3                 
                    5 5 5     
                    5 5 5     
 ")
-		(for-printed "Character vector (string) printed." "'ABCDE'" "ABCDE")
-		(for-printed "Character matrix printed." "2 5⍴'ABCDEFGHIJ'" "ABCDE
+  (for-printed "Character vector (string) printed." "'ABCDE'" "ABCDE")
+  (for-printed "Character matrix printed." "2 5⍴'ABCDEFGHIJ'" "ABCDE
 FGHIJ
 ")
-		(for-printed "3D character array printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
+  (for-printed "3D character array printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
 GOLD
 BLUE
     
@@ -1455,36 +1523,36 @@ SILK
 WOOL
 YARN
 ")
-		(for-printed "2D array of character strings printed." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
-			     " GRAY  GOLD  BLUE
+  (for-printed "2D array of character strings printed." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+	       " GRAY  GOLD  BLUE
  SILK  WOOL  YARN
 ")
-		(for-printed "Vector of character matrices printed." "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
-			     " GGB  ROL  ALU  YDE
+  (for-printed "Vector of character matrices printed." "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+	       " GGB  ROL  ALU  YDE
  SWY  IOA  LOR  KLN
 ")
-		(for-printed "Matrix of character matrices printed." "⊂[1 2]2 3 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
-			     " GSG  RIR  ALA  YKY
+  (for-printed "Matrix of character matrices printed." "⊂[1 2]2 3 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+	       " GSG  RIR  ALA  YKY
  SGS  IRI  LAL  KYK
  GWG  OOO  LOL  DLD
  WGW  OOO  OLO  LDL
  BYB  LAL  URU  ENE
  YBY  ALA  RUR  NEN
 ")
-		(for-printed "Stacked strings printed." "⍪'A' 'Stack' 'Of' 'Strings'"
-			     " A      
+  (for-printed "Stacked strings printed." "⍪'A' 'Stack' 'Of' 'Strings'"
+	       " A      
  Stack  
  Of     
  Strings
 ")
-		(for-printed "Mixed strings printed." "↑'These' 'Strings' 'Are' 'Mixed'"
-			     "These  
+  (for-printed "Mixed strings printed." "↑'These' 'Strings' 'Are' 'Mixed'"
+	       "These  
 Strings
 Are    
 Mixed  
 ")
-		(for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
-			     "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
+  (for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
+	       "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
        0 1 2         1 2 3          2 3 0 
        0 4 5         4 5 6          5 6 0 
   0 1  0 1 2    0 0  1 2 3    0 ¯1  2 3 0 
@@ -1494,8 +1562,8 @@ Mixed
         0 7 8         7 8 9          8 9 0
         0 0 0         0 0 0          0 0 0
 ")
-		(for-printed "Array of differently-shaped nested arrays printed." "{⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
-			     " 1 1    0 0 0
+  (for-printed "Array of differently-shaped nested arrays printed." "{⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
+	       " 1 1    0 0 0
         0 1 2
         0 4 5
  1 0    0 0 0
@@ -1525,15 +1593,15 @@ Mixed
         8 9 0
         0 0 0
 ")
-		(for-printed "Nested vector with mixed numeric and character values printed."
-			     "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
+  (for-printed "Nested vector with mixed numeric and character values printed."
+	       "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
-		(for-printed "Matrix of mixed strings and numeric vectors printed."
-			     "2 2⍴'Test' (1 2 3) 'Hello' (5)"
-			     " Test   1 2 3
+  (for-printed "Matrix of mixed strings and numeric vectors printed."
+	       "2 2⍴'Test' (1 2 3) 'Hello' (5)"
+	       " Test   1 2 3
  Hello  5    
-")
-		))
+")))
+
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
 A not-very-useful monadic scalar function that adds 3 to its argument(s) is specified here.
