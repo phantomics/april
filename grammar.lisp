@@ -140,8 +140,7 @@
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
-  (let ((value (output-value workspace value properties)))
-    value)
+  (output-value workspace value properties)
   (list :type (list :array :explicit)))
  (function
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression

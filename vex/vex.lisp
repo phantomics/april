@@ -18,6 +18,9 @@
    (system :accessor idiom-system
 	   :initform nil
 	   :initarg :system)
+   (symbols :accessor idiom-symbols
+	    :initform nil
+	    :initarg :symbols)
    (utilities :accessor idiom-utilities
 	      :initform nil
 	      :initarg :utilities)
@@ -316,6 +319,17 @@
 		    (idiom-utilities ,idiom-symbol)
 		    (append (idiom-utilities ,idiom-symbol)
 			    ,(cons 'list (of-subspec utilities)))
+		    (idiom-symbols ,idiom-symbol)
+		    (append (idiom-symbols ,idiom-symbol)
+			    ;; (loop :for (key value) :on ,(list 'quote (of-subspec symbols))
+			    ;;    :counting key :into key-count :when (oddp key-count)
+			    ;;    :append (list (string-upcase key) value))
+			    ;; ,(list 'quote (loop :for spec :in (of-subspec symbols)
+			    ;; 		     :collect (cons (first spec)
+			    ;; 				    (loop :for (key value) :on (rest spec)
+			    ;; 				       :counting key :into count :when (oddp count)
+			    ;; 				       :append (list (string-upcase key) value)))))
+			    ,(list 'quote (of-subspec symbols)))
 		    (idiom-lexicons ,idiom-symbol)
 		    (merge-lexicons (idiom-lexicons ,idiom-symbol)
 				    (quote ,lexicon-data))
@@ -502,11 +516,12 @@
 					       (string-upcase (idiom-name idiom))
 					       ;; if there's an overloaded token character passed in
 					       ;; the special precedent, prepend it to the token being processed
-					       meta (if (getf special-precedent :overloaded-num-char)
-							(concatenate 'string (list (getf special-precedent
-											 :overloaded-num-char))
-								     string)
-							string)))))
+					       meta (idiom-symbols idiom)
+					       (if (getf special-precedent :overloaded-num-char)
+						   (concatenate 'string (list (getf special-precedent
+										    :overloaded-num-char))
+								string)
+						   string)))))
 		   (%any (?blank-character))
 		   (=subseq (%any (?newline-character)))
 		   (=subseq (%any (?satisfies 'characterp))))
