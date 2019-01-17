@@ -13,10 +13,16 @@
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'realpart #'abs #'imagpart #'phase))
 
+(defvar *alphabet-vector* "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defvar *digit-vector* "0123456789")
+
 (defvar *atomic-vector*
   (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	       "%'._¤#&\"’¶@‘:?!£€$()[]{}<≤=≥>≠∨∧⊂⊃∩∪/\\+-⍺⍵"
 	       "⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤|;,⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
+
+(define-symbol-macro *apl-timestamp* (apl-timestamp))
 
 ;; top-level specification for the April language
 (specify-vex-idiom
@@ -24,7 +30,7 @@
 
  ;; system variables and default state of an April workspace
  (system :atomic-vector *atomic-vector* :disclose-output t :print-to nil :output-printed nil
-	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14))
+	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14 :print-precision 10))
 
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
@@ -49,7 +55,7 @@
 	    :match-token-character
 	    (lambda (char)
 	      (or (alphanumericp char)
-		  (member char (list #\. #\_ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+		  (member char (list #\. #\_ #\⎕ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
 	    ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
 	    ;; depending on their context
 	    :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -80,7 +86,7 @@
 	    :system-lexical-environment-interface
 	    (lambda (state)
 	      ;; currently, the only system value passed into the local environment is the index-origin
-	      (loop :for var :in (list :index-origin :comparison-tolerance)
+	      (loop :for var :in (list :index-origin :print-precision)
 		 :collect (list (intern (string-upcase var) "APRIL")
 				(getf state var))))
 	    :process-compiled-as-per-workspace
@@ -98,7 +104,8 @@
 				    (funcall (if (not (getf state :disclose-output))
 						 #'identity (lambda (item) (list 'disclose-atom item)))
 					     (first (last form)))
-				    (append (if (getf state :print-to) (list :print-to (getf state :print-to)))
+				    (append (list :print-precision 'print-precision)
+					    (if (getf state :print-to) (list :print-to (getf state :print-to)))
 					    (if (getf state :output-printed)
 						(list :output-printed (getf state :output-printed)))))))))
 	    :postprocess-value
@@ -106,13 +113,14 @@
 	      (list 'apl-output (funcall (if (not (getf state :disclose-output))
 					     #'identity (lambda (item) (list 'disclose-atom item)))
 					 form)
-		    (if (getf state :print-to) (list :print-to (getf state :print-to)))
-		    (if (getf state :output-printed)
-			(list :output-printed (getf state :output-printed))))))
+		    (append (list :print-precision 'print-precision)
+			    (if (getf state :print-to) (list :print-to (getf state :print-to)))
+			    (if (getf state :output-printed)
+				(list :output-printed (getf state :output-printed)))))))
 
  ;; specs for multi-character symbols exposed within the language
- (symbols (:variable ⎕io index-origin ⎕ct comparison-tolerance)
-	  (:constant ⎕av *atomic-vector*))
+ (symbols (:variable ⎕io index-origin ⎕pp print-precision) ;; ⎕ct comparison-tolerance
+	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*))
  
  ;; APL's set of functions represented by characters
  (functions
