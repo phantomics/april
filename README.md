@@ -459,7 +459,7 @@ April makes available the following APL system variables and functions:
 ⎕IO ⎕TS ⎕PP ⎕AV ⎕A ⎕D
 ```
 
-[Click here to read the names and descriptions of these symbols.](./system-variables.md)
+[Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
 
 
 ## What's Not Planned for Implementation
