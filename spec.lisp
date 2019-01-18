@@ -13,9 +13,9 @@
 	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
 	  #'realpart #'abs #'imagpart #'phase))
 
-(defvar *alphabet-vector* "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 (defvar *digit-vector* "0123456789")
+
+(defvar *alphabet-vector* "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 (defvar *atomic-vector*
   (concatenate 'string "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -43,10 +43,12 @@
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-mixed :lexical-functions-special :lexical-operators-lateral
-		      :lexical-operators-pivotal :general-tests :printed-format-tests)
+		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
+		      :printed-format-tests)
 	       (:demo :general-tests :lexical-functions-scalar-numeric
 		      :lexical-functions-scalar-logical :lexical-functions-mixed :lexical-functions-special
-		      :lexical-operators-lateral :lexical-operators-pivotal :printed-format-tests))
+		      :lexical-operators-lateral :lexical-operators-pivotal
+		      :system-variable-function-tests :printed-format-tests))
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char (list #\  #\Tab)))
@@ -291,20 +293,6 @@
      (tests (is "⍴1 2 3" 3)
 	    (is "⍴3 5⍴⍳8" #(3 5))
 	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
-  (≡ (has :titles ("Depth" "Match"))
-     (ambivalent (lambda (omega)
-		   (if (is-unitary omega)
-		       0 (array-depth omega)))
-		 (boolean-op array-compare))
-     (tests (is "≡1" 0)
-	    (is "≡⍳3" 1)
-	    (is "≡(1 2)(3 4)" 2)
-	    (is "≡1 (2 3) (4 5 (6 7)) 8" -3)))
-  (≢ (has :titles ("First Dimension" "Not Match"))
-     (ambivalent (lambda (omega) (first (dims omega)))
-		 (boolean-op (lambda (omega alpha) (not (array-compare omega alpha)))))
-     (tests (is "≢1 2 3" 3)
-	    (is "≢2 3 4⍴⍳9" 2)))
   (⌷ (has :title "Index")
      (dyadic (lambda (omega alpha &optional axes)
 	       (enclose (choose omega (let ((coords (array-to-list (apply-scalar #'- alpha index-origin)))
@@ -323,6 +311,20 @@
 	    (is "1 3⌷2 3 4⍴⍳5" #(4 5 1 2))
 	    (is "1 3⌷[1 3]2 3 4⍴⍳5" #(3 2 1))
 	    (is "(⊂4 5 2 6 3 7 1)⌷'MARANGA'" "ANAGRAM")))
+  (≡ (has :titles ("Depth" "Match"))
+     (ambivalent (lambda (omega)
+		   (if (is-unitary omega)
+		       0 (array-depth omega)))
+		 (boolean-op array-compare))
+     (tests (is "≡1" 0)
+	    (is "≡⍳3" 1)
+	    (is "≡(1 2)(3 4)" 2)
+	    (is "≡1 (2 3) (4 5 (6 7)) 8" -3)))
+  (≢ (has :titles ("First Dimension" "Not Match"))
+     (ambivalent (lambda (omega) (first (dims omega)))
+		 (boolean-op (lambda (omega alpha) (not (array-compare omega alpha)))))
+     (tests (is "≢1 2 3" 3)
+	    (is "≢2 3 4⍴⍳9" 2)))
   (∊ (has :titles ("Enlist" "Membership"))
      (ambivalent #'enlist
 		 (lambda (omega alpha)
@@ -898,11 +900,6 @@
 	(:tests-profile :title "Special Function Tests")
 	(:demo-profile :title "Special Function Demos"
 		       :description "These functions expose features of the language that aren't directly related to computing or transforming array values."))
-  (← (has :title "Assign")
-     (symbolic :special-lexical-form-assign)
-     (tests (is "x←55 ⋄ x" 55)
-	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
-						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
   (⊣ (has :titles ("Empty" "Left"))
      (ambivalent (lambda (omega)
 		   (declare (ignore omega))
@@ -921,14 +918,15 @@
 	    (is "55⊢77" 77)))
   (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (lambda (omega)
-		   (matrix-impress omega :collate t :format (lambda (n) (print-apl-number-string n t))))
+		   (array-impress omega :collate t
+				  :format (lambda (n) (print-apl-number-string	n t print-precision))))
 		 (lambda (omega alpha)
 		   (let ((alpha (disclose alpha)))
 		     (if (not (integerp alpha))
 			 (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
 					     " the precision at which to print floating-point numbers."))
-			 (matrix-impress omega :collate t
-					 :format (lambda (n) (print-apl-number-string n t alpha)))))))
+			 (array-impress omega :collate t
+					:format (lambda (n) (print-apl-number-string n t alpha)))))))
      (tests (is "⍕3 4⍴⍳9" #2A((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)
 			      (#\9 #\  #\1 #\  #\2 #\  #\3)))
 	    (is "⍕2 3 4⍴⍳9" #3A(((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)
@@ -939,6 +937,11 @@
      (symbolic :special-lexical-form-evaluate)
      (tests (is "⍎'1+1'" 2)
 	    (is "⍎'5','+3 2 1'" #(8 7 6))))
+  (← (has :title "Assign")
+     (symbolic :special-lexical-form-assign)
+     (tests (is "x←55 ⋄ x" 55)
+	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
+						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
  ;; APL's character-represented operators, which take one or two functions or arrays as input
@@ -1456,6 +1459,17 @@
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
+ (test-set
+  (with (:name :system-variable-function-tests)
+	(:tests-profile :title "System Variable and Function Tests")
+	(:demo-profile :title "System Variable and Function Demos"
+		       :description "Demos illustrating the use of system variables and functions."))
+  (for "Setting the index origin." "a←⍳3 ⋄ ⎕io←0 ⋄ a,⍳3" #(1 2 3 0 1 2))
+  (for-printed "Setting the print precision." "⎕pp←3 ⋄ a←⍕*⍳3 ⋄ ⎕pp←6 ⋄ a,'  ',⍕*⍳3"
+	       "2.718 7.389 20.086  2.718282 7.389056 20.085537")
+  (for "Alphabetical and numeric vectors." "⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+  (for "Seven elements in the timestamp vector." "⍴⎕ts" 7))
+ 
  (test-set
   (with (:name :printed-format-tests)
 	(:tests-profile :title "Printed Data Format Tests")

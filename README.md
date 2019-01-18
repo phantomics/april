@@ -65,7 +65,7 @@ Some APL functions and operators won't be added to April since they don't make s
 
 A full guide to the APL language is far beyond the scope of this file, but here are links to some good sources.
 
-[Here is a good high-level introduction.](http://vector.org.uk/art10011550)
+[A high-level introduction to APL.](http://vector.org.uk/art10011550)
 
 [This is a detailed language tutorial covering most of the functions and operators in April.](http://microapl.com/APL/tutorial_contents.html)
 
@@ -450,6 +450,17 @@ Inside the body of the `(with-april-context)` macro, each of the `(april)` invoc
 ```
 
 Options passed for one of the `(april)` invocations inside the context will override the options for the context. Here, the second `(april)` invocation has its index origin set to 1 which overrides the context's 0 value.
+
+## APL System Variables and Functions in April
+
+April makes available the following APL system variables and functions:
+
+```
+⎕IO ⎕TS ⎕PP ⎕AV ⎕A ⎕D
+```
+
+[Click here to read the names and descriptions of these symbols.](./system-variables.md)
+
 
 ## What's Not Planned for Implementation
 
