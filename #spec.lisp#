@@ -121,7 +121,7 @@
 				  (list :output-printed (getf state :output-printed)))))))
 
  ;; specs for multi-character symbols exposed within the language
- (symbols (:variable ⎕io index-origin ⎕pp print-precision) ;; ⎕ct comparison-tolerance
+ (symbols (:variable ⎕io index-origin ⎕pp print-precision)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*))
  
  ;; APL's set of functions represented by characters

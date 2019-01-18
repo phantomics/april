@@ -20,7 +20,7 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 ## Automatic Installation
 
-April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. To install April using Quicklisp, enter:
+April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. To do so:
 
 ```lisp
 (ql:quickload 'april)
@@ -226,6 +226,26 @@ This is another, more technical name for the `:count-from` sub-parameter. You ca
 #(0 1 2 3 4 5 6 7 8)
 ```
 
+#### :print-precision
+
+This controls the precision at which April prints floating point numbers. Its default value is 10. For example:
+
+```lisp
+* (april-p "⋆1 2 3")
+2.7182817000 7.3890560000 20.0855370000
+#(2.7182817 7.389056 20.085537)
+
+* (april-p (with (:state :print-precision 6)) "⋆1 2 3")
+2.718282 7.389056 20.085537
+#(2.7182817 7.389056 20.085537)
+
+* (april-p (with (:state :print-precision 3)) "⋆1 2 3")
+2.718 7.389 20.086
+#(2.7182817 7.389056 20.085537)
+```
+
+Note that `:print-precision` doesn't affect the Lisp values output by April, only the printed output.
+
 #### :in
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables `a` and `b` are set in the code, with values 1 and 2 respectively. You can use `:in` to pass values from Lisp into the April instance.
@@ -414,9 +434,11 @@ If you just want to compile the code you enter into April without running it, us
 
 ```lisp
 * (april (with (:compile-only)) "1+1 2 3")
-(LET* ((INDEX-ORIGIN 1))
-  (DECLARE (IGNORABLE INDEX-ORIGIN))
-  (APL-OUTPUT (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))))
+(LET* ((INDEX-ORIGIN 1) (PRINT-PRECISION 10))
+  (DECLARE (IGNORABLE INDEX-ORIGIN PRINT-PRECISION))
+  (APL-OUTPUT
+   (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))
+   :PRINT-PRECISION PRINT-PRECISION))
 ```
 
 ### (:restore-defaults) parameter
@@ -461,7 +483,6 @@ April makes available the following APL system variables and functions:
 
 [Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
 
-
 ## What's Not Planned for Implementation
 
 #### Functions:
@@ -491,14 +512,20 @@ See a pattern? The functions not planned for implentation are all those that man
 
 ## Also Not Implemented
 
-System functions and variables within APL are not implemented, along with APL's control flow statements. This type of functionality is also readily accessible through standard Common Lisp.
+APL's function editor system and control flow statements are not implemented; this type of functionality is also readily accessible through standard Common Lisp.
 
-## Tests
+## Tests and Demo
 
 If you missed it earlier, you can run tests for the implemented APL functions and operators by entering:
 
 ```lisp
 (april (test))
+```
+
+And you can see a demonstration of April language features by entering:
+
+```lisp
+(april (demo))
 ```
 
 ## Thanks to:
