@@ -193,6 +193,7 @@ To run April's test suite, just enter:
 
 ```lisp
 * (april (test))
+```
 
 ### (demo)
 
