@@ -7,12 +7,6 @@
 ### Functions
 
 ```
-[←] Assign
-
-[⊣] Empty / Left
-
-[⊢] Identity / Right
-
 [+] Conjugate / Add
 
 [-] Negate / Subtract
@@ -49,10 +43,6 @@
 
 [≠] Not Equal
 
-[≡] Depth / Match
-
-[≢] First Dimension / Not Match
-
 [∧] And
 
 [⍲] Nand
@@ -67,27 +57,23 @@
 
 [⌷] Index
 
+[≡] Depth / Match
+
+[≢] First Dimension / Not Match
+
 [∊] Enlist / Membership
 
 [⍷] Find
 
 [⍸] Where / Interval Index
 
-[↑] Mix / Take
-
-[↓] Split / Drop
-
 [,] Ravel / Catenate or Laminate
 
 [⍪] Table / Catenate First
 
-[/] Replicate
+[↑] Mix / Take
 
-[⌿] Replicate First
-
-[\] Expand
-
-[⍀] Expand First
+[↓] Split / Drop
 
 [⊂] Enclose / Partitioned Enclose
 
@@ -105,19 +91,33 @@
 
 [⍉] Transpose / Permute
 
+[/] Replicate
+
+[⌿] Replicate First
+
+[\] Expand
+
+[⍀] Expand First
+
+[⍋] Grade Up / Grade Up By
+
+[⍒] Grade Down / Grade Down By
+
 [⌹] Matrix Inverse / Matrix Divide
 
 [⊤] Encode
 
 [⊥] Decode
 
-[⍋] Grade Up / Grade Up By
+[⊣] Empty / Left
 
-[⍒] Grade Down / Grade Down By
+[⊢] Identity / Right
 
 [⍕] Format / Format At Precision
 
 [⍎] Evaluate
+
+[←] Assign
 ```
 
 ### Operators
