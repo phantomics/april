@@ -368,7 +368,8 @@
 					 ;; nonetheless, investigate this
 					 ,(vex-program ,idiom-symbol
 						       (if ,input-string
-							   (if (string= "WITH" (string (first ,options)))
+							   (if (or (string= "WITH" (string (first ,options)))
+								   (string= "SET" (string (first ,options))))
 							       (rest ,options)
 							       (error "Incorrect option syntax.")))
 						       (eval (if ,input-string ,input-string ,options)))))))
