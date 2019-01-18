@@ -173,10 +173,9 @@
 	    `(let ((output (,(intern (string-upcase symbol) (package-name *package*))
 			     (with (:state :output-printed :only))
 			     ,(third test-set))))
-	       (princ (concatenate
-		       'string "    "
-		       (regex-replace-all "[\\n]" output
-					  (concatenate 'string (list #\Newline)  "    "))))
+	       (princ (concatenate 'string "    "
+				   (regex-replace-all "[\\n]" output
+						      (concatenate 'string (list #\Newline)  "    "))))
 	       (if (or (= 0 (length output))
 		       (not (char= #\Newline (aref output (1- (length output))))))
 		   (princ #\Newline)))))))

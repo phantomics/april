@@ -21,11 +21,12 @@
 		:collect (if (and (listp item) (eql 'apl-assign (first item)))
 			     (cond ((or (eql 'index-origin (second item))
 					(eql 'print-precision (second item)))
-				    ;; `(progn ,(macroexpand item)
-				    ;; 	    (setf (getf (gethash :system ,workspace-symbol)
-				    ;; 			,(intern (second item) "KEYWORD"))
-				    ;; 		  ,(second (third item))))
-				    (macroexpand item))
+				    ;; if it's a system variable, assign the corresponding value
+				    ;; in the workspace as well as in the lexical environment
+				    `(progn ,(macroexpand item)
+					    (setf (getf (getf (gethash :system ,workspace-symbol) :state)
+							,(intern (string-upcase (second item)) "KEYWORD"))
+						  ,(second (third item)))))
 				   (t (list 'setq (second item)
 					    `(setf (gethash ',(second item)
 							    (gethash :values ,workspace-symbol))
