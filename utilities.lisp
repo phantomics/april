@@ -48,7 +48,7 @@
 	     (error "Attempted to assign invalid value to [⎕IO Index Origin].")))
 	(t `(setq ,symbol ,value))))
 
-(defmacro apl-output (form options)
+(defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)))
     `(let ((,result ,form))
