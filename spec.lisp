@@ -1466,7 +1466,7 @@
 		       :description "Demos illustrating the use of system variables and functions."))
   (for "Setting the index origin." "a←⍳3 ⋄ ⎕io←0 ⋄ a,⍳3" #(1 2 3 0 1 2))
   (for-printed "Setting the print precision." "⎕pp←3 ⋄ a←⍕*⍳3 ⋄ ⎕pp←6 ⋄ a,'  ',⍕*⍳3"
-	       "2.718 7.389 20.086  2.718282 7.389056 20.085537")
+	       "2.72 7.39 20.1  2.71828 7.38906 20.0855")
   (for "Alphabetical and numeric vectors." "⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
   (for "Seven elements in the timestamp vector." "⍴⎕ts" 7))
  
@@ -1475,13 +1475,13 @@
 	(:tests-profile :title "Printed Data Format Tests")
 	(:demo-profile :title "Data Format Demos"
 		       :description "More demos showing how different types of data are formatted in April."))
-  (for-printed "Numeric vector printed." "1+1 2 3" "2 3 4
+  (for-printed "Numeric vector." "1+1 2 3" "2 3 4
 ")
-  (for-printed "Numeric matrix printed." "3 4⍴⍳9" "1 2 3 4
+  (for-printed "Numeric matrix." "3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
 ")
-  (for-printed "3D numeric array printed." "2 3 4⍴⍳9" "1 2 3 4
+  (for-printed "3D numeric array." "2 3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
        
@@ -1489,7 +1489,7 @@
 8 9 1 2
 3 4 5 6
 ")
-  (for-printed "4D numeric array printed." "2 3 2 5⍴⍳9" "1 2 3 4 5
+  (for-printed "4D numeric array." "2 3 2 5⍴⍳9" "1 2 3 4 5
 6 7 8 9 1
          
 2 3 4 5 6
@@ -1509,34 +1509,34 @@
 2 3 4 5 6
 ")
   
-  (for-printed "Vector of numeric matrices printed." "⊂[1 2]2 3 4⍴4 5 6"
+  (for-printed "Vector of numeric matrices." "⊂[1 2]2 3 4⍴4 5 6"
 	       " 4 5 6  5 6 4  6 4 5  4 5 6
  4 5 6  5 6 4  6 4 5  4 5 6
 ")
-  (for-printed "Matrix of numeric matrices printed." "2 3⍴⊂2 2⍴⍳4"
+  (for-printed "Matrix of numeric matrices." "2 3⍴⊂2 2⍴⍳4"
 	       " 1 2  1 2  1 2
  3 4  3 4  3 4
  1 2  1 2  1 2
  3 4  3 4  3 4
 ")
-  (for-printed "Vector with nested vectors printed." "1 2 (1 2 3) 4 5 (6 7 8)"
+  (for-printed "Vector with nested vectors." "1 2 (1 2 3) 4 5 (6 7 8)"
 	       "1 2  1 2 3  4 5  6 7 8
 ")
-  (for-printed "Vector with initial nested vector printed." "(1 2 3) 4 5 (6 7) 8 9"
+  (for-printed "Vector with initial nested vector." "(1 2 3) 4 5 (6 7) 8 9"
 	       " 1 2 3  4 5  6 7  8 9
 ")
-  (for-printed "Vector with nested arrays printed." "1 2 (3 4⍴⍳9) 5 6 (2 2 3⍴5) 7 8"
+  (for-printed "Vector with nested arrays." "1 2 (3 4⍴⍳9) 5 6 (2 2 3⍴5) 7 8"
 	       "1 2  1 2 3 4  5 6  5 5 5  7 8
      5 6 7 8       5 5 5     
      9 1 2 3                 
                    5 5 5     
                    5 5 5     
 ")
-  (for-printed "Character vector (string) printed." "'ABCDE'" "ABCDE")
-  (for-printed "Character matrix printed." "2 5⍴'ABCDEFGHIJ'" "ABCDE
+  (for-printed "Character vector (string)." "'ABCDE'" "ABCDE")
+  (for-printed "Character matrix." "2 5⍴'ABCDEFGHIJ'" "ABCDE
 FGHIJ
 ")
-  (for-printed "3D character array printed." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
+  (for-printed "3D character array." "2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'" "GRAY
 GOLD
 BLUE
     
@@ -1544,15 +1544,15 @@ SILK
 WOOL
 YARN
 ")
-  (for-printed "2D array of character strings printed." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+  (for-printed "2D array of character strings." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
 	       " GRAY  GOLD  BLUE
  SILK  WOOL  YARN
 ")
-  (for-printed "Vector of character matrices printed." "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+  (for-printed "Vector of character matrices." "⊂[1 2]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
 	       " GGB  ROL  ALU  YDE
  SWY  IOA  LOR  KLN
 ")
-  (for-printed "Matrix of character matrices printed." "⊂[1 2]2 3 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+  (for-printed "Matrix of character matrices." "⊂[1 2]2 3 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
 	       " GSG  RIR  ALA  YKY
  SGS  IRI  LAL  KYK
  GWG  OOO  LOL  DLD
@@ -1560,19 +1560,19 @@ YARN
  BYB  LAL  URU  ENE
  YBY  ALA  RUR  NEN
 ")
-  (for-printed "Stacked strings printed." "⍪'A' 'Stack' 'Of' 'Strings'"
+  (for-printed "Stacked strings." "⍪'A' 'Stack' 'Of' 'Strings'"
 	       " A      
  Stack  
  Of     
  Strings
 ")
-  (for-printed "Mixed strings printed." "↑'These' 'Strings' 'Are' 'Mixed'"
+  (for-printed "Mixed strings." "↑'These' 'Strings' 'Are' 'Mixed'"
 	       "These  
 Strings
 Are    
 Mixed  
 ")
-  (for-printed "Matrix containing nested arrays of differing shapes printed." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
+  (for-printed "Matrix containing nested arrays of differing shapes." "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
 	       "  1 1  0 0 0    1 0  0 0 0    1 ¯1  0 0 0 
        0 1 2         1 2 3          2 3 0 
        0 4 5         4 5 6          5 6 0 
@@ -1583,7 +1583,7 @@ Mixed
         0 7 8         7 8 9          8 9 0
         0 0 0         0 0 0          0 0 0
 ")
-  (for-printed "Array of differently-shaped nested arrays printed." "{⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
+  (for-printed "Array of differently-shaped nested arrays." "{⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
 	       " 1 1    0 0 0
         0 1 2
         0 4 5
@@ -1614,13 +1614,30 @@ Mixed
         8 9 0
         0 0 0
 ")
-  (for-printed "Nested vector with mixed numeric and character values printed."
+  (for-printed "Nested vector with mixed numeric and character values."
 	       "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
-  (for-printed "Matrix of mixed strings and numeric vectors printed."
+  (for-printed "Column of integer and float values at varying precisions."
+	       "⎕pp←6 ⋄ ⍪8 900.17814 3005 ¯15.90 88.1,÷2 4 8"
+	       "   8    
+ 900.178
+3005    
+ ¯15.9  
+  88.1  
+   0.5  
+   0.25 
+   0.125
+")
+  (for-printed "Matrix of mixed strings and numeric vectors."
 	       "2 2⍴'Test' (1 2 3) 'Hello' (5)"
 	       " Test   1 2 3
  Hello  5    
+")
+  (for-printed "Matrix with columns of mixed string and numeric values."
+	       "3 3⍴'a' 12 34 'b' 'cde' 'fgh' 'i' 900 'kl'"
+	       "a  12   34
+b cde  fgh
+i 900   kl
 ")))
 
 #|
