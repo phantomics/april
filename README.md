@@ -236,20 +236,20 @@ This is another, more technical name for the `:count-from` sub-parameter. You ca
 
 #### :print-precision
 
-This controls the precision at which April prints floating point numbers. Its default value is 10. For example:
+This controls the maximal precision at which April prints floating point numbers. Its default value is 10. For example:
 
 ```lisp
-* (april-p "⋆1 2 3")
-2.7182817000 7.3890560000 20.0855370000
-#(2.7182817 7.389056 20.085537)
+* (april-p "○1 2 3")
+3.141592654 6.283185307 9.424777961	
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 
-* (april-p (with (:state :print-precision 6)) "⋆1 2 3")
-2.718282 7.389056 20.085537
-#(2.7182817 7.389056 20.085537)
+* (april-p (with (:state :print-precision 6)) "○1 2 3")
+3.14159 6.28319 9.42478
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 
-* (april-p (with (:state :print-precision 3)) "⋆1 2 3")
-2.718 7.389 20.086
-#(2.7182817 7.389056 20.085537)
+* (april-p (with (:state :print-precision 3)) "○1 2 3")
+3.14 6.28 9.42
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 ```
 
 Note that `:print-precision` doesn't affect the Lisp values output by April, only the printed output.

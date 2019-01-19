@@ -157,12 +157,17 @@
 	 (format nil "¯~a" (print-apl-number-string (abs number) coerce-rational precision)))
 	((integerp number)
 	 (format nil "~D" number))
-	((or (floatp number) (and coerce-rational (rationalp number)))
-	 (format nil (if (not precision)
-			 "~F" (format nil "~~,~DF" precision))
-		 number))
+	((and coerce-rational (rationalp number))
+	 (format-decimal-number number
+				:round-magnitude (min 0 (- (- precision (1+ (floor (log (abs number) 10))))))))
 	((rationalp number)
-	 (write-to-string number))))
+	 (write-to-string number))
+	(t (if (not precision)
+	       (format nil "~F" number)
+	       (let ((printed-digits (loop :for digit :across (write-to-string number) :when (digit-char-p digit)
+					:counting digit :into digits :finally (return digits))))
+		 (format nil (format nil "~~~DF" (min (1+ printed-digits) (1+ precision)))
+			 number))))))
 
 (defun format-value (idiom-name meta symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."

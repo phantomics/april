@@ -138,10 +138,10 @@
 ;; TODO: this is also April-specific, move it into spec
 (defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
-  `((princ ,(format nil "~%~a ~a" (cond ((string= "FOR" (string-upcase (first test-set)))
-					 #\∇)
+  `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
+					 "∇ ")
 					((string= "FOR-PRINTED" (string-upcase (first test-set)))
-					 #\⎕))
+					 (if (eq :test mode) "⎕ Printed: " "⎕ ")))
 		    (second test-set)))
     (princ (format nil "~%  _ ~a~%" ,(third test-set)))
     ,(cond ((and (eq :test mode)
