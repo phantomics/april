@@ -1477,6 +1477,9 @@
 		       :description "More demos showing how different types of data are formatted in April."))
   (for-printed "Numeric vector." "1+1 2 3" "2 3 4
 ")
+  (for-printed "Vector of mixed integers and floats." "12.5 3 42.890 90.5001 8 65"
+	       "12.5 3 42.89 90.5001 8 65
+")
   (for-printed "Numeric matrix." "3 4⍴⍳9" "1 2 3 4
 5 6 7 8
 9 1 2 3
@@ -1638,6 +1641,42 @@ Mixed
 	       "a  12   34
 b cde  fgh
 i 900   kl
+")
+  (for-printed "Another mixed matrix." "3 3⍴'a' 12 34 'b' 'cde' 'fgh' 'i' 900 'k'"
+	       "a  12   34
+b cde  fgh
+i 900    k
+")
+  (for-printed "Another mixed matrix." "1⌽3 3⍴'a' 12 34 'b' 'cde' 'fgh' 'i' 900 'k'"
+	       "  12   34 a
+ cde  fgh b
+ 900    k i
+")
+  (for-printed "Another mixed matrix." "g←⍪12 'abc' 900 ⋄ g,(⍪1 2 3),g"
+	       "  12  1   12
+ abc  2  abc
+ 900  3  900
+")
+  (for-printed "Mixed matrix with floats." "1⌽3 3⍴'a' 12 3.045 'b' 'cde' 8.559 'i' 900 'k'"
+	       "  12  3.045 a
+ cde  8.559 b
+ 900      k i
+")
+  (for-printed "Mixed numeric, string and float matrix." "(⍪'abc'),(⍪1.2×1 2 2),⍪⍳3"
+	       "a 1.2 1
+b 2.4 2
+c 2.4 3
+")
+  (for-printed "Matrix with intermixed character and float column." "(⍪'abc'),(⍪'a',1.2×1 2),⍪⍳3"
+	       "a   a 1
+b 1.2 2
+c 2.4 3
+")
+  (for-printed "Catenated character and numeric arrays."
+	       "(⍪⍳3),(3 3⍴'abcdef'),(3 3⍴⍳9),(3 3⍴'defghi'),⍪⍳3"
+	       "1 abc 1 2 3 def 1
+2 def 4 5 6 ghi 2
+3 abc 7 8 9 def 3
 ")))
 
 #|

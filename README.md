@@ -79,6 +79,13 @@ If you would like a quick tour of the language, April includes a function that w
 
 The * indicates a REPL prompt. Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
 
+### How to Enter APL Characters
+
+In order to write APL programs you'll need a way to use the language's special character set.
+
+[Click here for information on enabling APL input within Emacs.](#enabling-apl-input-in-emacs)
+
+
 ## Basic Evaluation: (april) and (april-p)
 
 Evaluating an APL expression is as simple as:
@@ -535,6 +542,14 @@ And you can see a demonstration of April language features by entering:
 ```lisp
 (april (demo))
 ```
+
+## Enabling APL Input in Emacs
+
+Most Lisp developers interact with the language through Emacs, so Emacs is also the most convenient tool to write April programs. The best way to input APL characters in Emacs is using the gnu-apl-mode Emacs plugin. You can get it [from the repository here](https://github.com/lokedhs/gnu-apl-mode) or install it directly via the MELPA Emacs package repository.
+
+[Click here for information on using MELPA.](http://ergoemacs.org/emacs/emacs_package_system.html)
+
+Once gnu-apl-mode is installed, you can switch to the APL input mode by typing `M-x toggle-input-method` or `C-\`. You will be prompted to enter the input mode to use, so enter `APL-Z` and then you'll be able to toggle APL input on and off by typing `C-\`. While in APL-Z input mode, you can enter APL characters by prefixing the key with a `.` period character.
 
 ## Thanks to:
 
