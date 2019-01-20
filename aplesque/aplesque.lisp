@@ -1163,7 +1163,6 @@
 					  (and (stringp elem) (= 1 (length elem))))
 				      ;; characters are simply passed through,
 				      ;; 1-item strings are rendered the same way
-				      ;; (print elem)
 				      (setf (apply #'aref (cons strings coords))
 					    (if (characterp elem)
 						elem (aref elem 0))
@@ -1218,9 +1217,6 @@
 					      ;; than in other rows of this column; negative values occupy
 					      ;; an extra space due to the minus sign
 					      (max decimals (aref col-decimals last-coord)))
-					;; (print (list :elm elem (and next-elem
-					;; 			    (or (numberp next-elem)
-					;; 				(characterp next-elem)))))
 					(if (not (member :number (aref col-types last-coord)))
 					    (setf (aref col-types last-coord)
 						  (cons :number (aref col-types last-coord))))
@@ -1283,7 +1279,6 @@
 	     					 (+ (if (or prepend append) 1 0)
 	     					    (aref x-offsets (1- (length x-offsets)))))
 	     				   :element-type 'character :initial-element output-default-char))))
-	       ;; (print (list :out y-offsets (dims output) output))
 	       (across strings (lambda (chars coords)
 	     			 ;; calculate the row of output currently being produced
 	     			 (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
@@ -1305,7 +1300,6 @@
 	     			       ;; is different depending on whether collated output is being produced
 	     			       (across chars
 					       (lambda (element ecoords)
-						 ;;(print element)
 						 (let* ((original (apply #'aref (cons input coords)))
 							;; derive this cell's decimal indentation; negative
 							;; values are indented 1 space less to allow for
