@@ -50,23 +50,21 @@
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
-  (let ((result (gensym)))
-    `(let ((,result ,form))
+  (let ((result (gensym))
+	(printout (gensym)))
+    `(let* ((,result ,form)
+	    (,printout ,(if (or (getf options :print-to)
+				(getf options :output-printed))
+			    `(matrix-print ,result :append #\Newline
+					   :format (lambda (n) (print-apl-number-string
+								n t ,(getf options :print-precision)))))))
+       (declare (ignorable ,printout))
        (if (not (or (stringp ,result) (not (arrayp ,result))))
 	   ,(if (getf options :print-to)
-		`(write-string (matrix-print ,result :append #\Newline
-					     :format (lambda (n) (print-apl-number-string
-								  n t ,(getf options :print-precision))))
-			       ,(getf options :print-to))))
+		`(write-string ,printout ,(getf options :print-to))))
        ,(if (getf options :output-printed)
 	    (if (eq :only (getf options :output-printed))
-		`(matrix-print ,result :append #\Newline
-			       :format (lambda (n) (print-apl-number-string
-						    n t ,(getf options :print-precision))))
-		`(values ,result (matrix-print ,result :append #\Newline
-					       :format (lambda (n)
-							 (print-apl-number-string
-							  n t ,(getf options :print-precision))))))
+		printout `(values ,result ,printout))
 	    result))))
 
 (defun array-to-nested-vector (array)
