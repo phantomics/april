@@ -1272,7 +1272,7 @@
 	     ;; (print (list :xoyo x-offsets y-offsets col-widths))
 	     ;; (princ #\Newline)
 	     ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
-	     ;; versions of the original sub-matrices, as per APL's ⍕ format function. If a prepend
+	     ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
 	     ;; character is set, the output array has an extra element in its last dimension to hold the
 	     ;; indenting character
 	     (let ((output (if collate (make-array (append (butlast adims)
