@@ -1678,6 +1678,12 @@ c 2.4 3
 	       "1 abc 1 2 3 def 1
 2 def 4 5 6 ghi 2
 3 abc 7 8 9 def 3
+")
+  (for-printed "Array with mixed string/float column, string longer than floats."
+	       "(⍪'abc'),(⍪(⊂'abcdef'),1.2 2.56),⍪⍳3"
+	       "a abcdef  1
+b   1.2   2
+c   2.56  3
 ")))
 
 #|
