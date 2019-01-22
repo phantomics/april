@@ -7,7 +7,7 @@
   :license "Apache-2.0"
   :serial t
   :depends-on ("vex" "aplesque" "array-operations" "alexandria" "cl-ppcre"
-	       "decimals" "parse-number" "symbol-munger" "prove")
+	       "decimals" "parse-number" "symbol-munger" "prove" "simple-date-time")
   :components 
   ((:file "package")
    (:file "utilities")

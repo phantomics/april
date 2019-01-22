@@ -4,6 +4,8 @@
 
 <!-- /TITLE -->
 
+These symbols represent values defining the environment in which April code runs.
+
 ### System Variables
 
 These variables can be reassigned by the user; for instance, `⎕io←0` sets the index origin to 0.
@@ -29,4 +31,4 @@ These symbols represent standard functions available within April. Currently, th
 
 |Symbol|Name             |Description|
 |------|-----------------|-----------|
-|`⎕TS` |Current Timestamp|Evaluates to the current APL timestamp; a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
+|`⎕TS` |Timestamp        |Evaluates to the current APL timestamp; a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
