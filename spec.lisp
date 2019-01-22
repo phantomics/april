@@ -1633,9 +1633,9 @@ Mixed
    0.125
 ")
   (for-printed "Matrix of mixed strings and numeric vectors."
-	       "2 2⍴'Test' (1 2 3) 'Hello' (5)"
+	       "2 2⍴'Test' (1 2 3) 'Hello' 5"
 	       " Test   1 2 3
- Hello  5    
+ Hello      5
 ")
   (for-printed "Matrix with columns of mixed string and numeric values."
 	       "3 3⍴'a' 12 34 'b' 'cde' 'fgh' 'i' 900 'kl'"
