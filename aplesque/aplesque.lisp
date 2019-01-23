@@ -1412,7 +1412,14 @@
 						     ;; right-justify the character if this column holds
 						     ;; numbers as well
 						     (max 0 (if (not numeric-col)
-								0 (1- this-col-width))))))
+								0 (- this-col-width
+								     ;; add 2 spaces to the right if this column
+								     ;; holds an array, it isn't the last column
+								     ;; and the next column holds a character
+								     (if (and array-col (not is-last-col)
+									      (not (is-pure-character-column
+										    (1+ last-coord))))
+									 2 1)))))))
 				     (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
 											  (list x-coord))))
 						       chars)
