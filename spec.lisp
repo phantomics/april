@@ -1698,6 +1698,13 @@ c   2.56  3
       5 5 5 5    
  cde  gg        9
  900  k        10
+")
+  (for-printed "Mixed array with column holding longer number than nested array."
+	       "(⍪'abc'),(⍪(⊂2 2⍴1),58 12345678),⍪⍳3"
+	       "a      1 1  1
+       1 1   
+b       58  2
+c 12345678  3
 ")))
 
 #|
