@@ -191,8 +191,8 @@
 	 ;; if no reference is found in that table, a new reference is created there and a new symbol
 	 ;; is generated
 	 (or (and (char= #\⎕ (aref element 0))
-		  (or (getf (rest (assoc :variable symbols)) (intern (string-upcase element)))
-		      (getf (rest (assoc :constant symbols)) (intern (string-upcase element)))))
+		  (or (getf (rest (assoc :variable symbols)) (intern (string-upcase element) "APRIL"))
+		      (getf (rest (assoc :constant symbols)) (intern (string-upcase element) "APRIL"))))
 	     (if (not (gethash :variables meta))
 		 (setf (gethash :variables meta)
 		       (make-hash-table :test #'eq)))

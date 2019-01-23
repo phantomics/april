@@ -1155,6 +1155,44 @@
 			       (decimal-place (aref col-decimals 0 last-coord))
 			       (decimal-length (aref col-decimals 1 last-coord)))
 	       (across input (lambda (elem coords)
+			       (let* ((last-coord (first (last coords))))
+				 (flet ((add-column-types (&rest types)
+					  (loop :for type :in types
+					     :do (if (not (member type (aref col-types last-coord)))
+						     (setf (aref col-types last-coord)
+							   (cons type (aref col-types last-coord)))))))
+				   (cond ((or (characterp elem)
+					      (and (stringp elem) (= 1 (length elem))))
+					  ;; characters are simply passed through,
+					  ;; 1-item strings are rendered the same way
+					  (add-column-types :character)
+					  (setf this-string (if (characterp elem)
+								elem (aref elem 0))))
+					 ((arrayp elem)
+					  ;; recurse to handle nested arrays, passing back the rendered character
+					  ;; array and adjust the offsets to allow for its height and width
+					  (let ((rendered (array-impress elem :format format
+									 :prepend output-default-char)))
+					    ;; in the case a 1D array (string) is passed back, height defaults to 1
+					    (setf this-string rendered)
+					    ;; TODO: improve element type-checking here
+					    (if (eq 'character (element-type elem))
+						(add-column-types :array :character-array)
+						(if (or (eq 'fixnum (element-type elem))
+							(eq 'bit (element-type elem)))
+						    (add-column-types :array :number-array)
+						    (add-column-types :array :mixed-array)))))
+					 ((numberp elem)
+					  ;; use the number-formatting function to make strings out of numbers,
+					  ;; and adjust the next x-offset to allow for their width
+					  (let* ((elem-string (funcall (if format format #'write-to-string)
+								       elem))
+						 (is-float (or (floatp elem) (and (not (integerp elem))
+										  (rationalp elem)))))
+					    (setf this-string elem-string)
+					    (if is-float (add-column-types :number :float)
+						(add-column-types :number)))))))))
+	       (across input (lambda (elem coords)
 			       (let* ((last-coord (first (last coords)))
 				      (next-elem (if (< last-coord (- (length x-offsets) 2))
 						     (apply #'aref (cons input (append (butlast coords)
@@ -1166,50 +1204,20 @@
 				      (elem-height 1)
 				      (decimals 0)
 				      (is-first-col (not last-elem))
-				      (is-last-col (not next-elem)))
+				      (is-last-col (not next-elem))
+				      (rendered (apply #'aref (cons strings coords))))
 				 (flet ((is-pure-character-column (&optional index)
 					  (and (eq :character (first (aref col-types (or index last-coord))))
 					       (not (rest (aref col-types (or index last-coord)))))))
-				   (cond ((or (characterp elem)
-					      (and (stringp elem) (= 1 (length elem))))
-					  ;; characters are simply passed through,
-					  ;; 1-item strings are rendered the same way
-					  (if (not (member :character (aref col-types last-coord)))
-					      (setf (aref col-types last-coord)
-						    (cons :character (aref col-types last-coord))))
-					  (setf this-string (if (characterp elem)
-								elem (aref elem 0))))
-					 ((arrayp elem)
-					  ;; recurse to handle nested arrays, passing back the rendered character
-					  ;; array and adjust the offsets to allow for its height and width
-					  (let* ((rendered (array-impress elem :format format
-									  :prepend output-default-char))
-						 (rdims (reverse (dims rendered))))
-					    ;; in the case a 1D array (string) is passed back, height defaults to 1
+				   (cond ((and (arrayp elem)
+					       (not (characterp rendered)))
+					  (let ((rdims (reverse (dims rendered))))
 					    (setf elem-height (or (second rdims) 1)
-						  elem-width (first rdims)
-						  this-string rendered)
-					    (if (not (member :array (aref col-types last-coord)))
-						(setf (aref col-types last-coord)
-						      (append (cons :array
-								    (if (eq 'character (element-type elem))
-									(list :character-array)
-									(if (or (eq 'fixnum (element-type elem))
-										(eq 'bit (element-type elem)))
-									    (list :number-array)
-									    (list :mixed-array))))
-							      (aref col-types last-coord))))))
+						  elem-width (first rdims))))
 					 ((numberp elem)
-					  ;; use the number-formatting function to make strings out of numbers,
-					  ;; and adjust the next x-offset to allow for their width
-					  (let* ((elem-string (funcall (if format format #'write-to-string)
-								       elem))
-						 (is-float (or (floatp elem) (and (not (integerp elem))
-										  (rationalp elem))))
-						 (leading-digits))
+					  (let ((leading-digits))
 					    (setf decimals (+ (if (> 0 elem) 2 1)
-							      (if (= 0 elem)
-								  0 (floor (log (abs elem) 10))))
+							      (if (= 0 elem) 0 (floor (log (abs elem) 10))))
 						  ;; increment the decimal point position if it's further right
 						  ;; than in other rows of this column; negative values occupy
 						  ;; an extra space due to the minus sign
@@ -1217,36 +1225,28 @@
 						  leading-digits (- decimal-length decimal-place)
 						  elem-width (if (> decimals leading-digits 0)
 								 (+ 1 decimals leading-digits)
-								 (length elem-string))
-						  decimal-length (max elem-width decimal-length)
-						  this-string elem-string)
-					    (if (not (member :number (aref col-types last-coord)))
-						(setf (aref col-types last-coord)
-						      (cons :number (aref col-types last-coord))))
-					    (if (and is-float (not (member :float (aref col-types last-coord))))
-						(setf (aref col-types last-coord)
-						      (cons :float (aref col-types last-coord)))))))
+								 (length rendered))
+						  decimal-length (max elem-width decimal-length)))))
 				   ;; if this is the beginning of a new row, increment the row's y-offset
 				   ;; by the number of preceding empty rows
 				   (if (= 0 last-coord)
-				       (setf row (reduce #'+
-							 (mapcar #'* (rest (reverse coords))
-								 (let ((current 1))
-								   (loop :for dim
-								      :in (cons 1 (rest (reverse (rest adims))))
-								      :collect (setq current (* current dim))))))
+				       (setf row (reduce #'+ (mapcar #'* (rest (reverse coords))
+								     (let ((current 1))
+								       (loop :for dim
+									  :in (cons 1 (rest (reverse (rest adims))))
+									  :collect (setq current
+											 (* current dim))))))
 					     ;; find the total number of empty lines preceding this row by encoding
 					     ;; the coordinates excepting the last two with a series of number bases
 					     ;; found by multiplying each dimension going backwards excepting the
 					     ;; last 2 by the previous base and adding 1
 					     empty-rows
-					     (reduce #'+
-						     (mapcar #'* (cddr (reverse coords))
-							     (cons 1 (let ((last 1))
-								       (loop :for dim
-									  :in (reverse (rest (butlast adims 2)))
-									  :collect (setq last
-											 (1+ (* dim last))))))))
+					     (reduce #'+ (mapcar #'* (cddr (reverse coords))
+								 (cons 1 (let ((last 1))
+									   (loop :for dim
+									      :in (reverse (rest (butlast adims 2)))
+									      :collect (setq last
+											     (1+ (* dim last))))))))
 					     (aref y-offsets row)
 					     (+ empty-rows (aref y-offsets row))))
 				   (setf this-col-width
@@ -1255,18 +1255,18 @@
 					      ;; 2. It's an array column and the previous column was also an array
 					      ;; (thus preserving the 2-space margin between arrays)
 					      ;; or 3. It's an array column and the previous column held only chars
-					      (+ elem-width (if (or is-first-col
-								    (and (characterp elem) (characterp last-elem))
-								    (and (member :array (aref col-types last-coord))
-									 (or (member :array (aref col-types
-												  (1- last-coord)))
-									     (is-pure-character-column
-									      (1- last-coord)))))
-								0 1)
+					      (+ elem-width
+						 (if (or is-first-col
+							 (and (characterp elem) (characterp last-elem))
+							 (and (member :array (aref col-types last-coord))
+							      (or (member :array (aref col-types (1- last-coord)))
+								  (is-pure-character-column
+								   (1- last-coord)))))
+						     0 1)
 						 ;; add right buffer space if this column is 1. Not the last and
 						 ;; 2. Contains an array
 						 (if (and (not is-last-col)
-							  (or (member :array (aref col-types last-coord)))
+							  (member :array (aref col-types last-coord))
 							  (not (is-pure-character-column (1+ last-coord))))
 						     1 0)))
 					 (aref x-offsets (1+ last-coord))
@@ -1304,119 +1304,113 @@
 						   (+ (if (or prepend append) 1 0)
 						      (aref x-offsets (1- (length x-offsets)))))
 					     :element-type 'character :initial-element output-default-char))))
-		 (across strings (lambda (chars coords)
-				   ;; calculate the row of output currently being produced
-				   (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
-								   (let ((current 1))
-								     (loop :for dim
-									:in (cons 1 (rest (reverse (rest adims))))
-									:collect (setq current (* current dim)))))))
-					  (original (apply #'aref (cons input coords)))
-					  (last-coord (first (last coords)))
-					  (chars-width (first (last (dims chars))))
-					  (array-col (member :array (aref col-types last-coord)))
-					  (numeric-col (member :number (aref col-types last-coord)))
-					  (float-col (member :float (aref col-types last-coord)))
-					  (first-col (= 0 last-coord))
-					  (last-col (= last-coord (1- (length col-types))))
-					  (next-col-array (and (not last-col)
-							       (member :array (aref col-types (1+ last-coord))))))
-				     (flet ((is-pure-character-column (&optional index)
-					      (and (eq :character (first (aref col-types (or index last-coord))))
-						   (not (rest (aref col-types (or index last-coord))))))
-					    (is-character-array-column (&optional index)
-					      (let ((type-list (aref col-types (or index last-coord))))
-						(and (not (member :number type-list))
-						     (not (member :mixed-array type-list))
-						     (not (member :number-array type-list))))))
-				       ;;(print (list :ch chars (is-character-array-column)))
-				       (if (arrayp chars)
-					   ;; print a string or sub-matrix of characters; the coordinate conversion
-					   ;; is different depending on whether collated output is being produced
-					   (across chars
-						   (lambda (element ecoords)
-						     (let* ((decimal-indent
-							     ;; derive this cell's decimal indentation; negative
-							     ;; values are indented 1 space less to allow for
-							     ;; the minus sign
-							     (if (and float-col (numberp original))
-								 (max 0 (- decimal-place
-									   (+ (if (> 0 original) 2 1)
-									      (if (> 1 (abs original))
-										  0 (floor (log (abs original)
-												10))))))))
-							    (right-space
-							     ;; pad arrays with a space to the right, unless
-							     ;; they're at the last column or the next column is a
-							     ;; character column
-							     (if (and (not last-col)
-								      (member :array (aref col-types last-coord))
-								      (not (is-pure-character-column
-									    (1+ last-coord))))
-								 -1 0))
-							    (x-coord (+ (if (second ecoords)
-									    (second ecoords) (first ecoords))
-									(aref x-offsets last-coord)
-									;; if this array is prepended, shift
-									;; printed output right by 1 space
-									(if prepend 1 0)
-									;; left-justify printed items unless the
-									;; column contains numbers, in which case
-									;; everything is right-justified
-									(if numeric-col
-									    (+ right-space
-									       (- (if (and float-col
-											   (numberp original))
-										      (- (- decimal-length
-											    chars-width)
-											 (if decimal-indent
-											     decimal-indent 0))
-										      0))
-									       (- (aref x-offsets (1+ last-coord))
-										  (aref x-offsets last-coord)
-										  chars-width))
-									    ;; add a right padding space if this is
-									    ;; a character array column and 
-									    (if (and (not first-col)
-										     (not (member
-											   :array
-											   (aref col-types
-												 (1- last-coord)))))
-										1 0)))))
-						       (if collate (setf (apply #'aref
-										(cons output
-										      (append (butlast coords 1)
-											      (list x-coord))))
-									 element)
-							   (setf (aref output (+ (if (not (second ecoords))
-										     0 (first ecoords))
-										 (aref y-offsets row))
-								       x-coord)
-								 element)))))
-					   ;; print a single character
-					   (let ((x-coord (+ (if prepend 1 0)
-							     ;; add a space of padding to the left if 1. This is a
-							     ;; single character in a character array column, or
-							     ;; 2. This is a character column but the prior column
-							     ;; is not
-							     (if (or (and (is-character-array-column)
-									  (not (is-pure-character-column)))
-								     (and (not first-col)
-									  (is-pure-character-column)
-									  (not (is-pure-character-column
-										(1- last-coord)))))
-								 1 0)
-							     (aref x-offsets last-coord)
-							     ;; right-justify the character if this column holds
-							     ;; numbers as well
-							     (max 0 (if (not numeric-col)
-									0 (1- this-col-width))))))
-					     (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
-												  (list x-coord))))
-							       chars)
-						 (setf (aref output (aref y-offsets row)
-							     x-coord)
-						       chars))))))))
+		 (across strings
+			 (lambda (chars coords)
+			   ;; calculate the row of output currently being produced
+			   (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
+							   (let ((current 1))
+							     (loop :for dim
+								:in (cons 1 (rest (reverse (rest adims))))
+								:collect (setq current (* current dim)))))))
+				  (original (apply #'aref (cons input coords)))
+				  (last-coord (first (last coords)))
+				  (chars-width (first (last (dims chars))))
+				  (array-col (member :array (aref col-types last-coord)))
+				  (array-last-col (if (not (= 0 last-coord))
+						      (member :array (aref col-types (1- last-coord)))))
+				  (numeric-col (member :number (aref col-types last-coord)))
+				  (float-col (member :float (aref col-types last-coord)))
+				  (is-first-col (= 0 last-coord))
+				  (is-last-col (= last-coord (1- (length col-types))))
+				  (next-col-array (and (not is-last-col)
+						       (member :array (aref col-types (1+ last-coord))))))
+			     (flet ((is-pure-character-column (&optional index)
+				      (and (eq :character (first (aref col-types (or index last-coord))))
+					   (not (rest (aref col-types (or index last-coord))))))
+				    (is-character-array-column (&optional index)
+				      (let ((type-list (aref col-types (or index last-coord))))
+					(and (not (member :number type-list))
+					     (not (member :mixed-array type-list))
+					     (not (member :number-array type-list))))))
+			       (if (arrayp chars)
+				   ;; print a string or sub-matrix of characters; the coordinate conversion
+				   ;; is different depending on whether collated output is being produced
+				   (across chars
+					   (lambda (element ecoords)
+					     (let* ((d-indent
+						     ;; derive this cell's decimal indentation; negative
+						     ;; values are indented 1 space less to allow for
+						     ;; the minus sign
+						     (if (and float-col (numberp original))
+							 (max 0 (- decimal-place
+								   (+ (if (> 0 original) 2 1)
+								      (if (> 1 (abs original))
+									  0 (floor (log (abs original) 10))))))))
+						    ;; pad arrays with a space to the right, unless
+						    ;; they're at the last column or the next column is a
+						    ;; character column
+						    (right-space (if (and (not is-last-col)
+									  array-col (not (is-pure-character-column
+											  (1+ last-coord))))
+								     -1 0))
+						    (x-coord (+ (if (second ecoords)
+								    (second ecoords) (first ecoords))
+								(aref x-offsets last-coord)
+								;; if this array is prepended, shift
+								;; printed output right by 1 space
+								(if prepend 1 0)
+								;; left-justify printed items unless the
+								;; column contains numbers, in which case
+								;; everything is right-justified
+								(if numeric-col
+								    (+ right-space
+								       (- (if (and float-col (numberp original))
+									      (- (- decimal-length chars-width)
+										 (if d-indent d-indent 0))
+									      0))
+								       (- (aref x-offsets (1+ last-coord))
+									  (aref x-offsets last-coord)
+									  chars-width))
+								    ;; add a right padding space if this is
+								    ;; a character array column and 
+								    (if (and (not is-first-col)
+									     (not array-last-col))
+									1 0)))))
+					       (if collate (setf (apply #'aref (cons output
+										     (append (butlast coords 1)
+											     (list x-coord))))
+								 element)
+						   (setf (aref output (+ (aref y-offsets row)
+									 (if (not (second ecoords))
+									     0 (first ecoords)))
+							       x-coord)
+							 element)))))
+				   ;; print a single character
+				   (let ((x-coord (+ (if prepend 1 0)
+						     ;; add a space of padding to the left if 1. This is a
+						     ;; single character in a character array column, or
+						     ;; 2. This is a character column but the prior column
+						     ;; is not, or 3. This is an array column, the prior column
+						     ;; was an array column and this is not a numeric column
+						     ;; (which would mean characters are right-aligned)
+						     (if (or (and (is-character-array-column)
+								  (not (is-pure-character-column)))
+							     (and (not is-first-col)
+								  (is-pure-character-column)
+								  (not (is-pure-character-column (1- last-coord))))
+							     (and array-col array-last-col (not numeric-col)))
+							 1 0)
+						     (aref x-offsets last-coord)
+						     ;; right-justify the character if this column holds
+						     ;; numbers as well
+						     (max 0 (if (not numeric-col)
+								0 (1- this-col-width))))))
+				     (if collate (setf (apply #'aref (cons output (append (butlast coords 1)
+											  (list x-coord))))
+						       chars)
+					 (setf (aref output (aref y-offsets row)
+						     x-coord)
+					       chars))))))))
 		 ;; (print (list :cd col-decimals col-widths col-types))
 		 ;; if prepending or appending a character, it is placed in the array here;
 		 ;; this is more complicated for a collated array and it is not needed if the

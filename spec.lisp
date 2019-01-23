@@ -1684,6 +1684,20 @@ c 2.4 3
 	       "a abcdef  1
 b   1.2   2
 c   2.56  3
+")
+  (for-printed "Mixed array with nested multidimensional array."
+	       "1⌽3 3⍴'a' 12 (2 4⍴5) 'b' 'cde' 'gg' 'i' 900 'k'"
+	       "  12  5 5 5 5 a
+      5 5 5 5  
+ cde  gg      b
+ 900  k       i
+")
+  (for-printed "Another mixed/nested array."
+	       "1⌽3 3⍴8 12 (2 4⍴5) 9 'cde' 'gg' 10 900 'k'"
+	       "  12  5 5 5 5   8
+      5 5 5 5    
+ cde  gg        9
+ 900  k        10
 ")))
 
 #|
