@@ -1144,7 +1144,8 @@
 					 :element-type 'fixnum))
 		  (col-widths (make-array (list (first (last adims))) :element-type 'fixnum :initial-element 1))
 		  (col-types (make-array (list (first (last adims))) :initial-element nil))
-		  ;; an array of decimal point positions for each column
+		  ;; an array of decimal point positions for each column; first row holds the position of the
+		  ;; decimal point, second holds the overall length of each printed number
 		  (col-decimals (make-array (list 2 (first (last adims)))
 					    :element-type 'fixnum :initial-element 0))
 		  (strings (make-array adims))
@@ -1152,15 +1153,17 @@
 		  (row) (empty-rows))
 	     (symbol-macrolet ((this-string (apply #'aref (cons strings coords)))
 			       (this-col-width (aref col-widths last-coord))
+			       (this-col-type (aref col-types last-coord))
+			       (last-col-type (aref col-types (1- last-coord)))
 			       (decimal-place (aref col-decimals 0 last-coord))
 			       (decimal-length (aref col-decimals 1 last-coord)))
 	       (across input (lambda (elem coords)
 			       (let* ((last-coord (first (last coords))))
 				 (flet ((add-column-types (&rest types)
 					  (loop :for type :in types
-					     :do (if (not (member type (aref col-types last-coord)))
-						     (setf (aref col-types last-coord)
-							   (cons type (aref col-types last-coord)))))))
+					     :do (if (not (member type this-col-type))
+						     (setf this-col-type
+							   (cons type this-col-type))))))
 				   (cond ((or (characterp elem)
 					      (and (stringp elem) (= 1 (length elem))))
 					  ;; characters are simply passed through,
@@ -1258,15 +1261,22 @@
 					      (+ elem-width
 						 (if (or is-first-col
 							 (and (characterp elem) (characterp last-elem))
-							 (and (member :array (aref col-types last-coord))
-							      (or (member :array (aref col-types (1- last-coord)))
+							 (and (member :array this-col-type)
+							      ;; note: the indentation is still done if this is
+							      ;; an array column but there's a numeric value
+							      ;; that's bigger than any of the array values thus
+							      ;; far; otherwise there will be no space between the
+							      ;; number and the previous column
+							      (not (and (numberp elem)
+									(> elem-width this-col-width)))
+							      (or (member :array last-col-type)
 								  (is-pure-character-column
 								   (1- last-coord)))))
 						     0 1)
 						 ;; add right buffer space if this column is 1. Not the last and
 						 ;; 2. Contains an array
 						 (if (and (not is-last-col)
-							  (member :array (aref col-types last-coord))
+							  (member :array this-col-type)
 							  (not (is-pure-character-column (1+ last-coord))))
 						     1 0)))
 					 (aref x-offsets (1+ last-coord))
@@ -1315,15 +1325,13 @@
 				  (original (apply #'aref (cons input coords)))
 				  (last-coord (first (last coords)))
 				  (chars-width (first (last (dims chars))))
-				  (array-col (member :array (aref col-types last-coord)))
+				  (array-col (member :array this-col-type))
 				  (array-last-col (if (not (= 0 last-coord))
-						      (member :array (aref col-types (1- last-coord)))))
-				  (numeric-col (member :number (aref col-types last-coord)))
-				  (float-col (member :float (aref col-types last-coord)))
+						      (member :array last-col-type)))
+				  (numeric-col (member :number this-col-type))
+				  (float-col (member :float this-col-type))
 				  (is-first-col (= 0 last-coord))
-				  (is-last-col (= last-coord (1- (length col-types))))
-				  (next-col-array (and (not is-last-col)
-						       (member :array (aref col-types (1+ last-coord))))))
+				  (is-last-col (= last-coord (1- (length col-types)))))
 			     (flet ((is-pure-character-column (&optional index)
 				      (and (eq :character (first (aref col-types (or index last-coord))))
 					   (not (rest (aref col-types (or index last-coord))))))
@@ -1427,46 +1435,6 @@
 	     		       (loop :for row :below (first (dims output))
 	     			  :do (setf (aref output row (1- last-dim)) append))))))
 		 output))))))
-
-;; (print (list :el elem decimals
-;; 	      (+ elem-width (if (or is-first-col
-;; 				    (and (is-pure-character-column)
-;; 					 (is-pure-character-column (1- last-coord)))
-;; 				    (and (member :array (aref col-types last-coord))
-;; 					 (or (member :array (aref col-types
-;; 								  (1- last-coord)))
-;; 					     (is-pure-character-column
-;; 					      (1- last-coord)))))
-;; 				0 1)
-;; 		 (if (and (not is-last-col)
-;; 			  (member :array (aref col-types last-coord)))
-;; 		     1 0))))
-
-;; (print (list :ind chars decimal-indent right-space
-;; 		(aref col-widths last-coord)
-;; 		(aref col-decimals 0 last-coord)
-;; 		(aref col-decimals 1 last-coord)))
-
-;; (print (list :dc elem decimals ;;elem-width
-;; 	       :str
-;; 	       (length elem-string)
-;; 	       (aref col-decimals 0 last-coord)
-;; 	       (aref col-decimals 1 last-coord)
-;; 	       (- (aref col-decimals 1 last-coord)
-;; 		  (aref col-decimals 0 last-coord))
-;; 	       (if (> decimals
-;; 		      (- (aref col-decimals 1 last-coord)
-;; 			 (aref col-decimals 0 last-coord))
-;; 		      0)
-;; 		   (+ (- (aref col-decimals 1 last-coord)
-;; 			 (aref col-decimals 0 last-coord))
-;; 		      1 (length elem-string)))
-;; 	       ))
-;; (print (list :elw elem-width))
-
-;; (print (list :ee chars (and (not first-col)
-;; 			     (is-pure-character-column)
-;; 			  (not (is-pure-character-column (1- last-coord))))))
 
 (defmacro matrix-print (input &rest options)
   "Print a character matrix generated by array-impress."
