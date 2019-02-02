@@ -1220,7 +1220,8 @@
 					 ((numberp elem)
 					  (let ((leading-digits))
 					    (setf decimals (+ (if (> 0 elem) 2 1)
-							      (if (= 0 elem) 0 (floor (log (abs elem) 10))))
+							      (if (= 0 elem) 0
+								  (max 0 (floor (log (abs elem) 10)))))
 						  ;; increment the decimal point position if it's further right
 						  ;; than in other rows of this column; negative values occupy
 						  ;; an extra space due to the minus sign
