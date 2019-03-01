@@ -1706,6 +1706,9 @@ c   2.56  3
            1 1   
  abc         c  2
  abc  12345678  3
+")
+  (for-printed "Stacked floats with negative value under 1." "⍪¯0.75 1.25" "¯0.75
+ 1.25
 ")))
 
 #|
