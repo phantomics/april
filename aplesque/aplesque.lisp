@@ -290,59 +290,75 @@
 			varg))))))
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
-  "Expand or replicate sections of an array as specified by an array of 'degrees.'"
-  ;; TODO: Replace permutation with coordinate conversion
-  (let* ((new-array (copy-array input))
-	 (default-element (apl-default-element input))
-	 (a-rank (rank input))
-	 (singleton-array (loop :for dim :in (dims input) :always (= 1 dim))))
-    (if (and singleton-array (< 1 a-rank))
-    	(setq input (make-array (list 1) :displaced-to input)))
-    (if (> axis (1- a-rank))
-	(error "Invalid axis.")
-	(progn (if (not (= axis (1- a-rank)))
-		   (setq new-array (aops:permute (rotate-left (- a-rank 1 axis)
-							      (alexandria:iota a-rank))
-						 new-array)))
-	       (let ((array-segments (aops:split new-array 1))
-		     (segment-index 0))
-		 (let* ((expanded (loop :for degree :across degrees
-				     :append (cond ((< 0 degree)
-						    (loop :for items :from 1 :to degree
-						       :collect (aref array-segments segment-index)))
-						   ((and (= 0 degree)
-							 (not compress-mode))
-						    (list (if (arrayp (aref array-segments 0))
-							      (make-array (dims (aref array-segments 0))
-									  :element-type (element-type input)
-									  :initial-element default-element)
-							      default-element)))
-						   ((> 0 degree)
-						    (loop :for items :from -1 :downto degree
-						       :collect (if (arrayp (aref array-segments 0))
-								    (make-array (dims (aref array-segments 0))
-										:element-type
-										(element-type input)
-										:initial-element
-										default-element)
-								    default-element))))
-				     :do (if (and (not singleton-array)
-						  (or compress-mode (< 0 degree)))
-					     (incf segment-index 1))))
-			(output (funcall (if (< 1 (rank input))
-					     #'aops:combine #'identity)
-					 ;; combine the resulting arrays if the original is multidimensional,
-					 ;; otherwise just make a vector
-					 ;; TODO: this joining causes the loss of the original array type -
-					 ;; is there a better way other than aops:combine?
-					 (make-array (length expanded)
-						     ;;:element-type (element-type input)
-						     :initial-contents expanded))))
-		   (if (not (= axis (1- a-rank)))
-		       (aops:permute (rotate-right (- a-rank 1 axis)
-						   (alexandria:iota a-rank))
-				     output)
-		       output)))))))
+  (cond ((and compress-mode (not (is-unitary input))
+	      (and (/= 1 (length degrees))
+		   (/= (length degrees)
+		       (nth axis (dims input)))))
+	 (error (concatenate 'string "Attempting to replicate elements across array but "
+			     "degrees are not equal to length of selected input axis.")))
+	((and (not compress-mode)
+	      (not (is-unitary input))
+	      (/= (loop :for degree :across degrees :when (< 0 degree)
+		     :counting degree :into dcount :finally (return dcount))
+		  (nth axis (dims input))))
+	 (error (concatenate 'string "Attempting to expand elements across array but "
+			     "positive degrees are not equal to length of selected input axis.")))
+	(t (let* ((c-degrees (make-array (list (length degrees))
+					 :element-type 'fixnum :initial-element 0))
+		  (positive-index-list (if (not compress-mode)
+					   (loop :for degree :below (length degrees)
+					      :when (< 0 (aref degrees degree)) :collect degree)))
+		  (positive-indices (if positive-index-list (make-array (list (length positive-index-list))
+									:element-type 'fixnum
+									:initial-contents positive-index-list)))
+		  (ex-dim))
+	     (loop :for degree :across degrees :counting degree :into dx
+		:summing (max (abs degree)
+			      (if compress-mode 0 1))
+		:into this-dim :do (setf (aref c-degrees (1- dx)) this-dim)
+		:finally (setq ex-dim this-dim))
+	     (let ((output (make-array (if (= 1 (length degrees))
+					   (list (* (aref degrees 0)
+						    (nth axis (dims input))))
+					   (loop :for dim :in (dims input) :counting dim :into index
+					      :collect (if (not (or (= index (1+ axis))
+								    (is-unitary input)))
+							   dim ex-dim)))
+				       :element-type (element-type input)
+				       :initial-element (if (eq 'character (element-type input))
+							    #\  0))))
+	       ;; in compress-mode: degrees must = length of axis, zeroes are omitted from output,
+	       ;; negatives add zeroes
+	       ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
+	       (if (is-unitary input)
+		   ;; if the input is a unitary value, just expand or replicate with that value
+		   (let ((value (row-major-aref input 0)))
+		     (loop :for degree :below (length degrees)
+			:do (let ((this-degree (aref degrees degree)))
+			      (loop :for ix :below this-degree
+				 :do (setf (aref output (+ ix (if (= 0 degree)
+								  0 (aref c-degrees (1- degree)))))
+					   value)))))
+		   (across input
+			   (lambda (elem coords)
+			     (let* ((exc (nth axis coords))
+				    (dx (if compress-mode exc (aref positive-indices exc)))
+				    (this-degree (if (= 1 (length degrees))
+						     (aref degrees 0) (aref degrees dx))))
+			       (loop :for ix :below this-degree
+				  :do (setf (apply #'aref
+						   (cons output
+							 (loop :for coord :in coords :counting coord :into cix
+							    :collect
+							    (if (not (= cix (1+ axis)))
+								coord (+ ix (if (= 0 exc)
+										0 (if (= 1 (length degrees))
+										      (* exc (aref c-degrees 0))
+										      (aref c-degrees
+											    (1- dx)))))))))
+					    (if (> 0 this-degree)
+						      0 elem)))))))
+	       output)))))
 
 (defun partitioned-enclose (positions input axis)
   "Enclose parts of an input array partitioned according to the 'positions' argument."
