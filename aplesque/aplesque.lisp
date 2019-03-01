@@ -327,8 +327,8 @@
 				       :element-type (element-type input)
 				       :initial-element (if (eq 'character (element-type input))
 							    #\  0))))
-	       ;; in compress-mode: degrees must = length of axis, zeroes are omitted from output,
-	       ;; negatives add zeroes
+	       ;; in compress-mode: degrees must = length of axis,
+	       ;; zeroes are omitted from output, negatives add zeroes
 	       ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
 	       (if (is-unitary input)
 		   ;; if the input is a unitary value, just expand or replicate with that value
