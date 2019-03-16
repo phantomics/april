@@ -154,32 +154,41 @@
 
 (defun section (input dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-  (let* ((adims (dims input))
+  (let* ((idims (dims input))
+	 (input-smaller (< (array-total-size input)
+			   (abs (reduce #'* dimensions))))
 	 (output (make-array (mapcar (lambda (outdim indim)
 				       (if (not inverse)
 					   (abs outdim) (- indim (abs outdim))))
-				     dimensions adims)
+				     dimensions idims)
 			     :initial-element (if fill-with fill-with (apl-default-element input))
 			     :element-type (type-of input))))
-    (across input (lambda (element coords)
-		    (declare (ignore element))
-		    (let* ((coord t)
-			   (target (loop :for c :below (length coords) :while coord
-				      :collect (let ((cx (nth c coords)) (ix (nth c adims))
-						     (ox (nth c dimensions)))
-						 (setq coord (cond ((and inverse (> 0 ox))
-								    (if (< cx (+ ix ox))
-									cx))
-								   (inverse (if (> ix (+ cx ox))
-										(+ cx ox)))
-								   ((> 0 ox)
-								    (if (>= cx (+ ox ix))
-									(- cx (+ ox ix))))
-								   (t (if (and (< cx ox)
-									       (< cx ix))
-									  cx))))))))
-		      (if coord (setf (apply #'aref (cons output (if inverse coords target)))
-				      (apply #'aref (cons input (if inverse target coords))))))))
+    (across (if input-smaller input output)
+	    (lambda (element coords)
+	      (declare (ignore element))
+	      (let* ((coord t)
+		     (target (loop :for c :below (length coords) :while coord
+				:collect (let ((cx (nth c coords))
+					       (ix (nth c idims))
+					       (ox (nth c dimensions)))
+					   (setq coord (cond ((and inverse (> 0 ox))
+							      (if (< cx (+ ix ox))
+								  cx))
+							     (inverse (if (> ix (+ cx ox))
+									  (+ cx ox)))
+							     ((> 0 ox)
+							      (if input-smaller
+								  (if (>= cx (+ ox ix))
+								      (- cx (+ ox ix)))
+								  (if (<= cx (+ ox ix))
+								      (+ cx ix ox))))
+							     (t (if (and (< cx ox)
+									 (< cx ix))
+								    cx))))))))
+		(if coord (setf (apply #'aref (cons output (if (or inverse (not input-smaller))
+							       coords target)))
+				(apply #'aref (cons input (if (or inverse (not input-smaller))
+							      target coords))))))))
     output))
 
 (defun scan-back (function input &optional output)
@@ -374,10 +383,10 @@
     (setq intervals (reverse (cons (- (length positions) (first indices))
 				   intervals))
 	  indices (reverse indices))
-    (let* ((adims (dims input))
+    (let* ((idims (dims input))
 	   (output (make-array (list (length indices))
 			       :initial-contents (loop :for intv :in intervals
-						    :collect (make-array (loop :for dim :in adims
+						    :collect (make-array (loop :for dim :in idims
 									    :counting dim :into dx
 									    :collect (if (= dx (1+ axis))
 											 intv dim))
@@ -398,7 +407,7 @@
 	(interval-size 0)
 	(current-interval -1)
 	(partitions 0)
-	(adims (dims input))
+	(idims (dims input))
 	(arank (rank input)))
     ;; find the index where each partition begins in the input array and the length of each partition
     (loop :for pos :across positions :for p :below (length positions)
@@ -419,7 +428,7 @@
     (loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
        :do (setq intervals (cons rint intervals)
 		 indices (cons rind indices)))
-    (let ((output (make-array (loop :for dim :in adims :for dx :below arank
+    (let ((output (make-array (loop :for dim :in idims :for dx :below arank
 				 :collect (if (= dx axis) partitions dim)))))
       (across output (lambda (elem coords)
       		       (declare (ignore elem))
@@ -702,7 +711,7 @@
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
-  (let* ((adims (dims input))
+  (let* ((idims (dims input))
 	 (output (let ((dims-out (if (or (and (listp (first aindices))
 					      (arrayp (caar aindices)))
 					 (and (arrayp (first aindices))
@@ -712,7 +721,7 @@
 				     ;; indexing is being used, so the shape of the first index will be
 				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
 				     ;; to determine the shape of the output array
-				     (loop :for dim :in adims :counting dim :into dx
+				     (loop :for dim :in idims :counting dim :into dx
 					:append (let ((index (nth (1- dx) aindices)))
 				     		  (if (and (or (listp index) (vectorp index))
 				     			   (< 1 (length index)))
@@ -763,7 +772,7 @@
 				  ((not this-index)
 				   ;; if there is no index, elide it by iterating over this dimension of the array
 				   (let ((count 0))
-				     (loop :for ix :below (nth (length in-path) adims)
+				     (loop :for ix :below (nth (length in-path) idims)
 					:do (process (rest indices) (cons count out-path)
 						     (cons ix in-path))
 					(incf count 1))))
@@ -846,11 +855,11 @@
 (defun split-array (input &optional axis)
   "Split an array into a set of sub-arrays."
   (let* ((axis (if axis axis (1- (rank input))))
-	 (adims (dims input))
+	 (idims (dims input))
 	 (output (aops:each (lambda (elem)
 			      (declare (ignore elem))
-			      (make-array (list (nth axis adims)) :element-type (type-of input)))
-			    (make-array (loop :for dim :in adims :counting dim :into dx
+			      (make-array (list (nth axis idims)) :element-type (type-of input)))
+			    (make-array (loop :for dim :in idims :counting dim :into dx
 					   :when (not (= dx (1+ axis)))
 					   :collect dim)))))
     (across input (lambda (elem coords)
@@ -1105,12 +1114,12 @@
 
 (defun stencil (input process window-dims movement)
   "Apply a given function to sub-arrays of an array with specified dimensions sampled according to a given pattern of movement across the array."
-  (let* ((adims (apply #'vector (dims input)))
+  (let* ((idims (apply #'vector (dims input)))
 	 (output-dims (loop :for dim :below (length window-dims)
-			 :collect (ceiling (- (/ (aref adims dim) (aref movement dim))
+			 :collect (ceiling (- (/ (aref idims dim) (aref movement dim))
 					      (if (and (evenp (aref window-dims dim))
 						       (or (= 1 (aref movement dim))
-							   (oddp (aref adims dim))))
+							   (oddp (aref idims dim))))
 						  1 0)))))
 	 (output (make-array output-dims)))
     (across output (lambda (elem coords)
@@ -1129,7 +1138,7 @@
 									     2))))))))
 					  (setf (apply #'aref (cons window wcoords))
 						(if (loop :for coord :in ref-coords :counting coord :into cix
-						       :always (<= 0 coord (1- (aref adims (1- cix)))))
+						       :always (<= 0 coord (1- (aref idims (1- cix)))))
 						    (apply #'aref (cons input ref-coords))
 						    0)))))
 		       (setf (apply #'aref (cons output coords))
@@ -1151,20 +1160,20 @@
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) (if (not prepend)
 			     input (concatenate 'string (list prepend) input)))
-	(t (let* ((adims (dims input))
+	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
-		  (x-offsets (make-array (list (1+ (first (last adims)))) :initial-element 0
+		  (x-offsets (make-array (list (1+ (first (last idims)))) :initial-element 0
 					 :element-type 'fixnum))
-		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse adims))))) :initial-element 0
+		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse idims))))) :initial-element 0
 					 :element-type 'fixnum))
-		  (col-widths (make-array (list (first (last adims))) :element-type 'fixnum :initial-element 1))
-		  (col-types (make-array (list (first (last adims))) :initial-element nil))
+		  (col-widths (make-array (list (first (last idims))) :element-type 'fixnum :initial-element 1))
+		  (col-types (make-array (list (first (last idims))) :initial-element nil))
 		  ;; an array of decimal point positions for each column; first row holds the position of the
 		  ;; decimal point, second holds the overall length of each printed number
-		  (col-decimals (make-array (list 2 (first (last adims)))
+		  (col-decimals (make-array (list 2 (first (last idims)))
 					    :element-type 'fixnum :initial-element 0))
-		  (strings (make-array adims))
+		  (strings (make-array idims))
 		  (output-default-char #\ )
 		  (row) (empty-rows))
 	     (symbol-macrolet ((this-string (apply #'aref (cons strings coords)))
@@ -1253,7 +1262,7 @@
 				       (setf row (reduce #'+ (mapcar #'* (rest (reverse coords))
 								     (let ((current 1))
 								       (loop :for dim
-									  :in (cons 1 (rest (reverse (rest adims))))
+									  :in (cons 1 (rest (reverse (rest idims))))
 									  :collect (setq current
 											 (* current dim))))))
 					     ;; find the total number of empty lines preceding this row by encoding
@@ -1264,7 +1273,7 @@
 					     (reduce #'+ (mapcar #'* (cddr (reverse coords))
 								 (cons 1 (let ((last 1))
 									   (loop :for dim
-									      :in (reverse (rest (butlast adims 2)))
+									      :in (reverse (rest (butlast idims 2)))
 									      :collect (setq last
 											     (1+ (* dim last))))))))
 					     (aref y-offsets row)
@@ -1323,7 +1332,7 @@
 	       ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
 	       ;; character is set, the output array has an extra element in its last dimension to hold the
 	       ;; indenting character
-	       (let ((output (if collate (make-array (append (butlast adims)
+	       (let ((output (if collate (make-array (append (butlast idims)
 							     (list (+ (if (or prepend append) 1 0)
 								      (aref x-offsets (1- (length x-offsets))))))
 						     :element-type 'character :initial-element output-default-char)
@@ -1337,7 +1346,7 @@
 			   (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
 							   (let ((current 1))
 							     (loop :for dim
-								:in (cons 1 (rest (reverse (rest adims))))
+								:in (cons 1 (rest (reverse (rest idims))))
 								:collect (setq current (* current dim)))))))
 				  (original (apply #'aref (cons input coords)))
 				  (last-coord (first (last coords)))
