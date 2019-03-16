@@ -172,7 +172,7 @@
 					       (ix (nth c idims))
 					       (ox (nth c dimensions)))
 					   (setq coord (cond ((and inverse (> 0 ox))
-							      (if (< cx (+ ix ox))
+							      (if (< cx (+ ox ix))
 								  cx))
 							     (inverse (if (> ix (+ cx ox))
 									  (+ cx ox)))
