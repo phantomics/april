@@ -157,6 +157,9 @@
   (let* ((idims (dims input))
 	 (input-smaller (< (array-total-size input)
 			   (abs (reduce #'* dimensions))))
+	 ;; if the input array is smaller than the output will be, iterate over the cells of input and copy to
+	 ;; the appropriate output cells; otherwise do the inverse, iterating over output and copying from the
+	 ;; corresponding input cells
 	 (output (make-array (mapcar (lambda (outdim indim)
 				       (if (not inverse)
 					   (abs outdim) (- indim (abs outdim))))
