@@ -684,6 +684,7 @@
        :do (let ((target-index 0)
 		 (target-matched t)
 		 (target-displaced (make-array (list (array-total-size target))
+					       :element-type (element-type target)
 					       :displaced-to target)))
 	     (across input (lambda (element coords)
 			     (declare (ignore coords))
