@@ -389,10 +389,7 @@
 			    (if (and axes (> 0 (- (aref (first axes) 0)
 						  index-origin)))
 				(error (format nil "Specified axis is less than ~a." index-origin))
-				(concatenate (if (and (stringp alpha)
-						      (stringp omega))
-						 'string 'vector)
-					     alpha omega)))
+				(catenate alpha omega 0)))
 			(if (and axes (not (integerp (aref (first axes) 0))))
 			    ;; laminate in the case of a fractional axis argument
 			    (laminate alpha omega (ceiling (- (aref (first axes) 0)
