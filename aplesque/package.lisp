@@ -7,6 +7,7 @@
 	   #:reshape-array-fitting #:sprfact #:binomial #:make-rotator #:scale-array #:mix-arrays #:split-array
 	   #:is-unitary #:choose #:subprocess #:rotate-left #:rotate-right #:catenate #:laminate #:enclose
 	   #:partitioned-enclose #:re-enclose #:invert-matrix #:interval-index #:disclose-unitary-array
-	   #:partition-array #:enclose-atom #:merge-arrays #:stencil #:array-impress #:matrix-print)
+	   #:partition-array #:enclose-atom #:merge-arrays #:stencil #:array-impress #:matrix-print
+	   #:type-in-common)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))
