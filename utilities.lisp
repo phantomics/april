@@ -1,4 +1,3 @@
-
 ;;;; utilities.lisp
 
 (in-package #:april)
