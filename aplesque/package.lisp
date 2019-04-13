@@ -8,6 +8,6 @@
 	   #:is-unitary #:choose #:subprocess #:rotate-left #:rotate-right #:catenate #:laminate #:enclose
 	   #:partitioned-enclose #:re-enclose #:invert-matrix #:interval-index #:disclose-unitary-array
 	   #:partition-array #:enclose-atom #:merge-arrays #:stencil #:array-impress #:matrix-print
-	   #:type-in-common)
+	   #:each-boolean #:each-scalar #:assign-element-type #:type-in-common)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))
