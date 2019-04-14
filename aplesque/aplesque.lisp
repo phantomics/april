@@ -183,13 +183,23 @@
 						    (setq type (type-in-common type (assign-element-type result))))
 					   (setq type (assign-element-type result)))
 				       (setf (apply #'aref (cons output coords))
-					     result))))
+					     result)
+				       ;; output second value to halt traversal of output array;
+				       ;; if the type will be t and no change is being made to the array values,
+				       ;; and thus the function value is t as well, end the traversal
+				       ;; since there's no longer a point
+				       (values nil (and (eq t type)
+							(eq t function))))))
 		     (if (eq t type)
-			 output (let ((true-output (make-array (dims omega) :element-type type)))
-				  (across output (lambda (elem coords)
-						   (setf (apply #'aref (cons true-output coords))
-							 elem)))
-				  true-output))))))
+			 (if (eq t function)
+			     ;; if the traversal was terminated and thus the proper output is the original input,
+			     ;; return that instead of the output
+			     omega output)
+			 (let ((true-output (make-array (dims omega) :element-type type)))
+			   (across output (lambda (elem coords)
+					    (setf (apply #'aref (cons true-output coords))
+						  elem)))
+			   true-output))))))
 
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
@@ -846,15 +856,23 @@
 
 (defun across (input function &key (elements nil) (indices nil) (dimensions (dims input)))
   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-  (let* ((first-of-elements (first elements))
+  (let* ((proceeding t)
+	 (first-of-elements (first elements))
 	 (this-range (if (listp first-of-elements)
 			 first-of-elements (list first-of-elements))))
-    (loop :for elix :in (if this-range this-range (iota (nth (length indices) dimensions)))
+    (loop :for elix :in (if this-range this-range (iota (nth (length indices) dimensions))) :while proceeding
        :do (let ((coords (append indices (list elix))))
+	     ;; if the halt-if-true value is output by the function, traversal across the array will end
+	     ;; by means of nullifying the proceeding variable; this will result in a nil return value
+	     ;; from the across function which will stop its recursive parents
 	     (if (< (length indices) (1- (length dimensions)))
-		 (across input function :elements (rest elements) :dimensions dimensions :indices coords)
-		 (funcall function (apply #'aref (cons input coords))
-			  coords))))))
+		 (if (not (across input function :elements (rest elements) :dimensions dimensions :indices coords))
+		     (setq proceeding nil))
+		 (multiple-value-bind (output halt-if-true)
+		     (funcall function (apply #'aref (cons input coords))
+			      coords)
+		   (if halt-if-true (setq proceeding nil))))))
+    proceeding))
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
@@ -894,16 +912,13 @@
 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
 		 (cond ((and (not indices) (= (rank input) (length in-path)))
 			;; if the output is not a unitary value, set the target cell appropriately
-			;; (print 1)
 			(if (and out-path (not (eq :unitary output)))
 			    (setf target-cell (if set (setf source-cell
 							    (disclose (if (functionp set) apply-set-function set)))
 						  (funcall fn source-cell)))
 			    (setq output
 				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
-				      (vector source-cell))))
-			;; (print (list :out output))
-			)
+				      (vector source-cell)))))
 		       ((and (not indices) (vectorp (first in-path)) (vectorp (aref (first in-path) 0)))
 		       	;; if using reach indexing, recurse on the sub-array specified
 			;; by the first coordinate vector
