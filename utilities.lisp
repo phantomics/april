@@ -77,8 +77,7 @@
 
 (defmacro avector (&rest items)
   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-  (let* ((type)
-	 (first-item (first items)))
+  (let* ((type))
     (loop :for item :in items :while (not (eq t type))
        :do (let ((item (if (not (listp item))
 			   item (if (not (eql 'avatom (first item)))
@@ -96,7 +95,7 @@
   "An APL vector atom. This passthrough macro provides information to the (avector) macro."
   item)
 
-(defun apply-scalar (function alpha &optional omega &key (is-boolean nil))
+(defun apply-scalar (function alpha &optional omega is-boolean)
   "Apply a scalar function across objects as appropriate in APL. Handles scalars as well as nested and multidimensional arrays."
   (macrolet ((for-each (function &rest body)
 	       `(funcall (if (and is-boolean (not (eq t (element-type alpha)))
@@ -104,6 +103,7 @@
 				      (not (eq t (element-type omega)))))
 			     #'each-boolean #'each-scalar)
 			 (lambda (elem coords)
+			   (declare (ignorable coords))
 			   ,(if (second body)
 				`(funcall ,function elem (apply #'aref (cons ,(second body) coords)))
 				`(funcall ,function elem)))
@@ -113,7 +113,7 @@
 	(let ((omega alpha))
 	  (if (arrayp omega)
 	      (labels ((apply-fn (arg)
-			 (if (arrayp arg) (apply-scalar #'apply-fn arg nil :is-boolean is-boolean)
+			 (if (arrayp arg) (apply-scalar #'apply-fn arg nil is-boolean)
 			     (funcall function arg))))
 		(for-each #'apply-fn omega))
 	      (funcall function omega)))
@@ -124,26 +124,26 @@
 	  (cond ((and alpha-scalar? omega-scalar?)
 		 (funcall function alpha omega))
 		((and alpha-scalar? omega-unitary?)
-		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o :is-boolean is-boolean))
+		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o is-boolean))
 					  (vector alpha) omega)))
 		((and alpha-unitary? omega-scalar?)
-		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o :is-boolean is-boolean))
+		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o is-boolean))
 					  alpha (vector omega))))
 		((and alpha-unitary? omega-unitary?)
-		 (for-each (lambda (a o) (apply-scalar function a o :is-boolean is-boolean))
+		 (for-each (lambda (a o) (apply-scalar function a o is-boolean))
 			   alpha omega))
 		((not (or alpha-unitary? omega-unitary? alpha-scalar? omega-scalar?))
 		 (if (loop :for dimension :in (mapcar #'= (dims alpha) (dims omega))
 			:always dimension)
 		     (for-each (lambda (alpha omega) (apply-scalar function alpha omega
-								   :is-boolean is-boolean))
+								   is-boolean))
 			       alpha omega)
 		     (error "Array size mismatch.")))
 		(t (labels ((scan-over (element)
 			      (if (arrayp element)
 				  (for-each #'scan-over element)
 				  (apply (lambda (left right)
-					   (apply-scalar function left right :is-boolean is-boolean))
+					   (apply-scalar function left right is-boolean))
 					 (cond (alpha-scalar? (list alpha element))
 					       (alpha-unitary? (list (disclose alpha) element))
 					       (omega-scalar? (list element omega))
@@ -375,7 +375,7 @@
 		fn-body (if (and scalar-fn (= 2 (length fn-body)))
 			    (list nil))
 		(if (and scalar-fn (is-boolean function))
-		    (list :is-boolean t)))))))
+		    (list t)))))))
 
 #|
 This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.
