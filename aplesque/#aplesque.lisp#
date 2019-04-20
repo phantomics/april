@@ -516,7 +516,7 @@
 										      (aref c-degrees
 											    (1- dx)))))))))
 					    (if (> 0 this-degree)
-						      0 elem)))))))
+						0 elem)))))))
 	       output)))))
 
 (defun partitioned-enclose (positions input axis)
