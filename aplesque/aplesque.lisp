@@ -10,12 +10,14 @@
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
   (if (vectorp item)
-      item (vector item)))
+      item (make-array (list 1) :element-type (assign-element-type item)
+		       :initial-element item)))
 
 (defun enclose-atom (item)
   "Enclose non-array values, passing through arguments that are already arrays."
   (if (arrayp item)
-      item (vector item)))
+      item (make-array (list 1) :element-type (assign-element-type item)
+		       :initial-element item)))
 
 (defun disclose (item)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
@@ -78,9 +80,7 @@
 (defmacro enclose-if-scalar (&rest symbols)
   `(progn ,@(loop :for symbol :in symbols
 	       :collect `(if (not (arrayp ,symbol))
-			     (setq ,symbol (make-array (list 1)
-						       :element-type (assign-element-type ,symbol)
-						       :initial-element ,symbol))))))
+			     (setq ,symbol (enclose ,symbol))))))
 
 (defun assign-element-type (item)
   (cond ((typep item 'bit)
@@ -613,35 +613,39 @@
 
 (defun enlist (input &optional internal output (output-length 0))
   "Create a vector containing all elements of the input array in ravel order, breaking down nested and multidimensional arrays."
-  (let ((raveled (make-array (list (array-total-size input))
-			     :element-type (element-type input)
-			     :displaced-to input)))
-    (loop :for item :across raveled :do (if (arrayp item)
-					    (multiple-value-bind (out new-length)
-						(enlist item t output output-length)
-					      (setq output out output-length new-length))
-					    (setq output (cons item output)
-						  output-length (1+ output-length))))
-    (if internal (values output output-length)
-	(make-array (list output-length) :element-type (element-type input)
-		    :initial-contents (reverse output)))))
+  (if (not (arrayp input))
+      (enclose input)
+      (let ((raveled (make-array (list (array-total-size input))
+				 :element-type (element-type input)
+				 :displaced-to input)))
+	(loop :for item :across raveled :do (if (arrayp item)
+						(multiple-value-bind (out new-length)
+						    (enlist item t output output-length)
+						  (setq output out output-length new-length))
+						(setq output (cons item output)
+						      output-length (1+ output-length))))
+	(if internal (values output output-length)
+	    (make-array (list output-length) :element-type (element-type input)
+			:initial-contents (reverse output))))))
 
 (defun reshape-array-fitting (input output-dims)
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
-  (let* ((input-length (array-total-size input))
-	 (output-length (reduce #'* output-dims))
-	 (input-index 0)
-	 (input-displaced (make-array (list input-length)
-				      :displaced-to input :element-type (element-type input)))
-	 (output (make-array output-dims :element-type (element-type input)))
-	 (output-displaced (make-array (list output-length)
-				       :displaced-to output :element-type (element-type input))))
-    (loop :for index :below output-length
-       :do (setf (aref output-displaced index)
-		 (aref input-displaced input-index)
-		 input-index (if (= input-index (1- input-length))
-				 0 (1+ input-index))))
-    output))
+  (if (not (arrayp input))
+      (make-array output-dims :element-type (assign-element-type input) :initial-element input)
+      (let* ((input-length (array-total-size input))
+	     (output-length (reduce #'* output-dims))
+	     (input-index 0)
+	     (input-displaced (make-array (list input-length)
+					  :displaced-to input :element-type (element-type input)))
+	     (output (make-array output-dims :element-type (element-type input)))
+	     (output-displaced (make-array (list output-length)
+					   :displaced-to output :element-type (element-type input))))
+	(loop :for index :below output-length
+	   :do (setf (aref output-displaced index)
+		     (aref input-displaced input-index)
+		     input-index (if (= input-index (1- input-length))
+				     0 (1+ input-index))))
+	output)))
 
 (defun sprfact (n)
   "Recursive factorial-computing function. Based on P. Luschny's code."
@@ -835,6 +839,7 @@
 
 (defun find-array (input target)
   "Find instances of an array within a larger array."
+  (enclose-if-scalar input target)
   (let* ((source-dims (dims input))
 	 (target-head (row-major-aref target 0))
 	 (target-dims (append (if (< (rank target) (rank input))
