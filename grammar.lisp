@@ -72,6 +72,11 @@
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
 					   (gethash (first remaining) (gethash :variables workspace))))
+				  ;; this clause is needed in case of an index-referenced value being passed
+				  ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
+				  (and (listp (first remaining))
+				       (eq :axes (caar remaining))
+				       (symbolp (second remaining)))
 				  ;; this clause is needed to test for closures returning a value
 				  ;; to the left of the overloaded glyph as in (1⌷3 4)/5
 				  (multiple-value-bind (output out-properties)
@@ -117,6 +122,7 @@
  ;; match a reference to an operator, this must be a lexical reference like ⍣
  (operator (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
+	     ;; (print (list :xx axes this-item remaining))
 	     (if (and (listp this-item)
 		      (eq :op (first this-item)))
 		 ;; process an operator token, allowing specification of the valence, either :monadic or :dyadic

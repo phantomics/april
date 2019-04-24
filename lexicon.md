@@ -81,9 +81,9 @@
 
 [⊃] Disclose / Pick
 
-[∪] Unique / Union
-
 [∩] Intersection
+
+[∪] Unique / Union
 
 [⌽] Reverse / Rotate
 
@@ -109,9 +109,9 @@
 
 [⊥] Decode
 
-[⊣] Empty / Left
-
 [⊢] Identity / Right
+
+[⊣] Empty / Left
 
 [⍕] Format / Format At Precision
 

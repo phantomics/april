@@ -97,7 +97,6 @@
 	(t t)))
 
 (defun type-in-common (&rest types)
-  ;; (print (list :tl types))
   (let ((type))
     (loop :for a :in types
        :do (let ((this-type a))
@@ -287,45 +286,49 @@
 
 (defun section (input dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-  (let* ((idims (dims input))
-	 (input-smaller (< (array-total-size input)
-			   (abs (reduce #'* dimensions))))
-	 ;; if the input array is smaller than the output will be, iterate over the cells of input and copy to
-	 ;; the appropriate output cells; otherwise do the inverse, iterating over output and copying from the
-	 ;; corresponding input cells
-	 (output (make-array (mapcar (lambda (outdim indim)
-				       (if (not inverse)
-					   (abs outdim) (- indim (abs outdim))))
-				     dimensions idims)
-			     :initial-element (if fill-with fill-with (apl-default-element input))
-			     :element-type (element-type input))))
-    (across (if input-smaller input output)
-	    (lambda (element coords)
-	      (declare (ignore element))
-	      (let* ((coord t)
-		     (target (loop :for c :below (length coords) :while coord
-				:collect (let ((cx (nth c coords))
-					       (ix (nth c idims))
-					       (ox (nth c dimensions)))
-					   (setq coord (cond ((and inverse (> 0 ox))
-							      (if (< cx (+ ox ix))
-								  cx))
-							     (inverse (if (> ix (+ cx ox))
-									  (+ cx ox)))
-							     ((> 0 ox)
-							      (if input-smaller
-								  (if (>= cx (+ ox ix))
-								      (- cx (+ ox ix)))
-								  (if (<= cx (+ ox ix))
-								      (+ cx ix ox))))
-							     (t (if (and (< cx ox)
-									 (< cx ix))
-								    cx))))))))
-		(if coord (setf (apply #'aref (cons output (if (or inverse (not input-smaller))
-							       coords target)))
-				(apply #'aref (cons input (if (or inverse (not input-smaller))
-							      target coords))))))))
-    output))
+  (if (and inverse (< 0 (reduce #'+ (mapcar (lambda (i) (- (min 0 i)))
+					    (mapcar #'- (dims input)
+						    dimensions)))))
+      (vector)
+      (let* ((idims (dims input))
+	     (input-smaller (< (array-total-size input)
+			       (abs (reduce #'* dimensions))))
+	     ;; if the input array is smaller than the output will be, iterate over the cells of input and copy to
+	     ;; the appropriate output cells; otherwise do the inverse, iterating over output and copying from the
+	     ;; corresponding input cells
+	     (output (make-array (mapcar (lambda (outdim indim)
+					   (if (not inverse)
+					       (abs outdim) (- indim (abs outdim))))
+					 dimensions idims)
+				 :initial-element (if fill-with fill-with (apl-default-element input))
+				 :element-type (element-type input))))
+	(across (if input-smaller input output)
+		(lambda (element coords)
+		  (declare (ignore element))
+		  (let* ((coord t)
+			 (target (loop :for c :below (length coords) :while coord
+				    :collect (let ((cx (nth c coords))
+						   (ix (nth c idims))
+						   (ox (nth c dimensions)))
+					       (setq coord (cond ((and inverse (> 0 ox))
+								  (if (< cx (+ ox ix))
+								      cx))
+								 (inverse (if (> ix (+ cx ox))
+									      (+ cx ox)))
+								 ((> 0 ox)
+								  (if input-smaller
+								      (if (>= cx (+ ox ix))
+									  (- cx (+ ox ix)))
+								      (if (<= cx (+ ox ix))
+									  (+ cx ix ox))))
+								 (t (if (and (< cx ox)
+									     (< cx ix))
+									cx))))))))
+		    (if coord (setf (apply #'aref (cons output (if (or inverse (not input-smaller))
+								   coords target)))
+				    (apply #'aref (cons input (if (or inverse (not input-smaller))
+								  target coords))))))))
+	output)))
 
 (defun scan-back (function input &optional output)
   "Scan a function backwards across an array."
@@ -383,14 +386,10 @@
 								 coord (+ coord (nth axis (dims array1)))))))
 				    elem)))
 	     output)))
-    (let* ((a1 (if (not (arrayp a1))
-		   (vector a1)
-		   (if (not (is-unitary a1))
-		       a1 (scale-array a1 a2 axis))))
-	   (a2 (if (not (arrayp a2))
-		   (vector a2)
-		   (if (not (is-unitary a2))
-		       a2 (scale-array a2 a1 axis)))))
+    (let* ((a1 (if (not (is-unitary a1))
+		   a1 (scale-array a1 a2 axis)))
+	   (a2 (if (not (is-unitary a2))
+		   a2 (scale-array a2 a1 axis))))
       (if (= (rank a1) (rank a2))
 	  (join a1 a2)
 	  (let* ((lesser-first (< (rank a1) (rank a2)))
@@ -461,7 +460,6 @@
 			varg))))))
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
-  (enclose-if-scalar degrees input)
   (cond ((and compress-mode (not (is-unitary input))
 	      (and (/= 1 (length degrees))
 		   (/= (length degrees)
@@ -534,7 +532,6 @@
 (defun partitioned-enclose (positions input axis)
   "Enclose parts of an input array partitioned according to the 'positions' argument."
   (let* ((indices) (intervals) (interval-size 0))
-    (enclose-if-scalar positions input)
     (loop :for p :below (length positions)
        :do (incf interval-size)
        :when (= 1 (aref positions p))
@@ -566,67 +563,70 @@
 
 (defun partition-array (positions input axis)
   "Split an array into an array of vectors divided according to an array of positions."
-  (enclose-if-scalar positions input)
-  (let ((r-indices) (r-intervals) (indices) (intervals)
-	(interval-size 0)
-	(current-interval -1)
-	(partitions 0)
-	(idims (dims input))
-	(arank (rank input)))
-    ;; find the index where each partition begins in the input array and the length of each partition
-    (loop :for pos :across positions :for p :below (length positions)
-       :do (if (/= 0 current-interval)
-	       (incf interval-size))
-       :when (or (< current-interval pos)
-		 (and (= 0 pos) (/= 0 current-interval)))
-       :do (setq r-indices (cons p r-indices)
-		 r-intervals (if (rest r-indices) (cons interval-size r-intervals)))
-       (incf partitions (if (/= 0 pos) 1 0))
-       (setq current-interval pos interval-size 0))
-    ;; add the last entry to the intervals provided the positions list didn't have a 0 value at the end
-    (if (/= 0 (aref positions (1- (length positions))))
-    	(setq r-intervals (cons (- (length positions) (first r-indices))
-				r-intervals)))
-    ;; collect the indices and intervals into lists the right way around, dropping indices with 0-length
-    ;; intervals corresponding to zeroes in the positions list
-    (loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
-       :do (setq intervals (cons rint intervals)
-		 indices (cons rind indices)))
-    (let ((output (make-array (loop :for dim :in idims :for dx :below arank
-				 :collect (if (= dx axis) partitions dim)))))
-      (across output (lambda (elem coords)
-      		       (declare (ignore elem))
-		       (let* ((focus (nth axis coords))
-			      (this-index (nth focus indices))
-			      (this-interval (nth focus intervals)))
-			 (setf (apply #'aref (cons output coords))
-			       (make-array (list this-interval)
-					   :element-type (element-type input)
-					   :initial-contents
-					   (loop :for ix :below this-interval
-					      :collect (apply #'aref (cons input (loop :for coord :in coords
-										    :for dx :below arank
-										    :collect (if (= dx axis)
-												 (+ ix this-index)
-												 coord))))))))))
-      output)))
+  (if (= 1 (length positions))
+      (if (< 1 (array-total-size input))
+	  (vector input)
+	  (error "Rank error."))
+      (let ((r-indices) (r-intervals) (indices) (intervals)
+	    (interval-size 0)
+	    (current-interval -1)
+	    (partitions 0)
+	    (idims (dims input))
+	    (arank (rank input)))
+	;; find the index where each partition begins in the input array and the length of each partition
+	(loop :for pos :across positions :for p :below (length positions)
+	   :do (if (/= 0 current-interval)
+		   (incf interval-size))
+	   :when (or (< current-interval pos)
+		     (and (= 0 pos) (/= 0 current-interval)))
+	   :do (setq r-indices (cons p r-indices)
+		     r-intervals (if (rest r-indices) (cons interval-size r-intervals)))
+	   (incf partitions (if (/= 0 pos) 1 0))
+	   (setq current-interval pos interval-size 0))
+	;; add the last entry to the intervals provided the positions list didn't have a 0 value at the end
+	(if (/= 0 (aref positions (1- (length positions))))
+	    (setq r-intervals (cons (- (length positions) (first r-indices))
+				    r-intervals)))
+	;; collect the indices and intervals into lists the right way around, dropping indices with 0-length
+	;; intervals corresponding to zeroes in the positions list
+	(loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
+	   :do (setq intervals (cons rint intervals)
+		     indices (cons rind indices)))
+	(let ((output (make-array (loop :for dim :in idims :for dx :below arank
+				     :collect (if (= dx axis) partitions dim)))))
+	  (across output (lambda (elem coords)
+			   (declare (ignore elem))
+			   (let* ((focus (nth axis coords))
+				  (this-index (nth focus indices))
+				  (this-interval (nth focus intervals)))
+			     (setf (apply #'aref (cons output coords))
+				   (make-array (list this-interval)
+					       :element-type (element-type input)
+					       :initial-contents
+					       (loop :for ix :below this-interval
+						  :collect (apply #'aref
+								  (cons input (loop :for coord :in coords
+										 :for dx :below arank
+										 :collect (if (= dx axis)
+											      (+ ix this-index)
+											      coord))))))))))
+	  output))))
 
 (defun enlist (input &optional internal output (output-length 0))
   "Create a vector containing all elements of the input array in ravel order, breaking down nested and multidimensional arrays."
-  (if (not (arrayp input))
-      (enclose input)
-      (let ((raveled (make-array (list (array-total-size input))
-				 :element-type (element-type input)
-				 :displaced-to input)))
-	(loop :for item :across raveled :do (if (arrayp item)
-						(multiple-value-bind (out new-length)
-						    (enlist item t output output-length)
-						  (setq output out output-length new-length))
-						(setq output (cons item output)
-						      output-length (1+ output-length))))
-	(if internal (values output output-length)
-	    (make-array (list output-length) :element-type (element-type input)
-			:initial-contents (reverse output))))))
+  (if (= 1 (array-total-size input))
+      input (let ((raveled (make-array (list (array-total-size input))
+				       :element-type (element-type input)
+				       :displaced-to input)))
+	      (loop :for item :across raveled :do (if (arrayp item)
+						      (multiple-value-bind (out new-length)
+							  (enlist item t output output-length)
+							(setq output out output-length new-length))
+						      (setq output (cons item output)
+							    output-length (1+ output-length))))
+	      (if internal (values output output-length)
+		  (make-array (list output-length) :element-type (element-type input)
+			      :initial-contents (reverse output))))))
 
 (defun reshape-array-fitting (input output-dims)
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
@@ -692,9 +692,9 @@
 							:collect (aref nrelem 0))))
 		     result)))
 	   (aops:each (lambda (sub-vector)
-			(if (vectorp sub-vector)
-			    (reduce function2 sub-vector)
-			    (funcall function2 sub-vector)))
+			(disclose (if (vectorp sub-vector)
+				      (reduce function2 sub-vector)
+				      (funcall function2 sub-vector))))
 		      (aops:outer function1 (if (vectorp operand1)
 						;; enclose the argument if it is a vector
 						(vector operand1)
@@ -839,7 +839,6 @@
 
 (defun find-array (input target)
   "Find instances of an array within a larger array."
-  (enclose-if-scalar input target)
   (let* ((source-dims (dims input))
 	 (target-head (row-major-aref target 0))
 	 (target-dims (append (if (< (rank target) (rank input))
@@ -987,9 +986,9 @@
 
 (defun mix-arrays (axis input)
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
-  ;; (enclose-if-scalar input)
-  (if (not (arrayp input))
-      (enclose-if-scalar input)
+  (if (and (= 1 (array-total-size input))
+	   (not (arrayp (row-major-aref input 0))))
+      input
       (flet ((sort-dimensions (outer inner)
 	       (let ((axis-index 0))
 		 (loop :for odix :from 0 :to (length outer)
@@ -1061,7 +1060,6 @@
 
 (defun split-array (input &optional axis)
   "Split an array into a set of sub-arrays."
-  (enclose-if-scalar input)
   (if (is-unitary input)
       input (let* ((axis (if axis axis (1- (rank input))))
 		   (idims (dims input))
