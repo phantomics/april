@@ -525,9 +525,8 @@
 					       ;; the special precedent, prepend it to the token being processed
 					       meta (idiom-symbols idiom)
 					       (if (getf special-precedent :overloaded-num-char)
-						   (concatenate 'string (list (getf special-precedent
-										    :overloaded-num-char))
-								string)
+						   (format nil "~a~a" (getf special-precedent :overloaded-num-char)
+							   string)
 						   string)))))
 		   (%any (?blank-character))
 		   (=subseq (%any (?newline-character)))
