@@ -366,13 +366,26 @@
 					 ;; TODO: defvar here should not be necessary since the symbol
 					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
 					 ;; nonetheless, investigate this
-					 ,(vex-program ,idiom-symbol
-						       (if ,input-string
+					 ,(if (or (and ,input-string (stringp ,input-string))
+						  (and (not ,input-string)
+						       (stringp ,options)))
+					      (vex-program ,idiom-symbol
+							   (if ,input-string
+							       (if (or (string= "WITH" (string (first ,options)))
+								       (string= "SET" (string (first ,options))))
+								   (rest ,options)
+								   (error "Incorrect option syntax.")))
+							   (if ,input-string ,input-string ,options))
+					      ;; TODO: this second clause, which handles input passed in
+					      ;; variables, is extremely slow compared to the clause above
+					      `(eval (vex-program
+						      ,',idiom-symbol
+						      ,(if ,input-string
 							   (if (or (string= "WITH" (string (first ,options)))
 								   (string= "SET" (string (first ,options))))
-							       (rest ,options)
+							       `(quote ,(rest ,options))
 							       (error "Incorrect option syntax.")))
-						       (eval (if ,input-string ,input-string ,options)))))))
+						      ,(if ,input-string ,input-string ,options))))))))
 		      (defmacro ,(intern alt-sym (package-name *package*))
 			  (&rest ,options)
 			(cons ',(intern symbol-string (package-name *package*))
