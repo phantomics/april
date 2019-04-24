@@ -8,9 +8,9 @@
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
   (if (and (not (stringp item))
-       (arrayp item)
-       (is-unitary item)
-       (not (arrayp (aref item 0))))
+	   (arrayp item)
+	   (is-unitary item)
+	   (not (arrayp (row-major-aref item 0))))
       (row-major-aref item 0)
       item))
 
@@ -345,6 +345,12 @@
                                   ,(third innerfn) ,@(if is-first (list arg2)))))
                       (third arg-expanded)))))))
       (let* ((scalar-fn (is-scalar function))
+	     (arguments (loop :for arg :in arguments
+	     		   :collect (cond ((not (listp arg))
+	     				   `(enclose-atom ,arg))
+	     				  ((eql 'avatom (first arg))
+	     				   `(enclose-atom ,(second arg)))
+	     				  (t arg))))
 	     (fn-body (cond ((and scalar-fn (not (second arguments)))
 			     ;; compose monadic functions if the argument is the output of another scalar function
 			     (expand-monadic function (first arguments)))
@@ -488,7 +494,8 @@ It remains here as a standard against which to compare methods for composing APL
   "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
   (let ((omega (gensym)) (o (gensym)) (a (gensym)) (new-array (gensym)) (item (gensym)))
     `(lambda (,omega)
-       ,(let ((wrapped-function `(lambda (,o ,a) (apl-call :fn ,function ,o ,a))))
+       ,(let ((wrapped-function `(lambda (,o ,a)
+				   (disclose (apl-call :fn ,function ,o ,a)))))
 	  `(let ((,new-array (copy-array ,omega)))
 	     ;; wrap the result in an extra array layer if it is already an enclosed array of rank > 1,
 	     ;; this ensures that the returned result will be enclosed
