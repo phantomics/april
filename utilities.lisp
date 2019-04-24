@@ -194,40 +194,41 @@
 (defun format-value (idiom-name meta symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((and (vectorp element)
-          (string= element "⍬"))
-     ;; APL's "zilde" character translates to an empty vector
-      (make-array (list 0)))
-    ((and (vectorp element)
-          (or (string= element "⍺")
-          (string= element "⍵")))
-     ;; alpha and omega characters are directly changed to symbols
-      (intern element idiom-name))
-    ((numeric-string-p element)
-     (parse-apl-number-string element))
-    ((or (and (char= #\" (aref element 0))
-          (char= #\" (aref element (1- (length element)))))
-         (and (char= #\' (aref element 0))
-          (char= #\' (aref element (1- (length element))))))
-     ;; strings are converted to Lisp strings and passed through
-     (subseq element 1 (1- (length element))))
-    ((stringp element)
-     ;; variable references are converted into generated symbols from the variable table or,
-     ;; if no reference is found in that table, a new reference is created there and a new symbol
-     ;; is generated
-     (or (and (char= #\⎕ (aref element 0))
-          (or (getf (rest (assoc :variable symbols)) (intern (string-upcase element) "APRIL"))
-              (getf (rest (assoc :constant symbols)) (intern (string-upcase element) "APRIL"))))
-         (if (not (gethash :variables meta))
-         (setf (gethash :variables meta)
-               (make-hash-table :test #'eq)))
-         (let ((variable-found (gethash (intern element "KEYWORD")
-                        (gethash :variables meta))))
-           (if variable-found variable-found
-           ;; create a new variable if no variable is found matching the string
-           (setf (gethash (intern element "KEYWORD")
-                  (gethash :variables meta))
-             (gensym "A"))))))
-    (t element)))
+	      (string= element "⍬"))
+	 ;; APL's "zilde" character translates to an empty vector
+	 (make-array (list 0)))
+	((and (vectorp element)
+	      (or (string= element "⍺")
+		  (string= element "⍵")))
+	 ;; alpha and omega characters are directly changed to symbols
+	 (intern element idiom-name))
+	((numeric-string-p element)
+	 (parse-apl-number-string element))
+	((or (and (char= #\" (aref element 0))
+		  (char= #\" (aref element (1- (length element)))))
+	     (and (char= #\' (aref element 0))
+		  (char= #\' (aref element (1- (length element))))))
+	 ;; strings are converted to Lisp strings and passed through
+	 (subseq element 1 (1- (length element))))
+	((stringp element)
+	 ;; variable references are converted into generated symbols from the variable table or,
+	 ;; if no reference is found in that table, a new reference is created there and a new symbol
+	 ;; is generated
+	 (let ((vars-table (gethash :variables meta))
+	       (elem-keyword (intern element "KEYWORD")))
+	   (or (and (char= #\⎕ (aref element 0))
+		    (or (getf (rest (assoc :variable symbols))
+			      (intern (string-upcase element) "APRIL"))
+			(getf (rest (assoc :constant symbols))
+			      (intern (string-upcase element) "APRIL"))))
+	       (if (not vars-table)
+		   (setf vars-table (make-hash-table :test #'eq)))
+	       (let ((variable-found (gethash elem-keyword vars-table)))
+		 (if variable-found variable-found
+		     ;; create a new variable if no variable is found matching the string
+		     (setf (gethash elem-keyword vars-table)
+			   (gensym "A")))))))
+	(t element)))
 
 (defun apl-timestamp ()
   (let ((now (now)))
