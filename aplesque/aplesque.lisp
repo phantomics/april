@@ -1336,7 +1336,6 @@
 					(declare (ignore welem))
 					(let ((ref-coords
 					       (loop :for cix :below (length wcoords)
-						  ;; coord :in wcoords :counting coord :into cix
 						  :collect (let ((melem (aref movement cix))
 								 (wdim (aref window-dims cix)))
 							     (+ (nth cix wcoords)
