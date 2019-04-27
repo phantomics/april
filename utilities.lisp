@@ -196,7 +196,8 @@
   (cond ((and (vectorp element)
 	      (string= element "⍬"))
 	 ;; APL's "zilde" character translates to an empty vector
-	 (make-array (list 0)))
+	 ;; (make-array (list 0))
+	 :empty-array)
 	((and (vectorp element)
 	      (or (string= element "⍺")
 		  (string= element "⍵")))

@@ -935,7 +935,6 @@
 						  (funcall fn source-cell)))
 			    (setq output
 				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
-				      ;; (vector source-cell)
 				      source-cell))))
 		       ((and (not indices) (vectorp (first in-path)) (vectorp (aref (first in-path) 0)))
 		       	;; if using reach indexing, recurse on the sub-array specified
@@ -1371,16 +1370,17 @@
 	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
-		  (x-offsets (make-array (list (1+ (first (last idims)))) :initial-element 0
-					 :element-type 'fixnum))
-		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse idims))))) :initial-element 0
-					 :element-type 'fixnum))
-		  (col-widths (make-array (list (first (last idims))) :element-type 'fixnum :initial-element 1))
+		  (x-offsets (make-array (list (1+ (first (last idims))))
+					 :initial-element 0 :element-type 'fixnum))
+		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse idims)))))
+					 :initial-element 0 :element-type 'fixnum))
+		  (col-widths (make-array (list (first (last idims)))
+					  :initial-element 1 :element-type (list 'unsigned-byte 32)))
 		  (col-types (make-array (list (first (last idims))) :initial-element nil))
 		  ;; an array of decimal point positions for each column; first row holds the position of the
 		  ;; decimal point, second holds the overall length of each printed number
-		  (col-decimals (make-array (list 2 (first (last idims)))
-					    :element-type 'fixnum :initial-element 0))
+		  (col-decimals (make-array (list 3 (first (last idims)))
+					    :initial-element 0 :element-type (list 'unsigned-byte 32)))
 		  (strings (make-array idims))
 		  (output-default-char #\ )
 		  (row) (empty-rows))
@@ -1389,14 +1389,14 @@
 			       (this-col-type (aref col-types last-coord))
 			       (last-col-type (aref col-types (1- last-coord)))
 			       (decimal-place (aref col-decimals 0 last-coord))
-			       (decimal-length (aref col-decimals 1 last-coord)))
+			       (decimal-length (aref col-decimals 1 last-coord))
+			       (decimal-trailing (aref col-decimals 2 last-coord)))
 	       (across input (lambda (elem coords)
 			       (let* ((last-coord (first (last coords))))
 				 (flet ((add-column-types (&rest types)
 					  (loop :for type :in types
 					     :do (if (not (member type this-col-type))
-						     (setf this-col-type
-							   (cons type this-col-type))))))
+						     (setf this-col-type (cons type this-col-type))))))
 				   (cond ((or (characterp elem)
 					      (and (stringp elem) (= 1 (length elem))))
 					  ;; characters are simply passed through,
@@ -1453,17 +1453,19 @@
 					 ((numberp elem)
 					  (let ((leading-digits))
 					    (setf decimals (+ (if (> 0 elem) 2 1)
-							      (if (= 0 elem) 0
-								  (max 0 (floor (log (abs elem) 10)))))
+							      ;; add an extra space for the ¯ if negative
+							      (if (= 0 elem)
+								  0 (max 0 (floor (log (abs elem) 10)))))
 						  ;; increment the decimal point position if it's further right
 						  ;; than in other rows of this column; negative values occupy
 						  ;; an extra space due to the minus sign
 						  decimal-place (max decimals decimal-place)
+						  decimal-trailing (max decimal-trailing
+									(- (length rendered) decimals))
 						  leading-digits (- decimal-length decimal-place)
-						  elem-width (if (> decimals leading-digits 0)
-								 (+ 1 decimals leading-digits)
-								 (length rendered))
-						  decimal-length (max elem-width decimal-length)))))
+						  elem-width (+ decimal-place decimal-trailing)
+						  decimal-length (max elem-width decimal-length))
+					    )))
 				   ;; if this is the beginning of a new row, increment the row's y-offset
 				   ;; by the number of preceding empty rows
 				   (if (= 0 last-coord)
@@ -1534,7 +1536,7 @@
 						      (+ row (if (and (= 0 last-coord)
 								      (/= last-coord (1- (length y-offsets))))
 								 1 0))))))))))
-	       ;; (print (list :xoyo x-offsets y-offsets col-widths))
+	       ;; (print (list :xoyo x-offsets y-offsets col-widths col-decimals))
 	       ;; (princ #\Newline)
 	       ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
 	       ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
