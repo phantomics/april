@@ -22,6 +22,11 @@
 				    (getf out-properties :axes) axes)
 			      (values output out-properties remaining))
 		       (values nil nil tokens))))
+		;; process the empty array conveyed by the [⍬ zilde] character
+		((eq :empty-array this-item)
+		 (values (make-array (list 0))
+			 (list :type (list :array :empty))
+			 (rest tokens)))
 		;; process numerical values
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
