@@ -27,6 +27,10 @@
 		 (values (make-array (list 0))
 			 (list :type (list :array :empty))
 			 (rest tokens)))
+		;; process the empty array conveyed by the [⍬ zilde] character
+		((eq :quad-glyph this-item)
+		 (values :quad-glyph (list :type (list :array :empty))
+			 (rest tokens)))
 		;; process numerical values
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
@@ -212,8 +216,10 @@
     (if (gethash symbol (gethash :functions workspace))
 	(setf (gethash symbol (gethash :functions workspace))
 	      nil))
-    (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
-	`(apl-assign ,symbol ,precedent)))
+    (if (eq :quad-glyph symbol)
+	`(apl-output ,precedent :print-precision print-precision :print-to *standard-output*)
+	(if axes (enclose-axes symbol axes :set `(disclose ,precedent))
+	    `(apl-assign ,symbol ,precedent))))
   (list :type (list :array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression
