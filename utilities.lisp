@@ -194,7 +194,7 @@
 (defun format-value (idiom-name meta symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((string= element "⍬")
-	 ;; APL's "zilde" character translates to an empty vector
+	 ;; APL's "zilde" character yields a keyword the compiler translates to an empty vector
 	 :empty-array)
 	((or (and (char= #\" (aref element 0))
 		  (char= #\" (aref element (1- (length element)))))
@@ -207,6 +207,7 @@
 	 ;; alpha and omega characters are directly changed to symbols
 	 (intern element idiom-name))
 	((string= element "⎕")
+	 ;; APL's "quad" character converts to this keyword, handled specially during compilation
 	 :quad-glyph)
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
