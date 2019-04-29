@@ -1464,8 +1464,7 @@
 									(- (length rendered) decimals))
 						  leading-digits (- decimal-length decimal-place)
 						  elem-width (+ decimal-place decimal-trailing)
-						  decimal-length (max elem-width decimal-length))
-					    )))
+						  decimal-length (max elem-width decimal-length)))))
 				   ;; if this is the beginning of a new row, increment the row's y-offset
 				   ;; by the number of preceding empty rows
 				   (if (= 0 last-coord)

@@ -584,13 +584,11 @@
 
 (defun composer (idiom space tokens &optional precedent properties)
   "Compile processed tokens output by the parser into code according to an idiom's grammars and primitive elements."
-  ;; (print (list :comp tokens precedent properties))
   (if (not tokens)
       (values precedent properties)
       (let ((processed)
 	    (special-params (getf properties :special)))
-	;; (print (list :prec precedent))
-	;; (print (list :tokens-b precedent tokens))
+	;; (print (list :prec precedent tokens))
 	(loop :while (not processed)
 	   :for pattern :in (if (not precedent)
 				(vex::idiom-composer-opening-patterns idiom)
