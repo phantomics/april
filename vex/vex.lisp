@@ -242,8 +242,8 @@
 (defmacro vex-idiom-spec (symbol extension &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
-	       `(rest (assoc (intern ,(string-upcase symbol-string) (symbol-package symbol))
-			     subspecs)))
+	       `(rest (assoc ',symbol-string subspecs :test (lambda (x y) (string= (string-upcase x)
+										   (string-upcase y))))))
 	     (build-lexicon () `(loop :for lexicon :in (getf (rest this-lex) :lexicons)
 				   :do (if (not (getf lexicon-data lexicon))
 					   (setf (getf lexicon-data lexicon) nil))
@@ -419,7 +419,29 @@
 						   (if (listp ,item)
 						       (,process ,item)
 						       ,item)))))
-			  (cons 'progn (,process ,body))))))))))
+			  (cons 'progn (,process ,body))))))
+	      ;; print a summary of the idiom as it was specified or extended
+	      ,(let ((items 0)
+		     (set-index 0)
+		     (output (format nil "~a idiom ~a with " (if extension "Extended" "Specified")
+				     (string-upcase symbol)))
+		     (sets (mapcar (lambda (n) (/ n 2))
+				   (list (length function-specs)
+					 (length operator-specs)
+					 (length (of-subspec utilities))))))
+		 (loop :for set :in sets
+		    :do (setq output (if (= 0 set) output
+					   (format nil "~a~a~a ~a~a"
+						   output (if (and (< 0 items)
+								   (= set-index (1- (length sets))))
+							      " and " (if (< 0 items) ", " ""))
+						   set (cond ((= 0 set-index) "lexical function")
+							     ((= 1 set-index) "lexical operator")
+							     ((= 2 set-index) "utility function"))
+						   (if (< 1 set) "s" "")))
+				set-index (1+ set-index)
+				items (+ set items)))
+		 (concatenate 'string output "."))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."

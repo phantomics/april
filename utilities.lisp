@@ -50,8 +50,7 @@
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
-  (let ((result (gensym))
-	(printout (gensym)))
+  (let ((result (gensym)) (printout (gensym)))
     `(let* ((,result ,form)
 	    (,printout ,(if (or (getf options :print-to)
 				(getf options :output-printed))
@@ -66,12 +65,6 @@
 	    (if (eq :only (getf options :output-printed))
 		printout `(values ,result ,printout))
 	    result))))
-
-(defmacro apl-console-print (input &rest options)
-  (let ((to-print (gensym)))
-    `(let ((,to-print ,input))
-       (apl-output ,to-print ,@options)
-       ,to-print)))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
