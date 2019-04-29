@@ -139,9 +139,9 @@
 (defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
   `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
-					 "∇ ")
-					((string= "FOR-PRINTED" (string-upcase (first test-set)))
-					 (if (eq :test mode) "⎕ Printed: " "⎕ ")))
+					"∇ ")
+				       ((string= "FOR-PRINTED" (string-upcase (first test-set)))
+					(if (eq :test mode) "⎕ Printed: " "⎕ ")))
 		    (second test-set)))
     (princ (format nil "~%  _ ~a~%" ,(third test-set)))
     ,(cond ((and (eq :test mode)
@@ -153,7 +153,7 @@
 	   ((and (eq :demo mode)
 		 (string= "FOR" (string-upcase (first test-set))))
 	    `(let ((output (,(intern (string-upcase symbol) (package-name *package*))
-					  (with (:state :output-printed :only))
+			     (with (:state :output-printed :only))
 			     ,(third test-set))))
 	       (princ (concatenate 'string "    "
 				   (regex-replace-all "[\\n]" output
@@ -198,6 +198,7 @@
 				    target))))
 
 (defun merge-options (source target)
+  "Merge options from multiple Vex specifiction sections into a single set."
   (let ((output (loop :for section :in target
 		   :collect (let ((source-items (rest (assoc (first section) source)))
 				  (pair-index 0)
@@ -215,6 +216,7 @@
     output))
 
 (defun build-doc-profile (symbol spec mode section-names)
+  "Build a documentation or test profile from a set of section names in a Vex idiom specification."
   (let ((specs (loop :for subspec :in spec :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
 						     (string= "OPERATORS" (string-upcase (first subspec)))
 						     (string= "TEST-SET" (string-upcase (first subspec))))
@@ -240,7 +242,7 @@
 (defmacro vex-idiom-spec (symbol extension &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
-	       `(rest (assoc (intern ,(string-upcase symbol-string) (package-name *package*))
+	       `(rest (assoc (intern ,(string-upcase symbol-string) (symbol-package symbol))
 			     subspecs)))
 	     (build-lexicon () `(loop :for lexicon :in (getf (rest this-lex) :lexicons)
 				   :do (if (not (getf lexicon-data lexicon))
@@ -250,7 +252,7 @@
 					     (cons char (getf lexicon-data lexicon)))))))
     (let* ((symbol-string (string-upcase symbol))
 	   (idiom-symbol (intern (format nil "*~a-IDIOM*" symbol-string)
-				 (package-name *package*)))
+				 (symbol-package symbol)))
 	   (lexicon-data)
 	   (lexicon-processor (getf (of-subspec utilities) :process-lexicon))
 	   (function-specs
@@ -347,7 +349,7 @@
 			       :append ,elem))))
 	      (setf ,@pattern-settings)
 	      ,@(if (not extension)
-		    `((defmacro ,(intern symbol-string (package-name *package*))
+		    `((defmacro ,(intern symbol-string (symbol-package symbol))
 			  (,options &optional ,input-string)
 			;; this macro is the point of contact between users and the language, used to
 			;; evaluate expressions and control properties of the language instance
@@ -386,9 +388,9 @@
 							       `(quote ,(rest ,options))
 							       (error "Incorrect option syntax.")))
 						      ,(if ,input-string ,input-string ,options))))))))
-		      (defmacro ,(intern alt-sym (package-name *package*))
+		      (defmacro ,(intern alt-sym (symbol-package symbol))
 			  (&rest ,options)
-			(cons ',(intern symbol-string (package-name *package*))
+			(cons ',(intern symbol-string (symbol-package symbol))
 			      (append (if (second ,options)
 					  (if (not (member :print-to (assoc :state (cdar ,options))))
 					      (list (cons (caar ,options)
@@ -398,14 +400,14 @@
 					  `((with (:state :print-to *standard-output*))))
 				      (last ,options))))
 		      (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
-					 (package-name *package*))
+					 (symbol-package symbol))
 			  (,options &rest ,body)
 			(labels ((,process (,form)
 				   (loop :for ,item :in ,form
 				      :collect (if (and (listp ,item)
-							(or (eql ',(intern symbol-string (package-name *package*))
+							(or (eql ',(intern symbol-string (symbol-package symbol))
 								 (first ,item))
-							    (eql ',(intern alt-sym (package-name *package*))
+							    (eql ',(intern alt-sym (symbol-package symbol))
 								 (first ,item))))
 						   (list (first ,item)
 							 (if (third ,item)

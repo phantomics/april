@@ -217,7 +217,7 @@
 	(setf (gethash symbol (gethash :functions workspace))
 	      nil))
     (if (eq :quad-glyph symbol)
-	`(apl-output ,precedent :print-precision print-precision :print-to *standard-output*)
+	`(apl-console-print ,precedent :print-precision print-precision :print-to *standard-output*)
 	(if axes (enclose-axes symbol axes :set `(disclose ,precedent))
 	    `(apl-assign ,symbol ,precedent))))
   (list :type (list :array :assigned)))
