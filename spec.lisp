@@ -1932,9 +1932,10 @@ A not-very-useful monadic scalar function that adds 3 to its argument(s) is spec
 
 (extend-vex-idiom
  april
- (utilities :process-lexicon #'april-function-glyph-processor)
+ (utilities :process-lexicon #'april::april-function-glyph-processor)
  (functions
+  (with (:name :extra-functions))
   (⍛ (has :title "Add3")
-     (monadic (scalar-function (lambda (omega) (+ 3 omega))))
+     (monadic (april::scalar-function (lambda (omega) (+ 3 omega))))
      (tests (is "⍛77" 80)))))
 |#
