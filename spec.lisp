@@ -1322,7 +1322,7 @@
 						      (eql 'lambda (first left))
 						      (= 1 (length (second left))))
 						 (not (resolve-function :dyadic left))))
-		        (alpha (gensym)) (omega (gensym)) (processed (gensym)))
+		       (alpha (gensym)) (omega (gensym)) (processed (gensym)))
 		  `(lambda (,omega &optional ,alpha)
 		     (declare (ignorable ,alpha))
 		     ,(if (and fn-right fn-left)

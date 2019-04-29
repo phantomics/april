@@ -73,16 +73,13 @@
 	  (recurse 0)))))
 
 (defmacro apl-default-element (array)
+  "Returns the default element for an array based on that array's type; blank spaces for character arrays and zeroes for others."
   `(if (or (eql 'character (element-type ,array))
 	   (eql 'base-char (element-type ,array)))
        #\  0))
 
-(defmacro enclose-if-scalar (&rest symbols)
-  `(progn ,@(loop :for symbol :in symbols
-	       :collect `(if (not (arrayp ,symbol))
-			     (setq ,symbol (enclose ,symbol))))))
-
 (defun assign-element-type (item)
+  "Find a type suitable for an APL array to hold a given item."
   (cond ((typep item 'bit)
 	 'bit)
 	((typep item 'character)
@@ -97,6 +94,7 @@
 	(t t)))
 
 (defun type-in-common (&rest types)
+  "Find a type for an array that may hold elements from arrays of a set of given types; effectively the most efficient compatible type among the array types."
   (let ((type))
     (loop :for a :in types
        :do (let ((this-type a))
@@ -171,6 +169,7 @@
     type))
 
 (defun each-boolean (test omega &optional alpha)
+  "Iterate over an array/arrays of scalar values, performing operations upon them that will result in boolean values to be returned in an array with the same shape as the input array(s)."
   (let ((output (make-array (dims omega) :element-type 'bit)))
     (across omega (lambda (elem coords)
 		    (if (= 1 (funcall test elem coords))
@@ -179,6 +178,7 @@
     output))
 
 (defun each-scalar (function omega &optional alpha)
+  "Iterate over an array/arrays of scalar values, operating upon them and returning the output in the most efficiently-stored array capable of holding said output."
   (let ((type)
 	(output (make-array (dims omega))))
     (if (not (arrayp omega))
@@ -460,6 +460,7 @@
 			varg))))))
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
+  "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
   (cond ((and compress-mode (not (is-unitary input))
 	      (and (/= 1 (length degrees))
 		   (/= (length degrees)
@@ -737,7 +738,7 @@
 		  (if (char= item1 item2)
 		      :equal (funcall compare-by (assign-char-value item1)
 				      (assign-char-value item2)))))))))
-  
+
 (defun vector-grade (compare-by vector1 vector2 &optional index)
   "Compare two vectors by the values of each element, giving priority to elements proportional to their position in the array, as when comparing words by the alphabetical order of the letters."
   (let ((index (if index index 0)))
