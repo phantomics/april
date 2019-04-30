@@ -557,3 +557,7 @@ It remains here as a standard against which to compare methods for composing APL
 			      ((eq :operators type)
 			       `(:operators ,(first spec-body)))))))))
 
+;; a secondary package containing a set of tools for the extension of April idioms
+(defpackage #:april.idiom-extension-tools
+  (:import-from :april #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function)
+  (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function))
