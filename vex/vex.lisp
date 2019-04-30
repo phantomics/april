@@ -421,27 +421,49 @@
 						       ,item)))))
 			  (cons 'progn (,process ,body))))))
 	      ;; print a summary of the idiom as it was specified or extended
-	      ,(let ((items 0)
-		     (set-index 0)
-		     (output (format nil "~a idiom ~a with " (if extension "Extended" "Specified")
-				     (string-upcase symbol)))
-		     (sets (mapcar (lambda (n) (/ n 2))
-				   (list (length function-specs)
-					 (length operator-specs)
-					 (length (of-subspec utilities))))))
-		 (loop :for set :in sets
-		    :do (setq output (if (= 0 set) output
-					   (format nil "~a~a~a ~a~a"
-						   output (if (and (< 0 items)
-								   (= set-index (1- (length sets))))
-							      " and " (if (< 0 items) ", " ""))
-						   set (cond ((= 0 set-index) "lexical function")
-							     ((= 1 set-index) "lexical operator")
-							     ((= 2 set-index) "utility function"))
-						   (if (< 1 set) "s" "")))
-				set-index (1+ set-index)
-				items (+ set items)))
-		 (concatenate 'string output "."))))))
+	      (let ((items 0)
+		    (set-index 0)
+		    (output "")
+		    (sets (list (list "basic grammar element"
+				      ,(if (assoc :elements (of-subspec grammar))
+					   `(let ((elements (funcall (function
+								      ,(second (assoc :elements
+										      (of-subspec grammar))))
+								     ,idiom-symbol)))
+					      (if elements (length elements) 0))
+					   0))
+				(list "opening grammar pattern"
+				      (length (progn ,@(loop :for pset
+							  :in (reverse (rest (assoc :opening-patterns
+										    (of-subspec grammar))))
+							  :collect `(funcall (function ,pset) ,idiom-symbol)))))
+				(list "following grammar pattern"
+				      (length (progn ,@(loop :for pset
+							  :in (reverse (rest (assoc :following-patterns
+										    (of-subspec grammar))))
+							  :collect `(funcall (function ,pset) ,idiom-symbol)))))
+				(list "lexical function" ,(* 1/2 (length function-specs)))
+				(list "lexical operator" ,(* 1/2 (length operator-specs)))
+				(list "utility function" ,(* 1/2 (length (of-subspec utilities))))
+				(list "unit test" ,(loop :for exp :in test-forms
+						      :counting (eql 'is (first exp)))))))
+		(loop :for set-values :in sets
+		   :do (destructuring-bind (set-name set) set-values
+			 (setq output (if (= 0 set) output
+					(format nil "~a~a~a ~a~a"
+						output (if (and (< 0 items)
+								(or (= set-index (1- (length sets)))
+								    (= 0 (loop :for sx :from (1+ set-index)
+									    :to (1- (length sets))
+									    :summing (second (nth sx sets))))))
+							   " and " (if (< 0 items) ", " ""))
+						set set-name (if (< 1 set) "s" "")))
+			       set-index (1+ set-index)
+			       items (+ set items))))
+		(princ (format nil "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
+			       ,(string-upcase symbol)
+			       output)))
+	      ,(format nil "Idiom ~a complete." (if extension "extension" "specification"))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."
@@ -604,7 +626,7 @@
 					   (composer idiom space item nil sub-props))
 			    precedent properties)
 		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
-		 ;; 				      (list new-props remaining))))
+		 ;; 				      (list new-props remaining))))o
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
