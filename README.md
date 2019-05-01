@@ -519,7 +519,7 @@ Additionally, April exposes this special system variable not found in other APL 
 
 ## Setting a Custom Output Stream
 
-April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-p)` or values assigned to the quad character like `⎕←1 2 3` is sent to the `*standard-output*` stream. You can change this as follows:
+April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-p)` or values assigned to the quad character like `⎕←1 2 3` are sent to the `*standard-output*` stream. You can change this as follows:
 
 ```lisp
 * (let* ((out-str (make-string-output-stream))
