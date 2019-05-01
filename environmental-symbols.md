@@ -15,6 +15,14 @@ These variables can be reassigned by the user; for instance, `⎕io←0` sets th
 |`⎕IO` |Index Origin     |The number from which counting begins; may be 1 (default) or 0.|
 |`⎕PP` |Print Precision  |Precision at which decimal values are expressed for printing; default 10.|
 
+### April's Unique System Variables
+
+These are system variables exclusive to April, not found in any other variant of APL.
+
+|Symbol|Name             |Description|
+|------|-----------------|-----------|
+|`⎕OST`|Output Stream    |The Lisp output stream to which formatted console output is sent.|
+
 ### System Constants
 
 The values of these symbols are fixed and cannot be changed.
