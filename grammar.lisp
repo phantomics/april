@@ -27,10 +27,6 @@
 		 (values (make-array (list 0))
 			 (list :type (list :array :empty))
 			 (rest tokens)))
-		;; process the empty array conveyed by the [⍬ zilde] character
-		((eq :quad-glyph this-item)
-		 (values :quad-glyph (list :type (list :array :empty))
-			 (rest tokens)))
 		;; process numerical values
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
