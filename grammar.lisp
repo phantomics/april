@@ -216,10 +216,15 @@
     (if (gethash symbol (gethash :functions workspace))
 	(setf (gethash symbol (gethash :functions workspace))
 	      nil))
-    (if (eq :quad-glyph symbol)
-	`(apl-output ,precedent :print-precision print-precision :print-to *standard-output*)
-	(if axes (enclose-axes symbol axes :set `(disclose ,precedent))
-	    `(apl-assign ,symbol ,precedent))))
+    (cond ((eql 'to-output symbol)
+	   ;; a special case to handle ⎕← quad output
+	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream))
+	  ((eql 'output-stream symbol)
+	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
+	   ;; is interned in the current working package
+	   `(apl-assign output-stream ,(intern precedent (package-name *package*))))
+	  (t (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
+		 `(apl-assign ,symbol ,precedent)))))
   (list :type (list :array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression
