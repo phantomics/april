@@ -1,4 +1,4 @@
-;;; aplesque.lisp
+;;;; aplesque.lisp
 
 (in-package #:aplesque)
 
