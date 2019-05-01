@@ -509,7 +509,34 @@ April makes available the following APL system variables and functions:
 ⎕IO ⎕TS ⎕PP ⎕AV ⎕A ⎕D
 ```
 
+Additionally, April exposes this special system variable not found in other APL implementations:
+
+```
+⎕OST
+```
+
 [Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
+
+## Setting a Custom Output Stream
+
+April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-p)` or values assigned to the quad character like `⎕←1 2 3` is sent to the `*standard-output*` stream. You can change this as follows:
+
+```lisp
+* (let* ((out-str (make-string-output-stream))
+	 (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'*STANDARD-OUTPUT*' ⋄ 2+a")))
+    (print (get-output-stream-string out-str))
+    vector)
+3 4 5
+
+"6 7 8
+3 4 5
+" 
+#(3 4 5)
+```
+
+Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-p)` expression is displayed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-p)` expression is printed.
+
+Remember to use all caps when setting the `⎕ost` variable, unless your desired output stream is referenced by a literal lowercase symbol like `|output-stream|`.
 
 ## What's Not Planned for Implementation
 
