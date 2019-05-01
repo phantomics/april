@@ -29,8 +29,9 @@
  april
 
  ;; system variables and default state of an April workspace
- (system :atomic-vector *atomic-vector* :disclose-output t :print-to nil :output-printed nil
-	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14 :print-precision 10))
+ (system :atomic-vector *atomic-vector* :disclose-output t :output-printed nil
+	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14 :print-precision 10
+			   :output-stream '*standard-output*))
 
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
@@ -88,9 +89,11 @@
 	    :system-lexical-environment-interface
 	    (lambda (state)
 	      ;; currently, the only system value passed into the local environment is the index-origin
-	      (loop :for var :in (list :index-origin :print-precision)
-		 :collect (list (intern (string-upcase var) "APRIL")
-				(getf state var))))
+	      (append (list (list (intern "OUTPUT-STREAM" "APRIL")
+				  (getf state :output-stream)))
+		      (loop :for var :in (list :index-origin :print-precision)
+			 :collect (list (intern (string-upcase var) "APRIL")
+					(getf state var)))))
 	    :process-compiled-as-per-workspace
 	    (lambda (workspace form)
 	      (funcall (if (not workspace)
@@ -107,7 +110,8 @@
 							 #'identity (lambda (item) (list 'disclose-atom item)))
 						     (first (last form))))
 				      (append (list :print-precision 'print-precision)
-					      (if (getf state :print-to) (list :print-to (getf state :print-to)))
+					      (if (getf state :print)
+						  (list :print-to 'output-stream))
 					      (if (getf state :output-printed)
 						  (list :output-printed (getf state :output-printed)))))))))
 	    :postprocess-value
@@ -116,12 +120,12 @@
 						     #'identity (lambda (item) (list 'disclose-atom item)))
 						 form))
 		      (append (list :print-precision 'print-precision)
-			      (if (getf state :print-to) (list :print-to (getf state :print-to)))
+			      (if (getf state :print) (list :print-to 'output-stream))
 			      (if (getf state :output-printed)
 				  (list :output-printed (getf state :output-printed)))))))
 
  ;; specs for multi-character symbols exposed within the language
- (symbols (:variable ⎕io index-origin ⎕pp print-precision)
+ (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*))
  
  ;; APL's set of functions represented by characters

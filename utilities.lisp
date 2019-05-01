@@ -205,9 +205,6 @@
 	     (string= element "⍵"))
 	 ;; alpha and omega characters are directly changed to symbols
 	 (intern element idiom-name))
-	((string= element "⎕")
-	 ;; APL's "quad" character converts to this keyword, handled specially during compilation
-	 :quad-glyph)
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
 	(t (let ((vars-table (gethash :variables meta))
