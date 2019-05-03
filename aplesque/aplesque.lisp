@@ -1,3 +1,4 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:Aplesque -*-
 ;;;; aplesque.lisp
 
 (in-package #:aplesque)
@@ -433,9 +434,7 @@
 (defun apply-marginal (function input axis)
   "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
   (let* ((arank (rank input))
-	 (typeless-array (make-array (dims input)))
-	 ;; (new-array (copy-array input))
-	 )
+	 (typeless-array (make-array (dims input))))
     (across input (lambda (elem coords) (setf (apply #'aref (cons typeless-array coords))
 					      elem)))
     (do-permuted typeless-array axis arank (aops:margin function typeless-array (1- arank)))))

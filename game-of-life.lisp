@@ -1,3 +1,4 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
 ;;;; game-of-life.lisp
 
 (in-package #:april)

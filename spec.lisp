@@ -1,3 +1,4 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
 ;;;; spec.lisp
 
 (in-package #:april)
@@ -183,13 +184,16 @@
 	    (is "⌊1.9998" 1)
 	    (is "3⌊0 1 2 3 4 5" #(0 1 2 3 3 3))))
   (? (has :titles ("Random" "Deal"))
-     (ambivalent (scalar-function (lambda (omega) (+ index-origin (random omega))))
+     (ambivalent (scalar-function (lambda (omega)
+				    (if (integerp omega)
+					(+ index-origin (random omega))
+					(error "The right arguments to ? must be non-negative integers."))))
 		 (lambda (omega alpha)
 		   (let ((omega (disclose omega))
 			 (alpha (disclose alpha)))
 		     (if (or (not (integerp omega))
 			     (not (integerp alpha)))
-			 (error "Both arguments to ? must be single integers.")
+			 (error "Both arguments to ? must be single non-negative integers.")
 			 (make-array (list alpha)
 				     :element-type (list 'integer 0 alpha)
 				     :initial-contents (loop :for i :below alpha
@@ -218,14 +222,15 @@
 						      #'= (error "Compared incompatible types.")))
 				      o a)))
 		      (let* ((included))
-			(aops:each (lambda (element)
-				     (let ((include t))
-				       (if (arrayp omega)
-					   (aops:each (lambda (ex) (if (compare ex element) (setq include nil)))
-						      omega)
-					   (if (compare omega element) (setq include nil)))
-				       (if include (setq included (cons element included)))))
-				   alpha)
+			(across alpha (lambda (element coords)
+					(declare (ignore coords))
+					(let ((include t))
+					  (if (arrayp omega)
+					      (across omega (lambda (ex co)
+							      (declare (ignore co))
+							      (if (compare ex element) (setq include nil))))
+					      (if (compare omega element) (setq include nil)))
+					  (if include (setq included (cons element included))))))
 			(make-array (list (length included))
 				    :element-type (element-type alpha)
 				    :initial-contents (reverse included))))))
@@ -1932,14 +1937,16 @@ c   2.56  3
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
-A not-very-useful monadic scalar function that adds 3 to its argument(s) is specified here.
+A not-very-useful scalar function that adds 3 to its argument(s) is specified here.
 
 (extend-vex-idiom
  april
- (utilities :process-lexicon #'april::april-function-glyph-processor)
+ (utilities :process-lexicon #'april-function-glyph-processor)
  (functions
   (with (:name :extra-functions))
   (⍛ (has :title "Add3")
-     (monadic (april::scalar-function (lambda (omega) (+ 3 omega))))
-     (tests (is "⍛77" 80)))))
+     (ambivalent (scalar-function (lambda (omega) (+ 3 omega)))
+		 (scalar-function (lambda (alpha omega) (+ 3 alpha omega))))
+     (tests (is "⍛77" 80)
+	    (is "8⍛7" 18)))))
 |#
