@@ -1,3 +1,4 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
 ;;;; utilities.lisp
 
 (in-package #:april)

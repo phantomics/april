@@ -1,4 +1,5 @@
- ;;;; grammar.lisp
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
+;;;; grammar.lisp
 
 (in-package #:april)
 

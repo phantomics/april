@@ -2,7 +2,7 @@
 
 (asdf:defsystem "april"
   :description "April is a subset of the APL programming language that compiles to Common Lisp."
-  :version "0.9.0"
+  :version "0.9.1"
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t

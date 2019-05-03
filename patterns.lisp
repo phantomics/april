@@ -1,4 +1,5 @@
- ;;;; patterns.lisp
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
+;;;; patterns.lisp
 
 (in-package #:april)
 
