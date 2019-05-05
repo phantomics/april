@@ -461,7 +461,7 @@
 						set set-name (if (< 1 set) "s" "")))
 			       set-index (1+ set-index)
 			       items (+ set items))))
-		(princ (format nil "~%~a idiom ~a with ~a.~%~%" ,(if extension "Extended" "Specified")
+		(princ (format nil "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
 			       ,(string-upcase symbol)
 			       output)))
 	      ,(format nil "Idiom ~a complete." (if extension "extension" "specification"))))))
