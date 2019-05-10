@@ -30,6 +30,8 @@ April is supplied by the Quicklisp library manager, so the easiest way to instal
 
 If you'd like to install April manually from this repository, you can follow these instructions. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Armed Bear Common Lisp (ABCL) and LispWorks.
 
+**Note:** Some special configuration may be needed to use April with LispWorks due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) 
+
 ### Cloning the Repository
 
 First, clone the repository to a location on your system. For this example, let's say you cloned it to the directory ~/mystuff/april.
