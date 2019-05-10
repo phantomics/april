@@ -171,8 +171,9 @@
 
 (defun each-boolean (test omega &optional alpha)
   "Iterate over an array/arrays of scalar values, performing operations upon them that will result in boolean values to be returned in an array with the same shape as the input array(s)."
-  (let ((output (make-array (dims omega) :element-type 'bit)))
+  (let ((output (make-array (dims omega) :element-type 'bit :initial-element 0)))
     (across omega (lambda (elem coords)
+		    ;; (print (list :fn (funcall test elem coords) output))
 		    (if (= 1 (funcall test elem coords))
 			(setf (apply #'aref (cons output coords))
 			      1))))
@@ -1130,7 +1131,7 @@
 			    :displaced-to (copy-array input)))))
 
 (defun re-enclose (matrix axes)
-  "Convert an array into a set of sub-arrays listed within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
+  "Convert an array into a set of sub-arrays within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
   (labels ((make-enclosure (inner-dims type dimensions)
 	     (loop :for d :below (first dimensions)
 		:collect (if (= 1 (length dimensions))

@@ -106,7 +106,6 @@
 				`(funcall ,function elem (apply #'aref (cons ,(second body) coords)))
 				`(funcall ,function elem)))
 			 ,@body)))
-    ;; (print (list alpha omega))
     (if (not omega)
 	(let ((omega alpha))
 	  (if (arrayp omega)
@@ -168,7 +167,7 @@
 	;; the macron character is converted to the minus sign
 	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
 
-(defun print-apl-number-string (number &optional coerce-rational precision)
+(defun print-apl-number-string (number &optional coerce-rational precision decimals)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision for floats."
   (cond ((complexp number)
 	 (format nil "~aJ~a" (print-apl-number-string (realpart number) coerce-rational precision)
@@ -178,15 +177,19 @@
 	((integerp number)
 	 (format nil "~D" number))
 	((and coerce-rational (rationalp number))
-	 (format-decimal-number number
-				:round-magnitude (min 0 (- (- precision (1+ (floor (log (abs number) 10))))))))
+	 (let ((before-decimal (max 1 (1+ (floor (log number 10))))))
+	   (format-decimal-number number :round-magnitude (min 0 (- (- precision before-decimal))))))
 	((rationalp number)
 	 (write-to-string number))
 	(t (if (not precision)
 	       (format nil "~F" number)
-	       (let ((printed-digits (loop :for digit :across (write-to-string number) :when (digit-char-p digit)
-					:counting digit :into digits :finally (return digits))))
-		 (format nil (format nil "~~~DF" (min (1+ printed-digits) (1+ precision)))
+	       (let ((printed (if (not decimals)
+				  (loop :for digit :across (write-to-string number) :when (digit-char-p digit)
+				     :counting digit :into digits :finally (return digits))))
+		     (before-decimal (max 1 (1+ (floor (log number 10))))))
+		 (format nil (format nil "~~~D,~D,F" (if decimals (+ 1 before-decimal decimals)
+							 (min (1+ printed) (1+ precision)))
+				     (if decimals decimals (- (min printed precision) before-decimal)))
 			 number))))))
 
 (defun format-value (idiom-name meta symbols element)
