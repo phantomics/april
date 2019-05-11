@@ -105,7 +105,7 @@
 			   ,(if (second body)
 				`(funcall ,function elem (apply #'aref (cons ,(second body) coords)))
 				`(funcall ,function elem)))
-			 ,@body)))
+			 ,(first body))))
     (if (not omega)
 	(let ((omega alpha))
 	  (if (arrayp omega)
@@ -130,8 +130,8 @@
 		 (for-each (lambda (a o) (apply-scalar function a o is-boolean))
 			   alpha omega))
 		((not (or alpha-unitary? omega-unitary? alpha-scalar? omega-scalar?))
-		 (if (loop :for dimension :in (mapcar #'= (dims alpha) (dims omega))
-			:always dimension)
+		 (if (loop for a in (dims alpha) and o in (dims omega)
+			:always (= a o))
 		     (for-each (lambda (alpha omega) (apply-scalar function alpha omega
 								   is-boolean))
 			       alpha omega)
@@ -139,19 +139,18 @@
 		(t (labels ((scan-over (element)
 			      (if (arrayp element)
 				  (for-each #'scan-over element)
-				  (apply (lambda (left right)
-					   (apply-scalar function left right is-boolean))
-					 (cond (alpha-scalar? (list alpha element))
-					       (alpha-unitary? (list (disclose alpha) element))
-					       (omega-scalar? (list element omega))
-					       (omega-unitary? (list element (disclose omega))))))))
+				  (multiple-value-bind (left right)
+				      (cond (alpha-scalar? (values alpha element))
+					    (alpha-unitary? (values (disclose alpha) element))
+					    (omega-scalar? (values element omega))
+					    (omega-unitary? (values element (disclose omega))))
+				    (apply-scalar function left right is-boolean)))))
 		     (for-each #'scan-over (if (or alpha-scalar? alpha-unitary?)
 					       omega alpha)))))))))
 
 (defun numeric-string-p (string)
   "Checks whether the argument is a numeric string."
-  (handler-case (progn (parse-apl-number-string string) t)
-    (condition () nil)))
+  (ignore-errors (parse-apl-number-string string)))
 
 (defun parse-apl-number-string (number-string &optional imaginary-component)
   "Parse an APL numeric string into a Lisp value, handling high minus signs and the J-notation for complex numbers."
@@ -227,7 +226,7 @@
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
   (let ((now (now)))
-    (make-array (list 7) :element-type (list 'integer 0 16384)
+    (make-array '(7) :element-type '(integer 0 16384)
 		:initial-contents (list (year-of now) (month-of now) (day-of now) (hour-of now)
 					(minute-of now) (second-of now) (millisecond-of now)))))
 
@@ -375,9 +374,9 @@
 			    (t (cons function arguments)))))
 	(append (list (if scalar-fn 'apply-scalar 'funcall))
 		fn-body (if (and scalar-fn (= 2 (length fn-body)))
-			    (list nil))
+			    '(nil))
 		(if (and scalar-fn (is-boolean function))
-		    (list t)))))))
+		    '(t)))))))
 
 #|
 This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.
@@ -525,7 +524,7 @@ It remains here as a standard against which to compare methods for composing APL
 					    (list :dyadic `(scalar-function ,(first (last spec-body))))))))
 	  (t `(,glyph :lexicons ,(cond ((eq :functions type)
 					`(:functions ,@(if (eq :ambivalent function-type)
-							   (list :monadic-functions :dyadic-functions)
+							   '(:monadic-functions :dyadic-functions)
 							   (list (intern (string-upcase
 									  (concatenate 'string
 										       (string function-type)
@@ -534,12 +533,12 @@ It remains here as a standard against which to compare methods for composing APL
 						     ,@(if (and (or (eq :ambivalent function-type)
 								    (eq :monadic function-type))
 								(eql 'scalar-function (caar spec-body)))
-							   (list :scalar-functions :scalar-monadic-functions))
+							   '(:scalar-functions :scalar-monadic-functions))
 						     ,@(if (or (and (eq :dyadic function-type)
 								    (eql 'scalar-function (caar spec-body)))
 							       (and (eq :ambivalent function-type)
 								    (eql 'scalar-function (caadr spec-body))))
-							   (list :scalar-functions :scalar-dyadic-functions))))
+							   '(:scalar-functions :scalar-dyadic-functions))))
 				       ((eq :operators type)
 					`(:operators ,(if (eq :lateral function-type)
 							  :lateral-operators :pivotal-operators))))
