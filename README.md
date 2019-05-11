@@ -28,9 +28,9 @@ April is supplied by the Quicklisp library manager, so the easiest way to instal
 
 ## Manual Installation
 
-If you'd like to install April manually from this repository, you can follow these instructions. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Armed Bear Common Lisp (ABCL) and LispWorks.
+If you'd like to install April manually from this repository, you can follow these instructions. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embedded Common Lisp (ECL), Armed Bear Common Lisp (ABCL) and LispWorks.
 
-**Note:** Some special configuration may be needed to use April with LispWorks due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) 
+**Note:** Some special configuration may be needed to use April with the LispWorks IDE due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) As of now, April can only be used with the LispWorks IDE, not the CLI environment, as the LispWorks CLI does not support UTF-8.
 
 ### Cloning the Repository
 
@@ -233,36 +233,6 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1.
 
-#### :index-origin
-
-This is another, more technical name for the `:count-from` sub-parameter. You can use it instead of `:count-from`:
-
-```lisp
-* (april-p (with (:state :index-origin 0)) "⍳9")
-0 1 2 3 4 5 6 7 8
-#(0 1 2 3 4 5 6 7 8)
-```
-
-#### :print-precision
-
-This controls the maximal precision at which April prints floating point numbers. Its default value is 10. For example:
-
-```lisp
-* (april-p "○1 2 3")
-3.141592654 6.283185307 9.424777961	
-#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
-
-* (april-p (with (:state :print-precision 6)) "○1 2 3")
-3.14159 6.28319 9.42478
-#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
-
-* (april-p (with (:state :print-precision 3)) "○1 2 3")
-3.14 6.28 9.42
-#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
-```
-
-Note that `:print-precision` doesn't affect the Lisp values output by April, only the printed output.
-
 #### :in
 
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables `a` and `b` are set in the code, with values 1 and 2 respectively. You can use `:in` to pass values from Lisp into the April instance.
@@ -331,6 +301,16 @@ The last value calculated is displayed. The `:out` sub-parameter allows you to l
 18
 ```
 
+#### :index-origin
+
+This is another, more technical name for the `:count-from` sub-parameter. You can use it instead of `:count-from`:
+
+```lisp
+* (april-p (with (:state :index-origin 0)) "⍳9")
+0 1 2 3 4 5 6 7 8
+#(0 1 2 3 4 5 6 7 8)
+```
+
 #### :disclose-output
 
 In APL, there's really no such thing as a value outside an array. Every piece of data used within an April instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When April returns arrays like this, its default behavior is to disclose them like this:
@@ -348,6 +328,26 @@ But if you set the `:disclose-output` option to nil, you can change this:
 ```
 
 With `:disclose-output` set to nil, unitary vectors will be passed directly back without having their values disclosed.
+
+#### :print-precision
+
+This controls the maximal precision at which April prints floating point numbers. Its default value is 10. For example:
+
+```lisp
+* (april-p "○1 2 3")
+3.141592654 6.283185307 9.424777961	
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
+
+* (april-p (with (:state :print-precision 6)) "○1 2 3")
+3.14159 6.28319 9.42478
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
+
+* (april-p (with (:state :print-precision 3)) "○1 2 3")
+3.14 6.28 9.42
+#(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
+```
+
+Note that `:print-precision` doesn't affect the Lisp values output by April, only the printed output.
 
 #### :print-to
 

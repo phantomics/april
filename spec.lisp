@@ -31,8 +31,8 @@
 
  ;; system variables and default state of an April workspace
  (system :atomic-vector *atomic-vector* :disclose-output t :output-printed nil
-	 :base-state (list :index-origin 1 :comparison-tolerance 1e-14 :print-precision 10
-			   :output-stream '*standard-output*))
+	 :base-state '(:index-origin 1 :comparison-tolerance 1e-14 :print-precision 10
+		       :output-stream '*standard-output*))
 
  ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
  ;; register combinations of those forms
@@ -44,31 +44,33 @@
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
-		      :lexical-functions-mixed :lexical-functions-special :lexical-operators-lateral
+		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
 		      :array-function-scalar-index-input-tests :printed-format-tests)
+	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
+		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
+		      :lexical-operators-pivotal :general-tests)
 	       (:demo :general-tests :lexical-functions-scalar-numeric
-		      :lexical-functions-scalar-logical :lexical-functions-mixed :lexical-functions-special
+		      :lexical-functions-scalar-logical :lexical-functions-array :lexical-functions-special
 		      :lexical-operators-lateral :lexical-operators-pivotal
 		      :system-variable-function-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (lambda (char) (member char (list #\  #\Tab)))
-	    :match-newline-character (lambda (char) (member char (list #\◊ #\⋄ #\Newline #\Return)))
+ (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
+	    :match-newline-character (lambda (char) (member char '(#\◊ #\⋄ #\Newline #\Return)))
 	    ;; set the language's valid blank, newline characters and token characters
 	    :match-token-character
 	    (lambda (char)
 	      (or (alphanumericp char)
-		  (member char (list #\. #\_ #\⎕ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+		  (member char '(#\. #\_ #\⎕ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
 	    ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
 	    ;; depending on their context
 	    :match-overloaded-numeric-character (lambda (char) (char= #\. char))
 	    ;; this code preprocessor removes comments, including comment-only lines
 	    :prep-code-string
 	    (lambda (string)
-	      (regex-replace-all (concatenate 'string "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
-					      "|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]"
-					      "|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])")
+	      (regex-replace-all "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]
+				 |(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])"
 				 string ""))
 	    ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
 	    :process-axis-string (lambda (string) (cl-ppcre:split #\; string))
@@ -95,6 +97,33 @@
 		      (loop :for var :in (list :index-origin :print-precision)
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
+	    :generate-variable-declarations
+	    (lambda (input-vars preexisting-vars var-symbols meta)
+	      (let ((vds (loop :for key-symbol :in var-symbols
+			    :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
+					       (mapcar #'first input-vars)))
+			    :collect (let* ((sym (second key-symbol))
+					    (fun-ref (gethash sym (gethash :functions meta)))
+					    (val-ref (gethash sym (gethash :values meta))))
+				       (list sym (if (member sym preexisting-vars)
+						     (if val-ref val-ref (if fun-ref fun-ref))
+						     :undefined))))))
+		;; update the variable records in the meta object if input variables are present
+		(if input-vars
+		    (loop :for var-entry :in input-vars
+		       :do (if (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
+					(gethash :variables meta))
+			       (rplacd (assoc (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
+						       (gethash :variables meta))
+					      vds)
+				       (list (second var-entry)))
+			       (setq vds (append vds (list (list (setf (gethash (intern (lisp->camel-case
+											 (first var-entry))
+											"KEYWORD")
+										(gethash :variables meta))
+								       (gensym))
+								 (second var-entry))))))))
+		vds))
 	    :process-compiled-as-per-workspace
 	    (lambda (workspace form)
 	      (funcall (if (not workspace)
@@ -285,9 +314,9 @@
      (tests (is "0 1 0 1⍱0 0 1 1" #*1000))))
 
  (functions
-  (with (:name :lexical-functions-mixed)
-	(:tests-profile :title "Mixed Function Tests")
-	(:demo-profile :title "Mixed Function Demos"
+  (with (:name :lexical-functions-array)
+	(:tests-profile :title "Array Function Tests")
+	(:demo-profile :title "Array Function Demos"
 		       :description "These functions affect entire arrays, changing their structure or deriving data from them in some way."))
   (⍳ (has :titles ("Interval" "Index Of"))
      (ambivalent (lambda (omega)
@@ -400,7 +429,7 @@
 								   (first coords))
 							       indices))))))
 		     (if (not indices)
-			 (make-array (list 0))
+			 (make-array '(0))
 			 (make-array (list match-count)
 				     :element-type (if (< 1 orank)
 						       t (list 'integer 0 (reduce #'max indices)))
@@ -484,7 +513,7 @@
 						     (loop :for i :below (length omega)
 							:collect (list (aref omega i))))
 					 (let ((o-dims (dims omega)))
-					   (make-array (list (first o-dims) (apply #'* (rest o-dims)))
+					   (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
 						       :element-type (element-type omega)
 						       :displaced-to (copy-array omega))))))
 		 (lambda (omega alpha &optional axes)
@@ -647,7 +676,7 @@
 			 (error "Right argument to dyadic ⊃ may not be unitary.")
 			 (let ((found (layer-index omega (array-to-list alpha))))
 			   (if (arrayp found)
-			       found (make-array (list 1) :element-type (element-type omega)
+			       found (make-array '(1) :element-type (element-type omega)
 						 :initial-element found)))))))
      (tests (is "⊃⍳4" 1)
 	    (is "⊃⊂⍳4" #(1 2 3 4))
@@ -1031,7 +1060,7 @@
   (⊣ (has :titles ("Empty" "Left"))
      (ambivalent (lambda (omega)
 		   (declare (ignore omega))
-		   (make-array (list 0)))
+		   (make-array '(0)))
 		 (lambda (omega alpha)
 		   (declare (ignore omega))
 		   alpha))
@@ -1474,7 +1503,7 @@
 										,item)))
 								(t left)))
 					       ,item))
-					 ,omega ,alpha)))
+					 ,omega)))
 			(t `(lambda (,omega)
 			      (let* ((,omega-var (apply-scalar #'- ,right index-origin))
 				     (,output (make-array (dims ,omega)))
@@ -1523,9 +1552,9 @@
 			   ((not ,(verify-function left))
 			    (error "The left operand of ⌺ must be a function."))
 			   (t (let ((,window-dims (if (= 1 (rank ,right))
-						      ,right (choose ,right (list 0))))
+						      ,right (choose ,right '(0))))
 				    (,movement (if (= 2 (rank ,right))
-						   (choose ,right (list 1))
+						   (choose ,right '(1))
 						   (make-array (list (length ,right))
 							       :element-type 'fixnum :initial-element 1))))
 				(merge-arrays (stencil ,omega ,op-left ,window-dims ,movement)))))))))
