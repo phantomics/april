@@ -81,18 +81,14 @@
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
-  (cond ((typep item 'bit)
-	 'bit)
-	((typep item 'character)
-	 'character)
-	((integerp item)
-	 (list 'integer (min 0 item)
-	       (max 0 (1+ item))))
-	((typep item 'single-float)
-	 'single-float)
-	((typep item 'double-float)
-	 'double-float)
-	(t t)))
+  (typecase item
+    (bit 'bit)
+    (character 'character)
+    (integer (list 'integer (min 0 item)
+		   (max 0 (1+ item))))
+    (single-float 'single-float)
+    (double-float 'double-float)
+    (t t)))
 
 (defun type-in-common (&rest types)
   "Find a type for an array that may hold elements from arrays of a set of given types; effectively the most efficient compatible type among the array types."
