@@ -94,7 +94,7 @@
   item)
 
 (defun apply-scalar (function alpha &optional omega is-boolean)
-  "Apply a scalar function across objects as appropriate in APL. Handles scalars as well as nested and multidimensional arrays."
+  "Apply a scalar function across objects as appropriate for APL. Handles scalars as well as nested and multidimensional arrays."
   (macrolet ((for-each (function &rest body)
 	       `(funcall (if (and is-boolean (not (eq t (element-type alpha)))
 				  (or (not omega)
@@ -132,8 +132,7 @@
 		((not (or alpha-unitary? omega-unitary? alpha-scalar? omega-scalar?))
 		 (if (loop for a in (dims alpha) and o in (dims omega)
 			:always (= a o))
-		     (for-each (lambda (alpha omega) (apply-scalar function alpha omega
-								   is-boolean))
+		     (for-each (lambda (alpha omega) (apply-scalar function alpha omega is-boolean))
 			       alpha omega)
 		     (error "Array size mismatch.")))
 		(t (labels ((scan-over (element)
