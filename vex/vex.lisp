@@ -489,8 +489,9 @@
 				(list "lexical function" ,(* 1/2 (length function-specs)))
 				(list "lexical operator" ,(* 1/2 (length operator-specs)))
 				(list "utility function" ,(* 1/2 (length (of-subspec utilities))))
-				(list "unit test" ,(loop :for exp :in test-forms
-						      :counting (eql 'is (first exp)))))))
+				(list "unit test" ,(+ (loop :for exp :in test-forms
+							 :counting (eql 'is (first exp)))
+						      (count-symbol-in-spec 'prove:is atest-forms))))))
 		(loop :for set-values :in sets
 		   :do (destructuring-bind (set-name set) set-values
 			 (setq output (if (= 0 set) output
