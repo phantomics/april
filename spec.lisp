@@ -93,7 +93,9 @@
 	    (lambda (state)
 	      ;; currently, the only system value passed into the local environment is the index-origin
 	      (append (list (list (intern "OUTPUT-STREAM" "APRIL")
-				  (second (getf state :output-stream))))
+				  (if (getf state :print-to)
+				      (getf state :print-to)
+				      (second (getf state :output-stream)))))
 		      (loop :for var :in (list :index-origin :print-precision)
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
