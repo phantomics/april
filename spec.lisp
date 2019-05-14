@@ -46,7 +46,9 @@
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
-		      :array-function-scalar-index-input-tests :printed-format-tests)
+		      :array-function-scalar-index-input-tests :printed-format-tests
+		      ;; :output-specification-tests
+		      )
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests)
@@ -1969,7 +1971,19 @@ c   2.56  3
 ")
   (for-printed "Stacked floats with negative value under 1." "⍪¯0.75 1.25" "¯0.75
  1.25
-")))
+"))
+
+;;  (arbitrary-test-set
+;;   (with (:name :output-specification-tests)
+;; 	(:tests-profile :title "Output Specification Tests"))
+;;   ((let* ((out-str (make-string-output-stream))
+;; 	  (vector (april (with (:state :print-to out-str)) "a←1 2 3 ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ 3+a")))
+;;      (is (get-output-stream-string out-str)
+;; 	 "6 7 8
+;; 3 4 5
+;; ")
+;;      (is vector #(4 5 6) :test #'equalp))))
+ )
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
