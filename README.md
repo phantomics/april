@@ -525,18 +525,16 @@ April has a special system variable called `⎕ost` that you can use to set a cu
 
 ```lisp
 * (let* ((out-str (make-string-output-stream))
-	 (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'*STANDARD-OUTPUT*' ⋄ 2+a")))
-    (print (get-output-stream-string out-str))
+	 (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'*STANDARD-OUTPUT*' ⋄ 3+a")))
+    (princ (get-output-stream-string out-str))
     vector)
+4 5 6
+6 7 8
 3 4 5
-
-"6 7 8
-3 4 5
-" 
-#(3 4 5)
+#(4 5 6)
 ```
 
-Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-p)` expression is displayed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-p)` expression is printed.
+Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-p)` expression is printed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-p)` expression is printed.
 
 Remember to use all caps when setting the `⎕ost` variable, unless your desired output stream is referenced by a literal lowercase symbol like `|output-stream|`.
 
