@@ -198,6 +198,10 @@
 				  (not (char= #\Newline (aref output (1- (length output))))))
 			      (princ #\Newline))))))))
 
+(defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
+  (declare (ignore symbol mode))
+  test-set)
+
 (defmacro specify-vex-idiom (symbol &rest subspecs)
   "Wraps the idiom-spec macro for an initial specification of a Vex idiom."
   `(vex-idiom-spec ,symbol nil ,@subspecs))
@@ -237,6 +241,7 @@
   "Build a documentation or test profile from a set of section names in a Vex idiom specification."
   (let ((specs (loop :for subspec :in spec :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
 						     (string= "OPERATORS" (string-upcase (first subspec)))
+						     (string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
 						     (string= "TEST-SET" (string-upcase (first subspec))))
 		  :collect subspec)))
     (loop :for name :in section-names
@@ -253,9 +258,13 @@
 						 ,(getf (rest (assoc :tests-profile (cdadr subspec)))
 							:title))))))
 			 (loop :for test-set :in (cddr subspec)
-			    :append (funcall (if (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-						     (string= "OPERATORS" (string-upcase (first subspec))))
-						 #'process-lex-tests-for #'process-general-tests-for)
+			    :append (funcall (cond ((or (string= "FUNCTIONS" (string-upcase (first subspec)))
+							(string= "OPERATORS" (string-upcase (first subspec))))
+						    #'process-lex-tests-for)
+						   ((string= "TEST-SET" (string-upcase (first subspec)))
+						    #'process-general-tests-for)
+						   ((string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
+						    #'process-arbitrary-tests-for))
 					     symbol test-set :mode mode)))))))
 
 (defmacro vex-idiom-spec (symbol extension &rest subspecs)
@@ -316,6 +325,7 @@
 	   (demo-forms (build-doc-profile symbol subspecs :demo (rest (assoc :demo (of-subspec doc-profiles)))))
 	   (test-forms (build-doc-profile symbol subspecs :test (rest (assoc :test (of-subspec doc-profiles)))))
 	   (timed-forms (build-doc-profile symbol subspecs :time (rest (assoc :time (of-subspec doc-profiles)))))
+	   (atest-forms (build-doc-profile symbol subspecs :test (rest (assoc :test (of-subspec doc-profiles)))))
 	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
 	   ;; less specific ones like the baseline grammar
@@ -416,11 +426,9 @@
 			  (&rest ,options)
 			(cons ',(intern symbol-string (symbol-package symbol))
 			      (append (if (second ,options)
-					  (if t; (not (member :print-to (assoc :state (cdar ,options))))
-					      (list (cons (caar ,options)
-							  (merge-options `((:state :print t))
-									 (cdar ,options))))
-					      (list (first ,options)))
+					  (list (cons (caar ,options)
+						      (merge-options `((:state :print t))
+								     (cdar ,options))))
 					  `((with (:state :print t))))
 				      (last ,options))))
 		      (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
