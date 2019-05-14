@@ -217,12 +217,12 @@ As mentioned before, you can see demos of April's functions with:
 `(with)` is the workhorse of April parameters, allowing you to configure your April instance in many ways. The most common sub-parameter passed via `(with)` is `(:state)`. To wit:
 
 ```lisp
-* (april (with (:state :count-from 1
-                       :in ((a 1) (b 2))
+* (april (with (:state :count-from 0
+                       :in ((a 3) (b 5))
                        :out (a c)))
-         "c←a+b×11")
-1
-23
+         "c←a+⍳b")
+3
+#(3 4 5 6 7)
 ```
 
 ### (:state) sub-parameters
@@ -231,7 +231,7 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 #### :count-from
 
-Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1.
+Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1. In the code above, `⍳b` with `b` equal to 5 counts from 0 to 4, whereas with the default :count-from value of 1, `⍳b` would count from 1 to 5.
 
 #### :in
 
@@ -263,9 +263,9 @@ true! this->that pass/fail? var.name
 If you use dashes in the names of Lisp variables you pass into April, note that inside April they will be converted to camel case. For example:
 
 ```lisp
-* (april-p (with (:state :in ((my-var 2)
+* (april-p (with (:state :in ((one-var 2)
                               (other-var 5))))
-           "myVar×otherVar+5")
+           "oneVar×otherVar+5")
 20
 ```
 
