@@ -46,9 +46,8 @@
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
-		      :array-function-scalar-index-input-tests :printed-format-tests
-		      ;; :output-specification-tests
-		      )
+		      :array-function-scalar-index-input-tests  :printed-format-tests)
+	       (:arbitrary-test :output-specification-tests)
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests)
@@ -71,8 +70,8 @@
 	    ;; this code preprocessor removes comments, including comment-only lines
 	    :prep-code-string
 	    (lambda (string)
-	      (regex-replace-all "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]
-				 |(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])"
+	      (regex-replace-all "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|
+                                  (?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])"
 				 string ""))
 	    ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
 	    :process-axis-string (lambda (string) (cl-ppcre:split #\; string))
@@ -342,9 +341,9 @@
 			     (make-array (list (length omega-dims))
 					 :element-type (list 'integer 0 max-dim)
 					 :initial-contents omega-dims))))
-		 (lambda (omega alpha) (reshape-array-fitting omega (if (arrayp alpha)
-									(array-to-list alpha)
-									(list alpha)))))
+		 (lambda (omega alpha) (reshape-to-fit omega (if (arrayp alpha)
+								 (array-to-list alpha)
+								 (list alpha)))))
      (tests (is "⍴1 2 3" 3)
 	    (is "⍴3 5⍴⍳8" #(3 5))
 	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
@@ -1973,17 +1972,85 @@ c   2.56  3
  1.25
 "))
 
-;;  (arbitrary-test-set
-;;   (with (:name :output-specification-tests)
-;; 	(:tests-profile :title "Output Specification Tests"))
-;;   ((let* ((out-str (make-string-output-stream))
-;; 	  (vector (april (with (:state :print-to out-str)) "a←1 2 3 ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ 3+a")))
-;;      (is (get-output-stream-string out-str)
-;; 	 "6 7 8
-;; 3 4 5
-;; ")
-;;      (is vector #(4 5 6) :test #'equalp))))
- )
+ (arbitrary-test-set
+  (with (:name :output-specification-tests)
+	(:tests-profile :title "Output Specification Tests"))
+  ((progn (princ (format nil "⍎ Evaluation of ⍳ with specified index origin.~%"))
+	  (is (april (with (:state :index-origin 0)) "⍳9")
+	      #(0 1 2 3 4 5 6 7 8) :test #'equalp))
+   (let ((out-str (make-string-output-stream)))
+     (april-p (with (:state :print-to out-str :print-precision 3)) "○1 2 3")
+     (princ (format nil "⍎ Printed output at given precisions.~%"))
+     (is (get-output-stream-string out-str)
+	 "3.14 6.28 9.42
+"
+	 )
+     (princ (format nil "~%"))
+     (april-p (with (:state :print-to out-str :print-precision 6)) "○1 2 3")
+     (is (get-output-stream-string out-str)
+	 "3.14159 6.28319 9.42478
+"
+	 )    
+     )
+   (multiple-value-bind (out1 out2)
+       (april (with (:state :count-from 0 :in ((a 3) (b 5))
+			    :out (a c)))
+	      "c←a+⍳b")
+     (princ (format nil "⍎ Output of one input and one declared variable with index origin set to 0.~%"))
+     (is out1 3)
+     (princ (format nil "~%"))
+     (is out2 #(3 4 5 6 7) :test #'equalp))
+   (multiple-value-bind (out1 out2)
+       (april (with (:state :output-printed t)) "2 3⍴⍳9")
+     (princ (format nil "⍎ Output of both value and APL-formatted value string.~%"))
+     (is out1 #2A((1 2 3) (4 5 6)) :test #'equalp)
+     (princ (format nil "~%"))
+     (is out2 "1 2 3
+4 5 6
+"
+	 ))
+   (progn (format nil "⍎ Output of APL-formatted value string alone.~%")
+	  (is (april (with (:state :output-printed :only)) "2 3⍴⍳9")
+	      "1 2 3
+4 5 6
+"))
+   (multiple-value-bind (out1 out2 out3)
+       (april (with (:state :out (a b c)))
+	      "a←9+2
+               b←5+3
+               c←2×9")
+     (princ (format nil "⍎ Output of three internally-declared variables.~%"))
+     (is out1 11)
+     (princ (format nil "~%"))
+     (is out2 8)
+     (princ (format nil "~%"))
+     (is out3 18))
+   (progn (princ (format nil "⍎ Undisclosed output.~%"))
+	  (is (april (with (:state :disclose-output nil)) "1+1") #(2) :test #'equalp))
+   (let* ((out-str (make-string-output-stream))
+	  (vector (april (with (:state :print-to out-str)) "a←1 2 3 ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ 3+a")))
+     (princ (format nil "⍎ Output using ⎕← to specified output stream.~%"))
+     (is (get-output-stream-string out-str)
+	 "6 7 8
+3 4 5
+")
+     (princ (format nil "~%"))
+     (is vector #(4 5 6) :test #'equalp))
+   (let* ((out-str (make-string-output-stream))
+	  (other-out-str (make-string-output-stream))
+	  (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'OTHER-OUT-STR' ⋄ 3+a")))
+     (is (get-output-stream-string out-str)
+	 "6 7 8
+3 4 5
+"
+	 :test #'equalp)
+     (princ (format nil "~%"))
+     (is (get-output-stream-string other-out-str)
+	 "4 5 6
+"
+	 :test #'equalp)
+     vector)
+   )))
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.

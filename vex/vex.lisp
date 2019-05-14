@@ -86,6 +86,15 @@
 	    `(if ,alpha (funcall (function ,operation) ,alpha ,omega)
 		 (funcall (function ,operation) ,omega))))))
 
+(defun count-symbol-in-spec (symbol limbs)
+  (let ((results 0))
+    (loop :for limb :in limbs :do (if (listp limb)
+				      (incf results (count-symbol-in-spec symbol limb))
+				      (if (and (symbolp limb)
+					       (eql symbol limb))
+					  (incf results))))
+    results))
+
 (defun process-lex-tests-for (symbol operator &key (mode :test))
   "Process a set of tests for Vex functions or operators."
   (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
@@ -200,7 +209,8 @@
 
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
   (declare (ignore symbol mode))
-  test-set)
+  (loop :for test :in test-set :append (append '((princ (format nil "~%")))
+					       (list test))))
 
 (defmacro specify-vex-idiom (symbol &rest subspecs)
   "Wraps the idiom-spec macro for an initial specification of a Vex idiom."
@@ -325,7 +335,8 @@
 	   (demo-forms (build-doc-profile symbol subspecs :demo (rest (assoc :demo (of-subspec doc-profiles)))))
 	   (test-forms (build-doc-profile symbol subspecs :test (rest (assoc :test (of-subspec doc-profiles)))))
 	   (timed-forms (build-doc-profile symbol subspecs :time (rest (assoc :time (of-subspec doc-profiles)))))
-	   (atest-forms (build-doc-profile symbol subspecs :test (rest (assoc :test (of-subspec doc-profiles)))))
+	   (atest-forms (build-doc-profile symbol subspecs :test
+					   (rest (assoc :arbitrary-test (of-subspec doc-profiles)))))
 	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
 	   ;; less specific ones like the baseline grammar
@@ -386,8 +397,9 @@
 			(cond ((and ,options (listp ,options)
 				    (string= "TEST" (string-upcase (first ,options))))
 			       `(progn (setq prove:*enable-colors* nil)
-				       (plan ,(loop :for exp :in ',test-forms :counting (eql 'is (first exp))))
-				       ,@',test-forms (finalize)
+				       (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
+						 (count-symbol-in-spec 'prove:is ',atest-forms)))
+				       ,@',test-forms ,@',atest-forms  (finalize)
 				       (setq prove:*enable-colors* t)))
 			      ((and ,options (listp ,options)
 				    (string= "TIME-TESTS" (string-upcase (first ,options))))

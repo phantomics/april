@@ -634,7 +634,7 @@
 		  (make-array (list output-length) :element-type (element-type input)
 			      :initial-contents (reverse output))))))
 
-(defun reshape-array-fitting (input output-dims)
+(defun reshape-to-fit (input output-dims)
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (not (arrayp input))
       (make-array output-dims :element-type (assign-element-type input) :initial-element input)
