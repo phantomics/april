@@ -416,7 +416,7 @@
 			  (&rest ,options)
 			(cons ',(intern symbol-string (symbol-package symbol))
 			      (append (if (second ,options)
-					  (if (not (member :print-to (assoc :state (cdar ,options))))
+					  (if t; (not (member :print-to (assoc :state (cdar ,options))))
 					      (list (cons (caar ,options)
 							  (merge-options `((:state :print t))
 									 (cdar ,options))))
