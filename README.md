@@ -20,7 +20,11 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 ## Automatic Installation
 
-April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. To do so:
+April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL) and LispWorks.
+
+**Note:** Some special configuration may be needed to use April with the LispWorks IDE due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) Currently April can only be used with the LispWorks IDE, not the CLI environment, as the LispWorks CLI edition does not support UTF-8.
+
+To install April with Quicklisp, evaluate:
 
 ```lisp
 (ql:quickload 'april)
@@ -28,9 +32,7 @@ April is supplied by the Quicklisp library manager, so the easiest way to instal
 
 ## Manual Installation
 
-If you'd like to install April manually from this repository, you can follow these instructions. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL) and LispWorks.
-
-**Note:** Some special configuration may be needed to use April with the LispWorks IDE due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) As of now, April can only be used with the LispWorks IDE, not the CLI environment, as the LispWorks CLI does not support UTF-8.
+If you'd like to install April manually from this repository, you can follow these instructions.
 
 ### Cloning the Repository
 
