@@ -46,7 +46,7 @@
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
-		      :array-function-scalar-index-input-tests  :printed-format-tests)
+		      :array-function-scalar-index-input-tests :printed-format-tests)
 	       (:arbitrary-test :output-specification-tests)
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
@@ -58,7 +58,7 @@
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
-	    :match-newline-character (lambda (char) (member char '(#\◊ #\⋄ #\Newline #\Return)))
+	    :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return)))
 	    ;; set the language's valid blank, newline characters and token characters
 	    :match-token-character
 	    (lambda (char)
@@ -1532,16 +1532,15 @@
 							 (list (resolve-function :monadic left)))
 							(t `((if (is-unitary ,left)
 								 (disclose ,left)
-								 (lambda (,item ,coords)
+`								 (lambda (,item ,coords)
 								   (declare (ignore ,item))
 								   (let ((,alen (if (not (listp ,coord))
 										    1 (length ,coord))))
 								     (choose
-								      ,left
-								      (mapcar #'list
-									      (append (list ,index)
-										      (nthcdr ,alen
-											      ,coords)))))))
+								      ,left (mapcar #'list
+										    (append (list ,index)
+											    (nthcdr ,alen
+												    ,coords)))))))
 							     :set-coords t)))))
 				,output)))))))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
