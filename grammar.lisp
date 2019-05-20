@@ -219,7 +219,19 @@
 	  ((eql 'output-stream symbol)
 	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
 	   ;; is interned in the current working package
-	   `(apl-assign output-stream ,(intern precedent (package-name *package*))))
+	   (if (stringp precedent)
+	       `(apl-assign output-stream ,(intern precedent (package-name *package*)))
+	       (if (listp precedent)
+		   (destructuring-bind (vector-symbol package-string symbol-string)
+		       precedent
+		     (if (and (eql 'avector vector-symbol)
+			      (stringp package-string)
+			      (stringp symbol-string))
+			 ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
+			 ;; intern the symbol like (intern "OUT-STR" "APRIL")
+			 `(apl-assign output-stream ,(intern symbol-string package-string))
+			 (error "Invalid assignment to ⎕OST.")))
+		   (error "Invalid assignment to ⎕OST."))))
 	  (t (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
 		 `(apl-assign ,symbol ,precedent)))))
   (list :type (list :array :assigned)))

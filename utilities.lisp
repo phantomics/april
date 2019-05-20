@@ -43,6 +43,7 @@
   "This is a simple passthrough macro that is used by (in-apl-workspace)."
   (cond ((or (eql 'index-origin symbol)
 	     (eql 'print-precision symbol))
+	 ;; TODO: add better logic for invalid assignments to ⎕IO or ⎕PP
 	 (if (and (eql 'avector (first value))
 		  (integerp (second value)))
 	     `(setq ,symbol ,(second value))
@@ -59,9 +60,12 @@
 					   :format (lambda (n) (print-apl-number-string
 								n t ,(getf options :print-precision)))))))
        (declare (ignorable ,printout))
-       (if (not (or (stringp ,result) (not (arrayp ,result))))
-	   ,(if (getf options :print-to)
-		`(write-string ,printout ,(getf options :print-to))))
+       ;; TODO: add printing rules for functions like {⍵+1}
+       ;(if (arrayp ,result)
+       ,(if (getf options :print-to)
+	    (let ((string-output `(write-string ,printout ,(getf options :print-to))))
+	      `(if (arrayp ,result)
+		   ,string-output (concatenate 'string ,string-output (list #\Newline)))))
        ,(if (getf options :output-printed)
 	    (if (eq :only (getf options :output-printed))
 		printout `(values ,result ,printout))
@@ -483,6 +487,20 @@ It remains here as a standard against which to compare methods for composing APL
     (if (= 1 (rank in-matrix))
 	(aref (aops:split result 1) 0)
 	result)))
+
+(defun do-over (input function axis)
+  (let ((output (make-array (dims input))))
+    (across output (lambda (elem coords)
+		     (if (= 0 (nth axis coords))
+			 (setf (apply #'aref output coords)
+			       (apply #'aref input coords))
+			 (setf (apply #'aref output coords)
+			       (disclose (funcall function
+						  (apply #'aref input coords)
+						  (apply #'aref output (loop :for c :in coords :counting c :into cx
+									  :collect (if (/= axis (1- cx))
+										       c (1- c))))))))))
+    (each-scalar t output)))
 
 (defun over-operator-template (axes function &key (for-vector nil) (for-array nil))
   "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
