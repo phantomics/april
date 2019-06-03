@@ -488,18 +488,36 @@ It remains here as a standard against which to compare methods for composing APL
 	(aref (aops:split result 1) 0)
 	result)))
 
-(defun do-over (input function axis)
-  (let ((output (make-array (dims input))))
-    (across output (lambda (elem coords)
-		     (if (= 0 (nth axis coords))
-			 (setf (apply #'aref output coords)
-			       (apply #'aref input coords))
-			 (setf (apply #'aref output coords)
-			       (disclose (funcall function
-						  (apply #'aref input coords)
-						  (apply #'aref output (loop :for c :in coords :counting c :into cx
-									  :collect (if (/= axis (1- cx))
-										       c (1- c))))))))))
+(defun do-over (input function axis &key reduce in-reverse)
+  (let ((output (make-array (if reduce (or (loop :for dim :in (dims input) :counting dim :into dx
+					      :when (/= dx (1+ axis)) :collect dim)
+					   (list 1))
+				(dims input)))))
+    (across input (lambda (elem coords)
+		    ;; (print (list :out output coords))
+		    (if (= (if (not in-reverse)
+			       0 (1- (nth axis (dims input))))
+			   (nth axis coords))
+			(setf (apply #'aref output (if (not reduce)
+						       coords (or (loop :for c :in coords :counting c :into cx
+								     :when (/= axis (1- cx))
+								     :collect c)
+								  (list 0))))
+			      (apply #'aref input coords))
+			(setf (apply #'aref output (if (not reduce)
+						       coords (or (loop :for c :in coords :counting c :into cx
+								     :when (/= axis (1- cx))
+								     :collect c)
+								  (list 0))))
+			      (disclose (funcall function
+						 (apply #'aref input coords)
+						 (apply #'aref output (or (loop :for c :in coords :counting c :into cx
+									     :append (if (/= axis (1- cx))
+											 (list c)
+											 (if (not reduce)
+											     (list (1- c)))))
+									  (list 0))))))))
+	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
 (defun over-operator-template (axes function &key (for-vector nil) (for-array nil))
