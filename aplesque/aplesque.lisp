@@ -20,10 +20,12 @@
       item (make-array '(1) :element-type (assign-element-type item)
 		       :initial-element item)))
 
-(defun disclose (item)
+(defun disclose (item &key if-array)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
   (if (and (arrayp item)
-	   (is-unitary item))
+	   (is-unitary item)
+	   (or (not if-array)
+	       (arrayp (row-major-aref item 0))))
       (row-major-aref item 0)
       item))
 
@@ -882,19 +884,23 @@
 		 (incf (apply #'aref output match)))))
     output))
 
-(defun across (input function &key (elements nil) (indices nil) (dimensions (dims input)))
+(defun across (input function &key elements indices reverse-axes (dimensions (dims input)))
   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
   (let* ((proceeding t)
 	 (first-of-elements (first elements))
 	 (this-range (if (listp first-of-elements)
 			 first-of-elements (list first-of-elements))))
-    (loop :for elix :in (if this-range this-range (iota (nth (length indices) dimensions))) :while proceeding
+    (loop :for elix :in (funcall (if (and reverse-axes (member (or (length indices) 0) reverse-axes))
+				     #'reverse #'identity)
+				 (if this-range this-range (iota (nth (length indices) dimensions))))
+       :while proceeding
        :do (let ((coords (append indices (list elix))))
 	     ;; if the halt-if-true value is output by the function, traversal across the array will end
 	     ;; by means of nullifying the proceeding variable; this will result in a nil return value
 	     ;; from the across function which will stop its recursive parents
 	     (if (< (length indices) (1- (length dimensions)))
-		 (if (not (across input function :elements (rest elements) :dimensions dimensions :indices coords))
+		 (if (not (across input function :dimensions dimensions :elements (rest elements)
+				  :indices coords :reverse-axes reverse-axes))
 		     (setq proceeding nil))
 		 (multiple-value-bind (output halt-if-true)
 		     (funcall function (apply #'aref input coords)
