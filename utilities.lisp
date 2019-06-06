@@ -494,7 +494,6 @@ It remains here as a standard against which to compare methods for composing APL
 					   (list 1))
 				(dims input)))))
     (across input (lambda (elem coords)
-		    ;; (print (list :out output coords))
 		    (if (= (if (not in-reverse)
 			       0 (1- (nth axis (dims input))))
 			   (nth axis coords))
@@ -519,24 +518,6 @@ It remains here as a standard against which to compare methods for composing APL
 									  (list 0))))))))
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
-
-(defun over-operator-template (axes function &key (for-vector nil) (for-array nil))
-  "Build a function to generate code applying functions over arrays, as for APL's reduce and scan operators."
-  (let ((omega (gensym)) (o (gensym)) (a (gensym)) (new-array (gensym)) (item (gensym)))
-    `(lambda (,omega)
-       ,(let ((wrapped-function `(lambda (,o ,a)
-				   (disclose (apl-call :fn ,function ,o ,a)))))
-	  `(let ((,new-array (copy-array ,omega)))
-	     ;; wrap the result in an extra array layer if it is already an enclosed array of rank > 1,
-	     ;; this ensures that the returned result will be enclosed
-	     (funcall (lambda (,item) (if (= 1 (array-depth ,omega))
-					  ,item (vector ,item)))
-		      (if (vectorp ,new-array)
-			  (funcall ,for-vector ,wrapped-function ,new-array)
-			  (funcall ,for-array ,wrapped-function ,new-array
-				   ,(if (eq :first axes)
-					0 (if axes `(1- (disclose ,(first axes)))
-					      `(1- (rank ,new-array))))))))))))
 
 (defun april-function-glyph-processor (type glyph spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
@@ -576,7 +557,9 @@ It remains here as a standard against which to compare methods for composing APL
 							   '(:scalar-functions :scalar-dyadic-functions))))
 				       ((eq :operators type)
 					`(:operators ,(if (eq :lateral function-type)
-							  :lateral-operators :pivotal-operators))))
+							  :lateral-operators
+							  (if (eq :pivotal function-type)
+							      :pivotal-operators :unitary-operators)))))
 		      ,@(cond ((eq :functions type)
 			       `(:functions ,(append (if (or (eq :ambivalent function-type)
 							     (eq :monadic function-type))

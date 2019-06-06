@@ -1564,7 +1564,7 @@
 		     (cond ((< 2 (rank ,right))
 			    (error "The right operand of ⌺ may not have more than 2 dimensions."))
 			   ((not ,(verify-function left))
-			    (error "The left operand of ⌺ must be a function."))
+ 			    (error "The left operand of ⌺ must be a function."))
 			   (t (let ((,window-dims (if (= 1 (rank ,right))
 						      ,right (choose ,right '(0))))
 				    (,movement (if (= 2 (rank ,right))
@@ -1594,7 +1594,24 @@
 					  #(#(0 -1) #2A((2 3 0) (5 6 0) (8 9 0))))
 					(#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
 					  #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
-					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
+					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0))))))))
+  ($ (has :title "If")
+     (unitary (lambda (workspace axes)
+		(declare (ignore workspace))
+		(let ((condition (gensym)))
+		  (labels ((build-clauses (clauses)
+			     `(let ((,condition (disclose-atom ,(first clauses))))
+				(if (and (integerp ,condition)
+					 (/= 0 ,condition))
+				    ,(second clauses)
+				    ,(if (third clauses)
+					 (if (fourth clauses)
+					     (build-clauses (cddr clauses))
+					     (third clauses))
+					 (make-array nil))))))
+		    (build-clauses axes)))))
+     (tests))
+  )
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set
@@ -2049,7 +2066,8 @@ c   2.56  3
      (is vector #(4 5 6) :test #'equalp))
    (let* ((out-str (make-string-output-stream))
 	  (other-out-str (make-string-output-stream))
-	  (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'OTHER-OUT-STR' ⋄ 3+a")))
+	  (vector (april-p "a←1 2 3 ⋄ ⎕ost←('APRIL''OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
+⎕ost←('APRIL''OTHER-OUT-STR') ⋄ 3+a")))
      (is (get-output-stream-string out-str)
 	 "6 7 8
 3 4 5
