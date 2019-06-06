@@ -16,11 +16,11 @@
    (add-function :element (function :glyph +)))
   (let ((var (gensym)))
     `(avector (loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var)))
-  (list :type (list :array :evaluated :via-sum-until-pattern)))
+  '(:type (:array :evaluated :via-sum-until-pattern)))
  (rank-pattern
   ;; optimize the pattern ⍴⍴Y to get the rank of an array
   ((:with-preceding-type :array)
    (shape-functions :element (function :glyph ⍴) :times 2)
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
   (if (not value) `(avector (aops:rank ,precedent)))
-  (list :type (list :array :evaluated :via-rank-pattern))))
+  '(:type (:array :evaluated :via-rank-pattern))))

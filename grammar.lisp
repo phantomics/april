@@ -23,23 +23,33 @@
 				    (getf out-properties :axes) axes)
 			      (values output out-properties remaining))
 		       (values nil nil tokens))))
+		((and (listp this-item)
+		      (eq :op (first this-item))
+		      (eq :unitary (second this-item)))
+		 ;; if the item is a unitary operator, compose it, skipping the branches other than for
+		 ;; unitary operators, the only one that must be skipped is :value since it causes an infinite loop
+		 (multiple-value-bind (output out-properties)
+		     (funcall process (list (first tokens) (second tokens))
+			      '(:special (:omit (:value :function :lateral-composition))))
+		   (if (eq :array (first (getf out-properties :type)))
+		       (progn (values output out-properties (cddr tokens))))))
 		;; process the empty array conveyed by the [⍬ zilde] character
 		((eq :empty-array this-item)
-		 (values (make-array (list 0))
-			 (list :type (list :array :empty))
+		 (values (make-array '(0))
+			 (list :type '(:array :empty))
 			 (rest tokens)))
 		;; process numerical values
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
 			  (eq :number (first (getf properties :type)))))
 		 (if axes (error "Axes cannot be applied to numbers.")
-		     (values this-item (list :type (list :array :number))
+		     (values this-item '(:type (:array :number))
 			     (rest tokens))))
 		;; process string values
 		((and (stringp this-item)
 		      (or (not (getf properties :type))
 			  (eq :string (first (getf properties :type)))))
-		 (values this-item (list :axes axes :type (list :array :string))
+		 (values this-item (list :axes axes :type '(:array :string))
 			 remaining))
 		;; process symbol-referenced values
 		((and (symbolp this-item)
@@ -50,7 +60,7 @@
 			  (not (gethash this-item (gethash :functions workspace))))
 		      (or (not (getf properties :type))
 			  (eq :symbol (first (getf properties :type)))))
-		 (values this-item (list :axes axes :type (list :symbol))
+		 (values this-item (list :axes axes :type '(:symbol))
 			 remaining))
 		;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
 		;; the appropriate cancellation flag
@@ -59,7 +69,7 @@
 		      (listp this-item)
 		      (eq :op (first this-item))
 		      (eq :pivotal (second this-item)))
-		 (values nil (list :cancel-flag :pivotal-composition)
+		 (values nil '(:cancel-flag :pivotal-composition)
 			 tokens))
 		(t (values nil nil tokens)))))
  ;; match a function, whether lexical like ⍳, symbolic like fn, or inline like {⍵+5}
@@ -95,13 +105,13 @@
 		       (cond ((and (characterp fn)
 				   (or (not (getf properties :glyph))
 				       (and (char= fn (aref (string (getf properties :glyph)) 0)))))
-			      (values fn (list :axes axes :type (list :function :glyph))
+			      (values fn (list :axes axes :type '(:function :glyph))
 				      remaining))
 			     ((and (listp fn)
 				   (not (getf properties :glyph)))
 			      (if axes (error "Axes can only be used with functions represented by symbols.")
 				  (values (output-function (funcall process (first fn)))
-					  (list :type (list :function :closure)
+					  (list :type '(:function :closure)
 						:obligate-dyadic obligate-dyadic)
 					  remaining)))
 			     (t (values nil nil tokens))))
@@ -122,13 +132,12 @@
 			    (not (getf properties :glyph))
 			    (gethash fn (gethash :functions workspace))
 			    (not (gethash fn (gethash :values workspace))))
-		       (values fn (list :type (list :function :referenced))
+		       (values fn '(:type (:function :referenced))
 			       remaining)
 		       (values nil nil tokens))))))
  ;; match a reference to an operator, this must be a lexical reference like ⍣
  (operator (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
-	     ;; (print (list :xx axes this-item remaining))
 	     (if (and (listp this-item)
 		      (eq :op (first this-item)))
 		 ;; process an operator token, allowing specification of the valence, either :monadic or :dyadic
@@ -153,22 +162,28 @@
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
   (output-value workspace value properties)
-  (list :type (list :array :explicit)))
+  '(:type (:array :explicit)))
  (function
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
   ((function-element :element function :times 1))
   function-element
-  (list :type (list :function :symbol-function)
+  (list :type '(:function :symbol-function)
 	:axes (getf (first properties) :axes)))
  (lateral-composition
   ;; match a lateral function composition like +/, marking the beginning of a functional expression
   ((operator :element (operator :valence :lateral))
    (operand :pattern (:type (:function)
-		      :special (list :omit (list :value-assignment :function-assignment :operation)))))
+		      :special '(:omit (:value-assignment :function-assignment :operation)))))
   (let ((axes (first (getf (first properties) :axes))))
     (funcall (resolve-operator :lateral operator)
 	     operand workspace axes))
-  (list :type (list :function :operator-composed :lateral))))
+  '(:type (:function :operator-composed :lateral)))
+ (unitary-operator
+  ((operator :element (operator :valence :unitary)))
+  (let ((axes (first (getf (first properties) :axes))))
+    (funcall (resolve-operator :unitary operator)
+	     workspace axes))
+  '(:type (:array :evaluated))))
 
 (set-composer-patterns
  composer-following-patterns-apl-standard
@@ -181,10 +196,10 @@
    (evaluate-function :element (function :glyph ⍎)))
   (let ((o (gensym)))
     `(funcall (lambda (,o) (eval (vex-program this-idiom (list (list :space ,workspace)
-							       (list :state :print-output nil))
+							       '(:state :print-output nil))
 					      ,o)))
 	      ,precedent))
-  (list :type (list :array :result-of-evaluated-string)))
+  '(:type (:array :result-of-evaluated-string)))
  (value-assignment-by-function-result
   ;; match the assignment of a function result to a value, like a+←5
   ((:with-preceding-type :array)
@@ -201,7 +216,7 @@
 				     ,@(if function-axes `((list ,@(first function-axes))))))
 	    (enclose-axes symbol symbol-axes :set `(lambda (item)
 						     (apl-call ,fn-sym ,fn-content item ,precedent))))))
-  (list :type (list :array :assigned :by-result-assignment-operator)))
+  '(:type (:array :assigned :by-result-assignment-operator)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
   ((:with-preceding-type :array)
@@ -234,7 +249,7 @@
 		   (error "Invalid assignment to ⎕OST."))))
 	  (t (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
 		 `(apl-assign ,symbol ,precedent)))))
-  (list :type (list :array :assigned)))
+  '(:type (:array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression
   ((:with-preceding-type :function)
@@ -246,22 +261,22 @@
 	     (setf (gethash symbol (gethash :values workspace))
 		   nil))
 	 `(setq ,symbol ,precedent))
-  (list :type (list :function :assigned)))
+  '(:type (:function :assigned)))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands
   ((operator :element (operator :valence :pivotal))
-   (operand :pattern (:special (list :omit (list :value-assignment :function-assignment :operation)))))
+   (operand :pattern (:special '(:omit (:value-assignment :function-assignment :operation)))))
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
   (funcall (resolve-operator :pivotal operator)
 	   precedent operand workspace)
-  (list :type (list :function :operator-composed :pivotal)))
+  '(:type (:function :operator-composed :pivotal)))
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
   ((:with-preceding-type :array)
-   (fn-element :pattern (:type (:function) :special (list :omit (list :value-assignment :function-assignment))))
+   (fn-element :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
@@ -270,4 +285,4 @@
 	(axes (getf (first properties) :axes)))
     `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
-  (list :type (list :array :evaluated))))
+  '(:type (:array :evaluated))))
