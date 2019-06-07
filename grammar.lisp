@@ -110,7 +110,7 @@
 			     ((and (listp fn)
 				   (not (getf properties :glyph)))
 			      (if axes (error "Axes can only be used with functions represented by symbols.")
-				  (values (output-function (funcall process (first fn)))
+				  (values (output-function (funcall process fn))
 					  (list :type '(:function :closure)
 						:obligate-dyadic obligate-dyadic)
 					  remaining)))

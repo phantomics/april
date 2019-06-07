@@ -45,15 +45,16 @@
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-		      :lexical-operators-pivotal :general-tests :system-variable-function-tests
-		      :array-function-scalar-index-input-tests :printed-format-tests)
+		      :lexical-operators-pivotal :lexical-operators-unitary :general-tests
+		      :system-variable-function-tests :array-function-scalar-index-input-tests
+		      :printed-format-tests)
 	       (:arbitrary-test :output-specification-tests)
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-		      :lexical-operators-pivotal :general-tests)
+		      :lexical-operators-pivotal :lexical-operators-unitary :general-tests)
 	       (:demo :general-tests :lexical-functions-scalar-numeric
 		      :lexical-functions-scalar-logical :lexical-functions-array :lexical-functions-special
-		      :lexical-operators-lateral :lexical-operators-pivotal
+		      :lexical-operators-lateral :lexical-operators-pivotal :lexical-operators-unitary
 		      :system-variable-function-tests :printed-format-tests))
 
  ;; utilities for compiling the language
@@ -97,7 +98,7 @@
 				  (if (getf state :print-to)
 				      (getf state :print-to)
 				      (second (getf state :output-stream)))))
-		      (loop :for var :in (list :index-origin :print-precision)
+		      (loop :for var :in '(:index-origin :print-precision)
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
 	    :generate-variable-declarations
@@ -1122,14 +1123,12 @@
 		       :description "Lateral operators take a single operand function to their left, hence the name 'lateral.' The combination of operator and function yields another function which may be applied to one or two arguments depending on the operator."))
   (/ (has :title "Reduce")
      (lateral (lambda (operand workspace axes)
-		(let ((function (gensym)) (input (gensym)) (axis (gensym)) (item (gensym))
-		      (omega (gensym)))
+		(let ((omega (gensym)) (o (gensym)) (a (gensym)))
 		  `(lambda (,omega)
-		     (disclose-atom (do-over ,omega (lambda (omega alpha)
+		     (disclose-atom (do-over ,omega (lambda (,o ,a)
 						      (apl-call :fn ,(resolve-function :dyadic operand)
-								alpha omega))
-					     ,(if axes `(- (disclose ,(first axes))
-							   index-origin)
+								,a ,o))
+					     ,(if axes `(- (disclose ,(first axes)) index-origin)
 						  `(1- (rank ,omega)))
 					     :reduce t :in-reverse t))))))
      (tests (is "+/1 2 3 4 5" 15)
@@ -1141,14 +1140,12 @@
 	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)))
   (⌿ (has :title "Reduce First")
      (lateral (lambda (operand workspace axes)
-		(let ((function (gensym)) (input (gensym)) (axis (gensym)) (item (gensym))
-		      (omega (gensym)))
+		(let ((omega (gensym)) (o (gensym)) (a (gensym)))
 		  `(lambda (,omega)
-		     (disclose-atom (do-over ,omega (lambda (omega alpha)
+		     (disclose-atom (do-over ,omega (lambda (,o ,a)
 						      (apl-call :fn ,(resolve-function :dyadic operand)
-								alpha omega))
-					     ,(if axes `(- (disclose ,(first axes))
-							   index-origin)
+								,a ,o))
+					     ,(if axes `(- (disclose ,(first axes)) index-origin)
 						  0)
 					     :reduce t :in-reverse t))))))
      (tests (is "+⌿3 4⍴⍳12" #(15 18 21 24))
@@ -1157,22 +1154,21 @@
 	    (is "+⌿[2]3 4⍴⍳12" #(10 26 42))))
   (\\ (has :title "Scan")
       (lateral (lambda (operand workspace axes)
-      		 (let ((omega (gensym)))
+      		 (let ((omega (gensym)) (o (gensym)) (a (gensym)))
       		   `(lambda (,omega)
-      		      (disclose (do-over ,omega (lambda (omega alpha)
-						  (apl-call :fn ,(resolve-function :dyadic operand) omega alpha))
-					 ,(if axes `(- (disclose ,(first axes))
-						       index-origin)
+      		      (disclose (do-over ,omega (lambda (,o ,a)
+						  (apl-call :fn ,(resolve-function :dyadic operand) ,o ,a))
+					 ,(if axes `(- (disclose ,(first axes)) index-origin)
 					      `(1- (rank ,omega)))))))))
       (tests (is "+\\1 2 3 4 5" #(1 3 6 10 15))
 	     (is "+\\3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))
 	     (is "+\\[1]3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))))
   (⍀ (has :title "Scan First")
      (lateral (lambda (operand workspace axes)
-		(let ((omega (gensym)))
+		(let ((omega (gensym)) (o (gensym)) (a (gensym)))
 		  `(lambda (,omega)
-		     (disclose (do-over ,omega (lambda (omega alpha)
-						 (apl-call :fn ,(resolve-function :dyadic operand) omega alpha))
+		     (disclose (do-over ,omega (lambda (,o ,a)
+						 (apl-call :fn ,(resolve-function :dyadic operand) ,o ,a))
 					,(if axes `(- (disclose ,(first axes))
 						      index-origin)
 					     0)))))))
@@ -1377,7 +1373,7 @@
 		  `(lambda (,omega &optional ,alpha)
 		     (declare (ignorable ,alpha))
 		     ,(if (and fn-right fn-left)
-			  (let ((clauses (loop :for type :in (list :dyadic :monadic)
+			  (let ((clauses (loop :for type :in '(:dyadic :monadic)
 					    :collect `(apl-call ,(or-functional-character left :fn)
 								,(resolve-function type left)
 								,processed ,@(if (eq :dyadic type)
@@ -1594,15 +1590,20 @@
 					  #(#(0 -1) #2A((2 3 0) (5 6 0) (8 9 0))))
 					(#(#(-1 1) #2A((0 4 5) (0 7 8) (0 0 0)))
 					  #(#(-1 0) #2A((4 5 6) (7 8 9) (0 0 0)))
-					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0))))))))
+					  #(#(-1 -1) #2A((5 6 0) (8 9 0) (0 0 0)))))))))
+
+ (operators
+  (with (:name :lexical-operators-unitary)
+	(:tests-profile :title "Unitary Operator Tests")
+	(:demo-profile :title "Unitary Operator Demos"
+		       :description "Unitary operators take no operands and return a niladic function that returns a value; the use of unitary operators is to manifest syntax structures wherein depending on the outcome of some expressions, other expressions may or may not be evaluated, as with the [$ if] operator."))
   ($ (has :title "If")
      (unitary (lambda (workspace axes)
 		(declare (ignore workspace))
 		(let ((condition (gensym)))
 		  (labels ((build-clauses (clauses)
 			     `(let ((,condition (disclose-atom ,(first clauses))))
-				(if (and (integerp ,condition)
-					 (/= 0 ,condition))
+				(if (and (integerp ,condition) (/= 0 ,condition))
 				    ,(second clauses)
 				    ,(if (third clauses)
 					 (if (fourth clauses)
@@ -1610,8 +1611,9 @@
 					     (third clauses))
 					 (make-array nil))))))
 		    (build-clauses axes)))))
-     (tests))
-  )
+     (tests (is "$[1;2;3]" 2)
+	    (is "$[0;2;3]" 3)
+	    (is "x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x" 15))))
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set
