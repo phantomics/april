@@ -277,10 +277,12 @@
 			     :collect (multiple-value-bind (item item-props remaining)
 					  (funcall process axis)
 					(declare (ignore remaining))
-					;; allow either a null item (representing an elided axis) or an array
-					(if (or (not item)
-						(eq :array (first (getf item-props :type))))
-					    item (error "Invalid axis."))))
+					(let ((item (if (> 2 (length axis))
+							item (cons 'progn (reverse (rest item))))))
+					  ;; allow either a null item (representing an elided axis) or an array
+					  (if (or (not item)
+						  (eq :array (first (getf item-props :type))))
+					      item (error "Invalid axis.")))))
 			  axes))
       (values axes (first tokens)
 	      (rest tokens))))
