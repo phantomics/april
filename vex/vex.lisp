@@ -137,13 +137,11 @@
 							       'string "    "
 							       (regex-replace-all
 								"[\\n]" output
-								(concatenate 'string '(#\Newline)
-									     "    "))))
+								,(concatenate 'string '(#\Newline) "    "))))
 						       (if (or (= 0 (length output))
-							       (not (char=
-								     #\Newline
-								     (aref output (1- (length
-										       output))))))
+							       (not (char= #\Newline
+									   (aref output (1- (length
+											     output))))))
 							   (princ #\Newline)))
 						     ,@(if (rest tests)
 							   `((princ #\Newline))))))))
@@ -179,7 +177,7 @@
 					,(third test-set))))
 			  (princ (concatenate 'string "    "
 					      (regex-replace-all "[\\n]" output
-								 (concatenate 'string '(#\Newline)  "    "))))
+								 ,(concatenate 'string '(#\Newline)  "    "))))
 			  (if (or (= 0 (length output))
 				  (not (char= #\Newline (aref output (1- (length output))))))
 			      (princ #\Newline))))
@@ -202,7 +200,7 @@
 					,(third test-set))))
 			  (princ (concatenate 'string "    "
 					      (regex-replace-all "[\\n]" output
-								 (concatenate 'string '(#\Newline)  "    "))))
+								 ,(concatenate 'string '(#\Newline)  "    "))))
 			  (if (or (= 0 (length output))
 				  (not (char= #\Newline (aref output (1- (length output))))))
 			      (princ #\Newline))))))))
@@ -626,20 +624,29 @@
 					       (if (getf special-precedent :overloaded-num-char)
 						   (format nil "~a~a" (getf special-precedent :overloaded-num-char)
 							   string)
-						   string)))))
+						   string))))
+			;; this last clause returns the remainder of the input in case the input has either no
+			;; characters or only blank characters before the first line break
+			(=subseq (%any (?satisfies 'characterp))))
 		   (%any (?blank-character))
 		   (=subseq (%any (?newline-character)))
 		   (=subseq (%any (?satisfies 'characterp))))
 	  ;; (print (list :item item break rest))
-	  (if (and (= 0 (length break))
-		   (< 0 (length rest)))
-	      (parse rest (=vex-string idiom meta (if output (if item (cons item output)
-								 output)
-						      (if item (list item)))
-				       (if olnchar (list :overloaded-num-char olnchar))))
-	      (list (if item (cons item output)
-			output)
-		    rest)))))))
+	  (if (and (not output) (stringp item)
+		   (funcall (of-utilities idiom :match-newline-character)
+			    (aref item 0)))
+	      ;; if the string is passed back (minus any leading whitespace) because the string began with
+	      ;; a line break, parse again omitting the line break character
+	      (parse (subseq item 1) (=vex-string idiom meta))
+	      (if (and (= 0 (length break))
+		       (< 0 (length rest)))
+		  (parse rest (=vex-string idiom meta (if output (if item (cons item output)
+								     output)
+							  (if item (list item)))
+					   (if olnchar (list :overloaded-num-char olnchar))))
+		  (list (if item (cons item output)
+			    output)
+			rest))))))))
 
 (defmacro set-composer-elements (name with &rest params)
   "Specify basic language elements for a Vex composer."
@@ -806,7 +813,8 @@
 							     (make-hash-table :test #'eq)))))
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
-	 (state-to-use) (system-to-use) (preexisting-vars))
+	 (state-to-use) (system-to-use) (preexisting-vars)
+	 (branch-index (gensym)) (tb-output (gensym)))
     (labels ((assign-from (source dest)
 	       (if source (progn (setf (getf dest (first source))
 				       (second source))
@@ -816,7 +824,27 @@
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom meta))
-			    (process-lines remaining (append output (list (composer idiom meta out))))))))
+			    (process-lines remaining (append output (list (composer idiom meta out)))))))
+	     (process-tags (form tags)
+	       (loop :for sub-form :in form
+		  ;; :do (if (and (listp sub-form)
+		  ;; 	       (eql 'go (first sub-form)))
+		  ;; 	  (print (list :ssb sub-form)))
+		  :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
+					 (not (symbolp (second sub-form)))))
+			       sub-form (if (integerp (second sub-form))
+					    (if (assoc (second sub-form) tags)
+						(list 'go (second (assoc (second sub-form) tags))))
+					    (if (third sub-form)
+						`(let ((,branch-index (row-major-aref ,(third sub-form) 0)))
+						   (cond ,@(loop :for tag :in (second sub-form)
+							      :counting tag :into tix
+							      :collect `((= ,branch-index ,tix)
+									 (go ,tag)))))
+						`(let ((,branch-index (row-major-aref ,(second sub-form) 0)))
+						   (cond ,@(loop :for tag :in tags
+							      :collect `((= ,branch-index ,(first tag))
+									 (go ,(second tag))))))))))))
 
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
@@ -829,6 +857,9 @@
       (if (not (gethash :functions meta))
 	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
 
+      (if (not (gethash :branches meta))
+	  (setf (gethash :branches meta) nil))
+      
       (if (not (gethash :system meta))
 	  (setf (gethash :system meta) (idiom-system idiom)))
 
@@ -880,6 +911,7 @@
 									    (gethash :variables meta))
 								   system-to-use))
 							output-vars)))))))
+	      ;; (print (list :ooo options))
 	      (funcall (lambda (code) (if (not (assoc :compile-only options))
 					  code `(quote ,code)))
 		       (if (or system-vars vars-declared)
@@ -888,7 +920,16 @@
 				    `(let* (,@system-vars ,@vars-declared)
 				       (declare (ignorable ,@(mapcar #'first system-vars)
 							   ,@(mapcar #'second var-symbols)))
-				       ,@exps))
+				       ,@(if (not (gethash :branches meta))
+					     exps `((let ((,tb-output))
+						      (tagbody
+							 ,@(funcall (lambda (list)
+								      (append (butlast list 1)
+									      `((setq ,tb-output
+										      ,(first (last list))))))
+								    (process-tags exps
+										  (gethash :branches meta))))
+						      ,tb-output)))))
 			   (if (< 1 (length exps))
 			       `(progn ,@exps)
 			       (first exps))))))))))

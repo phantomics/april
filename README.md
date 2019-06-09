@@ -545,7 +545,6 @@ Remember to use all caps when setting the `⎕ost` variable, unless your desired
 #### Functions:
 
 ```
-→ Branch
 ⍇ File read
 ⍈ File write
 ⍐ File hold

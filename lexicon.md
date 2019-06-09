@@ -118,6 +118,8 @@
 [⍎] Evaluate
 
 [←] Assign
+
+[→] Branch
 ```
 
 ### Operators
