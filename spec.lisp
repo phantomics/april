@@ -1111,6 +1111,15 @@
      (tests (is "x←55 ⋄ x" 55)
 	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
 						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
+  (→ (has :title "Branch") 
+     (symbolic :special-lexical-form-branch)
+     (tests (is "x←1 ⋄ →1   ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7" 105)
+	    (is "x←1 ⋄ →1+1 ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7" 35)
+	    (is "x←1 ⋄ →2+3 ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7" 1155)
+	    (is "x←1 ⋄ →0   ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7" 1155)
+	    (is "x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
+	    (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
+	    (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
  ;; APL's character-represented operators, which take one or two functions or arrays as input
@@ -1640,6 +1649,10 @@
   (for "Dyadic inline function." "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
   (for "Vector of input variables and discrete values processed within a function."
        "fn←{3+⍵} ⋄ {fn 8 ⍵} 9" #(11 12))
+  (for "Definition and use of n-argument function."
+       "fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]" 34)
+  (for "Inline n-argument function."
+       "{[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]" #(5 5 5 5 10 10 10 10 15 15 15 15))
   (for "Variable-referenced values, including an element within an array, in a vector."
        "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]" #(1 2 9 3 5))
   (for "Application of functions to indexed array elements."

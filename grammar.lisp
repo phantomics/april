@@ -109,11 +109,19 @@
 				      remaining))
 			     ((and (listp fn)
 				   (not (getf properties :glyph)))
-			      (if axes (error "Axes can only be used with functions represented by symbols.")
-				  (values (output-function (funcall process fn))
-					  (list :type '(:function :closure)
-						:obligate-dyadic obligate-dyadic)
-					  remaining)))
+			      (let* ((polyadic-args (if (and (listp (first (last (first fn))))
+							     (eq :axes (caar (last (first fn)))))
+							(mapcar #'caar (cdar (last (first fn))))))
+				     (fn (if (not polyadic-args)
+					     fn (cons (butlast (first fn) 1)
+						      (rest fn)))))
+				(values (output-function (if (= 1 (length fn))
+							     (list (funcall process fn))
+							     (mapcar process fn))
+							 polyadic-args)
+					(list :type '(:function :closure)
+					      :axes axes :obligate-dyadic obligate-dyadic)
+					remaining)))
 			     (t (values nil nil tokens))))
 		     ;; process sub-list in case it is a functional expression, but don't do this
 		     ;; if looking for a specific functional glyph
@@ -132,7 +140,7 @@
 			    (not (getf properties :glyph))
 			    (gethash fn (gethash :functions workspace))
 			    (not (gethash fn (gethash :values workspace))))
-		       (values fn '(:type (:function :referenced))
+		       (values fn (list :axes axes :type '(:function :referenced))
 			       remaining)
 		       (values nil nil tokens))))))
  ;; match a reference to an operator, this must be a lexical reference like ⍣
@@ -166,8 +174,13 @@
  (function
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
   ((function-element :element function :times 1))
-  function-element
-  (list :type '(:function :symbol-function)
+  (let ((axes (getf (first properties) :axes)))
+    (if (or (not axes) (vex::of-lexicon idiom :functions function-element))
+	function-element `(apl-call :fn ,function-element ,@(first axes))))
+  (list :type (if (and (getf (first properties) :axes)
+		       (not (vex::of-lexicon idiom :functions function-element)))
+		  '(:array :evaluated)
+		  '(:function :symbol-function))
 	:axes (getf (first properties) :axes)))
  (lateral-composition
   ;; match a lateral function composition like +/, marking the beginning of a functional expression
@@ -262,6 +275,55 @@
 		   nil))
 	 `(setq ,symbol ,precedent))
   '(:type (:function :assigned)))
+ (branch
+  ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
+  ((:with-preceding-type :array)
+   (branch-glyph :element (function :glyph →))
+   (branch-from :element (array :cancel-if :pivotal-composition) :optional t :times :any))
+  (if (and branch-from (listp precedent)
+	   (eql 'avatom (first precedent))
+	   (eql 'to-output (second precedent))
+	   (not (third precedent)))
+      ;; if this is a branch point statement (form X→⎕), do the following:
+      (if (integerp branch-from)
+	  ;; if the branch is designated by an integer like 5→⎕
+	  (let ((branch-symbol (gensym)))
+	    (setf (gethash :branches workspace)
+		  (cons (list branch-from branch-symbol)
+			(gethash :branches workspace)))
+	    branch-symbol)
+	  ;; if the branch is designated by a symbol like doSomething→⎕
+	  (if (symbolp branch-from)
+	      (progn (setf (gethash :branches workspace)
+			   (cons branch-from (gethash :branches workspace)))
+		     branch-from)
+	      (error "Invalid left argument to →; must be a single integer value or a symbol.")))
+      ;; otherwise, this is a branch-to statement like →5 or →doSomething
+      (if (and (or (eql 'avatom (first precedent))
+		   (eql 'avector (first precedent)))
+	       (not (third precedent))
+	       (or (integerp (second precedent))
+		   (symbolp (second precedent))))
+	  ;; if the target is an explicit symbol as in →mySymbol, just pass the symbol through
+	  (list 'go (second precedent))
+	  (if (loop :for item :in (rest precedent) :always (and (listp item)
+								(eql 'avatom (first item))
+								(symbolp (second item))
+								(not (third item))))
+	      ;; if the target is one of an array of possible destination symbols...
+	      (if (integerp branch-from)
+		  ;; if there is an explicit index to the left of the arrow, grab the corresponding
+		  ;; symbol unless the index is outside the array's scope, in which case a (list) is returned
+		  ;; so nothing is done
+		  (if (< 0 branch-from (length (rest precedent)))
+		      (list 'go (second (nth (1- branch-from) (rest precedent))))
+		      (list 'list))
+		  ;; otherwise, there must be an expression to the left of the arrow, as with
+		  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
+		  (list 'go (mapcar #'second (rest precedent))
+			branch-from))
+	      (list 'go precedent))))
+  `(type (:branch)))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands

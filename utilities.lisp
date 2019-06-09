@@ -270,22 +270,23 @@
 
 (defun extract-axes (process tokens &optional axes)
   "Given a list of tokens starting with axis specifications, build the code for the axis specifications to be applied to the subsequent function or value."
-  (if (and (listp (first tokens))
-	   (eq :axes (caar tokens)))
-      (extract-axes process (rest tokens)
-		    (cons (loop :for axis :in (cdar tokens)
-			     :collect (multiple-value-bind (item item-props remaining)
-					  (funcall process axis)
-					(declare (ignore remaining))
-					(let ((item (if (> 2 (length axis))
-							item (cons 'progn (reverse (rest item))))))
-					  ;; allow either a null item (representing an elided axis) or an array
-					  (if (or (not item)
-						  (eq :array (first (getf item-props :type))))
-					      item (error "Invalid axis.")))))
-			  axes))
-      (values axes (first tokens)
-	      (rest tokens))))
+  (labels ((process-axis (axis)
+	     (multiple-value-bind (item item-props remaining)
+		 (funcall process axis)
+	       (declare (ignore remaining))
+	       ;; allow either a null item (representing an elided axis) or an array
+	       (if (or (not item) (eq :array (first (getf item-props :type))))
+		   item (error "Invalid axis.")))))
+    (if (and (listp (first tokens))
+	     (eq :axes (caar tokens)))
+	(extract-axes process (rest tokens)
+		      (cons (loop :for axis :in (cdar tokens)
+			       :collect (if (= 1 (length axis))
+					    (process-axis axis)
+					    (cons 'progn (mapcar #'process-axis axis))))
+			    axes))
+	(values axes (first tokens)
+		(rest tokens)))))
 
 (defmacro apl-call (symbol function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
@@ -463,13 +464,14 @@ It remains here as a standard against which to compare methods for composing APL
 		       (apply-props form properties)
 		       `(avector ,form)))))))
 
-(defun output-function (form)
+(defun output-function (form &optional arguments)
   "Express an APL inline function like {⍵+5}."
-  `(lambda (⍵ &optional ⍺)
-     (declare (ignorable ⍺))
-     (let ((⍵ (disclose ⍵)))
-       (declare (ignorable ⍵))
-       ,form)))
+  `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
+     (let ,(if arguments (loop :for arg :in arguments :collect `(,arg (disclose ,arg)))
+	       `((⍵ (disclose ⍵))
+		 (⍺ (if ⍺ (disclose ⍺)))))
+       (declare (ignorable ,@(if arguments arguments `(⍵ ⍺))))
+       ,@form)))
 
 (defun left-invert-matrix (in-matrix)
   "Perform left inversion of matrix, used in the ⌹ function."
