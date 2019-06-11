@@ -523,6 +523,72 @@ It remains here as a standard against which to compare methods for composing APL
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
+(defun build-variable-declarations (input-vars preexisting-vars var-symbols meta)
+  (let ((declarations (loop :for key-symbol :in var-symbols
+			 :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
+					    (mapcar #'first input-vars)))
+			 :collect (let* ((sym (second key-symbol))
+					 (fun-ref (gethash sym (gethash :functions meta)))
+					 (val-ref (gethash sym (gethash :values meta))))
+				    (list sym (if (member sym preexisting-vars)
+						  (if val-ref val-ref (if fun-ref fun-ref))
+						  :undefined))))))
+    ;; update the variable records in the meta object if input variables are present
+    (if input-vars (loop :for var-entry :in input-vars
+		      :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
+							    (gethash :variables meta))))
+			    (if vdata (rplacd (assoc vdata declarations)
+					      (list (second var-entry)))
+				(setq declarations (append declarations (list (list (setf vdata (gensym))
+										    (second var-entry)))))))))
+    declarations))
+
+(defun build-compiled-code (exps options system-vars vars-declared var-symbols meta)
+  (let ((tb-output (gensym "A"))
+	(branch-index (gensym "A")))
+    (flet ((process-tags (form tags)
+	     (loop :for sub-form :in form
+		:collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
+				       (not (symbolp (second sub-form)))))
+			     sub-form (if (integerp (second sub-form))
+					  (if (assoc (second sub-form) tags)
+					      (list 'go (second (assoc (second sub-form) tags))))
+					  (if (third sub-form)
+					      `(let ((,branch-index
+						      (row-major-aref ,(third sub-form) 0)))
+						 (cond ,@(loop :for tag :in (second sub-form)
+							    :counting tag :into tix
+							    :collect `((= ,branch-index ,tix)
+								       (go ,tag)))))
+					      `(let ((,branch-index
+						      (row-major-aref ,(second sub-form) 0)))
+						 (cond ,@(loop :for tag :in tags
+							    :collect `((= ,branch-index ,(first tag))
+								       (go ,(second tag))))))))))))
+      (funcall (lambda (code) (if (not (assoc :compile-only options))
+				  code `(quote ,code)))
+	       (if (or system-vars vars-declared)
+		   (funcall (lambda (workspace form)
+			      (funcall (if (not workspace)
+					   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
+				       form))
+			    (second (assoc :space options))
+			    `(let* (,@system-vars ,@vars-declared)
+			       (declare (ignorable ,@(mapcar #'first system-vars)
+						   ,@(mapcar #'second var-symbols)))
+			       ,@(if (not (gethash :branches meta))
+				     exps `((let ((,tb-output))
+					      (tagbody ,@(funcall
+							  (lambda (list)
+							    (append (butlast list 1)
+								    `((setq ,tb-output
+									    ,(first (last list))))))
+							  (process-tags exps (gethash :branches meta))))
+					      ,tb-output)))))
+		   (if (< 1 (length exps))
+		       `(progn ,@exps)
+		       (first exps)))))))
+
 (defun april-function-glyph-processor (type glyph spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
   (let ((type (intern (string-upcase type) "KEYWORD"))

@@ -93,7 +93,8 @@
 	    ;; the APL-generating macros are expanded
 	    :system-lexical-environment-interface
 	    (lambda (state)
-	      ;; currently, the only system value passed into the local environment is the index-origin
+	      ;; the index origin, print precision and output stream values are
+	      ;; passed into the local lexical environment
 	      (append (list (list (intern "OUTPUT-STREAM" "APRIL")
 				  (if (getf state :print-to)
 				      (getf state :print-to)
@@ -101,39 +102,6 @@
 		      (loop :for var :in '(:index-origin :print-precision)
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
-	    :generate-variable-declarations
-	    (lambda (input-vars preexisting-vars var-symbols meta)
-	      (let ((vds (loop :for key-symbol :in var-symbols
-			    :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
-					       (mapcar #'first input-vars)))
-			    :collect (let* ((sym (second key-symbol))
-					    (fun-ref (gethash sym (gethash :functions meta)))
-					    (val-ref (gethash sym (gethash :values meta))))
-				       (list sym (if (member sym preexisting-vars)
-						     (if val-ref val-ref (if fun-ref fun-ref))
-						     :undefined))))))
-		;; update the variable records in the meta object if input variables are present
-		(if input-vars
-		    (loop :for var-entry :in input-vars
-		       :do (if (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
-					(gethash :variables meta))
-			       (rplacd (assoc (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
-						       (gethash :variables meta))
-					      vds)
-				       (list (second var-entry)))
-			       (setq vds (append vds (list (list (setf (gethash (intern (lisp->camel-case
-											 (first var-entry))
-											"KEYWORD")
-										(gethash :variables meta))
-								       (gensym))
-								 (second var-entry))))))))
-		vds))
-	    :process-compiled-as-per-workspace
-	    (lambda (workspace form)
-	      (funcall (if (not workspace)
-			   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
-		       form))
-	    ;; postprocessors for language output
 	    :postprocess-compiled
 	    (lambda (state)
 	      (lambda (form)
@@ -157,53 +125,8 @@
 			      (if (getf state :print) (list :print-to 'output-stream))
 			      (if (getf state :output-printed)
 				  (list :output-printed (getf state :output-printed))))))
-	    :wrap-compiled-code
-	    (lambda (exps options system-vars vars-declared var-symbols meta)
-	      (let ((tb-output (gensym "A"))
-		    (branch-index (gensym "A")))
-		(flet ((process-tags (form tags)
-			 (loop :for sub-form :in form
-			    :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
-						   (not (symbolp (second sub-form)))))
-					 sub-form (if (integerp (second sub-form))
-						      (if (assoc (second sub-form) tags)
-							  (list 'go (second (assoc (second sub-form) tags))))
-						      (if (third sub-form)
-							  `(let ((,branch-index
-								  (row-major-aref ,(third sub-form) 0)))
-							     (cond ,@(loop :for tag :in (second sub-form)
-									:counting tag :into tix
-									:collect `((= ,branch-index ,tix)
-										   (go ,tag)))))
-							  `(let ((,branch-index
-								  (row-major-aref ,(second sub-form) 0)))
-							     (cond ,@(loop :for tag :in tags
-									:collect `((= ,branch-index ,(first tag))
-										   (go ,(second tag))))))))))))
-		  (funcall (lambda (code) (if (not (assoc :compile-only options))
-					      code `(quote ,code)))
-			   (if (or system-vars vars-declared)
-			       (funcall (lambda (workspace form)
-					  (funcall (if (not workspace)
-						       #'identity
-						       (lambda (form) `(in-apl-workspace ,workspace ,form)))
-						   form))
-					(second (assoc :space options))
-					`(let* (,@system-vars ,@vars-declared)
-					   (declare (ignorable ,@(mapcar #'first system-vars)
-							       ,@(mapcar #'second var-symbols)))
-					   ,@(if (not (gethash :branches meta))
-						 exps `((let ((,tb-output))
-							  (tagbody ,@(funcall
-								      (lambda (list)
-									(append (butlast list 1)
-										`((setq ,tb-output
-											,(first (last list))))))
-								      (process-tags exps (gethash :branches meta))))
-							  ,tb-output)))))
-			       (if (< 1 (length exps))
-				   `(progn ,@exps)
-				   (first exps))))))))
+	    :build-variable-declarations #'build-variable-declarations
+	    :build-compiled-code #'build-compiled-code)
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
@@ -1609,9 +1532,12 @@
 	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148))))
   (⌺ (has :title "Stencil")
      (pivotal (lambda (right left workspace)
-		(let ((omega (gensym)) (window-dims (gensym)) (movement (gensym))
-		      (op-left (or (resolve-function :dyadic left)
-				   left)))
+		(let* ((omega (gensym)) (window-dims (gensym)) (movement (gensym)) (o (gensym)) (a (gensym))
+		       (op-left `(lambda (,o ,a)
+				   (apl-call ,(or-functional-character left :fn)
+					     ,(or (resolve-function :dyadic left)
+						  left)
+					     ,o ,a))))
 		  `(lambda (,omega)
 		     (cond ((< 2 (rank ,right))
 			    (error "The right operand of ⌺ may not have more than 2 dimensions."))
