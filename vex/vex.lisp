@@ -414,7 +414,8 @@
 					 ;; TODO: defvar here should not be necessary since the symbol
 					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
 					 ;; nonetheless, investigate this
-					 ,(if (or (and ,input-string (stringp ,input-string))
+					 ,(if (or (and ,input-string (or (stringp ,input-string)
+									 (pathnamep ,input-string)))
 						  (and (not ,input-string)
 						       (stringp ,options)))
 					      (vex-program ,idiom-symbol
@@ -827,9 +828,6 @@
 			    (process-lines remaining (append output (list (composer idiom meta out)))))))
 	     (process-tags (form tags)
 	       (loop :for sub-form :in form
-		  ;; :do (if (and (listp sub-form)
-		  ;; 	       (eql 'go (first sub-form)))
-		  ;; 	  (print (list :ssb sub-form)))
 		  :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
 					 (not (symbolp (second sub-form)))))
 			       sub-form (if (integerp (second sub-form))
@@ -885,7 +883,12 @@
 	    system-to-use (assign-from state system-to-use))
 
       (if string
-	  (let* ((input-vars (getf state-to-use :in))
+	  (let* ((string (if (not (pathnamep string))
+			     string (with-open-file (stream string)
+				      (apply #'concatenate
+					     (cons 'string (loop :for line := (read-line stream nil)
+							      :while line :append (list line '(#\Newline))))))))
+		 (input-vars (getf state-to-use :in))
 		 (output-vars (getf state-to-use :out))
 		 (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
 							       string)))
@@ -897,39 +900,19 @@
 				       state-to-use))
 		 (vars-declared (funcall (of-utilities idiom :generate-variable-declarations)
 					 input-vars preexisting-vars var-symbols meta)))
-	    (let ((exps (append (funcall (if output-vars #'values
-					     (funcall (of-utilities idiom :postprocess-compiled)
-						      system-to-use))
-					 compiled-expressions)
-				;; if multiple values are to be output, add the (values) form at bottom
-				(if output-vars
-				    (list (cons 'values
-						(mapcar (lambda (return-var)
-							  (funcall (of-utilities idiom :postprocess-value)
-								   (gethash (intern (lisp->camel-case return-var)
-										    "KEYWORD")
-									    (gethash :variables meta))
-								   system-to-use))
-							output-vars)))))))
-	      ;; (print (list :ooo options))
-	      (funcall (lambda (code) (if (not (assoc :compile-only options))
-					  code `(quote ,code)))
-		       (if (or system-vars vars-declared)
-			   (funcall (of-utilities idiom :process-compiled-as-per-workspace)
-				    (second (assoc :space options))
-				    `(let* (,@system-vars ,@vars-declared)
-				       (declare (ignorable ,@(mapcar #'first system-vars)
-							   ,@(mapcar #'second var-symbols)))
-				       ,@(if (not (gethash :branches meta))
-					     exps `((let ((,tb-output))
-						      (tagbody
-							 ,@(funcall (lambda (list)
-								      (append (butlast list 1)
-									      `((setq ,tb-output
-										      ,(first (last list))))))
-								    (process-tags exps
-										  (gethash :branches meta))))
-						      ,tb-output)))))
-			   (if (< 1 (length exps))
-			       `(progn ,@exps)
-			       (first exps))))))))))
+	    (funcall (of-utilities idiom :wrap-compiled-code)
+		     (append (funcall (if output-vars #'values
+					  (funcall (of-utilities idiom :postprocess-compiled)
+						   system-to-use))
+				      compiled-expressions)
+			     ;; if multiple values are to be output, add the (values) form at bottom
+			     (if output-vars
+				 (list (cons 'values
+					     (mapcar (lambda (return-var)
+						       (funcall (of-utilities idiom :postprocess-value)
+								(gethash (intern (lisp->camel-case return-var)
+										 "KEYWORD")
+									 (gethash :variables meta))
+								system-to-use))
+						     output-vars)))))
+		     options system-vars vars-declared var-symbols meta))))))
