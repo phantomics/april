@@ -317,18 +317,13 @@
 		  ;; if there is an explicit index to the left of the arrow, grab the corresponding
 		  ;; symbol unless the index is outside the array's scope, in which case a (list) is returned
 		  ;; so nothing is done
-		  (progn (print (list :bbb branch-from precedent))
-			 (if (< 0 branch-from (length (rest precedent)))
-			     (list 'go (second (nth (1- branch-from) (rest precedent))))
-			     (list 'list)))
+		  (if (< 0 branch-from (length (rest precedent)))
+		      (list 'go (second (nth (1- branch-from) (rest precedent))))
+		      (list 'list))
 		  ;; otherwise, there must be an expression to the left of the arrow, as with
 		  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
 		  (list 'go (mapcar #'second (rest precedent))
 			branch-from))
-	      ;; (progn (print (list :bf determine-branch-by))
-	      ;; 	(cons 'go (cons precedent (if (and (characterp determine-branch-by)
-	      ;; 					   (member determine-branch-by '(#\< #\≤ #\≥ #\>)))
-	      ;; 				      (list determine-branch-by)))))
 	      (list 'go precedent))))
   `(type (:branch)))
  (pivotal-composition
