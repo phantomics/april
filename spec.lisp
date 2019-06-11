@@ -156,7 +156,67 @@
 		      (append (list :print-precision 'print-precision)
 			      (if (getf state :print) (list :print-to 'output-stream))
 			      (if (getf state :output-printed)
-				  (list :output-printed (getf state :output-printed)))))))
+				  (list :output-printed (getf state :output-printed))))))
+	    :wrap-compiled-code
+	    (lambda (exps options system-vars vars-declared var-symbols meta)
+	      (let ((tb-output (gensym "A"))
+		    (branch-index (gensym "A")))
+		(flet ((process-tags (form tags)
+			 (loop :for sub-form :in form
+			    :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
+						   (not (symbolp (second sub-form)))))
+					 sub-form (if (integerp (second sub-form))
+						      (if (assoc (second sub-form) tags)
+							  (list 'go (second (assoc (second sub-form) tags))))
+						      (if (third sub-form)
+							  (if (characterp (third sub-form))
+							      (let ((comparator
+								     (or (second (assoc (third sub-form)
+											'((#\< <)(#\≤ <=)
+											  (#\≥ >=)(#\> >))
+											:test #'char=))
+									 '=)))
+								`(let ((,branch-index
+									(row-major-aref ,(third sub-form) 0)))
+								   (cond ,@(loop :for tag :in tags
+									      :collect `((,comparator ,branch-index
+												      ,(first tag))
+											 (go ,tag))))))
+							      `(let ((,branch-index
+								      (row-major-aref ,(third sub-form) 0)))
+								 (cond ,@(loop :for tag :in (second sub-form)
+									    :counting tag :into tix
+									    :collect `((= ,branch-index ,tix)
+										       (go ,tag))))))
+							  `(let ((,branch-index
+								  (row-major-aref ,(second sub-form) 0)))
+							     (cond ,@(loop :for tag :in tags
+									:collect `((= ,branch-index ,(first tag))
+										   (go ,(second tag))))))))))))
+		  (funcall (lambda (code) (if (not (assoc :compile-only options))
+					      code `(quote ,code)))
+			   (if (or system-vars vars-declared)
+			       (funcall (lambda (workspace form)
+					  (funcall (if (not workspace)
+						       #'identity
+						       (lambda (form) `(in-apl-workspace ,workspace ,form)))
+						   form))
+					(second (assoc :space options))
+					`(let* (,@system-vars ,@vars-declared)
+					   (declare (ignorable ,@(mapcar #'first system-vars)
+							       ,@(mapcar #'second var-symbols)))
+					   ,@(if (not (gethash :branches meta))
+						 exps `((let ((,tb-output))
+							  (tagbody ,@(funcall
+								      (lambda (list)
+									(append (butlast list 1)
+										`((setq ,tb-output
+											,(first (last list))))))
+								      (process-tags exps (gethash :branches meta))))
+							  ,tb-output)))))
+			       (if (< 1 (length exps))
+				   `(progn ,@exps)
+				   (first exps))))))))
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
