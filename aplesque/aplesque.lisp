@@ -1373,7 +1373,7 @@
 		       (setf (apply #'aref output coords)
 			     (funcall process window
 				      (make-array (list (length coords))
-						  :element-type '(integer -2 2)
+						  :element-type '(signed-byte 8)
 						  :initial-contents
 						  (loop :for coord :in coords :counting coord :into cix
 						     :collect (if (= 0 coord)
@@ -1397,7 +1397,7 @@
 		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse idims)))))
 					 :initial-element 0 :element-type 'fixnum))
 		  (col-widths (make-array (list (first (last idims)))
-					  :initial-element 1 :element-type '(unsigned-byte 32)))
+					  :initial-element 1 :element-type 'fixnum))
 		  (col-types (make-array (list (first (last idims))) :initial-element nil))
 		  ;; an array of decimal point positions for each column; first row holds the position of the
 		  ;; decimal point, second holds the overall length of each printed number
