@@ -169,25 +169,12 @@
 						      (if (assoc (second sub-form) tags)
 							  (list 'go (second (assoc (second sub-form) tags))))
 						      (if (third sub-form)
-							  (if (characterp (third sub-form))
-							      (let ((comparator
-								     (or (second (assoc (third sub-form)
-											'((#\< <)(#\≤ <=)
-											  (#\≥ >=)(#\> >))
-											:test #'char=))
-									 '=)))
-								`(let ((,branch-index
-									(row-major-aref ,(third sub-form) 0)))
-								   (cond ,@(loop :for tag :in tags
-									      :collect `((,comparator ,branch-index
-												      ,(first tag))
-											 (go ,tag))))))
-							      `(let ((,branch-index
-								      (row-major-aref ,(third sub-form) 0)))
-								 (cond ,@(loop :for tag :in (second sub-form)
-									    :counting tag :into tix
-									    :collect `((= ,branch-index ,tix)
-										       (go ,tag))))))
+							  `(let ((,branch-index
+								  (row-major-aref ,(third sub-form) 0)))
+							     (cond ,@(loop :for tag :in (second sub-form)
+									:counting tag :into tix
+									:collect `((= ,branch-index ,tix)
+										   (go ,tag)))))
 							  `(let ((,branch-index
 								  (row-major-aref ,(second sub-form) 0)))
 							     (cond ,@(loop :for tag :in tags
