@@ -352,7 +352,7 @@
 	   (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
 	   (printout-sym (concatenate 'string symbol-string "-P"))
 	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym))
-	   (process (gensym)) (form (gensym)) (item (gensym)))
+	   (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym)))
       `(progn ,@(if (not extension)
 		    `((defvar ,idiom-symbol)
 		      (setf ,idiom-symbol ,idiom-definition)))
@@ -415,7 +415,7 @@
 					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
 					 ;; nonetheless, investigate this
 					 ,(if (or (and ,input-string (or (stringp ,input-string)
-									 (pathnamep ,input-string)))
+									 (listp ,input-string)))
 						  (and (not ,input-string)
 						       (stringp ,options)))
 					      (vex-program ,idiom-symbol
@@ -425,8 +425,8 @@
 								   (rest ,options)
 								   (error "Incorrect option syntax.")))
 							   (if ,input-string ,input-string ,options))
-					      ;; TODO: this second clause, which handles input passed in
-					      ;; variables, is extremely slow compared to the clause above
+					      ;; this clause results in compilation at runtime of an
+					      ;; evaluated string value
 					      `(eval (vex-program
 						      ,',idiom-symbol
 						      ,(if ,input-string
@@ -437,6 +437,8 @@
 						      ,(if ,input-string ,input-string ,options))))))))
 		      (defmacro ,(intern printout-sym (symbol-package symbol))
 			  (&rest ,options)
+			;; an alternate evaluation macro that prints formatted evaluation results
+			;; as well as returning them
 			(cons ',(intern symbol-string (symbol-package symbol))
 			      (append (if (second ,options)
 					  (list (cons (caar ,options)
@@ -444,9 +446,29 @@
 								     (cdar ,options))))
 					  `((with (:state :print t))))
 				      (last ,options))))
+		      (defmacro ,(intern (concatenate 'string symbol-string "-LOAD")
+					 (symbol-package symbol))
+			  (,options &optional ,input-path)
+			;; an evaluation macro that loads code from a file,
+			;; evaluating the path expression
+			`(progn ,(if (and ,input-path (assoc :space (rest ,options)))
+				     `(defvar ,(second (assoc :space (rest ,options)))))
+				,(let ((,pathname (if ,input-path (eval ,input-path)
+						      (eval ,options))))
+				   (if (pathnamep ,pathname)
+				       (vex-program ,idiom-symbol
+						    (if ,input-path
+							(if (or (string= "WITH" (string (first ,options)))
+								(string= "SET" (string (first ,options))))
+							    (rest ,options)
+							    (error "Incorrect option syntax.")))
+						    ,pathname)
+				       (error "Argument to be loaded was not a pathname.")))))
 		      (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
 					 (symbol-package symbol))
 			  (,options &rest ,body)
+			;; this macro creates a context enclosure within which evaluations have a default
+			;; context; use this to evaluate many times with the same (with) expression
 			(labels ((,process (,form)
 				   (loop :for ,item :in ,form
 				      :collect (if (and (listp ,item)
@@ -883,8 +905,11 @@
 	    system-to-use (assign-from state system-to-use))
 
       (if string
-	  (let* ((string (if (not (pathnamep string))
-			     string (with-open-file (stream string)
+	  (let* ((string (if (stringp string)
+			     ;; just pass the string through if it's not a pathname; if it is a pathname,
+			     ;; evaluate it in case something like (asdf:system-relative-pathname ...)
+			     ;; was passed
+			     string (with-open-file (stream (eval string))
 				      (apply #'concatenate
 					     (cons 'string (loop :for line := (read-line stream nil)
 							      :while line :append (list line '(#\Newline))))))))
