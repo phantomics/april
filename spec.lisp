@@ -75,7 +75,29 @@
                                   (?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])"
 				 string ""))
 	    ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
-	    :process-axis-string (lambda (string) (cl-ppcre:split #\; string))
+	    ;; :process-axis-string (lambda (string) (cl-ppcre:split #\; string))
+	    :process-axis-string
+	    (lambda (string)
+	      (let ((indices) (last-index)
+		    (delimiters '(#\[ #\( #\{ #\] #\) #\}))
+		    (nesting (vector 0 0 0)))
+		;; (print (list :str string))
+		(loop :for char :across string :counting char :into charix
+		   :do (let ((mx (length (member char delimiters))))
+			 (if (< 3 mx) (incf (aref nesting (- 6 mx)) 1)
+			     (if (< 0 mx 4) (incf (aref nesting (- 3 mx)) -1)
+				 (if (and (char= char #\;)
+					  (= 0 (loop :for ncount :across nesting :summing ncount)))
+				     (setq indices (cons (1- charix) indices)))))))
+		;; (print (list :indices indices))
+		(loop :for index :in (reverse (cons (length string) indices))
+		   :counting index :into iix
+		   :collect (make-array (- index (if last-index 1 0)
+					   (if last-index last-index 0))
+					:element-type 'character :displaced-to string
+					:displaced-index-offset (if last-index (1+ last-index) 0))
+		   :do (setq last-index index))))
+	    
 	    ;; macro to process lexical specs of functions and operators
 	    :process-lexicon #'april-function-glyph-processor
 	    :format-value #'format-value
