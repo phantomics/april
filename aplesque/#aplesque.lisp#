@@ -255,35 +255,6 @@
 		     new-layer)
 	    uniform possible-depth)))
 
-;; (defun make-rotator (&optional degrees)
-;;   "Create a function to rotate an array by a given number of degrees, or otherwise reverse it."
-;;   (labels ((swap! (v i j)
-;; 	     (let ((tt (aref v i)))
-;; 	       (setf (aref v i)
-;; 		     (aref v j))
-;; 	       (setf (aref v j) tt)))
-;; 	   (reverse! (v lo hi)
-;; 	     (when (< lo hi)
-;; 	       (swap! v lo hi)
-;; 	       (reverse! v (+ lo 1) (- hi 1))))
-;; 	   (rotate! (n v)
-;; 	     (let* ((len (length v))
-;; 		    (n (mod n len)))
-;; 	       (reverse! v 0 (- n 1))
-;; 	       (reverse! v n (- len 1))
-;; 	       (reverse! v 0 (- len 1)))))
-;;     (lambda (vector)
-;;       (if degrees (rotate! degrees vector)
-;; 	  (reverse! vector 0 (1- (length vector)))))))
-
-;; (defun rotate-left (n l)
-;;   "Rotate an array n units to the left."
-;;   (append (nthcdr n l) (butlast l (- (length l) n))))
-
-;; (defun rotate-right (n l)
-;;   "Rotate an array n units to the right."
-;;   (rotate-left (- (length l) n) l))
-
 (defun section (input dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
   (if (and inverse (< 0 (reduce #'+ (mapcar (lambda (i) (- (min 0 i)))
@@ -350,18 +321,6 @@
 		   (aref sub-array index)
 		   (scan-back function args)))
       sub-array)))
-
-;; (defmacro do-permuted (input axis arank &body body)
-;;   "Perform an operation on an array with a given permutation."
-;;   `(if (> ,axis (1- ,arank))
-;;        (error "Invalid axis.")
-;;        (progn (if (not (= ,axis (1- ,arank)))
-;; 		  (setq ,input (aops:permute (rotate-left (1+ axis) (iota ,arank))
-;; 					     ,input)))
-;; 	      ,@body (if (not (= ,axis (1- ,arank)))
-;; 			 (aops:permute (rotate-right (1+ axis) (iota ,arank))
-;; 				       ,input)
-;; 			 ,input))))
 
 (defun catenate (a1 a2 axis)
   "Join two arrays together along the specified axis."
@@ -436,14 +395,6 @@
 		    (scale-array a2 pa1)
 		    pa2)
 		axis))))
-
-;; (defun apply-marginal (function input axis)
-;;   "Apply a transformational function to an array. The function is applied row by row, with the option to pivot the array into a specific orientation for the application of the function."
-;;   (let* ((arank (rank input))
-;; 	 (typeless-array (make-array (dims input))))
-;;     (across input (lambda (elem coords) (setf (apply #'aref typeless-array coords)
-;; 					      elem)))
-;;     (do-permuted typeless-array axis arank (aops:margin function typeless-array (1- arank)))))
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
   "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
