@@ -6,6 +6,25 @@
 (define-symbol-macro this-idiom (local-idiom april))
 (define-symbol-macro atomic-vector (of-system this-idiom :atomic-vector))
 
+(defmacro ∘Ω (&rest body)
+  `(lambda (omega) ,@body))
+
+(defmacro ∘ΩΑ (&rest body)
+  `(lambda (omega alpha) ,@body))
+
+(defmacro ∘ΩΑΧ (&rest body)
+  `(lambda (omega alpha &optional axes) ,@body))
+
+(defmacro ∘ΩΧ (&rest body)
+  `(lambda (omega &optional axes) ,@body))
+
+(defmacro print-and-run (form)
+  `(progn (princ (indent-code (string-downcase (write-to-string (quote ,form)))))
+	  ,form))
+
+(defun indent-code (string)
+  (concatenate 'string "  * " (regex-replace-all "[\\n]" string (concatenate 'string '(#\Newline)  "    "))))
+
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
   (if (and (not (stringp item))
@@ -472,6 +491,15 @@ It remains here as a standard against which to compare methods for composing APL
 		 (⍺ (if ⍺ (disclose ⍺)))))
        (declare (ignorable ,@(if arguments arguments `(⍵ ⍺))))
        ,@form)))
+
+(defun count-to (index index-origin)
+  "Implementation of APL's ⍳ function."
+  (let ((index (disclose index)))
+    (if (not (integerp index))
+	(error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
+	(let ((output (make-array (list index) :element-type (list 'integer 0 index))))
+	  (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
+	  output))))
 
 (defun left-invert-matrix (in-matrix)
   "Perform left inversion of matrix, used in the ⌹ function."
