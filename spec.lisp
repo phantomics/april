@@ -100,10 +100,8 @@
 	    :preprocess-state-input
 	    (lambda (state)
 	      (if (getf state :count-from)
-		  (progn (if (not (getf state :index-origin))
-			     (setf (getf state :index-origin)
-				   (getf state :count-from)))
-			 (setf (getf state :count-from) nil)))
+		  (setf (getf state :index-origin)
+			(getf state :count-from)))
 	      state)
 	    ;; converts parts of the system state into lists that will form part of the local lexical
 	    ;; environment in which the compiled APL code runs, i.e. the (let) form into which
