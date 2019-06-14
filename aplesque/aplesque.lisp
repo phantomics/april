@@ -1158,30 +1158,23 @@
 					item)))
 		 new-matrix))))))
 
-(defun flip (input axis)
-  (let ((output (make-array (dims input) :element-type (element-type input)))
-	(rdimension (nth axis (dims input))))
-    (across input (lambda (item coords)
-		    (setf (apply #'aref output (loop :for coord :in coords :counting coord :into this-axis
-						  :collect (if (/= axis (1- this-axis))
-							       coord (- rdimension 1 coord))))
-			  item)))
-    output))
-
-(defun turn (input axis degrees)
+(defun turn (input axis &optional degrees)
   (let* ((idims (dims input))
-	 (output (make-array idims :element-type (element-type input))))
+	 (output (make-array idims :element-type (element-type input)))
+	 (rdimension (nth axis idims)))
     (across input (lambda (item coords)
 		    (let ((degree (if (integerp degrees)
-				      degrees (apply #'aref degrees (loop :for coord :in coords
-								       :counting coord :into this-axis
-								       :when (/= axis (1- this-axis))
-								       :collect coord)))))
+				      degrees (if degrees
+						  (apply #'aref degrees (loop :for coord :in coords
+									   :counting coord :into this-axis
+									   :when (/= axis (1- this-axis))
+									   :collect coord))))))
 		      (setf (apply #'aref output (loop :for coord :in coords :counting coord :into this-axis
 						    :collect (if (or (/= axis (1- this-axis))
-								     (= 0 degree))
-								 coord (mod (- coord degree)
-									    (nth (1- this-axis) idims)))))
+								     (and degree (= 0 degree)))
+								 coord (if degree (mod (- coord degree)
+										       rdimension)
+									   (- rdimension 1 coord)))))
 			    item))))
     output))
 
