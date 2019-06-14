@@ -1185,6 +1185,8 @@
 			    item))))
     output))
 
+(defun encode)
+
 (defun invert-matrix (in-matrix)
   "Find the inverse of a square matrix."
   (let ((dim (array-dimension in-matrix 0))   ;; dimension of matrix
