@@ -6,9 +6,9 @@
 	   #:array-to-list #:apply-marginal #:expand-array #:enlist #:array-inner-product #:index-of
 	   #:grade #:array-grade #:alpha-compare #:array-compare #:find-array #:ravel #:across #:disclose
 	   #:reshape-to-fit #:sprfact #:binomial #:scale-array #:mix-arrays #:split-array
-	   #:is-unitary #:choose #:flip #:catenate #:laminate
-	   #:enclose #:partitioned-enclose #:re-enclose #:invert-matrix #:interval-index #:turn
-	   #:partition-array #:enclose-atom #:merge-arrays #:stencil #:array-impress #:matrix-print
-	   #:disclose-unitary-array #:each-boolean #:each-scalar #:assign-element-type #:type-in-common)
+	   #:is-unitary #:choose #:catenate #:laminate #:enclose #:partitioned-enclose #:re-enclose
+	   #:invert-matrix #:interval-index #:turn #:partition-array #:enclose-atom #:merge-arrays
+	   #:stencil #:array-impress #:matrix-print #:disclose-unitary-array #:each-boolean #:each-scalar
+	   #:assign-element-type #:type-in-common)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))
