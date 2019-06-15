@@ -15,23 +15,27 @@
 (define-symbol-macro *first-axis-or-nil* (if axes (- (aref (first axes) 0)
 						     index-origin)))
 
-(defmacro ∘Ω (&rest body)
+;; these macros are shorthand for lambda definitions used in the spec; they make April's compiled code
+;; more compact and comfortable to read
+(defmacro λω (&rest body)
   `(lambda (omega) ,@body))
 
-(defmacro ∘ΩΑ (&rest body)
+(defmacro λωα (&rest body)
   `(lambda (omega alpha) ,@body))
 
-(defmacro ∘ΩΑΧ (&rest body)
+(defmacro λωαχ (&rest body)
   `(lambda (omega alpha &optional axes) ,@body))
 
-(defmacro ∘ΩΧ (&rest body)
+(defmacro λωχ (&rest body)
   `(lambda (omega &optional axes) ,@body))
 
 (defmacro print-and-run (form)
+  "Print a formatted code string and then run the code; used in April's arbitrary evaluation tests."
   `(progn (princ (indent-code (string-downcase (write-to-string (quote ,form)))))
 	  ,form))
 
 (defun indent-code (string)
+  "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (concatenate 'string '(#\Newline)  "    "))))
 
 (defun disclose-atom (item)
@@ -268,19 +272,6 @@
 					 (list 'disclose item)
 					 item)))
 
-(defmacro verify-function (reference)
-  "Verify that a function exists, either in the form of a character-referenced function, an explicit inline function or a user-created symbol referencing a function."
-  `(if (characterp ,reference)
-       (or (of-functions this-idiom ,reference :monadic)
-	   (of-functions this-idiom ,reference :dyadic)
-	   (of-functions this-idiom ,reference :symbolic))
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
-
 (defmacro resolve-function (mode reference)
   "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
   `(if (characterp ,reference)
@@ -288,9 +279,15 @@
        (if (symbolp ,reference)
 	   (if (gethash ,reference (gethash :functions workspace))
 	       ,reference)
-	   (if (and (listp ,reference)
-		    (eql 'lambda (first ,reference)))
-	       ,reference))))
+	   (if (listp ,reference)
+	       (if (or (eql 'lambda (first ,reference))
+		       (and (macro-function (first ,reference))
+			    ;; (eql 'lambda (first (macroexpand ,reference)))
+			    (not (or (eql 'avector (first ,reference))
+				     (eql 'avatom (first ,reference))
+				     (eql 'apl-call (first ,reference))))
+			    ))
+		   ,reference)))))
 
 (defmacro resolve-operator (mode reference)
   "Retrieve an operator's composing function."
@@ -424,6 +421,11 @@ It remains here as a standard against which to compare methods for composing APL
      ,function  ,@arguments))
 |#
 
+(defmacro apl-compose (symbol &rest body)
+  "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
+  (declare (ignore symbol))
+  (macroexpand body))
+
 (defmacro scalar-function (function)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (apl-call)."
   (if (symbolp function)
@@ -501,256 +503,8 @@ It remains here as a standard against which to compare methods for composing APL
        (declare (ignorable ,@(if arguments arguments `(⍵ ⍺))))
        ,@form)))
 
-(defun without (omega alpha)
-  (flet ((compare (o a)
-	   (funcall (if (and (characterp a) (characterp o))
-			#'char= (if (and (numberp a) (numberp o))
-				    #'= (error "Compared incompatible types.")))
-		    o a)))
-    (let ((included)
-	  (omega-vector (if (or (vectorp omega)
-				(not (arrayp omega)))
-			    (disclose omega)
-			    (make-array (list (array-total-size omega))
-					:element-type (element-type omega)
-					:displaced-to omega))))
-      (loop :for element :across alpha
-	 :do (let ((include t))
-	       (if (vectorp omega-vector)
-		   (loop :for ex :across omega-vector
-		      :do (if (compare ex element) (setq include nil)))
-		   (if (compare omega-vector element) (setq include nil)))
-	       (if include (setq included (cons element included)))))
-      (make-array (list (length included))
-		  :element-type (element-type alpha)
-		  :initial-contents (reverse included)))))
-
-(defun count-to (index index-origin)
-  "Implementation of APL's ⍳ function."
-  (let ((index (disclose index)))
-    (if (not (integerp index))
-	(error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
-	(let ((output (make-array (list index) :element-type (list 'integer 0 index))))
-	  (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
-	  output))))
-
-(defun membership (omega alpha)
-  (let ((output (make-array (dims alpha) :element-type 'bit :initial-element 0))
-	(to-search (make-array (list (array-total-size omega))
-			       :displaced-to omega :element-type (element-type omega))))
-    ;; TODO: this could be faster with use of a hash table and other additions
-    (dotimes (index (array-total-size output))
-      (let ((found))
-	(loop :for item :across to-search :while (not found)
-	   :do (setq found (or (and (numberp item)
-				    (numberp (row-major-aref alpha index))
-				    (= item (row-major-aref alpha index)))
-			       (and (characterp item)
-				    (characterp (row-major-aref alpha index))
-				    (char= item (row-major-aref alpha index)))
-			       (and (arrayp item)
-				    (arrayp (row-major-aref alpha index))
-				    (array-compare item (row-major-aref alpha index))))))
-	(if found (setf (row-major-aref output index) 1))))
-    output))
-
-(defun where-equal-to-one (omega index-origin)
-  (let* ((indices) (match-count 0)
-	 (omega (enclose-atom omega))
-	 (orank (rank omega)))
-    (across omega (lambda (index coords)
-		    (if (= 1 index)
-			(let* ((max-coord 0)
-			       (coords (mapcar (lambda (i)
-						 (setq max-coord
-						       (max max-coord (+ i index-origin)))
-						 (+ i index-origin))
-					       coords)))
-			  (incf match-count)
-			  (setq indices (cons (if (< 1 orank)
-						  (make-array (list orank)
-							      :element-type
-							      (list 'integer 0 max-coord)
-							      :initial-contents coords)
-						  (first coords))
-					      indices))))))
-    (if (not indices)
-	(make-array '(0))
-	(make-array (list match-count)
-		    :element-type (if (< 1 orank)
-				      t (list 'integer 0 (reduce #'max indices)))
-		    :initial-contents (reverse indices)))))
-
-(defun tabulate (omega)
-  (if (not (arrayp omega))
-      (enclose omega)
-      (if (vectorp omega)
-	  (make-array (list (length omega) 1)
-		      :element-type (element-type omega)
-		      :initial-contents
-		      (loop :for i :below (length omega)
-			 :collect (list (aref omega i))))
-	  (let ((o-dims (dims omega)))
-	    (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
-			:element-type (element-type omega)
-			:displaced-to (copy-array omega))))))
-
-(defun array-intersection (omega alpha)
-  (if (or (not (vectorp alpha))
-	  (not (vectorp omega)))
-      (error "Arguments must be vectors.")
-      (let* ((match-count 0)
-	     (matches (loop :for item :across alpha :when (find item omega :test #'array-compare)
-			 :collect item :and :do (incf match-count))))
-	(make-array (list match-count)
-		    :element-type (type-in-common (element-type alpha)
-						  (element-type omega))
-		    :initial-contents matches))))
-
-(defun unique (omega)
-  (let ((vector (if (vectorp omega)
-		    omega (re-enclose omega (make-array (list (1- (rank omega)))
-							:element-type 'fixnum
-							:initial-contents
-							(loop :for i :from 1 :to (1- (rank omega))
-							   :collect i))))))
-    (let ((uniques) (unique-count 0))
-      (loop :for item :across vector :when (not (find item uniques :test #'array-compare))
-	 :do (setq uniques (cons item uniques))
-	 (incf unique-count))
-      (funcall (if (vectorp omega)
-		   #'identity (lambda (output) (mix-arrays (vector 1) output)))
-	       (make-array (list unique-count) :element-type (element-type vector)
-			   :initial-contents (reverse uniques))))))
-
-(defun array-union (omega alpha)
-  (if (or (not (vectorp alpha))
-	  (not (vectorp omega)))
-      (error "Arguments must be vectors.")
-      (let* ((unique-count 0)
-	     (uniques (loop :for item :across omega :when (not (find item alpha
-								     :test #'array-compare))
-			 :collect item :and :do (incf unique-count))))
-	(catenate alpha (make-array (list unique-count)
-				    :element-type (type-in-common (element-type alpha)
-								  (element-type omega))
-				    :initial-contents uniques)
-		  0))))
-
-(defun encode (omega alpha)
-  (flet ((rebase (bases number &optional out-vector)
-	   (let ((operand number)
-		 (last-base 1)
-		 (base 1)
-		 (component 1)
-		 (element))
-	     (loop :for index :from (1- (length bases)) :downto 0
-		:do (setq last-base base
-			  base (* base (aref bases index))
-			  component (if (= 0 base)
-					operand (* base (nth-value 1 (floor (/ operand base)))))
-			  operand (- operand component)
-			  element (/ component last-base))
-		(setf (aref out-vector index) element)))))
-    (if (is-unitary omega)
-	(let ((out-vector (make-array (list (first (dims alpha)))
-				      :element-type (element-type alpha))))
-	  (rebase alpha (disclose omega) out-vector)
-	  out-vector)
-	(let* ((d-o (dims omega))
-	       (d-a (dims alpha))
-	       (adim1 (first d-a))
-	       (bases (make-array (list adim1) :element-type (element-type alpha)))
-	       (out-vector (make-array (list adim1) :element-type (element-type alpha)))
-	       (output (make-array (append (remove 1 d-a)
-					   (remove 1 d-o)))))
-	  (across omega (lambda (elem-o ocs)
-			  (across alpha
-				  (lambda (elem-a acs)
-				    (declare (ignore elem-a))
-				    (loop :for ix :below adim1
-				       :do (setf (aref bases ix)
-						 (apply #'aref (cons alpha (cons ix (rest acs)))))))
-				  :dimensions (cons 1 (rest d-a)))
-			  (rebase bases elem-o out-vector)
-			  (loop :for ix :below adim1
-			     :do (setf (apply #'aref (cons output (cons ix ocs)))
-				       (aref out-vector ix)))))
-	  (each-scalar t output)))))
-
-(defun decode (omega alpha)
-  (flet ((rebase (bases numerators)
-	   (let ((result 0) (base 1))
-	     (loop :for index :from (1- (length numerators)) :downto 0
-		:do (incf result (* base (aref numerators index)))
-		(setf base (* base (aref bases index))))
-	     result)))
-    (let* ((d-o (dims omega))
-	   (d-a (dims alpha)))
-      (if (and (not (is-unitary alpha))
-	       (not (is-unitary omega))
-	       (not (= (first d-a) (first (last d-o)))))
-	  (error (concatenate 'string "If neither argument to ⊥ is scalar, the first dimension"
-			      " of the left argument must equal the last dimension of"
-			      "the right argument."))
-	  (let* ((numerators (if (not (vectorp omega))
-				 (make-array (list (first d-o)) :element-type (element-type alpha))))
-		 (omega (if (and (is-unitary omega)
-				 (not (is-unitary alpha)))
-			    (make-array (list (first d-a)) :element-type (element-type omega)
-					:initial-element (disclose omega))
-			    omega))
-		 (output (if (and (< 1 (rank omega))
-				  (< 1 (rank alpha)))
-			     (make-array (append (butlast d-a 1)
-						 (rest d-o)))))
-		 (bases (if output (make-array (list (first (last d-a))) :element-type (element-type alpha))
-			    (if (is-unitary alpha)
-				(make-array (list (first d-o)) :element-type (element-type alpha)
-					    :initial-element (disclose alpha))
-				alpha))))
-	    (if output (across output (lambda (elem coords)
-					(declare (ignore elem))
-					(loop :for dm :below (first (last d-a))
-					   :do (setf (aref bases dm)
-						     (apply #'aref alpha
-							    (append (butlast coords (1- (rank output)))
-								    (list dm)))))
-					(if numerators
-					    (loop :for dm :below (first d-o)
-					       :do (setf (aref numerators dm)
-							 (apply #'aref (cons omega
-									     (append (list dm)
-										     (nthcdr (1- (rank output))
-											     coords)))))))
-					(setf (apply #'aref (cons output coords))
-					      (rebase bases (if numerators numerators omega))))))
-	    (if output (each-scalar t output)
-		(if (vectorp omega)
-		    (enclose (rebase bases omega))
-		    (each-scalar t (aops:margin (lambda (sub-array) (rebase bases sub-array))
-						omega 0)))))))))
-
-(defun left-invert-matrix (in-matrix)
-  "Perform left inversion of matrix, used in the ⌹ function."
-  (let* ((input (if (= 2 (rank in-matrix))
-		    in-matrix (make-array (list (length in-matrix) 1)
-					  :element-type (element-type in-matrix)
-					  :initial-contents (loop :for i :across in-matrix :collect (list i)))))
-	 (result (array-inner-product
-		  (invert-matrix (array-inner-product (aops:permute (reverse (iota (rank input)))
-								    input)
-						      input (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-						      #'+))
-		  (aops:permute (reverse (iota (rank input)))
-				input)
-		  (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-		  #'+)))
-    (if (= 1 (rank in-matrix))
-	(aref (aops:split result 1) 0)
-	result)))
-
 (defun do-over (input function axis &key reduce in-reverse)
+  "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
   (let ((output (make-array (if reduce (or (loop :for dim :in (dims input) :counting dim :into dx
 					      :when (/= dx (1+ axis)) :collect dim)
 					   (list 1))
@@ -764,15 +518,15 @@ It remains here as a standard against which to compare methods for composing APL
 								     :when (/= axis (1- cx))
 								     :collect c)
 								  (list 0))))
-			      (apply #'aref input coords))
+			      elem)
 			(setf (apply #'aref output (if (not reduce)
 						       coords (or (loop :for c :in coords :counting c :into cx
 								     :when (/= axis (1- cx))
 								     :collect c)
 								  (list 0))))
-			      (disclose (funcall function
-						 (apply #'aref input coords)
-						 (apply #'aref output (or (loop :for c :in coords :counting c :into cx
+			      (disclose (funcall function elem
+						 (apply #'aref output (or (loop :for c :in coords
+									     :counting c :into cx
 									     :append (if (/= axis (1- cx))
 											 (list c)
 											 (if (not reduce)
@@ -782,6 +536,7 @@ It remains here as a standard against which to compare methods for composing APL
     (each-scalar t output)))
 
 (defun build-variable-declarations (input-vars preexisting-vars var-symbols meta)
+  "Create the set of variable declarations that begins April's compiled code."
   (let ((declarations (loop :for key-symbol :in var-symbols
 			 :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
 					    (mapcar #'first input-vars)))
@@ -802,6 +557,7 @@ It remains here as a standard against which to compare methods for composing APL
     declarations))
 
 (defun build-compiled-code (exps options system-vars vars-declared var-symbols meta)
+  "Return a set of compiled April expressions within the proper context."
   (let ((tb-output (gensym "A"))
 	(branch-index (gensym "A")))
     (flet ((process-tags (form tags)
@@ -904,4 +660,5 @@ It remains here as a standard against which to compare methods for composing APL
 ;; a secondary package containing a set of tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
   (:import-from :april #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function)
-  (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function))
+  (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function
+	   #:λω #:λωα #:λωχ #:λωαχ))

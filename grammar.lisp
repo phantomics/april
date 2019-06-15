@@ -188,8 +188,9 @@
    (operand :pattern (:type (:function)
 		      :special '(:omit (:value-assignment :function-assignment :operation)))))
   (let ((axes (first (getf (first properties) :axes))))
-    (funcall (resolve-operator :lateral operator)
-	     operand workspace axes))
+    (append (list 'apl-compose (intern (string-upcase operator)))
+	    (funcall (resolve-operator :lateral operator)
+		     operand workspace axes)))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
   ((operator :element (operator :valence :unitary)))
@@ -334,8 +335,9 @@
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
-  (funcall (resolve-operator :pivotal operator)
-	   precedent operand workspace)
+  (append (list 'apl-compose (intern (string-upcase operator)))
+	  (funcall (resolve-operator :pivotal operator)
+		   precedent operand workspace))
   '(:type (:function :operator-composed :pivotal)))
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
