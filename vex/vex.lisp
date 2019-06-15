@@ -57,12 +57,24 @@
 (defgeneric of-functions (idiom key type))
 (defmethod of-functions ((idiom idiom) key type)
   "Retrive one of the idiom's functions."
-  (gethash key (getf (idiom-functions idiom) type)))
+  (let ((function-set (idiom-functions idiom)))
+    (if type (gethash key (getf function-set type))
+	(let ((output))
+	  (loop :for (set-key value) :on function-set :by #'cddr :while (not output)
+	     :do (if (gethash key value)
+		     (setf output (gethash key value))))
+	  output))))
 
 (defgeneric of-operators (idiom key type))
 (defmethod of-operators ((idiom idiom) key type)
   "Retrive one of the idiom's operators."
-  (gethash key (getf (idiom-operators idiom) type)))
+  (let ((operator-set (idiom-operators idiom)))
+    (if type (gethash key (getf operator-set type))
+	(let ((output))
+	  (loop :for (set-key value) :on operator-set :by #'cddr :while (not output)
+	     :do (if (gethash key value)
+		     (setf output (gethash key value))))
+	  output))))
 
 (defgeneric of-lexicon (idiom lexicon glyph))
 (defmethod of-lexicon (idiom lexicon glyph)
