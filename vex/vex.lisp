@@ -486,6 +486,10 @@
 				      :collect (if (and (listp ,item)
 							(or (eql ',(intern symbol-string (symbol-package symbol))
 								 (first ,item))
+							    (eql ',(intern (concatenate 'string symbol-string
+											"-LOAD")
+									   (symbol-package symbol))
+								 (first ,item))
 							    (eql ',(intern printout-sym (symbol-package symbol))
 								 (first ,item))))
 						   (list (first ,item)

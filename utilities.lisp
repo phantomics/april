@@ -79,7 +79,7 @@
 	 (if (and (eql 'avector (first value))
 		  (integerp (second value)))
 	     `(setq ,symbol ,(second value))
-	     (error "Attempted to assign invalid value to [⎕IO Index Origin].")))
+	     (error "Attempted to assign invalid value to [⎕IO index origin].")))
 	(t `(setq ,symbol ,value))))
 
 (defmacro apl-output (form &rest options)
