@@ -271,7 +271,6 @@
 				(make-array (list (first d-o)) :element-type (element-type alpha)
 					    :initial-element (disclose alpha))
 				alpha))))
-	    (print (list :out output numerators bases))
 	    (if output (across output (lambda (elem coords)
 					(declare (ignore elem))
 					(print (list :co coords))
