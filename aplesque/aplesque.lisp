@@ -869,11 +869,7 @@
 				     			      (list dim)))))))))
 		   (if (not dims-out)
 		       :unitary (make-array dims-out :element-type t))))
-	 (input-compatible (if nil;(functionp set)
-			       (if (eq :unitary output)
-				   (equalp (element-type (funcall set (apply #'aref input aindices)))
-					   (element-type input)))
-			       (typep set (element-type input))))
+	 (input-compatible (typep set (element-type input)))
 	 (true-input (if (not input-compatible)
 			 (make-array (dims input) :element-type (type-in-common (element-type input)
 										(assign-element-type set))))))
@@ -884,14 +880,19 @@
 	       (symbol-macrolet
 		   ((source-cell (apply #'aref input (reverse in-path)))
 		    (target-cell (apply #'aref output (reverse out-path)))
+		    (set-cell (apply #'aref set (reverse out-path)))
 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
 		 (cond ((and (not indices) (= (rank input) (length in-path)))
 			;; if the output is not a unitary value, set the target cell appropriately
-			;; (pprint (list :ee set output))
 			(if (and out-path (not (eq :unitary output)))
-			    (setf target-cell (if set (setf source-cell
-							    (disclose (if (functionp set) apply-set-function set)))
-						  (funcall fn source-cell)))
+			    (setf target-cell (cond ((arrayp set)
+						     ;; if assigning a whole array, set the value of the source
+						     ;; cell to the value of the corresponding cell in
+						     ;; the array of values to be set
+						     (setf source-cell set-cell))
+						    (set (setf source-cell (disclose (if (functionp set)
+											 apply-set-function set))))
+						    (t (funcall fn source-cell))))
 			    (setq output
 				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
 				      source-cell))))
@@ -908,7 +909,19 @@
 		       	(setf target-cell (disclose (choose input (array-to-list (first in-path))
 							    :set set :fn fn :set-coords set-coords))))
 		       (t (let ((this-index (first indices)))
-			    (cond ((arrayp this-index)
+			    (cond ((and (not (eq :unitary output))
+					(arrayp set)
+					(or (not (= (rank output)
+						    (rank set)))
+					    (not (loop :for dx :below (rank output)
+						    :always (= (nth dx (dims output))
+							       (nth dx (dims set)))))))
+				   ;; if assigning a whole array, make sure the input and output area
+				   ;; have the same shape
+				   (error (concatenate 'string "When assigning from an array, the shape of the"
+						       " area to be assigned and the shape of the array to"
+						       " assign from must be the same.")))
+				  ((arrayp this-index)
 				   ;; iterate over the index if it's an array, unless it's a unitary vector
 				   (if (and (vectorp this-index)
 					    (= 1 (length this-index)))
@@ -938,10 +951,9 @@
 				  (t (process (rest indices)
 					      out-path (cons this-index in-path))))))))))
       (process aindices)
-      (if t;(not (eq :unitary output))
-	  (apply #'values (cons (each-scalar t output)
-				(if true-input (list (if (not (functionp set))
-							 input (each-scalar t input))))))))))
+      (apply #'values (cons (each-scalar t output)
+			    (if true-input (list (if (not (functionp set))
+						     input (each-scalar t input)))))))))
 
 (defun mix-arrays (axis input)
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
