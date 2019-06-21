@@ -784,8 +784,8 @@
   (⍨ (has :title "Commute")
      (lateral (lambda (operand workspace axes)
 		(declare (ignore axes))
-		`(commute-function ,(or-functional-character operand :fn)
-				   ,(resolve-function :dyadic operand))))
+		`(apply-commuting ,(or-functional-character operand :fn)
+				  ,(resolve-function :dyadic operand))))
      (tests (is "5-⍨10" 5)
 	    (is "+⍨10" 20)
 	    (is "fn←{⍺+3×⍵} ⋄ 16 fn⍨8" 56)))
@@ -870,13 +870,13 @@
 				   left))
 		      (sym-right (or-functional-character right :fn))
 		      (sym-left (or-functional-character left :fn)))
-		  (cond (op-right `(apl-compose ⍣ apply-until ,sym-right ,op-right ,sym-left ,op-left))
+		  (cond (op-right `(apply-until ,sym-right ,op-right ,sym-left ,op-left))
 			;; if the right operand is a function, it expresses the criteria for ending the
 			;; activity of the left function
 			((not op-right)
 			 ;; if the right operand is not a function, it must be a number counting the times
 			 ;; the left function is to be compounded
-			 `(apl-compose ⍣ apply-to-power ,right ,sym-left ,op-left))))))
+			 `(apply-to-power ,right ,sym-left ,op-left))))))
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
 	    (is "{2+⍵}⍣3⊢9" 15)
 	    (is "2{⍺×2+⍵}⍣3⊢9" 100)
@@ -986,6 +986,9 @@
        "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
+  (for "Selection from an array with multi-index, array and elided dimensions."
+       "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
+				      (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
   (for "Elision and indexed array elements."
