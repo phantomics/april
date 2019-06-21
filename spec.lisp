@@ -991,6 +991,11 @@
 				      (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
+  (for "Assignment from an array to an area of an array with the same shape."
+       "x←8 8⍴0 ⋄ x[2+⍳3;3+⍳4]←3 4⍴⍳9 ⋄ x" #2A((0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0)
+					       (0 0 0 1 2 3 4 0) (0 0 0 5 6 7 8 0)
+					       (0 0 0 9 1 2 3 0) (0 0 0 0 0 0 0 0)
+					       (0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0)))
   (for "Elision and indexed array elements."
        "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
   (for "As above but more complex."
