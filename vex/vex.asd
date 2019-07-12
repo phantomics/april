@@ -2,7 +2,7 @@
 
 (asdf:defsystem "vex"
   :description "A set of templates for implementing your own vector programming language that compiles to Common Lisp."
-  :version "0.8.5"
+  :version "0.9.0"
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t

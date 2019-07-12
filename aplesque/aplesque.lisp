@@ -3,6 +3,8 @@
 
 (in-package #:aplesque)
 
+"A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
+
 (defun is-unitary (value)
   "Check whether this array has only one member, returning true if the argument is not an array."
   (or (not (arrayp value))
@@ -165,7 +167,6 @@
   "Iterate over an array/arrays of scalar values, performing operations upon them that will result in boolean values to be returned in an array with the same shape as the input array(s)."
   (let ((output (make-array (dims omega) :element-type 'bit :initial-element 0)))
     (across omega (lambda (elem coords)
-		    ;; (print (list :fn (funcall test elem coords) output))
 		    (if (= 1 (funcall test elem coords))
 			(setf (apply #'aref output coords)
 			      1))))
@@ -296,25 +297,6 @@
 				    (apply #'aref input (if (or inverse (not input-smaller))
 							    target coords)))))))
 	(disclose output))))
-
-(defun scan-back (function input &optional output)
-  "Scan a function backwards across an array."
-  (if (not input)
-      output (if output (scan-back function (rest input)
-				   (disclose (funcall function (first input) output)))
-		 (scan-back function (cddr input)
- 			    (disclose (funcall function (second input) (first input)))))))
-
-(defun make-back-scanner (function)
-  "Build a function to scan across an array, modifying each value as determined by prior values."
-  (lambda (sub-array)
-    (let ((args (list (aref sub-array 0))))
-      (loop :for index :from 1 :to (1- (length sub-array))
-	 :do (setf args (cons (aref sub-array index)
-			      args)
-		   (aref sub-array index)
-		   (scan-back function args)))
-      sub-array)))
 
 (defun catenate (a1 a2 axis)
   "Join two arrays together along the specified axis."
@@ -660,9 +642,9 @@
 							:collect (aref nrelem 0))))
 		     result)))
 	   (aops:each (lambda (sub-vector)
-			(disclose (if (vectorp sub-vector)
-				      (reduce function2 sub-vector)
-				      (funcall function2 sub-vector))))
+			(if (vectorp sub-vector)
+			    (reduce function2 sub-vector)
+			    (funcall function2 sub-vector)))
 		      (aops:outer function1 (if (vectorp operand1)
 						;; enclose the argument if it is a vector
 						(vector operand1)
@@ -934,24 +916,23 @@
 						     ;; cell to the value of the corresponding cell in
 						     ;; the array of values to be set
 						     (setf source-cell set-cell))
-						    (set (setf source-cell (disclose (if (functionp set)
-											 apply-set-function set))))
+						    (set (setf source-cell (if (functionp set)
+									       apply-set-function set)))
 						    (t (funcall fn source-cell))))
 			    (setq output
-				  (if set (setf source-cell (disclose (if (functionp set) apply-set-function set)))
+				  (if set (setf source-cell (if (functionp set) apply-set-function set))
 				      source-cell))))
 		       ((and (not indices) (vectorp (first in-path)) (vectorp (aref (first in-path) 0)))
 		       	;; if using reach indexing, recurse on the sub-array specified
 			;; by the first coordinate vector
-		       	(setf target-cell
-		       	      (disclose (choose (apply #'aref input (array-to-list (aref (first in-path) 0)))
-						(loop :for ix :from 1 :to (1- (length (first in-path)))
-						   :collect (aref (first in-path) ix))
-						:set set :fn fn :set-coords set-coords))))
+		       	(setf target-cell (choose (apply #'aref input (array-to-list (aref (first in-path) 0)))
+						  (loop :for ix :from 1 :to (1- (length (first in-path)))
+						     :collect (aref (first in-path) ix))
+						  :set set :fn fn :set-coords set-coords)))
 		       ((and (not indices) (vectorp (first in-path)))
 		       	;; if using choose indexing, recurse using the index as the coordinates
-		       	(setf target-cell (disclose (choose input (array-to-list (first in-path))
-							    :set set :fn fn :set-coords set-coords))))
+		       	(setf target-cell (choose input (array-to-list (first in-path))
+						  :set set :fn fn :set-coords set-coords)))
 		       (t (let ((this-index (first indices)))
 			    (cond ((and (not (eq :unitary output))
 					(arrayp set)
@@ -1010,7 +991,7 @@
 		 (loop :for odix :from 0 :to (length outer)
 		    :append (append (if (and axis (= odix (- axis (min 1 axis-index))))
 					(progn (incf axis-index)
-					       (if axis inner (list (nth (1- axis-index) inner)))))
+					       inner))
 				    (if (< odix (length outer))
 					(list (nth odix outer))))))))
 	(let* ((max-rank 1)
@@ -1415,6 +1396,7 @@
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) (if (not prepend)
 			     input (concatenate 'string (list prepend) input)))
+	;; empty arrays are printed as empty strings
 	((equalp #0A0 input)
 	 "")
 	(t (let* ((idims (dims input))

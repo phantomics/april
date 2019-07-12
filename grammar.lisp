@@ -3,6 +3,8 @@
 
 (in-package #:april)
 
+"This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
+
 (set-composer-elements
  composer-elements-apl-standard
  (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
