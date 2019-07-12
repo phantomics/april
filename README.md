@@ -192,7 +192,7 @@ For the most part, April's syntax and functions follow standard APL conventions.
 8
 
 ;; k-style functions with any number of named arguments
-* (april "monthlyPayment←{[amt;irt;mts] (mts÷⍨amt×irt×0.1)+amt÷mts} ⋄ monthlyPayment[5000;0.8;12]")
+* (april "monthlyPayment←{[amt;int;len] (len÷⍨amt×int×0.1)+amt÷len} ⋄ monthlyPayment[5000;0.8;12]")
 450.0
 
 ;; numbered branch points instantiated with →⎕ syntax
