@@ -1,11 +1,9 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
 ;;;; library.lisp
 
-;; this file contains the functions in April's "standard library" that aren't provided
-;; by the aplesque package, mostly functions that are specific to the APL language and not
-;; generally applicable to array processing
-
 (in-package #:april)
+
+"This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing."
 
 (defun without (omega alpha)
   (flet ((compare (o a)

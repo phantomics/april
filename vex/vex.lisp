@@ -3,6 +3,8 @@
 
 (in-package #:vex)
 
+"A framework for building vector languages; its current use case is the implementation of the April dialect of APL."
+
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
   (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))

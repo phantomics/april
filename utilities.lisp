@@ -3,6 +3,8 @@
 
 (in-package #:april)
 
+"Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with uses aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in library.lisp."
+
 (define-symbol-macro this-idiom (local-idiom april))
 (define-symbol-macro atomic-vector (of-system this-idiom :atomic-vector))
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
