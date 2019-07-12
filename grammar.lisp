@@ -35,7 +35,7 @@
 		       (progn (values output out-properties (cddr tokens))))))
 		;; process the empty array conveyed by the [⍬ zilde] character
 		((eq :empty-array this-item)
-		 (values (make-array '(0))
+		 (values (make-array nil)
 			 (list :type '(:array :empty))
 			 (rest tokens)))
 		;; process numerical values

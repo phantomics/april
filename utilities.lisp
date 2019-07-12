@@ -84,7 +84,6 @@
 								n t ,(getf options :print-precision)))))))
        (declare (ignorable ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ;(if (arrayp ,result)
        ,(if (getf options :print-to)
 	    (let ((string-output `(write-string ,printout ,(getf options :print-to))))
 	      `(if (arrayp ,result)
@@ -108,10 +107,6 @@
     `(make-array (list ,(length items))
 		 :element-type (quote ,type)
 		 :initial-contents (list ,@items))))
-
-(defmacro avatom (item)
-  "An APL vector atom. This passthrough macro provides information to the (avector) macro."
-  item)
 
 (defun apply-scalar (function alpha &optional omega is-boolean)
   "Apply a scalar function across objects as appropriate for APL. Handles scalars as well as nested and multidimensional arrays."
@@ -329,15 +324,9 @@
 					    (fourth arg-expanded))))
 			  ;; one of the sub-arguments must be a number - or if there is no second argument,
 			  ;; the inner function is monadic and the decomposition can proceed
-			  (or (or (numberp sub-arg1)
-				  (and (listp sub-arg1)
-				       (eql 'avatom (first sub-arg1))
-				       (numberp (second sub-arg1))))
+			  (or (numberp sub-arg1)
 			      (not sub-arg2)
-			      (or (numberp sub-arg2)
-				  (and (listp sub-arg2)
-				       (eql 'avatom (first sub-arg2))
-				       (numberp (second sub-arg2)))))))
+			      (numberp sub-arg2))))
 		   (let ((innerfn (second arg-expanded)))
 		     (list (if (not (eql 'lambda (first innerfn)))
 			       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
@@ -441,14 +430,9 @@ It remains here as a standard against which to compare methods for composing APL
 	   (let ((form-props (if (listp (first form-props))
 				 (first form-props)
 				 form-props)))
-	     ;; wrap output symbols in the (avatom) form so that they are disclosed
-	     ;; if part of an APL vector (avector)
-	     (funcall ;; (if (not (symbolp item))
-		      ;; 	  #'identity (lambda (item) `(avatom ,item)))
-		      #'identity
-		      (if (getf form-props :axes)
-			  (enclose-axes item (getf form-props :axes))
-			  item)))))
+	     (if (getf form-props :axes)
+		 (enclose-axes item (getf form-props :axes))
+		 item))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
 		   (if (not (or (numberp (first form))

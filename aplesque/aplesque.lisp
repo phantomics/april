@@ -1415,9 +1415,8 @@
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) (if (not prepend)
 			     input (concatenate 'string (list prepend) input)))
-	((and (arrayp input)
-	      (equalp #0A0 input))
-	     "")
+	((equalp #0A0 input)
+	 "")
 	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
