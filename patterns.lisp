@@ -3,6 +3,8 @@
 
 (in-package #:april)
 
+"A set of optimization patterns for April; these patterns are matched before more basic language structures are recognized by the compiler. Optimized code for common APL language idioms is implemented in this way."
+
 (set-composer-patterns
  composer-optimized-patterns-common
  ;; optimized code for common APL idioms

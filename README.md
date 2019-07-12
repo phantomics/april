@@ -182,6 +182,31 @@ More APL expressions:
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
+## Unique Language Features in April
+
+For the most part, April's syntax and functions follow standard APL conventions. But there are a few areas where April differs from typical APL implementations along with some unique language features. Most notably:
+
+```lisp
+;; k-style if statements
+* (april "x←5 ⋄ $[x>3;8;12]")
+8
+
+;; k-style functions with any number of named arguments
+* (april "monthlyPayment←{[amt;irt;mts] (mts÷⍨amt×irt×0.1)+amt÷mts} ⋄ monthlyPayment[5000;0.8;12]")
+450.0
+
+;; numbered branch points instantiated with →⎕ syntax
+* (april "x←1 ⋄ →1+1 ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7")
+35
+
+;; symbol-referenced branch points and a branch function with expression-determined branch symbol choice
+* (april "x←1 ⋄ (5-3)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7")
+7
+```
+
+The biggest difference between April and other APLs lies in its implementation of the [→ branch] function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
+
+
 ## Parameter reference
 
 When `(april)` or `(april-p)` is called, you may pass it either a single text string:
@@ -312,24 +337,6 @@ This is another, more technical name for the `:count-from` sub-parameter. You ca
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
-
-#### :disclose-output
-
-In APL, there's really no such thing as a value outside an array. Every piece of data used within an April instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When April returns arrays like this, its default behavior is to disclose them like this:
-
-```lisp
-* (april-p "1+1")
-2
-```
-
-But if you set the `:disclose-output` option to nil, you can change this:
-
-```lisp
-* (april-p (with (:state :disclose-output nil)) "1+1")
-#(2)
-```
-
-With `:disclose-output` set to nil, unitary vectors will be passed directly back without having their values disclosed.
 
 #### :print-precision
 
@@ -539,6 +546,30 @@ April has a special system variable called `⎕ost` that you can use to set a cu
 Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-p)` expression is printed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-p)` expression is printed.
 
 Remember to use all caps when setting the `⎕ost` variable, unless your desired output stream is referenced by a literal lowercase symbol like `|output-stream|`.
+
+The syntax above assumes that the symbol representing the output stream is internal to the current package. For instance:
+
+```lisp
+(in-package #:pkg-one)
+
+(defvar out-str (make-string-output-stream))
+
+(april-p "⎕ost←'OUT-STR' ⋄ 5+10")
+```
+
+In this code, the `OUT-STR` output stream is interned in the package `PKG-ONE`. What if you want to use an output stream whose symbol belongs to a package other than the current one?
+
+```lisp
+(in-package #:pkg-one)
+
+(defvar out-str (make-string-output-stream))
+
+(in-package #:pkg-two)
+
+(april-p "⎕ost←('PKG-ONE''OUT-STR') ⋄ 5+10")
+```
+
+If you assign to `⎕ost` a vector of two strings, the first string is the name of a package and the second string is the name of a symbol belonging to that package. In this way, you can reference an output stream whose symbol is interned in a package other than the current one.
 
 ## What's Not Planned for Implementation
 

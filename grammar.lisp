@@ -3,6 +3,8 @@
 
 (in-package #:april)
 
+"This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
+
 (set-composer-elements
  composer-elements-apl-standard
  (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
@@ -35,7 +37,7 @@
 		       (progn (values output out-properties (cddr tokens))))))
 		;; process the empty array conveyed by the [⍬ zilde] character
 		((eq :empty-array this-item)
-		 (values (make-array '(0))
+		 (values (make-array nil)
 			 (list :type '(:array :empty))
 			 (rest tokens)))
 		;; process numerical values
@@ -282,10 +284,11 @@
    (branch-glyph :element (function :glyph →))
    (branch-from :element (array :cancel-if :pivotal-composition) :optional t :times :any)
    (determine-branch-by :element function :optional t :times 1))
-  (if (and branch-from (listp precedent)
-	   (eql 'avatom (first precedent))
-	   (eql 'to-output (second precedent))
-	   (not (third precedent)))
+  (if (and branch-from ;; (listp precedent)
+	   ;; (numberp (first precedent))
+	   ;; (eql 'to-output (second precedent))
+	   ;; (not (third precedent))
+	   (eql 'to-output precedent))
       ;; if this is a branch point statement like X→⎕, do the following:
       (if (integerp branch-from)
 	  ;; if the branch is designated by an integer like 5→⎕
@@ -301,18 +304,12 @@
 		     branch-from)
 	      (error "Invalid left argument to →; must be a single integer value or a symbol.")))
       ;; otherwise, this is a branch-to statement like →5 or →doSomething
-      (if (and (or (eql 'avatom (first precedent))
-		   (eql 'avector (first precedent)))
-	       (not (third precedent))
-	       (or (integerp (second precedent))
-		   (symbolp (second precedent))))
+      (if (or (integerp precedent)
+	      (symbolp precedent))
 	  ;; if the target is an explicit symbol as in →mySymbol, or explicit index
 	  ;; as in →3, just pass the symbol through
-	  (list 'go (second precedent))
-	  (if (loop :for item :in (rest precedent) :always (and (listp item)
-								(eql 'avatom (first item))
-								(symbolp (second item))
-								(not (third item))))
+	  (list 'go precedent)
+	  (if (loop :for item :in (rest precedent) :always (symbolp item))
 	      ;; if the target is one of an array of possible destination symbols...
 	      (if (integerp branch-from)
 		  ;; if there is an explicit index to the left of the arrow, grab the corresponding
@@ -323,7 +320,7 @@
 		      (list 'list))
 		  ;; otherwise, there must be an expression to the left of the arrow, as with
 		  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-		  (list 'go (mapcar #'second (rest precedent))
+		  (list 'go (rest precedent)
 			branch-from))
 	      (list 'go precedent))))
   `(type (:branch)))
