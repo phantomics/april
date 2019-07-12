@@ -9,4 +9,3 @@
   :depends-on ("alexandria" "array-operations" "parse-number" "symbol-munger")
   :components ((:file "package")
                (:file "aplesque")))
-
