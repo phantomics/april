@@ -310,7 +310,7 @@
 
 (defmacro apply-scanning (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))
-    `(lambda (,omega)XF_
+    `(lambda (,omega)
        (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,o ,a))
 		,(if axes `(- ,(first axes) index-origin)
 		     (if first-axis 0 `(1- (rank ,omega))))))))
