@@ -320,9 +320,9 @@
 	(a (gensym)) (o (gensym)))
     (flet ((expand-dyadic (a1 a2 &optional reverse)
 	     (let ((call (if reverse `(apl-call ,symbol ,operation-dyadic
-						(enclose-atom (aref ,a1 ,index)) ,a2)
+						(enclose (aref ,a1 ,index)) ,a2)
 			     `(apl-call ,symbol ,operation-dyadic ,a2
-					(enclose-atom (aref ,a1 ,index))))))
+					(enclose (aref ,a1 ,index))))))
 	       `(make-array (dims ,a1) :initial-contents (loop :for ,index :below (length ,a1)
 							    :collect (each-scalar t ,call))))))
       `(lambda (,omega &optional ,alpha)
@@ -344,8 +344,7 @@
 				    ,(expand-dyadic omega `(aref ,alpha 0) t))
 				   ((= (length ,alpha) (length ,omega))
 				    (aops:each (lambda (,o ,a)
-						 (apl-call ,symbol ,operation-dyadic
-							   (enclose-atom ,o) (enclose-atom ,a)))
+						 (apl-call ,symbol ,operation-dyadic (enclose ,o) (enclose ,a)))
 					       ,omega ,alpha))
 				   (t (error "Mismatched argument lengths to ¨.")))
 		      (aops:each (lambda (,item)
