@@ -204,7 +204,7 @@ For the most part, April's syntax and functions follow standard APL conventions.
 7
 ```
 
-The biggest difference between April and other APLs lies in its implementation of the [→ branch] function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
+The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
 
 
 ## Parameter reference
