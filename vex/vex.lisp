@@ -3,6 +3,8 @@
 
 (in-package #:vex)
 
+"A framework for building vector languages; its current use case is the implementation of the April dialect of APL."
+
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
   (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
@@ -670,7 +672,6 @@
 		   (%any (?blank-character))
 		   (=subseq (%any (?newline-character)))
 		   (=subseq (%any (?satisfies 'characterp))))
-	  ;; (print (list :item item break rest))
 	  (if (and (not output) (stringp item)
 		   (funcall (of-utilities idiom :match-newline-character)
 			    (aref item 0)))
@@ -853,7 +854,7 @@
 				 (make-hash-table :test #'eq))))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use) (preexisting-vars)
-	 (branch-index (gensym)) (tb-output (gensym)))
+	 (branch-index (gensym)))
     (labels ((assign-from (source dest)
 	       (if source (progn (setf (getf dest (first source))
 				       (second source))
@@ -863,24 +864,7 @@
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom meta))
-			    (process-lines remaining (append output (list (composer idiom meta out)))))))
-	     (process-tags (form tags)
-	       (loop :for sub-form :in form
-		  :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
-					 (not (symbolp (second sub-form)))))
-			       sub-form (if (integerp (second sub-form))
-					    (if (assoc (second sub-form) tags)
-						(list 'go (second (assoc (second sub-form) tags))))
-					    (if (third sub-form)
-						`(let ((,branch-index (row-major-aref ,(third sub-form) 0)))
-						   (cond ,@(loop :for tag :in (second sub-form)
-							      :counting tag :into tix
-							      :collect `((= ,branch-index ,tix)
-									 (go ,tag)))))
-						`(let ((,branch-index (row-major-aref ,(second sub-form) 0)))
-						   (cond ,@(loop :for tag :in tags
-							      :collect `((= ,branch-index ,(first tag))
-									 (go ,(second tag))))))))))))
+			    (process-lines remaining (append output (list (composer idiom meta out))))))))
 
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))

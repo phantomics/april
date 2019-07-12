@@ -43,5 +43,9 @@ If no playfield exists, evaluating (life) will create a new 16x16 playfield.
 				"⊃1 L∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂L")))
     (incf life-generation)
     (princ (april (with (:state :index-origin 0 :output-printed :only :in ((-l life-array))))
+<<<<<<< HEAD
 		  "' ⍬_║▐▀'[(0,(1+⊢/⍴L)⍴2)⍪(3,L,4)⍪5]"))
+=======
+		  "' ⍬_║▐▀'[(0,(1+⊃⌽⍴L)/2)⍪(3,L,4)⍪5]"))
+>>>>>>> true-scalars
     (list :generation life-generation)))

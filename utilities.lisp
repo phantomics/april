@@ -3,17 +3,17 @@
 
 (in-package #:april)
 
+"Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with uses aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in library.lisp."
+
 (define-symbol-macro this-idiom (local-idiom april))
 (define-symbol-macro atomic-vector (of-system this-idiom :atomic-vector))
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
-(define-symbol-macro *first-axis* (if axes (- (aref (first axes) 0)
-					      index-origin)
+(define-symbol-macro *first-axis* (if axes (- (first axes) index-origin)
 				      0))
-(define-symbol-macro *last-axis* (- (if axes (aref (first axes) 0)
-					(rank omega))
+(define-symbol-macro *last-axis* (- (if axes (first axes)
+					(max 1 (rank omega)))
 				    index-origin))
-(define-symbol-macro *first-axis-or-nil* (if axes (- (aref (first axes) 0)
-						     index-origin)))
+(define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 
 ;; these macros are shorthand for lambda definitions used in the spec; they make April's compiled code
 ;; more compact and comfortable to read
@@ -73,14 +73,7 @@
 
 (defmacro apl-assign (symbol value)
   "This is a simple passthrough macro that is used by (in-apl-workspace)."
-  (cond ((or (eql 'index-origin symbol)
-	     (eql 'print-precision symbol))
-	 ;; TODO: add better logic for invalid assignments to ⎕IO or ⎕PP
-	 (if (and (eql 'avector (first value))
-		  (integerp (second value)))
-	     `(setq ,symbol ,(second value))
-	     (error "Attempted to assign invalid value to [⎕IO index origin].")))
-	(t `(setq ,symbol ,value))))
+  `(setq ,symbol ,value))
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
@@ -93,7 +86,6 @@
 								n t ,(getf options :print-precision)))))))
        (declare (ignorable ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ;(if (arrayp ,result)
        ,(if (getf options :print-to)
 	    (let ((string-output `(write-string ,printout ,(getf options :print-to))))
 	      `(if (arrayp ,result)
@@ -111,23 +103,12 @@
 
 (defmacro avector (&rest items)
   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-  (let* ((type))
+  (let ((type))
     (loop :for item :in items :while (not (eq t type))
-       :do (let ((item (if (not (listp item))
-			   item (if (not (eql 'avatom (first item)))
-				    item (second item)))))
-	     (setq type (type-in-common type (assign-element-type item)))))
+       :do (setq type (type-in-common type (assign-element-type item))))
     `(make-array (list ,(length items))
 		 :element-type (quote ,type)
-		 :initial-contents (list ,@(loop :for item :in items
-					      :collect (if (and (listp item)
-								(eql 'avatom (first item)))
-							   `(disclose ,item)
-							   item))))))
-
-(defmacro avatom (item)
-  "An APL vector atom. This passthrough macro provides information to the (avector) macro."
-  item)
+		 :initial-contents (list ,@items))))
 
 (defun apply-scalar (function alpha &optional omega is-boolean)
   "Apply a scalar function across objects as appropriate for APL. Handles scalars as well as nested and multidimensional arrays."
@@ -282,11 +263,8 @@
 	   (if (listp ,reference)
 	       (if (or (eql 'lambda (first ,reference))
 		       (and (macro-function (first ,reference))
-			    ;; (eql 'lambda (first (macroexpand ,reference)))
 			    (not (or (eql 'avector (first ,reference))
-				     (eql 'avatom (first ,reference))
-				     (eql 'apl-call (first ,reference))))
-			    ))
+				     (eql 'apl-call (first ,reference))))))
 		   ,reference)))))
 
 (defmacro resolve-operator (mode reference)
@@ -348,15 +326,9 @@
 					    (fourth arg-expanded))))
 			  ;; one of the sub-arguments must be a number - or if there is no second argument,
 			  ;; the inner function is monadic and the decomposition can proceed
-			  (or (or (numberp sub-arg1)
-				  (and (listp sub-arg1)
-				       (eql 'avatom (first sub-arg1))
-				       (numberp (second sub-arg1))))
+			  (or (numberp sub-arg1)
 			      (not sub-arg2)
-			      (or (numberp sub-arg2)
-				  (and (listp sub-arg2)
-				       (eql 'avatom (first sub-arg2))
-				       (numberp (second sub-arg2)))))))
+			      (numberp sub-arg2))))
 		   (let ((innerfn (second arg-expanded)))
 		     (list (if (not (eql 'lambda (first innerfn)))
 			       `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
@@ -371,12 +343,6 @@
 					       ,(third innerfn) ,@(if is-first (list arg2)))))
 			   (third arg-expanded)))))))
       (let* ((scalar-fn (is-scalar function))
-	     (arguments (loop :for arg :in arguments
-	     		   :collect (cond ((not (listp arg))
-	     				   `(enclose-atom ,arg))
-	     				  ((eql 'avatom (first arg))
-	     				   `(enclose-atom ,(second arg)))
-	     				  (t arg))))
 	     (fn-body (cond ((and scalar-fn (not (second arguments)))
 			     ;; compose monadic functions if the argument is the output of another scalar function
 			     (expand-monadic function (first arguments)))
@@ -466,13 +432,9 @@ It remains here as a standard against which to compare methods for composing APL
 	   (let ((form-props (if (listp (first form-props))
 				 (first form-props)
 				 form-props)))
-	     ;; wrap output symbols in the (avatom) form so that they are disclosed
-	     ;; if part of an APL vector (avector)
-	     (funcall (if (not (symbolp item))
-			  #'identity (lambda (item) `(avatom ,item)))
-		      (if (getf form-props :axes)
-			  (enclose-axes item (getf form-props :axes))
-			  item)))))
+	     (if (getf form-props :axes)
+		 (enclose-axes item (getf form-props :axes))
+		 item))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
 		   (if (not (or (numberp (first form))
@@ -492,7 +454,7 @@ It remains here as a standard against which to compare methods for composing APL
 		       `(avector ,@(mapcar #'apply-props form properties)))
 		   (if (not (numberp form))
 		       (apply-props form properties)
-		       `(avector ,form)))))))
+		       form))))))
 
 (defun output-function (form &optional arguments)
   "Express an APL inline function like {⍵+5}."
@@ -568,14 +530,12 @@ It remains here as a standard against which to compare methods for composing APL
 					  (if (assoc (second sub-form) tags)
 					      (list 'go (second (assoc (second sub-form) tags))))
 					  (if (third sub-form)
-					      `(let ((,branch-index
-						      (row-major-aref ,(third sub-form) 0)))
+					      `(let ((,branch-index ,(third sub-form)))
 						 (cond ,@(loop :for tag :in (second sub-form)
 							    :counting tag :into tix
 							    :collect `((= ,branch-index ,tix)
 								       (go ,tag)))))
-					      `(let ((,branch-index
-						      (row-major-aref ,(second sub-form) 0)))
+					      `(let ((,branch-index ,(second sub-form)))
 						 (cond ,@(loop :for tag :in tags
 							    :collect `((= ,branch-index ,(first tag))
 								       (go ,(second tag))))))))))))
