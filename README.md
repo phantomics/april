@@ -313,24 +313,6 @@ This is another, more technical name for the `:count-from` sub-parameter. You ca
 #(0 1 2 3 4 5 6 7 8)
 ```
 
-#### :disclose-output
-
-In APL, there's really no such thing as a value outside an array. Every piece of data used within an April instance is an array. When you enter something like 1+1, you're actually adding two arrays containing a single value, 1, and outputting another array containing the value 2. When April returns arrays like this, its default behavior is to disclose them like this:
-
-```lisp
-* (april-p "1+1")
-2
-```
-
-But if you set the `:disclose-output` option to nil, you can change this:
-
-```lisp
-* (april-p (with (:state :disclose-output nil)) "1+1")
-#(2)
-```
-
-With `:disclose-output` set to nil, unitary vectors will be passed directly back without having their values disclosed.
-
 #### :print-precision
 
 This controls the maximal precision at which April prints floating point numbers. Its default value is 10. For example:
