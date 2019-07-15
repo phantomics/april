@@ -87,7 +87,10 @@
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
   (let ((omega (gensym)) (alpha (gensym)) (outcome (gensym)))
     `(lambda (,omega &optional ,alpha)
-       (let ((,outcome (funcall (function ,operation) ,alpha ,omega)))
+       (let ((,outcome (funcall ,(if (symbolp operation)
+				     `(function ,operation)
+				     (macroexpand operation))
+				,alpha ,omega)))
 	 (if ,outcome 1 0)))))
 
 (defmacro reverse-op (is-dyadic &optional operation)

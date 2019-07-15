@@ -29,6 +29,12 @@
 		  :element-type (element-type alpha)
 		  :initial-contents (reverse included)))))
 
+(defun scalar-compare (omega alpha)
+  (funcall (if (and (characterp alpha) (characterp omega))
+	       #'char= (if (and (numberp alpha) (numberp omega))
+			   #'= (error "Compared incompatible types.")))
+	   omega alpha))
+
 (defun count-to (index index-origin)
   "Implementation of APL's ⍳ function."
   (if (not (integerp index))
@@ -150,6 +156,64 @@
 			      :element-type (element-type omega)
 			      :displaced-to (copy-array omega))))))
 
+(defun ravel-array (index-origin)
+  (lambda (omega &optional axes)
+    (if (not (arrayp omega))
+	omega (ravel index-origin omega axes))))
+
+(defun catenate-arrays (index-origin)
+  (lambda (omega alpha &optional axes)
+    (let ((axis *first-axis-or-nil*))
+      (if (floatp axis)
+	  ;; laminate in the case of a fractional axis argument
+	  (laminate alpha omega (ceiling axis))
+	  ;; simply stack the arrays if there is no axis argument or it's an integer
+	  (catenate alpha omega (or axis (1- (max (rank alpha)
+						  (rank omega)))))))))
+
+(defun catenate-on-first (index-origin)
+  (lambda (omega alpha &optional axes)
+    (if (and (vectorp alpha) (vectorp omega))
+	(if (and *first-axis-or-nil* (< 0 *first-axis-or-nil*))
+	    (error (concatenate 'string "Specified axis is greater than 1, vectors"
+				" have only one axis along which to catenate."))
+	    (if (and axes (> 0 *first-axis-or-nil*))
+		(error (format nil "Specified axis is less than ~a." index-origin))
+		(catenate alpha omega 0)))
+	(if (or (not axes)
+		(integerp (first axes)))
+	    (catenate alpha omega (or *first-axis-or-nil* 0))))))
+
+(defun section-array (index-origin &optional inverse)
+  (lambda (omega alpha &optional axes)
+    (let ((omega (enclose omega))
+	  (alpha-index alpha)
+	  (alpha (if (arrayp alpha)
+		     (array-to-list alpha)
+		     (list alpha))))
+      (section omega (if axes (loop :for axis :below (rank omega)
+				 :collect (if inverse (if (/= axis (- (first axes) index-origin))
+							  0 alpha-index)
+					      (if (= axis (- (first axes) index-origin))
+						  alpha-index (nth axis (dims omega)))))
+			 alpha)
+	       :inverse inverse))))
+
+(defun get-first-or-disclose (omega)
+  (if (vectorp omega)
+      (aref omega 0)
+      (disclose omega)))
+
+(defun pick (index-origin)
+  (lambda (omega alpha)
+    (labels ((layer-index (object indices)
+	       (if indices (layer-index (aref object (- (first indices) index-origin))
+					(rest indices))
+		   object)))
+      (if (= 1 (array-total-size omega))
+	  (error "Right argument to dyadic ⊃ may not be unitary.")
+	  (disclose (layer-index omega (array-to-list alpha)))))))
+
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."
   (let ((omega (enclose omega))
@@ -197,6 +261,29 @@
 				      :element-type (type-in-common (element-type alpha)
 								    (element-type omega)))
 		    0)))))
+
+(defun permute-array (index-origin)
+  (lambda (omega &optional alpha)
+    (if (not (arrayp omega))
+	omega (aops:permute (if alpha (loop :for i :across (enclose alpha) :collect (- i index-origin))
+				(loop :for i :from (1- (rank omega)) :downto 0 :collect i))
+			    omega))))
+
+(defun matrix-inverse (omega)
+  (if (not (arrayp omega))
+      (/ omega)
+      (if (< 2 (rank omega))
+	  (error "Matrix inversion only works on arrays of rank 2 or 1.")
+	  (if (let ((odims (dims omega)))
+		(and (= 2 (length odims))
+		     (= (first odims) (second odims))))
+	      (invert-matrix omega)
+	      (left-invert-matrix omega)))))
+
+(defun matrix-divide (omega alpha)
+  (each-scalar t (array-inner-product (invert-matrix omega)
+				      alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
+				      #'+)))
 
 (defun encode (omega alpha)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
@@ -297,6 +384,16 @@
     (if (= 1 (rank in-matrix))
 	(aref (aops:split result 1) 0)
 	result)))
+
+(defun format-array (print-precision)
+  (lambda (omega &optional alpha)
+    (if (not alpha)
+	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n t print-precision)))
+	(if (not (integerp alpha))
+	    (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
+				" the precision at which to print floating-point numbers."))
+	    (array-impress omega :collate t
+			   :format (lambda (n) (print-apl-number-string n t print-precision alpha)))))))
 
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))

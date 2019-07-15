@@ -75,7 +75,9 @@
   "Returns the default element for an array based on that array's type; blank spaces for character arrays and zeroes for others."
   `(if (or (eql 'character (element-type ,array))
 	   (eql 'base-char (element-type ,array)))
-       #\  0))
+       #\ (if (member (element-type ,array)
+		      '(single-float double-float short-float long-float))
+	      0.0 0)))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
@@ -1131,6 +1133,8 @@
 				(make-array (dproc (dims input))
 					    :element-type (element-type input)
 					    :displaced-to (copy-array input))))))
+		;; TODO: this generates an array of type vector, not simple-array since it's displaced, is this a
+		;; problem? Look into it
 		(make-array (list (array-total-size input))
 			    :element-type (element-type input)
 			    :displaced-to (copy-array input)))))
