@@ -414,11 +414,13 @@
   (let ((index (gensym)) (item (gensym)) (omega (gensym)) (alpha (gensym))
 	(a (gensym)) (o (gensym)))
     (flet ((expand-dyadic (a1 a2 &optional reverse)
-	     (let ((call (if reverse `(apl-call ,symbol ,operation-dyadic
-						(enclose (aref ,a1 ,index)) ,a2)
-			     `(apl-call ,symbol ,operation-dyadic ,a2
-					(enclose (aref ,a1 ,index))))))
-	       `(make-array (dims ,a1) :initial-contents (loop :for ,index :below (length ,a1)
+	     ;; the enclose-clause here and the (arrayp ,a1) clause below are added just so that the compiled
+	     ;; clause will not cause problems when macroexpanding with an explicit scalar argument, as with 3/¨⍳3
+	     (let* ((enclose-clause `(enclose (if (arrayp ,a1) (aref ,a1 ,index))))
+		    (call (if reverse `(apl-call ,symbol ,operation-dyadic ,enclose-clause ,a2)
+			      `(apl-call ,symbol ,operation-dyadic ,a2 ,enclose-clause))))
+	       `(make-array (dims ,a1) :initial-contents (loop :for ,index :below (if (not (arrayp ,a1))
+										      1 (length ,a1))
 							    :collect (each-scalar t ,call))))))
       `(lambda (,omega &optional ,alpha)
 	 (declare (ignorable ,alpha))
@@ -479,11 +481,9 @@
 						  (let ((,items (if ,alpha (gethash ,key ,key-table)
 								    (funcall ,indices-of
 									     ,key ,keys))))
-						    (funcall (if (= 1 (length ,items))
-								 #'vector #'identity)
-							     (make-array (list (length ,items))
-									 :initial-contents
-									 (reverse ,items))))
+						    (make-array (list (length ,items))
+								:initial-contents
+								(reverse ,items)))
 						  ,key))))
 	   (mix-arrays 1 (apply #'vector ,item-sets)))))))
 
