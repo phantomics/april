@@ -847,6 +847,7 @@
 (defun vex-program (idiom options &optional string meta)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
+	 (to-store (rest (assoc :store options)))
 	 (meta (if meta meta (if (assoc :space options)
 				 (let ((meta-symbol (second (assoc :space options))))
 				   (if (hash-table-p meta-symbol)
@@ -907,6 +908,17 @@
 	    system-to-use (assign-from (gethash :system meta) system-to-use)
 	    system-to-use (assign-from state system-to-use))
 
+      (if to-store
+	  (loop :for store-entry :in to-store
+	     :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first store-entry)) "KEYWORD")
+						   (gethash :variables meta))))
+		   (if (not vdata) (setf vdata (gensym "V")))
+		   (setf (gethash vdata (gethash (if (and (listp (second store-entry))
+							  (eql 'lambda (caadr store-entry)))
+						     :functions :values)
+						 meta))
+			 (second store-entry)))))
+      
       (if string
 	  (let* ((string (if (stringp string)
 			     ;; just pass the string through if it's not a pathname; if it is a pathname,
@@ -927,7 +939,7 @@
 		 (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
 				       state-to-use))
 		 (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
-					 input-vars preexisting-vars var-symbols meta)))
+					 options input-vars preexisting-vars var-symbols meta)))
 	    (funcall (of-utilities idiom :build-compiled-code)
 		     (append (funcall (if output-vars #'values
 					  (funcall (of-utilities idiom :postprocess-compiled)

@@ -36,7 +36,7 @@
 
 (defun indent-code (string)
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
-  (concatenate 'string "  * " (regex-replace-all "[\\n]" string (concatenate 'string '(#\Newline)  "    "))))
+  (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
@@ -60,11 +60,13 @@
 					    (setf (getf (getf (gethash :system ,workspace-symbol) :state)
 							,(intern (string-upcase (second item)) "KEYWORD"))
 						  ,(second (third item)))))
+				   ;; if it's a regular variable, set the workspace value and process the
+				   ;; assigned item as well to allow for chained assignment like x←y←5
 				   (t (list 'setq (second item)
 					    `(setf (gethash ',(second item)
 							    (gethash :values ,workspace-symbol))
 						   ,(if (listp (third item))
-							(process (third item))
+							(first (process (list (third item))))
 							(third item))))))
 			     (if (listp item)
 				 (process item)
@@ -138,11 +140,11 @@
 	  (cond ((and alpha-scalar? omega-scalar?)
 		 (funcall function alpha omega))
 		((and alpha-scalar? omega-unitary?)
-		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o is-boolean))
-					  (vector alpha) omega)))
+		 (for-each (lambda (a o) (apply-scalar function a o is-boolean))
+			   (vector alpha) omega))
 		((and alpha-unitary? omega-scalar?)
-		 (disclose-atom (for-each (lambda (a o) (apply-scalar function a o is-boolean))
-					  alpha (vector omega))))
+		 (for-each (lambda (a o) (apply-scalar function a o is-boolean))
+			   alpha (vector omega)))
 		((and alpha-unitary? omega-unitary?)
 		 (for-each (lambda (a o) (apply-scalar function a o is-boolean))
 			   alpha omega))
@@ -347,24 +349,18 @@
 			     ;; compose monadic functions if the argument is the output of another scalar function
 			     (expand-monadic function (first arguments)))
 			    ((and scalar-fn (second arguments)
-				  (listp (first arguments))
-				  (eql 'avector (caar arguments))
-				  (not (third (first arguments)))
-				  (numberp (cadar arguments)))
+				  (numberp (first arguments)))
 			     ;; compose dyadic functions if the first argument is a scalar numeric value
 			     ;; and the other argument is the output of a scalar function
-			     (let ((expanded (expand-dyadic function nil (cadar arguments) (second arguments))))
-			       (or expanded `((lambda (,arg) (funcall ,function ,(cadar arguments) ,arg))
+			     (let ((expanded (expand-dyadic function nil (first arguments) (second arguments))))
+			       (or expanded `((lambda (,arg) (funcall ,function ,(first arguments) ,arg))
 					      ,(macroexpand (second arguments))
 					      nil))))
 			    ((and scalar-fn (second arguments)
-				  (listp (second arguments))
-				  (eql 'avector (caadr arguments))
-				  (not (third (second arguments)))
-				  (numberp (cadadr arguments)))
+				  (numberp (second arguments)))
 			     ;; same as above if the numeric argument is reversed
-			     (let ((expanded (expand-dyadic function t (first arguments) (cadadr arguments))))
-			       (or expanded `((lambda (,arg) (funcall ,function ,arg ,(cadadr arguments)))
+			     (let ((expanded (expand-dyadic function t (first arguments) (second arguments))))
+			       (or expanded `((lambda (,arg) (funcall ,function ,arg ,(second arguments)))
 					      ,(macroexpand (first arguments))
 					      nil))))
 			    ;; otherwise, just list the function and its arguments
@@ -459,11 +455,8 @@ It remains here as a standard against which to compare methods for composing APL
 (defun output-function (form &optional arguments)
   "Express an APL inline function like {⍵+5}."
   `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
-     (let ,(if arguments (loop :for arg :in arguments :collect `(,arg (disclose ,arg)))
-	       `((⍵ (disclose ⍵))
-		 (⍺ (if ⍺ (disclose ⍺)))))
-       (declare (ignorable ,@(if arguments arguments `(⍵ ⍺))))
-       ,@form)))
+     (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
+     ,@form))
 
 (defun do-over (input function axis &key reduce in-reverse)
   "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
@@ -486,28 +479,31 @@ It remains here as a standard against which to compare methods for composing APL
 								     :when (/= axis (1- cx))
 								     :collect c)
 								  (list 0))))
-			      (disclose (funcall function elem
-						 (apply #'aref output (or (loop :for c :in coords
-									     :counting c :into cx
-									     :append (if (/= axis (1- cx))
-											 (list c)
-											 (if (not reduce)
-											     (list (1- c)))))
-									  (list 0))))))))
+			      (funcall function elem (apply #'aref output (or (loop :for c :in coords
+										 :counting c :into cx
+										 :append (if (/= axis (1- cx))
+											     (list c)
+											     (if (not reduce)
+												 (list (1- c)))))
+									      (list 0)))))))
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
-(defun build-variable-declarations (input-vars preexisting-vars var-symbols meta)
+(defun build-variable-declarations (options input-vars preexisting-vars var-symbols meta)
   "Create the set of variable declarations that begins April's compiled code."
-  (let ((declarations (loop :for key-symbol :in var-symbols
-			 :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
-					    (mapcar #'first input-vars)))
-			 :collect (let* ((sym (second key-symbol))
-					 (fun-ref (gethash sym (gethash :functions meta)))
-					 (val-ref (gethash sym (gethash :values meta))))
-				    (list sym (if (member sym preexisting-vars)
-						  (if val-ref val-ref (if fun-ref fun-ref))
-						  :undefined))))))
+  (let* ((workspace (second (assoc :space options)))
+	 (declarations (loop :for key-symbol :in var-symbols
+			  :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
+					     (mapcar #'first input-vars)))
+			  :collect (let* ((sym (second key-symbol))
+					  (fun-ref (gethash sym (gethash :functions meta)))
+					  (val-ref (if workspace `(gethash (quote ,sym)
+									   (gethash :values ,workspace))
+						       (gethash sym (gethash :values meta)))))
+				     (list sym (if (member sym preexisting-vars)
+						   ;; (if val-ref val-ref (if fun-ref fun-ref))
+						   (if fun-ref fun-ref (if val-ref val-ref))
+						   :undefined))))))
     ;; update the variable records in the meta object if input variables are present
     (if input-vars (loop :for var-entry :in input-vars
 		      :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")

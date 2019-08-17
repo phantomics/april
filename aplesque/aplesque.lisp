@@ -1016,7 +1016,7 @@
 			    dims))
 	       (type (apply #'type-in-common each-type))
 	       (output (make-array (sort-dimensions (dims input)
-						    (loop :for dim :below (length (first each-dims))
+						    (loop :for dim :below (reduce #'max (mapcar #'length each-dims))
 						       :collect (reduce #'max (mapcar (lambda (d) (or (nth dim d)
 												      1))
 										      each-dims))))
@@ -1030,7 +1030,8 @@
 						     :do (setq icoords (cons 0 icoords))))
 					      (setf (apply #'aref output (sort-dimensions ocoords icoords))
 						    ielem)))
-			      (setf (apply #'aref output (append ocoords '(0)))
+			      (setf (apply #'aref output
+					   (append ocoords (loop :for i :below max-rank :collect 0)))
 				    oelem))))
 	  output))))
 
