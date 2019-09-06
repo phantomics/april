@@ -119,16 +119,18 @@
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
 	    :postprocess-compiled
-	    (lambda (state)
+	    (lambda (state &rest inline-arguments)
 	      (lambda (form)
-		;; wrap the last element of the compiled output in a disclose form if discloseOutput is set
-		(append (butlast form)
-			(list (append (list 'apl-output (first (last form)))
-				      (append (list :print-precision 'print-precision)
-					      (if (getf state :print)
-						  (list :print-to 'output-stream))
-					      (if (getf state :output-printed)
-						  (list :output-printed (getf state :output-printed)))))))))
+		(let ((final-form (if inline-arguments `(apl-call :fn ,(first (last form))
+								  ,@inline-arguments)
+				      (first (last form)))))
+		  (append (butlast form)
+			  (list (append (list 'apl-output final-form)
+					(append (list :print-precision 'print-precision)
+						(if (getf state :print)
+						    (list :print-to 'output-stream))
+						(if (getf state :output-printed)
+						    (list :output-printed (getf state :output-printed))))))))))
 	    :postprocess-value
 	    (lambda (form state)
 	      (append (list 'apl-output form)
@@ -1327,7 +1329,22 @@ c   2.56  3
      (princ (format nil "~%"))
      (is (print-and-run (get-output-stream-string other-out-str))
 	 "4 5 6
-" :test #'equalp)))))
+" :test #'equalp))
+   (progn (princ (format nil "λ Compact function calls.~%"))
+	  
+	  (is (print-and-run (april-c "{⍺×⍵}" 2 8)) 16)
+	  
+	  (princ (format nil "~%"))
+	  
+	  (is (print-and-run (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10))
+	      #(8 8 8 8 8 8 0 0 0 0) :test #'equalp)
+	  
+	  (princ (format nil "~%"))
+
+	  (is (print-and-run (april-c (with (:state :count-from 0)) "{⍳⍵}" 7))
+	      #(0 1 2 3 4 5 6) :test #'equalp))
+   
+   )))
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.

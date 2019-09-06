@@ -368,7 +368,8 @@
 						    :collect `(funcall (function ,pset) ,idiom-symbol))))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
 	   (printout-sym (concatenate 'string symbol-string "-P"))
-	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym))
+	   (inline-sym (concatenate 'string symbol-string "-C"))
+	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
 	   (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym)))
       `(progn ,@(if (not extension)
 		    `((defvar ,idiom-symbol)
@@ -413,6 +414,7 @@
 			;; evaluate expressions and control properties of the language instance
 			(cond ((and ,options (listp ,options)
 				    (string= "TEST" (string-upcase (first ,options))))
+			       ;; the (test) setting is used to run tests
 			       `(progn (setq prove:*enable-colors* nil)
 				       (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
 						 (count-symbol-in-spec 'prove:is ',atest-forms)))
@@ -424,8 +426,8 @@
 				       ,(format nil "Timed evaluation of ~d tests." (length ',timed-forms))))
 			      ((and ,options (listp ,options)
 				    (string= "DEMO" (string-upcase (first ,options))))
+			       ;; the (demo) setting is used to print demos of the language
 			       `(progn ,@',demo-forms "Demos complete!"))
-			      ;; the (test) setting is used to run tests
 			      (t `(progn ,(if (and ,input-string (assoc :space (rest ,options)))
 					      `(defvar ,(second (assoc :space (rest ,options)))))
 					 ;; TODO: defvar here should not be necessary since the symbol
@@ -463,6 +465,23 @@
 								     (cdar ,options))))
 					  `((with (:state :print t))))
 				      (last ,options))))
+		      (defmacro ,(intern inline-sym (symbol-package symbol))
+			  (,options &rest ,args)
+			;; an alternate evaluation macro that calls a function on arguments passed inline;
+			;; makes for more compact invocations of the language
+			;; TODO: can this be made to work with code passed in string-referencing variables?
+			(let ((,args (if (stringp ,options)
+					 ,args (rest ,args)))
+			      (,input-string (if (listp ,options)
+						 (first ,args))))
+			  (apply #'vex-program ,idiom-symbol
+				 (if ,input-string
+				     (if (or (string= "WITH" (string (first ,options)))
+					     (string= "SET" (string (first ,options))))
+					 (rest ,options)
+					 (error "Incorrect option syntax.")))
+				 (if ,input-string ,input-string ,options)
+				 ,args)))
 		      (defmacro ,(intern (concatenate 'string symbol-string "-LOAD")
 					 (symbol-package symbol))
 			  (,options &optional ,input-path)
@@ -844,18 +863,18 @@
 			(let ((item-properties (rest item)))
 			  (process-item item-symbol item-properties))))))))
 
-(defun vex-program (idiom options &optional string meta)
+(defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
 	 (to-store (rest (assoc :store options)))
-	 (meta (if meta meta (if (assoc :space options)
-				 (let ((meta-symbol (second (assoc :space options))))
-				   (if (hash-table-p meta-symbol)
-				       meta-symbol (if (boundp meta-symbol)
-						       (symbol-value meta-symbol)
-						       (setf (symbol-value meta-symbol)
-							     (make-hash-table :test #'eq)))))
-				 (make-hash-table :test #'eq))))
+	 (meta (if (assoc :space options)
+		   (let ((meta-symbol (second (assoc :space options))))
+		     (if (hash-table-p meta-symbol)
+			 meta-symbol (if (boundp meta-symbol)
+					 (symbol-value meta-symbol)
+					 (setf (symbol-value meta-symbol)
+					       (make-hash-table :test #'eq)))))
+		   (make-hash-table :test #'eq)))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use) (preexisting-vars)
 	 (branch-index (gensym)))
@@ -914,7 +933,8 @@
 						   (gethash :variables meta))))
 		   (if (not vdata) (setf vdata (gensym "V")))
 		   (setf (gethash vdata (gethash (if (and (listp (second store-entry))
-							  (eql 'lambda (caadr store-entry)))
+							  (or (eql 'lambda (caadr store-entry))
+							      (eql 'function (caadr store-entry))))
 						     :functions :values)
 						 meta))
 			 (second store-entry)))))
@@ -942,8 +962,8 @@
 					 options input-vars preexisting-vars var-symbols meta)))
 	    (funcall (of-utilities idiom :build-compiled-code)
 		     (append (funcall (if output-vars #'values
-					  (funcall (of-utilities idiom :postprocess-compiled)
-						   system-to-use))
+					  (apply (of-utilities idiom :postprocess-compiled)
+						 (cons system-to-use inline-arguments)))
 				      compiled-expressions)
 			     ;; if multiple values are to be output, add the (values) form at bottom
 			     (if output-vars
