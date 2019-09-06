@@ -492,7 +492,7 @@ Want to invoke April functions on some variables with less code? You can use the
 After the string where the April function is written, pass the variables that will be input to the function and you'll receive the result with no neet for a long `(with (:state ...))` clause. If you wish to pass parameters in a `(with)` clause, you can still do it with `(april-c)`.
 
 ```lisp
-(april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
+* (april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
 #(0 1 2 3 4 5 6)
 ```
 
