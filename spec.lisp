@@ -209,7 +209,7 @@
 				(not (integerp alpha)))
 			    (error "Both arguments to ? must be single non-negative integers.")
 			    (make-array (list alpha)
-					:element-type (list 'integer 0 alpha)
+					:element-type (list 'integer 0 omega)
 					:initial-contents (loop :for i :below alpha
 							     :collect (+ index-origin (random omega)))))))))
   (○ (has :titles ("Pi Times" "Circular"))
