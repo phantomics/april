@@ -39,4 +39,4 @@ These symbols represent standard functions available within April. Currently, th
 
 |Symbol|Name             |Description|
 |------|-----------------|-----------|
-|`⎕TS` |Timestamp        |Evaluates to the current APL timestamp; a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
+|`⎕TS` |Timestamp        |Evaluates to the current APL timestamp: a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
