@@ -644,11 +644,9 @@ Most Lisp developers interact with the language through Emacs, so Emacs is also 
 
 Once gnu-apl-mode is installed, you can switch to the APL input mode by typing `M-x toggle-input-method` or `C-\`. You will be prompted to enter the input mode to use, so enter `APL-Z` and then you'll be able to toggle APL input on and off by typing `C-\`. While in APL-Z input mode, you can enter APL characters by prefixing the key with a `.` period character.
 
-
 ## Enabling APL Input in Vim
 
-For Lisp developers that interact with the language through Vim a plugin called "vim-apl" allows one to input APL characters. You can get it [from this git repository](https://gitlab.com/n9n/vim-apl). Using a Vim plugin manager called [Vundle](https://github.com/VundleVim/Vundle.vim) it is easy to add this plugin by adding the single line `Plugin 'https://gitlab.com/n9n/vim-apl'` to your .vimrc and following the Vundle instructions. Then just edit a .apl file and to input the iota character (⍳) press backtic i, to enter input the rho character (⍴) press backtic r, etc.
-
+For Lisp developers who interact with the language through Vim, a plugin called "vim-apl" allows one to input APL characters. You can get it [from this git repository](https://gitlab.com/n9n/vim-apl). Using a Vim plugin manager called [Vundle](https://github.com/VundleVim/Vundle.vim) it is easy to add this plugin by adding the single line `Plugin 'https://gitlab.com/n9n/vim-apl'` to your .vimrc and following the Vundle instructions. With vim-apl installed, while editing an .apl file you can enter the iota character `⍳` by typing `` `i `` (backtick and i), enter the rho character `⍴` by typing `` `r``, and so on.
 
 ## Thanks to:
 
