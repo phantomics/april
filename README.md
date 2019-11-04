@@ -208,6 +208,27 @@ For the most part, April's syntax and functions follow standard APL conventions.
 
 The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
 
+### Strings and Escaped Quotes
+
+In April, either single or double quotes can be used to enclose character strings:
+
+```lisp
+* (april "'abc','def'")
+"abcdef"
+
+* (april "\"ghi\",\"jkl\"")
+"ghijkl"
+```
+
+Note that you must use backslashes to escape double quotes used within Lisp strings, making double quotes a less desirable choice unless you're loading April code from files using `april-load`. In order to escape quote characters within an April string, you can either enter a backslash before the quote character, as in Lisp and many other languages, or enter the quote character twice in the traditional APL style. For example:
+
+```lisp
+* (april "'\'abc'\'")
+"'abc'"
+
+* (april "'''abc'''")
+"'abc'"
+```
 
 ## Parameter reference
 
