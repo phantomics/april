@@ -946,6 +946,8 @@
   (for "Value assigned to a variable and operated upon." "3+x←9" 12)
   (for "Two statements on one line separated by a [⋄ diamond] character."
        "a←9 ⋄ a×2 3 4" #(18 27 36))
+  (for "Quote marks in string escaped using traditional double-quote method." "'''abc'''" "'abc'")
+  (for "Quote marks in string escaped with backslashes." "'\\'abc\\''" "'abc'")
   (for "Basic function definition and use, with comments delineated by the [⍝ lamp] character."
        "⍝ This code starts with a comment.
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
@@ -1320,8 +1322,8 @@ c   2.56  3
 ")))
    (let* ((out-str (make-string-output-stream))
 	  (other-out-str (make-string-output-stream)))
-     (print-and-run (april-p "a←1 2 3 ⋄ ⎕ost←('APRIL''OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
-⎕ost←('APRIL''OTHER-OUT-STR') ⋄ 3+a"))
+     (print-and-run (april-p "a←1 2 3 ⋄ ⎕ost←('APRIL' 'OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
+⎕ost←('APRIL' 'OTHER-OUT-STR') ⋄ 3+a"))
      (princ (format nil "~%~%"))
      (is (print-and-run (get-output-stream-string out-str))
 	 "6 7 8
