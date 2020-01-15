@@ -150,7 +150,7 @@
 	       (extract-axes process tokens)
 	     (if (and (listp this-item)
 		      (eq :op (first this-item)))
-		 ;; process an operator token, allowing specification of the valence, either :monadic or :dyadic
+		 ;; process an operator token, allowing specification of the valence, either :lateral or :pivotal
 		 (destructuring-bind (op-type op-symbol)
 		     (rest this-item)
 		   (let ((valid-by-valence (or (not (getf properties :valence))
@@ -160,13 +160,15 @@
 				(values op-symbol (list :axes axes :type (list :operator op-type))
 					remaining)
 				(values nil nil tokens)))
-			   (valid-by-valence (values op-symbol (list :axes axes :type (list :operator op-type)) 
+			   (valid-by-valence
+			    (values op-symbol (list :axes axes :type (list :operator op-type)) 
 						     remaining))
 			   (t (values nil nil tokens)))))))))
 
 (set-composer-patterns
  composer-opening-patterns-apl-standard
- (with :idiom-symbol idiom :space-symbol workspace :process-symbol process :properties-symbol properties)
+ (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
+       :properties-symbol properties :pre-properties-symbol pre-properties)
  (value
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
@@ -189,10 +191,13 @@
   ((operator :element (operator :valence :lateral))
    (operand :pattern (:type (:function)
 		      :special '(:omit (:value-assignment :function-assignment :operation)))))
-  (let ((axes (first (getf (first properties) :axes))))
+  (let ((operator-axes (first (getf (first properties) :axes)))
+	(operand-axes (first (getf (second properties) :axes))))
     (append (list 'apl-compose (intern (string-upcase operator)))
-	    (funcall (resolve-operator :lateral operator)
-		     operand workspace axes)))
+	    ;; call the operator constructor on the output of the operand constructor which integrates axes
+	    (funcall (funcall (resolve-operator :lateral operator)
+			      workspace operand operand-axes)
+		     operator-axes)))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
   ((operator :element (operator :valence :unitary)))
@@ -204,7 +209,7 @@
 (set-composer-patterns
  composer-following-patterns-apl-standard
  (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
-       :properties-symbol properties :precedent-symbol precedent)
+       :properties-symbol properties :precedent-symbol precedent :pre-properties-symbol pre-properties)
  (evaluation-of-character-array
   ;; match the use of the code string evaluation function ⍎, evaluating the code with access to
   ;; the local workspace as cannot be done through a normal function
@@ -223,7 +228,7 @@
    (fn-element :pattern (:type (:function)))
    (symbol :element (array :symbol-overriding t)))
   (if (gethash symbol (gethash :values workspace))
-      (let ((fn-content (resolve-function :dyadic fn-element))
+      (let ((fn-content (resolve-function workspace :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn))
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
@@ -329,13 +334,19 @@
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands
   ((operator :element (operator :valence :pivotal))
-   (operand :pattern (:special '(:omit (:value-assignment :function-assignment :operation)))))
+   (left-operand :pattern (:special '(:omit (:value-assignment :function-assignment :operation)))))
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
-  (append (list 'apl-compose (intern (string-upcase operator)))
-	  (funcall (resolve-operator :pivotal operator)
-		   precedent operand workspace))
+  (let ((right-operand precedent)
+	(left-operand-axes (first (getf (second properties) :axes)))
+	(right-operand-axes (first (getf pre-properties :axes))))
+    ;; get left axes from the left operand and right axes from the precedent's properties so the
+    ;; functions can be properly curried if they have axes specified
+    (append (list 'apl-compose (intern (string-upcase operator)))
+	    (funcall (funcall (resolve-operator :pivotal operator)
+			      workspace left-operand left-operand-axes precedent right-operand-axes)
+		     right-operand left-operand)))
   '(:type (:function :operator-composed :pivotal)))
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
@@ -344,7 +355,7 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (resolve-function (if value :dyadic :monadic) fn-element))
+  (let ((fn-content (resolve-function workspace (if value :dyadic :monadic) fn-element))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
     `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
