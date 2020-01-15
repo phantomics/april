@@ -14,7 +14,7 @@
 		,sym)
 	sym)))
 
-;; The idiom object defines a vector language instance with a persistent state.
+;; The idiom object defines a vector language instance with glyph lexicons and a set of processing utilities.
 (defclass idiom ()
   ((name :accessor idiom-name
     	 :initarg :name)
@@ -749,8 +749,12 @@
   (if (not tokens)
       (values precedent properties)
       (let ((processed)
-	    (special-params (getf properties :special)))
-	;; (print (list :prec precedent tokens))
+	    (special-params (getf properties :special))
+	    (preceding-props properties))
+	;; the current value of properties is stored in preceding-props so that grammar elements that
+	;; need to know the properties of the precedent can access them; currently, this is only needed
+	;; for pivotal operator composition
+	;; (print (list :prec precedent tokens properties))
 	(loop :while (not processed)
 	   :for pattern :in (if (not precedent)
 				(vex::idiom-composer-opening-patterns idiom)
@@ -763,11 +767,14 @@
 			    tokens space (lambda (item &optional sub-props)
 					   (declare (ignorable sub-props))
 					   (composer idiom space item nil sub-props))
-			    precedent properties)
+			    precedent properties preceding-props)
 		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
 		 ;;  				      (list new-props remaining))))
 		 ;;(print (list :pattern (getf pattern :name) precedent tokens properties))
-		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
+		 (if new-processed (setq processed new-processed properties ;; (append new-props
+									    ;; 	    properties)
+					 new-props
+					 tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
 	    (values precedent properties tokens)
@@ -782,14 +789,17 @@
 	 (precedent (or precedent-symbol (gensym)))
 	 (process (or (getf with :process-symbol) (gensym)))
 	 (sub-properties (or (getf with :properties-symbol) (gensym)))
+	 (preceding-properties (or (getf with :pre-properties-symbol) (gensym)))
 	 (idiom-symbol (getf with :idiom-symbol)))
     `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
        (let ((,idiom-symbol ,idiom))
 	 (declare (ignorable ,idiom-symbol))
 	 (list ,@(loop :for param :in params
 		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
-				    :function (lambda (,token ,space ,process &optional ,precedent ,properties)
-						(declare (ignorable ,precedent ,properties))
+				    :function (lambda (,token ,space ,process
+						       &optional ,precedent ,properties ,preceding-properties)
+						(declare (ignorable ,precedent ,properties
+								    ,preceding-properties))
 						(let ((,invalid)
 						      (,sub-properties)
 						      ,@(loop :for token :in (second param)

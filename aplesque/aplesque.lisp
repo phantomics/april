@@ -75,9 +75,7 @@
   "Returns the default element for an array based on that array's type; blank spaces for character arrays and zeroes for others."
   `(if (or (eql 'character (element-type ,array))
 	   (eql 'base-char (element-type ,array)))
-       #\ (if (member (element-type ,array)
-		      '(single-float double-float short-float long-float))
-	      0.0 0)))
+       #\ (coerce 0 (element-type ,array))))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
@@ -1026,7 +1024,7 @@
 												      1))
 										      each-dims))))
 				   :element-type type :initial-element (if (eql 'character type)
-									   #\  0))))
+									   #\  (coerce 0 type)))))
 	  (across input (lambda (oelem ocoords)
 			  (if (arrayp oelem)
 			      (across oelem (lambda (ielem icoords)

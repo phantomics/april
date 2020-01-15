@@ -29,6 +29,14 @@
 (defmacro λωχ (&rest body)
   `(lambda (omega &optional axes) ,@body))
 
+(defmacro λχ (body axes)
+  "Curry a function with axes for use with an operator."
+  (if (eql 'λωαχ (first body))
+      `(λωα (funcall ,body omega alpha ,(cons 'list axes)))
+      (if (eql 'λωχ (first body))
+	  `(λω (funcall ,body omega ,(cons 'list axes)))
+	  body)))
+
 (defmacro print-and-run (form)
   "Print a formatted code string and then run the code; used in April's arbitrary evaluation tests."
   `(progn (princ (indent-code (string-downcase (write-to-string (quote ,form)))))
@@ -185,7 +193,7 @@
 	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
 
 (defun print-apl-number-string (number &optional coerce-rational precision decimals)
-  "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision for floats."
+  "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
   (cond ((complexp number)
 	 (format nil "~aJ~a" (print-apl-number-string (realpart number) coerce-rational precision)
 		 (print-apl-number-string (imagpart number) coerce-rational precision)))
@@ -193,6 +201,9 @@
 	 (format nil "¯~a" (print-apl-number-string (abs number) coerce-rational precision)))
 	((integerp number)
 	 (format nil "~D" number))
+	((zerop number) "0")
+	;; zero-value numbers are printed as zeroes with no decimal; this clause catches
+	;; zeroes before they can cause divide-by-zero errors in the (log)s afterward
 	((and coerce-rational (rationalp number))
 	 (let ((before-decimal (max 1 (1+ (floor (log number 10))))))
 	   (format-decimal-number number :round-magnitude (min 0 (- (- precision before-decimal))))))
@@ -255,19 +266,42 @@
 					 (list 'disclose item)
 					 item)))
 
-(defmacro resolve-function (mode reference)
-  "Retrieve function content for a functional character, pass through an explicit or symbol-referenced function, or return nil if the function doesn't exist."
-  `(if (characterp ,reference)
-       (of-functions this-idiom ,reference ,mode)
-       (if (symbolp ,reference)
-	   (if (gethash ,reference (gethash :functions workspace))
-	       ,reference)
-	   (if (listp ,reference)
-	       (if (or (eql 'lambda (first ,reference))
-		       (and (macro-function (first ,reference))
-			    (not (or (eql 'avector (first ,reference))
-				     (eql 'apl-call (first ,reference))))))
-		   ,reference)))))
+(defmacro with-operand-derived (operand-specs &rest body)
+  (let* ((workspace (gensym)) (first-op (gensym)) (first-axes (gensym))
+	 (second-op (gensym)) (second-axes (gensym)))
+    `(lambda (,workspace ,first-op ,first-axes &optional ,second-op ,second-axes)
+       (declare (ignorable ,second-op ,second-axes))
+       (let ,(loop :for symbol :in operand-specs
+		:collect (list symbol (cond ((eq symbol 'left-glyph)
+					     (list 'or-functional-character first-op :fn))
+					    ((eq symbol 'left-function-monadic)
+					     (list 'resolve-function workspace :monadic first-op first-axes))
+					    ((eq symbol 'left-function-dyadic)
+					     (list 'resolve-function workspace :dyadic first-op first-axes))
+					    ((eq symbol 'left-function-symbolic)
+					     (list 'resolve-function workspace :symbolic first-op first-axes))
+					    ((eq symbol 'right-glyph)
+					     (list 'or-functional-character second-op :fn))
+					    ((eq symbol 'right-function-monadic)
+					     (list 'resolve-function workspace :monadic second-op second-axes))
+					    ((eq symbol 'right-function-dyadic)
+					     (list 'resolve-function workspace :dyadic second-op second-axes))
+					    ((eq symbol 'right-function-symbolic)
+					     (list 'resolve-function workspace :symbolic second-op second-axes)))))
+	 ,@body))))
+
+(defun resolve-function (workspace mode reference &optional axes)
+  (if (characterp reference)
+      (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
+	  (of-functions this-idiom reference mode))
+      (if (or (and (symbolp reference)
+		   (gethash reference (gethash :functions workspace)))
+	      (and (listp reference)
+		   (or (eql 'lambda (first reference))
+		       (and (macro-function (first reference))
+			    (not (or (eql 'avector (first reference))
+				     (eql 'apl-call (first reference))))))))
+	  reference)))
 
 (defmacro resolve-operator (mode reference)
   "Retrieve an operator's composing function."
@@ -310,6 +344,7 @@
 			       `(lambda (,arg) (funcall ,fn (funcall ,innerfn ,arg)))
 			       (list (first innerfn) (second innerfn)
 				     `(funcall ,fn ,(third innerfn))))
+
 			   (third arg-expanded)))
 		   (list fn argument))))
 	   (expand-dyadic (fn is-first arg1 arg2)
