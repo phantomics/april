@@ -429,12 +429,11 @@
 			      (if compress-mode 0 1))
 		:into this-dim :do (setf (aref c-degrees (1- dx)) this-dim)
 		:finally (setq ex-dim this-dim))
-	     (let ((output (make-array (if (= 1 (length degrees))
-					   (loop :for dim :in (dims input) :counting dim :into index
-					      :collect (if (/= axis (1- index))
-							   dim (* dim (aref degrees 0))))
-					   (loop :for dim :in (dims input) :counting dim :into index
-					      :collect (if (not (or (= index (1+ axis))
+	     (let ((output (make-array (loop :for dim :in (dims input) :counting dim :into index
+					  :collect (if (= 1 (length degrees))
+						       (if (/= axis (1- index))
+							   dim (* dim (aref degrees 0)))
+						       (if (not (or (= index (1+ axis))
 								    (is-unitary input)))
 							   dim ex-dim)))
 				       :element-type (element-type input)
