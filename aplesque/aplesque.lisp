@@ -1448,7 +1448,7 @@
 								elem (aref elem 0))))
 					 ((arrayp elem)
 					  ;; recurse to handle nested arrays, passing back the rendered character
-					  ;; array and adjust the offsets to allow for its height and width
+					  ;; array and adjusting the offsets to allow for its height and width
 					  (let ((rendered (array-impress elem :format format
 									 :prepend output-default-char)))
 					    ;; in the case a 1D array (string) is passed back, height defaults to 1

@@ -413,8 +413,8 @@
 		     (if first-axis 0 `(1- (rank ,omega))))))))
 
 (defmacro apply-to-each (symbol operation-monadic operation-dyadic)
-  (let ((index (gensym)) (item (gensym)) (omega (gensym)) (alpha (gensym))
-	(a (gensym)) (o (gensym))
+  (let ((index (gensym)) (coords (gensym)) (output (gensym)) (item (gensym))
+	(omega (gensym)) (alpha (gensym)) (a (gensym)) (o (gensym))
 	(monadic-op (if (and (listp operation-monadic)
 			     (eql 'with-properties (first operation-monadic)))
 			(third operation-monadic) operation-monadic))
@@ -424,12 +424,12 @@
     (flet ((expand-dyadic (a1 a2 &optional reverse)
 	     ;; the enclose-clause here and the (arrayp ,a1) clause below are added just so that the compiled
 	     ;; clause will not cause problems when macroexpanding with an explicit scalar argument, as with 3/¨⍳3
-	     (let* ((enclose-clause `(enclose (if (arrayp ,a1) (aref ,a1 ,index))))
-		    (call (if reverse `(apl-call ,symbol ,dyadic-op ,enclose-clause ,a2)
-			      `(apl-call ,symbol ,dyadic-op ,a2 ,enclose-clause))))
-	       `(make-array (dims ,a1) :initial-contents (loop :for ,index :below (if (not (arrayp ,a1))
-										      1 (length ,a1))
-							    :collect (each-scalar t ,call))))))
+	     (let ((call (if reverse `(apl-call ,symbol ,dyadic-op ,index ,a2)
+			     `(apl-call ,symbol ,dyadic-op ,a2 ,index))))
+	       `(let ((,output (make-array (dims ,a1))))
+		  (across ,a1 (lambda (,index ,coords) (setf (apply #'aref ,output ,coords)
+							     (each-scalar t ,call))))
+		  ,output))))
       `(lambda (,omega &optional ,alpha)
 	 (declare (ignorable ,alpha))
 	 (each-scalar
