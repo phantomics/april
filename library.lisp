@@ -616,13 +616,13 @@
 	     (if ,romega (merge-arrays (each ,fn ,romega))
 		 (funcall ,fn ,omega)))))))
 
-(defmacro apply-to-power (op-right sym-left op-left)
+(defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic)
   (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (index (gensym)))
     `(lambda (,omega &optional ,alpha)
        (let ((,arg (disclose ,omega)))
 	 (loop :for ,index :below (disclose ,op-right)
-	    :do (setq ,arg (if ,alpha (apl-call ,sym-left ,op-left ,arg ,alpha)
-			       (apl-call ,sym-left ,op-left ,arg))))
+	    :do (setq ,arg (if ,alpha (apl-call ,sym-left ,left-function-dyadic ,arg ,alpha)
+			       (apl-call ,sym-left ,left-function-monadic ,arg))))
 	 ,arg))))
 
 (defmacro apply-until (sym-right op-right sym-left op-left)
