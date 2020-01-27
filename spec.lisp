@@ -860,7 +860,8 @@
   	    (is "(⍳5)+⍤1⊢1 5⍴⍳5" #2A((2 4 6 8 10)))
   	    (is "fn←{⍺+2×⍵} ⋄ 15 25 35 fn⍤1⊢2 2 3⍴⍳8" #3A(((17 29 41) (23 35 47)) ((29 41 37) (19 31 43))))))
   (⍣ (has :title "Power")
-     (pivotal (with-operand-derived (right-glyph right-function-dyadic left-glyph left-function-monadic)
+     (pivotal (with-operand-derived (right-glyph right-function-dyadic
+						 left-glyph left-function-monadic left-function-dyadic)
 		(lambda (right left)
 		  (let ((op-left (or left-function-monadic left)))
 		    ;; if the right operand is a function, it expresses the criteria for ending the
@@ -868,7 +869,7 @@
 		    ;; be a number counting the times the left function is to be compounded
 		    (if right-function-dyadic
 			`(apply-until ,right-glyph ,right-function-dyadic ,left-glyph ,op-left)
-			`(apply-to-power ,right ,left-glyph ,op-left))))))
+			`(apply-to-power ,right ,left-glyph ,left-function-monadic ,left-function-dyadic))))))
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
   	    (is "{2+⍵}⍣3⊢9" 15)
   	    (is "2{⍺×2+⍵}⍣3⊢9" 100)

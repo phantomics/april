@@ -894,7 +894,6 @@
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
-	 (to-store (rest (assoc :store options)))
 	 (meta (if (assoc :space options)
 		   (let ((meta-symbol (second (assoc :space options))))
 		     (if (hash-table-p meta-symbol)
@@ -914,7 +913,15 @@
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom meta))
-			    (process-lines remaining (append output (list (composer idiom meta out))))))))
+			    (process-lines remaining (append output (list (composer idiom meta out)))))))
+	     (store-items (type items-to-store)
+	       (loop :for item :in items-to-store
+		  :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first item))
+								"KEYWORD")
+							(gethash :variables meta))))
+			(if (not vdata) (setf vdata (gensym "V")))
+			(setf (gethash vdata (gethash type meta))
+			      (second item))))))
 
       (if (not (gethash :variables meta))
 	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
@@ -954,17 +961,8 @@
 	    system-to-use (assign-from (gethash :system meta) system-to-use)
 	    system-to-use (assign-from state system-to-use))
 
-      (if to-store
-	  (loop :for store-entry :in to-store
-	     :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first store-entry)) "KEYWORD")
-						   (gethash :variables meta))))
-		   (if (not vdata) (setf vdata (gensym "V")))
-		   (setf (gethash vdata (gethash (if (and (listp (second store-entry))
-							  (or (eql 'lambda (caadr store-entry))
-							      (eql 'function (caadr store-entry))))
-						     :functions :values)
-						 meta))
-			 (second store-entry)))))
+      (store-items :values (rest (assoc :store-val options)))
+      (store-items :functions (rest (assoc :store-fun options)))
       
       (if string
 	  (let* ((string (if (stringp string)
