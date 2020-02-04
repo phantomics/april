@@ -69,7 +69,7 @@ Some APL functions and operators won't be added to April since they don't make s
 
 A full guide to the APL language is far beyond the scope of this file, but here are links to some good sources.
 
-[A high-level introduction to APL.](http://vector.org.uk/art10011550)
+[A high-level introduction to APL.](http://archive.vector.org.uk/art10011550)
 
 [This is a detailed language tutorial covering most of the functions and operators in April.](http://microapl.com/APL/tutorial_contents.html)
 
