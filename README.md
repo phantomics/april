@@ -281,7 +281,7 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 #### :count-from
 
-Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1. In the code above, `⍳b` with `b` equal to 5 counts from 0 to 4, whereas with the default :count-from value of 1, `⍳b` would count from 1 to 5.
+Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1. In the code above, `⍳b` with `b` equal to 5 counts from 0 to 4, whereas with the default `:count-from` value of 1, `⍳b` would count from 1 to 5.
 
 #### :in
 
