@@ -8,7 +8,8 @@
 (defun is-unitary (value)
   "Check whether this array has only one member, returning true if the argument is not an array."
   (or (not (arrayp value))
-      (loop :for dim :in (dims value) :always (= 1 dim))))
+      (and (dims value)
+	   (loop :for dim :in (dims value) :always (= 1 dim)))))
 
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
