@@ -524,11 +524,58 @@
 							      (funcall ,op-right ,arg1 ,arg2)))
 							,op-left)))))))
 
+;; (defmacro apply-producing-outer (right-symbol right-operation)
+;;   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
+;; 	 (inverse (gensym)) (element (gensym)) (alpha (gensym)) (omega (gensym)) (a (gensym)) (o (gensym))
+;; 	 (placeholder (gensym)))
+;;     `(lambda (,omega ,alpha)
+;; 	   (if (is-unitary ,omega)
+;; 	       (if (is-unitary ,alpha)
+;; 		   (apl-call :fn ,op-right ,alpha ,omega)
+;; 		   (each-scalar t (aops:each (lambda (,element)
+;; 					       (let ((,a ,element)
+;; 						     (,o (disclose-unitary-array (disclose ,omega))))
+;; 						 (apl-call :fn ,op-right ,a ,o)))
+;; 					     ,alpha)))
+;; 	       (let ((,inverse (aops:outer (lambda (,o ,a)
+;; 					     (let ((,o (if (arrayp ,o) ,o (vector ,o)))
+;; 						   (,a (if (arrayp ,a) ,a (vector ,a))))
+;; 					       ',right-operation
+;; 					       (if (is-unitary ,o)
+;; 						   ;; swap arguments in case of a
+;; 						   ;; unitary omega argument
+;; 						   (let ((,placeholder ,a))
+;; 						     (setq ,a ,o
+;; 							   ,o ,placeholder)))
+;; 					       (each-scalar t (funcall
+;; 							       ;; disclose the output of
+;; 							       ;; user-created functions; otherwise
+;; 							       ;; fn←{⍺×⍵+1}
+;; 							       ;; 1 2 3∘.fn 4 5 6 (for example)
+;; 							       ;; will fail
+;; 							       ,(if (or (symbolp right-operation)
+;; 									(and (listp right-operation)
+;; 									     (eq 'scalar-function
+;; 										 (first right-operation))))
+;; 								    '#'disclose '#'identity)
+;; 							       (apl-call :fn ,op-right ,a ,o)))))
+;; 					   ,alpha ,omega)))
+;; 		 (each-scalar t (if (not (is-unitary ,alpha))
+;; 				    ,inverse (aops:permute (reverse (alexandria:iota
+;; 								     (rank ,inverse)))
+;; 							   ,inverse))))))))
+
 (defmacro apply-producing-outer (right-symbol right-operation)
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
 	 (inverse (gensym)) (element (gensym)) (alpha (gensym)) (omega (gensym)) (a (gensym)) (o (gensym))
 	 (placeholder (gensym)))
     `(lambda (,omega ,alpha)
+       (if (or (not (or (not (arrayp ,omega)) (not (arrayp ,alpha))
+			(dims ,omega) (dims ,alpha)))
+       	       (= 0 (size ,omega)) (= 0 (size ,alpha)))
+	   ;; if one argument to the derived function is an empty array, return the empty array
+       	   (if (or (not (dims ,omega)) (= 0 (size ,omega)))
+       	       ,omega ,alpha)
 	   (if (is-unitary ,omega)
 	       (if (is-unitary ,alpha)
 		   (apl-call :fn ,op-right ,alpha ,omega)
@@ -563,7 +610,7 @@
 		 (each-scalar t (if (not (is-unitary ,alpha))
 				    ,inverse (aops:permute (reverse (alexandria:iota
 								     (rank ,inverse)))
-							   ,inverse))))))))
+							   ,inverse)))))))))
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
 			    left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
