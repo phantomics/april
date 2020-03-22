@@ -1399,7 +1399,9 @@
 
 (defun array-impress (input &key (prepend nil) (append nil) (collate nil) (format nil))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."
-  (cond ((not (arrayp input))
+  (cond ((functionp input) "")
+	;; a function input produces an empty string
+	((not (arrayp input))
 	 (funcall (if format format #'write-to-string)
 		  input))
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is

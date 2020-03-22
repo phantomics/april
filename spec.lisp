@@ -1283,15 +1283,20 @@ c   2.56  3
 	      #(0 1 2 3 4 5 6 7 8) :test #'equalp))
    (let ((out-str (make-string-output-stream)))
      (princ (format nil "λ Printed output at given precisions.~%"))
-     (print-and-run (april-p (with (:state :print-to out-str :print-precision 3)) "○1 2 3"))
+     (print-and-run (april-f (with (:state :print-to out-str :print-precision 3)) "○1 2 3"))
      (is (get-output-stream-string out-str)
 	 "3.14 6.28 9.42
 ")
      (princ (format nil "~%"))
-     (print-and-run (april-p (with (:state :print-to out-str :print-precision 6)) "○1 2 3"))
+     (print-and-run (april-f (with (:state :print-to out-str :print-precision 6)) "○1 2 3"))
      (is (get-output-stream-string out-str)
 	 "3.14159 6.28319 9.42478
-"))
+")
+
+     (princ (format nil "~%λ Output of function definition (empty string).~%"))
+     (print-and-run (april-f (with (:state :print-to out-str)) "{⍵+3}"))
+     (is (get-output-stream-string out-str)
+	 ""))
    (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
 	  (multiple-value-bind (out1 out2)
 	      (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5))
@@ -1340,7 +1345,7 @@ c   2.56  3
 ")))
    (let* ((out-str (make-string-output-stream))
 	  (other-out-str (make-string-output-stream)))
-     (print-and-run (april-p "a←1 2 3 ⋄ ⎕ost←('APRIL' 'OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
+     (print-and-run (april-f "a←1 2 3 ⋄ ⎕ost←('APRIL' 'OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
 ⎕ost←('APRIL' 'OTHER-OUT-STR') ⋄ 3+a"))
      (princ (format nil "~%~%"))
      (is (print-and-run (get-output-stream-string out-str))

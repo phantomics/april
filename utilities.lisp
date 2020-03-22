@@ -15,6 +15,10 @@
 				    index-origin))
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 
+;; keep legacy april-p macro in place and usable in place of april-f
+(defmacro april-p (&rest args)
+  (cons 'april-f args))
+
 ;; these macros are shorthand for lambda definitions used in the spec; they make April's compiled code
 ;; more compact and comfortable to read
 (defmacro λω (&rest body)
