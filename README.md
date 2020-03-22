@@ -92,19 +92,19 @@ In order to write APL programs you'll need a way to use the language's special c
 [Click here for information on enabling APL input within Vim.](#enabling-apl-input-in-vim)
 
 
-## Basic Evaluation: (april) and (april-p)
+## Basic Evaluation: (april) and (april-f)
 
 Evaluating an APL expression is as simple as:
 
 ```lisp
-* (april-p "1+2 3 4")
+* (april-f "1+2 3 4")
 3 4 5
 #(3 4 5)
 ```
 
 As above, the * indicates a REPL prompt and the text below is the expression's output.
 
-The macro `(april-p)` will evaluate any APL string passed to it as the sole argument, returning the final result. Using `(april-p)` will also produce a printout of the output in APL's traditional array printing style, which appears before the actual output value. You can see above how the `3 4 5` is printed out before the value `#(3 4 5)`. APL-style printed arrays are easier to read than Lisp's style of printing arrays; APL can use a simpler style to express its output because it doesn't have as many different data types and structures as Lisp.
+The macro `(april-f)` (short for april-format) will evaluate any APL string passed to it as the sole argument, returning the final result. Using `(april-f)` will also produce a printout of the output in APL's traditional array printing style, which appears before the actual output value. You can see above how the `3 4 5` is printed out before the value `#(3 4 5)`. APL-style printed arrays are easier to read than Lisp's style of printing arrays; APL can use a simpler style to express its output because it doesn't have as many different data types and structures as Lisp.
 
 If you don't need to see the printout, you can use the plain `(april)` macro. Like this:
 
@@ -115,10 +115,10 @@ If you don't need to see the printout, you can use the plain `(april)` macro. Li
 
 You should use `(april)` if you're using April to do calculations inside of a larger program and don't need the printout. Otherwise, especially if you're working with large data sets, the system may consume significant resources printing out the results of calculations.
 
-Also note that if the output of an April expression is a single number, `(april-p)` will not print it since the Lisp representation of the number will look the same or very similar. For example:
+Also note that if the output of an April expression is a single number, `(april-f)` will not print it since the Lisp representation of the number will look the same or very similar. For example:
 
 ```lisp
-* (april-p "1+2")
+* (april-f "1+2")
 3
 ```
 
@@ -127,21 +127,21 @@ Since the result of 1+2 is 3, a single number, no value printout is provided.
 Setting state properties for the APL instance can be done like this:
 
 ```lisp
-* (april-p (with (:state :count-from 0)) "⍳9")
+* (april-f (with (:state :count-from 0)) "⍳9")
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
 
-Instead of an APL string, the first argument to `(april)` or `(april-p)` may be a list of parameters for the APL environment. The APL expression is then passed in the second argument.
+Instead of an APL string, the first argument to `(april)` or `(april-f)` may be a list of parameters for the APL environment. The APL expression is then passed in the second argument.
 
 For example, you can use the `:count-from` parameter to determine whether the APL instance will start counting from 0 or 1. We'll get into more detail on how these parameters work later.
 
 ```lisp
-* (april-p (with (:state :count-from 1)) "⍳9")
+* (april-f (with (:state :count-from 1)) "⍳9")
 1 2 3 4 5 6 7 8 9
 #(1 2 3 4 5 6 7 8 9)
 
-* (april-p (with (:state :count-from 0)) "⍳9")
+* (april-f (with (:state :count-from 0)) "⍳9")
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
@@ -149,35 +149,35 @@ For example, you can use the `:count-from` parameter to determine whether the AP
 More APL expressions:
 
 ```lisp
-* (april-p "⍳12")
+* (april-f "⍳12")
 1 2 3 4 5 6 7 8 9 10 11 12
 #(1 2 3 4 5 6 7 8 9 10 11 12)
 
-* (april-p "3 4⍴⍳12")
+* (april-f "3 4⍴⍳12")
 1  2  3  4
 5  6  7  8
 9 10 11 12
 #2A((1 2 3 4) (5 6 7 8) (9 10 11 12))
 
-* (april-p "+/3 4⍴⍳12")
+* (april-f "+/3 4⍴⍳12")
 10 26 42
 #(10 26 42)
 
-* (april-p "+⌿3 4⍴⍳12")
+* (april-f "+⌿3 4⍴⍳12")
 15 18 21 24
 #(15 18 21 24)
 
-* (april-p "+/[1]3 4⍴⍳12")
+* (april-f "+/[1]3 4⍴⍳12")
 15 18 21 24
 #(15 18 21 24)
 
-* (april-p "⌽3 4⍴⍳12")
+* (april-f "⌽3 4⍴⍳12")
  4  3  2 1
  8  7  6 5
 12 11 10 9
 #2A((4 3 2 1) (8 7 6 5) (12 11 10 9))
 
-* (april-p "1⌽3 4⍴⍳12")
+* (april-f "1⌽3 4⍴⍳12")
  2  3  4 1
  6  7  8 5
 10 11 12 9
@@ -232,16 +232,16 @@ Note that you must use backslashes to escape double quotes used within Lisp stri
 
 ## Parameter reference
 
-When `(april)` or `(april-p)` is called, you may pass it either a single text string:
+When `(april)` or `(april-f)` is called, you may pass it either a single text string:
 
 ```lisp
-* (april-p "1+1 2 3")
+* (april-f "1+1 2 3")
 ```
 
 Or a parameter object followed by a text string:
 
 ```lisp
-* (april-p (with (:state :count-from 0)) "⍳9")
+* (april-f (with (:state :count-from 0)) "⍳9")
 ```
 
 This section details the parameters you can pass to April.
@@ -288,7 +288,7 @@ Sets the index from which April counts. Almost always set to 0 or 1. The default
 Passes variables into the April instance that may be used when evaluating the subsequent expressions. In the example above, the variables `a` and `b` are set in the code, with values 1 and 2 respectively. You can use `:in` to pass values from Lisp into the April instance.
 
 ```lisp
-* (april-p (with (:state :in ((a 5) (b 10))))
+* (april-f (with (:state :in ((a 5) (b 10))))
            "1+2+a×b")
 53
 ```
@@ -313,7 +313,7 @@ true! this->that pass/fail? var.name
 If you use dashes in the names of Lisp variables you pass into April, note that inside April they will be converted to camel case. For example:
 
 ```lisp
-* (april-p (with (:state :in ((one-var 2)
+* (april-f (with (:state :in ((one-var 2)
                               (other-var 5))))
            "oneVar×otherVar+5")
 20
@@ -333,7 +333,7 @@ my-var-∆ → myVar∆
 Lists variables to be output when the code has finished evaluating. By default, the value of the last evaluated expression is passed back after an April evaluation is finished. For example:
 
 ```lisp
-* (april-p "1+2
+* (april-f "1+2
             2+3
             3+4")
 7
@@ -342,7 +342,7 @@ Lists variables to be output when the code has finished evaluating. By default, 
 The last value calculated is displayed. The `:out` sub-parameter allows you to list a set of variables that whose values will be returned once evaluation is complete. For example:
 
 ```lisp
-* (april-p (with (:state :out (a b c)))
+* (april-f (with (:state :out (a b c)))
            "a←9+2
             b←5+3
             c←2×9")
@@ -356,7 +356,7 @@ The last value calculated is displayed. The `:out` sub-parameter allows you to l
 This is another, more technical name for the `:count-from` sub-parameter. You can use it instead of `:count-from`:
 
 ```lisp
-* (april-p (with (:state :index-origin 0)) "⍳9")
+* (april-f (with (:state :index-origin 0)) "⍳9")
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
 ```
@@ -366,15 +366,15 @@ This is another, more technical name for the `:count-from` sub-parameter. You ca
 This controls the maximal precision at which April prints floating point numbers. Its default value is 10. For example:
 
 ```lisp
-* (april-p "○1 2 3")
+* (april-f "○1 2 3")
 3.141592654 6.283185307 9.424777961	
 #(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 
-* (april-p (with (:state :print-precision 6)) "○1 2 3")
+* (april-f (with (:state :print-precision 6)) "○1 2 3")
 3.14159 6.28319 9.42478
 #(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 
-* (april-p (with (:state :print-precision 3)) "○1 2 3")
+* (april-f (with (:state :print-precision 3)) "○1 2 3")
 3.14 6.28 9.42
 #(3.141592653589793d0 6.283185307179586d0 9.42477796076938d0)
 ```
@@ -383,7 +383,7 @@ Note that `:print-precision` doesn't affect the Lisp values output by April, onl
 
 #### :print-to
 
-When using `(april-p)`, the formatted array content is output to the `*standard-output*` stream. When using `(april)`, no formatted output is printed. You can change this using the `:print-to` sub-parameter. For example:
+When using `(april-f)`, the formatted array content is output to the `*standard-output*` stream. When using `(april)`, no formatted output is printed. You can change this using the `:print-to` sub-parameter. For example:
 
 ```lisp
 * (april (with (:state :print-to *standard-output*)) "2 3⍴⍳9")
@@ -391,11 +391,11 @@ When using `(april-p)`, the formatted array content is output to the `*standard-
 4 5 6
 #2A((1 2 3) (4 5 6))
 
-* (april-p (with (:state :print-to nil)) "2 3⍴⍳9")
+* (april-f (with (:state :print-to nil)) "2 3⍴⍳9")
 #2A((1 2 3) (4 5 6))
 ```
 
-Using the `:print-to` parameter effectively erases the distinction between `(april)` and `(april-p)`. The two different macros are provided as a courtesy so you don't need to pass a `:print-to` parameter to get printed output. You can also pass a different stream than `*standard-output*` to `:print-to` to have the printed output directed there.
+Using the `:print-to` parameter effectively erases the distinction between `(april)` and `(april-f)`. The two different macros are provided as a courtesy so you don't need to pass a `:print-to` parameter to get printed output. You can also pass a different stream than `*standard-output*` to `:print-to` to have the printed output directed there.
 
 #### :output-printed
 
@@ -425,13 +425,13 @@ This way, the formatted string will be the only returned value.
 If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the `(:space)` parameter. For example:
 
 ```lisp
-* (april-p (with (:space *space1*)) "a←5+2 ⋄ b←3×9")
+* (april-f (with (:space *space1*)) "a←5+2 ⋄ b←3×9")
 27
 
-* (april-p (with (:space *space1*)) "c←{⍵+2}")
+* (april-f (with (:space *space1*)) "c←{⍵+2}")
 #<FUNCTION ... >
 
-* (april-p (with (:space *space1*)) "c a+b")
+* (april-f (with (:space *space1*)) "c a+b")
 36
 ```
 
@@ -444,15 +444,15 @@ You can use the `(:state-persistent)` parameter to set state values within the w
 For example:
 
 ```lisp
-* (april-p (with (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
+* (april-f (with (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
 0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
-* (april-p (with (:space *space1*)) "⍳7")
+* (april-f (with (:space *space1*)) "⍳7")
 0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
-* (april-p (with (:space *space2*)) "⍳7")
+* (april-f (with (:space *space2*)) "⍳7")
 1 2 3 4 5 6 7
 #(1 2 3 4 5 6 7)
 ```
@@ -465,7 +465,7 @@ You can use `(:state-persistent)` to set persistent input variables that will st
 * (defvar *dynamic-var* 2)
 *DYNAMIC-VAR*
 
-* (april-p (with (:state-persistent :in ((dyn-var *dynamic-var*)))
+* (april-f (with (:state-persistent :in ((dyn-var *dynamic-var*)))
                  (:space *space1*))
            "dynVar⍟512")
 9.0
@@ -473,7 +473,7 @@ You can use `(:state-persistent)` to set persistent input variables that will st
 * (setq *dynamic-var* 8)
 8
 
-* (april-p (with (:space *space1*)) "dynVar⍟512")
+* (april-f (with (:space *space1*)) "dynVar⍟512")
 3.0
 ```
 
@@ -543,7 +543,7 @@ Options passed for one of the `(april)` invocations inside the context will over
 
 ## Console Output Using the Quad Character
 
-The `(april-p)` macro is one way to view the printed output of APL expressions. What if you want to see the result of an evaluation that occurs in the middle of your code instead of the end, or if you want to print the contents of multiple arrays within a single expression? At times like these, you can use the `⎕` character, also called "quad." In APL, console output can be produced by "assigning" values to `⎕` like this:
+The `(april-f)` macro is one way to view the printed output of APL expressions. What if you want to see the result of an evaluation that occurs in the middle of your code instead of the end, or if you want to print the contents of multiple arrays within a single expression? At times like these, you can use the `⎕` character, also called "quad." In APL, console output can be produced by "assigning" values to `⎕` like this:
 
 ```lisp
 * (april "a←1 2 3 ⋄ b←3+⎕←2+a ⋄ ⎕←c←4+b ⋄ c+5")
@@ -552,7 +552,7 @@ The `(april-p)` macro is one way to view the printed output of APL expressions. 
 #(15 16 17)
 ```
 
-Both of the values assigned to `⎕` are printed in order before the expression's final result is output. Because `(april)` is used instead of `(april-p)`, no formatted values are printed by default; only the values assigned to `⎕` are printed. Using `⎕`, it's easy to debug complex functions.
+Both of the values assigned to `⎕` are printed in order before the expression's final result is output. Because `(april)` is used instead of `(april-f)`, no formatted values are printed by default; only the values assigned to `⎕` are printed. Using `⎕`, it's easy to debug complex functions.
 
 ## APL System Variables and Functions in April
 
@@ -572,11 +572,11 @@ Additionally, April exposes this special system variable not found in other APL 
 
 ## Setting a Custom Output Stream
 
-April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-p)` or values assigned to the quad character like `⎕←1 2 3` are sent to the `*standard-output*` stream. You can change this as follows:
+April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-f)` or values assigned to the quad character like `⎕←1 2 3` are sent to the `*standard-output*` stream. You can change this as follows:
 
 ```lisp
 * (let* ((out-str (make-string-output-stream))
-	 (vector (april-p "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'*STANDARD-OUTPUT*' ⋄ 3+a")))
+	 (vector (april-f "a←1 2 3 ⋄ ⎕ost←'OUT-STR' ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ ⎕ost←'*STANDARD-OUTPUT*' ⋄ 3+a")))
     (princ (get-output-stream-string out-str))
     vector)
 4 5 6
@@ -585,7 +585,7 @@ April has a special system variable called `⎕ost` that you can use to set a cu
 #(4 5 6)
 ```
 
-Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-p)` expression is printed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-p)` expression is printed.
+Within the APL expression, the output stream is set to `OUT-STR`, two vectors are output to that stream, and then the stream is reset to `*STANDARD-OUTPUT*` before the expression ends and prints its final output. When the code runs, first the APL-formatted output from the `(april-f)` expression is printed. Then, the two APL-formatted strings output to the `out-str` stream are printed. Finally, the Lisp vector that resulted from the `(april-f)` expression is printed.
 
 Remember to use all caps when setting the `⎕ost` variable, unless your desired output stream is referenced by a literal lowercase symbol like `|output-stream|`.
 
@@ -596,7 +596,7 @@ The syntax above assumes that the symbol representing the output stream is inter
 
 (defvar out-str (make-string-output-stream))
 
-(april-p "⎕ost←'OUT-STR' ⋄ 5+10")
+(april-f "⎕ost←'OUT-STR' ⋄ 5+10")
 ```
 
 In this code, the `OUT-STR` output stream is interned in the package `PKG-ONE`. What if you want to use an output stream whose symbol belongs to a package other than the current one?
@@ -608,7 +608,7 @@ In this code, the `OUT-STR` output stream is interned in the package `PKG-ONE`. 
 
 (in-package #:pkg-two)
 
-(april-p "⎕ost←('PKG-ONE''OUT-STR') ⋄ 5+10")
+(april-f "⎕ost←('PKG-ONE''OUT-STR') ⋄ 5+10")
 ```
 
 If you assign to `⎕ost` a vector of two strings, the first string is the name of a package and the second string is the name of a symbol belonging to that package. In this way, you can reference an output stream whose symbol is interned in a package other than the current one.

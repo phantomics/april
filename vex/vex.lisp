@@ -368,7 +368,6 @@
 						    :collect `(funcall (function ,pset) ,idiom-symbol))))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
 	   (printout-sym (concatenate 'string symbol-string "-F"))
-	   (legacy-printout-sym (concatenate 'string symbol-string "-P"))
 	   (inline-sym (concatenate 'string symbol-string "-C"))
 	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
 	   (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym)))
@@ -459,17 +458,6 @@
 			  (&rest ,options)
 			;; an alternate evaluation macro that prints formatted evaluation results
 			;; as well as returning them
-			(cons ',(intern symbol-string (symbol-package symbol))
-			      (append (if (second ,options)
-					  (list (cons (caar ,options)
-						      (merge-options `((:state :print t))
-								     (cdar ,options))))
-					  `((with (:state :print t))))
-				      (last ,options))))
-		      (defmacro ,(intern legacy-printout-sym (symbol-package symbol))
-			  (&rest ,options)
-			;; old printout symbol ending with "-p"; retired from documentation because of
-			;; possible confusion with Lisp's convention of using "p" suffixes for predicate functions
 			(cons ',(intern symbol-string (symbol-package symbol))
 			      (append (if (second ,options)
 					  (list (cons (caar ,options)
