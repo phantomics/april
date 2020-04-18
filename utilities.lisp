@@ -93,12 +93,17 @@
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym)))
     `(let* ((,result ,form)
-	    (,printout ,(if (or (getf options :print-to)
-				(getf options :output-printed))
-			    `(matrix-print ,result :append #\Newline
-					   :format (lambda (n) (print-apl-number-string
-								n t ,(getf options :print-precision)))))))
-       (declare (ignorable ,printout))
+	    (,printout ,(if (and (or (getf options :print-to)
+				     (getf options :output-printed)))
+			    ;; don't print the results of assignment unless the :print-assignment option is set,
+			    ;; as done when compiling a ⎕← expression
+			    (if (and (listp form)
+				     (eql 'apl-assign (first form))
+				     (not (getf options :print-assignment)))
+				"" `(matrix-print ,result :append #\Newline
+						  :format (lambda (n) (print-apl-number-string
+								       n t ,(getf options :print-precision))))))))
+       (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if (getf options :print-to)
 	    (let ((string-output `(write-string ,printout ,(getf options :print-to))))

@@ -400,10 +400,24 @@
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))
     `(lambda (,omega)
-       (disclose-atom (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,a ,o))
-			       ,(if axes `(- ,(first axes) index-origin)
-				    (if first-axis 0 `(1- (rank ,omega))))
-			       :reduce t :in-reverse t)))))
+       (if (or (equalp #0A0 ,omega)
+	       (= 0 (size ,omega)))
+	   ;; if reducing an empty array, return the identity operator for compatible lexical functions
+	   ,(cond ((eql operation-symbol '+) 0)
+		  ((eql operation-symbol '-) 0)
+		  ((eql operation-symbol '×) 1)
+		  ((eql operation-symbol '÷) 1)
+		  ((eql operation-symbol '⋆) 1)
+		  ((eql operation-symbol '*) 1)
+		  ((or (eql operation-symbol '⌈)
+		       (eql operation-symbol '⌊))
+		   '(error
+		     "Infinity values as a return for min/max reduction of empty array are not yet implemented."))
+		  (t '(error "Invalid function for reduction of empty array.")))
+	   (disclose-atom (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,a ,o))
+				   ,(if axes `(- ,(first axes) index-origin)
+					(if first-axis 0 `(1- (rank ,omega))))
+				   :reduce t :in-reverse t))))))
 
 (defmacro apply-scanning (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))
@@ -608,8 +622,7 @@
 							       (apl-call :fn ,op-right ,a ,o)))))
 					   ,alpha ,omega)))
 		 (each-scalar t (if (not (is-unitary ,alpha))
-				    ,inverse (aops:permute (reverse (alexandria:iota
-								     (rank ,inverse)))
+				    ,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
 							   ,inverse)))))))))
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
