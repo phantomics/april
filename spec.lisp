@@ -713,9 +713,9 @@
 	    (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator)))
+
  ;; APL's character-represented operators, which take one or two functions or arrays as input
  ;; and generate a function
-
  (operators
   (with (:name :lexical-operators-lateral)
 	(:tests-profile :title "Lateral Operator Tests")
@@ -730,7 +730,9 @@
 	    (is "-/3 4⍴⍳12" #(-2 -2 -2))
 	    (is "+/[1]3 4⍴⍳12" #(15 18 21 24))
 	    (is "fn←{⍺+⍵} ⋄ fn/1 2 3 4 5" 15)
-	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)))
+	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)
+	    (is "+/⍬" 0)
+	    (is "×/⍬" 1)))
   (⌿ (has :title "Reduce First")
      (lateral (with-operand-derived (left-glyph left-function-dyadic)
 		(lambda (axes) `(apply-reducing ,left-glyph ,left-function-dyadic ,axes t))))
@@ -1274,7 +1276,8 @@ c   2.56  3
 ")
   (for-printed "Stacked floats with negative value under 1." "⍪¯0.75 1.25" "¯0.75
  1.25
-"))
+")
+  (for-printed "Output of variable assignment (should be empty)." "x←1" ""))
 
  (arbitrary-test-set
   (with (:name :output-specification-tests)
@@ -1343,6 +1346,18 @@ c   2.56  3
 	    (is (print-and-run (get-output-stream-string out-str))
 		"6 7 8
 3 4 5
+")))
+   (progn (princ (format nil "λ Printed output of a variable assignment preceded by ⎕←.~%"))
+	  (let* ((out-str (make-string-output-stream))
+		 (vector (print-and-run (april (with (:state :print-to out-str))
+					       "⎕←x←1 2 3"))))
+
+	    (is vector #(1 2 3) :test #'equalp)
+
+	    (princ (format nil "~%"))
+	    
+	    (is (print-and-run (get-output-stream-string out-str))
+		"1 2 3
 ")))
    (let* ((out-str (make-string-output-stream))
 	  (other-out-str (make-string-output-stream)))

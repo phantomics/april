@@ -252,7 +252,7 @@
 	      nil))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
-	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream))
+	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream :print-assignment t))
 	  ((eql 'output-stream symbol)
 	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
 	   ;; is interned in the current working package
