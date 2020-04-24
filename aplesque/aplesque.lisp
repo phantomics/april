@@ -752,7 +752,7 @@
 	       (let ((coords))
 		 (across compare-by (lambda (found indices)
 				      (if (char= found item)
-					  (setq coords indices))))
+					  (setq coords (loop :for i :in indices :collect i)))))
 		 (make-array (list (length coords))
 			     :initial-contents (reverse coords))))
 	     input))
@@ -832,7 +832,8 @@
 	  (loop :for match :in (let ((match-coords))
 				 (across input (lambda (element coords)
 						 (if (equal element target-head)
-						     (setq match-coords (cons coords match-coords)))))
+						     (let ((ccoords (loop :for c :in coords :collect c)))
+						       (setq match-coords (cons ccoords match-coords))))))
 				 match-coords)
 	     :do (let ((target-index 0)
 		       (target-matched t)
@@ -854,30 +855,90 @@
 		       (incf (apply #'aref output match)))))
 	  output))))
 
-(defun across (input function &key elements indices reverse-axes (dimensions (dims input)))
+;; (defun across (input function &key elements indices reverse-axes (dimensions (dims input)))
+;;   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
+;;   ;; (print indices)
+;;   (let* ((proceeding t)
+;; 	 (first-of-elements (first elements))
+;; 	 (this-range (if (listp first-of-elements)
+;; 			 first-of-elements (list first-of-elements))))
+;;     (loop :for elix :in (funcall (if (and reverse-axes (member (or (length indices) 0) reverse-axes))
+;; 		    		     #'reverse #'identity)
+;; 		    		 (if this-range this-range (iota (nth (length indices) dimensions))))
+;;        :while proceeding
+;;        :do (let ((coords (append indices (list elix))))
+;; 	     ;; if the halt-if-true value is output by the function, traversal across the array will end
+;; 	     ;; by means of nullifying the proceeding variable; this will result in a nil return value
+;; 	     ;; from the across function which will stop its recursive parents
+;; 	     (if (< (length indices) (1- (length dimensions)))
+;; 		 (if (not (across input function :dimensions dimensions :elements (rest elements)
+;; 				  :indices coords :reverse-axes reverse-axes))
+;; 		     (setq proceeding nil))
+;; 		 (multiple-value-bind (output halt-if-true)
+;; 		     (funcall function (apply #'aref input coords)
+;; 			      coords)
+;; 		   (declare (ignore output))
+;; 		   (if halt-if-true (setq proceeding nil))))))
+;;     proceeding))
+
+;; (defun across-2 (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
+;;   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
+;;   (let* ((proceeding t)
+;; 	 (indices (or indices (make-array (list (rank input))
+;; 					  :element-type (list 'integer 0 (reduce #'max dimensions)))))
+;; 	 (first-of-elements (first elements))
+;; 	 (this-range (if (listp first-of-elements)
+;; 			 first-of-elements (list first-of-elements))))
+;;     (flet ((process-this (elix)
+;; 	     (setf (aref indices depth) elix)
+;; 	     (if (< depth (1- (rank input)))
+;; 		 ;; if the halt-if-true value is output by the function, traversal across the array will end
+;; 		 ;; by means of nullifying the proceeding variable; this will result in a nil return value
+;; 		 ;; from the across function which will stop its recursive parents
+;; 		 (if (not (across-2 input function :dimensions dimensions :elements (rest elements)
+;; 				    :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
+;; 		     (setq proceeding nil))
+;; 		 (multiple-value-bind (output halt-if-true)
+;; 		     (funcall function (apply #'aref input (loop :for i :across indices :collect i))
+;; 			      indices)
+;; 		   (declare (ignore output))
+;; 		   (if halt-if-true (setq proceeding nil))))))
+;;       ;; (print (list :ii indices reverse-axes))
+;;       (if this-range
+;; 	  (loop :for el :in this-range :while proceeding :do (process-this el))
+;; 	  (if (member depth reverse-axes)
+;; 	      (loop :for el :from (1- (nth depth dimensions)) :downto 0 :while proceeding :do (process-this el))
+;; 	      (loop :for el :from 0 :to (1- (nth depth dimensions)) :while proceeding :do (process-this el))))
+;;       proceeding)))
+
+(defun across (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
   (let* ((proceeding t)
+	 (indices (or indices (loop :for i :below (rank input) :collect 0)))
 	 (first-of-elements (first elements))
 	 (this-range (if (listp first-of-elements)
 			 first-of-elements (list first-of-elements))))
-    (loop :for elix :in (funcall (if (and reverse-axes (member (or (length indices) 0) reverse-axes))
-				     #'reverse #'identity)
-				 (if this-range this-range (iota (nth (length indices) dimensions))))
-       :while proceeding
-       :do (let ((coords (append indices (list elix))))
-	     ;; if the halt-if-true value is output by the function, traversal across the array will end
-	     ;; by means of nullifying the proceeding variable; this will result in a nil return value
-	     ;; from the across function which will stop its recursive parents
-	     (if (< (length indices) (1- (length dimensions)))
-		 (if (not (across input function :dimensions dimensions :elements (rest elements)
-				  :indices coords :reverse-axes reverse-axes))
+    (flet ((process-this (elix)
+	     (setf (nth depth indices) elix)
+	     (if (< depth (1- (rank input)))
+		 ;; if the halt-if-true value is output by the function, traversal across the array will end
+		 ;; by means of nullifying the proceeding variable; this will result in a nil return value
+		 ;; from the across function which will stop its recursive parents
+		 (if (not (across-3 input function :dimensions dimensions :elements (rest elements)
+				    :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
 		     (setq proceeding nil))
 		 (multiple-value-bind (output halt-if-true)
-		     (funcall function (apply #'aref input coords)
-			      coords)
+		     (funcall function (apply #'aref input indices)
+			      indices)
 		   (declare (ignore output))
 		   (if halt-if-true (setq proceeding nil))))))
-    proceeding))
+      ;; (print (list :ii indices reverse-axes))
+      (if this-range
+	  (loop :for el :in this-range :while proceeding :do (process-this el))
+	  (if (member depth reverse-axes)
+	      (loop :for el :from (1- (nth depth dimensions)) :downto 0 :while proceeding :do (process-this el))
+	      (loop :for el :from 0 :to (1- (nth depth dimensions)) :while proceeding :do (process-this el))))
+      proceeding)))
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
