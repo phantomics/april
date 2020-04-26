@@ -49,6 +49,7 @@
   (let ((output (make-array (cons 1 (dims input))
 			    :element-type (element-type input))))
     (across input (lambda (elem coords)
+		    (declare (dynamic-extent elem coords))
 		    (setf (apply #'aref output 0 coords)
 			  elem)))
     output))
@@ -171,6 +172,7 @@
   "Iterate over an array/arrays of scalar values, performing operations upon them that will result in boolean values to be returned in an array with the same shape as the input array(s)."
   (let ((output (make-array (dims omega) :element-type 'bit :initial-element 0)))
     (across omega (lambda (elem coords)
+		    (declare (dynamic-extent elem coords))
 		    (if (= 1 (funcall test elem coords))
 			(setf (apply #'aref output coords)
 			      1))))
@@ -182,6 +184,7 @@
 	(output (make-array (dims omega))))
     (if (not (arrayp omega))
 	omega (progn (across omega (lambda (elem coords)
+				     (declare (dynamic-extent elem coords))
 				     (let ((result (if (eq t function)
 						       elem (funcall function elem coords))))
 				       (if type (if (not (typep result type))
@@ -202,6 +205,7 @@
 			     omega output)
 			 (let ((true-output (make-array (dims omega) :element-type type)))
 			   (across output (lambda (elem coords)
+					    (declare (dynamic-extent elem coords))
 					    (setf (apply #'aref true-output coords)
 						  elem)))
 			   true-output))))))
@@ -223,6 +227,7 @@
 		    :always (= (nth d dims1) (nth d dims2)))))
 	  (let ((match t))
 	    (across item1 (lambda (item coords)
+			    (declare (dynamic-extent item coords))
 			    (let ((alternate (apply #'aref item2 coords)))
 			      (setq match (and match (or (and (arrayp item) (arrayp alternate)
 							      (array-compare item alternate))
@@ -267,41 +272,39 @@
 	     ;; the appropriate output cells; otherwise do the inverse, iterating over output and copying from the
 	     ;; corresponding input cells
 	     (output (make-array (mapcar (lambda (outdim indim)
-					   (if (not inverse)
-					       (abs outdim) (- indim (abs outdim))))
+					   (if (not inverse) (abs outdim) (- indim (abs outdim))))
 					 dimensions idims)
 				 :initial-element (if fill-with fill-with (apl-default-element input))
-				 :element-type (element-type input))))
+				 :element-type (element-type input)))
+	     (tcoords (loop :for i :in dimensions :collect 0)))
 	(across (if input-smaller input output)
 		(lambda (element coords)
-		  (declare (ignore element))
-		  (let* ((coord t)
-			 (target (loop :for c :below (length coords) :while coord
-				    :collect (let ((cx (nth c coords))
-						   (ix (nth c idims))
-						   (ox (nth c dimensions)))
-					       (declare (dynamic-extent cx ix ox))
-					       (setq coord (cond ((and inverse (> 0 ox))
-								  (if (< cx (+ ox ix))
-								      cx))
-								 (inverse (if (> ix (+ cx ox))
-									      (+ cx ox)))
-								 ((> 0 ox)
-								  (if input-smaller
-								      (if (>= cx (+ ox ix))
-									  (- cx (+ ox ix))
-									  cx)
-								      (if (<= cx (+ ox ix))
-									  (+ cx ix ox)
-									  cx)))
-								 (t (if (and (< cx ox)
-									     (< cx ix))
-									cx))))))))
-		    (declare (dynamic-extent coord target))
+		  (declare (ignore element) (dynamic-extent coords))
+		  (let* ((coord t))
+		    (declare (dynamic-extent coord))
+		    (loop :for c :below (length coords) :while coord :counting c :into cix
+		       :do (setf (nth (1- cix) tcoords)
+				 (let ((cx (nth c coords))
+				       (ix (nth c idims))
+				       (ox (nth c dimensions)))
+				   (setq coord (cond ((and inverse (> 0 ox))
+						      (if (< cx (+ ox ix))
+							  cx))
+						     (inverse (if (> ix (+ cx ox))
+								  (+ cx ox)))
+						     ((> 0 ox)
+						      (if input-smaller (if (>= cx (+ ox ix))
+									    (- cx (+ ox ix))
+									    cx)
+							  (if (<= cx (+ ox ix))
+							      (+ cx ix ox)
+							      cx)))
+						     (t (if (and (< cx ox) (< cx ix))
+							    cx)))))))
 		    (if coord (setf (apply #'aref output (if (or inverse (not input-smaller))
-							     coords target))
+							     coords tcoords))
 				    (apply #'aref input (if (or inverse (not input-smaller))
-							    target coords)))))))
+							    tcoords coords)))))))
 	(disclose output))))
 
 (defun catenate (a1 a2 axis)
@@ -320,20 +323,22 @@
 			     match-dims)
 			 :element-type (type-of item)
 			 :initial-element item)))
-	 (join (array1 array2)
+	 (join (array1 array2 jcoords)
 	   (let ((output (make-array (loop :for dim :in (dims array1) :counting dim :into dx
 					:collect (if (/= axis (1- dx))
 						     dim (+ dim (nth (1- dx) (dims array2)))))
 				     :element-type (type-in-common (element-type array1)
 								   (element-type array2)))))
 	     (across array1 (lambda (elem coords)
+			      (declare (dynamic-extent elem coords))
 			      (setf (apply #'aref output coords)
 				    elem)))
 	     (across array2 (lambda (elem coords)
-			      (setf (apply #'aref output
-					   (loop :for coord :in coords :counting coord :into cx
-					      :collect (if (/= axis (1- cx))
-							   coord (+ coord (nth axis (dims array1))))))
+			      (declare (dynamic-extent elem coords))
+			      (loop :for coord :in coords :counting coord :into cx
+				 :do (setf (nth (1- cx) jcoords)
+					   (if (/= axis (1- cx)) coord (+ coord (nth axis (dims array1))))))
+			      (setf (apply #'aref output jcoords)
 				    elem)))
 	     output)))
     (if (and (not (arrayp a1))
@@ -341,12 +346,11 @@
 	(make-array '(2) :element-type (type-in-common (assign-element-type a1)
 						       (assign-element-type a2))
 		    :initial-contents (list a1 a2))
-	(let* ((a1 (if (arrayp a1)
-		       a1 (scalar-to-array a1 a2 axis)))
-	       (a2 (if (arrayp a2)
-		       a2 (scalar-to-array a2 a1 axis))))
+	(let* ((a1 (if (arrayp a1) a1 (scalar-to-array a1 a2 axis)))
+	       (a2 (if (arrayp a2) a2 (scalar-to-array a2 a1 axis)))
+	       (jcoords (loop :for i :below (max (rank a1) (rank a2)) :collect 0)))
 	  (if (= (rank a1) (rank a2))
-	      (join a1 a2)
+	      (join a1 a2 jcoords)
 	      (let* ((lesser-first (< (rank a1) (rank a2)))
 		     (lesser (if lesser-first a1 a2))
 		     (greater (if lesser-first a2 a1))
@@ -354,7 +358,7 @@
 		     (grank (rank greater))
 		     (ldims (dims lesser))
 		     (lrank (rank lesser)))
-		(declare (dynamic-extent lesser-first lesser greater gdims grank ldims lrank))
+		(declare (dynamic-extent lesser-first))
 		(if (and (= 1 (- grank lrank))
 			 (if (= 1 lrank)
 			     (= (first ldims) (nth (- 1 axis) gdims))
@@ -364,7 +368,8 @@
 								      (= (nth ix ldims)
 									 (nth ix compare-dims)))))))
 		    (join (if lesser-first (upgrade a1) a1)
-			  (if lesser-first a2 (upgrade a2)))
+			  (if lesser-first a2 (upgrade a2))
+			  jcoords)
 		    (error "Incompatible arrays."))))))))
 
 (defun laminate (a1 a2 axis)
@@ -380,7 +385,6 @@
 	   (pa2 (if (not (is-unitary a2))
 		    (aops:permute (rotate-right axis permute-dims)
 				  (array-promote a2)))))
-      (declare (dynamic-extent permute-dims pa1 pa2))
       ;; a 1-element array argument to laminate is scaled to
       ;; match the other array's dimensions
       (catenate (if (is-unitary a1)
@@ -410,10 +414,8 @@
 		  (nth axis (dims input))))
 	 (error (concatenate 'string "Attempting to expand elements across array but "
 			     "positive degrees are not equal to length of selected input axis.")))
-	(t (let* ((degrees (if (arrayp degrees)
-			       degrees (vector degrees)))
-		  (input (if (arrayp input)
-			     input (vector input)))
+	(t (let* ((degrees (if (arrayp degrees) degrees (vector degrees)))
+		  (input (if (arrayp input) input (vector input)))
 		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
 		  (c-degrees (make-array (list (length degrees))
 					 :element-type 'fixnum :initial-element 0))
@@ -424,13 +426,14 @@
 									:element-type 'fixnum
 									:initial-contents positive-index-list)))
 		  (ex-dim))
-	     (declare (dynamic-extent c-degrees positive-index-list positive-indices ex-dim))
+	     (declare (dynamic-extent ex-dim))
 	     (loop :for degree :across degrees :counting degree :into dx
 		:summing (max (abs degree)
 			      (if compress-mode 0 1))
 		:into this-dim :do (setf (aref c-degrees (1- dx)) this-dim)
 		:finally (setq ex-dim this-dim))
-	     (let ((output (make-array (loop :for dim :in (dims input) :counting dim :into index
+	     (let ((ocoords (loop :for i :below (rank input) :collect 0))
+		   (output (make-array (loop :for dim :in (dims input) :counting dim :into index
 					  :collect (if (= 1 (length degrees))
 						       (if (/= axis (1- index))
 							   dim (* dim (aref degrees 0)))
@@ -449,28 +452,25 @@
 		     (loop :for degree :below (length degrees)
 			:do (let ((this-degree (aref degrees degree)))
 			      (loop :for ix :below this-degree
-				 :do (setf (aref output (+ ix (if (= 0 degree)
-								  0 (aref c-degrees (1- degree)))))
+				 :do (setf (aref output (+ ix (if (= 0 degree) 0 (aref c-degrees (1- degree)))))
 					   value)))))
 		   (across input
 			   (lambda (elem coords)
+			     (declare (dynamic-extent elem coords))
 			     (let* ((exc (nth axis coords))
 				    (dx (if compress-mode exc (aref positive-indices exc)))
 				    (this-degree (if (= 1 (length degrees))
 						     (aref degrees 0) (aref degrees dx))))
-			       (declare (dynamic-extent exc dx this-degree))
 			       (loop :for ix :below this-degree
-				  :do (setf (apply #'aref output
-						   (loop :for coord :in coords :counting coord :into cix
-						      :collect
-						      (if (not (= cix (1+ axis)))
-							  coord (+ ix (if (= 0 exc)
-									  0 (if (= 1 (length degrees))
-										(* exc (aref c-degrees 0))
-										(aref c-degrees
-										      (1- dx))))))))
-					    (if (> 0 this-degree)
-						0 elem)))))))
+				  :do (loop :for coord :in coords :counting coord :into cix
+					 :do (setf (nth (1- cix) ocoords)
+						   (if (not (= cix (1+ axis)))
+						       coord (+ ix (if (= 0 exc)
+								       0 (if (= 1 (length degrees))
+									     (* exc (aref c-degrees 0))
+									     (aref c-degrees (1- dx))))))))
+				    (setf (apply #'aref output ocoords)
+					  (if (> 0 this-degree) 0 elem)))))))
 	       output)))))
 
 (defun partitioned-enclose (positions input axis)
@@ -491,6 +491,7 @@
 				   intervals))
 	  indices (reverse indices))
     (let* ((idims (dims input))
+	   (icoords (loop :for i :below (rank input) :collect 0))
 	   (output (make-array (list (length indices))
 			       :initial-contents (loop :for intv :in intervals
 						    :collect (make-array (loop :for dim :in idims
@@ -498,15 +499,16 @@
 									    :collect (if (= dx (1+ axis))
 											 intv dim))
 									 :element-type (element-type input))))))
-      (declare (dynamic-extent idims))
       (loop :for out :across output :for oix :below (length output)
 	 :do (across out (lambda (elem coords)
-			   (declare (ignore elem))
+			   (declare (ignore elem) (dynamic-extent elem coords))
+			   (loop :for c :in coords :counting c :into cx
+			      :do (setf (nth (1- cx) icoords)
+					(if (= cx (1+ axis))
+					    (+ c (nth oix indices))
+					    c)))
 			   (setf (apply #'aref out coords)
-				 (apply #'aref input (loop :for c :in coords :counting c :into cix
-							:collect (if (= cix (1+ axis))
-								     (+ c (nth oix indices))
-								     c)))))))
+				 (apply #'aref input icoords)))))
       output)))
 
 (defun partition-array (positions input axis)
@@ -522,7 +524,7 @@
 	    (idims (dims input))
 	    (arank (rank input)))
 	(declare (dynamic-extent r-indices r-intervals indices intervals interval-size
-				 current-interval partitions idims arank))
+				 current-interval partitions))
 	;; find the index where each partition begins in the input array and the length of each partition
 	(loop :for pos :across positions :for p :below (length positions)
 	   :do (if (/= 0 current-interval)
@@ -542,25 +544,26 @@
 	(loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
 	   :do (setq intervals (cons rint intervals)
 		     indices (cons rind indices)))
-	(let ((output (make-array (loop :for dim :in idims :for dx :below arank
-				     :collect (if (= dx axis) partitions dim)))))
+	(let* ((output (make-array (loop :for dim :in idims :for dx :below arank
+				      :collect (if (= dx axis) partitions dim))))
+	       (icoords (loop :for i :below (rank input) :collect 0)))
 	  (across output (lambda (elem coords)
-			   (declare (ignore elem))
+			   (declare (ignore elem) (dynamic-extent coords))
 			   (let* ((focus (nth axis coords))
 				  (this-index (nth focus indices))
-				  (this-interval (nth focus intervals)))
-			     (declare (dynamic-extent focus this-index this-interval))
+				  (this-interval (nth focus intervals))
+				  (out-array (make-array (list this-interval)
+							 :element-type (element-type input))))
+			     (loop :for ix :below this-interval
+				:do (loop :for coord :in coords :for dx :below arank
+				       :counting coord :into cx
+				       :do (setf (nth (1- cx) icoords)
+						 (if (= dx axis)
+						     (+ ix this-index)
+						     coord)))
+				  (setf (aref out-array ix) (apply #'aref input icoords)))
 			     (setf (apply #'aref output coords)
-				   (make-array (list this-interval)
-					       :element-type (element-type input)
-					       :initial-contents
-					       (loop :for ix :below this-interval
-						  :collect (apply #'aref input
-								  (loop :for coord :in coords
-								     :for dx :below arank
-								     :collect (if (= dx axis)
-										  (+ ix this-index)
-										  coord)))))))))
+				   out-array))))
 	  output))))
 
 (defun enlist (input &optional internal output (output-length 0))
@@ -594,8 +597,10 @@
 	     (output-displaced (if (not (rest output-dims))
 				   output (make-array (list output-length)
 						      :displaced-to output :element-type (element-type input)))))
-	(declare (dynamic-extent input-length output-length input-index input-displaced output-displaced)
-		 (optimize (safety 0) (speed 3)))
+	(declare (dynamic-extent input-index)
+		 ;; TODO: optimization caused problems due to type uncertainty; solution?
+		 ;; (optimize (safety 0) (speed 3))
+		 )
 	(loop :for index :below output-length
 	   :do (setf (aref output-displaced index)
 		     (aref input-displaced input-index)
@@ -607,7 +612,7 @@
   "Recursive factorial-computing function. Based on P. Luschny's code."
   (let ((p 1) (r 1) (NN 1) (log2n (floor (log n 2)))
 	(h 0) (shift 0) (high 1) (len 0))
-    (declare (dynamic-extent p r NN log2n h shift high len))
+    (declare (dynamic-extent p r NN h shift high len))
     (labels ((prod (n)
 	       (declare (fixnum n))
 	       (let ((m (ash n -1)))
@@ -643,10 +648,11 @@
 	     (if (vectorp operand1)
 		 (aref (aops:split result 1) 0)
 		 (if (vectorp operand2)
-		     (let ((nested-result (aops:split result 1)))
-		       (make-array (list (length nested-result))
-				   :initial-contents (loop :for nrelem :across nested-result
-							:collect (aref nrelem 0))))
+		     (let* ((nested-result (aops:split result 1))
+			    (output (make-array (list (length nested-result)))))
+		       (loop :for nrelem :across nested-result :counting nrelem :into nix
+			  :do (setf (aref output (1- nix)) (aref nrelem 0)))
+		       output)
 		     result)))
 	   (aops:each (lambda (sub-vector)
 			(if (vectorp sub-vector)
@@ -723,9 +729,9 @@
 			(input-length (length input))
 			(vector (make-array (list input-length)))
 			(graded-array (make-array (list input-length)
-						  :element-type (list 'integer 0 input-length)
-						  :initial-contents (mapcar (lambda (item) (+ item count-from))
-									    (alexandria:iota input-length)))))
+						  :element-type (list 'integer 0 input-length))))
+		   (loop :for i :below input-length :do (setf (aref graded-array i)
+							      (+ i count-from)))
 		   (loop :for vix :below (length vector)
 		      :do (setf (aref vector vix)
 				(if (and (arrayp (aref input vix))
@@ -774,16 +780,16 @@
        (if (vectorp reference)
 	   (disclose (aops:each (interval-compare reference) (enclose items)))
 	   (if (and (<= (rank reference) (rank items))
-		    (reduce #'eq (mapcar #'= (reverse (rest (dims reference)))
-					 (reverse (dims items)))))
+		    (loop :for x :in (reverse (rest (dims reference)))
+			 :for y :in (reverse (dims items)) :always (= x y)))
 	       (let* ((items (enclose items))
-		      (ref-cells (re-enclose reference (make-array (list (1- (rank reference)))
-								   :initial-contents (rest (iota (rank reference)
-												 :start 0)))))
+		      (ref-cells (make-array (list (1- (rank reference)))))
 		      (sub-dims (- (rank items) (1- (rank reference))))
-		      (sub-arrays (re-enclose items (make-array (list (- (rank items) sub-dims))
-								:initial-contents
-								(nthcdr sub-dims (iota (rank items) :start 0))))))
+		      (sub-arrays (make-array (list (- (rank items) sub-dims)))))
+		 (loop :for c :below (1- (rank reference)) :do (setf (aref ref-cells c) (1+ c)))
+		 (setq ref-cells (re-enclose reference ref-cells))
+		 (loop :for i :from sub-dims :to (1- (rank items)) :do (setf (aref sub-arrays (- i sub-dims)) i))
+		 (setq sub-arrays (re-enclose items sub-arrays))
 		 (aops:each (lambda (sub-array)
 			      (let ((match 0))
 				(aops:each (lambda (ref)
@@ -818,6 +824,7 @@
 		(if (= target input)
 		    1 0))
 	    (progn (across input (lambda (element coords)
+				   (declare (dynamic-extent element coords))
 				   (setf (apply #'aref output coords)
 					 (if (funcall (if (eql 'character (element-type input))
 							  #'char= #'=)
@@ -831,85 +838,37 @@
 				   (dims target))))
 	  (loop :for match :in (let ((match-coords))
 				 (across input (lambda (element coords)
+						 (declare (dynamic-extent element coords))
 						 (if (equal element target-head)
-						     (let ((ccoords (loop :for c :in coords :collect c)))
-						       (setq match-coords (cons ccoords match-coords))))))
+						     (setq match-coords (cons (loop :for c :in coords :collect c)
+									      match-coords)))))
 				 match-coords)
 	     :do (let ((target-index 0)
 		       (target-matched t)
 		       (target-displaced (make-array (list (array-total-size target))
 						     :element-type (element-type target)
-						     :displaced-to target)))
+						     :displaced-to target))
+		       (element-list (loop :for i :below (rank input) :collect nil)))
+		   (labels ((process-dims (starts extents limits count)
+			      (if starts (let ((start (first starts))
+					       (extent (first extents))
+					       (limit (first limits)))
+					   (setf (nth count element-list)
+						 (iota (min extent (- limit start))
+						       :start start))
+					   (process-dims (rest starts) (rest extents) (rest limits) (1+ count))))))
+		     (process-dims match target-dims source-dims 0))
 		   (across input (lambda (element coords)
-				   (declare (ignore coords))
+				   (declare (ignore coords) (dynamic-extent element))
 				   (if (and (< target-index (length target-displaced))
 					    (not (equal element (aref target-displaced target-index))))
 				       (setq target-matched nil))
 				   (incf target-index))
-			   :elements (mapcar (lambda (start extent limit)
-					       (iota (min extent (- limit start))
-						     :start start))
-					     match target-dims source-dims))
+			   :elements element-list)
 		   ;; check the target index in case the elements in the searched array ran out
 		   (if (and target-matched (= target-index (length target-displaced)))
 		       (incf (apply #'aref output match)))))
 	  output))))
-
-;; (defun across (input function &key elements indices reverse-axes (dimensions (dims input)))
-;;   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-;;   ;; (print indices)
-;;   (let* ((proceeding t)
-;; 	 (first-of-elements (first elements))
-;; 	 (this-range (if (listp first-of-elements)
-;; 			 first-of-elements (list first-of-elements))))
-;;     (loop :for elix :in (funcall (if (and reverse-axes (member (or (length indices) 0) reverse-axes))
-;; 		    		     #'reverse #'identity)
-;; 		    		 (if this-range this-range (iota (nth (length indices) dimensions))))
-;;        :while proceeding
-;;        :do (let ((coords (append indices (list elix))))
-;; 	     ;; if the halt-if-true value is output by the function, traversal across the array will end
-;; 	     ;; by means of nullifying the proceeding variable; this will result in a nil return value
-;; 	     ;; from the across function which will stop its recursive parents
-;; 	     (if (< (length indices) (1- (length dimensions)))
-;; 		 (if (not (across input function :dimensions dimensions :elements (rest elements)
-;; 				  :indices coords :reverse-axes reverse-axes))
-;; 		     (setq proceeding nil))
-;; 		 (multiple-value-bind (output halt-if-true)
-;; 		     (funcall function (apply #'aref input coords)
-;; 			      coords)
-;; 		   (declare (ignore output))
-;; 		   (if halt-if-true (setq proceeding nil))))))
-;;     proceeding))
-
-;; (defun across-2 (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
-;;   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-;;   (let* ((proceeding t)
-;; 	 (indices (or indices (make-array (list (rank input))
-;; 					  :element-type (list 'integer 0 (reduce #'max dimensions)))))
-;; 	 (first-of-elements (first elements))
-;; 	 (this-range (if (listp first-of-elements)
-;; 			 first-of-elements (list first-of-elements))))
-;;     (flet ((process-this (elix)
-;; 	     (setf (aref indices depth) elix)
-;; 	     (if (< depth (1- (rank input)))
-;; 		 ;; if the halt-if-true value is output by the function, traversal across the array will end
-;; 		 ;; by means of nullifying the proceeding variable; this will result in a nil return value
-;; 		 ;; from the across function which will stop its recursive parents
-;; 		 (if (not (across-2 input function :dimensions dimensions :elements (rest elements)
-;; 				    :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
-;; 		     (setq proceeding nil))
-;; 		 (multiple-value-bind (output halt-if-true)
-;; 		     (funcall function (apply #'aref input (loop :for i :across indices :collect i))
-;; 			      indices)
-;; 		   (declare (ignore output))
-;; 		   (if halt-if-true (setq proceeding nil))))))
-;;       ;; (print (list :ii indices reverse-axes))
-;;       (if this-range
-;; 	  (loop :for el :in this-range :while proceeding :do (process-this el))
-;; 	  (if (member depth reverse-axes)
-;; 	      (loop :for el :from (1- (nth depth dimensions)) :downto 0 :while proceeding :do (process-this el))
-;; 	      (loop :for el :from 0 :to (1- (nth depth dimensions)) :while proceeding :do (process-this el))))
-;;       proceeding)))
 
 (defun across (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
@@ -924,8 +883,8 @@
 		 ;; if the halt-if-true value is output by the function, traversal across the array will end
 		 ;; by means of nullifying the proceeding variable; this will result in a nil return value
 		 ;; from the across function which will stop its recursive parents
-		 (if (not (across-3 input function :dimensions dimensions :elements (rest elements)
-				    :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
+		 (if (not (across input function :dimensions dimensions :elements (rest elements)
+				  :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
 		     (setq proceeding nil))
 		 (multiple-value-bind (output halt-if-true)
 		     (funcall function (apply #'aref input indices)
@@ -967,8 +926,10 @@
 	 (true-input (if (not input-compatible)
 			 (make-array (dims input) :element-type (type-in-common (element-type input)
 										(assign-element-type set))))))
-    (if true-input (progn (across input (lambda (elem coords) (setf (apply #'aref true-input coords)
-								    elem)))
+    (if true-input (progn (across input (lambda (elem coords) 
+					  (declare (dynamic-extent elem coords))
+					  (setf (apply #'aref true-input coords)
+						elem)))
 			  (setq input true-input)))
     (labels ((process (indices &optional out-path in-path)
 	       (symbol-macrolet
@@ -987,9 +948,8 @@
 						    (set (setf source-cell (if (functionp set)
 									       apply-set-function set)))
 						    (t (funcall fn source-cell))))
-			    (setq output
-				  (if set (setf source-cell (if (functionp set) apply-set-function set))
-				      source-cell))))
+			    (setq output (if set (setf source-cell (if (functionp set) apply-set-function set))
+					     source-cell))))
 		       ((and (not indices) (vectorp (first in-path)) (vectorp (aref (first in-path) 0)))
 		       	;; if using reach indexing, recurse on the sub-array specified
 			;; by the first coordinate vector
@@ -1021,6 +981,7 @@
 				       (process (rest indices)
 						out-path (cons (aref this-index 0) in-path))
 				       (across this-index (lambda (value coords)
+							    (declare (dynamic-extent value coords))
 							    (process (rest indices)
 								     (append (reverse coords) out-path)
 								     (cons value in-path))))))
@@ -1068,27 +1029,23 @@
 					 :displaced-to input :element-type (element-type input)))
 	       (each-dims (let ((dims))
 			    (loop :for elem :across input-vector
-			       :do (setq each-type (cons (if (arrayp elem)
-							     (element-type elem)
-							     (type-of elem))
+			       :do (setq each-type (cons (if (arrayp elem) (element-type elem) (type-of elem))
 							 each-type)
-					 dims (cons (if (arrayp elem)
-							(dims elem)
-							'(1))
+					 dims (cons (if (arrayp elem) (dims elem) '(1))
 						    dims)
-					 max-rank (max max-rank (if (arrayp elem)
-								    (rank elem)
-								    0))))
+					 max-rank (max max-rank (if (arrayp elem) (rank elem) 0))))
 			    dims))
+	       (out-dims (sort-dimensions (dims input)
+					  (loop :for dim :below (reduce #'max (mapcar #'length each-dims))
+					     :collect (reduce #'max (mapcar (lambda (d) (or (nth dim d)
+											    1))
+									    each-dims)))))
 	       (type (apply #'type-in-common each-type))
-	       (output (make-array (sort-dimensions (dims input)
-						    (loop :for dim :below (reduce #'max (mapcar #'length each-dims))
-						       :collect (reduce #'max (mapcar (lambda (d) (or (nth dim d)
-												      1))
-										      each-dims))))
-				   :element-type type :initial-element (if (eql 'character type)
-									   #\  (coerce 0 type)))))
+	       (acoords (loop :for i :below (length out-dims) :collect 0))
+	       (output (make-array out-dims :element-type type :initial-element (if (eql 'character type)
+										    #\  (coerce 0 type)))))
 	  (across input (lambda (oelem ocoords)
+			  (declare (dynamic-extent oelem ocoords))
 			  (if (arrayp oelem)
 			      (across oelem (lambda (ielem icoords)
 					      (if (> max-rank (length icoords))
@@ -1096,9 +1053,11 @@
 						     :do (setq icoords (cons 0 icoords))))
 					      (setf (apply #'aref output (sort-dimensions ocoords icoords))
 						    ielem)))
-			      (setf (apply #'aref output
-					   (append ocoords (loop :for i :below max-rank :collect 0)))
-				    oelem))))
+			      (progn (let ((olen (length ocoords)))
+				       (loop :for i :below (+ max-rank olen)
+					  :do (setf (nth i acoords)
+						    (if (< i olen) (nth i ocoords) 0))))
+				     (setf (apply #'aref output acoords) oelem)))))
 	  output))))
 
 (defun merge-arrays (input)
@@ -1108,17 +1067,20 @@
       (array-promote (row-major-aref input 0))
       (let* ((first-sub-array (row-major-aref input 0))
 	     (inner-dims (dims first-sub-array))
+	     (out-dims (append (remove 1 (dims input))
+			       (remove 1 inner-dims)))
+	     (out-rank (length out-dims))
 	     (input-vector (make-array (list (array-total-size input))
 				       :displaced-to input :element-type (element-type input)))
 	     (each-type (let ((types))
 			  (loop :for elem :across input-vector
 			     :do (setq types (cons (element-type elem) types)))
 			  types))
-	     (output (make-array (append (remove 1 (dims input))
-					 (remove 1 inner-dims))
-				 :element-type (apply #'type-in-common each-type)))
+	     (output (make-array out-dims :element-type (apply #'type-in-common each-type)))
+	     (ocoords (loop :for i :below out-rank :collect 0))
 	     (dims-match t))
 	(across input (lambda (elem coords)
+			(declare (dynamic-extent elem coords))
 			(if (and dims-match (reduce #'eq (mapcar #'= inner-dims (dims elem))))
 			    (if (is-unitary elem)
 				;; if the element is a unitary array, just assign its element to the appropriate
@@ -1128,8 +1090,14 @@
 				;; otherwise, iterate across the element and assing the element to the output
 				;; coordinates derived from the combined outer and inner array coordinates
 				(across elem (lambda (sub-elem sub-coords)
-					       (setf (apply #'aref output (append coords sub-coords))
-						     sub-elem))))
+					       (declare (dynamic-extent sub-elem sub-coords))
+					       (let ((cix 0))
+						 (loop :for c :in coords :do (setf (nth cix ocoords) c
+										   cix (1+ cix)))
+						 (loop :for c :in sub-coords :do (setf (nth cix ocoords) c
+										       cix (1+ cix)))
+						 (setf (apply #'aref output ocoords)
+						       sub-elem)))))
 			    (setq dims-match nil))))
 	(if dims-match output))))
 
@@ -1138,6 +1106,7 @@
   (if (is-unitary input)
       input (let* ((axis (if axis axis (1- (rank input))))
 		   (idims (dims input))
+		   (ocoords (loop :for i :below (1- (rank input)) :collect 0))
 		   (output (aops:each (lambda (elem)
 					(declare (ignore elem))
 					(make-array (list (nth axis idims)) :element-type (type-of input)))
@@ -1145,10 +1114,12 @@
 						     :when (not (= dx (1+ axis)))
 						     :collect dim)))))
 	      (across input (lambda (elem coords)
-			      (setf (aref (apply #'aref output (loop :for coord :in coords
-								  :counting coord :into cix
-								  :when (not (= cix (1+ axis)))
-								  :collect coord))
+			      (declare (dynamic-extent elem coords))
+			      (let ((ix 0))
+				(loop :for coord :in coords :counting coord :into cix
+				   :when (not (= cix (1+ axis))) :do (setf (nth ix ocoords) coord
+									   ix (1+ ix))))
+			      (setf (aref (apply #'aref output ocoords)
 					  (nth axis coords))
 				    elem)))
 	      output)))
@@ -1169,8 +1140,7 @@
 						     (dims input)
 						     (- (ceiling (first axes))
 							count-from)))
-					:element-type (element-type input)
-					:displaced-to (copy-array input)))
+					:element-type (element-type input) :displaced-to (copy-array input)))
 			   ;; TODO: fix these clauses
 			   ;; ((and (< 1 (length (first axes)))
 			   ;; 	 (or (> 0 (aref (first axes) 0))
@@ -1182,6 +1152,7 @@
 			   ;;  (error (concatenate 'string "Dimension indices must be consecutive and within "
 			   ;; 			"the array's number of dimensions.")))
 			   ((< 1 (length (first axes)))
+			    ;; TODO: eliminate consing here
 			    (let* ((axl (mapcar (lambda (item) (- item count-from))
 						(array-to-list (first axes))))
 				   (collapsed (apply #'* (mapcar (lambda (index) (nth index (dims input)))
@@ -1203,8 +1174,7 @@
 		;; TODO: this generates an array of type vector, not simple-array since it's displaced, is this a
 		;; problem? Look into it
 		(make-array (list (array-total-size input))
-			    :element-type (element-type input)
-			    :displaced-to (copy-array input)))))
+			    :element-type (element-type input) :displaced-to (copy-array input)))))
 
 (defun re-enclose (matrix axes)
   "Convert an array into a set of sub-arrays within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
@@ -1232,9 +1202,7 @@
 	   ;; if the number of axes is the same as the matrix's rank, just pass it back
 	   matrix)
 	  ((let ((indices (mapcar (lambda (item) (+ item (aref axes 0)))
-				  (alexandria:iota (- (rank matrix)
-						      (- (rank matrix)
-							 (length axes)))))))
+				  (alexandria:iota (- (rank matrix) (- (rank matrix) (length axes)))))))
 	     (and (= (first (last indices))
 		     (1- (rank matrix)))
 		  (loop :for index :in indices :counting index :into iix
@@ -1258,21 +1226,22 @@
 	       (setq inner-dims (reverse inner-dims)
 		     outer-dims (reverse outer-dims))
 	       ;; create a new blank array of the outer dimensions containing blank arrays of the inner dimensions
-	       (let ((new-matrix (make-array (loop :for dm :in outer-dims :collect (nth dm matrix-dims))
-					     :initial-contents
-					     (make-enclosure (loop :for dm :in inner-dims
-								:collect (nth dm matrix-dims))
-							     (element-type matrix)
-							     (loop :for dm :in outer-dims
-								:collect (nth dm matrix-dims))))))
+	       (let* ((ocoords (loop :for d :in outer-dims :collect (nth d matrix-dims)))
+		      (icoords (loop :for d :in inner-dims :collect (nth d matrix-dims)))
+		      (new-matrix (make-array ocoords :initial-contents
+					      (make-enclosure icoords (element-type matrix)
+							      ocoords))))
 		 ;; iterate through the original array and for each element, apply the same separation
 		 ;; to their coordinates that was done to the original array's dimensions and apply the two sets
 		 ;; of coordinates to set each value in the nested output arrays to the corresponding values in
 		 ;; the original array
 		 (across matrix (lambda (item coords)
-				  (setf (apply #'aref (apply #'aref new-matrix (loop :for d :in outer-dims
-										  :collect (nth d coords)))
-					       (loop :for d :in inner-dims :collect (nth d coords)))
+				  (declare (dynamic-extent item coords))
+				  (loop :for d :in outer-dims :counting d :into dx :do (setf (nth (1- dx) ocoords)
+											     (nth d coords)))
+				  (loop :for d :in inner-dims :counting d :into dx :do (setf (nth (1- dx) icoords)
+											     (nth d coords)))
+				  (setf (apply #'aref (apply #'aref new-matrix ocoords) icoords)
 					item)))
 		 new-matrix))))))
 
@@ -1281,21 +1250,28 @@
   (if (not (arrayp input))
       input
       (let* ((idims (dims input))
+	     (ocoords (loop :for i :below (rank input) :collect 0))
+	     (dcoords (if (not (integerp degrees)) (loop :for i :below (1- (rank input)) :collect 0)))
 	     (output (make-array idims :element-type (element-type input)))
 	     (rdimension (nth axis idims)))
 	(across input (lambda (item coords)
+			(declare (dynamic-extent item coords))
 			(let ((degree (if (integerp degrees)
-					  degrees (if degrees
-						      (apply #'aref degrees (loop :for coord :in coords
-									       :counting coord :into this-axis
-									       :when (/= axis (1- this-axis))
-									       :collect coord))))))
-			  (setf (apply #'aref output (loop :for coord :in coords :counting coord :into this-axis
-							:collect (if (or (/= axis (1- this-axis))
-									 (and degree (= 0 degree)))
-								     coord (if degree (mod (- coord degree)
-											   rdimension)
-									       (- rdimension 1 coord)))))
+					  degrees (if degrees (let ((dcix 0))
+								(loop :for coord :in coords
+								   :counting coord :into this-axis
+								   :when (/= axis (1- this-axis))
+								   :do (setf (nth dcix dcoords) coord
+									     dcix (1+ dcix)))
+								(apply #'aref degrees dcoords))))))
+			  (loop :for coord :in coords :counting coord :into this-axis
+			     :do (setf (nth (1- this-axis) ocoords)
+				       (if (or (/= axis (1- this-axis))
+					       (and degree (= 0 degree)))
+					   coord (if degree (mod (- coord degree)
+								 rdimension)
+						     (- rdimension 1 coord)))))
+			  (setf (apply #'aref output ocoords)
 				item))))
 	output)))
 
@@ -1428,35 +1404,37 @@
 						       (or (= 1 (aref movement dim))
 							   (oddp (aref idims dim))))
 						  1 0)))))
-	 (output (make-array output-dims)))
+	 (output (make-array output-dims))
+	 (ref-coords (loop :for d :across window-dims :collect 0))
+	 (acoords (loop :for d :in output-dims :collect 0)))
     (across output (lambda (elem coords)
-		     (declare (ignore elem))
+		     (declare (ignore elem) (dynamic-extent coords))
 		     (let ((window (make-array (array-to-list window-dims) :element-type (element-type input))))
 		       (across window (lambda (welem wcoords)
-					(declare (ignore welem))
-					(let ((ref-coords
-					       (loop :for cix :below (length wcoords)
-						  :collect (let ((melem (aref movement cix))
-								 (wdim (aref window-dims cix)))
-							     (+ (nth cix wcoords)
-								(- (* melem (nth cix coords))
-								   (floor (/ (- wdim (if (evenp wdim) 1 0))
-									     2))))))))
-					  (setf (apply #'aref window wcoords)
-						(if (loop :for coord :in ref-coords :counting coord :into cix
-						       :always (<= 0 coord (1- (aref idims (1- cix)))))
-						    (apply #'aref input ref-coords)
-						    0)))))
+					(declare (ignore welem) (dynamic-extent wcoords))
+					(loop :for cix :below (length wcoords)
+					   :do (setf (nth cix ref-coords)
+						     (let ((melem (aref movement cix))
+							   (wdim (aref window-dims cix)))
+						       (+ (nth cix wcoords)
+							  (- (* melem (nth cix coords))
+							     (floor (/ (- wdim (if (evenp wdim) 1 0))
+								       2)))))))
+					(setf (apply #'aref window wcoords)
+					      (if (loop :for coord :in ref-coords :counting coord :into cix
+						     :always (<= 0 coord (1- (aref idims (1- cix)))))
+						  (apply #'aref input ref-coords)
+						  0))))
+		       (loop :for coord :in coords :counting coord :into cix
+			  :do (setf (nth (1- cix) acoords)
+				    (* (aref movement (1- cix))
+				       (if (= 0 coord) 1 (if (= coord (1- (nth (1- cix) output-dims)))
+							     -1 0)))))
 		       (setf (apply #'aref output coords)
 			     (funcall process window
 				      (make-array (list (length coords))
 						  :element-type '(signed-byte 8)
-						  :initial-contents
-						  (loop :for coord :in coords :counting coord :into cix
-						     :collect (* (aref movement (1- cix))
-								 (if (= 0 coord)
-								     1 (if (= coord (1- (nth (1- cix) output-dims)))
-									   -1 0))))))))))
+						  :initial-contents acoords))))))
     output))
 
 (defun array-impress (input &key (prepend nil) (append nil) (collate nil) (format nil))
@@ -1489,8 +1467,7 @@
 		  (strings (make-array idims))
 		  (output-default-char #\ )
 		  (row) (empty-rows))
-	     (declare (dynamic-extent idims x-offsets y-offsets col-widths col-types col-decimals
-				      strings output-default-char row empty-rows))
+	     (declare (dynamic-extent col-decimals output-default-char row empty-rows))
 	     (symbol-macrolet ((this-string (apply #'aref strings coords))
 			       (this-col-width (aref col-widths last-coord))
 			       (this-col-type (aref col-types last-coord))
@@ -1499,6 +1476,7 @@
 			       (decimal-length (aref col-decimals 1 last-coord))
 			       (trailing (aref col-decimals 2 last-coord)))
 	       (across input (lambda (elem coords)
+			       (declare (dynamic-extent elem coords))
 			       (let* ((last-coord (first (last coords))))
 				 (flet ((add-column-types (&rest types)
 					  (loop :for type :in types
@@ -1536,6 +1514,7 @@
 					    (if is-float (add-column-types :number :float)
 						(add-column-types :number)))))))))
 	       (across input (lambda (elem coords)
+			       (declare (dynamic-extent elem coords))
 			       (let* ((last-coord (first (last coords)))
 				      (next-elem (if (< last-coord (- (length x-offsets) 2))
 						     (apply #'aref input (append (butlast coords)
@@ -1655,6 +1634,7 @@
 					     :element-type 'character :initial-element output-default-char))))
 		 (across strings
 			 (lambda (chars coords)
+			   (declare (dynamic-extent chars coords))
 			   ;; calculate the row of output currently being produced
 			   (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
 							   (let ((current 1))
@@ -1684,6 +1664,7 @@
 				   ;; is different depending on whether collated output is being produced
 				   (across chars
 					   (lambda (element ecoords)
+					     (declare (dynamic-extent element ecoords))
 					     (let* ((d-indent
 						     ;; derive this cell's decimal indentation; negative
 						     ;; values are indented 1 space less to allow for
@@ -1772,7 +1753,7 @@
 			 (and prepend (not (char= prepend output-default-char))))
 		     (let ((last-dim (first (last (dims output)))))
 		       (if collate (across output (lambda (elem coords)
-						    (declare (ignore elem))
+						    (declare (ignore elem) (dynamic-extent coords))
 						    (setf (apply #'aref output coords)
 							  (if prepend prepend append))))
 	     		   (if prepend (loop :for row :below (first (dims output))

@@ -515,6 +515,7 @@ It remains here as a standard against which to compare methods for composing APL
 	 (reduce-coords (if reduce (or (loop :for i :below (1- (rank input)) :collect 0) '(0))))
 	 (ref-coords (loop :for i :below (rank input) :collect 0)))
     (across input (lambda (elem coords)
+		    (declare (dynamic-extent elem coords))
 		    (if reduce-coords (let ((decrement 0))
 					(loop :for c :in coords :counting c :into cx
 					   :when (= axis (1- cx)) :do (incf decrement)
