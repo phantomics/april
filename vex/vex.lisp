@@ -46,10 +46,15 @@
 				:initform nil
 				:initarg :composer-following-patterns)))
 
-(defgeneric of-system (idiom property))
-(defmethod of-system ((idiom idiom) property)
+(defgeneric get-system-meta (idiom property))
+(defmethod get-system-meta ((idiom idiom) property)
   "Retrieve a property of the idiom's system."
   (getf (idiom-system idiom) property))
+
+(defgeneric set-system-meta (idiom &rest pairs))
+(defmethod set-system-meta ((idiom idiom) &rest pairs)
+  (loop :for (key value) :on pairs :by #'cddr
+     :do (setf (getf (idiom-system idiom) key) value)))
 
 (defgeneric of-utilities (idiom utility))
 (defmethod of-utilities ((idiom idiom) utility)

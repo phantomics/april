@@ -210,6 +210,50 @@
 						  elem)))
 			   true-output))))))
 
+(defun initialize-for-environment (function-id localizer &optional environment)
+  (case function-id
+    (:across
+     (setf (symbol-function 'across)
+	   (funcall
+	    localizer
+	    (lambda (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
+	      "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
+	      (let* ((proceeding t)
+		     (indices (or indices (loop :for i :below (rank input) :collect 0)))
+		     (first-of-elements (first elements))
+		     (this-range (if (listp first-of-elements)
+				     first-of-elements (list first-of-elements))))
+		(flet ((process-this (elix)
+			 (setf (nth depth indices) elix)
+			 (if (< depth (1- (rank input)))
+			     ;; if the halt-if-true value is output by the function, traversal across the array
+			     ;; will end by means of nullifying the proceeding variable; this will result in
+			     ;; a nil return value from the across function which will stop its recursive parents
+			     (if (not (across input function :dimensions dimensions :elements (rest elements)
+					      :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
+				 (setq proceeding nil))
+			     (multiple-value-bind (output halt-if-true)
+				 (funcall function (apply #'aref input indices)
+					  indices)
+			       (declare (ignore output))
+			       (if halt-if-true (setq proceeding nil))))))
+		  ;; (print (list :ii indices reverse-axes))
+		  (if this-range
+		      (if (listp (rest this-range))
+			  (loop :for el :in this-range :while proceeding :do (process-this el))
+			  (if (< (first this-range) (rest this-range))
+			      (loop :for el :from (first this-range) :to (rest this-range) :do (process-this el))
+			      (loop :for el :from (first this-range) :downto (rest this-range)
+				 :do (process-this el))))
+		      (if (member depth reverse-axes)
+			  (loop :for el :from (1- (nth depth dimensions))
+			     :downto 0 :while proceeding :do (process-this el))
+			  (loop :for el :from 0 :to (1- (nth depth dimensions))
+			     :while proceeding :do (process-this el))))
+		  proceeding))))))))
+
+(initialize-for-environment :across #'identity)
+
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (and (not (arrayp item1))
@@ -869,35 +913,6 @@
 		   (if (and target-matched (= target-index (length target-displaced)))
 		       (incf (apply #'aref output match)))))
 	  output))))
-
-(defun across (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
-  "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-  (let* ((proceeding t)
-	 (indices (or indices (loop :for i :below (rank input) :collect 0)))
-	 (first-of-elements (first elements))
-	 (this-range (if (listp first-of-elements)
-			 first-of-elements (list first-of-elements))))
-    (flet ((process-this (elix)
-	     (setf (nth depth indices) elix)
-	     (if (< depth (1- (rank input)))
-		 ;; if the halt-if-true value is output by the function, traversal across the array will end
-		 ;; by means of nullifying the proceeding variable; this will result in a nil return value
-		 ;; from the across function which will stop its recursive parents
-		 (if (not (across input function :dimensions dimensions :elements (rest elements)
-				  :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
-		     (setq proceeding nil))
-		 (multiple-value-bind (output halt-if-true)
-		     (funcall function (apply #'aref input indices)
-			      indices)
-		   (declare (ignore output))
-		   (if halt-if-true (setq proceeding nil))))))
-      ;; (print (list :ii indices reverse-axes))
-      (if this-range
-	  (loop :for el :in this-range :while proceeding :do (process-this el))
-	  (if (member depth reverse-axes)
-	      (loop :for el :from (1- (nth depth dimensions)) :downto 0 :while proceeding :do (process-this el))
-	      (loop :for el :from 0 :to (1- (nth depth dimensions)) :while proceeding :do (process-this el))))
-      proceeding)))
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."

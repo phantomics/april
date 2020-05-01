@@ -455,6 +455,7 @@
 		  ,output))))
       `(lambda (,omega &optional ,alpha)
 	 (declare (ignorable ,alpha))
+	 
 	 (each-scalar
 	  t ,(if (or (not (listp dyadic-op))
 		     (not (listp (second dyadic-op)))
@@ -468,8 +469,9 @@
 				    ,(expand-dyadic alpha `(aref ,omega 0)))
 				   ((and (vectorp ,alpha) (= 1 (length ,alpha)))
 				    ,(expand-dyadic omega `(aref ,alpha 0) t))
-				   ((= (length ,alpha) (length ,omega))
+				   ((= (size ,alpha) (size ,omega))
 				    (aops:each (lambda (,o ,a)
+						 (print (list :ii ,o ,a))
 						 (apl-call ,symbol ,dyadic-op (enclose ,o) (enclose ,a)))
 					       ,omega ,alpha))
 				   (t (error "Mismatched argument lengths to ¨.")))

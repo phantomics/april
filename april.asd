@@ -6,7 +6,7 @@
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
-  :depends-on ("vex" "aplesque" "array-operations" "alexandria" "cl-ppcre"
+  :depends-on ("vex" "aplesque" "array-operations" "lparallel" "alexandria" "cl-ppcre"
 	       "decimals" "parse-number" "symbol-munger" "prove" "simple-date-time")
   :components 
   ((:file "package")
