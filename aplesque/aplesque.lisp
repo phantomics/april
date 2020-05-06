@@ -5,6 +5,29 @@
 
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
+(defun rmi-from-subscript-array (array subscripts)
+  (let ((length (length subscripts))
+	(dims (reverse (dims array)))
+	(rank (rank array)))
+    (cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W."
+				   length rank))
+	  ((= 1 rank) (aref subscripts 0))
+	  (t (let ((result 0) (factor 1))
+	       (loop :for i :from (1- length) :downto 0
+		  :do (if (<= (first dims) (aref subscripts i))
+			  (error "Invalid index for dimension ~W." (1+ i))
+			  (setq result (+ result (* factor (aref subscripts i)))
+				factor (* factor (first dims))
+				dims (rest dims))))
+	       result)))))
+
+(defun varef (array subscripts)
+  (row-major-aref array (rmi-from-subscript-array array subscripts)))
+
+(defun (setf varef) (new-value array subscripts)
+  (setf (row-major-aref array (rmi-from-subscript-array array subscripts))
+	new-value))
+
 (defun is-unitary (value)
   "Check whether this array has only one member, returning true if the argument is not an array."
   (or (not (arrayp value))

@@ -96,6 +96,57 @@
       (loop :for x :below width :do (setf (row-major-aref output (+ x (* i width))) 1)))
     :complete))
 
+(defun array-row-major-index-vector (array subscripts)
+  (declare (truly-dynamic-extent subscripts)
+           (array array))
+  (let ((length (length subscripts)))
+    (cond ((arrayp array)
+           (let ((rank (rank array)))
+             (unless (= rank length)
+               (error "Wrong number of subscripts, ~W, for array of rank ~W."
+                      length rank))
+             (do ((axis (1- rank) (1- axis))
+                  (chunk-size 1)
+                  (result 0))
+                 ((minusp axis) result)
+               (declare (fixnum axis chunk-size result))
+               (let ((index (aref subscripts axis))
+                     (dim (array-dimension array axis)))
+		 (print (list index dim (> index dim)))
+                 ;; (unless (and (typep index 'fixnum) (> index dim))
+                 ;;   ;; (invalid-array-index-error array index dim axis)
+		 ;;   (error "Invalid array."))
+                 (setf result
+                       (+ result (* chunk-size index))
+                       chunk-size (* chunk-size dim))))))
+          ((/= length 1)
+           (error "Wrong number of subscripts, ~W, for array of rank 1."
+                  length))
+          (t
+           (let ((index (aref subscripts 0))
+                 (length (length (the (simple-array * (*)) array))))
+             (unless (and (typep index 'fixnum) (> index length))
+               ;; (invalid-array-index-error array index length)
+	       (error "Invalid array."))
+             index)))))
+
+;; (defun (setf varef) (new-value array subscripts)
+;;   (let ((length (length subscripts))
+;; 	(dims (reverse (dims array)))
+;; 	(rank (rank array)))
+;;     (cond ((/= length rank)
+;; 	   (error "Wrong number of subscripts, ~W, for array of rank 1."
+;;                   length))
+;; 	  ((= 1 rank) (row-major-aref array (aref subscripts 0)))
+;; 	  (t (let ((result 0) (factor 1))
+;; 	       (loop :for i :from (1- length) :downto 0
+;; 		  :do (if (<= (first dims) (aref subscripts i))
+;; 			  (error "Invalid index for ~Wth dimension." (1+ (- length i)))
+;; 			  (setq result (+ result (* factor (aref subscripts i)))
+;; 				factor (* factor (first dims))
+;; 				dims (rest dims))))
+;; 	       (setf (row-major-aref array (print result)) new-value))))))
+
 #|
 (defun divide-volume (dims section-count &optional factor idims divisions)
   (let* ((is-root (not factor))
