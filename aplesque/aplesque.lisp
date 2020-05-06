@@ -216,7 +216,8 @@
      (setf (symbol-function 'across)
 	   (funcall
 	    localizer
-	    (lambda (input function &key elements indices reverse-axes (depth 0) (dimensions (dims input)))
+	    (lambda (input function &key elements indices reverse-axes count start-at singlethreaded
+				      (depth 0) (dimensions (dims input)))
 	      "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
 	      (let* ((proceeding t)
 		     (indices (or indices (loop :for i :below (rank input) :collect 0)))
@@ -229,28 +230,33 @@
 			     ;; if the halt-if-true value is output by the function, traversal across the array
 			     ;; will end by means of nullifying the proceeding variable; this will result in
 			     ;; a nil return value from the across function which will stop its recursive parents
-			     (if (not (across input function :dimensions dimensions :elements (rest elements)
-					      :indices indices :reverse-axes reverse-axes :depth (1+ depth)))
-				 (setq proceeding nil))
+			     (multiple-value-bind (still-proceeding new-count)
+				 (across input function :dimensions dimensions :elements (rest elements)
+					 :indices indices :reverse-axes reverse-axes :depth (1+ depth)
+					 :count count :start-at (rest start-at))
+			       (setq proceeding still-proceeding count new-count))
 			     (multiple-value-bind (output halt-if-true)
 				 (funcall function (apply #'aref input indices)
 					  indices)
 			       (declare (ignore output))
-			       (if halt-if-true (setq proceeding nil))))))
+			       (if count (decf count))
+			       (if (or halt-if-true (and count (> 1 count)))
+				   (setq proceeding nil))))))
 		  ;; (print (list :ii indices reverse-axes))
 		  (if this-range
 		      (if (listp (rest this-range))
 			  (loop :for el :in this-range :while proceeding :do (process-this el))
 			  (if (< (first this-range) (rest this-range))
-			      (loop :for el :from (first this-range) :to (rest this-range) :do (process-this el))
+			      (loop :for el :from (first this-range)
+				 :to (rest this-range) :do (process-this el))
 			      (loop :for el :from (first this-range) :downto (rest this-range)
 				 :do (process-this el))))
 		      (if (member depth reverse-axes)
-			  (loop :for el :from (1- (nth depth dimensions))
-			     :downto 0 :while proceeding :do (process-this el))
-			  (loop :for el :from 0 :to (1- (nth depth dimensions))
+			  (loop :for el :from (1- (nth depth dimensions)) :downto (or (first start-at) 0)
+			     :while proceeding :do (process-this el))
+			  (loop :for el :from (or (first start-at) 0) :to (1- (nth depth dimensions))
 			     :while proceeding :do (process-this el))))
-		  proceeding))))))))
+		  (values proceeding count)))))))))
 
 (initialize-for-environment :across #'identity)
 
