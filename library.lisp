@@ -285,7 +285,7 @@
 				      alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
 				      #'+)))
 
-(defun encode (omega alpha &optional singlethreaded)
+(defun encode (omega alpha)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
   (let* ((omega (if (arrayp omega)
 		    omega (enclose omega)))
@@ -299,7 +299,6 @@
 					 (loop :for dim :in odims :when (< 1 dim) :collect dim))
 				 '(1))))
 	 (dxc))
-    (print (list :st singlethreaded))
     (flet ((rebase (base-coords number)
 	     (let ((operand number) (last-base 1)
 		   (base 1) (component 1) (element 0))
@@ -325,9 +324,7 @@
 						    :do (setf (nth dxc out-coords) (nth dx ocoords)
 							      dxc (1+ dxc)))))
 				      (setf (apply #'aref output (or out-coords '(0)))
-					    (rebase acoords oelem)))
-			      :singlethreaded singlethreaded))
-	      :singlethreaded singlethreaded)
+					    (rebase acoords oelem))))))
       (if (is-unitary output)
 	  (disclose output)
 	  (each-scalar t output)))))
