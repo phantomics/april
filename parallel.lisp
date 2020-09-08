@@ -19,7 +19,7 @@
       ((:macosx :darwin)
        (if (system-command-exists "sysctl")
 	   (progn (uiop:run-program "sysctl -n hw.logicalcpu" :output cmd-out)
-		  (*read-from-string (get-output-stream-string cmd-out)))
+		  (read-from-string (get-output-stream-string cmd-out)))
 	   1))
       ((:linux :linux-target)
        (if (system-command-exists "nproc")
