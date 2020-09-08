@@ -11,13 +11,24 @@
  (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
  (sum-until-pattern
+  ;; optimize the pattern ⊃⌽,Y to sum until Y
+  ((:with-preceding-type :array)
+   (disclose-function :element (function :glyph \,))
+   (rotate-function :element (function :glyph ⌽))
+   (ravel-function :element (function :glyph ⊃)))
+  (let ((input (gensym)))
+    `(let ((,input ,precedent))
+       (if (not (arrayp ,input))
+	   ,input (row-major-aref ,input (1- (array-total-size ,input))))))
+  '(:type (:array :evaluated :via-get-last-pattern)))
+ (sum-until-pattern
   ;; optimize the pattern +/⍳Y to sum until Y
   ((:with-preceding-type :array)
    (index-function :element (function :glyph ⍳))
    (reduce-operator :element (operator :glyph /))
    (add-function :element (function :glyph +)))
   (let ((var (gensym)))
-    `(avector (loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var)))
+    `(loop :for ,var :from 0 :to (disclose ,precedent) :summing ,var))
   '(:type (:array :evaluated :via-sum-until-pattern)))
  (rank-pattern
   ;; optimize the pattern ⍴⍴Y to get the rank of an array
