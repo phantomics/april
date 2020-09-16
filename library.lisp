@@ -718,7 +718,7 @@
 										      (nthcdr ,alen ,coords)))))))
 					       :set-coords t)))))
 		  ,output))))))
-		
+
 (defmacro apply-stenciled (right-value left-symbol left-function-dyadic)
   (let* ((omega (gensym)) (window-dims (gensym)) (movement (gensym)) (o (gensym)) (a (gensym))
 	 (op-left `(lambda (,o ,a) (apl-call ,left-symbol ,left-function-dyadic ,o ,a))))

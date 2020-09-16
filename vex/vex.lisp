@@ -899,14 +899,17 @@
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
-	 (meta (if (assoc :space options)
-		   (let ((meta-symbol (second (assoc :space options))))
-		     (if (hash-table-p meta-symbol)
-			 meta-symbol (if (boundp meta-symbol)
-					 (symbol-value meta-symbol)
-					 (setf (symbol-value meta-symbol)
-					       (make-hash-table :test #'eq)))))
-		   (make-hash-table :test #'eq)))
+	 ;; (meta (if (assoc :space options)
+	 ;; 	   (let ((meta-symbol (second (assoc :space options))))
+	 ;; 	     (if (hash-table-p meta-symbol)
+	 ;; 		 meta-symbol (if (boundp meta-symbol)
+	 ;; 				 (symbol-value meta-symbol)
+	 ;; 				 (setf (symbol-value meta-symbol)
+	 ;; 				       (make-hash-table :test #'eq)))))
+	 ;; 	   (make-hash-table :test #'eq)))
+	 (meta (concatenate 'string (string-upcase (idiom-name idiom))
+			    "-WORKSPACE-" (if (not (second (assoc :space options)))
+					      "GENERAL" (string-upcase (second (assoc :space options))))))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use) (preexisting-vars))
     (labels ((assign-from (source dest)
@@ -919,90 +922,107 @@
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom meta))
 			    (process-lines remaining (append output (list (composer idiom meta out)))))))
-	     (store-items (type items-to-store)
+	     (store-items (items-to-store) ;;(type items-to-store)
 	       (loop :for item :in items-to-store
-		  :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first item))
-								"KEYWORD")
-							(gethash :variables meta))))
-			(if (not vdata) (setf vdata (gensym "V")))
-			(setf (gethash vdata (gethash type meta))
-			      (second item))))))
-
-      (if (not (gethash :variables meta))
-	  (setf (gethash :variables meta) (make-hash-table :test #'eq))
-	  (setq preexisting-vars (loop :for vk :being :the :hash-values :of (gethash :variables meta)
-				    :collect vk)))
-
-      (if (not (gethash :values meta))
-	  (setf (gethash :values meta) (make-hash-table :test #'eq)))
-
-      (if (not (gethash :functions meta))
-	  (setf (gethash :functions meta) (make-hash-table :test #'eq)))
-
-      (if (not (gethash :branches meta))
-	  (setf (gethash :branches meta) nil))
+		  :do ;; (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first item))
+		      ;; 						"KEYWORD")
+		      ;; 					(gethash :variables meta))))
+		      ;; 	(if (not vdata) (setf vdata (gensym "V")))
+		      ;; 	(setf (gethash vdata (gethash type meta))
+		      ;; 	      (second item)))
+		    (setf (intern (lisp->camel-case (first item)) meta)
+			  (second item)))))
       
-      (if (not (gethash :system meta))
-	  (setf (gethash :system meta) (idiom-system idiom)))
+      (symbol-macrolet ((wkspace-system (symbol-value (intern "*SYSTEM*" meta))))
 
-      ;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
-      ;; to the defaults from the spec
-      (if (assoc :restore-defaults options)
-	  (setf (getf (gethash :system meta) :state)
-		(getf (gethash :system meta) :base-state)))
-      
-      (setq state (funcall (of-utilities idiom :preprocess-state-input)
-			   state)
-	    state-persistent (funcall (of-utilities idiom :preprocess-state-input)
-				      state-persistent))
+	(if (not (print (find-package (print meta))))
+	    (make-package meta))
 
-      (if state-persistent (setf (getf (gethash :system meta) :state)
-				 (assign-from state-persistent (getf (gethash :system meta) :state))))
+	(if (not (boundp (intern "*SYSTEM*" meta)))
+	    (set (intern "*SYSTEM*" meta) (idiom-system idiom)))
 
-      (setf state-to-use (assign-from (getf (gethash :system meta) :base-state) state-to-use)
-	    state-to-use (assign-from (getf (gethash :system meta) :state) state-to-use)
-	    state-to-use (assign-from state-persistent state-to-use)
-	    state-to-use (assign-from state state-to-use)
-	    system-to-use (assign-from (gethash :system meta) system-to-use)
-	    system-to-use (assign-from state system-to-use))
+	#|
+	(if (not (gethash :variables meta))
+	(setf (gethash :variables meta) (make-hash-table :test #'eq))
+	(setq preexisting-vars (loop :for vk :being :the :hash-values :of (gethash :variables meta)
+	:collect vk)))
 
-      (store-items :values (rest (assoc :store-val options)))
-      (store-items :functions (rest (assoc :store-fun options)))
-      
-      (if string
-	  (let* ((string (if (stringp string)
-			     ;; just pass the string through if it's not a pathname; if it is a pathname,
-			     ;; evaluate it in case something like (asdf:system-relative-pathname ...)
-			     ;; was passed
-			     string (with-open-file (stream (eval string))
-				      (apply #'concatenate
-					     (cons 'string (loop :for line := (read-line stream nil)
-							      :while line :append (list line '(#\Newline))))))))
-		 (input-vars (getf state-to-use :in))
-		 (output-vars (getf state-to-use :out))
-		 (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
-							       string)))
-		 (var-symbols (loop :for key :being :the :hash-keys :of (gethash :variables meta)
-				 :when (not (member (string (gethash key (gethash :variables meta)))
-						    (mapcar #'first input-vars)))
-				 :collect (list key (gethash key (gethash :variables meta)))))
-		 (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
-				       state-to-use))
-		 (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
-					 options input-vars preexisting-vars var-symbols meta)))
-	    (funcall (of-utilities idiom :build-compiled-code)
-		     (append (funcall (if output-vars #'values
-					  (apply (of-utilities idiom :postprocess-compiled)
-						 (cons system-to-use inline-arguments)))
-				      compiled-expressions)
-			     ;; if multiple values are to be output, add the (values) form at bottom
-			     (if output-vars
-				 (list (cons 'values
-					     (mapcar (lambda (return-var)
-						       (funcall (of-utilities idiom :postprocess-value)
-								(gethash (intern (lisp->camel-case return-var)
-										 "KEYWORD")
-									 (gethash :variables meta))
-								system-to-use))
-						     output-vars)))))
-		     options system-vars vars-declared var-symbols meta))))))
+	(if (not (gethash :values meta))
+	(setf (gethash :values meta) (make-hash-table :test #'eq)))
+
+	(if (not (gethash :functions meta))
+	(setf (gethash :functions meta) (make-hash-table :test #'eq)))
+
+	(if (not (gethash :branches meta))
+	(setf (gethash :branches meta) nil))
+	
+	(if (not (gethash :system meta))
+	(setf (gethash :system meta) (idiom-system idiom)))
+	|#
+
+	;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
+	;; to the defaults from the spec
+	(if (assoc :restore-defaults options)
+	    (setf (getf wkspace-system :state)
+		  (getf wkspace-system :base-state)))
+	
+	(setq state (funcall (of-utilities idiom :preprocess-state-input)
+			     state)
+	      state-persistent (funcall (of-utilities idiom :preprocess-state-input)
+					state-persistent))
+
+	(if state-persistent (setf (getf wkspace-system :state)
+				   (assign-from state-persistent (getf wkspace-system :state))))
+
+	(setf state-to-use (assign-from (getf wkspace-system :base-state) state-to-use)
+	      state-to-use (assign-from (getf wkspace-system :state) state-to-use)
+	      state-to-use (assign-from state-persistent state-to-use)
+	      state-to-use (assign-from state state-to-use)
+	      system-to-use (assign-from wkspace-system system-to-use)
+	      system-to-use (assign-from state system-to-use))
+
+	;; (store-items :values (rest (assoc :store-val options)))
+	;; (store-items :functions (rest (assoc :store-fun options)))
+
+	(store-items (rest (assoc :store-val options)))
+	(store-items (rest (assoc :store-fun options)))	
+	
+	(if string
+	    (let* ((string (if (stringp string)
+			       ;; just pass the string through if it's not a pathname; if it is a pathname,
+			       ;; evaluate it in case something like (asdf:system-relative-pathname ...)
+			       ;; was passed
+			       string (with-open-file (stream (eval string))
+					(apply #'concatenate
+					       (cons 'string (loop :for line := (read-line stream nil)
+								:while line
+								:append (list line '(#\Newline))))))))
+		   (input-vars (getf state-to-use :in))
+		   (output-vars (getf state-to-use :out))
+		   (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
+								 string)))
+		   ;; (var-symbols (loop :for key :being :the :hash-keys :of (gethash :variables meta)
+		   ;; 		   :when (not (member (string (gethash key (gethash :variables meta)))
+		   ;; 				      (mapcar #'first input-vars)))
+		   ;; 		   :collect (list key (gethash key (gethash :variables meta)))))
+		   (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
+					 state-to-use))
+		   (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
+					   options input-vars preexisting-vars meta)))
+	      (funcall (of-utilities idiom :build-compiled-code)
+		       (append (funcall (if output-vars #'values
+					    (apply (of-utilities idiom :postprocess-compiled)
+						   (cons system-to-use inline-arguments)))
+					compiled-expressions)
+			       ;; if multiple values are to be output, add the (values) form at bottom
+			       (if output-vars
+				   (list (cons 'values
+					       (mapcar (lambda (return-var)
+							 ;; (funcall (of-utilities idiom :postprocess-value)
+							 ;; 	  (gethash (intern (lisp->camel-case return-var)
+							 ;; 			   "KEYWORD")
+							 ;; 		   (gethash :variables meta))
+							 ;; 	  system-to-use)
+							 (intern (lisp->camel-case return-var) meta))
+						       output-vars)))))
+		       options system-vars vars-declared meta)))))))

@@ -61,7 +61,7 @@
 
 (defmacro in-apl-workspace (workspace-symbol body)
   "This macro encloses a body of compiled April code specifying a workspace in use for the code, and extends any assignment so as to update the workspace's stored values."
-  (labels ((process (form)
+  (labels ((process (form) ;; 𝕊
 	     (loop :for item :in form
 		:collect (if (and (listp item) (eql 'apl-assign (first item)))
 			     (cond ((or (eql 'index-origin (second item))
@@ -268,24 +268,37 @@
 	 (subseq element 1 (1- (length element))))	       
 	((or (string= element "⍺")
 	     (string= element "⍵"))
-	 ;; alpha and omega characters are directly changed to symbols
-	 (intern element idiom-name))
+	 ;; alpha and omega characters are directly changed to symbols in the April package
+	 (intern element))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
-	(t (let ((vars-table (gethash :variables meta))
-		 (elem-keyword (intern element "KEYWORD")))
-	     (or (and (char= #\⎕ (aref element 0))
-		      (or (getf (rest (assoc :variable symbols))
-				(intern (string-upcase element) "APRIL"))
-			  (getf (rest (assoc :constant symbols))
-				(intern (string-upcase element) "APRIL"))))
-		 (if (not vars-table)
-		     (setf vars-table (make-hash-table :test #'eq)))
-		 (let ((variable-found (gethash elem-keyword vars-table)))
-		   (if variable-found variable-found
-		       ;; create a new variable if no variable is found matching the string
-		       (setf (gethash elem-keyword vars-table)
-			     (gensym "A")))))))))
+	;; (t (let ((vars-table (gethash :variables meta))
+	;; 	 (elem-keyword (intern element "KEYWORD")))
+	;;      (or (and (char= #\⎕ (aref element 0))
+	;; 	      (or (getf (rest (assoc :variable symbols))
+	;; 			(intern (string-upcase element) "APRIL"))
+	;; 		  (getf (rest (assoc :constant symbols))
+	;; 			(intern (string-upcase element) "APRIL"))))
+	;; 	 (if (not vars-table)
+	;; 	     (setf vars-table (make-hash-table :test #'eq)))
+	;; 	 (let ((variable-found (gethash elem-keyword vars-table)))
+	;; 	   (if variable-found variable-found
+	;; 	       ;; create a new variable if no variable is found matching the string
+	;; 	       (setf (gethash elem-keyword vars-table)
+	;; 		     (gensym "A")))))))
+	(t (or (and (char= #\⎕ (aref element 0))
+		    (or (getf (rest (assoc :variable symbols))
+			      (intern (string-upcase element) "APRIL"))
+			(getf (rest (assoc :constant symbols))
+			      (intern (string-upcase element) "APRIL"))))
+	       (intern element meta)
+	       ;; (let ((variable-found (gethash elem-keyword vars-table)))
+	       ;; 	 (if variable-found variable-found
+	       ;; 	     ;; create a new variable if no variable is found matching the string
+	       ;; 	     (setf (gethash elem-keyword vars-table)
+	       ;; 		   (gensym "A"))))
+	       ))
+	))
 
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
@@ -524,11 +537,14 @@ It remains here as a standard against which to compare methods for composing APL
 				(eql '⍺ (first form))
 				(eql '⍵ (first form))
 				(and (symbolp (first form))
-				     (or (gethash (string (first form))
-						  (gethash :values space))
-					 (not (loop :for key :being :the :hash-keys :of (gethash :variables space)
-						 :never (eql (first form)
-							     (gethash key (gethash :variables space)))))))))
+				     (or ;; (gethash (string (first form))
+					 ;; 	  (gethash :values space))
+					 (intern (string-upcase (first form)) space)
+					 ;; (not (loop :for key :being :the :hash-keys
+					 ;; 	 :of (gethash :variables space)
+					 ;; 	 :never (eql (first form)
+					 ;; 		     (gethash key (gethash :variables space)))))
+					 ))))
 		       (if (= 1 (length properties))
 			   (apply-props form (first properties))
 			   (mapcar #'apply-props form properties))
@@ -571,21 +587,22 @@ It remains here as a standard against which to compare methods for composing APL
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
-(defun build-variable-declarations (options input-vars preexisting-vars var-symbols meta)
+(defun build-variable-declarations (options input-vars preexisting-vars meta) ;var-symbols meta)
   "Create the set of variable declarations that begins April's compiled code."
   (let* ((workspace (second (assoc :space options)))
-	 (declarations (loop :for key-symbol :in var-symbols
-			  :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
-					     (mapcar #'first input-vars)))
-			  :collect (let* ((sym (second key-symbol))
-					  (fun-ref (gethash sym (gethash :functions meta)))
-					  (val-ref (if workspace `(gethash (quote ,sym)
-									   (gethash :values ,workspace))
-						       (gethash sym (gethash :values meta)))))
-				     (list sym (if (member sym preexisting-vars)
-						   ;; (if val-ref val-ref (if fun-ref fun-ref))
-						   (if fun-ref fun-ref (if val-ref val-ref))
-						   :undefined))))))
+	 (declarations ;; (loop :for key-symbol :in var-symbols
+		       ;; 	  :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
+		       ;; 			     (mapcar #'first input-vars)))
+		       ;; 	  :collect (let* ((sym (second key-symbol))
+		       ;; 			  (fun-ref (gethash sym (gethash :functions meta)))
+		       ;; 			  (val-ref (if workspace `(gethash (quote ,sym)
+		       ;; 							   (gethash :values ,workspace))
+		       ;; 				       (gethash sym (gethash :values meta)))))
+		       ;; 		     (list sym (if (member sym preexisting-vars)
+		       ;; 				   ;; (if val-ref val-ref (if fun-ref fun-ref))
+		       ;; 				   (if fun-ref fun-ref (if val-ref val-ref))
+		       ;; 				   :undefined))))
+	   ))
     ;; update the variable records in the meta object if input variables are present
     (if input-vars (loop :for var-entry :in input-vars
 		      :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
@@ -596,7 +613,7 @@ It remains here as a standard against which to compare methods for composing APL
 										    (second var-entry)))))))))
     declarations))
 
-(defun build-compiled-code (exps options system-vars vars-declared var-symbols meta)
+(defun build-compiled-code (exps options system-vars vars-declared meta) ;var-symbols meta)
   "Return a set of compiled April expressions within the proper context."
   (let ((tb-output (gensym "A"))
 	(branch-index (gensym "A")))
@@ -627,16 +644,20 @@ It remains here as a standard against which to compare methods for composing APL
 			    (second (assoc :space options))
 			    `(let* (,@system-vars ,@vars-declared)
 			       (declare (ignorable ,@(mapcar #'first system-vars)
-						   ,@(mapcar #'second var-symbols)))
-			       ,@(if (not (gethash :branches meta))
+						   ;; ,@(mapcar #'second var-symbols)
+						   ))
+			       ,@(if (not (boundp (intern "*BRANCHES*" meta)))
 				     exps `((let ((,tb-output))
 					      (tagbody ,@(funcall
 							  (lambda (list)
 							    (append (butlast list 1)
 								    `((setq ,tb-output
 									    ,(first (last list))))))
-							  (process-tags exps (gethash :branches meta))))
-					      ,tb-output)))))
+							  (process-tags exps (symbol-value
+									      (intern "*BRANCHES*" meta)))))
+					      ,tb-output)))
+			       ;; TODO: restore branch functionality
+			       ))
 		   (if (< 1 (length exps))
 		       `(progn ,@exps)
 		       (first exps)))))))
