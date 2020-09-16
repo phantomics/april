@@ -5,6 +5,15 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
+(define-symbol-macro branches (symbol-value (intern "*BRANCHES*" workspace)))
+
+(defmacro is-workspace-value (item)
+  `(and (boundp (intern (string ,item) workspace))
+	(not (fboundp (intern (string ,item) workspace)))))
+
+(defmacro is-workspace-function (item)
+  `(fboundp (intern (string ,item) workspace)))
+
 (set-composer-elements
  composer-elements-apl-standard
  (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
@@ -58,10 +67,13 @@
 		      (or (eql '⍵ this-item)
 			  (eql '⍺ this-item)
 			  (getf properties :symbol-overriding)
-			  (gethash this-item (gethash :values workspace))
-			  (not (gethash this-item (gethash :functions workspace))))
+			  ;; (gethash this-item (gethash :values workspace))
+			  ;; (not (gethash this-item (gethash :functions workspace)))
+			  (is-workspace-value this-item)
+			  )
 		      (or (not (getf properties :type))
 			  (eq :symbol (first (getf properties :type)))))
+		 (print (list :it this-item))
 		 (values this-item (list :axes axes :type '(:symbol))
 			 remaining))
 		;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
@@ -89,7 +101,10 @@
 			      ;; must be an operator
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
-					   (gethash (first remaining) (gethash :variables workspace))))
+					   ;; (gethash (first remaining) (gethash :variables workspace))
+					   ;; (and (boundp (intern (first remaining) workspace))
+					   ;; 	(not (fboundp (intern (first remaining) workspace))))
+					   (is-workspace-value (first remaining))))
 				  ;; this clause is needed in case of an index-referenced value being passed
 				  ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
 				  (and (listp (first remaining))
@@ -140,8 +155,10 @@
 		 (let ((fn this-item))
 		   (if (and (symbolp fn)
 			    (not (getf properties :glyph))
-			    (gethash fn (gethash :functions workspace))
-			    (not (gethash fn (gethash :values workspace))))
+			    (is-workspace-value fn)
+			    ;; (gethash fn (gethash :functions workspace))
+			    ;; (not (gethash fn (gethash :values workspace)))
+			    )
 		       (values fn (list :axes axes :type '(:function :referenced))
 			       remaining)
 		       (values nil nil tokens))))))
@@ -227,7 +244,8 @@
    (assignment-operator :element (function :glyph ←))
    (fn-element :pattern (:type (:function)))
    (symbol :element (array :symbol-overriding t)))
-  (if (gethash symbol (gethash :values workspace))
+  (if ;; (gethash symbol (gethash :values workspace))
+      (is-workspace-value symbol)
       (let ((fn-content (resolve-function workspace :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn))
 	    (symbol-axes (getf (third properties) :axes))
@@ -244,12 +262,13 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
-    (if (not (gethash symbol (gethash :values workspace)))
-	(setf (gethash symbol (gethash :values workspace))
-	      t))
-    (if (gethash symbol (gethash :functions workspace))
-	(setf (gethash symbol (gethash :functions workspace))
-	      nil))
+    ;; (if ;; (not (gethash symbol (gethash :values workspace)))
+    ;; 	(not (is-workspace-value symbol))
+    ;; 	(setf (gethash symbol (gethash :values workspace))
+    ;; 	      t))
+    ;; (if (gethash symbol (gethash :functions workspace))
+    ;; 	(setf (gethash symbol (gethash :functions workspace))
+    ;; 	      nil))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
 	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream :print-assignment t))
@@ -277,12 +296,15 @@
   ((:with-preceding-type :function)
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
-  (progn (setf (gethash symbol (gethash :functions workspace))
-	       precedent)
-	 (if (gethash symbol (gethash :values workspace))
-	     (setf (gethash symbol (gethash :values workspace))
-		   nil))
-	 `(setq ,symbol ,precedent))
+  (progn ;; (setf (gethash symbol (gethash :functions workspace))
+	 ;;       precedent)
+         (setf (symbol-function (intern (string symbol) workspace)) #'identity)
+         `(setf (symbol-function (quote ,(intern (string symbol) workspace))) ,precedent)
+	 ;; (if (gethash symbol (gethash :values workspace))
+	 ;;     (setf (gethash symbol (gethash :values workspace))
+	 ;; 	   nil))
+	 ;; `(setq ,symbol ,precedent)
+	 )
   '(:type (:function :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
@@ -299,14 +321,11 @@
       (if (integerp branch-from)
 	  ;; if the branch is designated by an integer like 5→⎕
 	  (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
-	    (setf (gethash :branches workspace)
-		  (cons (list branch-from branch-symbol)
-			(gethash :branches workspace)))
+	    (setf branches (cons (list branch-from branch-symbol) branches))
 	    branch-symbol)
 	  ;; if the branch is designated by a symbol like doSomething→⎕
 	  (if (symbolp branch-from)
-	      (progn (setf (gethash :branches workspace)
-			   (cons branch-from (gethash :branches workspace)))
+	      (progn (setf branches (cons branch-from branches))
 		     branch-from)
 	      (error "Invalid left argument to →; must be a single integer value or a symbol.")))
       ;; otherwise, this is a branch-to statement like →5 or →doSomething
@@ -358,6 +377,7 @@
   (let ((fn-content (resolve-function workspace (if value :dyadic :monadic) fn-element))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
+    (print (list :ioio fn-content fn-sym axes))
     `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))
