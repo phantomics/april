@@ -14,6 +14,7 @@
 					(max 1 (rank omega)))
 				    index-origin))
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
+(define-symbol-macro branches (symbol-value (intern "*BRANCHES*" workspace)))
 
 ;; keep legacy april-p macro in place and usable in place of april-f
 (defmacro april-p (&rest args)
@@ -40,6 +41,13 @@
       (if (eql 'λωχ (first body))
 	  `(λω (funcall ,body omega ,(cons 'list axes)))
 	  body)))
+
+(defmacro is-workspace-value (item)
+  `(and (boundp (intern (string ,item) workspace))
+	(not (fboundp (intern (string ,item) workspace)))))
+
+(defmacro is-workspace-function (item)
+  `(fboundp (intern (string ,item) workspace)))
 
 (defmacro print-and-run (form)
   "Print a formatted code string and then run the code; used in April's arbitrary evaluation tests."
@@ -342,14 +350,14 @@
   (if (characterp reference)
       (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
 	  (of-functions this-idiom reference mode))
-      (if (or (and (symbolp reference)
-		   (gethash reference (gethash :functions workspace)))
-	      (and (listp reference)
+      (if (and (symbolp reference) (fboundp reference))
+	  `(function ,reference)
+	  (if (and (listp reference)
 		   (or (eql 'lambda (first reference))
 		       (and (macro-function (first reference))
 			    (not (or (eql 'avector (first reference))
-				     (eql 'apl-call (first reference))))))))
-	  reference)))
+				     (eql 'apl-call (first reference)))))))
+	      reference))))
 
 (defmacro resolve-operator (mode reference)
   "Retrieve an operator's composing function."
@@ -537,14 +545,17 @@ It remains here as a standard against which to compare methods for composing APL
 				(eql '⍺ (first form))
 				(eql '⍵ (first form))
 				(and (symbolp (first form))
-				     (or ;; (gethash (string (first form))
-					 ;; 	  (gethash :values space))
-					 (intern (string-upcase (first form)) space)
-					 ;; (not (loop :for key :being :the :hash-keys
-					 ;; 	 :of (gethash :variables space)
-					 ;; 	 :never (eql (first form)
-					 ;; 		     (gethash key (gethash :variables space)))))
-					 ))))
+				     (and (boundp (intern (string-upcase (first form)) space))
+					  (not (fboundp (intern (string-upcase (first form)) space))))
+				     ;; (or ;; (gethash (string (first form))
+				     ;; 	 ;; 	  (gethash :values space))
+				     ;; 	 (intern (string-upcase (first form)) space)
+				     ;; 	 ;; (not (loop :for key :being :the :hash-keys
+				     ;; 	 ;; 	 :of (gethash :variables space)
+				     ;; 	 ;; 	 :never (eql (first form)
+				     ;; 	 ;; 		     (gethash key (gethash :variables space)))))
+				     ;; 	 )
+				     )))
 		       (if (= 1 (length properties))
 			   (apply-props form (first properties))
 			   (mapcar #'apply-props form properties))

@@ -5,15 +5,6 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
-(define-symbol-macro branches (symbol-value (intern "*BRANCHES*" workspace)))
-
-(defmacro is-workspace-value (item)
-  `(and (boundp (intern (string ,item) workspace))
-	(not (fboundp (intern (string ,item) workspace)))))
-
-(defmacro is-workspace-function (item)
-  `(fboundp (intern (string ,item) workspace)))
-
 (set-composer-elements
  composer-elements-apl-standard
  (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
@@ -73,7 +64,6 @@
 			  )
 		      (or (not (getf properties :type))
 			  (eq :symbol (first (getf properties :type)))))
-		 (print (list :it this-item))
 		 (values this-item (list :axes axes :type '(:symbol))
 			 remaining))
 		;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
@@ -155,7 +145,7 @@
 		 (let ((fn this-item))
 		   (if (and (symbolp fn)
 			    (not (getf properties :glyph))
-			    (is-workspace-value fn)
+			    (is-workspace-function fn)
 			    ;; (gethash fn (gethash :functions workspace))
 			    ;; (not (gethash fn (gethash :values workspace)))
 			    )
@@ -377,7 +367,7 @@
   (let ((fn-content (resolve-function workspace (if value :dyadic :monadic) fn-element))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
-    (print (list :ioio fn-content fn-sym axes))
-    `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list (output-value workspace value (rest properties))))
+    `(apl-call ,fn-sym ,fn-content ,precedent
+	       ,@(if value (list (output-value workspace value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))

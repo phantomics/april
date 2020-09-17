@@ -776,10 +776,7 @@
 		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
 		 ;;  				      (list new-props remaining))))
 		 ;;(print (list :pattern (getf pattern :name) precedent tokens properties))
-		 (if new-processed (setq processed new-processed properties ;; (append new-props
-									    ;; 	    properties)
-					 new-props
-					 tokens remaining))))
+		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
 	    (values precedent properties tokens)
@@ -930,12 +927,12 @@
 		      ;; 	(if (not vdata) (setf vdata (gensym "V")))
 		      ;; 	(setf (gethash vdata (gethash type meta))
 		      ;; 	      (second item)))
-		    (setf (intern (lisp->camel-case (first item)) meta)
-			  (second item)))))
+		    (set (intern (lisp->camel-case (first item)) meta)
+			 (second item)))))
       
       (symbol-macrolet ((wkspace-system (symbol-value (intern "*SYSTEM*" meta))))
 
-	(if (not (print (find-package (print meta))))
+	(if (not (find-package meta))
 	    (make-package meta))
 
 	(if (not (boundp (intern "*SYSTEM*" meta)))
