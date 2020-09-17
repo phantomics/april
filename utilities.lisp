@@ -43,14 +43,15 @@
 	  body)))
 
 (defmacro is-workspace-value (item)
-  `(and (boundp (intern (string ,item) workspace))
-	(not (fboundp (intern (string ,item) workspace)))))
+  `(progn (print (list :is (string ,item)))
+	  (and (print (boundp (intern (string ,item) workspace)))
+	       (print (not (fboundp (intern (string ,item) workspace)))))))
 
-(defmacro is-workspace-function (item)
+(Defmacro is-workspace-function (item)
   `(fboundp (intern (string ,item) workspace)))
 
 (defmacro print-and-run (form)
-  "Print a formatted code string and then run the code; used in April's arbitrary evaluation tests."
+  "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
   `(progn (princ (indent-code (string-downcase (write-to-string (quote ,form)))))
 	  ,form))
 
