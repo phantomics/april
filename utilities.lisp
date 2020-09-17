@@ -14,7 +14,7 @@
 					(max 1 (rank omega)))
 				    index-origin))
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
-(define-symbol-macro branches (symbol-value (intern "*BRANCHES*" workspace)))
+(define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" workspace)))
 
 ;; keep legacy april-p macro in place and usable in place of april-f
 (defmacro april-p (&rest args)
@@ -43,9 +43,8 @@
 	  body)))
 
 (defmacro is-workspace-value (item)
-  `(progn (print (list :is (string ,item)))
-	  (and (print (boundp (intern (string ,item) workspace)))
-	       (print (not (fboundp (intern (string ,item) workspace)))))))
+  `(and (boundp (intern (string ,item) workspace))
+	(not (fboundp (intern (string ,item) workspace)))))
 
 (Defmacro is-workspace-function (item)
   `(fboundp (intern (string ,item) workspace)))
@@ -96,7 +95,7 @@
 
 (defmacro apl-assign (symbol value)
   "This is a simple passthrough macro that is used by (in-apl-workspace)."
-  `(setq ,symbol ,value))
+  `(set ',symbol ,value))
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
@@ -264,7 +263,7 @@
 				     (if decimals decimals (- (min printed precision) before-decimal)))
 			 number))))))
 
-(defun format-value (idiom-name meta symbols element)
+(defun format-value (idiom-name space symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((string= element "⍬")
 	 ;; APL's "zilde" character yields a keyword the compiler translates to an empty vector
@@ -281,33 +280,12 @@
 	 (intern element))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
-	;; (t (let ((vars-table (gethash :variables meta))
-	;; 	 (elem-keyword (intern element "KEYWORD")))
-	;;      (or (and (char= #\⎕ (aref element 0))
-	;; 	      (or (getf (rest (assoc :variable symbols))
-	;; 			(intern (string-upcase element) "APRIL"))
-	;; 		  (getf (rest (assoc :constant symbols))
-	;; 			(intern (string-upcase element) "APRIL"))))
-	;; 	 (if (not vars-table)
-	;; 	     (setf vars-table (make-hash-table :test #'eq)))
-	;; 	 (let ((variable-found (gethash elem-keyword vars-table)))
-	;; 	   (if variable-found variable-found
-	;; 	       ;; create a new variable if no variable is found matching the string
-	;; 	       (setf (gethash elem-keyword vars-table)
-	;; 		     (gensym "A")))))))
 	(t (or (and (char= #\⎕ (aref element 0))
 		    (or (getf (rest (assoc :variable symbols))
 			      (intern (string-upcase element) "APRIL"))
 			(getf (rest (assoc :constant symbols))
 			      (intern (string-upcase element) "APRIL"))))
-	       (intern element meta)
-	       ;; (let ((variable-found (gethash elem-keyword vars-table)))
-	       ;; 	 (if variable-found variable-found
-	       ;; 	     ;; create a new variable if no variable is found matching the string
-	       ;; 	     (setf (gethash elem-keyword vars-table)
-	       ;; 		   (gensym "A"))))
-	       ))
-	))
+	       (intern element space)))))
 
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
@@ -329,22 +307,23 @@
     `(lambda (,workspace ,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
        (let ,(loop :for symbol :in operand-specs
-		:collect (list symbol (cond ((eq symbol 'left-glyph)
-					     (list 'or-functional-character first-op :fn))
-					    ((eq symbol 'left-function-monadic)
-					     (list 'resolve-function workspace :monadic first-op first-axes))
-					    ((eq symbol 'left-function-dyadic)
-					     (list 'resolve-function workspace :dyadic first-op first-axes))
-					    ((eq symbol 'left-function-symbolic)
-					     (list 'resolve-function workspace :symbolic first-op first-axes))
-					    ((eq symbol 'right-glyph)
-					     (list 'or-functional-character second-op :fn))
-					    ((eq symbol 'right-function-monadic)
-					     (list 'resolve-function workspace :monadic second-op second-axes))
-					    ((eq symbol 'right-function-dyadic)
-					     (list 'resolve-function workspace :dyadic second-op second-axes))
-					    ((eq symbol 'right-function-symbolic)
-					     (list 'resolve-function workspace :symbolic second-op second-axes)))))
+		:collect (list symbol
+			       (cond ((eq symbol 'left-glyph)
+				      (list 'or-functional-character first-op :fn))
+				     ((eq symbol 'left-function-monadic)
+				      (list 'resolve-function workspace :monadic first-op first-axes))
+				     ((eq symbol 'left-function-dyadic)
+				      (list 'resolve-function workspace :dyadic first-op first-axes))
+				     ((eq symbol 'left-function-symbolic)
+				      (list 'resolve-function workspace :symbolic first-op first-axes))
+				     ((eq symbol 'right-glyph)
+				      (list 'or-functional-character second-op :fn))
+				     ((eq symbol 'right-function-monadic)
+				      (list 'resolve-function workspace :monadic second-op second-axes))
+				     ((eq symbol 'right-function-dyadic)
+				      (list 'resolve-function workspace :dyadic second-op second-axes))
+				     ((eq symbol 'right-function-symbolic)
+				      (list 'resolve-function workspace :symbolic second-op second-axes)))))
 	 ,@body))))
 
 (defun resolve-function (workspace mode reference &optional axes)
@@ -547,16 +526,7 @@ It remains here as a standard against which to compare methods for composing APL
 				(eql '⍵ (first form))
 				(and (symbolp (first form))
 				     (and (boundp (intern (string-upcase (first form)) space))
-					  (not (fboundp (intern (string-upcase (first form)) space))))
-				     ;; (or ;; (gethash (string (first form))
-				     ;; 	 ;; 	  (gethash :values space))
-				     ;; 	 (intern (string-upcase (first form)) space)
-				     ;; 	 ;; (not (loop :for key :being :the :hash-keys
-				     ;; 	 ;; 	 :of (gethash :variables space)
-				     ;; 	 ;; 	 :never (eql (first form)
-				     ;; 	 ;; 		     (gethash key (gethash :variables space)))))
-				     ;; 	 )
-				     )))
+					  (not (fboundp (intern (string-upcase (first form)) space)))))))
 		       (if (= 1 (length properties))
 			   (apply-props form (first properties))
 			   (mapcar #'apply-props form properties))
@@ -599,43 +569,25 @@ It remains here as a standard against which to compare methods for composing APL
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
-(defun build-variable-declarations (options input-vars preexisting-vars meta) ;var-symbols meta)
+(defun build-variable-declarations (options input-vars preexisting-vars space)
   "Create the set of variable declarations that begins April's compiled code."
-  (let* ((workspace (second (assoc :space options)))
-	 (declarations ;; (loop :for key-symbol :in var-symbols
-		       ;; 	  :when (not (member (string (gethash (first key-symbol) (gethash :variables meta)))
-		       ;; 			     (mapcar #'first input-vars)))
-		       ;; 	  :collect (let* ((sym (second key-symbol))
-		       ;; 			  (fun-ref (gethash sym (gethash :functions meta)))
-		       ;; 			  (val-ref (if workspace `(gethash (quote ,sym)
-		       ;; 							   (gethash :values ,workspace))
-		       ;; 				       (gethash sym (gethash :values meta)))))
-		       ;; 		     (list sym (if (member sym preexisting-vars)
-		       ;; 				   ;; (if val-ref val-ref (if fun-ref fun-ref))
-		       ;; 				   (if fun-ref fun-ref (if val-ref val-ref))
-		       ;; 				   :undefined))))
-	   ))
-    ;; update the variable records in the meta object if input variables are present
-    (if input-vars (loop :for var-entry :in input-vars
-		      :do (symbol-macrolet ((vdata (gethash (intern (lisp->camel-case (first var-entry)) "KEYWORD")
-							    (gethash :variables meta))))
-			    (if vdata (rplacd (assoc vdata declarations)
-					      (list (second var-entry)))
-				(setq declarations (append declarations (list (list (setf vdata (gensym))
-										    (second var-entry)))))))))
-    declarations))
+  (loop :for var-entry :in input-vars :collect (list (intern (lisp->camel-case (first var-entry)) space)
+						     (second var-entry))))
 
-(defun build-compiled-code (exps options system-vars vars-declared meta) ;var-symbols meta)
+(defun build-compiled-code (exps options system-vars vars-declared space)
   "Return a set of compiled April expressions within the proper context."
-  (let ((tb-output (gensym "A"))
-	(branch-index (gensym "A")))
-    (flet ((process-tags (form tags)
-	     (loop :for sub-form :in form
+  (let* ((branch-index (gensym "A")) (branches-sym (intern "*BRANCHES*" space))
+	 (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
+	 (tags-matching (loop :for tag :in (symbol-value branches-sym)
+			   :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
+    (print (list :tm tags-matching))
+    (flet ((process-tags (form)
+	     (loop :for sub-form :in form :do (print (list :sf sub-form))
 		:collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
 				       (not (symbolp (second sub-form)))))
 			     sub-form (if (integerp (second sub-form))
-					  (if (assoc (second sub-form) tags)
-					      (list 'go (second (assoc (second sub-form) tags))))
+					  (if (assoc (second sub-form) tags-matching)
+					      (list 'go (second (assoc (second sub-form) tags-matching))))
 					  (if (third sub-form)
 					      `(let ((,branch-index ,(third sub-form)))
 						 (cond ,@(loop :for tag :in (second sub-form)
@@ -643,7 +595,9 @@ It remains here as a standard against which to compare methods for composing APL
 							    :collect `((= ,branch-index ,tix)
 								       (go ,tag)))))
 					      `(let ((,branch-index ,(second sub-form)))
-						 (cond ,@(loop :for tag :in tags
+						 (cond ,@(loop :for tag :in tags-matching
+							    :when (and (listp tag)
+								       (member (second tag) tags-found))
 							    :collect `((= ,branch-index ,(first tag))
 								       (go ,(second tag))))))))))))
       (funcall (lambda (code) (if (not (assoc :compile-only options))
@@ -655,21 +609,11 @@ It remains here as a standard against which to compare methods for composing APL
 				       form))
 			    (second (assoc :space options))
 			    `(let* (,@system-vars ,@vars-declared)
-			       (declare (ignorable ,@(mapcar #'first system-vars)
-						   ;; ,@(mapcar #'second var-symbols)
-						   ))
-			       ,@(if (not (boundp (intern "*BRANCHES*" meta)))
-				     exps `((let ((,tb-output))
-					      (tagbody ,@(funcall
-							  (lambda (list)
-							    (append (butlast list 1)
-								    `((setq ,tb-output
-									    ,(first (last list))))))
-							  (process-tags exps (symbol-value
-									      (intern "*BRANCHES*" meta)))))
-					      ,tb-output)))
-			       ;; TODO: restore branch functionality
-			       ))
+			       (declare (ignorable ,@(mapcar #'first system-vars)))
+			       (print (list (quote ,exps)))
+			       ,@(if (or (not tags-found) (not (boundp branches-sym)))
+				     exps `((tagbody ,@(butlast (process-tags exps) 1))
+					    ,(first (last exps))))))
 		   (if (< 1 (length exps))
 		       `(progn ,@exps)
 		       (first exps)))))))

@@ -580,14 +580,16 @@
 						   (let ((,placeholder ,a))
 						     (setq ,a ,o
 							   ,o ,placeholder)))
+					       ;; (print (list :io (quote ,right-operation)))
 					       (each-scalar t (funcall
 							       ;; disclose the output of
 							       ;; user-created functions; otherwise
 							       ;; fn←{⍺×⍵+1}
 							       ;; 1 2 3∘.fn 4 5 6 (for example)
 							       ;; will fail
-							       ,(if (or (symbolp right-operation)
-									(and (listp right-operation)
+							       ,(if (and (listp right-operation)
+									 (or (eq 'function
+										 (first right-operation))
 									     (eq 'scalar-function
 										 (first right-operation))))
 								    '#'disclose '#'identity)
