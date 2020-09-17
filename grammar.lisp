@@ -60,10 +60,10 @@
 			  (getf properties :symbol-overriding)
 			  ;; (gethash this-item (gethash :values workspace))
 			  ;; (not (gethash this-item (gethash :functions workspace)))
-			  (is-workspace-value this-item)
-			  )
+			  (print (is-workspace-value this-item)))
 		      (or (not (getf properties :type))
 			  (eq :symbol (first (getf properties :type)))))
+		 (print (list :sym this-item))
 		 (values this-item (list :axes axes :type '(:symbol))
 			 remaining))
 		;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
