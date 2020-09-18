@@ -16,6 +16,12 @@
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" workspace)))
 
+(defun dummy-dyadic-function (alpha &rest omega)
+  (declare (ignorable omega))
+  ;; placeholder function to be assigned to function symbols in workspace packages
+  ;; before they are assigned within APL code
+  alpha)
+
 ;; keep legacy april-p macro in place and usable in place of april-f
 (defmacro april-p (&rest args)
   (cons 'april-f args))
@@ -277,7 +283,7 @@
 	((or (string= element "⍺")
 	     (string= element "⍵"))
 	 ;; alpha and omega characters are directly changed to symbols in the April package
-	 (intern element))
+	 (intern element idiom-name))
 	((numeric-string-p element)
 	 (parse-apl-number-string element))
 	(t (or (and (char= #\⎕ (aref element 0))
@@ -580,9 +586,8 @@ It remains here as a standard against which to compare methods for composing APL
 	 (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
 	 (tags-matching (loop :for tag :in (symbol-value branches-sym)
 			   :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
-    (print (list :tm tags-matching))
     (flet ((process-tags (form)
-	     (loop :for sub-form :in form :do (print (list :sf sub-form))
+	     (loop :for sub-form :in form
 		:collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
 				       (not (symbolp (second sub-form)))))
 			     sub-form (if (integerp (second sub-form))
@@ -610,7 +615,7 @@ It remains here as a standard against which to compare methods for composing APL
 			    (second (assoc :space options))
 			    `(let* (,@system-vars ,@vars-declared)
 			       (declare (ignorable ,@(mapcar #'first system-vars)))
-			       (print (list (quote ,exps)))
+			       ;; (print (list (quote ,exps)))
 			       ,@(if (or (not tags-found) (not (boundp branches-sym)))
 				     exps `((tagbody ,@(butlast (process-tags exps) 1))
 					    ,(first (last exps))))))
