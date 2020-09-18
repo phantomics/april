@@ -775,7 +775,7 @@
 			    precedent properties preceding-props)
 		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
 		 ;;  				      (list new-props remaining))))
-		 ;;(print (list :pattern (getf pattern :name) precedent tokens properties))
+		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)

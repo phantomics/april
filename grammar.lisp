@@ -295,7 +295,7 @@
     ;;       precedent)
          (if (is-workspace-value symbol)
 	     (makunbound symbol))
-         (setf (symbol-function (intern (string symbol) workspace)) #'identity)
+         (setf (symbol-function (intern (string symbol) workspace)) #'dummy-dyadic-function)
          `(setf (symbol-function (quote ,(intern (string symbol) workspace))) ,precedent)
 	 ;; (if (gethash symbol (gethash :values workspace))
 	 ;;     (setf (gethash symbol (gethash :values workspace))
@@ -342,8 +342,7 @@
 		      (list 'list))
 		  ;; otherwise, there must be an expression to the left of the arrow, as with
 		  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-		  (list 'go (rest precedent)
-			branch-from))
+		  (list 'go precedent branch-from))
 	      (list 'go precedent))))
   `(type (:branch)))
  (pivotal-composition

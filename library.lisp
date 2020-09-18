@@ -397,6 +397,7 @@
 	result)))
 
 (defun format-array (print-precision)
+  ;; (print (list :pr print-precision))
   (lambda (omega &optional alpha)
     (if (not alpha)
 	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n t print-precision)))
