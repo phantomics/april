@@ -972,7 +972,7 @@
 		   (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
 					 state-to-use))
 		   (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
-					   options input-vars preexisting-vars space)))
+					   input-vars space)))
 	      (funcall (of-utilities idiom :build-compiled-code)
 		       (append (funcall (if output-vars #'values
 					    (apply (of-utilities idiom :postprocess-compiled)
@@ -980,8 +980,7 @@
 					compiled-expressions)
 			       ;; if multiple values are to be output, add the (values) form at bottom
 			       (if output-vars
-				   (list (cons 'values
-					       (mapcar (lambda (return-var)
-							 (intern (lisp->camel-case return-var) space))
-						       output-vars)))))
+				   (list (cons 'values (mapcar (lambda (return-var)
+								 (intern (lisp->camel-case return-var) space))
+							       output-vars)))))
 		       options system-vars vars-declared space)))))))

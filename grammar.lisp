@@ -58,9 +58,6 @@
 		      (or (eql '⍵ this-item)
 			  (eql '⍺ this-item)
 			  (getf properties :symbol-overriding)
-			  ;; (gethash this-item (gethash :values workspace))
-			  ;; (not (gethash this-item (gethash :functions workspace)))
-			  ;; (is-workspace-value this-item)
 			  (and (symbolp this-item)
 			       (not (is-workspace-function this-item))))
 		      (or (not (getf properties :type))
@@ -92,9 +89,6 @@
 			      ;; must be an operator
 			      (or (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
-					   ;; (gethash (first remaining) (gethash :variables workspace))
-					   ;; (and (boundp (intern (first remaining) workspace))
-					   ;; 	(not (fboundp (intern (first remaining) workspace))))
 					   (is-workspace-value (first remaining))))
 				  ;; this clause is needed in case of an index-referenced value being passed
 				  ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
@@ -146,10 +140,7 @@
 		 (let ((fn this-item))
 		   (if (and (symbolp fn)
 			    (not (getf properties :glyph))
-			    (is-workspace-function fn)
-			    ;; (gethash fn (gethash :functions workspace))
-			    ;; (not (gethash fn (gethash :values workspace)))
-			    )
+			    (is-workspace-function fn))
 		       (values fn (list :axes axes :type '(:function :referenced))
 			       remaining)
 		       (values nil nil tokens))))))
@@ -205,7 +196,7 @@
     (append (list 'apl-compose (intern (string-upcase operator)))
 	    ;; call the operator constructor on the output of the operand constructor which integrates axes
 	    (funcall (funcall (resolve-operator :lateral operator)
-			      workspace operand operand-axes)
+			      operand operand-axes)
 		     operator-axes)))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
@@ -253,13 +244,6 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
-    ;; (if ;; (not (gethash symbol (gethash :values workspace)))
-    ;; 	(not (is-workspace-value symbol))
-    ;; 	(setf (gethash symbol (gethash :values workspace))
-    ;; 	      t))
-    ;; (if (gethash symbol (gethash :functions workspace))
-    ;; 	(setf (gethash symbol (gethash :functions workspace))
-    ;; 	      nil))
     (if (is-workspace-function symbol)
 	(fmakunbound symbol))
     (if (not (boundp symbol))
@@ -291,17 +275,10 @@
   ((:with-preceding-type :function)
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
-  (progn ;; (setf (gethash symbol (gethash :functions workspace))
-    ;;       precedent)
-         (if (is-workspace-value symbol)
+  (progn (if (is-workspace-value symbol)
 	     (makunbound symbol))
          (setf (symbol-function (intern (string symbol) workspace)) #'dummy-dyadic-function)
-         `(setf (symbol-function (quote ,(intern (string symbol) workspace))) ,precedent)
-	 ;; (if (gethash symbol (gethash :values workspace))
-	 ;;     (setf (gethash symbol (gethash :values workspace))
-	 ;; 	   nil))
-	 ;; `(setq ,symbol ,precedent)
-	 )
+         `(setf (symbol-function (quote ,(intern (string symbol) workspace))) ,precedent))
   '(:type (:function :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
@@ -309,11 +286,7 @@
    (branch-glyph :element (function :glyph →))
    (branch-from :element (array :cancel-if :pivotal-composition) :optional t :times :any)
    (determine-branch-by :element function :optional t :times 1))
-  (if (and branch-from ;; (listp precedent)
-	   ;; (numberp (first precedent))
-	   ;; (eql 'to-output (second precedent))
-	   ;; (not (third precedent))
-	   (eql 'to-output precedent))
+  (if (and branch-from (eql 'to-output precedent))
       ;; if this is a branch point statement like X→⎕, do the following:
       (if (integerp branch-from)
 	  ;; if the branch is designated by an integer like 5→⎕
@@ -360,7 +333,7 @@
     ;; functions can be properly curried if they have axes specified
     (append (list 'apl-compose (intern (string-upcase operator)))
 	    (funcall (funcall (resolve-operator :pivotal operator)
-			      workspace left-operand left-operand-axes precedent right-operand-axes)
+			      left-operand left-operand-axes precedent right-operand-axes)
 		     right-operand left-operand)))
   '(:type (:function :operator-composed :pivotal)))
  (operation
