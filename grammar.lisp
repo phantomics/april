@@ -237,7 +237,7 @@
    (fn-element :pattern (:type (:function)))
    (symbol :element (array :symbol-overriding t)))
   (if (is-workspace-value symbol)
-      (let ((fn-content (resolve-function workspace :dyadic fn-element))
+      (let ((fn-content (resolve-function :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn))
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
@@ -370,7 +370,7 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (resolve-function workspace (if value :dyadic :monadic) fn-element))
+  (let ((fn-content (resolve-function (if value :dyadic :monadic) fn-element))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
     `(apl-call ,fn-sym ,fn-content ,precedent
