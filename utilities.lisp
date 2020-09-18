@@ -607,7 +607,7 @@ It remains here as a standard against which to compare methods for composing APL
 				  code `(quote ,code)))
 	       (if (or system-vars vars-declared)
 		   (funcall (lambda (workspace form)
-			      (funcall (if (not workspace)
+			      (funcall (if t ;;(not workspace)
 					   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
 				       form))
 			    (second (assoc :space options))

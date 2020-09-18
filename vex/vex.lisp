@@ -949,9 +949,6 @@
 	      system-to-use (assign-from ws-system system-to-use)
 	      system-to-use (assign-from state system-to-use))
 
-	;; (store-items :values (rest (assoc :store-val options)))
-	;; (store-items :functions (rest (assoc :store-fun options)))
-
 	(store-items (rest (assoc :store-val options)))
 	(store-items (rest (assoc :store-fun options)))	
 	

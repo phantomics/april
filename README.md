@@ -425,13 +425,13 @@ This way, the formatted string will be the only returned value.
 If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the `(:space)` parameter. For example:
 
 ```lisp
-* (april-f (with (:space *space1*)) "a←5+2 ⋄ b←3×9")
+* (april-f (with (:space space1)) "a←5+2 ⋄ b←3×9")
 27
 
-* (april-f (with (:space *space1*)) "c←{⍵+2}")
+* (april-f (with (:space space1)) "c←{⍵+2}")
 #<FUNCTION ... >
 
-* (april-f (with (:space *space1*)) "c a+b")
+* (april-f (with (:space space1)) "c a+b")
 36
 ```
 
@@ -444,15 +444,15 @@ You can use the `(:state-persistent)` parameter to set state values within the w
 For example:
 
 ```lisp
-* (april-f (with (:state-persistent :count-from 0) (:space *space1*)) "⍳7")
+* (april-f (with (:state-persistent :count-from 0) (:space space1)) "⍳7")
 0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
-* (april-f (with (:space *space1*)) "⍳7")
+* (april-f (with (:space space1)) "⍳7")
 0 1 2 3 4 5 6
 #(0 1 2 3 4 5 6)
 
-* (april-f (with (:space *space2*)) "⍳7")
+* (april-f (with (:space space2)) "⍳7")
 1 2 3 4 5 6 7
 #(1 2 3 4 5 6 7)
 ```
@@ -466,14 +466,14 @@ You can use `(:state-persistent)` to set persistent input variables that will st
 *DYNAMIC-VAR*
 
 * (april-f (with (:state-persistent :in ((dyn-var *dynamic-var*)))
-                 (:space *space1*))
+                 (:space space1))
            "dynVar⍟512")
 9.0
 
 * (setq *dynamic-var* 8)
 8
 
-* (april-f (with (:space *space1*)) "dynVar⍟512")
+* (april-f (with (:space space1)) "dynVar⍟512")
 3.0
 ```
 
@@ -495,7 +495,7 @@ If you just want to compile the code you enter into April without running it, us
 You can use this parameter to clear a workspace and return it to its default state. For example, to clear a workspace called `*space1*` enter:
 
 ```lisp
-* (april (with (:restore-defaults) (:space *space1*)))
+* (april (with (:restore-defaults) (:space space1)))
 ```
 
 All `:in` and `:out` values will be nullified, `:count-from` will return to its default setting, etc.
@@ -524,16 +524,16 @@ After the string where the April function is written, pass the variables that wi
 Perhaps you'd like to make multiple calls to April using the same workspace and other parameters and you don't want to have to enter the same parameters over and over again. The `(with-april-context)` macro can help. For example:
 
 ```lisp
-* (with-april-context ((:space *space1*) (:state :index-origin 0))
+* (with-april-context ((:space space1) (:state :index-origin 0))
     (april "g←5")
     (april "g×3+⍳9"))
 #(15 20 25 30 35 40 45 50 55)
 ```
 
-Inside the body of the `(with-april-context)` macro, each of the `(april)` invocations act as if they were passed the options `(with (:space *space1*) (:state :index-origin 0))`. 
+Inside the body of the `(with-april-context)` macro, each of the `(april)` invocations act as if they were passed the options `(with (:space space1) (:state :index-origin 0))`. 
 
 ```lisp
-* (with-april-context ((:space *space1*) (:state :index-origin 0))
+* (with-april-context ((:space space1) (:state :index-origin 0))
     (april "x←⍳3")
     (april (with (:state :index-origin 1)) "x,⍳5"))
 #(0 1 2 1 2 3 4 5)
