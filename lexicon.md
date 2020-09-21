@@ -77,7 +77,7 @@
 
 [⊂] Enclose / Partitioned Enclose
 
-[⊆] Partition
+[⊆] Nest / Partition
 
 [⊃] Disclose / Pick
 

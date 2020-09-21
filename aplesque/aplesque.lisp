@@ -40,6 +40,13 @@
       item (make-array '(1) :element-type (assign-element-type item)
 		       :initial-element item)))
 
+(defun nest (array)
+  "Enclose simple arrays and return nested arrays as-is."
+  (if (and (eq t (array-element-type array))
+	   (not (loop :for item :across (make-array (list (size array)) :element-type t :displaced-to array)
+		   :never (arrayp item))))
+      array (vector array)))
+
 (defun disclose (item &key if-array)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
   (if (and (arrayp item)

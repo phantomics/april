@@ -74,7 +74,7 @@
 		 (values nil '(:cancel-flag :pivotal-composition)
 			 tokens))
 		(t (values nil nil tokens)))))
- ;; match a function, whether lexical like ⍳, symbolic like fn, or inline like {⍵+5}
+ ;; match a function, whether lexical like ⍳, symbolic like fn after fn←{1+⍵}, or inline like {⍵+5}
  (function (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
 	     (if (listp this-item)
@@ -137,13 +137,12 @@
 				      (values output properties remaining))
 			       (values nil nil tokens)))
 			 (values nil nil tokens)))
-		 (let ((fn this-item))
-		   (if (and (symbolp fn)
-			    (not (getf properties :glyph))
-			    (is-workspace-function fn))
-		       (values fn (list :axes axes :type '(:function :referenced))
-			       remaining)
-		       (values nil nil tokens))))))
+		 (if (and (symbolp this-item)
+			  (not (getf properties :glyph))
+			  (is-workspace-function this-item))
+		     (values this-item (list :axes axes :type '(:function :referenced))
+			     remaining)
+		     (values nil nil tokens)))))
  ;; match a reference to an operator, this must be a lexical reference like ⍣
  (operator (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
@@ -180,7 +179,7 @@
   (let ((axes (getf (first properties) :axes)))
     (if (or (not axes) (vex::of-lexicon idiom :functions function-element))
 	;; if axes are present, this is an n-argument function
-	function-element `(apl-call :nafn (function ,function-element) ,@(first axes))))
+	function-element `(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
   (list :type (if (and (getf (first properties) :axes)
 		       (not (vex::of-lexicon idiom :functions function-element)))
 		  '(:array :evaluated)
@@ -191,7 +190,8 @@
   ((operator :element (operator :valence :lateral))
    (operand :pattern (:type (:function)
 		      :special '(:omit (:value-assignment :function-assignment :operation)))))
-  (let ((operator-axes (first (getf (first properties) :axes)))
+  (let ((operand (insym operand))
+	(operator-axes (first (getf (first properties) :axes)))
 	(operand-axes (first (getf (second properties) :axes))))
     (append (list 'apl-compose (intern (string-upcase operator)))
 	    ;; call the operator constructor on the output of the operand constructor which integrates axes
@@ -233,10 +233,10 @@
 	    (symbol-axes (getf (third properties) :axes))
 	    (function-axes (getf (first properties) :axes)))
 	(if (not symbol-axes)
-	    `(setq ,symbol (apl-call ,fn-sym ,fn-content ,symbol ,precedent
+	    `(setq (inws ,symbol) (apl-call ,fn-sym ,fn-content (inws ,symbol) ,precedent
 				     ,@(if function-axes `((list ,@(first function-axes))))))
-	    (enclose-axes symbol symbol-axes :set `(lambda (item)
-						     (apl-call ,fn-sym ,fn-content item ,precedent))))))
+	    (enclose-axes `(inws, symbol)
+			  symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))))))
   '(:type (:array :assigned :by-result-assignment-operator)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
@@ -245,7 +245,7 @@
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
     (if (is-workspace-function symbol)
-	(fmakunbound symbol))
+	(fmakunbound (intern (string symbol) workspace)))
     (if (not (boundp symbol))
 	(eval `(defvar ,symbol nil)))
     (cond ((eql 'to-output symbol)
@@ -267,8 +267,10 @@
 			 `(apl-assign output-stream ,(intern symbol-string package-string))
 			 (error "Invalid assignment to ⎕OST.")))
 		   (error "Invalid assignment to ⎕OST."))))
-	  (t (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
-		 `(apl-assign ,symbol ,precedent)))))
+	  (t (if axes (enclose-axes `(inws ,symbol) axes :set `(disclose ,precedent))
+		 ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
+		 ;; intern it, unless it's one of the system variables
+		 `(apl-assign ,(output-value workspace symbol properties) ,precedent)))))
   '(:type (:array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression
@@ -276,9 +278,9 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (progn (if (is-workspace-value symbol)
-	     (makunbound symbol))
+	     (makunbound (intern (string symbol) workspace)))
          (setf (symbol-function (intern (string symbol) workspace)) #'dummy-dyadic-function)
-         `(setf (symbol-function (quote ,(intern (string symbol) workspace))) ,precedent))
+         `(setf (symbol-function (quote (inws ,symbol))) ,precedent))
   '(:type (:function :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
@@ -286,37 +288,45 @@
    (branch-glyph :element (function :glyph →))
    (branch-from :element (array :cancel-if :pivotal-composition) :optional t :times :any)
    (determine-branch-by :element function :optional t :times 1))
-  (if (and branch-from (eql 'to-output precedent))
-      ;; if this is a branch point statement like X→⎕, do the following:
-      (if (integerp branch-from)
-	  ;; if the branch is designated by an integer like 5→⎕
-	  (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
-	    (setf *branches* (cons (list branch-from branch-symbol) *branches*))
-	    branch-symbol)
-	  ;; if the branch is designated by a symbol like doSomething→⎕
-	  (if (symbolp branch-from)
-	      (progn (setf *branches* (cons branch-from *branches*))
-		     branch-from)
-	      (error "Invalid left argument to →; must be a single integer value or a symbol.")))
-      ;; otherwise, this is a branch-to statement like →5 or →doSomething
-      (if (or (integerp precedent)
-	      (symbolp precedent))
-	  ;; if the target is an explicit symbol as in →mySymbol, or explicit index
-	  ;; as in →3, just pass the symbol through
-	  (list 'go precedent)
-	  (if (loop :for item :in (rest precedent) :always (symbolp item))
-	      ;; if the target is one of an array of possible destination symbols...
-	      (if (integerp branch-from)
-		  ;; if there is an explicit index to the left of the arrow, grab the corresponding
-		  ;; symbol unless the index is outside the array's scope, in which case a (list) is returned
-		  ;; so nothing is done
-		  (if (< 0 branch-from (length (rest precedent)))
-		      (list 'go (second (nth (1- branch-from) (rest precedent))))
-		      (list 'list))
-		  ;; otherwise, there must be an expression to the left of the arrow, as with
-		  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-		  (list 'go precedent branch-from))
-	      (list 'go precedent))))
+  (progn
+    (if (listp precedent)
+	(if (loop :for item :in precedent :always (and (listp item) (eql 'inws (first item))))
+	    (setq precedent (mapcar #'second precedent))
+	    (if (eql 'inws (first precedent))
+		(setq precedent (second precedent)))))
+    (if (and branch-from (eql 'to-output precedent)) ;;(string= "TO-OUTPUT" (string precedent)))
+	;; if this is a branch point statement like X→⎕, do the following:
+	(if (integerp branch-from)
+	    ;; if the branch is designated by an integer like 5→⎕
+	    (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
+	      (setf *branches* (cons (list branch-from branch-symbol) *branches*))
+	      branch-symbol)
+	    ;; if the branch is designated by a symbol like doSomething→⎕
+	    (if (symbolp branch-from)
+		(progn (setf *branches* (cons branch-from *branches*))
+		       branch-from)
+		(error "Invalid left argument to →; must be a single integer value or a symbol.")))
+	;; otherwise, this is a branch-to statement like →5 or →doSomething
+	(if (or (integerp precedent)
+		(symbolp precedent))
+	    ;; if the target is an explicit symbol as in →mySymbol, or explicit index
+	    ;; as in →3, just pass the symbol through
+	    (list 'go precedent)
+	    (if (loop :for item :in (rest precedent) :always (symbolp item)) ;;(symbolp (second item)))
+		;; if the target is one of an array of possible destination symbols...
+		(if (integerp branch-from)
+		    ;; if there is an explicit index to the left of the arrow, grab the corresponding
+		    ;; symbol unless the index is outside the array's scope, in which case a (list) is returned
+		    ;; so nothing is done
+		    (if (< 0 branch-from (length (rest precedent)))
+			(list 'go (second (nth (1- branch-from) (rest precedent))))
+			(list 'list))
+		    ;; otherwise, there must be an expression to the left of the arrow, as with
+		    ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
+		    (list 'go ;; (mapcar #'second precedent)
+			  precedent
+			  branch-from))
+		(list 'go precedent)))))
   `(type (:branch)))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
@@ -326,14 +336,16 @@
   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
-  (let ((right-operand precedent)
+  (let ((right-operand (insym precedent))
+	(left-operand (insym left-operand))
 	(left-operand-axes (first (getf (second properties) :axes)))
 	(right-operand-axes (first (getf pre-properties :axes))))
+    ;; (print (list :ro right-operand left-operand precedent))
     ;; get left axes from the left operand and right axes from the precedent's properties so the
     ;; functions can be properly curried if they have axes specified
     (append (list 'apl-compose (intern (string-upcase operator)))
 	    (funcall (funcall (resolve-operator :pivotal operator)
-			      left-operand left-operand-axes precedent right-operand-axes)
+			      left-operand left-operand-axes right-operand right-operand-axes)
 		     right-operand left-operand)))
   '(:type (:function :operator-composed :pivotal)))
  (operation
@@ -343,10 +355,13 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (resolve-function (if value :dyadic :monadic) fn-element))
+  (let ((fn-content (resolve-function (if value :dyadic :monadic) (insym fn-element)))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
+    ;; (print (list :fnn value precedent))
     `(apl-call ,fn-sym ,fn-content ,precedent
 	       ,@(if value (list (output-value workspace value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))
+
+;; {[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]

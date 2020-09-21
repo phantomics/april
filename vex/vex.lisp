@@ -128,9 +128,8 @@
 			      (getf props :title)
 			      (if (getf props :titles)
 				  (first (getf props :titles))))
-			  (if (getf props :titles)
-			      (concatenate 'string " / " (second (getf props :titles)))
-			      ""))))
+			  (if (not (getf props :titles))
+			      "" (concatenate 'string " / " (second (getf props :titles)))))))
     (labels ((for-tests (tests &optional output)
 	       (if tests (for-tests (rest tests)
 				    (append output (if (not (eq :time mode))
@@ -622,8 +621,8 @@
 							      :element-type 'character)))
 				     (loop :for x :below (1- (length content))
 					:when (member x escape-indices) :do (incf offset)
-					:when (not (member x escape-indices)) :do (setf (aref outstr (- x offset))
-											(aref content x)))
+					:when (not (member x escape-indices))
+					:do (setf (aref outstr (- x offset)) (aref content x)))
 				     outstr)
 				   (make-array (list (1- (length content))) :element-type 'character
 					       :displaced-to content))))
@@ -671,8 +670,7 @@
 			 (let ((ix 0))
 			   (lambda (char)
 			     (if (and (> 2 ix)
-				      (funcall (of-utilities idiom :match-overloaded-numeric-character)
-					       char))
+				      (funcall (of-utilities idiom :match-overloaded-numeric-character) char))
 				 (setq olnchar char))
 			     (if (and olnchar (= 2 ix)
 				      (not (digit-char-p char)))
@@ -702,7 +700,8 @@
 						    (list char))))))
 			(=transform (=subseq (%some (?token-character)))
 				    (lambda (string)
-				      (funcall (of-utilities idiom :format-value)
+				      (funcall #'identity ;(lambda (x) (print (list :ty (type-of x))) (print ))
+					       (funcall (of-utilities idiom :format-value)
 					       (string-upcase (idiom-name idiom))
 					       ;; if there's an overloaded token character passed in
 					       ;; the special precedent, prepend it to the token being processed
@@ -710,7 +709,7 @@
 					       (if (getf special-precedent :overloaded-num-char)
 						   (format nil "~a~a" (getf special-precedent :overloaded-num-char)
 							   string)
-						   string))))
+						   string)))))
 			;; this last clause returns the remainder of the input in case the input has either no
 			;; characters or only blank characters before the first line break
 			(=subseq (%any (?satisfies 'characterp))))
@@ -899,7 +898,7 @@
   (let* ((state (rest (assoc :state options)))
 	 (space (concatenate 'string (string-upcase (idiom-name idiom))
 			    "-WORKSPACE-" (if (not (second (assoc :space options)))
-					      "GENERAL" (string-upcase (second (assoc :space options))))))
+					      "COMMON" (string-upcase (second (assoc :space options))))))
 	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use) (preexisting-vars))
     (labels ((assign-from (source dest)
@@ -920,13 +919,22 @@
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
 
 	(if (not (find-package space))
-	    (make-package space))
+	    (progn (make-package space)
+		   (set (intern "*SYSTEM*" space) (idiom-system idiom))
+		   (set (intern "*BRANCHES*" space) nil)
+		   (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
+		      :do ;; (set (intern (string csym) space)
+			  ;;      (symbol-value (intern (string csym) (string-upcase (idiom-name idiom)))))
 
-	(if (not (boundp (intern "*SYSTEM*" space)))
-	    (set (intern "*SYSTEM*" space) (idiom-system idiom)))
-
-	(if (not (boundp (intern "*BRANCHES*" space)))
-	    (set (intern "*BRANCHES*" space) nil))
+			(let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
+			    (if (boundp native-symbol)
+				(set (intern (string csym) space)
+				     (symbol-value native-symbol))
+				(if (listp (macroexpand native-symbol))
+				    (eval `(define-symbol-macro ,(intern (string csym) space)
+					       ,(macroexpand native-symbol))))))
+			
+			)))
 
 	;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
 	;; to the defaults from the spec
@@ -934,10 +942,8 @@
 	    (setf (getf ws-system :state)
 		  (getf ws-system :base-state)))
 	
-	(setq state (funcall (of-utilities idiom :preprocess-state-input)
-			     state)
-	      state-persistent (funcall (of-utilities idiom :preprocess-state-input)
-					state-persistent))
+	(setq state (funcall (of-utilities idiom :preprocess-state-input) state)
+	      state-persistent (funcall (of-utilities idiom :preprocess-state-input) state-persistent))
 
 	(if state-persistent (setf (getf ws-system :state)
 				   (assign-from state-persistent (getf ws-system :state))))

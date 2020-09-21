@@ -16,6 +16,11 @@
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" workspace)))
 
+;; TODO: figure out why these dynamic variables are needed; some tests fail despite being compiled
+;; within (let) forms that specify these values
+(defvar index-origin 1)
+(defvar print-precision 10)
+
 (defun dummy-dyadic-function (alpha &rest omega)
   (declare (ignorable omega))
   ;; placeholder function to be assigned to function symbols in workspace packages
@@ -49,10 +54,12 @@
 	  body)))
 
 (defmacro is-workspace-value (item)
+  "Checks if a variable is present in the current workspace as a value."
   `(and (boundp (intern (string ,item) workspace))
 	(not (fboundp (intern (string ,item) workspace)))))
 
-(Defmacro is-workspace-function (item)
+(defmacro is-workspace-function (item)
+  "Checks if a variable is present in the current workspace as a function."
   `(fboundp (intern (string ,item) workspace)))
 
 (defmacro print-and-run (form)
@@ -75,7 +82,7 @@
 
 (defmacro in-apl-workspace (workspace-symbol body)
   "This macro encloses a body of compiled April code specifying a workspace in use for the code, and extends any assignment so as to update the workspace's stored values."
-  (labels ((process (form) ;; 𝕊
+  (labels ((process (form)
 	     (loop :for item :in form
 		:collect (if (and (listp item) (eql 'apl-assign (first item)))
 			     (cond ((or (eql 'index-origin (second item))
@@ -291,7 +298,9 @@
 			      (intern (string-upcase element) "APRIL"))
 			(getf (rest (assoc :constant symbols))
 			      (intern (string-upcase element) "APRIL"))))
-	       (intern element space)))))
+	       ;; (intern element space)
+	       (intern element)
+	       ))))
 
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
@@ -331,6 +340,7 @@
 	 ,@body))))
 
 (defun resolve-function (mode reference &optional axes)
+  ;; (print (list :ref reference))
   (if (characterp reference)
       (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
 	  (of-functions this-idiom reference mode))
@@ -514,13 +524,18 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun output-value (space form &optional properties)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
-  (flet ((apply-props (item form-props)
-	   (let ((form-props (if (listp (first form-props))
-				 (first form-props)
-				 form-props)))
-	     (if (getf form-props :axes)
-		 (enclose-axes item (getf form-props :axes))
-		 item))))
+  (labels ((enclose-symbol (item)
+	     (if (or (not (symbolp item))
+		     (member item *idiom-native-symbols*))
+		 item `(inws ,item)))
+	   (apply-props (item form-props)
+	     (let ((form-props (if (listp (first form-props))
+				   (first form-props)
+				   form-props)))
+	       (if (getf form-props :axes)
+		   (enclose-axes (enclose-symbol item)
+				 (getf form-props :axes))
+		   (enclose-symbol item)))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
 		   (if (not (or (numberp (first form))
@@ -541,9 +556,10 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun output-function (form &optional arguments)
   "Express an APL inline function like {⍵+5}."
-  `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
-     (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
-     ,@form))
+  (let ((arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+    `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
+       (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
+       ,@form)))
 
 (defun do-over (input function axis &key reduce in-reverse)
   "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
@@ -611,11 +627,13 @@ It remains here as a standard against which to compare methods for composing APL
 					   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
 				       form))
 			    (second (assoc :space options))
-			    `(let* (,@system-vars ,@vars-declared)
-			       (declare (ignorable ,@(mapcar #'first system-vars)))
-			       ,@(if (or (not tags-found) (not (boundp branches-sym)))
-				     exps `((tagbody ,@(butlast (process-tags exps) 1))
-					    ,(first (last exps))))))
+			    `(with-april-workspace ,(or (second (assoc :space options))
+							'common)
+			       (let* (,@system-vars ,@vars-declared)
+				 (declare (ignorable ,@(mapcar #'first system-vars)))
+				 ,@(if (or (not tags-found) (not (boundp branches-sym)))
+				       exps `((tagbody ,@(butlast (process-tags exps) 1))
+					      ,(first (last exps)))))))
 		   (if (< 1 (length exps))
 		       `(progn ,@exps)
 		       (first exps)))))))
@@ -677,3 +695,33 @@ It remains here as a standard against which to compare methods for composing APL
   (:import-from :april #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function)
   (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function
 	   #:λω #:λωα #:λωχ #:λωαχ))
+
+#| Printing aids for compiled code - to be resumed later |#
+
+(defmacro with-april-workspace (name &body body)
+  (labels ((replace-symbols (form)
+	     (loop :for item :in form :counting item :into ix
+		:do (if (listp item)
+			(if (and (second item) (not (third item))
+				 (symbolp (second item)) (eql 'inws (first item)))
+			    (setf (nth (1- ix) form)
+				  (intern (string (second item))
+					  (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
+			    (replace-symbols item))))))
+    (replace-symbols body)
+    `(let ((workspace ',name))
+       (declare (ignorable workspace))
+       ,@body)))
+
+(set-macro-character #\𝕊 (lambda (stream character)
+			   (declare (ignore character))
+			   (list 'inws (read stream t nil t))))
+
+(set-pprint-dispatch '(cons (member inws)) 
+		     #'(lambda (s list)
+			 (if (and (symbolp (second list)) (not (third list)))
+			     (funcall (formatter "𝕊~W") s (second list)) 
+			     (pprint-fill s list))))
+
+(defmacro insym (symbol)
+  `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) workspace)))
