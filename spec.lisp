@@ -25,6 +25,8 @@
 	       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
 
+(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision to-output))
+
 ;; top-level specification for the April language
 (specify-vex-idiom
  april
@@ -486,9 +488,13 @@
   		  #2A((6 7 8) (5 6 7) (4 5 6) (3 4 5))))
   	    (is "0 1 0 1⊂[1]4 8⍴⍳9"
   		#(#2A((9 1 2 3 4 5 6 7) (8 9 1 2 3 4 5 6)) #2A((7 8 9 1 2 3 4 5))))))
-  (⊆ (has :title "Partition")
-     (dyadic (λωαχ (partition-array alpha omega *last-axis*)))
-     (tests (is "2⊆⍳3" #(#(1 2 3)))
+  (⊆ (has :titles ("Nest" "Partition"))
+     (ambivalent #'nest (λωαχ (partition-array alpha omega *last-axis*)))
+     (tests (is "⊆⍳3" #(#(1 2 3)))
+	    (is "⊆1 2 (1 2 3)" #(1 2 #(1 2 3)))
+	    (is "⊆'hello'" #("hello"))
+	    (is "⊆'hello' 'how' 'are' 'you'" #("hello" "how" "are" "you"))
+	    (is "2⊆⍳3" #(#(1 2 3)))
 	    (is "1 1 2 2 2 3 3 3 3⊆⍳9" #(#(1 2) #(3 4 5) #(6 7 8 9)))
   	    (is "1 1 0 1⊆4 4 4⍴⍳9" #3A(((#(1 2) #(4)) (#(5 6) #(8)) (#(9 1) #(3)) (#(4 5) #(7)))
   				       ((#(8 9) #(2)) (#(3 4) #(6)) (#(7 8) #(1)) (#(2 3) #(5)))
