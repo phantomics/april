@@ -14,12 +14,41 @@
 					(max 1 (rank omega)))
 				    index-origin))
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
-(define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" workspace)))
+(define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
 ;; TODO: figure out why these dynamic variables are needed; some tests fail despite being compiled
 ;; within (let) forms that specify these values
 (defvar index-origin 1)
 (defvar print-precision 10)
+
+(defmacro with-april-workspace (name body)
+  "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
+  (labels ((replace-symbols (form)
+	     (loop :for item :in form :counting item :into ix
+		:do (if (listp item)
+			(if (and (second item) (not (third item))
+				 (symbolp (second item)) (eql 'inws (first item)))
+			    (setf (nth (1- ix) form)
+				  (intern (string (second item))
+					  (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
+			    (replace-symbols item))))))
+    (replace-symbols body)
+    body))
+
+;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
+(set-macro-character #\𝕊 (lambda (stream character)
+			   (declare (ignore character))
+			   (list 'inws (read stream t nil t))))
+
+;; printer extension to use the 𝕊 reader macro
+(set-pprint-dispatch '(cons (member inws)) 
+		     #'(lambda (s list)
+			 (if (and (symbolp (second list)) (not (third list)))
+			     (funcall (formatter "𝕊~W") s (second list)) 
+			     (pprint-fill s list))))
+
+(defmacro insym (symbol)
+  `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) space)))
 
 (defun dummy-dyadic-function (alpha &rest omega)
   (declare (ignorable omega))
@@ -55,12 +84,12 @@
 
 (defmacro is-workspace-value (item)
   "Checks if a variable is present in the current workspace as a value."
-  `(and (boundp (intern (string ,item) workspace))
-	(not (fboundp (intern (string ,item) workspace)))))
+  `(and (boundp (intern (string ,item) space))
+	(not (fboundp (intern (string ,item) space)))))
 
 (defmacro is-workspace-function (item)
   "Checks if a variable is present in the current workspace as a function."
-  `(fboundp (intern (string ,item) workspace)))
+  `(fboundp (intern (string ,item) space)))
 
 (defmacro print-and-run (form)
   "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
@@ -298,9 +327,7 @@
 			      (intern (string-upcase element) "APRIL"))
 			(getf (rest (assoc :constant symbols))
 			      (intern (string-upcase element) "APRIL"))))
-	       ;; (intern element space)
-	       (intern element)
-	       ))))
+	       (intern element)))))
 
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
@@ -340,7 +367,6 @@
 	 ,@body))))
 
 (defun resolve-function (mode reference &optional axes)
-  ;; (print (list :ref reference))
   (if (characterp reference)
       (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
 	  (of-functions this-idiom reference mode))
@@ -467,7 +493,7 @@
 			    `((adjust-axes-for-index-origin index-origin ,(fourth fn-body))))
 		    fn-body)
 		(if (and scalar-fn (= 2 (length fn-body)))
-			    '(nil))
+		    '(nil))
 		(if (and scalar-fn (is-boolean function))
 		    '(t)))))))
 
@@ -529,9 +555,8 @@ It remains here as a standard against which to compare methods for composing APL
 		     (member item *idiom-native-symbols*))
 		 item `(inws ,item)))
 	   (apply-props (item form-props)
-	     (let ((form-props (if (listp (first form-props))
-				   (first form-props)
-				   form-props)))
+	     (let ((form-props (if (not (listp (first form-props)))
+				   form-props (first form-props))))
 	       (if (getf form-props :axes)
 		   (enclose-axes (enclose-symbol item)
 				 (getf form-props :axes))
@@ -622,21 +647,14 @@ It remains here as a standard against which to compare methods for composing APL
       (funcall (lambda (code) (if (not (assoc :compile-only options))
 				  code `(quote ,code)))
 	       (if (or system-vars vars-declared)
-		   (funcall (lambda (workspace form)
-			      (funcall (if t ;;(not workspace)
-					   #'identity (lambda (form) `(in-apl-workspace ,workspace ,form)))
-				       form))
-			    (second (assoc :space options))
-			    `(with-april-workspace ,(or (second (assoc :space options))
-							'common)
-			       (let* (,@system-vars ,@vars-declared)
-				 (declare (ignorable ,@(mapcar #'first system-vars)))
-				 ,@(if (or (not tags-found) (not (boundp branches-sym)))
-				       exps `((tagbody ,@(butlast (process-tags exps) 1))
-					      ,(first (last exps)))))))
+		   `(with-april-workspace ,(or (second (assoc :space options)) 'common)
+		      (let* (,@system-vars ,@vars-declared)
+			(declare (ignorable ,@(mapcar #'first system-vars)))
+			,@(if (or (not tags-found) (not (boundp branches-sym)))
+			      exps `((tagbody ,@(butlast (process-tags exps) 1))
+				     ,(first (last exps))))))
 		   (if (< 1 (length exps))
-		       `(progn ,@exps)
-		       (first exps)))))))
+		       (cons 'progn exps) (first exps)))))))
 
 (defun april-function-glyph-processor (type glyph spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
@@ -695,33 +713,3 @@ It remains here as a standard against which to compare methods for composing APL
   (:import-from :april #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function)
   (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function
 	   #:λω #:λωα #:λωχ #:λωαχ))
-
-#| Printing aids for compiled code - to be resumed later |#
-
-(defmacro with-april-workspace (name &body body)
-  (labels ((replace-symbols (form)
-	     (loop :for item :in form :counting item :into ix
-		:do (if (listp item)
-			(if (and (second item) (not (third item))
-				 (symbolp (second item)) (eql 'inws (first item)))
-			    (setf (nth (1- ix) form)
-				  (intern (string (second item))
-					  (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
-			    (replace-symbols item))))))
-    (replace-symbols body)
-    `(let ((workspace ',name))
-       (declare (ignorable workspace))
-       ,@body)))
-
-(set-macro-character #\𝕊 (lambda (stream character)
-			   (declare (ignore character))
-			   (list 'inws (read stream t nil t))))
-
-(set-pprint-dispatch '(cons (member inws)) 
-		     #'(lambda (s list)
-			 (if (and (symbolp (second list)) (not (third list)))
-			     (funcall (formatter "𝕊~W") s (second list)) 
-			     (pprint-fill s list))))
-
-(defmacro insym (symbol)
-  `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) workspace)))

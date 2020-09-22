@@ -7,7 +7,7 @@
 
 (set-composer-elements
  composer-elements-apl-standard
- (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol workspace
+ (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
        :properties-symbol properties :processor-symbol process)
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
@@ -165,13 +165,13 @@
 
 (set-composer-patterns
  composer-opening-patterns-apl-standard
- (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
+ (with :idiom-symbol idiom :space-symbol space :process-symbol process
        :properties-symbol properties :pre-properties-symbol pre-properties)
  (value
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
-  (output-value workspace value properties)
+  (output-value space value properties)
   '(:type (:array :explicit)))
  (function
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
@@ -195,20 +195,19 @@
 	(operand-axes (first (getf (second properties) :axes))))
     (append (list 'apl-compose (intern (string-upcase operator)))
 	    ;; call the operator constructor on the output of the operand constructor which integrates axes
-	    (funcall (funcall (resolve-operator :lateral operator)
-			      operand operand-axes)
+	    (funcall (funcall (resolve-operator :lateral operator) operand operand-axes)
 		     operator-axes)))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
   ((operator :element (operator :valence :unitary)))
   (let ((axes (first (getf (first properties) :axes))))
     (funcall (resolve-operator :unitary operator)
-	     workspace axes))
+	     space axes))
   '(:type (:array :evaluated))))
 
 (set-composer-patterns
  composer-following-patterns-apl-standard
- (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
+ (with :idiom-symbol idiom :space-symbol space :process-symbol process
        :properties-symbol properties :precedent-symbol precedent :pre-properties-symbol pre-properties)
  (evaluation-of-character-array
   ;; match the use of the code string evaluation function ⍎, evaluating the code with access to
@@ -216,7 +215,7 @@
   ((:with-preceding-type :array)
    (evaluate-function :element (function :glyph ⍎)))
   (let ((o (gensym)))
-    `(funcall (lambda (,o) (eval (vex-program this-idiom (list (list :space ,workspace)
+    `(funcall (lambda (,o) (eval (vex-program this-idiom (list (list :space ,space)
 							       '(:state :print-output nil))
 					      ,o)))
 	      ,precedent))
@@ -245,7 +244,7 @@
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
     (if (is-workspace-function symbol)
-	(fmakunbound (intern (string symbol) workspace)))
+	(fmakunbound (intern (string symbol) space)))
     (if (not (boundp symbol))
 	(eval `(defvar ,symbol nil)))
     (cond ((eql 'to-output symbol)
@@ -270,7 +269,7 @@
 	  (t (if axes (enclose-axes `(inws ,symbol) axes :set `(disclose ,precedent))
 		 ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
 		 ;; intern it, unless it's one of the system variables
-		 `(apl-assign ,(output-value workspace symbol properties) ,precedent)))))
+		 `(apl-assign ,(output-value space symbol properties) ,precedent)))))
   '(:type (:array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression
@@ -278,8 +277,8 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (progn (if (is-workspace-value symbol)
-	     (makunbound (intern (string symbol) workspace)))
-         (setf (symbol-function (intern (string symbol) workspace)) #'dummy-dyadic-function)
+	     (makunbound (intern (string symbol) space)))
+         (setf (symbol-function (intern (string symbol) space)) #'dummy-dyadic-function)
          `(setf (symbol-function (quote (inws ,symbol))) ,precedent))
   '(:type (:function :assigned)))
  (branch
@@ -323,9 +322,7 @@
 			(list 'list))
 		    ;; otherwise, there must be an expression to the left of the arrow, as with
 		    ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-		    (list 'go ;; (mapcar #'second precedent)
-			  precedent
-			  branch-from))
+		    (list 'go precedent branch-from))
 		(list 'go precedent)))))
   `(type (:branch)))
  (pivotal-composition
@@ -358,10 +355,7 @@
   (let ((fn-content (resolve-function (if value :dyadic :monadic) (insym fn-element)))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
-    ;; (print (list :fnn value precedent))
     `(apl-call ,fn-sym ,fn-content ,precedent
-	       ,@(if value (list (output-value workspace value (rest properties))))
+	       ,@(if value (list (output-value space value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))
-
-;; {[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]
