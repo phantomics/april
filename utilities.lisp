@@ -92,8 +92,9 @@
 
 (defmacro print-and-run (form)
   "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
-  `(progn (princ (indent-code (string-downcase (write-to-string (quote ,form)))))
-	  ,form))
+  `(let ((*print-case* :downcase))
+     (princ (indent-code (write-to-string (quote ,form))))
+     ,form))
 
 (defun indent-code (string)
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
