@@ -182,8 +182,7 @@
 	function-element `(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
   (list :type (if (and (getf (first properties) :axes)
 		       (not (vex::of-lexicon idiom :functions function-element)))
-		  '(:array :evaluated)
-		  '(:function :symbol-function))
+		  '(:array :evaluated) '(:function :symbol-function))
 	:axes (getf (first properties) :axes)))
  (lateral-composition
   ;; match a lateral function composition like +/, marking the beginning of a functional expression
@@ -214,10 +213,10 @@
   ;; the local workspace as cannot be done through a normal function
   ((:with-preceding-type :array)
    (evaluate-function :element (function :glyph ⍎)))
-  (let ((o (gensym)))
-    `(funcall (lambda (,o) (eval (vex-program this-idiom (list (list :space ,space)
-							       '(:state :print-output nil))
-					      ,o)))
+  (let ((input (gensym)))
+    `(funcall (lambda (,input) (eval (vex-program this-idiom (list (list :space ,space)
+								   '(:state :print-output nil))
+						  ,input)))
 	      ,precedent))
   '(:type (:array :result-of-evaluated-string)))
  (value-assignment-by-function-result
@@ -278,7 +277,7 @@
    (symbol :element (array :symbol-overriding t)))
   (progn (if (is-workspace-value symbol)
 	     (makunbound (intern (string symbol) space)))
-         (setf (symbol-function (intern (string symbol) space)) #'dummy-dyadic-function)
+         (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)
          `(setf (symbol-function (quote (inws ,symbol))) ,precedent))
   '(:type (:function :assigned)))
  (branch

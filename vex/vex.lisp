@@ -5,15 +5,6 @@
 
 "A framework for building vector languages; its current use case is the implementation of the April dialect of APL."
 
-(defmacro local-idiom (symbol)
-  "Shorthand macro to output the name of a Vex idiom in the local package."
-  (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-		     (string-upcase symbol))))
-    (if (not (boundp sym))
-	`(progn (defvar ,sym)
-		,sym)
-	sym)))
-
 ;; The idiom object defines a vector language instance with glyph lexicons and a set of processing utilities.
 (defclass idiom ()
   ((name :accessor idiom-name
@@ -45,6 +36,13 @@
    (composer-following-patterns :accessor idiom-composer-following-patterns
 				:initform nil
 				:initarg :composer-following-patterns)))
+
+(defmacro local-idiom (symbol)
+  "Shorthand macro to output the name of a Vex idiom in the local package."
+  (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
+		     (string-upcase symbol))))
+    (if (boundp sym)
+	sym `(progn (defvar ,sym) ,sym))))
 
 (defgeneric get-system-meta (idiom property))
 (defmethod get-system-meta ((idiom idiom) property)
@@ -392,15 +390,13 @@
 				    (quote ,lexicon-data))
 		    (idiom-functions ,idiom-symbol)
 		    (let ((fn-specs ,(if extension `(idiom-functions ,idiom-symbol)
-					 `(list :monadic (make-hash-table)
-						:dyadic (make-hash-table)
+					 `(list :monadic (make-hash-table) :dyadic (make-hash-table)
 						:symbolic (make-hash-table)))))
 		      (setf ,@function-specs)
 		      fn-specs)
 		    (idiom-operators ,idiom-symbol)
 		    (let ((op-specs ,(if extension `(idiom-operators ,idiom-symbol)
-					 `(list :lateral (make-hash-table)
-						:pivotal (make-hash-table)
+					 `(list :lateral (make-hash-table) :pivotal (make-hash-table)
 						:unitary (make-hash-table)))))
 		      (setf ,@operator-specs)
 		      op-specs))
@@ -588,7 +584,7 @@
 					(append output (loop :for char :below (length glyph)
 							  :collect (aref glyph char)))))))))
 
-(defun =vex-string (idiom space &optional output special-precedent)
+(defun =vex-string (idiom &optional output special-precedent)
   "Parse a string of text, converting its contents into nested lists of Vex tokens."
   (labels ((?blank-character () (?satisfies (of-utilities idiom :match-blank-character)))
 	   (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
@@ -646,13 +642,13 @@
 								    (< 0 balance)))))
 				      (if transform-by transform-by
 					  (lambda (string-content)
-					    (first (parse string-content (=vex-string idiom space))))))
+					    (first (parse string-content (=vex-string idiom))))))
 			  (?eq (aref boundary-chars 1)))
 		 enclosed)))
 	   (process-lines (lines &optional output)
 	     (if (= 0 (length lines))
 		 output (destructuring-bind (out remaining)
-			    (parse lines (=vex-string idiom space))
+			    (parse lines (=vex-string idiom))
 			  (process-lines remaining (append output (list out))))))
 	   (handle-axes (input-string)
 	     (let ((each-axis (funcall (of-utilities idiom :process-axis-string)
@@ -700,16 +696,15 @@
 						    (list char))))))
 			(=transform (=subseq (%some (?token-character)))
 				    (lambda (string)
-				      (funcall #'identity ;(lambda (x) (print (list :ty (type-of x))) (print ))
-					       (funcall (of-utilities idiom :format-value)
+				      (funcall (of-utilities idiom :format-value)
 					       (string-upcase (idiom-name idiom))
 					       ;; if there's an overloaded token character passed in
 					       ;; the special precedent, prepend it to the token being processed
-					       space (idiom-symbols idiom)
+					       (idiom-symbols idiom)
 					       (if (getf special-precedent :overloaded-num-char)
 						   (format nil "~a~a" (getf special-precedent :overloaded-num-char)
 							   string)
-						   string)))))
+						   string))))
 			;; this last clause returns the remainder of the input in case the input has either no
 			;; characters or only blank characters before the first line break
 			(=subseq (%any (?satisfies 'characterp))))
@@ -721,12 +716,11 @@
 			    (aref item 0)))
 	      ;; if the string is passed back (minus any leading whitespace) because the string began with
 	      ;; a line break, parse again omitting the line break character
-	      (parse (subseq item 1) (=vex-string idiom space))
+	      (parse (subseq item 1) (=vex-string idiom))
 	      (if (and (= 0 (length break))
 		       (< 0 (length rest)))
-		  (parse rest (=vex-string idiom space (if output (if item (cons item output)
-								      output)
-							   (if item (list item)))
+		  (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
+						     (if item (list item)))
 					   (if olnchar (list :overloaded-num-char olnchar))))
 		  (list (if item (cons item output)
 			    output)
@@ -772,8 +766,6 @@
 					   (declare (ignorable sub-props))
 					   (composer idiom space item nil sub-props))
 			    precedent properties preceding-props)
-		 ;; (if new-processed (princ (format nil "~%~%!!Found!! ~a ~%~a~%" new-processed
-		 ;;  				      (list new-props remaining))))
 		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
@@ -813,9 +805,7 @@
 						  ;; reverse the sub-properties since they are
 						  ;; consed into the list
 						  (if (not ,invalid)
-						      (values ,(third param)
-							      ,(fourth param)
-							      ,token)))))))))))
+						      (values ,(third param) ,(fourth param) ,token)))))))))))
 
 (defun build-composer-pattern (sequence idiom tokens-symbol invalid-symbol properties-symbol
 			       process space sub-props)
@@ -900,16 +890,15 @@
 			    "-WORKSPACE-" (if (not (second (assoc :space options)))
 					      "COMMON" (string-upcase (second (assoc :space options))))))
 	 (state-persistent (rest (assoc :state-persistent options)))
-	 (state-to-use) (system-to-use) (preexisting-vars))
+	 (state-to-use) (system-to-use))
     (labels ((assign-from (source dest)
-	       (if source (progn (setf (getf dest (first source))
-				       (second source))
-				 (assign-from (cddr source) dest))
-		   dest))
+	       (if (not source)
+		   dest (progn (setf (getf dest (first source)) (second source))
+			       (assign-from (cddr source) dest))))
 	     (process-lines (lines &optional output)
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
-			      (parse lines (=vex-string idiom space))
+			      (parse lines (=vex-string idiom))
 			    (process-lines remaining (append output (list (composer idiom space out)))))))
 	     (store-items (items-to-store)
 	       (loop :for item :in items-to-store
@@ -923,24 +912,18 @@
 		   (set (intern "*SYSTEM*" space) (idiom-system idiom))
 		   (set (intern "*BRANCHES*" space) nil)
 		   (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
-		      :do ;; (set (intern (string csym) space)
-			  ;;      (symbol-value (intern (string csym) (string-upcase (idiom-name idiom)))))
-
-			(let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
+		      :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
 			    (if (boundp native-symbol)
 				(set (intern (string csym) space)
 				     (symbol-value native-symbol))
 				(if (listp (macroexpand native-symbol))
 				    (eval `(define-symbol-macro ,(intern (string csym) space)
-					       ,(macroexpand native-symbol))))))
-			
-			)))
+					       ,(macroexpand native-symbol)))))))))
 
 	;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
 	;; to the defaults from the spec
 	(if (assoc :restore-defaults options)
-	    (setf (getf ws-system :state)
-		  (getf ws-system :base-state)))
+	    (setf (getf ws-system :state) (getf ws-system :base-state)))
 	
 	(setq state (funcall (of-utilities idiom :preprocess-state-input) state)
 	      state-persistent (funcall (of-utilities idiom :preprocess-state-input) state-persistent))
