@@ -244,8 +244,8 @@
   (let ((axes (getf (second properties) :axes)))
     (if (is-workspace-function symbol)
 	(fmakunbound (intern (string symbol) space)))
-    (if (not (boundp symbol))
-	(eval `(defvar ,symbol nil)))
+    (if (not (boundp (insym symbol)))
+	(eval `(defvar ,(insym symbol) nil)))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
 	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream :print-assignment t))
@@ -253,7 +253,8 @@
 	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
 	   ;; is interned in the current working package
 	   (if (stringp precedent)
-	       `(apl-assign output-stream ,(intern precedent (package-name *package*)))
+	       ;; setq is used instead of apl-assign because output-stream is a lexical variable
+	       `(setq output-stream ,(intern precedent (package-name *package*)))
 	       (if (listp precedent)
 		   (destructuring-bind (vector-symbol package-string symbol-string)
 		       precedent
@@ -262,7 +263,7 @@
 			      (stringp symbol-string))
 			 ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
 			 ;; intern the symbol like (intern "OUT-STR" "APRIL")
-			 `(apl-assign output-stream ,(intern symbol-string package-string))
+			 `(setq output-stream ,(intern symbol-string package-string))
 			 (error "Invalid assignment to ⎕OST.")))
 		   (error "Invalid assignment to ⎕OST."))))
 	  (t (if axes (enclose-axes `(inws ,symbol) axes :set `(disclose ,precedent))

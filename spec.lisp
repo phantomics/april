@@ -25,7 +25,7 @@
 	       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⋄←→⍝§⎕⍞⍣⍇⍈⍐⍗ ┘┐┌└┼─├┤┴┬│"))
 
-(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision to-output))
+(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision to-output output-stream))
 
 ;; top-level specification for the April language
 (specify-vex-idiom
