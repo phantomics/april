@@ -50,11 +50,10 @@
 (defmacro insym (symbol)
   `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) space)))
 
-(defun dummy-dyadic-function (alpha &rest omega)
-  (declare (ignorable omega))
-  ;; placeholder function to be assigned to function symbols in workspace packages
-  ;; before they are assigned within APL code
-  alpha)
+(defun dummy-nargument-function (first &rest rest)
+  "Placeholder function to be assigned to newly initialized function symbols."
+  (declare (ignorable rest))
+  first)
 
 ;; keep legacy april-p macro in place and usable in place of april-f
 (defmacro april-p (&rest args)
@@ -108,32 +107,6 @@
 	   (not (arrayp (row-major-aref item 0))))
       (row-major-aref item 0)
       item))
-
-(defmacro in-apl-workspace (workspace-symbol body)
-  "This macro encloses a body of compiled April code specifying a workspace in use for the code, and extends any assignment so as to update the workspace's stored values."
-  (labels ((process (form)
-	     (loop :for item :in form
-		:collect (if (and (listp item) (eql 'apl-assign (first item)))
-			     (cond ((or (eql 'index-origin (second item))
-					(eql 'print-precision (second item)))
-				    ;; if it's a system variable, assign the corresponding value
-				    ;; in the workspace as well as in the lexical environment
-				    `(progn ,(macroexpand item)
-					    (setf (getf (getf (gethash :system ,workspace-symbol) :state)
-							,(intern (string-upcase (second item)) "KEYWORD"))
-						  ,(second (third item)))))
-				   ;; if it's a regular variable, set the workspace value and process the
-				   ;; assigned item as well to allow for chained assignment like x←y←5
-				   (t (list 'setq (second item)
-					    `(setf (gethash ',(second item)
-							    (gethash :values ,workspace-symbol))
-						   ,(if (listp (third item))
-							(first (process (list (third item))))
-							(third item))))))
-			     (if (listp item)
-				 (process item)
-				 item)))))
-    (process body)))
 
 (defmacro apl-assign (symbol value)
   "This is a simple passthrough macro that is used by (in-apl-workspace)."
@@ -305,7 +278,7 @@
 				     (if decimals decimals (- (min printed precision) before-decimal)))
 			 number))))))
 
-(defun format-value (idiom-name space symbols element)
+(defun format-value (idiom-name symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
   (cond ((string= element "⍬")
 	 ;; APL's "zilde" character yields a keyword the compiler translates to an empty vector
@@ -316,8 +289,7 @@
 		  (char= #\' (aref element (1- (length element))))))
 	 ;; strings are converted to Lisp strings and passed through
 	 (subseq element 1 (1- (length element))))	       
-	((or (string= element "⍺")
-	     (string= element "⍵"))
+	((member element '("⍺" "⍵") :test #'string=)
 	 ;; alpha and omega characters are directly changed to symbols in the April package
 	 (intern element idiom-name))
 	((numeric-string-p element)
