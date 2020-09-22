@@ -914,14 +914,14 @@
 		   (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
 		      :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
 			    (if (boundp native-symbol)
-				(set (intern (string csym) space)
-				     (symbol-value native-symbol))
+				(eval `(defvar ,(intern (string csym) space)
+					 ,(symbol-value native-symbol)))
 				(if (listp (macroexpand native-symbol))
 				    (eval `(define-symbol-macro ,(intern (string csym) space)
 					       ,(macroexpand native-symbol)))))))))
 
-	;; if the (:restore-defaults) setting is passed, the workspace settings will be restored
-	;; to the defaults from the spec
+	;; if the (:restore-defaults) setting is passed,
+	;; the workspace settings will be restored to the defaults from the spec
 	(if (assoc :restore-defaults options)
 	    (setf (getf ws-system :state) (getf ws-system :base-state)))
 	

@@ -48,6 +48,7 @@
 			     (pprint-fill s list))))
 
 (defmacro insym (symbol)
+  "Macro used in grammar.lisp to intern value-referencing symbols in appropriate workspace package."
   `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) space)))
 
 (defun dummy-nargument-function (first &rest rest)
@@ -125,8 +126,9 @@
 				     (eql 'apl-assign (first form))
 				     (not (getf options :print-assignment)))
 				"" `(matrix-print ,result :append #\Newline
-						  :format (lambda (n) (print-apl-number-string
-								       n t ,(getf options :print-precision))))))))
+						  :format (lambda (n)
+							    (print-apl-number-string
+							     n t ,(getf options :print-precision))))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if (getf options :print-to)
