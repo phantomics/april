@@ -324,7 +324,25 @@
 		    ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
 		    (list 'go precedent branch-from))
 		(list 'go precedent)))))
-  `(type (:branch)))
+  '(:type (:branch)))
+ (train-composition
+  ;; match a train function composition like (-,÷)
+  ((:with-preceding-type :function)
+   (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
+   (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
+  (destructuring-bind (right center omega) (list precedent (resolve-function :dyadic center) (gensym))
+    (if (and center (or (= 1 (length pre-properties))
+			(and (member :train-composition (getf (first pre-properties) :type))
+			     (not (member :closed (getf (first pre-properties) :type))))))
+	;; train composition is only valid when there is only one function in the precedent
+	;; or when continuing a train composition as for (×,-,÷)5
+	`(lambda (,omega)
+	   (apl-call ,(or-functional-character center :fn) ,center
+    		     (apl-call ,(or-functional-character right :fn) ,(resolve-function :monadic right) ,omega)
+    		     ,(let ((left-fn (resolve-function :monadic left)))
+			(if (not left-fn)
+			    left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega)))))))
+  (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands
@@ -336,8 +354,7 @@
   (let ((right-operand (insym precedent))
 	(left-operand (insym left-operand))
 	(left-operand-axes (first (getf (second properties) :axes)))
-	(right-operand-axes (first (getf pre-properties :axes))))
-    ;; (print (list :ro right-operand left-operand precedent))
+	(right-operand-axes (first (getf (first pre-properties) :axes))))
     ;; get left axes from the left operand and right axes from the precedent's properties so the
     ;; functions can be properly curried if they have axes specified
     (append (list 'apl-compose (intern (string-upcase operator)))
