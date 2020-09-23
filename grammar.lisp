@@ -158,8 +158,7 @@
 				(values op-symbol (list :axes axes :type (list :operator op-type))
 					remaining)
 				(values nil nil tokens)))
-			   (valid-by-valence
-			    (values op-symbol (list :axes axes :type (list :operator op-type)) 
+			   (valid-by-valence (values op-symbol (list :axes axes :type (list :operator op-type)) 
 						     remaining))
 			   (t (values nil nil tokens)))))))))
 

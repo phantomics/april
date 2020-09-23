@@ -21,6 +21,10 @@
 (defvar index-origin 1)
 (defvar print-precision 10)
 
+;; the names of library functions that curry functions having axes with index-origin, needed for the λχ macro
+(defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
+(defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
+
 (defmacro with-april-workspace (name body)
   "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
   (labels ((replace-symbols (form)
@@ -76,9 +80,9 @@
 
 (defmacro λχ (body axes)
   "Curry a function with axes for use with an operator."
-  (if (eql 'λωαχ (first body))
+  (if (member (first body) (cons 'λωαχ *io-currying-function-symbols-dyadic*))
       `(λωα (funcall ,body omega alpha ,(cons 'list axes)))
-      (if (eql 'λωχ (first body))
+      (if (member (first body) (cons 'λωχ *io-currying-function-symbols-monadic*))
 	  `(λω (funcall ,body omega ,(cons 'list axes)))
 	  body)))
 
