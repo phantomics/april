@@ -1037,6 +1037,12 @@
        "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
        #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 	   (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+  (for "Basic three-element function train."
+       "(-,÷)5" #(-5 1/5))
+  (for "Five-element function train."
+       "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
+  (for "Five-element function train with second argument value at end."
+       "(3 5⍴-,÷)5" #2A((-5 1/5 -5 1/5 -5) (1/5 -5 1/5 -5 1/5) (-5 1/5 -5 1/5 -5)))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 

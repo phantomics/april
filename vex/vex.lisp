@@ -742,21 +742,19 @@
 				    (declare (ignorable ,properties ,process ,idiom ,space))
 				    ,(second param))))))))
 
-(defun composer (idiom space tokens &optional precedent properties)
+(defun composer (idiom space tokens &optional precedent properties pre-props)
   "Compile processed tokens output by the parser into code according to an idiom's grammars and primitive elements."
   (if (not tokens)
       (values precedent properties)
       (let ((processed)
-	    (special-params (getf properties :special))
-	    (preceding-props properties))
-	;; the current value of properties is stored in preceding-props so that grammar elements that
-	;; need to know the properties of the precedent can access them; currently, this is only needed
-	;; for pivotal operator composition
-	;; (print (list :prec precedent tokens properties))
+	    (pre-props (if properties (cons properties pre-props) pre-props))
+	    (special-params (getf properties :special)))
+	;; previous property values are stored in preceding-props so that grammar elements that
+	;; need to know the properties of precedents can access them for pivotal and train compositions
+	;; (print (list :prec pre-props precedent tokens properties))
 	(loop :while (not processed)
-	   :for pattern :in (if (not precedent)
-				(vex::idiom-composer-opening-patterns idiom)
-				(vex::idiom-composer-following-patterns idiom))
+	   :for pattern :in (if precedent (idiom-composer-following-patterns idiom)
+				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name)
 				  (getf special-params :omit))))
@@ -765,13 +763,13 @@
 			    tokens space (lambda (item &optional sub-props)
 					   (declare (ignorable sub-props))
 					   (composer idiom space item nil sub-props))
-			    precedent properties preceding-props)
+			    precedent properties pre-props)
 		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
 	    (values precedent properties tokens)
-	    (composer idiom space tokens processed properties)))))
+	    (composer idiom space tokens processed properties pre-props)))))
 
 (defmacro set-composer-patterns (name with &rest params)
   "Generate part of a Vex grammar from a set of parameters."
@@ -791,8 +789,7 @@
 		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
 				    :function (lambda (,token ,space ,process
 						       &optional ,precedent ,properties ,preceding-properties)
-						(declare (ignorable ,precedent ,properties
-								    ,preceding-properties))
+						(declare (ignorable ,precedent ,properties ,preceding-properties))
 						(let ((,invalid)
 						      (,sub-properties)
 						      ,@(loop :for token :in (second param)
