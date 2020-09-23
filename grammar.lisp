@@ -327,7 +327,9 @@
  (train-composition
   ;; match a train function composition like (-,÷)
   ((:with-preceding-type :function)
-   (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
+   ;; TODO: two subsequent function pattern matches causes exponentially long compile times, fix this
+   ;; (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
+   (center :element function :times 1 :special '(:omit (:value-assignment :function-assignment)))
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
   (destructuring-bind (right center omega) (list precedent (resolve-function :dyadic center) (gensym))
     (if (and center (or (= 1 (length pre-properties))
