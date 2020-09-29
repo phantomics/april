@@ -224,10 +224,12 @@
 	(let* ((match-count 0)
 	       (matches (loop :for item :across alpha :when (find item omega :test #'array-compare)
 			   :collect item :and :do (incf match-count))))
-	  (disclose (make-array (list match-count)
-				:initial-contents matches
-				:element-type (type-in-common (element-type alpha)
-							      (element-type omega))))))))
+	  (if (= 1 match-count)
+	      (first matches)
+	      (make-array (list match-count)
+			  :initial-contents matches
+			  :element-type (type-in-common (element-type alpha)
+							(element-type omega))))))))
 
 (defun unique (omega)
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
@@ -241,11 +243,11 @@
 	      (let ((uniques) (unique-count 0))
 		(loop :for item :across vector :when (not (find item uniques :test #'array-compare))
 		   :do (setq uniques (cons item uniques))
-		   (incf unique-count))
-		(funcall (if (vectorp omega)
-			     #'identity (lambda (output) (mix-arrays 1 output)))
-			 (make-array (list unique-count) :element-type (element-type vector)
-				     :initial-contents (reverse uniques)))))))
+		     (incf unique-count))
+		(if (= 1 unique-count)
+		    (first uniques)
+		    (make-array (list unique-count) :element-type (element-type vector)
+				:initial-contents (reverse uniques)))))))
 
 (defun array-union (omega alpha)
   "Return a vector of unique values from two arrays. Used to implement [∪ union]."

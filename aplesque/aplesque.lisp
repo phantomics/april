@@ -6,11 +6,10 @@
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
 (defun rmi-from-subscript-array (array subscripts)
-  (let ((length (length subscripts))
+  (let ((rank (rank array))
 	(dims (reverse (dims array)))
-	(rank (rank array)))
-    (cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W."
-				   length rank))
+	(length (length subscripts)))
+    (cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W." length rank))
 	  ((= 1 rank) (aref subscripts 0))
 	  (t (let ((result 0) (factor 1))
 	       (loop :for i :from (1- length) :downto 0
@@ -105,7 +104,8 @@
 
 (defmacro apl-default-element (array)
   "Returns the default element for an array based on that array's type; blank spaces for character arrays and zeroes for others."
-  `(if (or (eql 'character (element-type ,array))
+  `(if (or (characterp ,array)
+	   (eql 'character (element-type ,array))
 	   (eql 'base-char (element-type ,array)))
        #\ (coerce 0 (element-type ,array))))
 
@@ -241,13 +241,14 @@
 			   true-output))))))
 
 (defun initialize-for-environment (function-id localizer &optional environment)
+  (declare (ignore environment))
   (case function-id
     (:across
      (setf (symbol-function 'across)
 	   (funcall
 	    localizer
-	    (lambda (input function &key elements indices reverse-axes count start-at singlethreaded
-				      (depth 0) (dimensions (dims input)))
+	    (lambda (input function &key elements indices reverse-axes count start-at
+				      foreach finally (depth 0) (dimensions (dims input)))
 	      "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
 	      (let* ((proceeding t)
 		     (indices (or indices (loop :for i :below (rank input) :collect 0)))
@@ -263,16 +264,17 @@
 			     (multiple-value-bind (still-proceeding new-count)
 				 (across input function :dimensions dimensions :elements (rest elements)
 					 :indices indices :reverse-axes reverse-axes :depth (1+ depth)
-					 :count count :start-at (rest start-at))
+					 :count count :start-at (rest start-at) :foreach foreach)
 			       (setq proceeding still-proceeding count new-count))
 			     (multiple-value-bind (output halt-if-true)
 				 (funcall function (apply #'aref input indices)
 					  indices)
 			       (declare (ignore output))
+			       (if (and foreach (functionp foreach)) (funcall foreach))
 			       (if count (decf count))
 			       (if (or halt-if-true (and count (> 1 count)))
 				   (setq proceeding nil))))))
-		  ;; (print (list :ii indices reverse-axes))
+		  ;; (print (list :ii indices reverse-axes this-range))
 		  (if this-range
 		      (if (listp (rest this-range))
 			  (loop :for el :in this-range :while proceeding :do (process-this el))
@@ -286,6 +288,7 @@
 			     :while proceeding :do (process-this el))
 			  (loop :for el :from (or (first start-at) 0) :to (1- (nth depth dimensions))
 			     :while proceeding :do (process-this el))))
+		  (if (and finally (functionp finally)) (funcall finally))
 		  (values proceeding count)))))))))
 
 (initialize-for-environment :across #'identity)
@@ -387,6 +390,49 @@
 							    tcoords coords)))))))
 	(disclose output))))
 
+;; (defun catenate (a1 a2 axis)
+;;   (let* ((a1 (disclose a1)) (a2 (disclose a2))
+;; 	 (output (make-array (destructuring-bind (ref-array second-array)
+;; 				 (funcall (if (arrayp a1) #'identity #'reverse) (list a1 a2))
+;; 			       (if (not (arrayp ref-array))
+;; 				   2 (loop :for dim :in (dims ref-array) :counting dim :into dx
+;; 					:collect (if (/= axis (1- dx))
+;; 						     dim (+ dim (if (not (arrayp second-array))
+;; 								    1 (or (nth (1- dx) (dims second-array))
+;; 									  0)))))))
+;; 			     :element-type
+;; 			     (type-in-common (if (arrayp a1) (element-type a1) (assign-element-type a1))
+;; 					     (if (arrayp a2) (element-type a2) (assign-element-type a2))))))
+;;     (if (or (not (arrayp a1))
+;; 	    (not (arrayp a2))
+;; 	    (and (= (rank a1) (rank a2))
+;; 		 (loop :for d1 :in (dims a1) :for d2 :in (dims a2) :counting d1 :into dx
+;; 		    :always (or (= axis (1- dx)) (= d1 d2))))
+;; 	    ;; (destructuring-bind (hra lra)
+;; 	    ;; 	(funcall (if (> (rank a1) (rank a2)) #'identity #'reverse) (list a1 a2))
+;; 	    ;;   )
+;; 	    )
+;; 	(progn (if (arrayp a1)
+;; 		   (across a1 (lambda (elem coords)
+;; 				(declare (dynamic-extent elem coords))
+;; 				(setf (apply #'aref output coords) elem)))
+;; 		   (across output (lambda (elem coords) (setf (apply #'aref output coords) a1))
+;; 			   :indices (loop :for d :below (rank output) :collect (if (/= axis (1- d)) nil 0))))
+;; 	       (if (arrayp a2)
+;; 		   (across a2 (lambda (elem coords)
+;; 				(declare (dynamic-extent elem coords))
+;; 				(loop :for coord :in coords :counting coord :into cx
+;; 				   :do (setf (nth (1- cx) coords)
+;; 					     (if (/= axis (1- cx)) coord (+ coord (or (nth axis (dims a1))
+;; 										      1)))))
+;; 				(setf (apply #'aref output coords) elem)))
+;; 		   (across output (lambda (elem coords)
+;; 				    (print (list :cc coords))
+;; 				    (setf (apply #'aref output coords) a2))
+;; 			   :indices (print (loop :for dim :in (dims output) :counting dim :into dx
+;; 				       :collect (if (/= axis (1- dx)) nil (1- dim))))))
+;; 	       output))))
+
 (defun catenate (a1 a2 axis)
   "Join two arrays together along the specified axis."
   (flet ((upgrade (array)
@@ -396,19 +442,26 @@
 		       :element-type (element-type array)
 		       :displaced-to array))
 	 (scalar-to-array (item to-match &optional axis)
-	   (let ((match-dims (dims to-match)))
+	   (let ((match-dims (dims to-match))
+		 ;; if the item passed is a 1-element vector, as for a single character, extract it
+		 (item (if (vectorp item) (aref item 0) item)))
+	     ;; (print (list :ty (type-of item)))
 	     (make-array (if axis (loop :for this-dim :in match-dims :counting this-dim :into tdix
 				     :collect (if (= tdix (1+ axis))
 						  1 this-dim))
 			     match-dims)
-			 :element-type (type-of item)
+			 :element-type (assign-element-type item)
 			 :initial-element item)))
 	 (join (array1 array2 jcoords)
 	   (let ((output (make-array (loop :for dim :in (dims array1) :counting dim :into dx
 					:collect (if (/= axis (1- dx))
 						     dim (+ dim (nth (1- dx) (dims array2)))))
-				     :element-type (type-in-common (element-type array1)
-								   (element-type array2)))))
+				     :element-type (type-in-common (if (arrayp array1)
+								       (element-type array1)
+								       (print (assign-element-type array1)))
+								   (if (arrayp array2)
+								       (element-type array2)
+								       (assign-element-type array2))))))
 	     (across array1 (lambda (elem coords)
 			      (declare (dynamic-extent elem coords))
 			      (setf (apply #'aref output coords)
@@ -426,9 +479,12 @@
 	(make-array '(2) :element-type (type-in-common (assign-element-type a1)
 						       (assign-element-type a2))
 		    :initial-contents (list a1 a2))
-	(let* ((a1 (if (arrayp a1) a1 (scalar-to-array a1 a2 axis)))
-	       (a2 (if (arrayp a2) a2 (scalar-to-array a2 a1 axis)))
+	(let* ((a1 (if (arrayp a1)
+		       a1 (scalar-to-array a1 a2 axis)))
+	       (a2 (if (arrayp a2)
+		       a2 (scalar-to-array a2 a1 axis)))
 	       (jcoords (loop :for i :below (max (rank a1) (rank a2)) :collect 0)))
+	  ;; (print (list a1 a2 (type-of a1) (type-of a2)))
 	  (if (= (rank a1) (rank a2))
 	      (join a1 a2 jcoords)
 	      (let* ((lesser-first (< (rank a1) (rank a2)))
@@ -468,11 +524,10 @@
       ;; a 1-element array argument to laminate is scaled to
       ;; match the other array's dimensions
       (catenate (if (is-unitary a1)
-		    (scale-array a1 pa2)
-		    pa1)
+		    a1 pa1)
 		(if (is-unitary a2)
-		    (scale-array a2 pa1)
-		    pa2)
+		    a2 pa2)
+		;; pa1 pa2
 		axis))))
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
@@ -495,7 +550,7 @@
 	 (error (concatenate 'string "Attempting to expand elements across array but "
 			     "positive degrees are not equal to length of selected input axis.")))
 	(t (let* ((degrees (if (arrayp degrees) degrees (vector degrees)))
-		  (input (if (arrayp input) input (vector input)))
+		  ;; (input (if (arrayp input) input (vector input)))
 		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
 		  (c-degrees (make-array (list (length degrees))
 					 :element-type 'fixnum :initial-element 0))
@@ -508,19 +563,20 @@
 		  (ex-dim))
 	     (declare (dynamic-extent ex-dim))
 	     (loop :for degree :across degrees :counting degree :into dx
-		:summing (max (abs degree)
-			      (if compress-mode 0 1))
+		:summing (max (abs degree) (if compress-mode 0 1))
 		:into this-dim :do (setf (aref c-degrees (1- dx)) this-dim)
 		:finally (setq ex-dim this-dim))
 	     (let ((ocoords (loop :for i :below (rank input) :collect 0))
-		   (output (make-array (loop :for dim :in (dims input) :counting dim :into index
+		   (output (make-array (loop :for dim :in (or (dims input) '(1)) :counting dim :into index
 					  :collect (if (= 1 (length degrees))
 						       (if (/= axis (1- index))
 							   dim (* dim (aref degrees 0)))
 						       (if (or (= index (1+ axis))
 							       (is-unitary input))
 							   ex-dim dim)))
-				       :element-type (element-type input)
+				       :element-type (if (arrayp input)
+							 (element-type input)
+							 (assign-element-type input))
 				       :initial-element (apl-default-element input))))
 	       ;; (print (list :input input output axis degrees))
 	       ;; in compress-mode: degrees must = length of axis,
@@ -528,7 +584,7 @@
 	       ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
 	       (if (is-unitary input)
 		   ;; if the input is a unitary value, just expand or replicate with that value
-		   (let ((value (row-major-aref input 0)))
+		   (let ((value (if (not (arrayp input)) input (row-major-aref input 0))))
 		     (loop :for degree :below (length degrees)
 			:do (let ((this-degree (aref degrees degree)))
 			      (loop :for ix :below this-degree

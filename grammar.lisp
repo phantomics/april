@@ -53,6 +53,12 @@
 			  (eq :string (first (getf properties :type)))))
 		 (values this-item (list :axes axes :type '(:array :string))
 			 remaining))
+		;; process scalar character values
+		((and (characterp this-item)
+		      (or (not (getf properties :type))
+			  (eq :character (first (getf properties :type)))))
+		 (values this-item (list :axes axes :type '(:array :character))
+			 remaining))
 		;; process symbol-referenced values
 		((and (symbolp this-item)
 		      (or (eql '⍵ this-item)
@@ -83,8 +89,8 @@
 			 ;; if marked as an operator, check whether the character is one entered as both
 			 ;; a function and an operator; such functions must be dyadic
 			 (and (eq :op (first this-item))
-			      (or (vex::of-lexicon idiom :dyadic-functions (third this-item))
-				  (vex::of-lexicon idiom :symbolic-functions (third this-item)))
+			      (or (of-lexicon idiom :dyadic-functions (third this-item))
+				  (of-lexicon idiom :symbolic-functions (third this-item)))
 			      ;; check that the following item is a value and not a function, otherwise it
 			      ;; must be an operator
 			      (or (and (not (listp (first remaining)))
@@ -103,7 +109,7 @@
 				    (eq :array (first (getf out-properties :type)))))))
 		     (let ((fn (first (last this-item)))
 			   (obligate-dyadic (and (eq :op (first this-item))
-						 (vex::of-lexicon idiom :dyadic-functions (third this-item)))))
+						 (of-lexicon idiom :dyadic-functions (third this-item)))))
 		       (cond ((and (characterp fn)
 				   (or (not (getf properties :glyph))
 				       (and (char= fn (aref (string (getf properties :glyph)) 0)))))
@@ -176,11 +182,11 @@
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
   ((function-element :element function :times 1))
   (let ((axes (getf (first properties) :axes)))
-    (if (or (not axes) (vex::of-lexicon idiom :functions function-element))
+    (if (or (not axes) (of-lexicon idiom :functions function-element))
 	;; if axes are present, this is an n-argument function
 	function-element `(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
   (list :type (if (and (getf (first properties) :axes)
-		       (not (vex::of-lexicon idiom :functions function-element)))
+		       (not (of-lexicon idiom :functions function-element)))
 		  '(:array :evaluated) '(:function :symbol-function))
 	:axes (getf (first properties) :axes)))
  (lateral-composition
@@ -212,17 +218,17 @@
   ;; the local workspace as cannot be done through a normal function
   ((:with-preceding-type :array)
    (evaluate-function :element (function :glyph ⍎)))
-  (let ((input (gensym)))
-    `(funcall (lambda (,input) (eval (vex-program this-idiom (list (list :space ,space)
+  (let ((omega (gensym)))
+    `(funcall (lambda (,omega) (eval (vex-program this-idiom (list (list :space ,space)
 								   '(:state :print-output nil))
-						  ,input)))
+						  ,omega)))
 	      ,precedent))
   '(:type (:array :result-of-evaluated-string)))
  (value-assignment-by-function-result
   ;; match the assignment of a function result to a value, like a+←5
   ((:with-preceding-type :array)
    (assignment-operator :element (function :glyph ←))
-   (fn-element :pattern (:type (:function)))
+   (fn-element :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
    (symbol :element (array :symbol-overriding t)))
   (if (is-workspace-value symbol)
       (let ((fn-content (resolve-function :dyadic fn-element))
@@ -247,7 +253,8 @@
 	(eval `(defvar ,(insym symbol) nil)))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
-	   `(apl-output ,precedent :print-precision print-precision :print-to output-stream :print-assignment t))
+	   `(apl-output ,precedent :print-precision print-precision
+			:print-to output-stream :print-assignment t))
 	  ((eql 'output-stream symbol)
 	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
 	   ;; is interned in the current working package
@@ -333,17 +340,38 @@
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
   (destructuring-bind (right center omega) (list precedent (resolve-function :dyadic center) (gensym))
     (if (and center (or (= 1 (length pre-properties))
-			(and (member :train-composition (getf (first pre-properties) :type))
-			     (not (member :closed (getf (first pre-properties) :type))))))
-	;; train composition is only valid when there is only one function in the precedent
-	;; or when continuing a train composition as for (×,-,÷)5
-	`(lambda (,omega)
-	   (apl-call ,(or-functional-character center :fn) ,center
+ 			(and (member :train-composition (getf (first pre-properties) :type))
+ 			     (not (member :closed (getf (first pre-properties) :type))))))
+ 	;; train composition is only valid when there is only one function in the precedent
+ 	;; or when continuing a train composition as for (×,-,÷)5
+ 	`(lambda (,omega)
+ 	   (apl-call ,(or-functional-character center :fn) ,center
     		     (apl-call ,(or-functional-character right :fn) ,(resolve-function :monadic right) ,omega)
     		     ,(let ((left-fn (resolve-function :monadic left)))
-			(if (not left-fn)
-			    left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega)))))))
+ 			(if (not left-fn)
+ 			    left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega)))))))
   (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
+ ;; (train-composition
+ ;;  ;; match a train function composition like (-,÷)
+ ;;  ((:with-preceding-type :function)
+ ;;   (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
+ ;;  (if (or (= 1 (length pre-properties))
+ ;; 	  (and (eq :train-composition (second (getf (first pre-properties) :type)))
+ ;; 	       (not (eq :closed (third (getf (first pre-properties) :type))))))
+ ;;      ;; train composition is only valid when there is only one function in the precedent
+ ;;      ;; or when continuing a train composition as for (×,-,÷)5
+ ;;      (if (and (listp precedent) (eql 'train-section (first precedent)))
+ ;; 	  (destructuring-bind (omega center right) (cons (gensym) (rest precedent))
+ ;; 	    `(lambda (,omega)
+ ;; 	       (apl-call ,(or-functional-character center :fn)
+ ;; 			 ,(resolve-function :dyadic center)
+ ;;    			 (apl-call ,(or-functional-character right :fn)
+ ;; 				   ,(resolve-function :monadic right) ,omega)
+ ;;    			 ,(let ((left-fn (resolve-function :monadic left)))
+ ;; 			    (if (not left-fn)
+ ;; 				left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega))))))
+ ;; 	  (if (resolve-function :dyadic left) `(train-section ,left ,precedent))))
+ ;;  (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands
