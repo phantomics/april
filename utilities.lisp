@@ -294,8 +294,10 @@
 		  (char= #\" (aref element (1- (length element)))))
 	     (and (char= #\' (aref element 0))
 		  (char= #\' (aref element (1- (length element))))))
-	 ;; strings are converted to Lisp strings and passed through
-	 (subseq element 1 (1- (length element))))	       
+	 ;; strings are converted to Lisp strings and passed through,
+	 ;; unless they're one element in which case the character is disclosed
+	 (if (= 3 (length element))
+	     (aref element 1) (subseq element 1 (1- (length element)))))
 	((member element '("⍺" "⍵") :test #'string=)
 	 ;; alpha and omega characters are directly changed to symbols in the April package
 	 (intern element idiom-name))
@@ -545,6 +547,7 @@ It remains here as a standard against which to compare methods for composing APL
 		   (if (not (or (numberp (first form))
 				(listp (first form))
 				(stringp (first form))
+				(characterp (first form))
 				(eql '⍺ (first form))
 				(eql '⍵ (first form))
 				(and (symbolp (first form))
