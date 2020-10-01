@@ -247,10 +247,15 @@
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
   (let ((axes (getf (second properties) :axes)))
-    (if (is-workspace-function symbol)
-	(fmakunbound (intern (string symbol) space)))
-    (if (not (boundp (insym symbol)))
-	(eval `(defvar ,(insym symbol) nil)))
+    ;; ensure symbol(s) are not bound to function values in the workspace, and
+    ;; define them as dynamic variables if they're unbound there
+    (loop :for symbol :in (if (not (listp symbol)) (list symbol)
+			      ;; remove symbols from (inws) unless they're bare and thus idiom-native
+			      (mapcar (lambda (s) (if (not (listp s)) s (second s))) symbol))
+       :do (if (is-workspace-function symbol)
+	       (fmakunbound (intern (string symbol) space)))
+	 (if (not (boundp (insym symbol)))
+	     (eval `(defvar ,(insym symbol) nil))))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
 	   `(apl-output ,precedent :print-precision print-precision
@@ -262,8 +267,7 @@
 	       ;; setq is used instead of apl-assign because output-stream is a lexical variable
 	       `(setq output-stream ,(intern precedent (package-name *package*)))
 	       (if (listp precedent)
-		   (destructuring-bind (vector-symbol package-string symbol-string)
-		       precedent
+		   (destructuring-bind (vector-symbol package-string symbol-string) precedent
 		     (if (and (eql 'avector vector-symbol)
 			      (stringp package-string)
 			      (stringp symbol-string))
@@ -272,10 +276,12 @@
 			 `(setq output-stream ,(intern symbol-string package-string))
 			 (error "Invalid assignment to ⎕OST.")))
 		   (error "Invalid assignment to ⎕OST."))))
-	  (t (if axes (enclose-axes `(inws ,symbol) axes :set `(disclose ,precedent))
-		 ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
-		 ;; intern it, unless it's one of the system variables
-		 `(apl-assign ,(output-value space symbol properties) ,precedent)))))
+	  (t (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
+			       symbol (list 'inws symbol))))
+	       (if axes (enclose-axes symbol axes :set `(disclose ,precedent))
+		   ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
+		   ;; intern it, unless it's one of the system variables
+		   `(apl-assign ,symbol ,precedent))))))
   '(:type (:array :assigned)))
  (function-assignment
   ;; match a function assignment like f←{⍵×2}, part of a functional expression

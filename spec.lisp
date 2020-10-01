@@ -718,7 +718,9 @@
      (symbolic :special-lexical-form-assign)
      (tests (is "x←55 ⋄ x" 55)
 	    (is "x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x" #3A(((7 7 7 7) (5 6 7 8) (9 1 2 3))
-						((7 7 7 7) (8 9 1 2) (3 4 5 6))))))
+						((7 7 7 7) (8 9 1 2) (3 4 5 6))))
+	    (is "(a b c)←1 2 3 ⋄ a b c" #(1 2 3))
+	    (is "(a b c)←10 20 30 ⋄ a+b×c" 610)))
   (→ (has :title "Branch") 
      (symbolic :special-lexical-form-branch)
      (tests (is "x←1 ⋄ →1              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 105)
@@ -1012,6 +1014,8 @@
        "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
   (for "Assignment of an element within an array."
        "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
+  (for "Strand assignment of variables including a system variable."
+       "(x ⎕IO y)←10 0 2 ⋄ x+y×⍳5" #(10 12 14 16 18))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."
