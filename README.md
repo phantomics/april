@@ -608,7 +608,7 @@ In this code, the `OUT-STR` output stream is interned in the package `PKG-ONE`. 
 
 (in-package #:pkg-two)
 
-(april-f "⎕ost←('PKG-ONE''OUT-STR') ⋄ 5+10")
+(april-f "⎕ost←('PKG-ONE' 'OUT-STR') ⋄ 5+10")
 ```
 
 If you assign to `⎕ost` a vector of two strings, the first string is the name of a package and the second string is the name of a symbol belonging to that package. In this way, you can reference an output stream whose symbol is interned in a package other than the current one.
@@ -642,6 +642,14 @@ See a pattern? The functions not planned for implentation are all those that man
 ## Also Not Implemented
 
 APL's function editor system and control flow statements are not implemented; this type of functionality is also readily accessible through standard Common Lisp.
+
+## April's Lexicon Compared to Other APLs
+
+APL has multiple implementations, and there are subtle but significant variations between the lexical functions they offer. April's set of functions is closest to those offered by Dyalog APL in its default mode. For instance, in April, dyadic `⊂` implements the partitioned enclose function while dyadic `⊆` implements the partition function, as in Dyalog. In IBM APL2, however, there is no partitioned enclose function and dyadic `⊂` implements the partition function. The same is true in GNU APL, whose design is patterned primarily after APL2.
+
+The other major lexical difference between APL2-family languages and April is that in April, monadic `⊃` implements the disclose function and monadic `↑` implements the mix function; the converse is true in APL2.
+
+Dyalog APL offers users the option of using multiple lexical modes, some of which are more similar to APL2. The variable controlling these modes is referred to as the "migration level." The implementation of migration levels in April is not planned at this time.
 
 ## Tests and Demo
 
