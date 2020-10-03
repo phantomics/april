@@ -44,7 +44,8 @@
 	output)))
 
 (defun shape (omega)
-  (if (not (arrayp omega))
+  (if (or (not (arrayp omega))
+	  (= 0 (rank omega)))
       #() (if (and (eql 'simple-array (first (type-of omega)))
 		   (eq t (second (type-of omega)))
 		   (eq nil (third (type-of omega))))
