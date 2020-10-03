@@ -283,6 +283,7 @@
      (ambivalent (λω (count-to omega index-origin))
 		 (λωα (index-of omega alpha index-origin)))
      (tests (is "⍳5" #(1 2 3 4 5))
+	    (is "⍳0" #())
 	    (is "(2⍳3),2 3⍳4" #(2 3))
 	    (is "3⍳⍳4" #(2 2 1 2))
 	    (is "2 4⍳⍳5" #(3 1 3 2 3))))
@@ -298,7 +299,8 @@
 	    (is "⍴⍬" #(0))
 	    (is "3⍴2" #(2 2 2))
 	    (is "3⍴3" #(3 3 3))
-	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))))
+	    (is "4 5⍴⍳3" #2A((1 2 3 1 2) (3 1 2 3 1) (2 3 1 2 3) (1 2 3 1 2)))
+	    (is "⍬⍴5 6 7" 5)))
   (⌷ (has :title "Index")
      (dyadic (λωαχ (at-index omega alpha axes index-origin)))
      (tests (is "1⌷3" 3)
@@ -1003,6 +1005,8 @@
   (for "Monadic operation upon nested vectors." "-(1 2 3)(4 5 6)" #(#(-1 -2 -3) #(-4 -5 -6)))
   (for "Dyadic operation upon nested vectors."
        "((1 2 3)(4 5 6))×(7 8 9)(10 11 12)" #(#(7 16 27) #(40 55 72)))
+  (for "Boolean operation with vector of left arguments and enclosed vector on the right."
+       "3 4=⊂3 4 5" #(#(1 0 0) #(0 1 0)))
   (for "Value assigned to a variable." "x←9" 9)
   (for "Value assigned to a variable and operated upon." "3+x←9" 12)
   (for "Two statements on one line separated by a [⋄ diamond] character."

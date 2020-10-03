@@ -171,7 +171,11 @@
 	 (ascalar (if (is-unitary alpha) (disclose alpha)))
 	 (output-dims (dims (if axes (if (> arank orank) alpha omega)
 				(if oscalar alpha omega))))
-	 (output-type (if is-boolean 'bit t))
+	 (output-type (if (or (not is-boolean)
+			      (not (= orank arank))
+			      (not (and oscalar ascalar)))
+			  t 'bit))
+	 ;; for boolean arrays, check whether the output will directly hold the array contents
 	 (output (if (not (and oscalar (or ascalar (not alpha))))
 		     (make-array output-dims :element-type output-type))))
     (flet ((promote-or-not (item)
@@ -462,7 +466,7 @@
 		(if (and scalar-fn (= 2 (length fn-body)))
 		    '(nil))
 		(if (and scalar-fn (is-boolean function))
-		    '(t)))))))
+		    '(nil t)))))))
 
 #|
 This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.

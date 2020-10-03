@@ -722,26 +722,30 @@
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (not (arrayp input))
       (make-array output-dims :element-type (assign-element-type input) :initial-element input)
-      (let* ((input-length (array-total-size input))
-	     (output-length (reduce #'* output-dims))
-	     (input-index 0)
-	     (input-displaced (if (vectorp input)
-				  input (make-array (list input-length)
-						    :displaced-to input :element-type (element-type input))))
-	     (output (make-array output-dims :element-type (element-type input)))
-	     (output-displaced (if (not (rest output-dims))
-				   output (make-array (list output-length)
-						      :displaced-to output :element-type (element-type input)))))
-	(declare (dynamic-extent input-index)
-		 ;; TODO: optimization caused problems due to type uncertainty; solution?
-		 ;; (optimize (safety 0) (speed 3))
-		 )
-	(loop :for index :below output-length
-	   :do (setf (aref output-displaced index)
-		     (aref input-displaced input-index)
-		     input-index (if (= input-index (1- input-length))
-				     0 (1+ input-index))))
-	output)))
+      (if (= 0 (length output-dims))
+	  (row-major-aref input 0)
+	  (let* ((input-length (array-total-size input))
+		 (output-length (reduce #'* output-dims))
+		 (input-index 0)
+		 (input-displaced
+		  (if (vectorp input)
+		      input (make-array (list input-length)
+					:displaced-to input :element-type (element-type input))))
+		 (output (make-array output-dims :element-type (element-type input)))
+		 (output-displaced
+		  (if (not (rest output-dims))
+		      output (make-array (list output-length)
+					 :displaced-to output :element-type (element-type input)))))
+	    (declare (dynamic-extent input-index)
+		     ;; TODO: optimization caused problems due to type uncertainty; solution?
+		     ;; (optimize (safety 0) (speed 3))
+		     )
+	    (loop :for index :below output-length
+	       :do (setf (aref output-displaced index)
+			 (aref input-displaced input-index)
+			 input-index (if (= input-index (1- input-length))
+					 0 (1+ input-index))))
+	    output))))
 
 (defun sprfact (n)
   "Recursive factorial-computing function. Based on P. Luschny's code."
