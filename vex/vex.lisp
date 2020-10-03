@@ -268,7 +268,8 @@
   "Build a documentation or test profile from a set of section names in a Vex idiom specification."
   (let ((specs (loop :for subspec :in spec :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
 						     (string= "OPERATORS" (string-upcase (first subspec)))
-						     (string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
+						     (string= "ARBITRARY-TEST-SET" (string-upcase
+										    (first subspec)))
 						     (string= "TEST-SET" (string-upcase (first subspec))))
 		  :collect subspec)))
     (loop :for name :in section-names
@@ -356,18 +357,19 @@
 	   (atest-forms (build-doc-profile symbol subspecs :test
 					   (rest (assoc :arbitrary-test (of-subspec doc-profiles)))))
 	   ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
-	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included after
-	   ;; less specific ones like the baseline grammar
-	   (pattern-settings `((idiom-composer-opening-patterns ,idiom-symbol)
-			       (append (idiom-composer-opening-patterns ,idiom-symbol)
-				       (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
-											   (of-subspec grammar))))
-						    :collect `(funcall (function ,pset) ,idiom-symbol))))
-			       (idiom-composer-following-patterns ,idiom-symbol)
-			       (append (idiom-composer-following-patterns ,idiom-symbol)
-				       (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
-											   (of-subspec grammar))))
-						    :collect `(funcall (function ,pset) ,idiom-symbol))))))
+	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included
+	   ;; after less specific ones like the baseline grammar
+	   (pattern-settings
+	    `((idiom-composer-opening-patterns ,idiom-symbol)
+	      (append (idiom-composer-opening-patterns ,idiom-symbol)
+		      (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
+									  (of-subspec grammar))))
+				   :collect `(funcall (function ,pset) ,idiom-symbol))))
+	      (idiom-composer-following-patterns ,idiom-symbol)
+	      (append (idiom-composer-following-patterns ,idiom-symbol)
+		      (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
+									  (of-subspec grammar))))
+				   :collect `(funcall (function ,pset) ,idiom-symbol))))))
 	   (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
 	   (printout-sym (concatenate 'string symbol-string "-F"))
 	   (inline-sym (concatenate 'string symbol-string "-C"))
@@ -703,7 +705,8 @@
 					       ;; the special precedent, prepend it to the token being processed
 					       (idiom-symbols idiom)
 					       (if (getf special-precedent :overloaded-num-char)
-						   (format nil "~a~a" (getf special-precedent :overloaded-num-char)
+						   (format nil "~a~a"
+							   (getf special-precedent :overloaded-num-char)
 							   string)
 						   string))))
 			;; this last clause returns the remainder of the input in case the input has either no
