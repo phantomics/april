@@ -35,9 +35,9 @@
 			      '(:special (:omit (:value :function :lateral-composition))))
 		   (if (eq :array (first (getf out-properties :type)))
 		       (progn (values output out-properties (cddr tokens))))))
-		;; process the empty array conveyed by the [⍬ zilde] character
+		;; process the empty vector expressed by the [⍬ zilde] character
 		((eq :empty-array this-item)
-		 (values (make-array nil)
+		 (values (make-array 0)
 			 (list :type '(:array :empty))
 			 (rest tokens)))
 		;; process numerical values

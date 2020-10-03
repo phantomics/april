@@ -45,16 +45,17 @@
 
 (defun shape (omega)
   (if (not (arrayp omega))
-      #0A0 (if (and (eql 'simple-array (first (type-of omega)))
-		    (eq t (second (type-of omega)))
-		    (eq nil (third (type-of omega))))
-	       0 (if (vectorp omega)
-		     (length omega)
-		     (let* ((omega-dims (dims omega))
-			    (max-dim (reduce #'max omega-dims)))
-		       (make-array (list (length omega-dims))
-				   :element-type (list 'integer 0 max-dim)
-				   :initial-contents omega-dims))))))
+      #() (if (and (eql 'simple-array (first (type-of omega)))
+		   (eq t (second (type-of omega)))
+		   (eq nil (third (type-of omega))))
+	      0 (if (vectorp omega)
+		    (make-array 1 :element-type (list 'integer 0 (length omega))
+				:initial-contents (list (length omega)))
+		    (let* ((omega-dims (dims omega))
+			   (max-dim (reduce #'max omega-dims)))
+		      (make-array (list (length omega-dims))
+				  :element-type (list 'integer 0 max-dim)
+				  :initial-contents omega-dims))))))
 
 (defun at-index (omega alpha axes index-origin)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
@@ -120,8 +121,7 @@
   (let* ((indices) (match-count 0)
 	 (orank (rank omega)))
     (if (= 0 orank)
-	(if (= 1 omega)
-	    1 0)
+	(if (= 1 omega) 1 0)
 	(progn (across omega (lambda (index coords)
 			       (declare (dynamic-extent index coords))
 			       (if (= 1 index)
@@ -399,7 +399,6 @@
 	result)))
 
 (defun format-array (print-precision)
-  ;; (print (list :pr print-precision))
   (lambda (omega &optional alpha)
     (if (not alpha)
 	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n t print-precision)))
@@ -447,7 +446,7 @@
 		       (third operation-monadic) operation-dyadic)))
     (flet ((expand-dyadic (a1 a2 &optional reverse)
 	     ;; the enclose-clause here and the (arrayp ,a1) clause below are added just so that the compiled
-	     ;; clause will not cause problems when macroexpanding with an explicit scalar argument, as with 3/¨⍳3
+	     ;; clause will not cause problems when expanding with an explicit scalar argument, as with 3/¨⍳3
 	     (let ((call (if reverse `(apl-call ,symbol ,dyadic-op ,index ,a2)
 			     `(apl-call ,symbol ,dyadic-op ,a2 ,index))))
 	       `(let ((,output (make-array (dims ,a1))))
@@ -468,10 +467,10 @@
 				    ,(expand-dyadic alpha omega))
 				   ((not (arrayp ,alpha))
 				    ,(expand-dyadic omega alpha t))
-				   ((and (vectorp ,omega) (= 1 (length ,omega)))
-				    ,(expand-dyadic alpha `(aref ,omega 0)))
-				   ((and (vectorp ,alpha) (= 1 (length ,alpha)))
-				    ,(expand-dyadic omega `(aref ,alpha 0) t))
+				   ((is-unitary ,omega)
+				    ,(expand-dyadic alpha `(disclose ,omega)))
+				   ((is-unitary ,alpha)
+				    ,(expand-dyadic omega `(disclose ,alpha) t))
 				   ((and (= (size ,alpha) (size ,omega))
 					 (= (rank ,alpha) (rank ,omega))
 					 (loop :for ,a :in (dims ,alpha) :for ,o :in (dims ,omega)
@@ -719,8 +718,9 @@
 						     (let ((,alen (if (not (listp ,coord))
 								      1 (length ,coord))))
 						       (choose ,left-value
-							       (mapcar #'list (append (list ,index)
-										      (nthcdr ,alen ,coords)))))))
+							       (mapcar #'list
+								       (append (list ,index)
+									       (nthcdr ,alen ,coords)))))))
 					       :set-coords t)))))
 		  ,output))))))
 
