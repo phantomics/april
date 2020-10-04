@@ -9,7 +9,7 @@
   (flet ((compare (o a)
 	   (funcall (if (and (characterp a) (characterp o))
 			#'char= (if (and (numberp a) (numberp o))
-				    #'= (error "Compared incompatible types.")))
+				    #'= (lambda (a o) (declare (ignore a o)))))
 		    o a)))
     (let ((included)
 	  (omega-vector (if (or (vectorp omega)
@@ -32,7 +32,7 @@
 (defun scalar-compare (omega alpha)
   (funcall (if (and (characterp alpha) (characterp omega))
 	       #'char= (if (and (numberp alpha) (numberp omega))
-			   #'= (error "Compared incompatible types.")))
+			   #'= (lambda (a o) (declare (ignore a o)))))
 	   omega alpha))
 
 (defun count-to (index index-origin)
