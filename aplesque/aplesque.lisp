@@ -618,12 +618,14 @@
 	 (idims (dims input)) (axis-size (nth axis idims)))
     (declare (dynamic-extent intervals offset input-offset))
 
-    (loop :for p :across positions
-       :do (if (= 0 p) (progn (if intervals (incf (first intervals)) (incf offset))
-			      (incf input-offset))
-	       (progn (setq intervals (append (loop :for i :below p :collect 0) intervals))
-		      (if (> axis-size input-offset)
-			  (progn (incf input-offset) (incf (first intervals)))))))
+    ;; a scalar position argument is extended to the length of the input's first dimension
+    (loop :for i :below (if (is-unitary positions) (first idims) (length positions))
+       :do (let ((p (if (is-unitary positions) (disclose positions) (aref positions i))))
+	     (if (= 0 p) (progn (if intervals (incf (first intervals)) (incf offset))
+				(incf input-offset))
+		 (progn (setq intervals (append (loop :for i :below p :collect 0) intervals))
+			(if (> axis-size input-offset)
+			    (progn (incf input-offset) (incf (first intervals))))))))
 
     (if (>= axis-size input-offset)
 	(incf (first intervals) (- axis-size input-offset))
@@ -660,8 +662,8 @@
 	    (partitions 0)
 	    (idims (dims input))
 	    (arank (rank input)))
-	(declare (dynamic-extent r-indices r-intervals indices intervals interval-size
-				 current-interval partitions))
+	(declare (dynamic-extent r-indices r-intervals indices intervals
+				 interval-size current-interval partitions))
 	;; find the index where each partition begins in the input array and the length of each partition
 	(loop :for pos :across positions :for p :below (length positions)
 	   :do (if (/= 0 current-interval)
