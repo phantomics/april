@@ -179,6 +179,7 @@
 	 ;; for boolean arrays, check whether the output will directly hold the array contents
 	 (output (if (not (and oscalar (or ascalar (not alpha))))
 		     (make-array output-dims :element-type output-type))))
+    (print (list :fn function omega alpha axes is-boolean))
     (flet ((promote-or-not (item)
 	     ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
 	     (declare (dynamic-extent item))

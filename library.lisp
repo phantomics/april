@@ -37,12 +37,13 @@
 
 (defun count-to (index index-origin)
   "Implementation of APL's ⍳ function."
-  (if (not (integerp index))
-      (error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
-      (if (= 0 index) (vector)
-	  (let ((output (make-array (list index) :element-type (list 'integer 0 index))))
-	    (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
-	    output))))
+  (let ((index (disclose index)))
+    (if (not (integerp index))
+	(error "The argument to ⍳ must be a single integer, i.e. ⍳9.")
+	(if (= 0 index) (vector)
+	    (let ((output (make-array (list index) :element-type (list 'integer 0 index))))
+	      (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
+	      output)))))
 
 (defun shape (omega)
   (if (or (not (arrayp omega))
