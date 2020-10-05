@@ -112,17 +112,20 @@
       item (row-major-aref item 0)))
 
 (defmacro apl-assign (symbol value)
-  "This is a simple passthrough macro that is used by (in-apl-workspace)."
+  "This is macro is used to build variable assignment forms and includes logic for stranded assignments."
   (if (or (not (listp symbol))
 	  (eql 'inws (first symbol)))
       `(set ',symbol ,value)
       (let ((values (gensym "A")))
-	`(let ((,values ,value))
-	   (if (/= ,(1- (length symbol)) (length ,values))
+	`(let ((,values (disclose ,value)))
+	   (if (and (arrayp ,values) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
 	   ,@(loop :for s :in (rest symbol) :counting s :into sx
-		:collect (if (member s *idiom-native-symbols*) `(setq ,s (aref ,values ,(1- sx)))
-			     `(set ',s (aref ,values ,(1- sx)))))))))
+		:collect (let ((set-to `(if (not (arrayp ,values))
+					    ,values (aref ,values ,(1- sx)))))
+			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
+			       `(set ',s ,set-to))))
+	   ,values))))
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
