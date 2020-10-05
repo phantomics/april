@@ -770,7 +770,8 @@
 	    (is "fn←{⍺+⍵} ⋄ fn/1 2 3 4 5" 15)
 	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)
 	    (is "+/⍬" 0)
-	    (is "×/⍬" 1)))
+	    (is "×/⍬" 1)
+	    (is "+/(1 2 3)(4 5 6)" #0A#(5 7 9))))
   (⌿ (has :title "Reduce First")
      (lateral (with-operand-derived (left-glyph left-function-dyadic)
 		(lambda (axes) `(apply-reducing ,left-glyph ,left-function-dyadic ,axes t))))
@@ -1047,6 +1048,8 @@
        "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
   (for "Strand assignment of variables including a system variable."
        "(x ⎕IO y)←10 0 2 ⋄ x+y×⍳5" #(10 12 14 16 18))
+  (for "Strand assignment of nested scalar variable."
+       "(a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."

@@ -117,12 +117,13 @@
 	  (eql 'inws (first symbol)))
       `(set ',symbol ,value)
       (let ((values (gensym "A")))
-	`(let ((,values (disclose ,value)))
-	   (if (and (arrayp ,values) (/= ,(1- (length symbol)) (length ,values)))
+	`(let ((,values ,value))
+	   (if (and (arrayp ,values)
+		    (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
 	   ,@(loop :for s :in (rest symbol) :counting s :into sx
-		:collect (let ((set-to `(if (not (arrayp ,values))
-					    ,values (aref ,values ,(1- sx)))))
+		:collect (let ((set-to `(if (or (not (arrayp ,values)) (= 1 (size ,values)))
+					    (disclose ,values) (aref ,values ,(1- sx)))))
 			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
 			       `(set ',s ,set-to))))
 	   ,values))))
@@ -565,28 +566,26 @@ It remains here as a standard against which to compare methods for composing APL
 (defun do-over (input function axis &key reduce in-reverse)
   "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
   (let* ((dimensions (dims input))
-	 (output (make-array (if reduce (or (loop :for dim :in dimensions :counting dim :into dx
-					       :when (/= dx (1+ axis)) :collect dim)
-					    '(1))
+	 (output (make-array (if reduce (loop :for dim :in dimensions :counting dim :into dx
+					   :when (/= dx (1+ axis)) :collect dim)
 				 dimensions)))
-	 (reduce-coords (if reduce (or (loop :for i :below (1- (rank input)) :collect 0) '(0))))
-	 (ref-coords (loop :for i :below (rank input) :collect 0)))
+	 (rcoords (if reduce (loop :for i :below (1- (rank input)) :collect 0)))
+	 (icoords (loop :for i :below (rank input) :collect 0)))
     (across input (lambda (elem coords)
 		    (declare (dynamic-extent elem coords))
-		    (if reduce-coords (let ((decrement 0))
-					(loop :for c :in coords :counting c :into cx
-					   :when (= axis (1- cx)) :do (incf decrement)
-					   :when (/= axis (1- cx))
-					   :do (setf (nth (- cx 1 decrement) reduce-coords) c))))
-		    (loop :for c :in coords :counting c :into cx :do (setf (nth (1- cx) ref-coords)
+		    (if rcoords (let ((decrement 0))
+				  (loop :for c :in coords :counting c :into cx
+				     :when (= axis (1- cx)) :do (incf decrement)
+				     :when (/= axis (1- cx)) :do (setf (nth (- cx 1 decrement) rcoords) c))))
+		    (loop :for c :in coords :counting c :into cx :do (setf (nth (1- cx) icoords)
 									   (if (/= axis (1- cx))
 									       c (if (not reduce)
 										     (1- c)))))
-		    (setf (apply #'aref output (if reduce reduce-coords coords))
+		    (setf (apply #'aref output (if reduce rcoords coords))
 			  (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
 				 (nth axis coords))
-			      elem (funcall function elem
-					    (apply #'aref output (or reduce-coords ref-coords (list 0)))))))
+			      elem (funcall function elem (apply #'aref output (if reduce rcoords
+										   (or icoords (list 0))))))))
 	    :reverse-axes (if in-reverse (list axis)))
     (each-scalar t output)))
 
