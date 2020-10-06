@@ -758,8 +758,7 @@
 	   :for pattern :in (if precedent (idiom-composer-following-patterns idiom)
 				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
-		     (not (member (getf pattern :name)
-				  (getf special-params :omit))))
+		     (not (member (getf pattern :name) (getf special-params :omit))))
 	   :do (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (getf pattern :function)
 			    tokens space (lambda (item &optional sub-props)
@@ -791,7 +790,8 @@
 		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
 				    :function (lambda (,token ,space ,process
 						       &optional ,precedent ,properties ,preceding-properties)
-						(declare (ignorable ,precedent ,properties ,preceding-properties))
+						(declare (ignorable ,precedent ,properties
+								    ,preceding-properties))
 						(let ((,invalid)
 						      (,sub-properties)
 						      ,@(loop :for token :in (second param)
@@ -942,9 +942,9 @@
 	
 	(if string
 	    (let* ((string (if (stringp string)
-			       ;; just pass the string through if it's not a pathname; if it is a pathname,
-			       ;; evaluate it in case something like (asdf:system-relative-pathname ...)
-			       ;; was passed
+			       ;; just pass the string through if it's not a pathname;
+			       ;; if it is a pathname, evaluate it in case something like
+			       ;; (asdf:system-relative-pathname ...) was passed
 			       string (with-open-file (stream (eval string))
 					(apply #'concatenate
 					       (cons 'string (loop :for line := (read-line stream nil)
