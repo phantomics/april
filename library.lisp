@@ -12,12 +12,10 @@
 				    #'= (lambda (a o) (declare (ignore a o)))))
 		    o a)))
     (let ((included)
-	  (omega-vector (if (or (vectorp omega)
-				(not (arrayp omega)))
+	  (omega-vector (if (or (vectorp omega)	(not (arrayp omega)))
 			    (disclose omega)
 			    (make-array (list (array-total-size omega))
-					:element-type (element-type omega)
-					:displaced-to omega))))
+					:displaced-to omega :element-type (element-type omega)))))
       (loop :for element :across alpha
 	 :do (let ((include t))
 	       (if (vectorp omega-vector)
@@ -25,8 +23,7 @@
 		      :do (if (compare ex element) (setq include nil)))
 		   (if (compare omega-vector element) (setq include nil)))
 	       (if include (setq included (cons element included)))))
-      (make-array (list (length included))
-		  :element-type (element-type alpha)
+      (make-array (list (length included)) :element-type (element-type alpha)
 		  :initial-contents (reverse included)))))
 
 (defun scalar-compare (omega alpha)
@@ -57,8 +54,7 @@
 		    (let* ((omega-dims (dims omega))
 			   (max-dim (reduce #'max omega-dims)))
 		      (make-array (list (length omega-dims))
-				  :element-type (list 'integer 0 max-dim)
-				  :initial-contents omega-dims))))))
+				  :initial-contents omega-dims :element-type (list 'integer 0 max-dim)))))))
 
 (defun at-index (omega alpha axes index-origin)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
@@ -75,8 +71,7 @@
 		      (if (not axis)
 			  coords (loop :for dim :below (rank omega)
 				    :collect (if (member dim axis) (first coords))
-				    :when (member dim axis)
-				    :do (setq coords (rest coords))))))))
+				    :when (member dim axis) :do (setq coords (rest coords))))))))
 
 (defun find-depth (omega)
   "Find the depth of an array. Used to implement [≡ depth]."
@@ -171,8 +166,7 @@
 	  ;; laminate in the case of a fractional axis argument
 	  (laminate alpha omega (ceiling axis))
 	  ;; simply stack the arrays if there is no axis argument or it's an integer
-	  (catenate alpha omega (or axis (1- (max (rank alpha)
-						  (rank omega)))))))))
+	  (catenate alpha omega (or axis (1- (max (rank alpha) (rank omega)))))))))
 
 (defun catenate-on-first (index-origin)
   (lambda (omega alpha &optional axes)
@@ -229,10 +223,8 @@
 			   :collect item :and :do (incf match-count))))
 	  (if (= 1 match-count)
 	      (first matches)
-	      (make-array (list match-count)
-			  :initial-contents matches
-			  :element-type (type-in-common (element-type alpha)
-							(element-type omega))))))))
+	      (make-array (list match-count) :initial-contents matches
+			  :element-type (type-in-common (element-type alpha) (element-type omega))))))))
 
 (defun unique (omega)
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
@@ -412,20 +404,20 @@
 			   :format (lambda (n) (print-apl-number-string n t print-precision alpha)))))))
 
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
-  (let ((omega (gensym)) (o (gensym)) (a (gensym)) (symstring (write-to-string operation-symbol)))
+  (let ((omega (gensym)) (o (gensym)) (a (gensym)) (symstring (string operation-symbol)))
     `(lambda (,omega)
-       (if (or (equalp #0A0 ,omega)
-	       (= 0 (size ,omega)))
-	   ;; if reducing an empty array, return the identity operator for compatible lexical functions
-	   ,(cond ((string= symstring "+") 0)
-		  ((string= symstring "-") 0)
-		  ((string= symstring "×") 1)
-		  ((string= symstring "÷") 1)
-		  ((string= symstring "⋆") 1)
-		  ((string= symstring "*") 1)
-		  ((string= symstring "⌈") most-negative-long-float)
-		  ((string= symstring "⌊") most-positive-long-float)
-		  (t '(error "Invalid function for reduction of empty array.")))
+       (if (= 0 (size ,omega))
+	   (if (/= 1 (rank ,omega))
+	       ;; if reducing an empty vector, return the identity operator for compatible lexical functions
+	       ;; higher-dimensional empty arrays will yield an [⍬ empty vector]
+	       #() ,(or (if (= 1 (length symstring))
+			    (second (assoc (aref symstring 0)
+					   '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1) 
+					     (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
+					     (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⌈ most-negative-long-float)
+					     (#\⌊ most-positive-long-float))
+					   :test #'char=)))
+			'(error "Invalid function for reduction of empty array.")))
 	   (disclose-atom (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,a ,o))
 				   ,(if axes `(- ,(first axes) index-origin)
 					(if first-axis 0 `(1- (rank ,omega))))
@@ -564,9 +556,8 @@
        (if (or (not (or (not (arrayp ,omega)) (not (arrayp ,alpha))
 			(dims ,omega) (dims ,alpha)))
        	       (= 0 (size ,omega)) (= 0 (size ,alpha)))
-	   ;; if one argument to the derived function is an empty array, return the empty array
-       	   (if (or (not (dims ,omega)) (= 0 (size ,omega)))
-       	       ,omega ,alpha)
+	   ;; if the arguments are empty, return an empty array with the dimensions of the arguments appended
+	   (make-array (append (dims ,alpha) (dims ,omega)))
 	   (if (is-unitary ,omega)
 	       (if (is-unitary ,alpha)
 		   (apl-call :fn ,op-right ,alpha ,omega)

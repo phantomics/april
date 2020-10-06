@@ -45,7 +45,7 @@
   (if (and (eq t (array-element-type array))
 	   (not (loop :for item :across (make-array (list (size array)) :element-type t :displaced-to array)
 		   :never (arrayp item))))
-      array (vector array)))
+      array (make-array nil :initial-contents array)))
 
 (defun disclose (item &key if-array)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
@@ -1556,8 +1556,10 @@
 	((stringp input) (if (not prepend)
 			     input (concatenate 'string (list prepend) input)))
 	;; empty arrays are printed as empty strings
-	((equalp #0A0 input)
+	((or (equalp #0A0 input) (= 0 (size input)))
 	 "")
+	((= 0 (rank input))
+	 (array-impress (aref input) :format format :append append :prepend #\ ))
 	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
@@ -1696,8 +1698,7 @@
 							      (not (and (numberp elem)
 									(> elem-width this-col-width)))
 							      (or (member :array last-col-type)
-								  (is-pure-character-column
-								   (1- last-coord)))))
+								  (is-pure-character-column (1- last-coord)))))
 						     0 1)
 						 ;; add right buffer space if this column is 1. Not the last and
 						 ;; 2. Contains an array
@@ -1732,14 +1733,18 @@
 	       ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
 	       ;; character is set, the output array has an extra element in its last dimension to hold the
 	       ;; indenting character
-	       (let ((output (if collate (make-array (append (butlast idims)
-							     (list (+ (if (or prepend append) 1 0)
-								      (aref x-offsets (1- (length x-offsets))))))
-						     :element-type 'character :initial-element output-default-char)
-				 (make-array (list (aref y-offsets (1- (length y-offsets)))
-						   (+ (if (or prepend append) 1 0)
-						      (aref x-offsets (1- (length x-offsets)))))
-					     :element-type 'character :initial-element output-default-char))))
+	       (let* ((to-collate (and collate (or (not (eq t (element-type input)))
+						   (loop :for i :below (array-total-size input)
+						      :always (not (arrayp (row-major-aref input i)))))))
+		      (output (if to-collate
+				  (make-array (append (butlast idims)
+						      (list (+ (if prepend 1 0) (if append 1 0)
+							       (aref x-offsets (1- (length x-offsets))))))
+					      :element-type 'character :initial-element output-default-char)
+				  (make-array (list (aref y-offsets (1- (length y-offsets)))
+						    (+ (if prepend 1 0) (if append 1 0)
+						       (aref x-offsets (1- (length x-offsets)))))
+					      :element-type 'character :initial-element output-default-char))))
 		 (across strings
 			 (lambda (chars coords)
 			   (declare (dynamic-extent chars coords))
@@ -1812,7 +1817,9 @@
 								    (if (and (not is-first-col)
 									     (not array-last-col))
 									1 0)))))
-					       (if collate (setf (apply #'aref output (append (butlast coords 1)
+					       (if to-collate
+						   ;; nil
+						   (setf (apply #'aref output (append (butlast coords 1)
 											      (list x-coord)))
 								 element)
 						   (setf (aref output (+ (aref y-offsets row)
@@ -1847,7 +1854,8 @@
 									      (not (is-pure-character-column
 										    (1+ last-coord))))
 									 2 1)))))))
-				     (if collate (setf (apply #'aref output (append (butlast coords 1)
+				     (if to-collate
+					 (setf (apply #'aref output (append (butlast coords 1)
 										    (list x-coord)))
 						       chars)
 					 (setf (aref output (aref y-offsets row)
@@ -1857,23 +1865,31 @@
 		 ;; if prepending or appending a character, it is placed in the array here;
 		 ;; this is more complicated for a collated array and it is not needed if the
 		 ;; character is the same as the default character for the array
+		 ;; (print (list :out output))
 		 (if (or (and append (not (char= append output-default-char)))
 			 (and prepend (not (char= prepend output-default-char))))
 		     (let ((last-dim (first (last (dims output)))))
-		       (if collate (across output (lambda (elem coords)
+		       (if to-collate
+			   (across output (lambda (elem coords)
 						    (declare (ignore elem) (dynamic-extent coords))
 						    (setf (apply #'aref output coords)
 							  (if prepend prepend append))))
-	     		   (if prepend (loop :for row :below (first (dims output))
-	     				  :do (setf (aref output row 0) prepend))
-	     		       (loop :for row :below (first (dims output))
-	     			  :do (setf (aref output row (1- last-dim)) append))))))
+			   (progn (if prepend (loop :for row :below (first (dims output))
+	     		   			 :do (setf (aref output row 0) prepend)))
+			   	  (if append (loop :for row :below (first (dims output))
+	     		   			:do (setf (aref output row (1- last-dim)) append))))
+			   ;; (if prepend (loop :for row :below (first (dims output))
+	     		   ;; 		  :do (setf (aref output row 0) prepend))
+			   ;;     (loop :for row :below (first (dims output))
+	     		   ;; 	  :do (setf (aref output row (1- last-dim)) append)))
+			   )))
 		 output))))))
 
 (defmacro matrix-print (input &rest options)
   "Print a character matrix generated by array-impress."
   (let ((rendered (gensym)))
     `(let ((,rendered (array-impress ,input ,@options)))
+       ;; (print (list :ren ,rendered))
        (if (stringp ,rendered)
 	   ,rendered (make-array (list (array-total-size ,rendered))
 				 :element-type 'character :displaced-to ,rendered)))))
