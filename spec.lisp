@@ -887,7 +887,7 @@
 	     (is "⍬∘.=⍬" #2A())
 	     (is "''∘.=''" #2A())
 	     (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
-	     (is "' ' { (a w) ← {(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a ∘.= w) = +/a ∘.= a } 'dog'" #(0))))
+	     (is "' ' { (a w)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a∘.=w) = +/a∘.=a } 'dog'" #(0))))
   (∘ (has :title "Compose")
      (pivotal (with-operand-derived (right-glyph right-function-monadic right-function-dyadic
 						 left-glyph left-function-monadic left-function-dyadic)
