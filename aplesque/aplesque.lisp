@@ -819,10 +819,22 @@
       (gamma (+ n 1))))
 
 (defun ibinomial (n k)
-  "Find a binomial for integer parameters using the above sprfact function."
-  (labels ((prod-enum (s e) (do ((i s (1+ i)) (r 1 (* i r))) ((> i e) r)))
-           (sprfact (n) (prod-enum 1 n)))
-    (/ (prod-enum (- (1+ n) k) n) (sprfact k))))
+  "Find a binomial for integer parameters."
+  (let ((k (min k (- n k)))
+        (nom 1)
+        (denom 1)
+        (primes '(2 3 5 7 11 13 17 19)))
+    (loop for i from 0 below k
+          do (progn
+               (setf nom (* nom (- n i))
+                     denom (* denom (1+ i)))
+               (when (> i 0)
+                 (loop for p in primes
+                       if (zerop (mod i p))
+                         do (setf nom (/ nom p)
+                                  denom (/ denom p)))))
+          finally (return (/ nom denom)))
+    ))
 
 (defun binomial (n k)
   "Generalized binomial function. For complex and fractional numbers uses Gamma function."
