@@ -13,21 +13,22 @@
 	 (declare (ignore 1st 2nd))
 	 error-code)))
 
-(defvar *april-thread-count*
-  (with-open-stream (cmd-out (make-string-output-stream))
-    (uiop:run-program (case (uiop:operating-system)
-			((:linux :linux-target)
-			 (if (system-command-exists "nproc") "nproc" ""))
-			((:macosx :darwin)
-			 (if (system-command-exists "sysctl") "sysctl -n hw.logicalcpu" ""))
-			((:bsd :freebsd :openbsd :netbsd)
-			 (if (system-command-exists "sysctl") "sysctl -n hw.ncpu" "")))
-		      :output cmd-out)
-    (let ((output (get-output-stream-string cmd-out)))
-      (if (= 0 (length output))
-	  1 (read-from-string output)))))
+;; (defvar *april-thread-count*
+;;   (with-open-stream (cmd-out (make-string-output-stream))
+;;     (uiop:run-program (case (uiop:operating-system)
+;; 			((:linux :linux-target)
+;; 			 (if (system-command-exists "nproc") "nproc" ""))
+;; 			((:macosx :darwin)
+;; 			 (if (system-command-exists "sysctl") "sysctl -n hw.logicalcpu" ""))
+;; 			((:bsd :freebsd :openbsd :netbsd)
+;; 			 (if (system-command-exists "sysctl") "sysctl -n hw.ncpu" "")))
+;; 		      :output cmd-out)
+;;     (let ((output (get-output-stream-string cmd-out)))
+;;       (if (= 0 (length output))
+;; 	  1 (read-from-string output)))))
 
-(defvar *april-parallel-kernel* (lparallel:make-kernel *april-thread-count* :name "april-language-kernel"))
+(defvar *april-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
+						       :name "april-language-kernel"))
 
 (setf lparallel:*kernel* *april-parallel-kernel*)
 

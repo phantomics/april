@@ -520,7 +520,10 @@ It remains here as a standard against which to compare methods for composing APL
 			 (if assigned-array (setf ,body assigned-array)
 			     assignment-output))
 		  `(choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
-					 (list ,@axes))))
+					 (list ,@axes))
+			   ;; :enclose-output t
+			   ;; TODO: fix nested array implementation that required this hack
+			   ))
 	      (rest axis-sets)))))
 
 (defun output-value (space form &optional properties)
