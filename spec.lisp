@@ -7,13 +7,13 @@
 
 (defparameter *circular-functions*
   ;; APL's set of circular functions called using the ○ symbol with a left argument
-  (vector (lambda (input) (exp (complex 0 input)))
-	  (lambda (input) (complex 0 input))
-	  #'conjugate #'identity (lambda (input) (sqrt (- -1 (* 2 input))))
-	  #'atanh #'acosh #'asinh (lambda (input) (* (1+ input) (sqrt (/ (1+ input) (1- input)))))
-	  #'atan #'acos #'asin (lambda (input) (sqrt (- 1 (* 2 input))))
-	  #'sin #'cos #'tan (lambda (input) (sqrt (1+ (* 2 input))))
-	  #'sinh #'cosh #'tanh (lambda (input) (sqrt (- -1 (* 2 input))))
+  (vector (lambda (x) (exp (complex 0 x)))
+	  (lambda (x) (complex 0 x))
+	  #'conjugate #'identity (lambda (x) (- (sqrt (- (1+ (expt x 2))))))
+	  #'atanh #'acosh #'asinh (lambda (x) (if (= -1 x) 0 (* (1+ x) (sqrt (/ (1- x) (1+ x))))))
+	  #'atan #'acos #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
+	  #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
+	  #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
 	  #'realpart #'abs #'imagpart #'phase))
 
 (defvar *digit-vector* "0123456789")
@@ -36,8 +36,8 @@
 	 :base-state '(:index-origin 1 :comparison-tolerance 1e-14 :print-precision 10
 		       :output-stream '*standard-output*))
 
- ;; standard grammar components, with elements to match the basic language forms and pattern-matching systems to
- ;; register combinations of those forms
+ ;; standard grammar components, with elements to match the basic language forms and
+ ;; pattern-matching systems to register combinations of those forms
  (grammar (:elements composer-elements-apl-standard)
 	  (:opening-patterns composer-opening-patterns-apl-standard)
 	  (:following-patterns composer-following-patterns-apl-standard
@@ -224,7 +224,24 @@
      (tests (is "⌊100000×○1" 314159)
 	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)
 	    (is "⌊1000×1○⍳9" #(841 909 141 -757 -959 -280 656 989 412))
-	    (is "⌈1 2 3○○.5 2 .25" #(1 1 1))))
+	    (is "⌈1 2 3○○.5 2 .25" #(1 1 1))
+	    (is "⌊1000×⊃,/9 11○⊂(¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5"
+		#2A((0 -550 549 -239 118 0 1570 1570 1311 1355)
+		    (0 1316 1316 1734 2095 1570 3141 0 2325 1064)
+		    (0 -1444 1443 -1735 2079 0 0 0 754 1038)
+		    (0 -1733 1732 -1880 1940 1000 0 0 2128 3607)
+		    (0 -1108 1107 -1312 1442 0 0 0 238 215)
+		    (1570 3141 0 2325 1064 0 -1317 1316 -1735 -2096)
+		    (0 -1571 1570 -755 506 0 1316 -1317 1734 2095)
+		    (1000 0 0 2128 3607 0 1732 1732 1879 -1941)
+		    (0 -910 909 -3421 15069 0 0 0 -1510 -6885)
+		    (1000 -417 -417 -1566 -6897 0 0 0 3297 -15043)
+		    (0 2185 -2186 28 -2 0 0 0 1023 1001)
+		    (1000 2236 2236 2128 2063 0 0 0 -1880 3392)
+		    (0 -3627 3626 1509 -3397 0 0 0 3420 -1320)
+		    (1000 3762 3762 -1566 -3524 0 0 0 -3298 -1273)
+		    (0 -965 964 -1024 972 0 0 0 -29 23)
+		    (0 0 0 1879 3392 1000 2236 2236 2128 -2064)))))
   (\~ (has :titles ("Not" "Without"))
       (ambivalent (scalar-function (λω (cond ((= 0 omega) 1)
 					     ((= 1 omega) 0)
@@ -424,6 +441,7 @@
   		 (section-array index-origin))
      (tests (is "↑2" 2)
 	    (is "↑'a'" #\a)
+	    (is "⍴1↑⍳3" #*1)
 	    (is "↑(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))
   	    (is "↑[0.5](1)(1 2)(1 2 3)" #2A((1 1 1) (0 2 2) (0 0 3)))
   	    (is "↑(2 3⍴⍳5)(4 2⍴⍳8)" #3A(((1 2 3) (4 5 1) (0 0 0) (0 0 0))
@@ -441,7 +459,7 @@
   						  (((1 0 0) (1 2 0)) ((3 4 0) (1 2 3)))))
 	    (is "2↑2" #(2 0))
 	    (is "3↑⍳9" #(1 2 3))
-  	    (is "¯1↑⍳5" 5)
+  	    (is "¯1↑⍳5" #(5))
   	    (is "3↑'abcdef'" "abc")
   	    (is "2 3 4↑4 5 6⍴⍳9" #3A(((1 2 3 4) (7 8 9 1) (4 5 6 7))
   				     ((4 5 6 7) (1 2 3 4) (7 8 9 1))))

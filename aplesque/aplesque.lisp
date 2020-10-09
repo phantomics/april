@@ -347,7 +347,6 @@
 
 (defun section (input dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-  ;; (print (list :in input dimensions))
   (cond ((/= (length dimensions) (rank input))
 	 (error "Incorrect number of dimensions to ~w, ~w, for input array of rank ~w."
 		(if inverse "drop" "take") (length dimensions) (rank input)))
@@ -357,16 +356,15 @@
 	(t (let* ((idims (dims input))
 		  (input-smaller (< (array-total-size input)
 				    (abs (reduce #'* dimensions))))
-		  ;; if the input array is smaller than the output will be, iterate over the cells of input and copy to
-		  ;; the appropriate output cells; otherwise do the inverse, iterating over output and copying from the
-		  ;; corresponding input cells
+		  ;; if the input array is smaller than the output will be, iterate over the cells of
+		  ;; input and copy to the appropriate output cells; otherwise do the inverse, iterating
+		  ;; over output and copying from the corresponding input cells
 		  (output (make-array (mapcar (lambda (outdim indim)
 						(if (not inverse) (abs outdim) (- indim (abs outdim))))
 					      dimensions idims)
 				      :initial-element (if fill-with fill-with (apl-default-element input))
 				      :element-type (element-type input)))
 		  (tcoords (loop :for i :in dimensions :collect 0)))
-	     ;; (print (list :oo output))
 	     (across (if input-smaller input output)
 		     (lambda (element coords)
 		       (declare (ignore element) (dynamic-extent coords))
@@ -395,7 +393,7 @@
 								  coords tcoords))
 					 (apply #'aref input (if (or inverse (not input-smaller))
 								 tcoords coords)))))))
-	     (disclose output)))))
+	     output))))
 
 ;; (defun catenate (a1 a2 axis)
 ;;   (let* ((a1 (disclose a1)) (a2 (disclose a2))
@@ -1652,10 +1650,11 @@
 					    (setf elem-height (or (second rdims) 1)
 						  elem-width (first rdims))))
 					 ((numberp elem)
-					  (setf decimals (+ (if (> 0 elem) 2 1)
+					  (setf decimals (+ (if (> 0 (realpart elem)) 2 1)
 							    ;; add an extra space for the ¯ if negative
-							    (if (= 0 elem)
-								0 (max 0 (floor (log (abs elem) 10)))))
+							    (if (= 0 (realpart elem))
+								0 (max 0 (floor (log (abs (realpart elem))
+										     10)))))
 						;; increment the decimal point position if it's further right
 						;; than in other rows of this column; negative values occupy
 						;; an extra space due to the minus sign
@@ -1789,9 +1788,10 @@
 						     ;; the minus sign
 						     (if (and float-col (numberp original))
 							 (max 0 (- decimal-place
-								   (+ (if (> 0 original) 2 1)
-								      (if (> 1 (abs original))
-									  0 (floor (log (abs original) 10))))))))
+								   (+ (if (> 0 (realpart original)) 2 1)
+								      (if (> 1 (abs (realpart original)))
+									  0 (floor (log (abs (realpart original))
+											10))))))))
 						    ;; pad arrays with a space to the right, unless
 						    ;; they're at the last column or the next column is a
 						    ;; character column

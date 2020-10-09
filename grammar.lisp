@@ -7,7 +7,7 @@
 
 (set-composer-elements
  composer-elements-apl-standard
- (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space
+ (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space :preprops-symbol pre-props
        :properties-symbol properties :processor-symbol process)
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
@@ -44,8 +44,11 @@
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
 			  (eq :number (first (getf properties :type)))))
-		 (if axes (error "Axes cannot be applied to numbers.")
-		     (values this-item '(:type (:array :number))
+		 ;; (print (list :ii this-item (list :axes axes :type '(:array :number))
+		 ;; 	      properties pre-props
+		 ;; 	      (rest tokens)))
+		 (if t ;axes (error "Axes cannot be applied to numbers.")
+		     (values this-item (list :axes axes :type '(:array :number))
 			     (rest tokens))))
 		;; process string values
 		((and (stringp this-item)
