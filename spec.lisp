@@ -191,13 +191,10 @@
      (ambivalent :asymmetric-scalar sprfact binomial)
      (tests (is "!5" 120)
 	    (is "5!12" 792)
-            (is "{⍵∘.!⍵}¯3+⍳7" #2A((1 -1 0 0 0 0 0)
-                            (0 1 0 0 0 0 0)
-                            (1 1 1 1 1 1 1)
-                            (-2 -1 0 1 2 3 4)
-                            (3 1 0 0 1 3 6)
-                            (-4 -1 0 0 0 1 4)
-                            (5 1 0 0 0 0 1)))))
+            (is "{⍵∘.!⍵}¯3+⍳7" #2A((1 -1 0 0 0 0 0) (0 1 0 0 0 0 0)
+				   (1 1 1 1 1 1 1) (-2 -1 0 1 2 3 4)
+				   (3 1 0 0 1 3 6) (-4 -1 0 0 0 1 4)
+				   (5 1 0 0 0 0 1)))))
   (⌈ (has :titles ("Ceiling" "Maximum"))
      (ambivalent :asymmetric-scalar ceiling (reverse-op max))
      (tests (is "⌈1.0001" 2)
@@ -1099,6 +1096,8 @@
   (for "Selection from an array with multi-index, array and elided dimensions."
        "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
 				      (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
+  (for "Selection from witthin an array with spaces in axis specification."
+       "(3 4⍴⍳12)[ ;4 3]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
   (for "Assignment from an array to an area of an array with the same shape."
@@ -1403,8 +1402,9 @@ c   2.56  3
  1.25
 ")
   (for-printed "Output of variable assignment (should be empty)." "x←1" "")
-  (for-printed "Binomial should support complex numbers" "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
-  (for-printed "Binomial should support (negative) fractional numbers" "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6" "0.0154 0.3125 ¯15.456
+  (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
+  (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
+	       "0.0154 0.3125 ¯15.456
 "))
 
  (arbitrary-test-set

@@ -789,17 +789,15 @@
             (p4 -1.231739572450155)
             (p5 1.208650973866179E-3)
             (p6 -5.395239384953E-6))
-        (*
-         (/ (sqrt (* 2.0 PI)) z)
-         (+ p0
-            (/ p1 (+ z 1.0))
-            (/ p2 (+ z 2.0))
-            (/ p3 (+ z 3.0))
-            (/ p4 (+ z 4.0))
-            (/ p5 (+ z 5.0))
-            (/ p6 (+ z 6.0)))
-         (expt z1 z2)
-         (exp (- z1))))))
+        (* (/ (sqrt (* 2.0 PI)) z)
+           (+ p0 (/ p1 (+ z 1.0))
+              (/ p2 (+ z 2.0))
+              (/ p3 (+ z 3.0))
+              (/ p4 (+ z 4.0))
+              (/ p5 (+ z 5.0))
+              (/ p6 (+ z 6.0)))
+           (expt z1 z2)
+           (exp (- z1))))))
 
 (defun sprfact (n)
   (if (near-integerp n)
@@ -812,17 +810,15 @@
         (nom 1)
         (denom 1)
         (primes '(2 3 5 7 11 13 17 19)))
-    (loop for i from 0 below k
-          do (progn
-               (setf nom (* nom (- n i))
-                     denom (* denom (1+ i)))
-               (when (> i 0)
-                 (loop for p in primes
-                       if (zerop (mod i p))
-                         do (setf nom (/ nom p)
-                                  denom (/ denom p)))))
-          finally (return (/ nom denom)))
-    ))
+    (loop :for i :from 0 :below k
+       :do (progn (setf nom (* nom (- n i))
+			denom (* denom (1+ i)))
+		  (when (> i 0)
+                    (loop :for p :in primes
+                       :if (zerop (mod i p))
+                       :do (setf nom (/ nom p)
+                                 denom (/ denom p)))))
+       :finally (return (/ nom denom)))))
 
 (defun binomial (n k)
   "Generalized binomial function. For complex and fractional numbers uses Gamma function."
