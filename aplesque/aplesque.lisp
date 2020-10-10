@@ -241,60 +241,6 @@
 						  elem)))
 			   true-output))))))
 
-;; (defun initialize-for-environment (function-id localizer &optional environment)
-;;   (declare (ignore environment))
-;;   (case function-id
-;;     (:across
-;;      (setf (symbol-function 'across)
-;; 	   (funcall
-;; 	    localizer
-;; 	    (lambda (input function &key elements indices reverse-axes count ranges
-;; 				      foreach finally (depth 0) (dimensions (dims input)))
-;; 	      "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-;; 	      (let* ((proceeding t)
-;; 		     (indices (or indices (loop :for i :below (rank input) :collect 0)))
-;; 		     (first-of-elements (first elements))
-;; 		     (elems (if (listp first-of-elements)
-;; 				first-of-elements (list first-of-elements)))
-;; 		     (range (first ranges)))
-;; 		(flet ((process-this (elix)
-;; 			 (setf (nth depth indices) elix)
-;; 			 (if (< depth (1- (rank input)))
-;; 			     ;; if the halt-if-true value is output by the function, traversal across the array
-;; 			     ;; will end by means of nullifying the proceeding variable; this will result in
-;; 			     ;; a nil return value from the across function which will stop its recursive parents
-;; 			     (multiple-value-bind (still-proceeding new-count)
-;; 				 (across input function :dimensions dimensions :elements (rest elements)
-;; 					 :indices indices :reverse-axes reverse-axes :depth (1+ depth)
-;; 					 :count count :ranges (rest ranges) :foreach foreach)
-;; 			       (setq proceeding still-proceeding count new-count))
-;; 			     (multiple-value-bind (output halt-if-true)
-;; 				 (funcall function (apply #'aref input indices)
-;; 					  indices)
-;; 			       (declare (ignore output))
-;; 			       (if (and foreach (functionp foreach)) (funcall foreach))
-;; 			       (if count (decf count))
-;; 			       (if (or halt-if-true (and count (> 1 count)))
-;; 				   (setq proceeding nil))))))
-;; 		  ;; (print (list :ii indices reverse-axes elems))
-;; 		  (if (= 0 (rank input))
-;; 		      (funcall function (disclose input) nil)
-;; 		      (if elems (if (listp (rest elems))
-;; 				    (loop :for el :in elems :while proceeding :do (process-this el))
-;; 				    (if (< (first elems) (rest elems))
-;; 					(loop :for el :from (first elems)
-;; 					   :to (rest elems) :do (process-this el))
-;; 					(loop :for el :from (first elems) :downto (rest elems)
-;; 					   :do (process-this el))))
-;; 			  (if (member depth reverse-axes)
-;; 			      (loop :for el :from (1- (nth depth dimensions))
-;; 				 :downto (or (first range) 0)
-;; 				 :while proceeding :do (process-this el))
-;; 			      (loop :for el :from (print (or (first start-at) 0)) :to (1- (nth depth dimensions))
-;; 				 :while proceeding :do (process-this el)))))
-;; 		  (if (and finally (functionp finally)) (funcall finally))
-;; 		  (values proceeding count)))))))))
-
 (defun initialize-for-environment (function-id localizer &optional environment)
   (declare (ignore environment))
   (case function-id
