@@ -190,7 +190,14 @@
   (! (has :titles ("Factorial" "Binomial"))
      (ambivalent :asymmetric-scalar sprfact binomial)
      (tests (is "!5" 120)
-	    (is "5!12" 792)))
+	    (is "5!12" 792)
+            (is "{⍵∘.!⍵}¯3+⍳7" #2A((1 -1 0 0 0 0 0)
+                            (0 1 0 0 0 0 0)
+                            (1 1 1 1 1 1 1)
+                            (-2 -1 0 1 2 3 4)
+                            (3 1 0 0 1 3 6)
+                            (-4 -1 0 0 0 1 4)
+                            (5 1 0 0 0 0 1)))))
   (⌈ (has :titles ("Ceiling" "Maximum"))
      (ambivalent :asymmetric-scalar ceiling (reverse-op max))
      (tests (is "⌈1.0001" 2)
@@ -1395,7 +1402,10 @@ c   2.56  3
   (for-printed "Stacked floats with negative value under 1." "⍪¯0.75 1.25" "¯0.75
  1.25
 ")
-  (for-printed "Output of variable assignment (should be empty)." "x←1" ""))
+  (for-printed "Output of variable assignment (should be empty)." "x←1" "")
+  (for-printed "Binomial should support complex numbers" "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
+  (for-printed "Binomial should support (negative) fractional numbers" "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6" "0.0154 0.3125 ¯15.456
+"))
 
  (arbitrary-test-set
   (with (:name :output-specification-tests)
