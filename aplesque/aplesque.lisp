@@ -524,7 +524,8 @@
 
 (defun expand-array (degrees input axis &key (compress-mode nil))
   "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
-  (cond ((and (not (arrayp input))
+  (cond ((and (or (not (arrayp input))
+		  (= 0 (rank input)))
 	      (not (arrayp degrees)))
 	 (make-array (list degrees) :element-type (type-of input) :initial-element input))
 	((and compress-mode (not (is-unitary input))
@@ -541,7 +542,8 @@
 		  (nth axis (dims input))))
 	 (error (concatenate 'string "Attempting to expand elements across array but "
 			     "positive degrees are not equal to length of selected input axis.")))
-	(t (let* ((degrees (if (arrayp degrees) degrees (vector degrees)))
+	(t (let* ((degrees (if (arrayp degrees) degrees
+			       (make-array (nth axis (dims input)) :initial-element degrees)))
 		  ;; (input (if (arrayp input) input (vector input)))
 		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
 		  (c-degrees (make-array (list (length degrees))
@@ -554,18 +556,14 @@
 									:initial-contents positive-index-list)))
 		  (ex-dim))
 	     (declare (dynamic-extent ex-dim))
-	     (loop :for degree :across degrees :counting degree :into dx
+	     (loop :for degree :across degrees :for dx :from 0
 		:summing (max (abs degree) (if compress-mode 0 1))
-		:into this-dim :do (setf (aref c-degrees (1- dx)) this-dim)
+		:into this-dim :do (setf (aref c-degrees dx) this-dim)
 		:finally (setq ex-dim this-dim))
 	     (let ((ocoords (loop :for i :below (rank input) :collect 0))
-		   (output (make-array (loop :for dim :in (or (dims input) '(1)) :counting dim :into index
-					  :collect (if (= 1 (length degrees))
-						       (if (/= axis (1- index))
-							   dim (* dim (aref degrees 0)))
-						       (if (or (= index (1+ axis))
-							       (is-unitary input))
-							   ex-dim dim)))
+		   (output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
+					  :collect (if (or (= index axis) (is-unitary input))
+						       ex-dim dim))
 				       :element-type (if (arrayp input)
 							 (element-type input)
 							 (assign-element-type input))
@@ -587,12 +585,11 @@
 			     (declare (dynamic-extent elem coords))
 			     (let* ((exc (nth axis coords))
 				    (dx (if compress-mode exc (aref positive-indices exc)))
-				    (this-degree (if (= 1 (length degrees))
-						     (aref degrees 0) (aref degrees dx))))
+				    (this-degree (aref degrees dx)))
 			       (loop :for ix :below this-degree
-				  :do (loop :for coord :in coords :counting coord :into cix
-					 :do (setf (nth (1- cix) ocoords)
-						   (if (not (= cix (1+ axis)))
+				  :do (loop :for coord :in coords :for cix :from 0
+					 :do (setf (nth cix ocoords)
+						   (if (not (= cix axis))
 						       coord (+ ix (if (= 0 exc)
 								       0 (if (= 1 (length degrees))
 									     (* exc (aref c-degrees 0))
@@ -626,16 +623,16 @@
 	   (output (make-array (length intervals)
 			       :initial-contents (loop :for intv :in intervals
 						    :collect (make-array
-							      (loop :for dim :in idims :counting dim :into dx
-								 :collect (if (= dx (1+ axis)) intv dim))
+							      (loop :for dim :in idims :for dx :from 0
+								 :collect (if (= dx axis) intv dim))
 							      :element-type (if (= 0 intv)
 										t (element-type input)))))))
       (loop :for out :across output :for oix :below (length output)
 	 :do (across out (lambda (elem coords)
 			   (declare (ignore elem) (dynamic-extent elem coords))
-			   (loop :for c :in coords :counting c :into cx
-			      :do (setf (nth (1- cx) icoords)
-					(if (/= cx (1+ axis)) c (+ c offset input-offset))))
+			   (loop :for c :in coords :for cx :from 0
+			      :do (setf (nth cx icoords)
+					(if (/= cx axis) c (+ c offset input-offset))))
 			   (setf (apply #'aref out coords) (apply #'aref input icoords))))
 	   (incf input-offset (nth axis (dims out))))
       output)))
@@ -684,9 +681,8 @@
 				  (out-array (make-array (list this-interval)
 							 :element-type (element-type input))))
 			     (loop :for ix :below this-interval
-				:do (loop :for coord :in coords :for dx :below arank
-				       :counting coord :into cx
-				       :do (setf (nth (1- cx) icoords)
+				:do (loop :for coord :in coords :for dx :below arank :for cx :from 0
+				       :do (setf (nth cx icoords)
 						 (if (/= dx axis) coord (+ ix this-index))))
 				  (setf (aref out-array ix) (apply #'aref input icoords)))
 			     (setf (apply #'aref output coords)
@@ -851,8 +847,8 @@
                  (if (vectorp operand2)
                      (let* ((nested-result (aops:split result 1))
                             (output (make-array (list (length nested-result)))))
-                       (loop :for nrelem :across nested-result :counting nrelem :into nix
-                             :do (setf (aref output (1- nix)) (aref nrelem 0)))
+                       (loop :for nrelem :across nested-result :for nix :from 0
+                             :do (setf (aref output nix) (aref nrelem 0)))
                        output)
                      result)))
            (aops:each (lambda (sub-vector)
@@ -1083,8 +1079,8 @@
 				     ;; indexing is being used, so the shape of the first index will be
 				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
 				     ;; to determine the shape of the output array
-				     (loop :for dim :in idims :counting dim :into dx
-					:append (let ((index (nth (1- dx) aindices)))
+				     (loop :for dim :in idims :for dx :from 0
+					:append (let ((index (nth dx aindices)))
 				     		  (if (and (or (listp index) (vectorp index))
 				     			   (< 1 (length index)))
 				     		      (list (length index))
@@ -1281,15 +1277,15 @@
 		   (output (aops:each (lambda (elem)
 					(declare (ignore elem))
 					(make-array (list (nth axis idims)) :element-type (type-of input)))
-				      (make-array (loop :for dim :in idims :counting dim :into dx
-						     :when (not (= dx (1+ axis)))
+				      (make-array (loop :for dim :in idims :for dx :from 0
+						     :when (not (= dx axis))
 						     :collect dim)))))
 	      (across input (lambda (elem coords)
 			      (declare (dynamic-extent elem coords))
 			      (let ((ix 0))
-				(loop :for coord :in coords :counting coord :into cix
-				   :when (not (= cix (1+ axis))) :do (setf (nth ix ocoords) coord
-									   ix (1+ ix))))
+				(loop :for coord :in coords :for cix :from 0
+				   :when (not (= cix axis)) :do (setf (nth ix ocoords) coord
+								      ix (1+ ix))))
 			      (setf (aref (apply #'aref output ocoords)
 					  (nth axis coords))
 				    elem)))
@@ -1376,8 +1372,8 @@
 				  (alexandria:iota (- (rank matrix) (- (rank matrix) (length axes)))))))
 	     (and (= (first (last indices))
 		     (1- (rank matrix)))
-		  (loop :for index :in indices :counting index :into iix
-		     :always (= index (aref axes (1- iix))))))
+		  (loop :for index :in indices :for iix :from 0
+		     :always (= index (aref axes iix)))))
 	   ;; if there are multiple indices in the axis argument leading up to the last axis,
 	   ;; all that's needed is to split the array along the first of the indices
 	   (if (> (rank matrix)
@@ -1408,10 +1404,10 @@
 		 ;; the original array
 		 (across matrix (lambda (item coords)
 				  (declare (dynamic-extent item coords))
-				  (loop :for d :in outer-dims :counting d :into dx :do (setf (nth (1- dx) ocoords)
-											     (nth d coords)))
-				  (loop :for d :in inner-dims :counting d :into dx :do (setf (nth (1- dx) icoords)
-											     (nth d coords)))
+				  (loop :for d :in outer-dims :for dx :from 0 :do (setf (nth dx ocoords)
+											(nth d coords)))
+				  (loop :for d :in inner-dims :for dx :from 0 :do (setf (nth dx icoords)
+											(nth d coords)))
 				  (setf (apply #'aref (apply #'aref new-matrix ocoords) icoords)
 					item)))
 		 new-matrix))))))
@@ -1430,17 +1426,16 @@
 			(let ((degree (if (integerp degrees)
 					  degrees (if degrees (let ((dcix 0))
 								(loop :for coord :in coords
-								   :counting coord :into this-axis
-								   :when (/= axis (1- this-axis))
+								   :for this-axis :from 0
+								   :when (/= axis this-axis)
 								   :do (setf (nth dcix dcoords) coord
 									     dcix (1+ dcix)))
 								(apply #'aref degrees dcoords))))))
-			  (loop :for coord :in coords :counting coord :into this-axis
-			     :do (setf (nth (1- this-axis) ocoords)
-				       (if (or (/= axis (1- this-axis))
+			  (loop :for coord :in coords :for this-axis :from 0
+			     :do (setf (nth this-axis ocoords)
+				       (if (or (/= axis this-axis)
 					       (and degree (= 0 degree)))
-					   coord (if degree (mod (- coord degree)
-								 rdimension)
+					   coord (if degree (mod (- coord degree) rdimension)
 						     (- rdimension 1 coord)))))
 			  (setf (apply #'aref output ocoords)
 				item))))
@@ -1592,14 +1587,14 @@
 							     (floor (/ (- wdim (if (evenp wdim) 1 0))
 								       2)))))))
 					(setf (apply #'aref window wcoords)
-					      (if (loop :for coord :in ref-coords :counting coord :into cix
-						     :always (<= 0 coord (1- (aref idims (1- cix)))))
+					      (if (loop :for coord :in ref-coords :for cix :from 0
+						     :always (<= 0 coord (1- (aref idims cix))))
 						  (apply #'aref input ref-coords)
 						  0))))
-		       (loop :for coord :in coords :counting coord :into cix
-			  :do (setf (nth (1- cix) acoords)
-				    (* (aref movement (1- cix))
-				       (if (= 0 coord) 1 (if (= coord (1- (nth (1- cix) output-dims)))
+		       (loop :for coord :in coords :for cix :from 0
+			  :do (setf (nth cix acoords)
+				    (* (aref movement cix)
+				       (if (= 0 coord) 1 (if (= coord (1- (nth cix output-dims)))
 							     -1 0)))))
 		       (setf (apply #'aref output coords)
 			     (funcall process window
