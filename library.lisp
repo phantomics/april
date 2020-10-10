@@ -203,13 +203,23 @@
 
 (defun pick (index-origin)
   (lambda (omega alpha)
-    (labels ((layer-index (object indices)
-	       (if indices (layer-index (aref object (- (first indices) index-origin))
-					(rest indices))
-		   object)))
+    (labels ((pick-point (point input)
+	       (if (is-unitary point)
+		   (let ((point (disclose point)))
+		     (if (not (arrayp point))
+			 (aref input (- point index-origin))
+			 (if (vectorp point)
+			     (apply #'aref input (loop :for p :across point :collect (- p index-origin)))
+			     (error "Coordinates for ⊃ must be expressed by scalars or vectors."))))
+		   (pick-point (if (< 2 (length point))
+				   (make-array (1- (length point)) :initial-contents (loop :for i :from 1 :to
+											  (1- (length point))
+											:collect (aref point i)))
+				   (aref point 1))
+			       (disclose (pick-point (aref point 0) input))))))
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic ⊃ may not be unitary.")
-	  (disclose (layer-index omega (array-to-list alpha)))))))
+	  (disclose (pick-point alpha omega))))))
 
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."
