@@ -202,21 +202,26 @@
       (disclose omega)))
 
 (defun pick (index-origin)
+  "Fetch an array element, within successively nested arrays for each element of the left argument."
   (lambda (omega alpha)
     (labels ((pick-point (point input)
 	       (if (is-unitary point)
 		   (let ((point (disclose point)))
+		     ;; if this is the last level of nesting specified, fetch the element
 		     (if (not (arrayp point))
 			 (aref input (- point index-origin))
 			 (if (vectorp point)
 			     (apply #'aref input (loop :for p :across point :collect (- p index-origin)))
 			     (error "Coordinates for ⊃ must be expressed by scalars or vectors."))))
+		   ;; if there are more elements of the left argument left to go, recurse on the element designated
+		   ;; by the first element of the left argument and the remaining elements of the point
 		   (pick-point (if (< 2 (length point))
 				   (make-array (1- (length point)) :initial-contents (loop :for i :from 1 :to
 											  (1- (length point))
 											:collect (aref point i)))
 				   (aref point 1))
 			       (disclose (pick-point (aref point 0) input))))))
+      ;; TODO: swap out the vector-based point for an array-based point
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic ⊃ may not be unitary.")
 	  (disclose (pick-point alpha omega))))))
