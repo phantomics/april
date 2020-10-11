@@ -249,7 +249,8 @@
 								  :element-type 'fixnum
 								  :initial-contents
 								  (loop :for i :from 1 :to (1- (rank omega))
-								     :collect i))))))
+								     :collect i))
+						:nest nil))))
 	      (let ((uniques) (unique-count 0))
 		(loop :for item :across vector :when (not (find item uniques :test #'array-compare))
 		   :do (setq uniques (cons item uniques))
@@ -467,7 +468,6 @@
 		  ,output))))
       `(lambda (,omega &optional ,alpha)
 	 (declare (ignorable ,alpha))
-	 
 	 (each-scalar
 	  t ,(if (or (not (listp dyadic-op))
 		     (not (listp (second dyadic-op)))
@@ -489,10 +489,9 @@
 						 (apl-call ,symbol ,dyadic-op (enclose ,o) (enclose ,a)))
 					       ,omega ,alpha))
 				   (t (error "Mismatched argument shapes to ¨.")))
-		      (aops:each (lambda (,item)
-				   (apl-call ,symbol ,monadic-op ,item))
+		      (aops:each (lambda (,item) (apl-call ,symbol ,monadic-op (disclose ,item)))
 				 ,omega))
-		 `(aops:each (lambda (,item) (apl-call ,symbol ,monadic-op ,item))
+		 `(aops:each (lambda (,item) (apl-call ,symbol ,monadic-op (disclose ,item)))
 			     ,omega)))))))
 
 (defmacro apply-commuting (symbol operation-dyadic)
@@ -550,8 +549,9 @@
 		    (reduce ,op-left (aops:each (lambda (e) (aops:each #'disclose e))
 						(apply-scalar ,op-right ,alpha ,omega))))
 	   (funcall (lambda (result)
-		      (if (not (and (= 1 (array-total-size result))
-				    (not (arrayp (row-major-aref result 0)))))
+		      (if (not (and (arrayp result)
+				    (and (= 1 (array-total-size result))
+					 (not (arrayp (row-major-aref result 0))))))
 			  result (row-major-aref result 0)))
 		    (each-scalar t (array-inner-product (if (arrayp ,alpha)
 							    ,alpha (vector ,alpha))
@@ -659,7 +659,7 @@
 									:initial-element ,omega)
 							,ralpha)
 					  (funcall ,fn ,omega ,alpha))))
-	     (if ,romega (merge-arrays (each ,fn ,romega))
+	     (if ,romega (merge-arrays (each ,fn ,romega) :nesting nil)
 		 (funcall ,fn ,omega)))))))
 
 (defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic)
@@ -751,4 +751,4 @@
 					 (choose ,right-value '(1))
 					 (make-array (list (length ,right-value))
 						     :element-type 'fixnum :initial-element 1)))))
-		  (merge-arrays (stencil ,omega ,op-left ,window-dims ,movement))))))))
+		  (merge-arrays (print (stencil ,omega ,op-left ,window-dims ,movement)))))))))
