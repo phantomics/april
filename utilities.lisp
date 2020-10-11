@@ -167,7 +167,11 @@
        :do (setq type (type-in-common type (assign-element-type item))))
     `(make-array (list ,(length items))
 		 :element-type (quote ,type)
-		 :initial-contents (list ,@items))))
+		 ;; enclose each array included in an APL vector
+		 :initial-contents (mapcar (lambda (item) (if (or (not (arrayp item))
+								  (= 0 (rank item)))
+							      item (make-array nil :initial-contents item)))
+					   (list ,@items)))))
 
 (defun apply-scalar (function omega &optional alpha axes is-boolean)
   (let* ((orank (rank omega)) (arank (rank alpha))
@@ -584,11 +588,12 @@ It remains here as a standard against which to compare methods for composing APL
 									   (if (/= axis (1- cx))
 									       c (if (not reduce)
 										     (1- c)))))
-		    (setf (apply #'aref output (if reduce rcoords coords))
-			  (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
-				 (nth axis coords))
-			      elem (funcall function elem (apply #'aref output (if reduce rcoords
-										   (or icoords (list 0))))))))
+		    (let ((elem (disclose elem)))
+		      (setf (apply #'aref output (if reduce rcoords coords))
+			    (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
+				   (nth axis coords))
+				elem (funcall function elem (apply #'aref output (if reduce rcoords
+										     (or icoords (list 0)))))))))
 	    ;; :reverse-axes (if in-reverse (list axis))
 	    :ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
 								  (list (nth d dimensions)))))
