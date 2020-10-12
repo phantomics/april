@@ -28,8 +28,9 @@
 		((and (listp this-item)
 		      (eq :op (first this-item))
 		      (eq :unitary (second this-item)))
-		 ;; if the item is a unitary operator, compose it, skipping the branches other than for
-		 ;; unitary operators, the only one that must be skipped is :value since it causes an infinite loop
+		 ;; if the item is a unitary operator, compose it, skipping the branches
+		 ;; other than for unitary operators, the only one that must be skipped
+		 ; ;is :value since it causes an infinite loop
 		 (multiple-value-bind (output out-properties)
 		     (funcall process (list (first tokens) (second tokens))
 			      '(:special (:omit (:value :function :lateral-composition))))
@@ -157,7 +158,8 @@
 	       (extract-axes process tokens)
 	     (if (and (listp this-item)
 		      (eq :op (first this-item)))
-		 ;; process an operator token, allowing specification of the valence, either :lateral or :pivotal
+		 ;; process an operator token, allowing specification of the valence,
+		 ;; either :lateral or :pivotal
 		 (destructuring-bind (op-type op-symbol)
 		     (rest this-item)
 		   (let ((valid-by-valence (or (not (getf properties :valence))
