@@ -753,4 +753,4 @@
 					 (choose ,right-value '(1))
 					 (make-array (list (length ,right-value))
 						     :element-type 'fixnum :initial-element 1)))))
-		  (merge-arrays (print (stencil ,omega ,op-left ,window-dims ,movement)))))))))
+		  (merge-arrays (stencil ,omega ,op-left ,window-dims ,movement))))))))
