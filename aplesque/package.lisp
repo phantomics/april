@@ -9,6 +9,6 @@
 	   #:is-unitary #:choose #:catenate #:laminate #:enclose #:partitioned-enclose #:split-array
 	   #:invert-matrix #:interval-index #:turn #:partition-array #:merge-arrays #:stencil
 	   #:array-impress #:matrix-print #:disclose-unitary-array #:each-boolean #:each-scalar
-	   #:assign-element-type #:type-in-common #:initialize-for-environment)
+	   #:assign-element-type #:type-in-common #:initialize-for-environment #:disclose-scalar-elements)
   (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
   (:shadowing-import-from #:array-operations #:flatten))

@@ -122,8 +122,8 @@
 		    (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
 	   ,@(loop :for s :in (rest symbol) :counting s :into sx
-		:collect (let ((set-to `(if (or (not (arrayp ,values)) (= 1 (size ,values)))
-					    (disclose ,values) (aref ,values ,(1- sx)))))
+		:collect (let ((set-to `(disclose (if (or (not (arrayp ,values)) (= 1 (size ,values)))
+						      ,values (aref ,values ,(1- sx))))))
 			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
 			       `(set ',s ,set-to))))
 	   ,values))))
@@ -201,7 +201,7 @@
 						       (funcall function oscalar))))
 	      (loop :for i :below (array-total-size omega)
 		 :do (setf (row-major-aref output i)
-			   (apply-scalar function (row-major-aref omega i)))))
+			   (nest (apply-scalar function (row-major-aref omega i))))))
 	  (if (and oscalar ascalar)
 	      ;; if both arguments are scalar or 1-element, return the output of the function on both,
 	      ;; remembering to promote the output to the highest rank of the input, either 0 or 1 if not scalar
@@ -214,8 +214,8 @@
 		  ;; map the function over identically-shaped arrays
 		  (loop :for i :below (array-total-size (if oscalar alpha omega))
 		     :do (setf (row-major-aref output i)
-			       (apply-scalar function (if oscalar oscalar (row-major-aref omega i))
-					     (if ascalar ascalar (row-major-aref alpha i)))))
+			       (nest (apply-scalar function (if oscalar oscalar (row-major-aref omega i))
+						   (if ascalar ascalar (row-major-aref alpha i))))))
 		  ;; if axes are given, go across the higher-ranked function and call the function on its
 		  ;; elements along with the appropriate elements of the lower-ranked function
 		  (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
@@ -229,10 +229,11 @@
 						      (loop :for a :across axes :counting a :into ax
 							 :do (setf (nth (1- ax) lrc) (nth a coords)))
 						      (setf (apply #'aref output coords)
-							    (if omega-lower (funcall function elem
-										     (apply #'aref lowrank lrc))
-								(funcall function (apply #'aref lowrank lrc)
-									 elem))))))
+							    (nest
+							     (if omega-lower (funcall function elem
+										      (apply #'aref lowrank lrc))
+								 (funcall function (apply #'aref lowrank lrc)
+									  elem)))))))
 				 (error "Incompatible dimensions or axes.")))
 		      (error "Mismatched array sizes for scalar operation.")))))
       output)))
