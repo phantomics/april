@@ -1096,6 +1096,8 @@
   (for "Indexing of inline vector." "5 6 7 8[2]" 6)
   (for "Indexing of inline with sub-elements referencing indices of variables."
        "a←9 10 11 ⋄ 1 2 a[2] 3 4 5 6[3]" 10)
+  (for "Indexing with empty vectors to create n-dimensional empty arrays."
+       "a←3 4⍴⍳12 ⋄ ⍴a[⍬;]" #(0 4))
   (for "Application of functions to indexed array elements."
        "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
   (for "Assignment of an element within an array."
@@ -1328,7 +1330,7 @@ Mixed
 	       "(1 2 'gh' 3) 4 'abc' (6 7) 8 9" " 1 2  gh  3  4  abc  6 7  8 9
 ")
   (for-printed "Column of integer and float values at varying precisions."
-	       "⎕pp←6 ⋄ ⍪8 900.17814 3005 ¯15.90 88.1,÷2 4 8"
+	       "⎕pp←6 ⋄ ⍪8 900.17814 3005 ¯15.90 88.1,÷2.0 4.0 8.0"
 	       "   8    
  900.178
 3005    

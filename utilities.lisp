@@ -142,7 +142,7 @@
 				"" `(matrix-print ,result :append #\Newline
 						  :format (lambda (n)
 							    (print-apl-number-string
-							     n t ,(getf options :print-precision))))))))
+							     n ,(getf options :print-precision))))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if (getf options :print-to)
@@ -256,23 +256,24 @@
 	;; the macron character is converted to the minus sign
 	(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")))))
 
-(defun print-apl-number-string (number &optional coerce-rational precision decimals)
+(defun print-apl-number-string (number &optional precision decimals)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
   (cond ((complexp number)
-	 (format nil "~aJ~a" (print-apl-number-string (realpart number) coerce-rational precision)
-		 (print-apl-number-string (imagpart number) coerce-rational precision)))
+	 (format nil "~aJ~a" (print-apl-number-string (realpart number) precision)
+		 (print-apl-number-string (imagpart number) precision)))
 	((> 0 number)
-	 (format nil "¯~a" (print-apl-number-string (abs number) coerce-rational precision)))
+	 (format nil "¯~a" (print-apl-number-string (abs number) precision)))
 	((integerp number)
 	 (format nil "~D" number))
 	((zerop number) "0")
 	;; zero-value numbers are printed as zeroes with no decimal; this clause catches
 	;; zeroes before they can cause divide-by-zero errors in the (log)s afterward
-	((and coerce-rational (rationalp number))
-	 (let ((before-decimal (max 1 (1+ (floor (log number 10))))))
-	   (format-decimal-number number :round-magnitude (min 0 (- (- precision before-decimal))))))
+	;; ((and coerce-rational (rationalp number))
+	;;  (let ((before-decimal (max 1 (1+ (floor (log number 10))))))
+	;;    (format-decimal-number number :round-magnitude (min 0 (- (- precision before-decimal))))))
 	((rationalp number)
-	 (write-to-string number))
+	 (format nil "~ar~a" (print-apl-number-string (numerator number)  precision)
+		 (print-apl-number-string (denominator number) precision)))
 	(t (if (not precision)
 	       (format nil "~F" number)
 	       (let ((printed (if (not decimals)
