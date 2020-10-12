@@ -1233,7 +1233,6 @@
       (apply #'values (cons (each-scalar t output)
 			    (if true-input (list (if (not (functionp set))
 						     input (each-scalar t input)))))))))
-
 (defun mix-arrays (axis input)
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
   (if (or (not (arrayp input))
