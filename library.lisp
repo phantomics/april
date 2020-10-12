@@ -413,12 +413,12 @@
 (defun format-array (print-precision)
   (lambda (omega &optional alpha)
     (if (not alpha)
-	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n t print-precision)))
+	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n print-precision)))
 	(if (not (integerp alpha))
 	    (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
 				" the precision at which to print floating-point numbers."))
 	    (array-impress omega :collate t
-			   :format (lambda (n) (print-apl-number-string n t print-precision alpha)))))))
+			   :format (lambda (n) (print-apl-number-string n print-precision alpha)))))))
 
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)) (symstring (string operation-symbol)))
@@ -494,9 +494,6 @@
 				 ,omega))
 		 `(aops:each (lambda (,item) (nest (apl-call ,symbol ,monadic-op (disclose ,item))))
 			     ,omega)))))))
-
-;; ' ' { (a w)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a∘.=w) = +/a∘.=a } 'dog'
-;; ⍳¨1 2 3
 
 (defmacro apply-commuting (symbol operation-dyadic)
   (let ((omega (gensym)) (alpha (gensym)))
@@ -705,8 +702,9 @@
 							  (apl-call ,left-symbol ,left-function-monadic ,item)))
 						    (t left-value)))
 				   (if (= 0 ,result)
-				       ,item (error ,(concatenate 'string "Domain error: A right function operand"
-								  " of @ must only return 1 or 0 values."))))))
+				       ,item (error ,(concatenate
+						      'string "Domain error: A right function operand"
+						      " of @ must only return 1 or 0 values."))))))
 			   ,omega)))
 	  (t `(lambda (,omega)
 		(let* ((,omega-var (apply-scalar #'- ,right-value index-origin))
