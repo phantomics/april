@@ -1114,7 +1114,8 @@
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil) (enclose-output nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
-  (if (/= (length aindices) (rank input))
+  (if (and (/= (length aindices) (rank input))
+	   (not (arrayp (first aindices))))
       (error "Wrong number of indices, ~w, for array of rank ~w."
 	     (length aindices) (rank input)))
   (let* ((idims (dims input))
