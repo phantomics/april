@@ -131,9 +131,9 @@
 							  coords)))
 				     (incf match-count)
 				     (setq indices (cons (if (< 1 orank)
-							     (make-array (list orank)
-									 :element-type (list 'integer 0 max-coord)
-									 :initial-contents coords)
+							     (nest (make-array
+								    orank :element-type (list 'integer 0 max-coord)
+								    :initial-contents coords))
 							     (first coords))
 							 indices))))))
 	       (if (not indices)
@@ -245,19 +245,18 @@
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
   (if (not (arrayp omega))
       omega (let ((vector (if (vectorp omega)
-			      omega (re-enclose omega (make-array (list (1- (rank omega)))
+			      omega (re-enclose omega (make-array (1- (rank omega))
 								  :element-type 'fixnum
 								  :initial-contents
 								  (loop :for i :from 1 :to (1- (rank omega))
-								     :collect i))
-						:nest nil))))
+								     :collect i))))))
 	      (let ((uniques) (unique-count 0))
 		(loop :for item :across vector :when (not (find item uniques :test #'array-compare))
-		   :do (setq uniques (cons item uniques))
-		     (incf unique-count))
+		   :do (setq uniques (cons item uniques)
+			     unique-count (1+ unique-count)))
 		(if (= 1 unique-count)
-		    (first uniques)
-		    (make-array (list unique-count) :element-type (element-type vector)
+		    (disclose (first uniques))
+		    (make-array unique-count :element-type (element-type vector)
 				:initial-contents (reverse uniques)))))))
 
 (defun array-union (omega alpha)
@@ -270,7 +269,7 @@
 	(let* ((unique-count 0)
 	       (uniques (loop :for item :across omega :when (not (find item alpha :test #'array-compare))
 			   :collect item :and :do (incf unique-count))))
-	  (catenate alpha (make-array (list unique-count) :initial-contents uniques
+	  (catenate alpha (make-array unique-count :initial-contents uniques
 				      :element-type (type-in-common (element-type alpha)
 								    (element-type omega)))
 		    0)))))
@@ -458,8 +457,8 @@
     (flet ((expand-dyadic (a1 a2 &optional reverse)
 	     ;; the enclose-clause here and the (arrayp ,a1) clause below are added just so that the compiled
 	     ;; clause will not cause problems when expanding with an explicit scalar argument, as with 3/¨⍳3
-	     (let ((call (if reverse `(apl-call ,symbol ,dyadic-op ,index ,a2)
-			     `(apl-call ,symbol ,dyadic-op ,a2 ,index))))
+	     (let ((call (if reverse `(nest (apl-call ,symbol ,dyadic-op ,index ,a2))
+			     `(nest (apl-call ,symbol ,dyadic-op ,a2 ,index)))))
 	       `(let ((,output (make-array (dims ,a1))))
 		  (across ,a1 (lambda (,index ,coords)
 				(declare (dynamic-extent ,index ,coords))
@@ -486,13 +485,16 @@
 					 (loop :for ,a :in (dims ,alpha) :for ,o :in (dims ,omega)
 					      :always (= ,a ,o)))
 				    (aops:each (lambda (,o ,a)
-						 (apl-call ,symbol ,dyadic-op (enclose ,o) (enclose ,a)))
+						 (nest (apl-call ,symbol ,dyadic-op (enclose ,o) (enclose ,a))))
 					       ,omega ,alpha))
 				   (t (error "Mismatched argument shapes to ¨.")))
-		      (aops:each (lambda (,item) (apl-call ,symbol ,monadic-op (disclose ,item)))
+		      (aops:each (lambda (,item) (nest (apl-call ,symbol ,monadic-op (disclose ,item))))
 				 ,omega))
-		 `(aops:each (lambda (,item) (apl-call ,symbol ,monadic-op (disclose ,item)))
+		 `(aops:each (lambda (,item) (nest (apl-call ,symbol ,monadic-op (disclose ,item))))
 			     ,omega)))))))
+
+;; ' ' { (a w)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a∘.=w) = +/a∘.=a } 'dog'
+;; ⍳¨1 2 3
 
 (defmacro apply-commuting (symbol operation-dyadic)
   (let ((omega (gensym)) (alpha (gensym)))
@@ -575,11 +577,11 @@
 	   (make-array (append (dims ,alpha) (dims ,omega)))
 	   (if (is-unitary ,omega)
 	       (if (is-unitary ,alpha)
-		   (apl-call :fn ,op-right ,alpha ,omega)
+		   (nest (apl-call :fn ,op-right ,alpha ,omega))
 		   (each-scalar t (aops:each (lambda (,element)
 					       (let ((,a ,element)
 						     (,o (disclose-unitary-array (disclose ,omega))))
-						 (apl-call :fn ,op-right ,a ,o)))
+						 (nest (apl-call :fn ,op-right ,a ,o))))
 					     ,alpha)))
 	       (let ((,inverse (aops:outer (lambda (,o ,a)
 					     (let ((,o (if (arrayp ,o) ,o (vector ,o)))
@@ -591,20 +593,20 @@
 						   (let ((,placeholder ,a))
 						     (setq ,a ,o
 							   ,o ,placeholder)))
-					       ;; (print (list :io (quote ,right-operation)))
-					       (each-scalar t (funcall
-							       ;; disclose the output of
-							       ;; user-created functions; otherwise
-							       ;; fn←{⍺×⍵+1}
-							       ;; 1 2 3∘.fn 4 5 6 (for example)
-							       ;; will fail
-							       ,(if (and (listp right-operation)
-									 (or (eq 'function
-										 (first right-operation))
-									     (eq 'scalar-function
-										 (first right-operation))))
-								    '#'disclose '#'identity)
-							       (apl-call :fn ,op-right ,a ,o)))))
+					       (each-scalar t (nest
+							       (funcall
+								;; disclose the output of
+								;; user-created functions; otherwise
+								;; fn←{⍺×⍵+1}
+								;; 1 2 3∘.fn 4 5 6 (for example)
+								;; will fail
+								,(if (and (listp right-operation)
+									  (or (eq 'function
+										  (first right-operation))
+									      (eq 'scalar-function
+										  (first right-operation))))
+								     '#'disclose '#'identity)
+								(apl-call :fn ,op-right ,a ,o))))))
 					   ,alpha ,omega)))
 		 (each-scalar t (if (not (is-unitary ,alpha))
 				    ,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
