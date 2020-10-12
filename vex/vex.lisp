@@ -637,17 +637,16 @@
 			    ;; for some reason, the first character in the string is iterated over twice here,
 			    ;; so the character index is checked and nothing is done for the first character
 			    ;; TODO: fix this
-			    (=transform (=subseq (%some (?satisfies (lambda (char)
-								      (if (and (char= char
-										      (aref boundary-chars 0))
-									       (< 0 char-index))
-									  (incf balance 1))
-								      (if (and (char= char
-										      (aref boundary-chars 1))
-									       (< 0 char-index))
-									  (incf balance -1))
-								      (incf char-index 1)
-								      (< 0 balance)))))
+			    (=transform (=subseq (%some (?satisfies
+							 (lambda (char)
+							   (if (and (char= char (aref boundary-chars 0))
+								    (< 0 char-index))
+							       (incf balance 1))
+							   (if (and (char= char (aref boundary-chars 1))
+								    (< 0 char-index))
+							       (incf balance -1))
+							   (incf char-index 1)
+							   (< 0 balance)))))
 					(if transform-by transform-by
 					    (lambda (string-content)
 					      (first (parse string-content (=vex-string idiom))))))
@@ -824,6 +823,7 @@
   (let ((item (gensym)) (item-props (gensym)) (remaining (gensym)) (matching (gensym))
 	(collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
     (labels ((element-check (base-type)
+	       ;; call the function that checks for a particular element type
 	       `(funcall (getf (idiom-grammar-elements ,idiom)
 			       ,(intern (string-upcase (cond ((listp base-type) (first base-type))
 							     (t base-type)))
@@ -860,6 +860,7 @@
 			       (loop ,@(if (eq :any multiple)
 					   `(:while (and ,matching ,rem))
 					   `(:for x from 0 to ,(if multiple (1- multiple) 0)))
+				  ;; the element-checking function call is invoked on each token
 				  :do (multiple-value-bind (,item ,item-props ,remaining)
 					  ,(element-check element-type)
 					;; only push the returned properties onto the list if the item matched

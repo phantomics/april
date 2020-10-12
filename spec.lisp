@@ -1093,6 +1093,9 @@
        "{[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]" #(5 5 5 5 10 10 10 10 15 15 15 15))
   (for "Variable-referenced values, including an element within an array, in a vector."
        "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 b[1;2;1]" #(1 2 9 3 5))
+  (for "Indexing of inline vector." "5 6 7 8[2]" 6)
+  (for "Indexing of inline with sub-elements referencing indices of variables."
+       "a←9 10 11 ⋄ 1 2 a[2] 3 4 5 6[3]" 10)
   (for "Application of functions to indexed array elements."
        "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
   (for "Assignment of an element within an array."

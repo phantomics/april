@@ -7,7 +7,7 @@
 
 (set-composer-elements
  composer-elements-apl-standard
- (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space :preprops-symbol pre-props
+ (with :tokens-symbol tokens :idiom-symbol idiom :space-symbol space :preprops-symbol preceding-props
        :properties-symbol properties :processor-symbol process)
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
@@ -44,12 +44,12 @@
 		((and (numberp this-item)
 		      (or (not (getf properties :type))
 			  (eq :number (first (getf properties :type)))))
-		 ;; (print (list :ii this-item (list :axes axes :type '(:array :number))
-		 ;; 	      properties pre-props
-		 ;; 	      (rest tokens)))
-		 (if t ;axes (error "Axes cannot be applied to numbers.")
-		     (values this-item (list :axes axes :type '(:array :number))
-			     (rest tokens))))
+		 (let ((vector-axes (loop :for props :in preceding-props :until (getf props :vector-axes)
+				       :finally (return (getf props :vector-axes)))))
+		   (values this-item (append (if (or axes vector-axes)
+						 (list :vector-axes (or vector-axes axes)))
+					     (list :type '(:array :number)))
+			     (if axes (cddr tokens) (rest tokens)))))
 		;; process string values
 		((and (stringp this-item)
 		      (or (not (getf properties :type))
@@ -179,7 +179,8 @@
   ;; match an array like 1 2 3, marking the beginning of an array expression
   ;; ...or a functional expression if the array is an operand to a pivotal operator
   ((value :element array :times :any))
-  (output-value space value properties)
+  (let ((axes (getf (first properties) :axes)))
+    (output-value space value properties))
   '(:type (:array :explicit)))
  (function
   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
