@@ -1114,6 +1114,9 @@
 
 (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil) (enclose-output nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
+  (if (/= (length aindices) (rank input))
+      (error "Wrong number of indices, ~w, for array of rank ~w."
+	     (length aindices) (rank input)))
   (let* ((idims (dims input))
 	 (aindices (loop :for item :in aindices :collect (disclose-scalar-elements item)))
 	 (output (let ((dims-out (if (or (and (listp (first aindices))
@@ -1202,7 +1205,8 @@
 								     (append (reverse coords) out-path)
 								     (cons value in-path))))))
 				  ((not this-index)
-				   ;; if there is no index, elide it by iterating over this dimension of the array
+				   ;; if there is no index, elide it by iterating over
+				   ;; this dimension of the array
 				   (let ((count 0))
 				     (loop :for ix :below (nth (length in-path) idims)
 					:do (process (rest indices) (cons count out-path)
