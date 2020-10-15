@@ -168,7 +168,7 @@
 	  ;; laminate in the case of a fractional axis argument
 	  (laminate alpha omega (ceiling axis))
 	  ;; simply stack the arrays if there is no axis argument or it's an integer
-	  (catenate alpha omega (or axis (1- (max (rank alpha) (rank omega)))))))))
+	  (catenate alpha omega (or axis (max 0 (1- (max (rank alpha) (rank omega))))))))))
 
 (defun catenate-on-first (index-origin)
   (lambda (omega alpha &optional axes)
@@ -199,9 +199,8 @@
 	       :inverse inverse))))
 
 (defun get-first-or-disclose (omega)
-  (if (vectorp omega)
-      (aref omega 0)
-      (disclose omega)))
+  (disclose (if (not (vectorp omega))
+		omega (aref omega 0))))
 
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
