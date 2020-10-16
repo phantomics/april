@@ -79,9 +79,8 @@
 (defun scale-array (unitary to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
   (let ((match-dims (dims to-match)))
-    (make-array (if axis (loop :for this-dim :in match-dims :counting this-dim :into tdix
-			    :collect (if (= tdix (1+ axis))
-					 1 this-dim))
+    (make-array (if axis (loop :for this-dim :in match-dims :for tdix :from 0
+			    :collect (if (= tdix axis) 1 this-dim))
 		    match-dims)
 		:element-type (element-type unitary)
 		:initial-element (aref unitary 0))))
