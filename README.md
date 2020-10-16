@@ -184,6 +184,18 @@ More APL expressions:
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
+### A note on escaping characters
+
+April uses the backslash character `\` to implement the expand function and the scan operator. Because of the way Lisp strings work, this character must be escaped with a second `\` before it in order to enter APL code containing backslashes. For example:
+
+```lisp
+* (april-f "+\\⍳5")
+1 3 6 10 15
+#(1 3 6 10 15)
+```
+
+The inside the `"string"`, the two backslashes evaluate to a single backslash. If you forget about this, you can experience confusing errors.
+
 ## Unique Language Features in April
 
 For the most part, April's syntax and functions follow standard APL conventions. But there are a few areas where April differs from typical APL implementations along with some unique language features. Most notably:

@@ -158,8 +158,7 @@
 
 (defun ravel-array (index-origin)
   (lambda (omega &optional axes)
-    (if (not (arrayp omega))
-	omega (ravel index-origin omega axes))))
+    (ravel index-origin omega axes)))
 
 (defun catenate-arrays (index-origin)
   (lambda (omega alpha &optional axes)
@@ -434,10 +433,12 @@
 					     (#\⌊ most-positive-long-float))
 					   :test #'char=)))
 			'(error "Invalid function for reduction of empty array.")))
-	   (disclose-atom (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,a ,o))
-				   ,(if axes `(- ,(first axes) index-origin)
-					(if first-axis 0 `(1- (rank ,omega))))
-				   :reduce t :in-reverse t))))))
+	   (if (= 1 (size ,omega))
+	       ,omega (disclose-atom
+		       (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,a ,o))
+				,(if axes `(- ,(first axes) index-origin)
+				     (if first-axis 0 `(1- (rank ,omega))))
+				:reduce t :in-reverse t)))))))
 
 (defmacro apply-scanning (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))
@@ -747,8 +748,7 @@
 		(error "The right operand of ⌺ may not have more than 2 dimensions."))
 	       ((not ,left-function-dyadic)
 		(error "The left operand of ⌺ must be a function."))
-	       (t (print (list :rr ,right-value))
-		  (let ((,window-dims (if (not (arrayp ,right-value))
+	       (t (let ((,window-dims (if (not (arrayp ,right-value))
 					  (vector ,right-value)
 					  (if (= 1 (rank ,right-value))
 					      ,right-value (choose ,right-value (,iaxes ,right-value 0)))))
