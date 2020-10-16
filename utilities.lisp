@@ -26,11 +26,11 @@
 (defmacro with-april-workspace (name body)
   "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
   (labels ((replace-symbols (form)
-	     (loop :for item :in form :counting item :into ix
+	     (loop :for item :in form :for ix :from 0
 		:do (if (listp item)
 			(if (and (second item) (not (third item))
 				 (symbolp (second item)) (eql 'inws (first item)))
-			    (setf (nth (1- ix) form)
+			    (setf (nth ix form)
 				  (intern (string (second item))
 					  (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
 			    (replace-symbols item))))))
@@ -121,9 +121,9 @@
 	   (if (and (arrayp ,values)
 		    (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
-	   ,@(loop :for s :in (rest symbol) :counting s :into sx
+	   ,@(loop :for s :in (rest symbol) :for sx :from 0
 		:collect (let ((set-to `(disclose (if (or (not (arrayp ,values)) (= 1 (size ,values)))
-						      ,values (aref ,values ,(1- sx))))))
+						      ,values (aref ,values ,sx)))))
 			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
 			       `(set ',s ,set-to))))
 	   ,values))))
@@ -220,20 +220,21 @@
 		  ;; elements along with the appropriate elements of the lower-ranked function
 		  (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
 			       (if (> orank arank) (list alpha omega) (list omega alpha t))
-			     (if (loop :for a :across axes :counting a :into ax
+			     (if (loop :for a :across axes :for ax :from 0
  				    :always (and (< a (rank highrank))
-						 (= (nth a (dims highrank)) (nth (1- ax) (dims lowrank)))))
+						 (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
 				 (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
 				   (across highrank (lambda (elem coords)
 						      (declare (dynamic-extent elem coords))
-						      (loop :for a :across axes :counting a :into ax
-							 :do (setf (nth (1- ax) lrc) (nth a coords)))
+						      (loop :for a :across axes :for ax :from 0
+							 :do (setf (nth ax lrc) (nth a coords)))
 						      (setf (apply #'aref output coords)
-							    (nest
-							     (if omega-lower (funcall function elem
-										      (apply #'aref lowrank lrc))
-								 (funcall function (apply #'aref lowrank lrc)
-									  elem)))))))
+							    (nest (if omega-lower
+								      (funcall function elem
+									       (apply #'aref lowrank lrc))
+								      (funcall function
+									       (apply #'aref lowrank lrc)
+									       elem)))))))
 				 (error "Incompatible dimensions or axes.")))
 		      (error "Mismatched array sizes for scalar operation.")))))
       output)))
@@ -578,21 +579,20 @@ It remains here as a standard against which to compare methods for composing APL
 (defun do-over (input function axis &key reduce in-reverse)
   "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
   (let* ((dimensions (dims input))
-	 (output (make-array (if reduce (loop :for dim :in dimensions :counting dim :into dx
-					   :when (/= dx (1+ axis)) :collect dim)
+	 (output (make-array (if reduce (loop :for dim :in dimensions :for dx :from 0
+					   :when (/= dx axis) :collect dim)
 				 dimensions)))
 	 (rcoords (if reduce (loop :for i :below (1- (rank input)) :collect 0)))
 	 (icoords (loop :for i :below (rank input) :collect 0)))
     (across input (lambda (elem coords)
 		    (declare (dynamic-extent elem coords))
 		    (if rcoords (let ((decrement 0))
-				  (loop :for c :in coords :counting c :into cx
-				     :when (= axis (1- cx)) :do (incf decrement)
-				     :when (/= axis (1- cx)) :do (setf (nth (- cx 1 decrement) rcoords) c))))
-		    (loop :for c :in coords :counting c :into cx :do (setf (nth (1- cx) icoords)
-									   (if (/= axis (1- cx))
-									       c (if (not reduce)
-										     (1- c)))))
+				  (loop :for c :in coords :for cx :from 0
+				     :when (= axis cx) :do (incf decrement)
+				     :when (/= axis cx) :do (setf (nth (- cx decrement) rcoords) c))))
+		    (loop :for c :in coords :for cx :from 0 :do (setf (nth cx icoords)
+								      (if (/= axis cx) c (if (not reduce)
+											     (1- c)))))
 		    (let ((elem (disclose elem)))
 		      (setf (apply #'aref output (if reduce rcoords coords))
 			    (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
