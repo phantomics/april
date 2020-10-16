@@ -374,8 +374,16 @@
       (let* ((idims (dims input))
 	     (odims (mapcar (lambda (outdim indim) (if (not inverse) (abs outdim) (- indim (abs outdim))))
 			    dimensions idims))
+	     (fill-element (if (arrayp input)
+			       (if (characterp (row-major-aref input 0))
+				   #\  0)
+			       (if (characterp input) #\  #\0)))
 	     (output (make-array odims :element-type (element-type input)
-				 :initial-element (if fill-with fill-with (apl-default-element input)))))
+				 :initial-element (if fill-with fill-with
+						      (if (arrayp input)
+							  (if (characterp (row-major-aref input 0))
+							      #\  0)
+							  (if (characterp input) #\  #\0))))))
 	(across input (lambda (element coords)
 			(setf (apply #'aref output
 				     (loop :for c :in coords :for cx :from 0
