@@ -597,8 +597,9 @@ It remains here as a standard against which to compare methods for composing APL
 		      (setf (apply #'aref output (if reduce rcoords coords))
 			    (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
 				   (nth axis coords))
-				elem (funcall function elem (apply #'aref output (if reduce rcoords
-										     (or icoords (list 0)))))))))
+				elem (funcall function elem (apply #'aref output
+								   (if reduce rcoords
+								       (or icoords (list 0)))))))))
 	    ;; :reverse-axes (if in-reverse (list axis))
 	    :ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
 								  (list (nth d dimensions)))))
