@@ -14,9 +14,13 @@ April compiles a subset of the APL programming language into Common Lisp. Levera
 
 ## Why April?
 
-APL veritably hums with algorithmic power. As a handful of characters run past the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic runtime environments. If you have a store of data you'd like to use with APL, getting it there can be an ordeal. Like hauling tons of cargo on donkeys' backs through a narrow mountain pass, it's not fun, and the prospect of it has ended many discussions of APL before they could begin.
+APL veritably hums with algorithmic power. As a handful of characters run past the lexer, vast fields of data grow, morph and distil to reveal their secrets. However, APL has hitherto dwelt in an ivory tower, secluded inside monolithic runtime environments. If you have a store of data you'd like to process with APL, getting it there can be an ordeal akin to hauling tons of cargo on donkeys' backs through a narrow mountain pass. The original APL interpreters ran on mainframes where the only input was the keyboard and the only output was the printer, and the legacy of that implementation approach has persisted to this day, limiting the reach of the language.
 
-But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL transforms numeric patterns. With APL inside of Lisp, databases, streams, binary files and other media are just a few lines of code away from processing with APL.
+But no longer. Lisp is the great connector of the software world, digesting and transforming semantic patterns in much the same way that APL works upon numeric patterns. With APL inside of Lisp, databases, streams, binary files and other media are just a few lines of code away from processing with APL.
+
+### Discussion
+
+For the time being, discussion of April and its development is happening on the `##phantomics` channel on irc.freenode.net.
 
 ## Automatic Installation
 
