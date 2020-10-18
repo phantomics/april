@@ -284,9 +284,7 @@
 		   (error "Invalid assignment to ⎕OST."))))
 	  (t (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
 			       symbol (list 'inws symbol))))
-	       (if axes (enclose-axes symbol axes :set precedent
-					;; `(disclose ,precedent)
-				      )
+	       (if axes (enclose-axes symbol axes :set precedent)
 		   ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
 		   ;; intern it, unless it's one of the system variables
 		   `(apl-assign ,symbol ,precedent))))))
