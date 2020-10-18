@@ -36,7 +36,6 @@
 			 (progn (setf (getf out-properties :type)
 				      (cons (first (getf out-properties :type))
 					    (cons :enclosed (rest (getf out-properties :type))))
-				      ;; (getf out-properties :axes) axes
 				      (getf out-properties :vector-axes) vector-axes)
 				(values output out-properties))
 			 (values nil nil tokens))))
