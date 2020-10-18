@@ -202,10 +202,6 @@
 			 alpha)
 	       :inverse inverse))))
 
-(defun get-first-or-disclose (omega)
-  (disclose (if (not (vectorp omega))
-		omega (aref omega 0))))
-
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
   (lambda (omega alpha)
