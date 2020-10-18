@@ -95,7 +95,7 @@ In order to write APL programs you'll need a way to use the language's special c
 
 [Click here for information on enabling APL input within Vim.](#enabling-apl-input-in-vim)
 
-[Click here for information on enabling APL input within GNU/Linux.](#enabling-apl-input-in-gnu/linux)
+[Click here for information on enabling APL input within GNU/Linux.](#enabling-apl-input-in-gnu-linux)
 
 
 ## Basic Evaluation: (april) and (april-f)
@@ -697,7 +697,7 @@ For Lisp developers who interact with the language through Vim, a plugin called 
 
 ## Enabling APL Input in GNU/Linux
 
-For GNU/Linux users who want to use APL characters outside of an editor refer to [this](https://aplwiki.com/wiki/Typing_glyphs_on_Linux) page on the aplwiki. After you follow the instructions there you enter the iota character `⍳` by pressing the right Alt key + `i`, `⍴` by pressing the right Alt key + `r`, and so on.
+For GNU/Linux users who want to use APL characters outside of an editor refer to [this](https://aplwiki.com/wiki/Typing_glyphs_on_Linux) page on the aplwiki. After you follow the instructions there you enter the iota character `⍳` by pressing the right Alt key + `i`, the rho character `⍴` by pressing the right Alt key + `r`, and so on.
 
 ## Thanks to:
 
