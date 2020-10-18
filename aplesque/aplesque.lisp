@@ -56,6 +56,11 @@
 		    (arrayp (row-major-aref item 0)))))
       item (row-major-aref item 0)))
 
+(defun get-first-or-disclose (omega)
+  (disclose (if (not (vectorp omega))
+		omega (if (< 0 (length omega))
+			  (aref omega 0) (apl-array-prototype omega)))))
+
 (defun disclose-unitary-array (item)
   "Disclose an array if it's unitary, otherwise pass it back unchanged."
   (if (and (arrayp item)
