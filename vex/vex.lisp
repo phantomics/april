@@ -752,7 +752,7 @@
        (list ,@(loop :for param :in params
 		  :collect `(list ,(intern (string-upcase (first param)) "KEYWORD")
 				  (lambda (,tokens &optional ,properties ,process ,idiom ,space ,pre-props)
-				    (declare (ignorable ,properties ,process ,idiom ,space))
+				    (declare (ignorable ,properties ,process ,idiom ,space ,pre-props))
 				    ,(second param))))))))
 
 (defun composer (idiom space tokens &optional precedent properties pre-props)
