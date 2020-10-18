@@ -82,8 +82,7 @@
     (make-array (if axis (loop :for this-dim :in match-dims :for tdix :from 0
 			    :collect (if (= tdix axis) 1 this-dim))
 		    match-dims)
-		:element-type (element-type unitary)
-		:initial-element (aref unitary 0))))
+		:element-type (element-type unitary) :initial-element (aref unitary 0))))
 
 (defun array-promote (input)
   "Promote an array to the next rank. The existing content will occupy 1 unit of the new dimension."
@@ -115,12 +114,13 @@
 				   (recurse (1+ n))))))
 	  (recurse 0)))))
 
-(defmacro apl-default-element (array)
-  "Returns the default element for an array based on that array's type; blank spaces for character arrays and zeroes for others."
+(defmacro apl-array-prototype (array)
+  "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   `(if (or (characterp ,array)
-	   (eql 'character (element-type ,array))
-	   (eql 'base-char (element-type ,array)))
-       #\ (coerce 0 (element-type ,array))))
+	   (if (arrayp ,array)
+	       (or (eql 'character (element-type ,array))
+		   (and (< 0 (size ,array)) (characterp (row-major-aref ,array 0))))))
+       #\  (coerce 0 (element-type ,array))))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
@@ -312,6 +312,72 @@
 
 (initialize-for-environment :across #'identity)
 
+(defun apply-scalar (function omega &optional alpha axes is-boolean)
+  (let* ((orank (rank omega)) (arank (rank alpha))
+	 (axes (if axes (enclose axes)))
+	 (oscalar (if (is-unitary omega) (disclose omega)))
+	 (ascalar (if (is-unitary alpha) (disclose alpha)))
+	 (output-dims (dims (if axes (if (> arank orank) alpha omega)
+				(if oscalar alpha omega))))
+	 (output-type (if (or (not is-boolean)
+			      (not (= orank arank))
+			      (not (and oscalar ascalar)))
+			  t 'bit))
+	 ;; for boolean arrays, check whether the output will directly hold the array contents
+	 (output (if (not (and oscalar (or ascalar (not alpha))))
+		     (make-array output-dims :element-type output-type))))
+    (flet ((promote-or-not (item)
+	     ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
+	     (declare (dynamic-extent item))
+	     (if (not (or (arrayp omega) (arrayp alpha)))
+		 item (let* ((rank (aref #(nil 1) (max orank arank))))
+			(make-array rank :initial-contents (funcall (if rank #'list #'identity) item))))))
+      (if (not alpha)
+	  ;; if the function is being applied monadically, map it over the array
+	  ;; or recurse if an array is found inside
+	  (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
+						       (apply-scalar function oscalar alpha axes is-boolean)
+						       (funcall function oscalar))))
+	      (loop :for i :below (array-total-size omega)
+		 :do (setf (row-major-aref output i)
+			   (nest (apply-scalar function (row-major-aref omega i))))))
+	  (if (and oscalar ascalar)
+	      ;; if both arguments are scalar or 1-element, return the output of the function on both,
+	      ;; remembering to promote the output to the highest rank of the input, either 0 or 1 if not scalar
+	      (setq output (promote-or-not (if (or (arrayp oscalar) (arrayp ascalar))
+					       (apply-scalar function oscalar ascalar axes is-boolean)
+					       (funcall function oscalar ascalar))))
+	      (if (or oscalar ascalar
+		      (and (= orank arank)
+			   (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
+		  ;; map the function over identically-shaped arrays
+		  (loop :for i :below (array-total-size (if oscalar alpha omega))
+		     :do (setf (row-major-aref output i)
+			       (nest (apply-scalar function (if oscalar oscalar (row-major-aref omega i))
+						   (if ascalar ascalar (row-major-aref alpha i))))))
+		  ;; if axes are given, go across the higher-ranked function and call the function on its
+		  ;; elements along with the appropriate elements of the lower-ranked function
+		  (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
+			       (if (> orank arank) (list alpha omega) (list omega alpha t))
+			     (if (loop :for a :across axes :for ax :from 0
+ 				    :always (and (< a (rank highrank))
+						 (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
+				 (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
+				   (across highrank (lambda (elem coords)
+						      (declare (dynamic-extent elem coords))
+						      (loop :for a :across axes :for ax :from 0
+							 :do (setf (nth ax lrc) (nth a coords)))
+						      (setf (apply #'aref output coords)
+							    (nest (if omega-lower
+								      (funcall function elem
+									       (apply #'aref lowrank lrc))
+								      (funcall function
+									       (apply #'aref lowrank lrc)
+									       elem)))))))
+				 (error "Incompatible dimensions or axes.")))
+		      (error "Mismatched array sizes for scalar operation.")))))
+      output)))
+
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (and (not (arrayp item1))
@@ -372,23 +438,12 @@
   (if (and inverse (loop :for x :in dimensions :for y :in (dims input) :never (> y (abs x))))
       (make-array (loop :for i :below (rank input) :collect 0))
       (let* ((idims (dims input))
-	     (fill-element (if (arrayp input)
-			       (if (or (eql 'character (element-type input))
-				       (and (< 0 (size input))
-					    (characterp (row-major-aref input 0))))
-				   #\  0)
-			       (if (characterp input) #\  0)))
+	     (fill-element (apl-array-prototype input))
 	     (output (make-array (mapcar (lambda (odim idim)
 					   (if (not inverse) (abs odim) (- idim (abs odim))))
 					 dimensions idims)
 				 :element-type (element-type input)
-				 :initial-element (if fill-with fill-with
-						      (if (arrayp input)
-							  (if (or (eql 'character (element-type input))
-								  (and (< 0 (size input))
-								       (characterp (row-major-aref input 0))))
-							      #\  0)
-							  (if (characterp input) #\  0))))))
+				 :initial-element (or fill-with fill-element))))
 	(if (< 0 (size input))
 	    (across input (lambda (element coords)
 			    (setf (apply #'aref output
@@ -516,7 +571,7 @@
 				       :element-type (if (arrayp input)
 							 (element-type input)
 							 (assign-element-type input))
-				       :initial-element (apl-default-element input))))
+				       :initial-element (apl-array-prototype input))))
 	       ;; (print (list :input input output axis degrees))
 	       ;; in compress-mode: degrees must = length of axis,
 	       ;; zeroes are omitted from output, negatives add zeroes
@@ -552,7 +607,7 @@
   (let* ((intervals) (offset 0) (input-offset 0)
 	 (input (enclose input)) (positions (enclose positions))
 	 (idims (dims input)) (axis-size (nth axis idims)))
-    (declare (dynamic-extent intervals offset input-offset))
+    (declare (dynamic-extent intervals offset input-offset axis-size))
 
     ;; a scalar position argument is extended to the length of the input's first dimension
     (loop :for i :below (if (is-unitary positions) (first idims) (length positions))
@@ -789,13 +844,12 @@
 
 (defun array-inner-product (alpha omega function1 function2)
   "Find the inner product of two arrays with two functions."
-  (let* ((asize (size alpha)) (osize (size omega))
-	 (adims (dims alpha)) (odims (dims omega))
+  (let* ((adims (dims alpha)) (odims (dims omega))
 	 (asegment (first (last adims)))
 	 (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
 		       (first odims) (error "To find an inner product the last dimension of the left array ~w"
 					    "must equal the first dimension of the right array.")))
-	 (ovectors (reduce #'* (rest odims))) (avectors (reduce #'* (butlast adims)))
+	 (osize (size omega)) (ovectors (reduce #'* (rest odims)))
 	 (adisp (if adims (make-array asegment :displaced-to alpha :element-type (element-type alpha))))
 	 (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
 				omega (make-array osegment :element-type (element-type omega)))))
@@ -809,18 +863,12 @@
 	     (if (not (and (= osegment osize) (= 1 (rank omega))))
 		 (loop :for i :below osegment
      		    :do (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
-	     (loop :for x :across (april::apply-scalar function1 (if odims oholder omega)
-						       (if adims adisp alpha))
+	     (loop :for x :across (apply-scalar function1 (if odims oholder omega)
+						(if adims adisp alpha))
      		:do (setq result (if (not result) x (funcall function2 x result))))
 	     (setf (row-major-aref output x) result)))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
-
-(defun index-longer (segment shorter count)
-  (loop :for i :below count :collect (floor (/ i shorter))))
-
-(defun index-shorter (segment count)
-  (loop :for i :below count :collect (mod i segment)))
 
 (defun index-of (to-search set count-from)
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
