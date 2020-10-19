@@ -192,13 +192,14 @@
     (let ((omega (enclose omega))
 	  (alpha-index alpha)
 	  (alpha (if (arrayp alpha)
-		     (array-to-list alpha)
-		     (list alpha))))
-      (section omega (if axes (loop :for axis :below (rank omega)
-				 :collect (if inverse (if (/= axis (- (first axes) index-origin))
-							  0 alpha-index)
-					      (if (= axis (- (first axes) index-origin))
-						  alpha-index (nth axis (dims omega)))))
+		     alpha (vector alpha))))
+      (section omega (if axes (make-array (rank omega)
+					  :initial-contents
+					  (loop :for axis :below (rank omega)
+					     :collect (if inverse (if (/= axis (- (first axes) index-origin))
+								      0 alpha-index)
+							  (if (= axis (- (first axes) index-origin))
+							      alpha-index (nth axis (dims omega))))))
 			 alpha)
 	       :inverse inverse))))
 
@@ -217,9 +218,9 @@
 		   ;; if there are more elements of the left argument left to go, recurse on the element designated
 		   ;; by the first element of the left argument and the remaining elements of the point
 		   (pick-point (if (< 2 (length point))
-				   (make-array (1- (length point)) :initial-contents (loop :for i :from 1 :to
-											  (1- (length point))
-											:collect (aref point i)))
+				   (make-array (1- (length point))
+					       :initial-contents (loop :for i :from 1 :to (1- (length point))
+								    :collect (aref point i)))
 				   (aref point 1))
 			       (disclose (pick-point (aref point 0) input))))))
       ;; TODO: swap out the vector-based point for an array-based point
