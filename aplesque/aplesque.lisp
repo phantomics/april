@@ -450,14 +450,15 @@
 
 (defun section (input dimensions &key (inverse nil) (fill-with nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-  (print (list :in input dimensions))
   (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
       ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
       ;; passed to the function to create the empty output array
       (make-array (append (array-to-list dimensions)
 			  (loop :for i :from (length dimensions) :to (1- (rank input))
 			     :collect (nth i (dims input))))
-		  :element-type (element-type input))
+		  :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
+				    (element-type (aref (row-major-aref input 0)))
+				    (element-type input)))
       (let ((rdiff (- (rank input) (length dimensions)))
 	    (idims (make-array (rank input) :element-type (list 'integer 0 (size input))
 			       :initial-contents (dims input))))
