@@ -95,7 +95,7 @@ In order to write APL programs you'll need a way to use the language's special c
 
 [Click here for information on enabling APL input within Vim.](#enabling-apl-input-in-vim)
 
-[Click here for information on enabling APL input universally within GNU/Linux.](#enabling-apl-input-in-gnu-linux)
+[Click here for information on enabling APL input universally within GNU/Linux.](#enabling-apl-input-universally-in-gnulinux)
 
 
 ## Basic Evaluation: (april) and (april-f)
@@ -695,7 +695,7 @@ Once gnu-apl-mode is installed, you can switch to the APL input mode by typing `
 
 For Lisp developers who interact with the language through Vim, a plugin called "vim-apl" allows one to input APL characters. You can get it [from this git repository](https://gitlab.com/n9n/vim-apl). Using a Vim plugin manager called [Vundle](https://github.com/VundleVim/Vundle.vim) it is easy to add this plugin by adding the single line `Plugin 'https://gitlab.com/n9n/vim-apl'` to your .vimrc and following the Vundle instructions. With vim-apl installed, while editing an .apl file you can enter the iota character `⍳` by typing `` `i `` (backtick and i), enter the rho character `⍴` by typing `` `r``, and so on.
 
-## Enabling APL Input in GNU/Linux
+## Enabling APL Input Universally in GNU/Linux
 
 For GNU/Linux users who'd like use APL characters outside of a customized editor, refer to [this page](https://aplwiki.com/wiki/Typing_glyphs_on_Linux) on the APL Wiki. After following the instructions there you'll be able to use your keyboard's right Alt key as a modifier to enter APL characters. For instance, you enter can the iota character `⍳` by pressing the `right Alt + i`, the rho character `⍴` by pressing the `right Alt + r` and so on.
 
