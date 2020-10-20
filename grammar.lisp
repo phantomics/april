@@ -53,7 +53,7 @@
 			 (progn (values output out-properties (cddr tokens))))))
 		  ;; process the empty vector expressed by the [⍬ zilde] character
 		  ((eq :empty-array this-item)
-		   (values (make-array 0 :element-type 'bit)
+		   (values (make-array 0)
 			   (append (if (or axes vector-axes)
 				       (list :vector-axes (or vector-axes axes)))
 				   (list :type '(:array :empty)))

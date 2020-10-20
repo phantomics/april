@@ -487,6 +487,8 @@ It remains here as a standard against which to compare methods for composing APL
 					 (listp (first form))
 					 (stringp (first form))
 					 (characterp (first form))
+					 (and (arrayp (first form))
+					      (= 0 (size (first form))))
 					 (eql '⍺ (first form))
 					 (eql '⍵ (first form))
 					 (and (symbolp (first form))
