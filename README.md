@@ -95,7 +95,7 @@ In order to write APL programs you'll need a way to use the language's special c
 
 [Click here for information on enabling APL input within Vim.](#enabling-apl-input-in-vim)
 
-[Click here for information on enabling APL input within GNU/Linux.](#enabling-apl-input-in-gnu-linux)
+[Click here for information on enabling APL input universally within GNU/Linux.](#enabling-apl-input-in-gnu-linux)
 
 
 ## Basic Evaluation: (april) and (april-f)
