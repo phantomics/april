@@ -493,8 +493,9 @@
 			  :ranges (loop :for d :across dimensions :for dx :from 0
 				     :collect (let ((point (if inverse (if (> 0 d) 0 d)
 							       (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
-						(list point (if inverse (+ point (- (aref idims dx)
-										    1 (abs (aref dimensions dx))))
+						(list point (if inverse
+								(+ point (- (aref idims dx)
+									    1 (abs (aref dimensions dx))))
 								(+ -1 point (min (abs (aref dimensions dx))
 										 (aref idims dx)))))))))
 	      output)))))
@@ -908,22 +909,44 @@
 
 (defun index-of (to-search set count-from)
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
-  (if (not (vectorp set))
-      (error "The left argument to ⍳ must be a vector.")
-      (let* ((to-find (if (vectorp set)
-			  (remove-duplicates set :from-end t)
-			  (vector set)))
-	     (to-search (if (arrayp to-search)
-			    to-search (vector to-search)))
-	     (maximum (+ count-from (length to-find)))
-	     (results (make-array (dims to-search) :element-type 'number)))
-	(dotimes (index (array-total-size results))
-	  (let* ((search-index (row-major-aref to-search index))
-		 (found (position search-index to-find :test #'array-compare)))
-	    (setf (row-major-aref results index)
-		  (if found (+ count-from found)
-		      maximum))))
-	results)))
+  (let* ((original-set set)
+	 (set (if (or (vectorp set) (not (arrayp set)))
+		  set (let ((vectors (reduce #'* (butlast (dims set))))
+			    (last-dim (first (last (dims set)))))
+			(make-array vectors :initial-contents
+				    (loop :for i :below vectors
+				       :collect (make-array last-dim :element-type (element-type set)
+							    :displaced-to set
+							    :displaced-index-offset (* i last-dim)))))))
+	 (to-search (if (or (vectorp original-set) (not (arrayp original-set)))
+			(if (vectorp to-search)
+			    to-search (vector to-search))
+			(if (= (first (last (dims set)))
+			       (first (last (dims to-search))))
+			    (let ((vectors (reduce #'* (butlast (dims to-search))))
+					    (last-dim (first (last (dims to-search)))))
+					(make-array vectors :initial-contents
+						    (loop :for i :below vectors
+						       :collect (make-array last-dim
+									    :element-type
+									    (element-type to-search)
+									    :displaced-to to-search
+									    :displaced-index-offset
+									    (* i last-dim)))))
+			    (error "Mismatch between array shapes - the last axes of ~w"
+				   "arguments to dyadic ⍳ must have the same length."))))
+	 (to-find (if (vectorp set)
+		      (remove-duplicates set :from-end t)
+		      (vector set)))
+	 (maximum (+ count-from (length to-find)))
+	 (results (make-array (dims to-search) :element-type 'number)))
+    (dotimes (index (array-total-size results))
+      (let* ((search-index (row-major-aref to-search index))
+	     (found (position search-index to-find :test #'array-compare)))
+	(setf (row-major-aref results index)
+	      (if found (+ count-from found)
+		  maximum))))
+    (disclose results)))
 
 (defun alpha-compare (atomic-vector compare-by)
   "Compare the contents of a vector according to their positions in an array, as when comparing an array of letters by their positions in the alphabet."
