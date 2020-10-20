@@ -536,7 +536,6 @@ It remains here as a standard against which to compare methods for composing APL
 				elem (funcall function elem (apply #'aref output
 								   (if reduce rcoords
 								       (or icoords (list 0)))))))))
-	    ;; :reverse-axes (if in-reverse (list axis))
 	    :ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
 								  (list (nth d dimensions)))))
     (each-scalar t output)))
