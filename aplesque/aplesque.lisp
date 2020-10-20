@@ -133,11 +133,15 @@
 	    (let ((first-element (row-major-aref array 0)))
 	      (if (not (arrayp first-element))
 		  (derive-element first-element)
-		  (let ((first-element (aref first-element)))
-		    (make-array nil :initial-element
-				(make-array (dims first-element)
-					    :element-type (element-type first-element)
-					    :initial-element (derive-element first-element))))))))))
+		  (let ((first-element (if (< 0 (rank first-element))
+					   first-element (aref first-element))))
+		    (if (and (arrayp first-element)
+			     (= 0 (size first-element)))
+			(make-array 1 :initial-element (make-array nil :initial-element first-element))
+			(make-array nil :initial-element
+				    (make-array (dims first-element)
+						:element-type (element-type first-element)
+						:initial-element (derive-element first-element)))))))))))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
@@ -458,7 +462,7 @@
 			     :collect (nth i (dims input))))
 		  :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
 				    (element-type (aref (row-major-aref input 0)))
-				    (element-type input)))
+				    (assign-element-type (row-major-aref input 0))))
       (let ((rdiff (- (rank input) (length dimensions)))
 	    (idims (make-array (rank input) :element-type (list 'integer 0 (size input))
 			       :initial-contents (dims input))))
@@ -1628,8 +1632,7 @@
 							   (wdim (aref window-dims cix)))
 						       (+ (nth cix wcoords)
 							  (- (* melem (nth cix coords))
-							     (floor (/ (- wdim (if (evenp wdim) 1 0))
-								       2)))))))
+							     (floor (* 1/2 (- wdim (if (evenp wdim) 1 0)))))))))
 					(setf (apply #'aref window wcoords)
 					      (if (loop :for coord :in ref-coords :for cix :from 0
 						     :always (<= 0 coord (1- (aref idims cix))))
