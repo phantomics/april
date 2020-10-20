@@ -1432,17 +1432,21 @@
 				      (make-array inner-dims :element-type type)
 				      (make-enclosure inner-dims type (rest dimensions)))))))
     (cond ((= 1 (length axes))
-	   ;; if there is only one axis just split the array, with permutation first if not splitting
-	   ;; along the last axis
-	   (if (= (1- (rank matrix))
-		  (aref axes 0))
-	       (aops:split matrix (1- (rank matrix)))
-	       (aops:split (aops:permute (sort (alexandria:iota (rank matrix))
-					       (lambda (a b)
-						 (declare (ignore a))
-						 (= b (aref axes 0))))
-					 matrix)
-			   (1- (rank matrix)))))
+	   ;; if there is only one axis just split the array
+	   (if (>= (aref axes 0) (rank matrix))
+	       (error "Invalid axis ~w for array of rank ~w." (aref axes 0) (rank matrix))
+	       (let* ((axis (aref axes 0))
+		      (output (make-array (loop :for d :in (dims matrix) :for dx :from 0
+					     :when (/= dx axis) :collect d))))
+		 (loop :for o :below (size output)
+		    :do (setf (row-major-aref output o) (make-array (nth axis (dims matrix))
+								    :element-type (element-type matrix))))
+		 (across matrix (lambda (elem coords)
+				  (let ((out-sub-array (loop :for c :in coords :for cx :from 0
+							  :when (/= cx axis) :collect c))
+					(out-coords (nth axis coords)))
+				    (setf (aref (apply #'aref output out-sub-array) out-coords) elem))))
+		 output)))
 	  ((not (apply #'< (array-to-list axes)))
 	   (error "Elements in an axis argument to the enclose function must be in ascending order."))
 	  ((= (length axes)
