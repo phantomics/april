@@ -37,7 +37,7 @@
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
   (if (arrayp item)
-      item (make-array '(1) :element-type (assign-element-type item)
+      item (make-array 1 :element-type (assign-element-type item)
 		       :initial-element item)))
 
 (defun nest (input)
@@ -568,7 +568,7 @@
   (cond ((and (or (not (arrayp input))
 		  (= 0 (rank input)))
 	      (not (arrayp degrees)))
-	 (make-array (list degrees) :element-type (type-of input) :initial-element input))
+	 (make-array degrees :element-type (type-of input) :initial-element input))
 	((and compress-mode (not (is-unitary input))
 	      (and (arrayp degrees)
 		   (/= (length degrees)
@@ -587,12 +587,12 @@
 			       (make-array (nth axis (dims input)) :initial-element degrees)))
 		  ;; (input (if (arrayp input) input (vector input)))
 		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
-		  (c-degrees (make-array (list (length degrees))
+		  (c-degrees (make-array (length degrees)
 					 :element-type 'fixnum :initial-element 0))
 		  (positive-index-list (if (not compress-mode)
 					   (loop :for degree :below (length degrees)
 					      :when (< 0 (aref degrees degree)) :collect degree)))
-		  (positive-indices (if positive-index-list (make-array (list (length positive-index-list))
+		  (positive-indices (if positive-index-list (make-array (length positive-index-list)
 									:element-type 'fixnum
 									:initial-contents positive-index-list)))
 		  (ex-dim))
@@ -721,8 +721,7 @@
 			   (let* ((focus (nth axis coords))
 				  (this-index (nth focus indices))
 				  (this-interval (nth focus intervals))
-				  (out-array (make-array (list this-interval)
-							 :element-type (element-type input))))
+				  (out-array (make-array this-interval :element-type (element-type input))))
 			     (loop :for ix :below this-interval
 				:do (loop :for coord :in coords :for dx :below arank :for cx :from 0
 				       :do (setf (nth cx icoords)
@@ -736,8 +735,7 @@
   "Create a vector containing all elements of the input array in ravel order, breaking down nested and multidimensional arrays."
   (if (or (not (arrayp input))
 	  (= 1 (array-total-size input)))
-      input (let ((raveled (make-array (list (array-total-size input))
-				       :element-type (element-type input)
+      input (let ((raveled (make-array (array-total-size input) :element-type (element-type input)
 				       :displaced-to input)))
 	      (loop :for item :across raveled :do (if (arrayp item)
 						      (multiple-value-bind (out new-length)
@@ -746,7 +744,7 @@
 						      (setq output (cons item output)
 							    output-length (1+ output-length))))
 	      (if internal (values output output-length)
-		  (make-array (list output-length) :element-type (element-type input)
+		  (make-array output-length :element-type (element-type input)
 			      :initial-contents (reverse output))))))
 
 (defun reshape-to-fit (input output-dims)
@@ -760,12 +758,12 @@
                  (input-index 0)
                  (input-displaced
                    (if (vectorp input)
-                       input (make-array (list input-length)
-                                         :displaced-to input :element-type (element-type input))))
+                       input (make-array input-length :displaced-to input
+					 :element-type (element-type input))))
                  (output (make-array output-dims :element-type (element-type input)))
                  (output-displaced
                    (if (not (rest output-dims))
-                       output (make-array (list output-length)
+                       output (make-array output-length
                                           :displaced-to output :element-type (element-type input)))))
             (declare (dynamic-extent input-index)
                      ;; TODO: optimization caused problems due to type uncertainty; solution?
@@ -982,8 +980,8 @@
       count-from (let* ((input (if (= 1 (rank input))
 				   input (aops:split input 1)))
 			(input-length (length input))
-			(vector (make-array (list input-length)))
-			(graded-array (make-array (list input-length)
+			(vector (make-array input-length))
+			(graded-array (make-array input-length
 						  :element-type (list 'integer 0 input-length))))
 		   (loop :for i :below input-length :do (setf (aref graded-array i)
 							      (+ i count-from)))
@@ -1014,7 +1012,7 @@
 		 (across compare-by (lambda (found indices)
 				      (if (char= found item)
 					  (setq coords (loop :for i :in indices :collect i)))))
-		 (make-array (list (length coords))
+		 (make-array (length coords)
 			     :initial-contents (reverse coords))))
 	     input))
 
@@ -1048,12 +1046,12 @@
 				(let ((match 0))
 				  (aops:each (lambda (ref)
 					       (let* ((ref (if (vectorp ref)
-							      ref (make-array (list (array-total-size ref))
+							      ref (make-array (array-total-size ref)
 									      :element-type (element-type ref)
 									      :displaced-to ref)))
 						     (sub-array (if (vectorp sub-array)
 								    sub-array
-								    (make-array (list (array-total-size sub-array))
+								    (make-array (array-total-size sub-array)
 										:element-type (element-type sub-array)
 										:displaced-to sub-array))))
 						 (if (vector-grade (alpha-compare atomic-vector #'<)
@@ -1099,9 +1097,8 @@
 				 match-coords)
 	     :do (let ((target-index 0)
 		       (target-matched t)
-		       (target-displaced (make-array (list (array-total-size target))
-						     :element-type (element-type target)
-						     :displaced-to target))
+		       (target-displaced (make-array (array-total-size target) :displaced-to target
+						     :element-type (element-type target)))
 		       (element-list (loop :for i :below (rank input) :collect nil)))
 		   (labels ((process-dims (starts extents limits count)
 			      (if starts (let ((start (first starts))
@@ -1318,7 +1315,7 @@
 	     (out-dims (append (remove 1 (dims input))
 			       (remove 1 inner-dims)))
 	     (out-rank (length out-dims))
-	     (input-vector (make-array (list (array-total-size input))
+	     (input-vector (make-array (array-total-size input)
 				       :displaced-to input :element-type (element-type input)))
 	     (each-type (loop :for elem :across input-vector :collect (element-type elem)))
 	     (output (make-array out-dims :element-type (apply #'type-in-common each-type)))
@@ -1420,8 +1417,8 @@
 				      :displaced-to (copy-array input))))))
 	  ;; TODO: this generates an array of type vector, not simple-array since it's displaced, is this a
 	  ;; problem? Look into it
-	  (make-array (list (array-total-size input))
-		      :element-type (element-type input) :displaced-to (copy-array input)))))
+	  (make-array (array-total-size input) :element-type (element-type input)
+		      :displaced-to (copy-array input)))))
 
 (defun re-enclose (matrix axes &key (nest t))
   "Convert an array into a set of sub-arrays within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
@@ -1677,7 +1674,28 @@
 								  :element-type '(signed-byte 8)
 								  :initial-contents acoords)))))))
     output))
-
+#|
+(defun count-segments (value &optional segments)
+  (let* ((sum 0)
+	 (strings (if (and (rationalp value)
+			   (not (integerp value)))
+		      (list (write-to-string (numerator value))
+			    (write-to-string (denominator value)))
+		      (append (funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (realpart value))))
+					   #'butlast #'identity)
+				       (cl-ppcre:split #\. (write-to-string (realpart value))))
+			      (if (complexp value)
+				  (funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (imagpart value))))
+					       #'butlast #'identity)
+					   (cl-ppcre:split #\. (write-to-string (imagpart value))))))))
+	 (more-strings (< (length segments) (length strings))))
+    (print (list :el value segments strings))
+    (print (loop :for i :from 0 :for s :in (if more-strings strings segments)
+       :collect (let ((other (if more-strings segments strings)))
+		  (setq sum (max (+ sum (min 1 i) (if more-strings (length s) s))
+				 (or (funcall (if more-strings #'identity #'length ) (nth i other))
+				     0))))))))
+|#
 (defun array-impress (input &key (prepend nil) (append nil) (collate nil) (format nil))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."
   (cond ((functionp input) "")
@@ -1697,17 +1715,19 @@
 	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
-		  (x-offsets (make-array (list (1+ (first (last idims))))
+		  (x-offsets (make-array (1+ (first (last idims)))
 					 :initial-element 0 :element-type 'fixnum))
-		  (y-offsets (make-array (list (1+ (reduce #'* (rest (reverse idims)))))
+		  (y-offsets (make-array (1+ (reduce #'* (rest (reverse idims))))
 					 :initial-element 0 :element-type 'fixnum))
-		  (col-widths (make-array (list (first (last idims)))
+		  (col-widths (make-array (first (last idims))
 					  :initial-element 1 :element-type 'fixnum))
-		  (col-types (make-array (list (first (last idims))) :initial-element nil))
+		  (col-types (make-array (first (last idims)) :initial-element nil))
 		  ;; an array of decimal point positions for each column; first row holds the position of the
 		  ;; decimal point, second holds the overall length of each printed number
+		  ;; !!
 		  (col-decimals (make-array (list 3 (first (last idims)))
 					    :initial-element 0 :element-type '(unsigned-byte 32)))
+		  (col-segments (make-array (first (last idims)) :initial-element nil))
 		  (strings (make-array idims))
 		  (output-default-char #\ )
 		  (row) (empty-rows))
@@ -1716,6 +1736,8 @@
 			       (this-col-width (aref col-widths last-coord))
 			       (this-col-type (aref col-types last-coord))
 			       (last-col-type (aref col-types (1- last-coord)))
+			       ;;!!
+			       (segments (aref col-segments last-coord))
 			       (decimal-place (aref col-decimals 0 last-coord))
 			       (decimal-length (aref col-decimals 1 last-coord))
 			       (trailing (aref col-decimals 2 last-coord)))
@@ -1790,6 +1812,8 @@
 						;; increment the decimal point position if it's further right
 						;; than in other rows of this column; negative values occupy
 						;; an extra space due to the minus sign
+						;; !!
+						;; segments (count-segments elem segments)
 						decimal-place (max decimals decimal-place)
 						trailing (max trailing (- (length rendered) decimals))
 						elem-width (+ decimal-place trailing)
@@ -2004,6 +2028,8 @@
 		 ;; this is more complicated for a collated array and it is not needed if the
 		 ;; character is the same as the default character for the array
 		 ;; (print (list :out output))
+		 ;; (print (list :seg col-segments))
+		 ;; (princ #\Newline)
 		 (if (or (and append (not (char= append output-default-char)))
 			 (and prepend (not (char= prepend output-default-char))))
 		     (let ((last-dim (first (last (dims output)))))
@@ -2028,5 +2054,5 @@
     `(let ((,rendered (array-impress ,input ,@options)))
        ;; (print (list :ren ,rendered))
        (if (stringp ,rendered)
-	   ,rendered (make-array (list (array-total-size ,rendered))
+	   ,rendered (make-array (array-total-size ,rendered)
 				 :element-type 'character :displaced-to ,rendered)))))
