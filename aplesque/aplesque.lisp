@@ -708,6 +708,9 @@
 	(if (/= 0 (aref positions (1- (length positions))))
 	    (setq r-intervals (cons (- (length positions) (first r-indices))
 				    r-intervals)))
+
+	(if (/= (length r-indices) (length r-intervals))
+	    (setq r-indices (rest r-indices)))
 	;; collect the indices and intervals into lists the right way around, dropping indices with 0-length
 	;; intervals corresponding to zeroes in the positions list
 	(loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
@@ -729,7 +732,7 @@
 				  (setf (aref out-array ix) (apply #'aref input icoords)))
 			     (setf (apply #'aref output coords)
 				   (nest out-array)))))
-	  output))))
+	  (disclose output)))))
 
 (defun enlist (input &optional internal output (output-length 0))
   "Create a vector containing all elements of the input array in ravel order, breaking down nested and multidimensional arrays."
