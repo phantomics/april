@@ -31,12 +31,14 @@ If no playfield exists, evaluating (life) will create a new 16x16 playfield.
 
 (let ((life-array nil)
       (life-generation -1))
-  (defun life (&optional new-width new-height)
+  (defun life (&optional new-width new-height starting-field)
     "Create or update a playfield for Conway's Game of Life."
     (setq life-array (if (or new-width (not life-array))
 			 (progn (setq life-generation -1)
-				(april-c "{⎕IO←0 ⋄ ?⍺ ⍵⍴2}" (or new-width *life-default-dimension*)
-					 (or new-height new-width *life-default-dimension*)))
+				(if starting-field (april-c "{⍺↑⍵}" starting-field
+							    (vector new-height new-width))
+				    (april-c "{⎕IO←0 ⋄ ?⍺ ⍵⍴2}" (or new-width *life-default-dimension*)
+					 (or new-height new-width *life-default-dimension*))))
 			 (april-c "{⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}" life-array)))
     (incf life-generation)
     (april-c "{⎕IO←0 ⋄ ⎕←' ⍬_║▐▀'[(0,(1+⊢/⍴⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)
