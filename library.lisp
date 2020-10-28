@@ -276,6 +276,27 @@
 								    (element-type omega)))
 		    0)))))
 
+(defun unique-mask (array)
+  (let ((output (make-array (first (dims array)) :element-type 'bit :initial-element 1))
+	(displaced (if (< 1 (rank array)) (make-array (rest (dims array))
+						      :displaced-to array
+						      :element-type (element-type array))))
+	(uniques) (increment (reduce #'* (rest (dims array)))))
+    (loop :for x :below (first (dims array))
+       :do (if (and displaced (< 0 x))
+	       (adjust-array displaced (rest (dims array))
+			     :displaced-to array :element-type (element-type array)
+			     :displaced-index-offset (* x increment)))
+       (if (member (or displaced (aref array x)) uniques :test #'array-compare)
+	   (setf (aref output x) 0)
+	   (setf uniques (cons (if displaced
+				   (make-array (rest (dims array))
+					       :displaced-to array :element-type (element-type array)
+					       :displaced-index-offset (* x increment))
+				   (aref array x))
+			       uniques))))
+    output))
+
 (defun permute-array (index-origin)
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
