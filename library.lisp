@@ -289,10 +289,9 @@
 			     :displaced-index-offset (* x increment)))
        (if (member (or displaced (aref array x)) uniques :test #'array-compare)
 	   (setf (aref output x) 0)
-	   (setf uniques (cons (if displaced
-				   (make-array (rest (dims array))
-					       :displaced-to array :element-type (element-type array)
-					       :displaced-index-offset (* x increment))
+	   (setf uniques (cons (if displaced (make-array (rest (dims array)) :displaced-to array
+							 :element-type (element-type array)
+							 :displaced-index-offset (* x increment))
 				   (aref array x))
 			       uniques))))
     output))
