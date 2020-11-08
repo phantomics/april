@@ -199,66 +199,8 @@
 	    ;; the macron character is converted to the minus sign
 	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-"))))))
 
-;; (defun print-apl-number-string (number &optional segments precision decimals)
-;;   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
-;;   ;; (print (list :nn number segments precision decimals))
-;;   (cond ((complexp number)
-;; 	 (format nil "~aJ~a" (print-apl-number-string (realpart number) (list (first segments)
-;; 									      (- (second segments)))
-;; 						      precision)
-;; 		 (print-apl-number-string (imagpart number) (list (- (third segments)) (fourth segments))
-;; 					  precision)))
-;; 	((or (integerp number) (zerop number))
-;; 	 (let ((output (format nil (format nil "~~~d,'~ad" (first segments)
-;; 					   (if (< 0 number) #\  #\¯))
-;; 			       (abs number)))
-;; 	       (number-found))
-;; 	   (if (> 0 number)
-;; 	       (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
-;; 		  :do (if (alphanumericp (aref output i))
-;; 			  (setq number-found t)
-;; 			  (setf (aref output (1- i)) #\ ))))
-;; 	   (print output)))
-;; 	;; zero-value numbers are printed as zeroes with no decimal; this clause catches
-;; 	;; zeroes before they can cause divide-by-zero errors in the (log)s afterward
-;; 	((rationalp number)
-;; 	 (format nil "~ar~a" (print-apl-number-string (numerator number) (list (first segments)) precision)
-;; 		 (print-apl-number-string (denominator number) (list (second segments)) precision)))
-;; 	(t (let* ((number-string (write-to-string number))
-;; 		  (number-sections (cl-ppcre:split "[.]" number-string))
-;; 		  (right-padding (if (and (second segments) (< 0 (second segments)))
-;; 				     (- (second segments) (length (second number-sections)))))
-;; 		  (left-space (abs (first segments)))
-;; 		  (right-space (or decimals (if (and (not (third segments))
-;; 			       			     (or (not (second segments))
-;; 			       				 (< 0 (second segments))))
-;; 			       			"" (abs (second segments))))
-;; 		    ;; (abs (second segments))
-;; 		    )
-;; 		  (total-length (if decimals (+ decimals 1 left-space)
-;; 				    (min (1+ precision)
-;; 					 (if (and right-padding (< 0 right-padding))
-;; 					     left-space
-;; 					     (+ 1 left-space (abs (or (second segments) 0))))))
-;; 		    ;; (+ 1 left-space right-space)
-;; 		    )
-;; 		  (output
-;; 		   ;; (print (list :num number precision segments right-padding))
-;; 		   (format nil ;; (format nil "~~~D,~D,F" (if decimals (+ 1 before-decimal decimals)
-;; 			   ;; 				 (min (1+ printed) (1+ precision)))
-;; 			   ;; 	     (if decimals decimals (- (min printed precision) before-decimal)))
-;; 			   (identity (format nil "~~~d,~d,,,'~af~a" total-length right-space		     
-;; 					     (if (< 0 (first segments)) #\  #\0)
-;; 					     (if (not (and right-padding (< 0 right-padding)))
-;; 						 "" (make-array right-padding :element-type 'base-char
-;; 								:initial-element #\ ))))
-;; 			   number)))
-;; 	     ;; (print number-sections)
-;; 	     output))))
-
 (defun print-apl-number-string (number &optional segments precision decimals)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
-  ;; (print (list :nn number segments precision decimals))
   (cond ((complexp number)
 	 (format nil "~aJ~a" (print-apl-number-string (realpart number) (list (first segments)
 									      (if (not (third segments))
@@ -283,31 +225,34 @@
 		  :do (if (alphanumericp (aref output i))
 			  (setq number-found t)
 			  (setf (aref output (1- i)) #\ ))))
-	   (identity output)))
+	   output))
 	((rationalp number)
 	 (format nil "~ar~a" (print-apl-number-string (numerator number) (list (first segments)) precision)
-		 (print-apl-number-string (denominator number) (list (second segments)) precision)))
+		 (print-apl-number-string (denominator number) (list (- (abs (second segments)))) precision)))
 	(t (let* ((number-string (write-to-string number))
 		  (number-sections (cl-ppcre:split "[.]" number-string))
 		  (right-padding (if (not (and (second segments) (< 0 (second segments))))
 				     0 (max 0 (- (second segments) (length (second number-sections))))))
+		  ;; space to left of decimal is expressed by the first segment
 		  (left-space (abs (first segments)))
-		  (right-space (or decimals (max 1 (- (min (length (second number-sections))
-							   (+ (abs (second segments))
-							      (max 0 (- (first segments)
-									(length (first number-sections))))))
+		  ;; space to right of decimal can be explicitly specified by decimal argument
+		  ;; or expressed by second segment length, whose length may be expanded if the digits
+		  ;; on the left don't fill out the precision, as with ⎕pp←6 ⋄ ⍪3005 0.125
+		  (right-space (or decimals (max 1 (- (max (abs (second segments))
+							   (min (length (second number-sections))
+								(+ (abs (second segments))
+								   (- (first segments)
+								      (length (first number-sections))))))
 						      right-padding))))
 		  (total-length (+ 1 left-space right-space))
-		  (output
-		   (format nil (identity (format nil "~~~d,~d,,,'~af~a" total-length right-space
-						 (if (> 0 number)
-						     #\¯ (if (< 0 (first segments)) #\  #\0))
-						 (if (not (and right-padding (< 0 right-padding)))
-						     "" (make-array right-padding :element-type 'base-char
-								    :initial-element #\ ))))
-			   (abs number))))
+		  (output (format nil (format nil "~~~d,~d,,,'~af~a" total-length right-space
+					      (if (> 0 number)
+						  #\¯ (if (< 0 (first segments)) #\  #\0))
+					      (if (not (and right-padding (< 0 right-padding)))
+						  "" (make-array right-padding :element-type 'base-char
+								 :initial-element #\ )))
+				  (abs number))))
 	     
-	     ;; (print (list :sg segments left-space right-space number-sections))
 	     (if (> 0 number)
 		 ;; replace ¯ padding with zeroes or spaces as appropriate; this strange system
 		 ;; of initially padding with ¯ is needed because ¯ is an extended unicode character
@@ -318,9 +263,7 @@
 		   (loop :for i :from start-at :while (char= #\¯ (aref output i))
 		      :when (or (= 1 start-at) (char= #\¯ (aref output (1+ i))))
 		      :do (setf (aref output i) (aref " 0" start-at)))))
-	     ;; (print (list :oo right-padding))
-	     ;; TODO: ⍪12.2J44 3J8 19J210r17 is still bugged
-	     (identity output)))))
+	     output))))
 
 (defun format-value (idiom-name symbols element)
   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."

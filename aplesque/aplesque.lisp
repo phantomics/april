@@ -1679,6 +1679,9 @@
 								  :initial-contents acoords)))))))
     output))
 
+;; funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (realpart value))))
+;; 	    #'butlast #'identity)
+
 (defun count-segments (value precision &optional segments)
   (flet ((is-rational-fraction (number)
 	   (and (rationalp number) (not (integerp number))))
@@ -1689,9 +1692,14 @@
 			(process-rational value)
 			(append (if (is-rational-fraction (realpart value))
 				    (process-rational (realpart value))
-				    (funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (realpart value))))
-						 #'butlast #'identity)
-					     (cl-ppcre:split #\. (write-to-string (realpart value)))))
+				    (let ((sections (cl-ppcre:split #\. (write-to-string (realpart value)))))
+				      ;; if there are 4 or more segments, as when printing complex floats or rationals,
+				      ;; and a complex value occurs with an integer real part, create a 0-length
+				      ;; second segment so that the lengths of the imaginary components are correctly
+				      ;; assigned to the 3rd and 4th columns, as for printing ⍪12.2J44 3J8 19J210r17
+				      (append sections (if (and (< 3 (length segments))
+								(= 1 (length sections)))
+							   (list nil)))))
 				(if (complexp value)
 				    (if (is-rational-fraction (imagpart value))
 					(process-rational (imagpart value))
@@ -1828,13 +1836,7 @@
 											     (1+ (* dim last))))))))
 					     (aref y-offsets row)
 					     (+ empty-rows (aref y-offsets row))))
-				   (setf this-col-width
-					 (max this-col-width
-					      ;; don't add a left buffer space if 1. It's the first column
-					      ;; 2. It's an array column and the previous column was also an array
-					      ;; (thus preserving the 2-space margin between arrays)
-					      ;; or 3. It's an array column and the previous column held only chars
-					      elem-width)
+				   (setf this-col-width (max this-col-width elem-width)
 					 (aref y-offsets (1+ row))
 					 (max (aref y-offsets (1+ row))
 					      (+ elem-height (aref y-offsets row) (- empty-rows))
@@ -1953,6 +1955,7 @@
 		 ;; if prepending or appending a character, it is placed in the array here;
 		 ;; this is more complicated for a collated array and it is not needed if the
 		 ;; character is the same as the default character for the array
+		 ;; (princ #\newline)
 		 (if (and append (not (char= append output-default-char)))
 		     (let ((last-dim (first (last (dims output)))))
 		       (if to-collate (across output (lambda (elem coords)
