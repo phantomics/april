@@ -574,11 +574,6 @@
 		    ;; to preserve the rank of the result
 		    (reduce ,op-left (aops:each (lambda (e) (aops:each #'disclose e))
 						(apply-scalar ,op-right ,alpha ,omega))))
-	   ;; (funcall (lambda (result)
-	   ;; 	      (if (not (and (arrayp result)
-	   ;; 			    (and (= 1 (array-total-size result))
-	   ;; 				 (not (arrayp (row-major-aref result 0))))))
-	   ;; 		  result (row-major-aref result 0)))
 	   (each-scalar t (array-inner-product ,alpha ,omega
 					       (lambda (,arg1 ,arg2)
 						 (if (or (arrayp ,arg1) (arrayp ,arg2))
@@ -604,36 +599,42 @@
 						     (,o (disclose-unitary-array (disclose ,omega))))
 						 (nest (apl-call :fn ,op-right ,a ,o))))
 					     ,alpha)))
-	       (let ((,inverse (aops:outer (lambda (,o ,a)
-					     (let ((,o (if (= 0 (rank ,o)) (disclose ,o)
-							   (if (arrayp ,o) ,o (vector ,o))))
-						   (,a (if (= 0 (rank ,a)) (disclose ,a)
-							   (if (arrayp ,a) ,a (vector ,a)))))
-					       ',right-operation
-					       (if (is-unitary ,o)
-						   ;; swap arguments in case of a
-						   ;; unitary omega argument
-						   (let ((,placeholder ,a))
-						     (setq ,a ,o
-							   ,o ,placeholder)))
-					       (each-scalar t (nest
-							       (funcall
-								;; disclose the output of
-								;; user-created functions; otherwise
-								;; fn←{⍺×⍵+1}
-								;; 1 2 3∘.fn 4 5 6 (for example)
-								;; will fail
-								,(if (and (listp right-operation)
-									  (or (eq 'function
-										  (first right-operation))
-									      (eq 'scalar-function
-										  (first right-operation))))
-								     '#'disclose '#'identity)
-								(apl-call :fn ,op-right ,a ,o))))))
-					   ,alpha ,omega)))
-		 (each-scalar t (if (not (is-unitary ,alpha))
-				    ,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
-							   ,inverse)))))))))
+	       (if (is-unitary ,alpha)
+		   (each-scalar t (aops:each (lambda (,element)
+					       (let ((,o ,element)
+						     (,a (disclose-unitary-array (disclose ,alpha))))
+						 (nest (apl-call :fn ,op-right ,a ,o))))
+					     ,omega))
+		   (let ((,inverse (aops:outer (lambda (,o ,a)
+						 (let ((,o (if (= 0 (rank ,o)) (disclose ,o)
+							       (if (arrayp ,o) ,o (vector ,o))))
+						       (,a (if (= 0 (rank ,a)) (disclose ,a)
+							       (if (arrayp ,a) ,a (vector ,a)))))
+						   ',right-operation
+						   (if (is-unitary ,o)
+						       ;; swap arguments in case of a
+						       ;; unitary omega argument
+						       (let ((,placeholder ,a))
+							 (setq ,a ,o
+							       ,o ,placeholder)))
+						   (each-scalar t (nest
+								   (funcall
+								    ;; disclose the output of
+								    ;; user-created functions; otherwise
+								    ;; fn←{⍺×⍵+1}
+								    ;; 1 2 3∘.fn 4 5 6 (for example)
+								    ;; will fail
+								    ,(if (and (listp right-operation)
+									      (or (eq 'function
+										      (first right-operation))
+										  (eq 'scalar-function
+										      (first right-operation))))
+									 '#'disclose '#'identity)
+								    (apl-call :fn ,op-right ,a ,o))))))
+					       ,alpha ,omega)))
+		     (each-scalar t (if (not (is-unitary ,alpha))
+					,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
+							       ,inverse))))))))))
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
 			    left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
