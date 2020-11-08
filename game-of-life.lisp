@@ -25,6 +25,13 @@ To calculate the next generation, just evaluate:
 (life)
 
 If no playfield exists, evaluating (life) will create a new 16x16 playfield.
+
+If you'd like to start with a specific playfield, you can do so by passing a third argument containing a binary matrix. For example:
+
+(life -10 -10 (april "(3 3⍴⍳9)∊1 2 3 4 8"))
+
+This creates a 10x10 playfield with a glider in the lower right corner; that is, a -10, -10 take of the glider matrix. Passing 10 and 10 instead of -10 and -10 will result in a 10, 10 take with the glider shape in the upper left corner.
+
 |#
 
 (defparameter *life-default-dimension* 16)
@@ -37,7 +44,7 @@ If no playfield exists, evaluating (life) will create a new 16x16 playfield.
 			 (progn (setq life-generation -1)
 				(if starting-field (april-c "{⍺↑⍵}" starting-field
 							    (vector new-height new-width))
-				    (april-c "{⎕IO←0 ⋄ ?⍺ ⍵⍴2}" (or new-width *life-default-dimension*)
+				    (april-c "{⎕IO←0 ⋄ ?(|⍺ ⍵)⍴2}" (or new-width *life-default-dimension*)
 					 (or new-height new-width *life-default-dimension*))))
 			 (april-c "{⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}" life-array)))
     (incf life-generation)

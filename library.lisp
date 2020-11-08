@@ -579,12 +579,12 @@
 	   ;; 			    (and (= 1 (array-total-size result))
 	   ;; 				 (not (arrayp (row-major-aref result 0))))))
 	   ;; 		  result (row-major-aref result 0)))
-		    (each-scalar t (array-inner-product ,alpha ,omega
-							(lambda (,arg1 ,arg2)
-							  (if (or (arrayp ,arg1) (arrayp ,arg2))
-							      (apply-scalar ,op-right ,arg1 ,arg2)
-							      (funcall ,op-right ,arg1 ,arg2)))
-							,op-left))))))
+	   (each-scalar t (array-inner-product ,alpha ,omega
+					       (lambda (,arg1 ,arg2)
+						 (if (or (arrayp ,arg1) (arrayp ,arg2))
+						     (apply-scalar ,op-right ,arg1 ,arg2)
+						     (funcall ,op-right ,arg1 ,arg2)))
+					       ,op-left))))))
 
 (defmacro apply-producing-outer (right-symbol right-operation)
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
@@ -605,8 +605,10 @@
 						 (nest (apl-call :fn ,op-right ,a ,o))))
 					     ,alpha)))
 	       (let ((,inverse (aops:outer (lambda (,o ,a)
-					     (let ((,o (if (arrayp ,o) ,o (vector ,o)))
-						   (,a (if (arrayp ,a) ,a (vector ,a))))
+					     (let ((,o (if (= 0 (rank ,o)) (disclose ,o)
+							   (if (arrayp ,o) ,o (vector ,o))))
+						   (,a (if (= 0 (rank ,a)) (disclose ,a)
+							   (if (arrayp ,a) ,a (vector ,a)))))
 					       ',right-operation
 					       (if (is-unitary ,o)
 						   ;; swap arguments in case of a
