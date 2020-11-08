@@ -1199,6 +1199,8 @@
 		       :description "More demos showing how different types of data are formatted in April."))
   (for-printed "Single integer." "5" "5")
   (for-printed "Negative integer." "¯5" "¯5")
+  (for-printed "Rational numbers." "÷⍳5" "1 1r2 1r3 1r4 1r5
+")
   (for-printed "Floating point number." "25.006" "25.006")
   (for-printed "Imaginary number." "3J9" "3J9")
   (for-printed "Numeric vector." "1+1 2 3" "2 3 4
