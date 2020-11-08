@@ -278,7 +278,7 @@
   (> (has :title "Greater")
      (dyadic (scalar-function (boolean-op >)))
      (tests (is "3>1 2 3 4 5" #*11000)))
-  (≠ (has :title "Not Equal")
+  (≠ (has :titles ("Unique Mask" "Not Equal"))
      (ambivalent #'unique-mask
 		 (scalar-function (boolean-op (λωα (not (scalar-compare omega alpha))))))
      (tests (is "≠2 4 7 4 6 8 3 5 2 4 2 5 6 7" #*11101111000000)
@@ -767,8 +767,7 @@
      (tests (is "⊣77" #0A0)
 	    (is "55⊣77" 55)))
   (⍕ (has :titles ("Format" "Format At Precision"))
-     (ambivalent (format-array print-precision)
-		 (format-array print-precision))
+     (ambivalent (format-array print-precision) (format-array print-precision))
      (tests (is "⍕3 4⍴⍳9" #2A((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)
 			      (#\9 #\  #\1 #\  #\2 #\  #\3)))
 	    (is "⍕2 3 4⍴⍳9" #3A(((#\1 #\  #\2 #\  #\3 #\  #\4) (#\5 #\  #\6 #\  #\7 #\  #\8)

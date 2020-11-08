@@ -430,12 +430,19 @@
 (defun format-array (print-precision)
   (lambda (omega &optional alpha)
     (if (not alpha)
-	(array-impress omega :collate t :format (lambda (n) (print-apl-number-string n print-precision)))
+	(array-impress omega :collate t
+		       :segment (lambda (number &optional segments)
+				  (aplesque::count-segments number print-precision segments))
+		       :format (lambda (number &optional segments)
+				 (print-apl-number-string number segments print-precision)))
 	(if (not (integerp alpha))
 	    (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
 				" the precision at which to print floating-point numbers."))
 	    (array-impress omega :collate t
-			   :format (lambda (n) (print-apl-number-string n print-precision alpha)))))))
+			   :segment (lambda (number &optional segments)
+				      (aplesque::count-segments number (- alpha) segments))
+			   :format (lambda (number &optional segments)
+				     (print-apl-number-string number segments print-precision alpha)))))))
 
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
   (let ((omega (gensym)) (o (gensym)) (a (gensym)) (symstring (string operation-symbol)))
@@ -506,7 +513,7 @@
 					 (loop :for ,a :in (dims ,alpha) :for ,o :in (dims ,omega)
 					      :always (= ,a ,o)))
 				    (aops:each (lambda (,o ,a)
-						 (nest (apl-call ,symbol ,dyadic-op (enclose ,o) (enclose ,a))))
+						 (nest (apl-call ,symbol ,dyadic-op ,o ,a)))
 					       ,omega ,alpha))
 				   (t (error "Mismatched argument shapes to ¨.")))
 		      (aops:each (lambda (,item) (nest (apl-call ,symbol ,monadic-op (disclose ,item))))

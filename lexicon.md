@@ -41,7 +41,7 @@
 
 [>] Greater
 
-[≠] Not Equal
+[≠] Unique Mask / Not Equal
 
 [∧] And
 
