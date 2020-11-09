@@ -207,11 +207,14 @@
 										  0 (- (second segments))))
 						      precision)
 		 (print-apl-number-string (imagpart number) (if (third segments)
-								(list (- (third segments)) (or (fourth segments) 0))
+								(list (- (third segments))
+								      (or (fourth segments) 0))
 								(list (second segments) 0))
 					  precision)))
-	((or (integerp number) (zerop number))
+	((integerp number)
 	 (let ((output (format nil (format nil "~~~d,'~ad~a" (abs (first segments))
+					   ;; for negative values, empty space to the left must initially
+					   ;; be filled with ¯ characters; the reasoning is explained below
 					   (if (>= 0 number) #\¯ (if (> 0 (first segments)) #\0 #\ ))
 					   (if (not (and (second segments)
 							 (or (> 0 (first segments))
@@ -221,6 +224,11 @@
 			       (abs number)))
 	       (number-found))
 	   (if (> 0 number)
+	       ;; replace ¯ padding with zeroes or spaces as appropriate; this strange system
+	       ;; of initially padding with ¯ is needed because ¯ is an extended unicode character
+	       ;; and strings of numeric characters are rendered as base-char arrays by (format),
+	       ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
+	       ;; by (format) so that the output string is of type 'character; this is also done for floats
 	       (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
 		  :do (if (alphanumericp (aref output i))
 			  (setq number-found t)
@@ -244,6 +252,7 @@
 								   (- (first segments)
 								      (length (first number-sections))))))
 						      right-padding))))
+		  ;; total number length is left space + right space + one for decimal dot
 		  (total-length (+ 1 left-space right-space))
 		  (output (format nil (format nil "~~~d,~d,,,'~af~a" total-length right-space
 					      (if (> 0 number)
@@ -252,13 +261,7 @@
 						  "" (make-array right-padding :element-type 'base-char
 								 :initial-element #\ )))
 				  (abs number))))
-	     
 	     (if (> 0 number)
-		 ;; replace ¯ padding with zeroes or spaces as appropriate; this strange system
-		 ;; of initially padding with ¯ is needed because ¯ is an extended unicode character
-		 ;; and strings of numeric characters are rendered as base-char arrays by (format),
-		 ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
-		 ;; by (format) so that the output string is of type 'character
 		 (let ((start-at (if (< 0 (first segments)) 0 1)))
 		   (loop :for i :from start-at :while (char= #\¯ (aref output i))
 		      :when (or (= 1 start-at) (char= #\¯ (aref output (1+ i))))
