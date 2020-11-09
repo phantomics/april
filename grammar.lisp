@@ -264,6 +264,20 @@
 	    (enclose-axes `(inws, symbol)
 			  symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))))))
   '(:type (:array :assigned :by-result-assignment-operator)))
+ (selective-assignment
+  ;; match a selective value assignment
+  ((:with-preceding-type :array)
+   (assignment-function :element (function :glyph ←))
+   (selection-form :pattern (:type (:array) :special '(:omit (:value-assignment)))))
+  (if (and (listp selection-form) (eql 'apl-call (first selection-form))
+	   (member (second selection-form) '(↑ ↓ / ⊃)))
+      (let ((index-array (gensym)) (indices (gensym))
+	    (array-assigning (fourth selection-form)))
+	(setf (fourth selection-form) index-array)
+	`(let* ((,index-array (generate-index-array ,array-assigning))
+		(,indices (enclose ,selection-form)))
+	   (setq ,array-assigning (assign-selected ,array-assigning ,indices ,precedent)))))
+  '(:type (:array :assigned)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
   ((:with-preceding-type :array)
