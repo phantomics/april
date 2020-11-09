@@ -381,18 +381,25 @@
    ;; (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
    (center :element function :times 1 :special '(:omit (:value-assignment :function-assignment)))
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
-  (destructuring-bind (right center omega) (list precedent (resolve-function :dyadic center) (gensym))
+  (destructuring-bind (right center omega alpha)
+      (list precedent (resolve-function :dyadic center) (gensym) (gensym))
     (if (and center (or (= 1 (length pre-properties))
  			(and (member :train-composition (getf (first pre-properties) :type))
  			     (not (member :closed (getf (first pre-properties) :type))))))
  	;; train composition is only valid when there is only one function in the precedent
  	;; or when continuing a train composition as for (×,-,÷)5
- 	`(lambda (,omega)
- 	   (apl-call ,(or-functional-character center :fn) ,center
-    		     (apl-call ,(or-functional-character right :fn) ,(resolve-function :monadic right) ,omega)
-    		     ,(let ((left-fn (resolve-function :monadic left)))
- 			(if (not left-fn)
- 			    left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega)))))))
+ 	`(lambda (,omega &optional ,alpha)
+	   (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
+				(apl-call ,(or-functional-character right :fn) ,(resolve-function :dyadic right)
+					  ,omega ,alpha)
+				,(let ((left-fn (resolve-function :dyadic left)))
+				   (if (not left-fn)
+				       left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega ,alpha))))
+	       (apl-call ,(or-functional-character center :fn) ,center
+			 (apl-call ,(or-functional-character right :fn) ,(resolve-function :monadic right) ,omega)
+			 ,(let ((left-fn (resolve-function :monadic left)))
+			    (if (not left-fn)
+				left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega))))))))
   (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
  ;; (train-composition
  ;;  ;; match a train function composition like (-,÷)
