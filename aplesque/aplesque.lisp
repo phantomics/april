@@ -926,20 +926,18 @@
 			(if (= (first (last (dims set)))
 			       (first (last (dims to-search))))
 			    (let ((vectors (reduce #'* (butlast (dims to-search))))
-					    (last-dim (first (last (dims to-search)))))
-					(make-array vectors :initial-contents
-						    (loop :for i :below vectors
-						       :collect (make-array last-dim
-									    :element-type
-									    (element-type to-search)
-									    :displaced-to to-search
-									    :displaced-index-offset
-									    (* i last-dim)))))
+				  (last-dim (first (last (dims to-search)))))
+			      (make-array vectors :initial-contents
+					  (loop :for i :below vectors
+					     :collect (make-array last-dim
+								  :element-type (element-type to-search)
+								  :displaced-to to-search
+								  :displaced-index-offset
+								  (* i last-dim)))))
 			    (error "Mismatch between array shapes - the last axes of ~w"
 				   "arguments to dyadic ⍳ must have the same length."))))
 	 (to-find (if (vectorp set)
-		      (remove-duplicates set :from-end t)
-		      (vector set)))
+		      set (vector set)))
 	 (maximum (+ count-from (length to-find)))
 	 (results (make-array (dims to-search) :element-type 'number)))
     (dotimes (index (array-total-size results))
