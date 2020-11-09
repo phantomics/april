@@ -11,5 +11,6 @@
 	   #:array-impress #:matrix-print #:disclose-unitary-array #:apply-scalar #:each-boolean
 	   #:each-scalar #:get-first-or-disclose #:assign-element-type #:type-in-common
 	   #:initialize-for-environment #:disclose-scalar-elements)
-  (:use #:cl #:alexandria #:array-operations #:parse-number #:symbol-munger)
-  (:shadowing-import-from #:array-operations #:flatten))
+  (:use #:cl #:cl-ppcre #:alexandria #:array-operations #:parse-number #:symbol-munger)
+  (:shadowing-import-from #:array-operations #:flatten)
+  (:shadowing-import-from #:cl-ppcre #:split))

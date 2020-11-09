@@ -1179,6 +1179,19 @@
        "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
        #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 	   (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+  (for "Selective assignment of vector portion to value by take function."
+       "x←⍳8 ⋄ (3↑x)←20 ⋄ x" #(20 20 20 4 5 6 7 8))
+  (for "Selective assignment of vector portion to sub-vector by take function."
+       "x←⍳8 ⋄ (3↑x)←20 21 22 ⋄ x" #(20 21 22 4 5 6 7 8))
+  (for "Selective assignment of matrix portion to value by drop function."
+       "x←4 5⍴⍳20 ⋄ (2 3↓x)←0 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 0 0) (16 17 18 0 0)))
+  (for "Selective assignment of matrix portion to sub-matrix by drop function."
+       "x←4 5⍴⍳20 ⋄ (2 3↓x)←2 2⍴-⍳4 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 -1 -2) (16 17 18 -3 -4)))
+  (for "Selective assignment of matrix element by pick function."
+       "x←3 4⍴⍳12 ⋄ ((⊂2 3)⊃x)←50 ⋄ x" #2A((1 2 3 4) (5 6 50 8) (9 10 11 12)))
+  (for "Selective assignment of array elements by compress function."
+       "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
+					   (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
   (for "Basic three-element function train."
        "(-,÷)5" #(-5 1/5))
   (for "Five-element function train."
