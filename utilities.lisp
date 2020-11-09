@@ -215,7 +215,7 @@
 	 (let ((output (format nil (format nil "~~~d,'~ad~a" (abs (first segments))
 					   ;; for negative values, empty space to the left must initially
 					   ;; be filled with ¯ characters; the reasoning is explained below
-					   (if (>= 0 number) #\¯ (if (> 0 (first segments)) #\0 #\ ))
+					   (if (> 0 number) #\¯ (if (> 0 (first segments)) #\0 #\ ))
 					   (if (not (and (second segments)
 							 (or (> 0 (first segments))
 							     (> 0 (second segments)))))
@@ -530,8 +530,7 @@ It remains here as a standard against which to compare methods for composing APL
 		   (enclose-symbol item)))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
-		   (if (or (eql 'avector (first form))
-			   (eql 'apl-call (first form)))
+		   (if (eql 'avector (first form))
 		       form (if (not (or (numberp (first form))
 					 (listp (first form))
 					 (stringp (first form))

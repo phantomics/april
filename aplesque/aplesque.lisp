@@ -506,7 +506,9 @@
 	 (offset (if (and uneven (< rank1 rank2)) 1 (nth axis (dims a1))))
 	 (output-type (type-in-common (if (arrayp a1) (element-type a1) (assign-element-type a1))
 				      (if (arrayp a2) (element-type a2) (assign-element-type a2)))))
-    (if (> axis (1- max-rank)) (error "Invalid axis (~a) for array with ~a dimensions." (1+ axis) max-rank))
+    (if (and (> axis (1- max-rank))
+	     (not (and (= 0 axis max-rank))))
+	(error "Invalid axis (~a) for array with ~a dimensions." (1+ axis) max-rank))
     (if (loop :for a :in (list a1 a2) :always (= 0 (rank a)))
 	(make-array 2 :element-type output-type :initial-contents (list a1 a2))
 	;; find the shape of the output using the higher-rank array as reference
