@@ -1199,18 +1199,19 @@
   (for "Selective assignment of array elements by compress function."
        "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
 					   (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
-  (for "Basic three-element monadic function train."
-       "(-,÷)5" #(-5 1/5))
-  (for "Five-element monadic function train."
-       "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
+  (for "Basic three-element monadic function train." "(-,÷)5" #(-5 1/5))
+  (for "Three-element monadic function train with inline function." "(+ {⍺×⍵} -)5" -25)
+  (for "Three-element monadic function train with variable-referenced and inline functions."
+       "f←{⍺×⍵} ⋄ ({3+⍵} f -)5" -40)
+  (for "Five-element monadic function train." "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
   (for "Five-element monadic function train with second argument value at end."
        "(3 5⍴-,÷)5" #2A((-5 1/5 -5 1/5 -5) (1/5 -5 1/5 -5 1/5) (-5 1/5 -5 1/5 -5)))
   (for "Three-element dyadic function train."
        "' ' (≠⊆⊢) ' one two  three'" #(#0A"one" #0A"two" #0A"three"))
   (for "Three-element dyadic function train with left argument value."
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
-  (for "Five-element dyadic function train."
-       "' ' (∊,≠⊆⊢) ' one two  three'" #(1 #0A"one" #0A"two" #0A"three"))
+  (for "Five-element dyadic function train with variable-referenced function."
+       "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 #0A"one" #0A"one" #0A"two" #0A"three"))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
