@@ -378,17 +378,19 @@
   ;; match a train function composition like (-,÷)
   ((:with-preceding-type :function)
    ;; TODO: two subsequent function pattern matches causes exponentially long compile times, fix this
-   ;; (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
-   (center :element function :times 1 :special '(:omit (:value-assignment :function-assignment)))
+   (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
+   ;; (center :element function :times 1 :special '(:omit (:value-assignment :function-assignment)))
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
-  (destructuring-bind (right center omega alpha)
-      (list precedent (resolve-function :dyadic center) (gensym) (gensym))
+  (destructuring-bind (right omega alpha center)
+      (list precedent (gensym) (gensym)
+	    (resolve-function :dyadic (if (characterp center)
+					  center (if (symbolp center) (intern (string center) space)))))
     (if (and center (or (= 1 (length pre-properties))
- 			(and (member :train-composition (getf (first pre-properties) :type))
- 			     (not (member :closed (getf (first pre-properties) :type))))))
- 	;; train composition is only valid when there is only one function in the precedent
- 	;; or when continuing a train composition as for (×,-,÷)5
- 	`(lambda (,omega &optional ,alpha)
+			(and (member :train-composition (getf (first pre-properties) :type))
+			     (not (member :closed (getf (first pre-properties) :type))))))
+	;; train composition is only valid when there is only one function in the precedent
+	;; or when continuing a train composition as for (×,-,÷)5
+	`(lambda (,omega &optional ,alpha)
 	   (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
 				(apl-call ,(or-functional-character right :fn) ,(resolve-function :dyadic right)
 					  ,omega ,alpha)
@@ -401,27 +403,6 @@
 			    (if (not left-fn)
 				left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega))))))))
   (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
- ;; (train-composition
- ;;  ;; match a train function composition like (-,÷)
- ;;  ((:with-preceding-type :function)
- ;;   (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
- ;;  (if (or (= 1 (length pre-properties))
- ;; 	  (and (eq :train-composition (second (getf (first pre-properties) :type)))
- ;; 	       (not (eq :closed (third (getf (first pre-properties) :type))))))
- ;;      ;; train composition is only valid when there is only one function in the precedent
- ;;      ;; or when continuing a train composition as for (×,-,÷)5
- ;;      (if (and (listp precedent) (eql 'train-section (first precedent)))
- ;; 	  (destructuring-bind (omega center right) (cons (gensym) (rest precedent))
- ;; 	    `(lambda (,omega)
- ;; 	       (apl-call ,(or-functional-character center :fn)
- ;; 			 ,(resolve-function :dyadic center)
- ;;    			 (apl-call ,(or-functional-character right :fn)
- ;; 				   ,(resolve-function :monadic right) ,omega)
- ;;    			 ,(let ((left-fn (resolve-function :monadic left)))
- ;; 			    (if (not left-fn)
- ;; 				left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega))))))
- ;; 	  (if (resolve-function :dyadic left) `(train-section ,left ,precedent))))
- ;;  (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
   ;; it may come after either a function or an array, since some operators take array operands
