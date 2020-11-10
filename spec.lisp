@@ -985,6 +985,13 @@
   	    (is "⌊10000×+∘÷/40/1" 16180)
   	    (is "fn←+/ ⋄ fn∘⍳¨2 5 8" #(3 15 36))
   	    (is "3 4⍴∘⍴2 4 5⍴9" #2A((2 4 5 2) (4 5 2 4) (5 2 4 5)))))
+  (⍥ (has :title "Over")
+     (pivotal (with-operand-derived (right-glyph right-function-monadic
+						 left-glyph left-function-monadic left-function-dyadic)
+		(lambda (right left)
+		  `(apply-over ,right-glyph ,right ,right-function-monadic
+			       ,left-glyph ,left ,left-function-monadic ,left-function-dyadic))))
+     (tests (is "s←88 67 72 ⋄ w←15 35 22 ⋄ (w×s)÷⍥(+/)w" 5249/72)))
   (⍤ (has :title "Rank")
      (pivotal (with-operand-derived (left-glyph left-function-monadic left-function-dyadic)
 		(lambda (right left)

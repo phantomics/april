@@ -145,6 +145,8 @@
 
 [∘] Compose
 
+[⍥] Over
+
 [⍤] Rank
 
 [⍣] Power
