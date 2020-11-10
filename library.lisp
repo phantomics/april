@@ -674,7 +674,7 @@
 							       ,inverse))))))))))
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
-			    left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
+			  left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
   (let* ((alpha (gensym)) (omega (gensym)) (processed (gensym))
 	 (fn-right (or right-function-monadic right-function-dyadic))
 	 (fn-left (or left-function-monadic left-function-dyadic)))
@@ -689,6 +689,16 @@
 	    `(apl-call :fn ,(or right-function-dyadic left-function-dyadic)
 		       ,(if (not fn-right) right-value omega)
 		       ,(if (not fn-left) left-value omega))))))
+
+(defmacro apply-over (right-symbol right-value right-function-monadic
+		      left-symbol left-value left-function-monadic left-function-dyadic)
+  (let ((alpha (gensym)) (omega (gensym)))
+    `(lambda (,omega &optional ,alpha)
+       (if ,alpha (apl-call ,left-symbol ,left-function-dyadic
+			    (apl-call ,right-symbol ,right-function-monadic ,omega)
+			    (apl-call ,right-symbol ,right-function-monadic ,alpha))
+	   (apl-call ,left-symbol ,left-function-monadic
+		     (apl-call ,right-symbol ,right-function-monadic ,omega))))))
 
 (defmacro apply-at-rank (right-value left-symbol left-function-monadic left-function-dyadic)
   (let ((rank (gensym)) (orank (gensym)) (arank (gensym)) (fn (gensym))
