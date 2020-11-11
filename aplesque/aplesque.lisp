@@ -452,53 +452,65 @@
 		     new-layer)
 	    uniform possible-depth)))
 
-(defun section (input dimensions &key (inverse nil) (fill-with nil))
+(defun section (input dimensions &key (inverse nil) (populator nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-  (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
-      ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
-      ;; passed to the function to create the empty output array
-      (make-array (append (array-to-list dimensions)
-			  (loop :for i :from (length dimensions) :to (1- (rank input))
-			     :collect (nth i (dims input))))
-		  :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
-				    (element-type (aref (row-major-aref input 0)))
-				    (assign-element-type (row-major-aref input 0))))
-      (let ((rdiff (- (rank input) (length dimensions)))
-	    (idims (make-array (rank input) :element-type (list 'integer 0 (size input))
-			       :initial-contents (dims input))))
-	(if (< 0 rdiff)
-	    (setq dimensions (make-array (rank input) :element-type (list 'integer 0 (size input))
-					 :initial-contents (loop :for x :below (rank input)
-							      :collect (if (< x rdiff) (aref dimensions x)
-									   (if inverse 0 (aref idims x))))))
-	    (if (> 0 rdiff)
-		(error "Too many subscripts (~w) for input array of rank ~w." (length dimensions) (rank input))))
-	(if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
-	    (make-array (loop :for i :below (rank input) :collect 0))
-	    (let* ((fill-element (apl-array-prototype input))
-		   (output (make-array (loop :for odim :across dimensions :for idim :across idims
-					    :collect (if (not inverse) (abs odim) (- idim (abs odim))))
-				       :element-type (element-type input)
-				       :initial-element (or fill-with fill-element))))
-	      (if (< 0 (size input))
-		  (across input (lambda (element coords)
-				  (setf (apply #'aref output
-					       (loop :for c :in coords :for cx :from 0
-						  :collect (- c (if inverse (if (> 0 (aref dimensions cx))
-										0 (aref dimensions cx))
-								    (if (< 0 (aref dimensions cx))
-									0 (+ (aref dimensions cx)
-									     (aref idims cx)))))))
-					element))
-			  :ranges (loop :for d :across dimensions :for dx :from 0
-				     :collect (let ((point (if inverse (if (> 0 d) 0 d)
-							       (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
-						(list point (if inverse
-								(+ point (- (aref idims dx)
-									    1 (abs (aref dimensions dx))))
-								(+ -1 point (min (abs (aref dimensions dx))
-										 (aref idims dx)))))))))
-	      output)))))
+  (if (= 0 (rank input))
+      (if inverse #()
+	  (let ((output (make-array (array-to-list dimensions)
+				    :element-type (assign-element-type input)
+				    :initial-element (if (not populator) (apl-array-prototype input)))))
+	    (if populator (loop :for i :below (size output) :do (setf (row-major-aref output i)
+								      (funcall populator)))
+		(if (< 0 (size output))
+		    (setf (row-major-aref output 0) input)))
+	    output))
+      (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
+	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
+	  ;; passed to the function to create the empty output array
+	  (make-array (append (array-to-list dimensions)
+			      (loop :for i :from (length dimensions) :to (1- (rank input))
+				 :collect (nth i (dims input))))
+		      :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
+					(element-type (aref (row-major-aref input 0)))
+					(assign-element-type (row-major-aref input 0))))
+	  (let ((rdiff (- (rank input) (length dimensions)))
+		(idims (make-array (rank input) :element-type (list 'integer 0 (size input))
+				   :initial-contents (dims input))))
+	    (if (< 0 rdiff)
+		(setq dimensions (make-array (rank input) :element-type (list 'integer 0 (size input))
+					     :initial-contents (loop :for x :below (rank input)
+								  :collect (if (< x rdiff) (aref dimensions x)
+									       (if inverse 0 (aref idims x))))))
+		(if (> 0 rdiff)
+		    (error "Too many subscripts (~w) for input array of rank ~w." (length dimensions) (rank input))))
+	    (if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
+		(make-array (loop :for i :below (rank input) :collect 0))
+		(let* ((fill-element (apl-array-prototype input))
+		       (output (make-array (loop :for odim :across dimensions :for idim :across idims
+					      :collect (if (not inverse) (abs odim) (- idim (abs odim))))
+					   :element-type (if populator t (element-type input))
+					   :initial-element (if (not populator) fill-element))))
+		  (if populator (loop :for i :below (size output) :do (setf (row-major-aref output i)
+									    (funcall populator))))
+		  (if (< 0 (size input))
+		      (across input (lambda (element coords)
+				      (setf (apply #'aref output
+						   (loop :for c :in coords :for cx :from 0
+						      :collect (- c (if inverse (if (> 0 (aref dimensions cx))
+										    0 (aref dimensions cx))
+									(if (< 0 (aref dimensions cx))
+									    0 (+ (aref dimensions cx)
+										 (aref idims cx)))))))
+					    element))
+			      :ranges (loop :for d :across dimensions :for dx :from 0
+					 :collect (let ((point (if inverse (if (> 0 d) 0 d)
+								   (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
+						    (list point (if inverse
+								    (+ point (- (aref idims dx)
+										1 (abs (aref dimensions dx))))
+								    (+ -1 point (min (abs (aref dimensions dx))
+										     (aref idims dx)))))))))
+		  output))))))
 
 (defun catenate (a1 a2 axis)
   (let* ((rank1 (rank a1)) (rank2 (rank a2))
@@ -753,7 +765,7 @@
 		  (make-array output-length :element-type (element-type input)
 			      :initial-contents (reverse output))))))
 
-(defun reshape-to-fit (input output-dims)
+(defun reshape-to-fit (input output-dims &key (populator))
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (or (not (arrayp input))
 	  (= 0 (rank input)))
@@ -762,25 +774,16 @@
           (row-major-aref input 0)
           (let* ((input-length (array-total-size input))
                  (output-length (reduce #'* output-dims))
-                 (input-index 0)
-                 (input-displaced
-                   (if (vectorp input)
-                       input (make-array input-length :displaced-to input
-					 :element-type (element-type input))))
-                 (output (make-array output-dims :element-type (element-type input)))
-                 (output-displaced
-                   (if (not (rest output-dims))
-                       output (make-array output-length
-                                          :displaced-to output :element-type (element-type input)))))
+                 (output (make-array output-dims :element-type (if populator t (element-type input)))))
             (declare (dynamic-extent input-index)
                      ;; TODO: optimization caused problems due to type uncertainty; solution?
                      ;; (optimize (safety 0) (speed 3))
                      )
-            (loop :for index :below output-length
-                  :do (setf (aref output-displaced index)
-                            (aref input-displaced input-index)
-                            input-index (if (= input-index (1- input-length))
-                                            0 (1+ input-index))))
+	    (if (or populator (< 0 (size input)))
+		(loop :for index :below output-length
+		   :do (setf (row-major-aref output index)
+			     (if populator (funcall populator)
+				 (row-major-aref input (mod index input-length))))))
             output))))
 
 
@@ -911,6 +914,22 @@
 	     (setf (row-major-aref output x) result)))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
+
+;; (defun array-outer-product (alpha omega function)
+;;   "Find the inner product of two arrays with two functions."
+;;   (let* ((adims (dims alpha)) (odims (dims omega))
+;; 	 (asize (size alpha)) (osize (size omega))
+;; 	 (ovectors (if (not (rest odims))
+;; 		       (first odims) (reduce #'* (rest odims))))
+;; 	 (output (make-array (append adims odims))))
+;;     (loop :for x :below (size output)
+;;        :do (let ((avix (floor (/ x ovectors)))
+;; 		    (ovix (mod x ovectors)))
+;; 	     (setf (row-major-aref output x)
+;; 		   (apply-scalar function (row-major-aref alpha avix)
+;; 				 (row-major-aref omega ovix)))))
+;;     (funcall (if (= 0 (rank output)) #'disclose #'identity)
+;; 	     output)))
 
 (defun index-of (to-search set count-from)
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."

@@ -260,7 +260,7 @@
 	    (function-axes (getf (first properties) :axes)))
 	(if (not symbol-axes)
 	    `(setq (inws ,symbol) (apl-call ,fn-sym ,fn-content (inws ,symbol) ,precedent
-				     ,@(if function-axes `((list ,@(first function-axes))))))
+					    ,@(if function-axes `((list ,@(first function-axes))))))
 	    (enclose-axes `(inws, symbol)
 			  symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))))))
   '(:type (:array :assigned :by-result-assignment-operator)))
