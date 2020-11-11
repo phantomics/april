@@ -598,9 +598,9 @@
 		 (let ((output (make-array (abs degrees)
 					   :element-type (element-type input)
 					   :initial-element (if (not populator) (apl-array-prototype input)))))
-		   (loop :for i :below (length output) :do (setf (row-major-aref output i)
-								 (make-array nil :initial-element
-									     (funcall populator))))
+		   (if populator (loop :for i :below (length output) :do (setf (row-major-aref output i)
+									       (make-array nil :initial-element
+											   (funcall populator)))))
 		   output))))
 	((and (or (not (arrayp input))
 		  (= 0 (rank input)))
@@ -810,7 +810,6 @@
 				   (if (not (arrayp item)) item (copy-array item)))))))
             output))))
 
-
 (defun near-realp (x)
   (or (realp x)
       (> single-float-epsilon (abs (imagpart x)))))
@@ -939,21 +938,25 @@
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
-;; (defun array-outer-product (alpha omega function)
-;;   "Find the inner product of two arrays with two functions."
-;;   (let* ((adims (dims alpha)) (odims (dims omega))
-;; 	 (asize (size alpha)) (osize (size omega))
-;; 	 (ovectors (if (not (rest odims))
-;; 		       (first odims) (reduce #'* (rest odims))))
-;; 	 (output (make-array (append adims odims))))
-;;     (loop :for x :below (size output)
-;;        :do (let ((avix (floor (/ x ovectors)))
-;; 		    (ovix (mod x ovectors)))
-;; 	     (setf (row-major-aref output x)
-;; 		   (apply-scalar function (row-major-aref alpha avix)
-;; 				 (row-major-aref omega ovix)))))
-;;     (funcall (if (= 0 (rank output)) #'disclose #'identity)
-;; 	     output)))
+(defun array-outer-product (alpha omega function)
+  "Find the inner product of two arrays with two functions."
+  (let* ((ascalar (if (= 0 (rank alpha)) (disclose alpha)))
+	 (oscalar (if (= 0 (rank omega)) (disclose omega)))
+	 (adims (if (not ascalar) (dims alpha)))
+	 (odims (if (not oscalar) (dims omega)))
+	 (asize (if (not ascalar) (size alpha)))
+	 (osize (if (not oscalar) (size omega)))
+	 (ovectors (or (if (and (not oscalar) (not (rest odims)))
+			   (first odims) (reduce #'* (rest odims)))
+		       1))
+	 (output (make-array (append adims odims))))
+    (loop :for x :below (size output)
+       :do (let ((aitem (or ascalar (disclose (row-major-aref alpha (floor (/ x ovectors))))))
+		 (oitem (or oscalar (disclose (row-major-aref omega (mod x ovectors))))))
+	     (setf (row-major-aref output x)
+		   (nest (funcall function aitem oitem)))))
+    (funcall (if (= 0 (rank output)) #'disclose #'identity)
+	     output)))
 
 (defun index-of (to-search set count-from)
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
@@ -1169,7 +1172,7 @@
 		       (incf (apply #'aref output match)))))
 	  output))))
 
-(defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil));; (enclose-output nil))
+(defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
   (if (and (/= (length aindices) (rank input))
 	   (not (arrayp (first aindices))))
@@ -1747,9 +1750,7 @@
 				(if (complexp value)
 				    (if (is-rational-fraction (imagpart value))
 					(process-rational (imagpart value))
-					(funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (imagpart value))))
-						     #'butlast #'identity)
-						 (cl-ppcre:split #\. (write-to-string (imagpart value)))))))))
+				        (cl-ppcre:split #\. (write-to-string (imagpart value))))))))
 	   (more-strings (< (length segments) (length strings)))
 	   (precision (+ precision (if (and (realp value) (> 0 value)) 1 0))))
       ;; TODO: provide for e-notation
