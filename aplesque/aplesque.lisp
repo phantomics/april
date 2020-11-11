@@ -455,14 +455,12 @@
 (defun section (input dimensions &key (inverse nil) (populator nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
   (if (= 0 (rank input))
-      (if inverse #()
+      (if inverse (make-array 0)
 	  (let ((output (make-array (array-to-list dimensions)
 				    :element-type (assign-element-type input)
-				    :initial-element (if (not populator) (apl-array-prototype input)))))
-	    (if populator (loop :for i :below (size output) :do (setf (row-major-aref output i)
-								      (funcall populator)))
-		(if (< 0 (size output))
-		    (setf (row-major-aref output 0) input)))
+				    :initial-element (apl-array-prototype input))))
+	    (if (< 0 (size output))
+		(setf (row-major-aref output 0) input))
 	    output))
       (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
 	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
@@ -491,7 +489,9 @@
 					   :element-type (if populator t (element-type input))
 					   :initial-element (if (not populator) fill-element))))
 		  (if populator (loop :for i :below (size output) :do (setf (row-major-aref output i)
-									    (funcall populator))))
+									    (make-array
+									     nil :initial-element
+									     (funcall populator)))))
 		  (if (< 0 (size input))
 		      (across input (lambda (element coords)
 				      (setf (apply #'aref output
@@ -578,9 +578,22 @@
       ;; match the other array's dimensions
       (catenate (or pa1 a1) (or pa2 a2)	axis))))
 
-(defun expand-array (degrees input axis &key (compress-mode nil))
+(defun expand (degrees input axis &key (compress-mode) (populator))
   "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
-  (cond ((and (or (not (arrayp input))
+  (cond ((= 0 (size input))
+	 (if compress-mode
+	     (error "An empty array cannot be compressed.")
+	     (if (or (arrayp degrees)
+		     (not (> 0 degrees)))
+		 (error "An empty array can only be expanded to a single negative degree.")
+		 (let ((output (make-array (abs degrees)
+					   :element-type (element-type input)
+					   :initial-element (if (not populator) (apl-array-prototype input)))))
+		   (loop :for i :below (length output) :do (setf (row-major-aref output i)
+								 (make-array nil :initial-element
+									     (funcall populator))))
+		   output))))
+	((and (or (not (arrayp input))
 		  (= 0 (rank input)))
 	      (not (arrayp degrees)))
 	 (make-array degrees :element-type (type-of input) :initial-element input))
@@ -782,7 +795,8 @@
 	    (if (or populator (< 0 (size input)))
 		(loop :for index :below output-length
 		   :do (setf (row-major-aref output index)
-			     (if populator (funcall populator)
+			     (if populator (make-array nil :initial-element
+						       (funcall populator))
 				 (row-major-aref input (mod index input-length))))))
             output))))
 

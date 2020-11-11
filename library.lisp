@@ -73,22 +73,12 @@
   (lambda (omega alpha)
     (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
 					    (list alpha))
-				  :populator (if (and (= 0 (size omega)))
-						 (let ((empty-prototype (get-workspace-item-meta
-									 metadata-symbol omega :eaprototype)))
-						   (if empty-prototype
-						       (destructuring-bind (type &rest dims) empty-prototype
-							 (lambda ()
-							   (make-array nil :initial-contents
-								       (make-array dims :element-type type
-										   :initial-element
-										   (if (eql 'character type)
-										       #\  0)))))))))))
+				  :populator (build-populator metadata-symbol omega))))
       (if (and (= 0 (size output)) (arrayp (row-major-aref omega 0)))
-	  (let ((prototype (funcall (if (= 0 (rank omega)) #'identity #'aref)
-				    (row-major-aref omega 0))))
-	    (set-workspace-item-meta metadata-symbol output
-				     :eaprototype (cons (element-type prototype) (dims prototype)))))
+	  (set-workspace-item-meta metadata-symbol output
+				   :eaprototype
+				   (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
+							       (row-major-aref omega 0)))))
       output)))
 
 (defun at-index (omega alpha axes index-origin)
@@ -236,28 +226,15 @@
 								       (if (= axis (- (first axes) index-origin))
 									   alpha-index (nth axis (dims omega))))))
 				      alpha)
-			    :inverse inverse :populator (if (= 0 (size omega))
-					     		    (let ((empty-prototype
-					     			   (get-workspace-item-meta
-					     			    metadata-symbol omega :eaprototype)))
-					     		      (if empty-prototype
-					     			  (destructuring-bind (type &rest dims)
-					     			      empty-prototype
-					     			    (lambda ()
-					     			      (make-array
-					     			       nil :initial-contents
-					     			       (make-array dims :element-type type
-					     					   :initial-element
-					     					   (if (eql 'character type)
-					     					       #\  0)))))))))))
+			    :inverse inverse :populator (build-populator metadata-symbol omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
       (if (and (= 0 (size output))
 	       (not inverse) (arrayp (row-major-aref omega 0)))
-	  (let ((prototype (funcall (if (= 0 (rank omega)) #'identity #'aref)
-				    (row-major-aref omega 0))))
-	    (set-workspace-item-meta metadata-symbol output
-				     :eaprototype (cons (element-type prototype) (dims prototype)))))
+	  (set-workspace-item-meta metadata-symbol output
+				   :eaprototype
+				   (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
+							       (row-major-aref omega 0)))))
       output)))
 
 (defun pick (index-origin)
@@ -284,6 +261,16 @@
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic ⊃ may not be unitary.")
 	  (disclose (pick-point alpha omega))))))
+
+(defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
+  (let ((output (expand degrees input axis :compress-mode compress-mode
+			:populator (build-populator metadata-symbol input))))
+    (if (and (= 0 (size output)) (arrayp input) (arrayp (row-major-aref input 0)))
+	(set-workspace-item-meta metadata-symbol output
+				 :eaprototype
+				 (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
+							     (row-major-aref input 0)))))
+    output))
 
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."

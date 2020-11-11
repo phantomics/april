@@ -104,6 +104,21 @@
       (let ((data (gethash item (symbol-value symbol))))
 	(apply #'values (loop :for key :in keys :collect (getf data key))))))
 
+(defun build-populator (metadata-symbol input)
+  (if (and (= 0 (size input))
+	   (get-workspace-item-meta metadata-symbol input :eaprototype))
+      (lambda () (copy-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
+
+(defun make-prototype-of (array)
+  (if (not (eq t (element-type array)))
+      (make-array (dims array) :element-type (element-type array)
+		  :initial-element (if (member (element-type array) '(base-char character)) #\  0))
+      (let ((output (make-array (dims array))))
+	(loop :for i :below (size output) :do (setf (row-major-aref output i)
+						    (if (not (arrayp (row-major-aref array i)))
+							0 (make-prototype-of (row-major-aref array i)))))
+	output)))
+
 (defmacro print-and-run (form)
   "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
   `(let ((*print-case* :downcase))
