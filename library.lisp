@@ -43,6 +43,7 @@
 	(if (vectorp index)
 	    (let ((output (make-array (array-to-list index))))
 	      (across output (lambda (elem coords)
+			       (declare (ignore elem))
 			       (setf (apply #'aref output coords)
 				     (make-array (length index)
 						 :element-type
@@ -99,16 +100,6 @@
 			  (loop :for dim :below (rank omega)
 			     :collect (if (member dim axis) (first coords))
 			     :when (member dim axis) :do (setq coords (rest coords))))))))
-
-(defun segments (item)
-  (cond ((or (characterp item)
-	     (stringp item)
-	     (integerp item))
-	 1)
-	((rationalp item) 2)
-	((floatp item) 2)
-	((complexp item) (+ (segments (realpart item))
-			    (segments (imagpart item))))))
 
 (defun find-depth (omega)
   "Find the depth of an array. Used to implement [≡ depth]."
@@ -631,7 +622,7 @@
 (defmacro apply-producing-inner (right-symbol right-operation left-symbol left-operation)
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
 	 (op-left `(lambda (alpha omega) (apl-call ,left-symbol ,left-operation omega alpha)))
-	 (result (gensym)) (arg1 (gensym)) (arg2 (gensym)) (alpha (gensym)) (omega (gensym)))
+	 (result (gensym)) (alpha (gensym)) (omega (gensym)))
     `(lambda (,omega ,alpha)
        (if (and (not (arrayp ,omega))
 		(not (arrayp ,alpha)))
@@ -642,87 +633,15 @@
 		    ;; to preserve the rank of the result
 		    (reduce ,op-left (aops:each (lambda (e) (aops:each #'disclose e))
 						(apply-scalar ,op-right ,alpha ,omega))))
-	   (each-scalar t (array-inner-product ,alpha ,omega
-					       (lambda (,arg1 ,arg2)
-						 (if (or (arrayp ,arg1) (arrayp ,arg2))
-						     (apply-scalar ,op-right ,arg1 ,arg2)
-						     (funcall ,op-right ,arg1 ,arg2)))
-					       ,op-left))))))
-
-
-;; (defmacro apply-producing-outer (right-symbol right-operation)
-;;   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
-;; 	 (result (gensym)) (arg1 (gensym)) (arg2 (gensym)) (alpha (gensym)) (omega (gensym)))
-;;     `(lambda (,omega ,alpha)
-;;        (if (and (not (arrayp ,omega))
-;; 		(not (arrayp ,alpha)))
-;; 	   (funcall (lambda (,result)
-;; 		      (if (not (and (arrayp ,result) (< 1 (rank ,result))))
-;; 			  ,result (vector ,result)))
-;; 		    ;; enclose the result in a vector if its rank is > 1
-;; 		    ;; to preserve the rank of the result
-;; 		    (aops:each (lambda (e) (aops:each #'disclose e))
-;; 			       (apply-scalar ,op-right ,alpha ,omega)))
-;; 	   (each-scalar t (array-outer-product ,alpha ,omega
-;; 					       (lambda (,arg1 ,arg2)
-;; 						 (if (or (arrayp ,arg1) (arrayp ,arg2))
-;; 						     (apply-scalar ,op-right ,arg1 ,arg2)
-;; 						     (funcall ,op-right ,arg1 ,arg2)))))))))
+	   (each-scalar t (array-inner-product ,alpha ,omega ,op-right ,op-left))))))
 
 (defmacro apply-producing-outer (right-symbol right-operation)
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
-	 (inverse (gensym)) (element (gensym)) (alpha (gensym)) (omega (gensym)) (a (gensym)) (o (gensym))
-	 (placeholder (gensym)))
+	 (alpha (gensym)) (omega (gensym)))
     `(lambda (,omega ,alpha)
-       (if (or (not (or (not (arrayp ,omega)) (not (arrayp ,alpha))
-			(dims ,omega) (dims ,alpha)))
-       	       (= 0 (size ,omega)) (= 0 (size ,alpha)))
-	   ;; if the arguments are empty, return an empty array with the dimensions of the arguments appended
-	   (make-array (append (dims ,alpha) (dims ,omega)))
-	   (if (is-unitary ,omega)
-	       (if (is-unitary ,alpha)
-		   (nest (apl-call :fn ,op-right ,alpha ,omega))
-		   (each-scalar t (aops:each (lambda (,element)
-					       (let ((,a ,element)
-						     (,o (disclose-unitary-array (disclose ,omega))))
-						 (nest (apl-call :fn ,op-right ,a ,o))))
-					     ,alpha)))
-	       (if (is-unitary ,alpha)
-		   (each-scalar t (aops:each (lambda (,element)
-					       (let ((,o ,element)
-						     (,a (disclose-unitary-array (disclose ,alpha))))
-						 (nest (apl-call :fn ,op-right ,a ,o))))
-					     ,omega))
-		   (let ((,inverse (aops:outer (lambda (,o ,a)
-						 (let ((,o (if (= 0 (rank ,o)) (disclose ,o)
-							       (if (arrayp ,o) ,o (vector ,o))))
-						       (,a (if (= 0 (rank ,a)) (disclose ,a)
-							       (if (arrayp ,a) ,a (vector ,a)))))
-						   ',right-operation
-						   (if (is-unitary ,o)
-						       ;; swap arguments in case of a
-						       ;; unitary omega argument
-						       (let ((,placeholder ,a))
-							 (setq ,a ,o
-							       ,o ,placeholder)))
-						   (each-scalar t (nest
-								   (funcall
-								    ;; disclose the output of
-								    ;; user-created functions; otherwise
-								    ;; fn←{⍺×⍵+1}
-								    ;; 1 2 3∘.fn 4 5 6 (for example)
-								    ;; will fail
-								    ,(if (and (listp right-operation)
-									      (or (eq 'function
-										      (first right-operation))
-										  (eq 'scalar-function
-										      (first right-operation))))
-									 '#'disclose '#'identity)
-								    (apl-call :fn ,op-right ,a ,o))))))
-					       ,alpha ,omega)))
-		     (each-scalar t (if (not (is-unitary ,alpha))
-					,inverse (aops:permute (reverse (alexandria:iota (rank ,inverse)))
-							       ,inverse))))))))))
+       (if (and (not (arrayp ,omega)) (not (arrayp ,alpha)))
+	   (funcall ,op-right ,alpha ,omega)
+	   (each-scalar t (array-outer-product ,alpha ,omega ,op-right))))))
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
 			  left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
@@ -741,8 +660,8 @@
 		       ,(if (not fn-right) right-value omega)
 		       ,(if (not fn-left) left-value omega))))))
 
-(defmacro apply-over (right-symbol right-value right-function-monadic
-		      left-symbol left-value left-function-monadic left-function-dyadic)
+(defmacro apply-over (right-symbol right-function-monadic
+		      left-symbol left-function-monadic left-function-dyadic)
   (let ((alpha (gensym)) (omega (gensym)))
     `(lambda (,omega &optional ,alpha)
        (if ,alpha (apl-call ,left-symbol ,left-function-dyadic

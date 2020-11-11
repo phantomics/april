@@ -1004,8 +1004,9 @@
      (pivotal (with-operand-derived (right-glyph right-function-monadic
 						 left-glyph left-function-monadic left-function-dyadic)
 		(lambda (right left)
-		  `(apply-over ,right-glyph ,right ,right-function-monadic
-			       ,left-glyph ,left ,left-function-monadic ,left-function-dyadic))))
+		  (declare (ignore right left))
+		  `(apply-over ,right-glyph ,right-function-monadic
+			       ,left-glyph ,left-function-monadic ,left-function-dyadic))))
      (tests (is "s←88 67 72 ⋄ w←15 35 22 ⋄ (w×s)÷⍥(+/)w" 5249/72)))
   (⍤ (has :title "Rank")
      (pivotal (with-operand-derived (left-glyph left-function-monadic left-function-dyadic)
