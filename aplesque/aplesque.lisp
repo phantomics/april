@@ -456,11 +456,15 @@
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
   (if (= 0 (rank input))
       (if inverse (make-array 0)
-	  (let ((output (make-array (array-to-list dimensions)
-				    :element-type (assign-element-type input)
-				    :initial-element (apl-array-prototype input))))
+	  (let* ((prototype (apl-array-prototype input))
+		 (output (make-array (array-to-list dimensions)
+				     :element-type (assign-element-type input)
+				     :initial-element (if (not (arrayp prototype)) prototype))))
 	    (if (< 0 (size output))
 		(setf (row-major-aref output 0) input))
+	    (if (arrayp prototype)
+		(loop :for i :from 1 :to (1- (size output)) :do (setf (row-major-aref output i)
+								      (copy-array prototype))))
 	    output))
       (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
 	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
@@ -487,11 +491,16 @@
 		       (output (make-array (loop :for odim :across dimensions :for idim :across idims
 					      :collect (if (not inverse) (abs odim) (- idim (abs odim))))
 					   :element-type (if populator t (element-type input))
-					   :initial-element (if (not populator) fill-element))))
+					   :initial-element (if (and (not populator)
+								     (not (arrayp fill-element)))
+								fill-element))))
 		  (if populator (loop :for i :below (size output) :do (setf (row-major-aref output i)
 									    (make-array
 									     nil :initial-element
-									     (funcall populator)))))
+									     (funcall populator))))
+		      (if (arrayp fill-element)
+			  (loop :for i :below (size output) :do (setf (row-major-aref output i)
+								      (copy-array fill-element)))))
 		  (if (< 0 (size input))
 		      (across input (lambda (element coords)
 				      (setf (apply #'aref output
@@ -782,7 +791,8 @@
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (or (not (arrayp input))
 	  (= 0 (rank input)))
-      (make-array output-dims :element-type (assign-element-type input) :initial-element input)
+      (make-array output-dims :element-type (assign-element-type input)
+		  :initial-element (if (not (arrayp input)) input (copy-array input)))
       (if (= 0 (length output-dims))
           (row-major-aref input 0)
           (let* ((input-length (array-total-size input))
@@ -795,9 +805,9 @@
 	    (if (or populator (< 0 (size input)))
 		(loop :for index :below output-length
 		   :do (setf (row-major-aref output index)
-			     (if populator (make-array nil :initial-element
-						       (funcall populator))
-				 (row-major-aref input (mod index input-length))))))
+			     (if populator (make-array nil :initial-element (funcall populator))
+				 (let ((item (row-major-aref input (mod index input-length))))
+				   (if (not (arrayp item)) item (copy-array item)))))))
             output))))
 
 
@@ -1897,6 +1907,10 @@
 		    :do (let ((char-column (and (eq :character (first (aref col-types s)))
 						(not (rest (aref col-types s))))))
 			  (setf (aref col-widths s) (if (aref col-segments s)
+							;; if there are segment lengths for this column, its
+							;; width is the greater of the total segment length
+							;; plus spacing characters, or the calculated column
+							;; width derived from its array contents
 							(max (aref col-widths s)
 							     (+ (1- (length (aref col-segments s)))
 								(reduce #'+ (aref col-segments s))))
@@ -1913,7 +1927,12 @@
 						      (member :array (aref col-types (1- s)))))
 					     1 0))
 				(aref x-offsets s) total
+				;; set the x-offset at the current index to the calculated total up to this point,
+				;; then increment the total x-offset to the lowest possible value for the
+				;; next x-offset, first by adding the current column's width
 				total (+ total (aref col-widths s)
+					 ;; add another space if this isn't the last column and it isn't
+					 ;; a character-only column
 					 (if (and (/= s (1- (length col-segments)))
 						  (or (not char-column)
 						      (not (and (eq :character (first (aref col-types (1+ s))))
