@@ -69,6 +69,28 @@
 		      (make-array (list (length omega-dims))
 				  :initial-contents omega-dims :element-type (list 'integer 0 max-dim)))))))
 
+(defun reshape-array (metadata-symbol)
+  (lambda (omega alpha)
+    (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
+					    (list alpha))
+				  :populator (if (and (= 0 (size omega)))
+						 (let ((empty-prototype (get-workspace-item-meta
+									 metadata-symbol omega :eaprototype)))
+						   (if empty-prototype
+						       (destructuring-bind (type &rest dims) empty-prototype
+							 (lambda ()
+							   (make-array nil :initial-contents
+								       (make-array dims :element-type type
+										   :initial-element
+										   (if (eql 'character type)
+										       #\  0)))))))))))
+      (if (and (= 0 (size output)) (arrayp (row-major-aref omega 0)))
+	  (let ((prototype (funcall (if (= 0 (rank omega)) #'identity #'aref)
+				    (row-major-aref omega 0))))
+	    (set-workspace-item-meta metadata-symbol output
+				     :eaprototype (cons (element-type prototype) (dims prototype)))))
+      output)))
+
 (defun at-index (omega alpha axes index-origin)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
   (if (not (arrayp omega))
@@ -200,21 +222,43 @@
 		(integerp (first axes)))
 	    (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
-(defun section-array (index-origin &optional inverse)
+(defun section-array (index-origin metadata-symbol &optional inverse)
   (lambda (omega alpha &optional axes)
-    (let ((omega (enclose omega))
-	  (alpha-index alpha)
-	  (alpha (if (arrayp alpha)
-		     alpha (vector alpha))))
-      (section omega (if axes (make-array (rank omega)
-					  :initial-contents
-					  (loop :for axis :below (rank omega)
-					     :collect (if inverse (if (/= axis (- (first axes) index-origin))
-								      0 alpha-index)
-							  (if (= axis (- (first axes) index-origin))
-							      alpha-index (nth axis (dims omega))))))
-			 alpha)
-	       :inverse inverse))))
+    (let* ((alpha-index alpha)
+	   (alpha (if (arrayp alpha)
+		      alpha (vector alpha)))
+	   (output (section omega (if axes (make-array (rank omega)
+						       :initial-contents
+						       (loop :for axis :below (rank omega)
+							  :collect (if inverse
+								       (if (/= axis (- (first axes) index-origin))
+									   0 alpha-index)
+								       (if (= axis (- (first axes) index-origin))
+									   alpha-index (nth axis (dims omega))))))
+				      alpha)
+			    :inverse inverse :populator (if (= 0 (size omega))
+					     		    (let ((empty-prototype
+					     			   (get-workspace-item-meta
+					     			    metadata-symbol omega :eaprototype)))
+					     		      (if empty-prototype
+					     			  (destructuring-bind (type &rest dims)
+					     			      empty-prototype
+					     			    (lambda ()
+					     			      (make-array
+					     			       nil :initial-contents
+					     			       (make-array dims :element-type type
+					     					   :initial-element
+					     					   (if (eql 'character type)
+					     					       #\  0)))))))))))
+      ;; if the resulting array is empty and the original array prototype was an array, set the
+      ;; empty array prototype accordingly
+      (if (and (= 0 (size output))
+	       (not inverse) (arrayp (row-major-aref omega 0)))
+	  (let ((prototype (funcall (if (= 0 (rank omega)) #'identity #'aref)
+				    (row-major-aref omega 0))))
+	    (set-workspace-item-meta metadata-symbol output
+				     :eaprototype (cons (element-type prototype) (dims prototype)))))
+      output)))
 
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
@@ -617,6 +661,26 @@
 						     (apply-scalar ,op-right ,arg1 ,arg2)
 						     (funcall ,op-right ,arg1 ,arg2)))
 					       ,op-left))))))
+
+
+;; (defmacro apply-producing-outer (right-symbol right-operation)
+;;   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
+;; 	 (result (gensym)) (arg1 (gensym)) (arg2 (gensym)) (alpha (gensym)) (omega (gensym)))
+;;     `(lambda (,omega ,alpha)
+;;        (if (and (not (arrayp ,omega))
+;; 		(not (arrayp ,alpha)))
+;; 	   (funcall (lambda (,result)
+;; 		      (if (not (and (arrayp ,result) (< 1 (rank ,result))))
+;; 			  ,result (vector ,result)))
+;; 		    ;; enclose the result in a vector if its rank is > 1
+;; 		    ;; to preserve the rank of the result
+;; 		    (aops:each (lambda (e) (aops:each #'disclose e))
+;; 			       (apply-scalar ,op-right ,alpha ,omega)))
+;; 	   (each-scalar t (array-outer-product ,alpha ,omega
+;; 					       (lambda (,arg1 ,arg2)
+;; 						 (if (or (arrayp ,arg1) (arrayp ,arg2))
+;; 						     (apply-scalar ,op-right ,arg1 ,arg2)
+;; 						     (funcall ,op-right ,arg1 ,arg2)))))))))
 
 (defmacro apply-producing-outer (right-symbol right-operation)
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))

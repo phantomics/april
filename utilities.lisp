@@ -93,6 +93,17 @@
   "Checks if a variable is present in the current workspace as a function."
   `(fboundp (intern (string ,item) space)))
 
+(defun set-workspace-item-meta (symbol item &rest data)
+  (if (not (boundp symbol))
+      (set symbol (make-hash-table :test #'eq)))
+  (loop :for (key value) :on data :by #'cddr
+     :do (setf (getf (gethash item (symbol-value symbol)) key) value)))
+
+(defun get-workspace-item-meta (symbol item &rest keys)
+  (if (boundp symbol)
+      (let ((data (gethash item (symbol-value symbol))))
+	(apply #'values (loop :for key :in keys :collect (getf data key))))))
+
 (defmacro print-and-run (form)
   "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
   `(let ((*print-case* :downcase))
