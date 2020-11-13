@@ -629,7 +629,7 @@ It remains here as a standard against which to compare methods for composing APL
 								       (or icoords (list 0)))))))))
 	    :ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
 								  (list (nth d dimensions)))))
-    (each-scalar t output)))
+    output))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."

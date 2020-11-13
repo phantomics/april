@@ -1201,8 +1201,7 @@
 										(assign-element-type set))))))
     (if true-input (progn (across input (lambda (elem coords) 
 					  (declare (dynamic-extent elem coords))
-					  (setf (apply #'aref true-input coords)
-						elem)))
+					  (setf (apply #'aref true-input coords) elem)))
 			  (setq input true-input)))
     (labels ((process (indices &optional out-path in-path)
 	       (symbol-macrolet
@@ -1290,9 +1289,7 @@
       (if (not (and (arrayp set) (/= 0 (rank set))
 		    (not (arrayp (first aindices)))))
           (process aindices) (error "Cannot assign an unenclosed array to a point in an array."))
-      (apply #'values (cons (each-scalar t output)
-			    (if true-input (list (if (not (functionp set))
-						     input (each-scalar t input)))))))))
+      (apply #'values (cons output (if true-input (list input)))))))
 
 (defun mix-arrays (axis input)
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
