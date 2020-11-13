@@ -355,9 +355,9 @@
       (/ omega)
       (if (< 2 (rank omega))
 	  (error "Matrix inversion only works on arrays of rank 2 or 1.")
-	  (if (and (= 2 (rank omega)) (reduce #'= (dims omega)))
-	      (invert-matrix omega)
-	      (left-invert-matrix omega)))))
+	  (funcall (if (and (= 2 (rank omega)) (reduce #'= (dims omega)))
+		       #'invert-matrix #'left-invert-matrix)
+		   omega))))
 
 (defun matrix-divide (omega alpha)
   "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
@@ -852,7 +852,6 @@
 				       (vector 1)
 				       (if (= 2 (rank ,right-value))
 					   (choose ,right-value (,iaxes ,right-value 1))
-					   (make-array (length ,right-value)
-						       :element-type 'fixnum
+					   (make-array (length ,right-value) :element-type 'fixnum
 						       :initial-element 1)))))
 		    (merge-arrays (stencil ,omega ,op-left ,window-dims ,movement)))))))))
