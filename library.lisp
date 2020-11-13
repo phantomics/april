@@ -486,8 +486,8 @@
 		   :segment (lambda (number &optional segments)
 			      (aplesque::count-segments number (if alpha (- alpha) print-precision)
 							segments))
-		   :format (lambda (number &optional segments)
-			     (print-apl-number-string number segments print-precision alpha)))))
+		   :format (lambda (number &optional segments rps)
+			     (print-apl-number-string number segments print-precision alpha rps)))))
 
 (defun generate-index-array (array)
   "Given an array, generate an array of the same shape whose each cell contains its row-major index."

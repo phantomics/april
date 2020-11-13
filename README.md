@@ -726,3 +726,5 @@ For GNU/Linux users who'd like use APL characters outside of a customized editor
 Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which April makes heavy use.
 
 Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heart of April's parsing engine.
+
+[justin2004](https://github.com/justin2004) and [Nikolai Matiushev](https://github.com/egao1980), contributors of many bug reports and suggestions.

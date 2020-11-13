@@ -158,6 +158,14 @@
 			       `(set ',s ,set-to))))
 	   ,values))))
 
+(defun output-format (value format)
+  (if (or (not (arrayp value))
+	  (equalp format (element-type value)))
+      value (let ((output (make-array (dims value) :element-type format)))
+	      (dotimes (i (size value)) (setf (row-major-aref output i)
+					      (row-major-aref value i)))
+	      output)))
+
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym)))
@@ -173,9 +181,9 @@
 						  :segment (lambda (n &optional s)
 							     (aplesque::count-segments
 							      n ,(getf options :print-precision) s))
-						  :format (lambda (n s)
+						  :format (lambda (n &optional s r)
 							    (print-apl-number-string
-							     n s ,(getf options :print-precision))))))))
+							     n s ,(getf options :print-precision) nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if (getf options :print-to)
@@ -185,7 +193,8 @@
        ,(if (getf options :output-printed)
 	    (if (eq :only (getf options :output-printed))
 		printout `(values ,result ,printout))
-	    result))))
+	    (if (not (getf options :output-format))
+		result `(output-format ,result ,(first (getf options :output-format))))))))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
@@ -229,12 +238,13 @@
 	    ;; the macron character is converted to the minus sign
 	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-"))))))
 
-(defun print-apl-number-string (number &optional segments precision decimals)
+(defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
   (cond ((complexp number)
 	 (format nil "~aJ~a" (print-apl-number-string (realpart number)
 						      (list (first segments)
-							    (if (not (integerp (realpart number)))
+							    (if (or realpart-multisegment
+								    (not (integerp (realpart number))))
 								(if (not (third segments))
 								    0 (- (second segments)))))
 						      precision)

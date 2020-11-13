@@ -976,7 +976,7 @@
 	      (funcall (of-utilities idiom :build-compiled-code)
 		       (append (funcall (if output-vars #'values
 					    (apply (of-utilities idiom :postprocess-compiled)
-						   (cons system-to-use inline-arguments)))
+						   system-to-use options inline-arguments))
 					compiled-expressions)
 			       ;; if multiple values are to be output, add the (values) form at bottom
 			       (if output-vars
