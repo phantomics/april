@@ -330,9 +330,8 @@
 	(uniques) (increment (reduce #'* (rest (dims array)))))
     (dotimes (x (first (dims array)))
       (if (and displaced (< 0 x))
-	  (adjust-array displaced (rest (dims array))
-			:displaced-to array :element-type (element-type array)
-			:displaced-index-offset (* x increment)))
+	  (adjust-array displaced (rest (dims array)) :element-type (element-type array)
+			:displaced-to array :displaced-index-offset (* x increment)))
       (if (member (or displaced (aref array x)) uniques :test #'array-compare)
 	  (setf (aref output x) 0)
 	  (setf uniques (cons (if displaced (make-array (rest (dims array)) :displaced-to array
@@ -362,9 +361,8 @@
 
 (defun matrix-divide (omega alpha)
   "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
-  (each-scalar t (array-inner-product (invert-matrix omega)
-				      alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-				      #'+)))
+  (array-inner-product (invert-matrix omega) alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
+		       #'+))
 
 (defun encode (omega alpha)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
@@ -376,9 +374,12 @@
 	 (last-adim (first (last adims)))
 	 (out-coords (loop :for i :below (+ (- (rank alpha) (count 1 adims))
 					    (- (rank omega) (count 1 odims))) :collect 0))
-	 (output (make-array (or (append (loop :for dim :in adims :when (< 1 dim) :collect dim)
-					 (loop :for dim :in odims :when (< 1 dim) :collect dim))
-				 '(1))))
+	 (out-dims (append (loop :for dim :in adims :when (< 1 dim) :collect dim)
+			   (loop :for dim :in odims :when (< 1 dim) :collect dim)))
+	 (output-maxval (if out-dims (let ((displaced (make-array (size alpha) :displaced-to alpha
+								  :element-type (element-type alpha))))
+				       (loop :for i :across displaced :maximizing i))))
+	 (output (if out-dims (make-array out-dims :element-type (list 'integer 0 output-maxval))))
 	 (dxc))
     (flet ((rebase (base-coords number)
 	     (let ((operand number) (last-base 1)
@@ -397,18 +398,17 @@
 		      (across omega (lambda (oelem ocoords)
 				      (declare (dynamic-extent oelem ocoords))
 				      (setq dxc 0)
-				      (if out-coords
+				      (if out-dims
 					  (progn (loop :for dx :below (length acoords) :when (< 1 (nth dx adims))
 						    :do (setf (nth dxc out-coords) (nth dx acoords)
 							      dxc (1+ dxc)))
 						 (loop :for dx :below (length ocoords) :when (< 1 (nth dx odims))
 						    :do (setf (nth dxc out-coords) (nth dx ocoords)
 							      dxc (1+ dxc)))))
-				      (setf (apply #'aref output (or out-coords '(0)))
-					    (rebase acoords oelem))))))
-      (if (is-unitary output)
-	  (disclose output)
-	  (each-scalar t output)))))
+				      (if out-dims (setf (apply #'aref output out-coords)
+							 (rebase acoords oelem))
+					  (setq output (rebase acoords oelem)))))))
+      output)))
 
 (defun decode (omega alpha)
   "Decode an array of numbers as per a given set of bases. Used to implement [⊥ decode]."
@@ -421,7 +421,19 @@
 	 (rba-coords (loop :for i :below (rank alpha) :collect 0))
 	 (rbo-coords (loop :for i :below (rank omega) :collect 0))
 	 (out-coords (loop :for i :below (max 1 (+ (1- (rank alpha)) (1- (rank omega)))) :collect 0))
-	 (output (make-array (or (append (butlast adims 1) (rest odims)) '(1))))
+	 (out-dims (append (butlast adims 1) (rest odims)))
+	 (maximum-value (if out-dims (if (vectorp alpha)
+					 (reduce #'* (loop :for a :across alpha :collect a))
+					 (let ((max 0)
+					       (vector-length (first (last (dims alpha)))))
+					   (dotimes (i (reduce #'* (butlast (dims alpha))))
+					     (let ((items
+						    (loop :for n :below vector-length
+						       :collect (row-major-aref
+								 alpha (+ n (* i vector-length))))))
+					       (setq max (max max (reduce #'* items)))))
+					   max))))
+	 (output (if out-dims (make-array out-dims :element-type (list 'integer 0 maximum-value))))
 	 (dxc))
     (flet ((rebase (base-coords number-coords)
 	     (let ((base 1) (result 0) (bclen (length base-coords)))
@@ -452,11 +464,12 @@
 				      (if ocoords (loop :for dx :from 1 :to (1- (length ocoords))
 						     :do (setf (nth dxc out-coords) (nth dx ocoords)
 							       dxc (1+ dxc))))
-				      (setf (apply #'aref output (or out-coords '(0)))
-					    (rebase acoords ocoords)))
+				      (if out-dims (setf (apply #'aref output (or out-coords '(0)))
+							    (rebase acoords ocoords))
+					  (setq output (rebase acoords ocoords))))
 			      :elements (loop :for i :below (rank omega) :collect (if (= i 0) 0)))))
       :elements (loop :for i :below (rank alpha) :collect (if (= i (1- (rank alpha))) 0)))
-    (if (is-unitary output) (disclose output) (each-scalar t output))))
+    output))
 
 (defun left-invert-matrix (in-matrix)
   "Perform left inversion of matrix. Used to implement [⌹ matrix inverse]."

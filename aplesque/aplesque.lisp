@@ -872,6 +872,7 @@
            (exp (- z1))))))
 
 (defun sprfact (n)
+  "Top-level factorial-computing function."
   (if (near-integerp n)
       (isprfact (round (realpart n)))
       (gamma (+ n 1))))
