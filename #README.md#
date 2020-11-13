@@ -236,7 +236,6 @@ April is one of a few APL implementations to feature rational numbers. They are 
 * (april-f "2r3×⍳4")
 2r3 4r3 2 8r3
 #(2/3 4/3 2 8/3)
-
 ```
 
 Rational numbers can also be used as parts of complex numbers:
