@@ -118,9 +118,9 @@
       (make-array (dims array) :element-type (element-type array)
 		  :initial-element (if (member (element-type array) '(base-char character)) #\  0))
       (let ((output (make-array (dims array))))
-	(loop :for i :below (size output) :do (setf (row-major-aref output i)
-						    (if (not (arrayp (row-major-aref array i)))
-							0 (make-prototype-of (row-major-aref array i)))))
+	(dotimes (i (size output)) (setf (row-major-aref output i)
+					 (if (not (arrayp (row-major-aref array i)))
+					     0 (make-prototype-of (row-major-aref array i)))))
 	output)))
 
 (defmacro print-and-run (form)
@@ -346,21 +346,20 @@
     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
        (let ,(loop :for symbol :in operand-specs
-		:collect (list symbol (case symbol
-					('left-glyph (list 'or-functional-character first-op :fn))
-					('left-function-monadic
-					 (list 'resolve-function :monadic first-op first-axes))
-					('left-function-dyadic
-					 (list 'resolve-function :dyadic first-op first-axes))
-					('left-function-symbolic
-					 (list 'resolve-function :symbolic first-op first-axes))
-					('right-glyph (list 'or-functional-character second-op :fn))
-					('right-function-monadic
-					 (list 'resolve-function :monadic second-op second-axes))
-					('right-function-dyadic
-					 (list 'resolve-function :dyadic second-op second-axes))
-					('right-function-symbolic
-					 (list 'resolve-function :symbolic second-op second-axes)))))
+		:collect (list symbol (case symbol (left-glyph (list 'or-functional-character first-op :fn))
+					    (left-function-monadic
+					     (list 'resolve-function :monadic first-op first-axes))
+					    (left-function-dyadic
+					     (list 'resolve-function :dyadic first-op first-axes))
+					    (left-function-symbolic
+					     (list 'resolve-function :symbolic first-op first-axes))
+					    (right-glyph (list 'or-functional-character second-op :fn))
+					    (right-function-monadic
+					     (list 'resolve-function :monadic second-op second-axes))
+					    (right-function-dyadic
+					     (list 'resolve-function :dyadic second-op second-axes))
+					    (right-function-symbolic
+					     (list 'resolve-function :symbolic second-op second-axes)))))
 	 ,@body))))
 
 (defun resolve-function (mode reference &optional axes)
