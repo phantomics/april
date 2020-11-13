@@ -121,16 +121,17 @@
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
 	    :postprocess-compiled
-	    (lambda (state &rest inline-arguments)
+	    (lambda (state options &rest inline-arguments)
 	      (lambda (form)
 		(let ((final-form (if inline-arguments `(apl-call :fn ,(first (last form))
-								  ,@inline-arguments)
-				      (first (last form)))))
+										   ,@inline-arguments)
+				      (first (last form))))
+		      (output-format (rest (assoc :output-format options))))
 		  (append (butlast form)
 			  (list (append (list 'apl-output final-form)
 					(append (list :print-precision 'print-precision)
-						(if (getf state :print)
-						    (list :print-to 'output-stream))
+						(if output-format (list :output-format output-format))
+						(if (getf state :print) (list :print-to 'output-stream))
 						(if (getf state :output-printed)
 						    (list :output-printed (getf state :output-printed))))))))))
 	    :postprocess-value
@@ -1507,6 +1508,9 @@ c   2.56  3
   1r007
   3    
   9r212
+")
+  (for-printed "Complex rational vector." "3r4J9r5×⍳4"
+	       "3r4J9r5 3r2J18r5 9r4J27r5 3J36r5
 ")
   (for-printed "Matrix of complex numbers." "3 3⍴3.2J5.3 32.95J12.15"
 	       " 3.20J05.3  32.95J12.15  3.20J05.3 

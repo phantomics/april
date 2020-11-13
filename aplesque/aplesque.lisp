@@ -1730,7 +1730,7 @@
     output))
 
 (defun count-segments (value precision &optional segments)
-  "Count the lenghts of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
+  "Count the lengths of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
   (flet ((is-rational-fraction (number)
 	   (and (rationalp number) (not (integerp number))))
 	 (process-rational (number)
@@ -1836,11 +1836,19 @@
 					  (setf segments (funcall segment elem segments))
 					  ;; numbers are not rendered until the next pass due
 					  ;; to the need to measure segments for the entire column
+					  (add-column-types :number)
 					  (if (floatp elem)
-					      (add-column-types :number :float)
+					      (add-column-types :float)
 					      (if (and (not (integerp elem)) (rationalp elem))
-						  (add-column-types :number :rational)
-						  (add-column-types :number)))))))))
+						  (add-column-types :rational)))
+					  ;; add flags for complex numbers and the types of numbers in the first
+					  ;; column, needed for correct printing
+					  (if (complexp elem)
+					      (progn (add-column-types :complex)
+						     (if (floatp (realpart elem))
+							 (add-column-types :realpart-float)
+							 (if (and (not (integerp elem)) (rationalp elem))
+							     (add-column-types :realpart-rational)))))))))))
 	       (across input (lambda (elem coords)
 			       (declare (dynamic-extent elem coords))
 			       (let* ((last-coord (first (last coords)))
@@ -1856,7 +1864,13 @@
 					    (setf elem-height (or (second rdims) 1)
 						  elem-width (first rdims))))
 					 ((numberp elem)
-					  (let* ((elem-string (funcall format elem segments)))
+					  ;; pass the information on realpart type for correct printing
+					  (let* ((elem-string (funcall format elem segments
+								       (and (member :complex this-col-type)
+									    (or (member :realpart-float
+											this-col-type)
+										(member :realpart-rational
+											this-col-type))))))
 					    (setf this-string elem-string
 						  rendered (apply #'aref strings coords)
 						  elem-width (length elem-string)))))
