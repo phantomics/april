@@ -236,15 +236,14 @@ April is one of a few APL implementations to feature rational numbers. They are 
 * (april-f "2r3×⍳4")
 2r3 4r3 2 8r3
 #(2/3 4/3 2 8/3)
-
 ```
 
 Rational numbers can also be used as parts of complex numbers:
 
 ```lisp
-* (april-f "3r4J9r5×⍳3")
-3r4J9r5 3r2J18r5 9r4J27r5
-#(#C(3/4 9/5) #C(3/2 18/5) #C(9/4 27/5))
+* (april-f "3r4J9r5×1+⍳3")
+3r2J18r5 9r4J27r5 3J36r5
+#(#C(3/2 18/5) #C(9/4 27/5) #C(3 36/5))
 ```
 
 The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
