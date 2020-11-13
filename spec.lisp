@@ -145,7 +145,7 @@
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
-	  (:function ⎕f coerce-array-type))
+	  (:function ⎕f coerce-type))
  
  ;; APL's set of functions represented by characters
  (functions

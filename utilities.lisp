@@ -546,7 +546,7 @@ It remains here as a standard against which to compare methods for composing APL
 					 (list ,@axes))))
 	      (rest axis-sets)))))
 
-(defun coerce-array-type (array type-index)
+(defun coerce-type (array type-index)
   (let ((type (case type-index (0 t) (1 'bit) (2 '(unsigned-byte 2)) (3 '(unsigned-byte 4))
 		    (4 '(unsigned-byte 8)) (5 '(unsigned-byte 16)) (6 '(unsigned-byte 32))
 		    (7 '(unsigned-byte 64)) (8 'fixnum) (9 'float) (10 'double)
