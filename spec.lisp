@@ -121,16 +121,14 @@
 			 :collect (list (intern (string-upcase var) "APRIL")
 					(getf state var)))))
 	    :postprocess-compiled
-	    (lambda (state options &rest inline-arguments)
+	    (lambda (state &rest inline-arguments)
 	      (lambda (form)
 		(let ((final-form (if inline-arguments `(apl-call :fn ,(first (last form))
 										   ,@inline-arguments)
-				      (first (last form))))
-		      (output-format (rest (assoc :output-format options))))
+				      (first (last form)))))
 		  (append (butlast form)
 			  (list (append (list 'apl-output final-form)
 					(append (list :print-precision 'print-precision)
-						(if output-format (list :output-format output-format))
 						(if (getf state :print) (list :print-to 'output-stream))
 						(if (getf state :output-printed)
 						    (list :output-printed (getf state :output-printed))))))))))
@@ -146,7 +144,8 @@
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
-	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*))
+	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
+	  (:function ⎕f coerce-array-type))
  
  ;; APL's set of functions represented by characters
  (functions

@@ -158,14 +158,6 @@
 			       `(set ',s ,set-to))))
 	   ,values))))
 
-(defun output-format (value format)
-  (if (or (not (arrayp value))
-	  (equalp format (element-type value)))
-      value (let ((output (make-array (dims value) :element-type format)))
-	      (dotimes (i (size value)) (setf (row-major-aref output i)
-					      (row-major-aref value i)))
-	      output)))
-
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym)))
@@ -193,8 +185,7 @@
        ,(if (getf options :output-printed)
 	    (if (eq :only (getf options :output-printed))
 		printout `(values ,result ,printout))
-	    (if (not (getf options :output-format))
-		result `(output-format ,result ,(first (getf options :output-format))))))))
+	    result))))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
@@ -553,11 +544,20 @@ It remains here as a standard against which to compare methods for composing APL
 			 (if assigned-array (setf ,body assigned-array)
 			     assignment-output))
 		  `(choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
-					 (list ,@axes))
-			   ;; :enclose-output t
-			   ;; TODO: fix nested array implementation that required this hack
-			   ))
+					 (list ,@axes))))
 	      (rest axis-sets)))))
+
+(defun coerce-array-type (array type-index)
+  (let ((type (case type-index (0 t) (1 'bit) (2 '(unsigned-byte 2)) (3 '(unsigned-byte 4))
+		    (4 '(unsigned-byte 8)) (5 '(unsigned-byte 16)) (6 '(unsigned-byte 32))
+		    (7 '(unsigned-byte 64)) (8 'fixnum) (9 'float) (10 'double)
+		    (11 'character))))
+    (if (or (not (arrayp array))
+	    (equalp type (element-type array)))
+	array (let ((output (make-array (dims array) :element-type type)))
+		(dotimes (i (size array)) (setf (row-major-aref output i)
+						(row-major-aref array i)))
+		output))))
 
 (defun output-value (space form &optional properties)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
