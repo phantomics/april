@@ -6,6 +6,7 @@
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
 (defun rmi-from-subscript-array (array subscripts)
+  "Derive an array's row-major index from a vector of subscripts."
   (let ((rank (rank array))
 	(dims (reverse (dims array)))
 	(length (length subscripts)))
@@ -21,9 +22,11 @@
 	       result)))))
 
 (defun varef (array subscripts)
+  "Reference an element in an array according to a vector of subscripts."
   (row-major-aref array (rmi-from-subscript-array array subscripts)))
 
 (defun (setf varef) (new-value array subscripts)
+  "Set an element in an array according to a vector of subscripts."
   (setf (row-major-aref array (rmi-from-subscript-array array subscripts))
 	new-value))
 
@@ -334,6 +337,7 @@
 (initialize-for-environment :across #'identity)
 
 (defun apply-scalar (function omega &optional alpha axes is-boolean)
+  "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
   (let* ((orank (rank omega)) (arank (rank alpha))
 	 (axes (if axes (enclose axes)))
 	 (oscalar (if (is-unitary omega) (disclose omega)))
@@ -522,6 +526,7 @@
 		  output))))))
 
 (defun catenate (a1 a2 axis)
+  "Join two arrays along the specified axis."
   (let* ((rank1 (rank a1)) (rank2 (rank a2))
 	 (max-rank (max rank1 rank2)) (uneven (/= rank1 rank2))
 	 (offset (if (and uneven (< rank1 rank2)) 1 (nth axis (dims a1))))
@@ -811,10 +816,12 @@
             output))))
 
 (defun near-realp (x)
+  "Determine if the number is 'real enough' to be treated as such."
   (or (realp x)
       (> single-float-epsilon (abs (imagpart x)))))
 
 (defun near-integerp (x)
+  "Determing if a number is close enough to an integer to be treated as such."
   (or (integerp x)
       (and (near-realp x)
            (> single-float-epsilon
@@ -939,22 +946,19 @@
 	     output)))
 
 (defun array-outer-product (alpha omega function)
-  "Find the inner product of two arrays with two functions."
+  "Find the outer product of two arrays with a function."
   (let* ((ascalar (if (= 0 (rank alpha)) (disclose alpha)))
 	 (oscalar (if (= 0 (rank omega)) (disclose omega)))
-	 (adims (if (not ascalar) (dims alpha)))
-	 (odims (if (not oscalar) (dims omega)))
-	 (asize (if (not ascalar) (size alpha)))
-	 (osize (if (not oscalar) (size omega)))
+	 (adims (dims alpha)) (odims (dims omega))
 	 (ovectors (or (if (and (not oscalar) (not (rest odims)))
 			   (first odims) (reduce #'* (rest odims)))
 		       1))
 	 (output (make-array (append adims odims))))
     (loop :for x :below (size output)
-       :do (let ((aitem (or ascalar (disclose (row-major-aref alpha (floor (/ x ovectors))))))
-		 (oitem (or oscalar (disclose (row-major-aref omega (mod x ovectors))))))
-	     (setf (row-major-aref output x)
-		   (nest (funcall function aitem oitem)))))
+       :do (setf (row-major-aref output x)
+		 (nest (funcall function
+				(or ascalar (disclose (row-major-aref alpha (floor (/ x ovectors)))))
+				(or oscalar (disclose (row-major-aref omega (mod x ovectors))))))))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
@@ -1709,10 +1713,9 @@
 							  (- (* melem (nth cix coords))
 							     (floor (* 1/2 (- wdim (if (evenp wdim) 1 0)))))))))
 					(setf (apply #'aref window wcoords)
-					      (if (loop :for coord :in ref-coords :for cix :from 0
-						     :always (<= 0 coord (1- (aref idims cix))))
-						  (apply #'aref input ref-coords)
-						  0))))
+					      (if (not (loop :for coord :in ref-coords :for cix :from 0
+							  :always (<= 0 coord (1- (aref idims cix)))))
+						  0 (apply #'aref input ref-coords)))))
 		       (loop :for coord :in coords :for cix :from 0
 			  :do (setf (nth cix acoords)
 				    (* (aref movement cix)
@@ -1726,10 +1729,8 @@
 								  :initial-contents acoords)))))))
     output))
 
-;; funcall (if nil;(> single-float-epsilon (nth-value 1 (floor (realpart value))))
-;; 	    #'butlast #'identity)
-
 (defun count-segments (value precision &optional segments)
+  "Count the lenghts of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
   (flet ((is-rational-fraction (number)
 	   (and (rationalp number) (not (integerp number))))
 	 (process-rational (number)

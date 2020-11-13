@@ -94,22 +94,26 @@
   `(fboundp (intern (string ,item) space)))
 
 (defun set-workspace-item-meta (symbol item &rest data)
+  "Sets one or more metadata for an item in a workspace."
   (if (not (boundp symbol))
       (set symbol (make-hash-table :test #'eq)))
   (loop :for (key value) :on data :by #'cddr
      :do (setf (getf (gethash item (symbol-value symbol)) key) value)))
 
 (defun get-workspace-item-meta (symbol item &rest keys)
+  "Gets one or more metadata for an item in a workspace."
   (if (boundp symbol)
       (let ((data (gethash item (symbol-value symbol))))
 	(apply #'values (loop :for key :in keys :collect (getf data key))))))
 
 (defun build-populator (metadata-symbol input)
+  "Generate a function that will populate array elements with an empty array prototype." 
   (if (and (= 0 (size input))
 	   (get-workspace-item-meta metadata-symbol input :eaprototype))
       (lambda () (copy-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
 
 (defun make-prototype-of (array)
+  "Make a prototype version of an array; all values in the array will be blank spaces for character arrays or zeroes for other types of arrays."
   (if (not (eq t (element-type array)))
       (make-array (dims array) :element-type (element-type array)
 		  :initial-element (if (member (element-type array) '(base-char character)) #\  0))
@@ -120,7 +124,7 @@
 	output)))
 
 (defmacro print-and-run (form)
-  "print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
+  "Print a formatted code string and then run the code; used in april's arbitrary evaluation tests."
   `(let ((*print-case* :downcase))
      (princ (indent-code (write-to-string (quote ,form))))
      ,form))
@@ -334,29 +338,30 @@
 					 item)))
 
 (defmacro with-operand-derived (operand-specs &rest body)
+  "Derive references to glyphs and functions from a set of operands passed to an operator so they can be used by the macro implementing the operator."
   (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym)))
     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
        (let ,(loop :for symbol :in operand-specs
-		:collect (list symbol (cond ((eq symbol 'left-glyph)
-					     (list 'or-functional-character first-op :fn))
-					    ((eq symbol 'left-function-monadic)
-					     (list 'resolve-function :monadic first-op first-axes))
-					    ((eq symbol 'left-function-dyadic)
-					     (list 'resolve-function :dyadic first-op first-axes))
-					    ((eq symbol 'left-function-symbolic)
-					     (list 'resolve-function :symbolic first-op first-axes))
-					    ((eq symbol 'right-glyph)
-					     (list 'or-functional-character second-op :fn))
-					    ((eq symbol 'right-function-monadic)
-					     (list 'resolve-function :monadic second-op second-axes))
-					    ((eq symbol 'right-function-dyadic)
-					     (list 'resolve-function :dyadic second-op second-axes))
-					    ((eq symbol 'right-function-symbolic)
-					     (list 'resolve-function :symbolic second-op second-axes)))))
+		:collect (list symbol (case symbol
+					('left-glyph (list 'or-functional-character first-op :fn))
+					('left-function-monadic
+					 (list 'resolve-function :monadic first-op first-axes))
+					('left-function-dyadic
+					 (list 'resolve-function :dyadic first-op first-axes))
+					('left-function-symbolic
+					 (list 'resolve-function :symbolic first-op first-axes))
+					('right-glyph (list 'or-functional-character second-op :fn))
+					('right-function-monadic
+					 (list 'resolve-function :monadic second-op second-axes))
+					('right-function-dyadic
+					 (list 'resolve-function :dyadic second-op second-axes))
+					('right-function-symbolic
+					 (list 'resolve-function :symbolic second-op second-axes)))))
 	 ,@body))))
 
 (defun resolve-function (mode reference &optional axes)
+  "Retrieve the function corresponding to a given character or symbol in a given mode (monadic or dyadic)."
   (if (characterp reference)
       (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
 	  (of-functions this-idiom reference mode))
@@ -394,6 +399,7 @@
 		(rest tokens)))))
 
 (defun adjust-axes-for-index-origin (io axis-list)
+  "Adjust axes passed to a function to account for the given index origin."
   (if (integerp (first axis-list))
       (- (first axis-list) io)
       (if (vectorp (first axis-list))

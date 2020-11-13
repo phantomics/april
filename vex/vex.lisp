@@ -107,6 +107,7 @@
 		 (funcall (function ,operation) ,omega))))))
 
 (defun count-symbol-in-spec (symbol limbs)
+  "Count occurrences of a symbol in the spec. Used to plan the number of Prove tests to run."
   (let ((results 0))
     (loop :for limb :in limbs :do (if (listp limb)
 				      (incf results (count-symbol-in-spec symbol limb))
@@ -226,6 +227,7 @@
 
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
   (declare (ignore symbol mode))
+  "Process arbitrary tests within a spec containing expressions that are evaluated without being wrapped in an (april ...) form."
   (loop :for test :in test-set :append (append '((princ (format nil "~%")))
 					       (list test))))
 
