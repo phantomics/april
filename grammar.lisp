@@ -265,7 +265,7 @@
 			  symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))))))
   '(:type (:array :assigned :by-result-assignment-operator)))
  (selective-assignment
-  ;; match a selective value assignment
+  ;; match a selective value assignment like (3↑x)←5
   ((:with-preceding-type :array)
    (assignment-function :element (function :glyph ←))
    (selection-form :pattern (:type (:array) :special '(:omit (:value-assignment)))))
@@ -274,6 +274,9 @@
       (let ((index-array (gensym)) (indices (gensym))
 	    (array-assigning (fourth selection-form)))
 	(setf (fourth selection-form) index-array)
+	;; generate an array whose each cell is its row-major index, perform the subtractive function on
+	;; it and then use assign-selected to assign new values to the cells at the remaining indices
+	;; of the original array
 	`(let* ((,index-array (generate-index-array ,array-assigning))
 		(,indices (enclose ,selection-form)))
 	   (setq ,array-assigning (assign-selected ,array-assigning ,indices ,precedent)))))

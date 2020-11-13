@@ -6,6 +6,7 @@
 "This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing."
 
 (defun without (omega alpha)
+  "Remove elements in omega from alpha. Used to implement dyadic [~ without]."
   (flet ((compare (o a)
 	   (funcall (if (and (characterp a) (characterp o))
 			#'char= (if (and (numberp a) (numberp o))
@@ -27,6 +28,7 @@
 		  :initial-contents (reverse included)))))
 
 (defun scalar-compare (omega alpha)
+  "Compare two scalar values as appropriate for APL."
   (funcall (if (and (characterp alpha) (characterp omega))
 	       #'char= (if (and (numberp alpha) (numberp omega))
 			   #'= (lambda (a o) (declare (ignore a o)))))
@@ -57,6 +59,7 @@
 	    (error "The argument to ⍳ must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
 (defun shape (omega)
+  "Get the shape of an array, implementing monadic [⍴ shape]."
   (if (or (not (arrayp omega))
 	  (= 0 (rank omega)))
       #() (if (and (eql 'simple-array (first (type-of omega)))
@@ -71,6 +74,7 @@
 				  :initial-contents omega-dims :element-type (list 'integer 0 max-dim)))))))
 
 (defun reshape-array (metadata-symbol)
+  "Wrap (aplesque:reshape-to-fit) so that dyadic [⍴ shape] can be implemented with the use of empty-array prototypes."
   (lambda (omega alpha)
     (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
 					    (list alpha))
@@ -102,7 +106,7 @@
 			     :when (member dim axis) :do (setq coords (rest coords))))))))
 
 (defun find-depth (omega)
-  "Find the depth of an array. Used to implement [≡ depth]."
+  "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
   (if (not (arrayp omega))
       0 (array-depth omega)))
 
@@ -112,6 +116,7 @@
       1 (first (dims omega))))
 
 (defun membership (omega alpha)
+  "Determine if elements of alpha are present in omega. Used to implement dyadic [∊ membership]."
   (flet ((compare (item1 item2)
 	   (if (and (characterp item1) (characterp item2))
 	       (char= item1 item2)
@@ -178,10 +183,12 @@
 			      :displaced-to (copy-array omega))))))
 
 (defun ravel-array (index-origin)
+  "Wrapper for aplesque [,ravel] function incorporating index origin from current workspace."
   (lambda (omega &optional axes)
     (ravel index-origin omega axes)))
 
 (defun catenate-arrays (index-origin)
+  "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
   (lambda (omega alpha &optional axes)
     (let ((axis *first-axis-or-nil*))
       (if (floatp axis)
@@ -191,6 +198,7 @@
 	  (catenate alpha omega (or axis (max 0 (1- (max (rank alpha) (rank omega))))))))))
 
 (defun catenate-on-first (index-origin)
+  "Wrapper for [⍪ catenate first]; distinct from (catenate-arrays) because it does not provide the laminate functionality."
   (lambda (omega alpha &optional axes)
     (if (and (vectorp alpha) (vectorp omega))
 	(if (and *first-axis-or-nil* (< 0 *first-axis-or-nil*))
@@ -204,6 +212,7 @@
 	    (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
 (defun section-array (index-origin metadata-symbol &optional inverse)
+  "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
   (lambda (omega alpha &optional axes)
     (let* ((alpha-index alpha)
 	   (alpha (if (arrayp alpha)
@@ -254,6 +263,7 @@
 	  (disclose (pick-point alpha omega))))))
 
 (defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
+  "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
   (let ((output (expand degrees input axis :compress-mode compress-mode
 			:populator (build-populator metadata-symbol input))))
     (if (and (= 0 (size output)) (arrayp input) (arrayp (row-major-aref input 0)))
@@ -312,6 +322,7 @@
 		    0)))))
 
 (defun unique-mask (array)
+  "Return a 1 for each value encountered the first time in an array, 0 for others. Used to implement monadic [≠ unique mask]."
   (let ((output (make-array (first (dims array)) :element-type 'bit :initial-element 1))
 	(displaced (if (< 1 (rank array)) (make-array (rest (dims array))
 						      :displaced-to array
@@ -332,6 +343,7 @@
     output))
 
 (defun permute-array (index-origin)
+  "Wraps (aops:permute) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
 	omega (aops:permute (if alpha (loop :for i :across (enclose alpha) :collect (- i index-origin))
@@ -339,6 +351,7 @@
 			    omega))))
 
 (defun matrix-inverse (omega)
+  "Invert a matrix. Used to implement monadic [⌹ matrix inverse]."
   (if (not (arrayp omega))
       (/ omega)
       (if (< 2 (rank omega))
@@ -348,6 +361,7 @@
 	      (left-invert-matrix omega)))))
 
 (defun matrix-divide (omega alpha)
+  "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
   (each-scalar t (array-inner-product (invert-matrix omega)
 				      alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
 				      #'+)))
@@ -463,47 +477,59 @@
 	  result))))
 
 (defun format-array (print-precision)
+  "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)
-    (if (not alpha)
-	(array-impress omega :collate t
-		       :segment (lambda (number &optional segments)
-				  (aplesque::count-segments number print-precision segments))
-		       :format (lambda (number &optional segments)
-				 (print-apl-number-string number segments print-precision)))
-	(if (not (integerp alpha))
-	    (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
-				" the precision at which to print floating-point numbers."))
-	    (array-impress omega :collate t
-			   :segment (lambda (number &optional segments)
-				      (aplesque::count-segments number (- alpha) segments))
-			   :format (lambda (number &optional segments)
-				     (print-apl-number-string number segments print-precision alpha)))))))
+    (if (and alpha (not (integerp alpha)))
+	(error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
+			    " the precision at which to print floating-point numbers.")))
+    (array-impress omega :collate t
+		   :segment (lambda (number &optional segments)
+			      (aplesque::count-segments number (if alpha (- alpha) print-precision)
+							segments))
+		   :format (lambda (number &optional segments)
+			     (print-apl-number-string number segments print-precision alpha)))))
 
 (defun generate-index-array (array)
+  "Given an array, generate an array of the same shape whose each cell contains its row-major index."
   (let ((output (make-array (dims array) :element-type (list 'integer 0 (size array)))))
-    (loop :for i :below (size array) :do (setf (row-major-aref output i) i))
+    (dotimes (i (size array)) (setf (row-major-aref output i) i))
     output))
 
 (defun assign-selected (array indices values)
+  "Assign array values selected using one of the functions [↑ take], [↓ drop], [\ expand] or [⊃ pick]."
   (if (or (= 0 (rank values))
 	  (and (= (rank indices) (rank values))
 	       (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
-      (let ((output (if (and (= 0 (rank values))
-			     (or (eq t (element-type array))
-				 (and (listp (type-of array))
-				      (or (eql 'simple-vector (first (type-of array)))
-					  (and (eql 'simple-array (first (type-of array)))
-					       (typep values (second (type-of array))))))))
-			array (make-array (dims array) :element-type (if (/= 0 (rank values))
-									 t (assign-element-type values))))))
-	(loop :for i :below (size array) :do (setf (row-major-aref output i) (row-major-aref array i)))
-	(loop :for i :below (size indices) :do (setf (row-major-aref output (row-major-aref indices i))
-						     (if (= 0 (rank values))
-							 values (row-major-aref values i))))
+      ;; if the data to be assigned is not a scalar value, a new array must be created to ensure
+      ;; that the output array will be compatible with all assigned and original values
+      (let* ((to-copy-input (not (and (= 0 (rank values))
+				      (or (eq t (element-type array))
+					  (and (listp (type-of array))
+					       (or (eql 'simple-vector (first (type-of array)))
+						   (and (eql 'simple-array (first (type-of array)))
+							(typep values (second (type-of array))))))))))
+	     (output (if (not to-copy-input)
+			 array (make-array (dims array) :element-type (if (/= 0 (rank values))
+									  t (assign-element-type values)))))
+	     (assigned-indices (if to-copy-input
+				   (make-array (size array) :element-type 'bit :initial-element 0))))
+	;; TODO: is assigning bits slow?
+	;; iterate through the items to be assigned and, if an empty array has been initialized for
+	;; the output, store the indices that have been assigned to new data
+	(dotimes (i (size indices))
+	  (setf (row-major-aref output (row-major-aref indices i))
+		(if (= 0 (rank values)) values (row-major-aref values i)))
+	  (if to-copy-input (setf (aref assigned-indices (row-major-aref indices i)) 1)))
+	;; if the original array was assigned to just return it, or if a new array was created
+	;; iterate through the old array and copy the non-assigned data to the output
+	(if to-copy-input (dotimes (i (size array))
+			    (if (= 0 (aref assigned-indices i))
+				(setf (row-major-aref output i) (row-major-aref array i)))))
 	output)
       (error "Area of array to be reassigned does not match shape of values to be assigned.")))
 
 (defmacro apply-reducing (operation-symbol operation axes &optional first-axis)
+  "Generate a function reducing an array along an axis by a function. Used to implement [/ reduce]."
   (let ((omega (gensym)) (o (gensym)) (a (gensym)) (symstring (string operation-symbol)))
     `(lambda (,omega)
        (if (= 0 (size ,omega))
@@ -526,6 +552,7 @@
 				:reduce t :in-reverse t)))))))
 
 (defmacro apply-scanning (operation-symbol operation axes &optional first-axis)
+  "Generate a function scanning a function over an array. Used to implement [\ scan]."
   (let ((omega (gensym)) (o (gensym)) (a (gensym)))
     `(lambda (,omega)
        (do-over ,omega (lambda (,o ,a) (apl-call ,operation-symbol ,operation ,o ,a))
@@ -533,6 +560,7 @@
 		     (if first-axis 0 `(1- (rank ,omega))))))))
 
 (defmacro apply-to-each (symbol operation-monadic operation-dyadic)
+  "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (let ((index (gensym)) (coords (gensym)) (output (gensym)) (item (gensym))
 	(omega (gensym)) (alpha (gensym)) (a (gensym)) (o (gensym))
 	(monadic-op (if (and (listp operation-monadic)
@@ -581,12 +609,14 @@
 			     ,omega)))))))
 
 (defmacro apply-commuting (symbol operation-dyadic)
+  "Generate a function applying a function to arguments in reverse order, or duplicating a single argument. Used to implement [⍨ commute]."
   (let ((omega (gensym)) (alpha (gensym)))
     `(lambda (,omega &optional ,alpha)
        (apl-call ,symbol ,operation-dyadic (if ,alpha ,alpha ,omega)
 		 ,omega))))
 
 (defmacro apply-to-grouped (symbol operation-dyadic)
+  "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   ;; TODO: eliminate consing here
   (let ((key (gensym)) (keys (gensym)) (key-test (gensym)) (indices-of (gensym))
 	(key-table (gensym)) (key-list (gensym)) (item-sets (gensym)) (li (gensym))
@@ -620,6 +650,7 @@
 	   (mix-arrays 1 (apply #'vector ,item-sets)))))))
 
 (defmacro apply-producing-inner (right-symbol right-operation left-symbol left-operation)
+  "Generate a function finding the inner product of an array using two functions. Used to implement [. inner/outer product]."
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
 	 (op-left `(lambda (alpha omega) (apl-call ,left-symbol ,left-operation omega alpha)))
 	 (result (gensym)) (alpha (gensym)) (omega (gensym)))
@@ -636,6 +667,7 @@
 	   (each-scalar t (array-inner-product ,alpha ,omega ,op-right ,op-left))))))
 
 (defmacro apply-producing-outer (right-symbol right-operation)
+  "Generate a function finding the outer product of an array using a functions. Used to implement [. inner/outer product]."
   (let* ((op-right `(lambda (alpha omega) (apl-call ,right-symbol ,right-operation omega alpha)))
 	 (alpha (gensym)) (omega (gensym)))
     `(lambda (,omega ,alpha)
@@ -645,6 +677,7 @@
 
 (defmacro apply-composed (right-symbol right-value right-function-monadic right-function-dyadic
 			  left-symbol left-value left-function-monadic left-function-dyadic is-confirmed-monadic)
+  "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
   (let* ((alpha (gensym)) (omega (gensym)) (processed (gensym))
 	 (fn-right (or right-function-monadic right-function-dyadic))
 	 (fn-left (or left-function-monadic left-function-dyadic)))
@@ -662,6 +695,7 @@
 
 (defmacro apply-over (right-symbol right-function-monadic
 		      left-symbol left-function-monadic left-function-dyadic)
+  "Generate a function combining two functions, with the second called on the results of the monadic first function called on the argument(s). Used to implement [⍥ over]."
   (let ((alpha (gensym)) (omega (gensym)))
     `(lambda (,omega &optional ,alpha)
        (if ,alpha (apl-call ,left-symbol ,left-function-dyadic
@@ -671,6 +705,7 @@
 		     (apl-call ,right-symbol ,right-function-monadic ,omega))))))
 
 (defmacro apply-at-rank (right-value left-symbol left-function-monadic left-function-dyadic)
+  "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (let ((rank (gensym)) (orank (gensym)) (arank (gensym)) (fn (gensym))
 	(romega (gensym)) (ralpha (gensym)) (alpha (gensym)) (omega (gensym))
 	(o (gensym)) (a (gensym)) (r (gensym)))
@@ -706,6 +741,7 @@
 		 (funcall ,fn ,omega)))))))
 
 (defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic)
+  "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (index (gensym)))
     `(lambda (,omega &optional ,alpha)
        (let ((,arg (disclose ,omega)))
@@ -715,6 +751,7 @@
 	 ,arg))))
 
 (defmacro apply-until (sym-right op-right sym-left op-left)
+  "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
   (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (prior-arg (gensym)))
     `(lambda (,omega &optional ,alpha)
        (declare (ignorable ,alpha))
@@ -728,6 +765,7 @@
 
 (defmacro apply-at (right-symbol right-value right-function-monadic
 		    left-symbol left-value left-function-monadic left-function-dyadic)
+  "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
   (let* ((index (gensym)) (omega-var (gensym)) (output (gensym)) (item (gensym))
 	 (coord (gensym)) (coords (gensym)) (result (gensym)) (alen (gensym))
 	 (alpha (gensym)) (omega (gensym)))
@@ -780,6 +818,7 @@
 		  ,output))))))
 
 (defmacro apply-stenciled (right-value left-symbol left-function-dyadic)
+  "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (let* ((omega (gensym)) (window-dims (gensym)) (movement (gensym)) (o (gensym)) (a (gensym))
 	 (op-left `(lambda (,o ,a) (apl-call ,left-symbol ,left-function-dyadic ,o ,a)))
 	 (iaxes (gensym)))
