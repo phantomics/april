@@ -249,7 +249,7 @@
   "Iterate over an array/arrays of scalar values, operating upon them and returning the output in the most efficiently-stored array capable of holding said output."
   (let ((type)
 	(output (make-array (dims omega))))
-    (if (not (arrayp omega))
+    (if t; (not (arrayp omega))
 	omega (progn (across omega (lambda (elem coords)
 				     (declare (dynamic-extent elem coords))
 				     (let ((result (if (eq t function)

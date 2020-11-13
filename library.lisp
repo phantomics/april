@@ -772,20 +772,22 @@
     (cond (right-function-monadic
 	   `(lambda (,omega &optional ,alpha)
 	      (declare (ignorable ,alpha))
-	      (each-scalar (lambda (,item ,coords)
-			     (declare (ignore ,coords))
-			     (let ((,result (disclose (apl-call ,right-symbol ,right-function-monadic ,item))))
-			       (if (= 1 ,result)
-				   (disclose ,(cond ((or left-function-monadic left-function-dyadic)
-						     `(if ,alpha (apl-call ,left-symbol ,left-function-dyadic
-									   ,item ,alpha)
-							  (apl-call ,left-symbol ,left-function-monadic ,item)))
-						    (t left-value)))
-				   (if (= 0 ,result)
-				       ,item (error ,(concatenate
-						      'string "Domain error: A right function operand"
-						      " of @ must only return 1 or 0 values."))))))
-			   ,omega)))
+	      (let ((,output (make-array (dims ,omega))))
+		(dotimes (,coord (size ,omega))
+		  (let* ((,item (row-major-aref ,omega ,coord))
+			 (,result (disclose (apl-call ,right-symbol ,right-function-monadic ,item))))
+		    (setf (row-major-aref ,output ,coord)
+			  (if (= 1 ,result)
+			      (disclose ,(cond ((or left-function-monadic left-function-dyadic)
+						`(if ,alpha (apl-call ,left-symbol ,left-function-dyadic
+								      ,item ,alpha)
+						     (apl-call ,left-symbol ,left-function-monadic ,item)))
+					       (t left-value)))
+			      (if (= 0 ,result)
+				  ,item (error ,(concatenate
+						 'string "Domain error: A right function operand"
+						 " of @ must only return 1 or 0 values.")))))))
+		,output)))
 	  (t `(lambda (,omega)
 		(let* ((,omega-var (apply-scalar #'- ,right-value index-origin))
 		       (,output (make-array (dims ,omega)))

@@ -87,6 +87,7 @@
 			    (getf properties :symbol-overriding)
 			    (and (symbolp this-item)
 				 (not (is-workspace-function this-item))))
+			(not (member this-item (rest (assoc :function (idiom-symbols idiom)))))
 			(or (not (getf properties :type))
 			    (eq :symbol (first (getf properties :type)))))
 		   (values this-item (append (if vector-axes (list :vector-axes vector-axes))
@@ -170,7 +171,14 @@
 			  (is-workspace-function this-item))
 		     (values this-item (list :axes axes :type '(:function :referenced))
 			     remaining)
-		     (values nil nil tokens)))))
+		     (if (and (symbolp this-item)
+			      (not (getf properties :glyph))
+			      (member this-item (rest (assoc :function (idiom-symbols idiom)))))
+			 (values (symbol-function (getf (rest (assoc :function (idiom-symbols idiom)))
+							this-item))
+				 (list :axes axes :type '(:function :referenced))
+				 remaining)
+			 (values nil nil tokens))))))
  ;; match a reference to an operator, this must be a lexical reference like ⍣
  (operator (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
@@ -432,7 +440,8 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (resolve-function (if value :dyadic :monadic) (insym fn-element)))
+  (let ((fn-content (if (functionp fn-element)
+			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
     `(apl-call ,fn-sym ,fn-content ,precedent
