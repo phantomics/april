@@ -604,7 +604,7 @@ fn ← {⍵+10}
 
 The variable `v` and the function `fn` have been loaded into the default workspace.
 
-Note that the argument to (april-load) must be a pathname, not merely a string. The argument to `(april-load)` may also be an expression that evaluates to a pathname. For instance:
+Note that the argument to `(april-load)` must be a pathname, not merely a string. The argument to `(april-load)` may also be an expression that evaluates to a pathname. For instance:
 
 ```lisp
 * (april-load (pathname (format nil "~a/test.apl" "/test/directory")))
