@@ -581,6 +581,20 @@ Inside the body of the `(with-april-context)` macro, each of the `(april)` invoc
 
 Options passed for one of the `(april)` invocations inside the context will override the options for the context. Here, the second `(april)` invocation has its index origin set to 1 which overrides the context's 0 value.
 
+## Console Output Using the Quad Character
+
+The `(april-f)` macro is one way to view the printed output of APL expressions. What if you want to see the result of an evaluation that occurs in the middle of your code instead of the end, or if you want to print the contents of multiple arrays within a single expression? At times like these, you can use the `⎕` character, also called "quad." In APL, console output can be produced by "assigning" values to `⎕` like this:
+
+```lisp
+* (april "a←1 2 3 ⋄ b←3+⎕←2+a ⋄ ⎕←c←4+b ⋄ c+5")
+3 4 5
+10 11 12
+#(15 16 17)
+```
+
+Both of the values assigned to `⎕` are printed in order before the expression's final result is output. Because `(april)` is used instead of `(april-f)`, no formatted values are printed by default; only the values assigned to `⎕` are printed. Using `⎕`, it's easy to debug complex functions.
+
+
 ## Loading Code Directly From Files
 
 Perhaps you'd like to write files containing pure APL code rather than passing strings to `(april)` within Lisp code. The `(april-load)` macro has you covered. For example:
@@ -623,18 +637,7 @@ The `(april-load)` macro may take a first argument containing the same parameter
 #(19 18 17)
 ```
 
-## Console Output Using the Quad Character
-
-The `(april-f)` macro is one way to view the printed output of APL expressions. What if you want to see the result of an evaluation that occurs in the middle of your code instead of the end, or if you want to print the contents of multiple arrays within a single expression? At times like these, you can use the `⎕` character, also called "quad." In APL, console output can be produced by "assigning" values to `⎕` like this:
-
-```lisp
-* (april "a←1 2 3 ⋄ b←3+⎕←2+a ⋄ ⎕←c←4+b ⋄ c+5")
-3 4 5
-10 11 12
-#(15 16 17)
-```
-
-Both of the values assigned to `⎕` are printed in order before the expression's final result is output. Because `(april)` is used instead of `(april-f)`, no formatted values are printed by default; only the values assigned to `⎕` are printed. Using `⎕`, it's easy to debug complex functions.
+Source code from files can thus be loaded into any workspace.
 
 ## APL System Variables and Functions in April
 
