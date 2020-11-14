@@ -752,14 +752,22 @@
 	     (if ,romega (merge-arrays (each ,fn ,romega) :nesting nil)
 		 (funcall ,fn ,omega)))))))
 
-(defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic)
+(defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic
+			  left-function-monadic-inverse left-function-dyadic-inverse)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (index (gensym)))
     `(lambda (,omega &optional ,alpha)
        (let ((,arg (disclose ,omega)))
-	 (dotimes (,index (disclose ,op-right))
-	   (setq ,arg (if ,alpha (apl-call ,sym-left ,left-function-dyadic ,arg ,alpha)
-			  (apl-call ,sym-left ,left-function-monadic ,arg))))
+	 (dotimes (,index (abs (disclose ,op-right)))
+	   (setq ,arg (if ,alpha (apl-call ,sym-left (if (> 0 (disclose ,op-right))
+							 ,left-function-dyadic-inverse
+							 ,left-function-dyadic)
+					   ,arg ,alpha)
+			  (apl-call ,sym-left (if (> 0 (disclose ,op-right))
+							 ,left-function-monadic-inverse
+							 ,left-function-monadic)
+				    ;; ,left-function-monadic
+				    ,arg))))
 	 ,arg))))
 
 (defmacro apply-until (sym-right op-right sym-left op-left)

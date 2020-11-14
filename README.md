@@ -97,7 +97,6 @@ In order to write APL programs you'll need a way to use the language's special c
 
 [Click here for information on enabling APL input universally within GNU/Linux.](#enabling-apl-input-universally-in-gnulinux)
 
-
 ## Basic Evaluation: (april) and (april-f)
 
 Evaluating an APL expression is as simple as:
@@ -657,7 +656,7 @@ Additionally, April exposes this special system variable not found in other APL 
 
 ## Setting a Custom Output Stream
 
-April has a special system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-f)` or values assigned to the quad character like `⎕←1 2 3` are sent to the `*standard-output*` stream. You can change this as follows:
+April has a system variable called `⎕ost` that you can use to set a custom destination for printed output. Normally, data output using `(april-f)` or values assigned to the quad character like `⎕←1 2 3` are sent to the `*standard-output*` stream. You can change this as follows:
 
 ```lisp
 * (let* ((out-str (make-string-output-stream))
@@ -730,7 +729,7 @@ APL's function editor system and control flow statements are not implemented; th
 
 ## April's Lexicon Compared to Other APLs
 
-APL has multiple implementations, and there are subtle but significant variations between the lexical functions they offer. April's set of functions is closest to those offered by Dyalog APL in its default mode. For instance, in April, dyadic `⊂` implements the partitioned enclose function while dyadic `⊆` implements the partition function, as in Dyalog. In IBM APL2, however, there is no partitioned enclose function and dyadic `⊂` implements the partition function. The same is true in GNU APL, whose design is patterned primarily after APL2.
+APL has multiple implementations, and there are subtle but significant variations between the lexical functions they offer. April's set of functions is closest to those offered by Dyalog APL in its default mode. For instance, in April, dyadic `⊂` implements the partitioned enclose function while dyadic `⊆` implements the partition function, as in Dyalog. In IBM APL2, however, there is no partitioned enclose function and dyadic `⊂` implements the partition function. The same is true in GNU APL, whose design primarily follows APL2.
 
 The other major lexical difference between APL2-family languages and April is that in April, monadic `⊃` implements the disclose function and monadic `↑` implements the mix function; the converse is true in APL2.
 

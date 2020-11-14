@@ -145,7 +145,7 @@
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
-	  (:function ⎕f coerce-type))
+	  (:function ⎕t coerce-type))
  
  ;; APL's set of functions represented by characters
  (functions
@@ -155,31 +155,37 @@
 		       :description "Scalar numeric functions change individual numeric values. They include basic arithmetic and other numeric operations, and they can be applied over arrays."))
   (+ (has :titles ("Conjugate" "Add"))
      (ambivalent :asymmetric-scalar conjugate +)
+     (inverse (ambivalent :asymmetric-scalar conjugate -))
      (tests (is "+5" 5)
 	    (is "+5J2" #C(5 -2))
 	    (is "1+1" 2)
 	    (is "1+1 2 3" #(2 3 4))))
   (- (has :titles ("Negate" "Subtract"))
      (ambivalent :symmetric-scalar (reverse-op -))
+     (inverse (ambivalent :symmetric-scalar (reverse-op -)))
      (tests (is "2-1" 1)
 	    (is "7-2 3 4" #(5 4 3))))
   (× (has :titles ("Sign" "Multiply"))
      (ambivalent :asymmetric-scalar signum *)
+     (inverse (dyadic /))
      (tests (is "×20 5 0 ¯7 3 ¯9" #(1 1 0 -1 1 -1))
 	    (is "2×3" 6)
 	    (is "4 5×8 9" #(32 45))))
   (÷ (has :titles ("Reciprocal" "Divide"))
      (ambivalent :symmetric-scalar (reverse-op /))
+     (inverse (ambivalent :symmetric-scalar (reverse-op /)))
      (tests (is "6÷2" 3)
 	    (is "12÷6 3 2" #(2 4 6))
 	    (is "÷2 4 8" #(1/2 1/4 1/8))))
   (⋆ (has :titles ("Exponential" "Power") :aliases (*))
      (ambivalent :asymmetric-scalar exp (reverse-op :dyadic expt))
+     (inverse (ambivalent :symmetric-scalar log))
      (tests (is "⌊1000×⋆2" 7389)
 	    (is "2⋆4" 16)
 	    (is "⌊16⋆÷2" 4)))
   (⍟ (has :titles ("Natural Logarithm" "Logarithm"))
      (ambivalent :symmetric-scalar log)
+     (inverse (ambivalent :asymmetric-scalar exp (reverse-op expt)))
      (tests (is "⌊1000×⍟5" 1609)
 	    (is "⌊2⍟8" 3)))
   (\| (has :titles ("Magnitude" "Residue"))
@@ -223,8 +229,14 @@
 		 (λωα (if (and (integerp alpha) (<= -12 alpha 12))
 			  (funcall (aref *circular-functions* (+ 12 alpha))
 				   omega)
-			  (error (concatenate 'string "Invalid argument to ○; the left argument must be an"
-					      " integer between ¯12 and 12.")))))
+			  (error "Invalid argument to ○; the left argument must be an~a"
+				 " integer between ¯12 and 12."))))
+     (inverse (ambivalent :asymmetric-scalar (λω (/ omega pi))
+			  (λωα (if (and (integerp alpha) (<= -12 alpha 12))
+				   (funcall (aref *circular-functions* (- (+ 12 alpha)))
+					    omega)
+				   (error "Invalid argument to ○; the left argument must be an~a"
+					  " integer between ¯12 and 12.")))))
      (tests (is "⌊100000×○1" 314159)
 	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)
 	    (is "⌊1000×1○⍳9" #(841 909 141 -757 -959 -280 656 989 412))
@@ -251,6 +263,10 @@
 					     ((= 1 omega) 0)
 					     (t (error "Domain error: arguments to ~~ must be 1 or 0.")))))
 		  #'without)
+      (inverse (monadic (scalar-function
+			 (λω (cond ((= 0 omega) 1)
+				   ((= 1 omega) 0)
+				   (t (error "Domain error: arguments to ~~ must be 1 or 0.")))))))
       (tests (is "~1 0 1" #(0 1 0))
 	     (is "1 2 3 4 5 6 7~3 5" #(1 2 4 6 7))
 	     (is "1 2 3 4~2" #(1 3 4))
@@ -1023,7 +1039,8 @@
   	    (is "fn←{⍺+2×⍵} ⋄ 15 25 35 fn⍤1⊢2 2 3⍴⍳8" #3A(((17 29 41) (23 35 47)) ((29 41 37) (19 31 43))))))
   (⍣ (has :title "Power")
      (pivotal (with-operand-derived (right-glyph right-function-dyadic
-						 left-glyph left-function-monadic left-function-dyadic)
+						 left-glyph left-function-monadic left-function-dyadic
+						 left-function-monadic-inverse	left-function-dyadic-inverse)
 		(lambda (right left)
 		  (let ((op-left (or left-function-monadic left)))
 		    ;; if the right operand is a function, it expresses the criteria for ending the
@@ -1031,7 +1048,8 @@
 		    ;; be a number counting the times the left function is to be compounded
 		    (if right-function-dyadic
 			`(apply-until ,right-glyph ,right-function-dyadic ,left-glyph ,op-left)
-			`(apply-to-power ,right ,left-glyph ,left-function-monadic ,left-function-dyadic))))))
+			`(apply-to-power ,right ,left-glyph ,left-function-monadic ,left-function-dyadic
+					 ,left-function-monadic-inverse	,left-function-dyadic-inverse))))))
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
   	    (is "{2+⍵}⍣3⊢9" 15)
   	    (is "2{⍺×2+⍵}⍣3⊢9" 100)
