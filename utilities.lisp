@@ -351,6 +351,10 @@
 					     (list 'resolve-function :monadic first-op first-axes))
 					    (left-function-dyadic
 					     (list 'resolve-function :dyadic first-op first-axes))
+					    (left-function-monadic-inverse
+					     (list 'resolve-function :monadic-inverse first-op first-axes))
+					    (left-function-dyadic-inverse
+					     (list 'resolve-function :dyadic-inverse first-op first-axes))
 					    (left-function-symbolic
 					     (list 'resolve-function :symbolic first-op first-axes))
 					    (right-glyph (list 'or-functional-character second-op :fn))
@@ -547,10 +551,13 @@ It remains here as a standard against which to compare methods for composing APL
 	      (rest axis-sets)))))
 
 (defun coerce-type (array type-index)
-  (let ((type (case type-index (0 t) (1 'bit) (2 '(unsigned-byte 2)) (3 '(unsigned-byte 4))
-		    (4 '(unsigned-byte 8)) (5 '(unsigned-byte 16)) (6 '(unsigned-byte 32))
-		    (7 '(unsigned-byte 64)) (8 'fixnum) (9 'float) (10 'double)
-		    (11 'character))))
+  (let ((type (case type-index (0 t) (-1 'bit) (1 '(unsigned-byte 2)) (2 '(unsigned-byte 4))
+		    (-3 '(unsigned-byte 7)) (3 '(unsigned-byte 8)) (-4 '(unsigned-byte 15))
+		    (4 '(unsigned-byte 16)) (-5 '(unsigned-byte 31)) (5 '(unsigned-byte 32))
+		    (-6 '(unsigned-byte 63)) (6 '(unsigned-byte 64))
+		    (13 '(signed-byte 8)) (14 '(signed-byte 16)) (15 '(signed-byte 32)) 
+		    (-16 '(signed-byte 63)) (16 '(signed-byte 64)) (21 'fixnum) 
+		    (34 'single-float) (37 'double-float) (98 'base-char) (99 'character))))
     (if (or (not (arrayp array))
 	    (equalp type (element-type array)))
 	array (let ((output (make-array (dims array) :element-type type)))
@@ -673,11 +680,14 @@ It remains here as a standard against which to compare methods for composing APL
 		   (if (< 1 (length exps))
 		       (cons 'progn exps) (first exps)))))))
 
-(defun april-function-glyph-processor (type glyph spec)
+(defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
   (let ((type (intern (string-upcase type) "KEYWORD"))
 	(function-type (intern (string-upcase (first spec)) "KEYWORD"))
-	(spec-body (rest spec)))
+	(spec-body (rest spec))
+	(inverse-spec-body (rest inverse-spec))
+	(inverse-function-type (if inverse-spec (intern (string-upcase (first inverse-spec))
+							"KEYWORD"))))
     (cond ((eq :symbolic function-type)
 	   `(,glyph :lexicons (:functions :symbolic-functions)
 		    :functions (:symbolic ,(first spec-body))))
@@ -685,13 +695,30 @@ It remains here as a standard against which to compare methods for composing APL
 	   ;; if this is a simple scalar declaration passing through another function
 	   `(,glyph :lexicons (:functions :scalar-functions :monadic-functions :scalar-monadic-functions
 					  ,@(if (not (eq :monadic function-type))
-						(list :dyadic-functions :scalar-dyadic-functions)))
+						'(:dyadic-functions :scalar-dyadic-functions))
+					  ,@(if (and inverse-function-type
+						     (not (eq :dyadic inverse-function-type)))
+						'(:inverse-monadic-functions
+						  :scalar-inverse-monadic-functions))
+					  ,@(if (or (eq :dyadic inverse-function-type)
+						    (eq :ambivalent inverse-function-type))
+						'(:inverse-dyadic-functions
+						  :scalar-inverse-dyadic-functions)))
 		    :functions ,(append (if (or (eq :ambivalent function-type)
 						(eq :monadic function-type))
 					    (list :monadic `(scalar-function ,(second spec-body))))
 					(if (or (eq :ambivalent function-type)
 						(eq :dyadic function-type))
-					    (list :dyadic `(scalar-function ,(first (last spec-body))))))))
+					    (list :dyadic `(scalar-function ,(first (last spec-body)))))
+					(if (or (eq :ambivalent inverse-function-type)
+						(eq :monadic inverse-function-type))
+					    (list :monadic-inverse
+						  `(scalar-function ,(second inverse-spec-body))))
+					(if (or (eq :ambivalent inverse-function-type)
+						(eq :dyadic inverse-function-type))
+					    (list :dyadic-inverse
+						  `(scalar-function ,(first (last inverse-spec-body)))))
+					)))
 	  (t `(,glyph :lexicons ,(cond ((eq :functions type)
 					`(:functions ,@(if (eq :ambivalent function-type)
 							   '(:monadic-functions :dyadic-functions)

@@ -246,38 +246,6 @@
 			      1))))
     output))
 
-;; (defun each-scalar (function omega)
-;;   "Iterate over an array/arrays of scalar values, operating upon them and returning the output in the most efficiently-stored array capable of holding said output."
-;;   (let ((type)
-;; 	(output (make-array (dims omega))))
-;;     (if (not (arrayp omega))
-;; 	omega (progn (across omega (lambda (elem coords)
-;; 				     (declare (dynamic-extent elem coords))
-;; 				     (let ((result (if (eq t function)
-;; 						       elem (funcall function elem coords))))
-;; 				       (if type (if (not (typep result type))
-;; 						    (setq type (type-in-common type (assign-element-type result))))
-;; 					   (setq type (assign-element-type result)))
-;; 				       (if coords (setf (apply #'aref output coords) result)
-;; 					   (setf (aref output) result))
-;; 				       ;; output second value to halt traversal of output array;
-;; 				       ;; if the type will be t and no change is being made to the array values,
-;; 				       ;; and thus the function value is t as well, end the traversal
-;; 				       ;; since there's no longer a point
-;; 				       (values nil (and (eq t type)
-;; 							(eq t function))))))
-;; 		     (if (eq t type)
-;; 			 (if (eq t function)
-;; 			     ;; if the traversal was terminated and thus the proper output is the original input,
-;; 			     ;; return that instead of the output
-;; 			     omega output)
-;; 			 (let ((true-output (make-array (dims omega) :element-type type)))
-;; 			   (across output (lambda (elem coords)
-;; 					    (declare (dynamic-extent elem coords))
-;; 					    (setf (apply #'aref true-output coords)
-;; 						  elem)))
-;; 			   true-output))))))
-
 (defun initialize-for-environment (function-id localizer &optional environment)
   (declare (ignore environment))
   (case function-id
@@ -1823,7 +1791,7 @@
 					  (add-column-types :number)
 					  (if (floatp elem)
 					      (add-column-types :float)
-					      (if (and (not (integerp elem)) (rationalp elem))
+					      (if (typep elem 'ratio)
 						  (add-column-types :rational)))
 					  ;; add flags for complex numbers and the types of numbers in the first
 					  ;; column, needed for correct printing
@@ -1831,7 +1799,7 @@
 					      (progn (add-column-types :complex)
 						     (if (floatp (realpart elem))
 							 (add-column-types :realpart-float)
-							 (if (and (not (integerp elem)) (rationalp elem))
+							 (if (typep elem 'ratio)
 							     (add-column-types :realpart-rational)))))))))))
 	       (across input (lambda (elem coords)
 			       (declare (dynamic-extent elem coords))
@@ -2025,3 +1993,39 @@
        (if (stringp ,rendered)
 	   ,rendered (make-array (array-total-size ,rendered)
 				 :element-type 'character :displaced-to ,rendered)))))
+
+#|
+
+(defun each-scalar (function omega)
+  "Iterate over an array/arrays of scalar values, operating upon them and returning the output in the most efficiently-stored array capable of holding said output."
+  (let ((type)
+	(output (make-array (dims omega))))
+    (if (not (arrayp omega))
+	omega (progn (across omega (lambda (elem coords)
+				     (declare (dynamic-extent elem coords))
+				     (let ((result (if (eq t function)
+						       elem (funcall function elem coords))))
+				       (if type (if (not (typep result type))
+						    (setq type (type-in-common type (assign-element-type result))))
+					   (setq type (assign-element-type result)))
+				       (if coords (setf (apply #'aref output coords) result)
+					   (setf (aref output) result))
+				       ;; output second value to halt traversal of output array;
+				       ;; if the type will be t and no change is being made to the array values,
+				       ;; and thus the function value is t as well, end the traversal
+				       ;; since there's no longer a point
+				       (values nil (and (eq t type)
+							(eq t function))))))
+		     (if (eq t type)
+			 (if (eq t function)
+			     ;; if the traversal was terminated and thus the proper output is the original input,
+			     ;; return that instead of the output
+			     omega output)
+			 (let ((true-output (make-array (dims omega) :element-type type)))
+			   (across output (lambda (elem coords)
+					    (declare (dynamic-extent elem coords))
+					    (setf (apply #'aref true-output coords)
+						  elem)))
+			   true-output))))))
+
+|#
