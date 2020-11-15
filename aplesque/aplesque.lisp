@@ -766,10 +766,9 @@
           (let* ((input-length (array-total-size input))
                  (output-length (reduce #'* output-dims))
                  (output (make-array output-dims :element-type (if populator t (element-type input)))))
-            (declare (dynamic-extent input-index)
-                     ;; TODO: optimization caused problems due to type uncertainty; solution?
-                     ;; (optimize (safety 0) (speed 3))
-                     )
+            ;;(declare)
+	    ;; TODO: optimization caused problems due to type uncertainty; solution?
+	    ;; (optimize (safety 0) (speed 3))
 	    (if (or populator (< 0 (size input)))
 		(dotimes (index output-length)
 		  (setf (row-major-aref output index)
@@ -1355,8 +1354,9 @@
 
 (defun split-array (input &optional axis)
   "Split an array into a set of sub-arrays."
-  (if (is-unitary input)
-      input (let* ((axis (if axis axis (1- (rank input))))
+  (if (or (is-unitary input) (> 2 (rank input)))
+      (nest input)
+      (let* ((axis (if axis axis (1- (rank input))))
 		   (idims (dims input))
 		   (ocoords (loop :for i :below (1- (rank input)) :collect 0))
 		   (output (make-array (loop :for dim :in idims :for dx :from 0 :when (not (= dx axis))
