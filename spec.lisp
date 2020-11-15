@@ -829,7 +829,7 @@
 		     omega)
 		 (λωα (declare (ignore omega))
 		      alpha))
-     (tests (is "⊣77" #0A0)
+     (tests (is "⊣77" 77)
 	    (is "55⊣77" 55)))
   (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (format-array print-precision) (format-array print-precision))
