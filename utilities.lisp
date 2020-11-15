@@ -727,6 +727,15 @@ It remains here as a standard against which to compare methods for composing APL
 										       (string function-type)
 										       "-" (string type)))
 									 "KEYWORD")))
+						     ,@(if (eq :ambivalent inverse-function-type)
+							   '(:inverse-monadic-functions
+							     :inverse-dyadic-functions)
+							   (list (intern (string-upcase
+									  (concatenate
+									   'string
+									   (string inverse-function-type)
+									   "-" (string type)))
+									 "KEYWORD")))
 						     ,@(if (and (or (eq :ambivalent function-type)
 								    (eq :monadic function-type))
 								(eql 'scalar-function (caar spec-body)))
@@ -735,7 +744,22 @@ It remains here as a standard against which to compare methods for composing APL
 								    (eql 'scalar-function (caar spec-body)))
 							       (and (eq :ambivalent function-type)
 								    (eql 'scalar-function (caadr spec-body))))
-							   '(:scalar-functions :scalar-dyadic-functions))))
+							   '(:scalar-functions :scalar-dyadic-functions))
+						     ,@(if (and (or (eq :ambivalent inverse-function-type)
+								    (eq :monadic inverse-function-type))
+								(eql 'scalar-function
+								     (caar inverse-spec-body)))
+							   '(:inverse-scalar-functions
+							     :inverse-scalar-monadic-functions))
+						     ,@(if (or (and (eq :dyadic inverse-function-type)
+								    (eql 'scalar-function
+									 (caar inverse-spec-body)))
+							       (and (eq :ambivalent function-type)
+								    (eql 'scalar-function
+									 (caadr inverse-spec-body))))
+							   '(:inverse-scalar-functions
+							     :inverse-scalar-dyadic-functions))
+						     ))
 				       ((eq :operators type)
 					`(:operators ,(if (eq :lateral function-type)
 							  :lateral-operators
@@ -748,7 +772,16 @@ It remains here as a standard against which to compare methods for composing APL
 						     (if (eq :ambivalent function-type)
 							 (list :dyadic (second spec-body))
 							 (if (eq :dyadic function-type)
-							     (list :dyadic (first spec-body)))))))
+							     (list :dyadic (first spec-body))))
+						     (if (or (eq :ambivalent inverse-function-type)
+							     (eq :monadic inverse-function-type))
+							 (list :monadic-inverse
+							       (first inverse-spec-body)))
+						     (if (or (eq :ambivalent inverse-function-type)
+							     (eq :dyadic inverse-function-type))
+							 (list :dyadic-inverse
+							       (first inverse-spec-body)))
+						     )))
 			      ((eq :operators type)
 			       `(:operators ,(first spec-body)))))))))
 

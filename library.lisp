@@ -58,6 +58,12 @@
 	      output)
 	    (error "The argument to ⍳ must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
+(defun inverse-count-to (vector index-origin)
+  (if (not (vectorp vector))
+      (error "Inverse ⍳ can only be invoked on a vector, at least for now.")
+      (if (loop :for e :across vector :for i :from index-origin :always (= e i))
+	  (length vector) (error "The argument to inverse ⍳ is not an index vector."))))
+
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
   (if (or (not (arrayp omega))
@@ -755,19 +761,19 @@
 (defmacro apply-to-power (op-right sym-left left-function-monadic left-function-dyadic
 			  left-function-monadic-inverse left-function-dyadic-inverse)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
-  (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (index (gensym)))
+  (let ((alpha (gensym)) (omega (gensym)) (arg (gensym)) (index (gensym)) (power (gensym)))
     `(lambda (,omega &optional ,alpha)
-       (let ((,arg (disclose ,omega)))
-	 (dotimes (,index (abs (disclose ,op-right)))
-	   (setq ,arg (if ,alpha (apl-call ,sym-left (if (> 0 (disclose ,op-right))
-							 ,left-function-dyadic-inverse
-							 ,left-function-dyadic)
-					   ,arg ,alpha)
-			  (apl-call ,sym-left (if (> 0 (disclose ,op-right))
-							 ,left-function-monadic-inverse
-							 ,left-function-monadic)
-				    ;; ,left-function-monadic
-				    ,arg))))
+       (let ((,arg ,omega) (,power ,op-right))
+	 (dotimes (,index (abs ,power))
+	   ;; the if-statements below aren't the most elegant way to structure this; the (apl-call)
+	   ;; structures are repeated, but the (scalar-function) form needs to be immediately
+	   ;; inside (apl-call) in order for (apl-call)'s logic to work correctly
+	   (setq ,arg (if ,alpha (if (<= 0 ,power)
+				     (apl-call ,sym-left ,left-function-dyadic ,arg ,alpha)
+				     (apl-call ,sym-left ,left-function-dyadic-inverse ,arg ,alpha))
+			  (if (<= 0 ,power)
+			      (apl-call ,sym-left ,left-function-monadic ,arg)
+			      (apl-call ,sym-left ,left-function-monadic-inverse ,arg)))))
 	 ,arg))))
 
 (defmacro apply-until (sym-right op-right sym-left op-left)
