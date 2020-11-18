@@ -329,7 +329,7 @@
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
   (let ((now (now)))
-    (make-array '(7) :element-type '(integer 0 16384)
+    (make-array 7 :element-type '(integer 0 16384)
 		:initial-contents (list (year-of now) (month-of now) (day-of now) (hour-of now)
 					(minute-of now) (second-of now) (millisecond-of now)))))
 
@@ -340,33 +340,8 @@
 					 (list 'disclose item)
 					 item)))
 
-(defmacro with-operand-derived (operand-specs &rest body)
-  "Derive references to glyphs and functions from a set of operands passed to an operator so they can be used by the macro implementing the operator."
-  (let ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym)))
-    `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
-       (declare (ignorable ,second-op ,second-axes))
-       (let ,(loop :for symbol :in operand-specs
-		:collect (list symbol (case symbol (left-glyph (list 'or-functional-character first-op :fn))
-					    (left-function-monadic
-					     (list 'resolve-function :monadic first-op first-axes))
-					    (left-function-dyadic
-					     (list 'resolve-function :dyadic first-op first-axes))
-					    (left-function-monadic-inverse
-					     (list 'resolve-function :monadic-inverse first-op first-axes))
-					    (left-function-dyadic-inverse
-					     (list 'resolve-function :dyadic-inverse first-op first-axes))
-					    (left-function-symbolic
-					     (list 'resolve-function :symbolic first-op first-axes))
-					    (right-glyph (list 'or-functional-character second-op :fn))
-					    (right-function-monadic
-					     (list 'resolve-function :monadic second-op second-axes))
-					    (right-function-dyadic
-					     (list 'resolve-function :dyadic second-op second-axes))
-					    (right-function-symbolic
-					     (list 'resolve-function :symbolic second-op second-axes)))))
-	 ,@body))))
-
 (defmacro with-derived-operands (operand-specs &rest body)
+  "Derive references to data to be passed to an operator so they can be used by the macro implementing the operator."
   (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym))
 	 (right (if (member 'right operand-specs) 'right (gensym)))
 	 (left (if (member 'left operand-specs) 'left (gensym)))
@@ -427,7 +402,6 @@
 		 `((declare (ignore ,@(if (not (member 'left operand-specs)) (list left))
 				    ,@(if (not (member 'right operand-specs)) (list right)))
 			    ,@(if (member 'axes operand-specs) `((ignorable axes))))))
-	   ;; (print (list :rr right left ,first-op ,second-op))
 	   ,@body)))))
 
 (defun resolve-function (mode reference &optional axes)
