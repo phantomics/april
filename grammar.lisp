@@ -234,6 +234,7 @@
 		     operator-axes)))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
+  ;; match a unitary operator like $
   ((operator :element (operator :valence :unitary)))
   (let ((axes (first (getf (first properties) :axes))))
     (funcall (resolve-operator :unitary operator)
@@ -270,7 +271,10 @@
 	    `(setq (inws ,symbol) (apl-call ,fn-sym ,fn-content (inws ,symbol) ,precedent
 					    ,@(if function-axes `((list ,@(first function-axes))))))
 	    (enclose-axes `(inws, symbol)
-			  symbol-axes :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))))))
+			  symbol-axes ;; :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))
+			  :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))
+			  :set precedent
+			  ))))
   '(:type (:array :assigned :by-result-assignment-operator)))
  (selective-assignment
   ;; match a selective value assignment like (3↑x)←5
@@ -423,9 +427,9 @@
   ;; a value assignment, function assignment or operation, which allows for expressions like
   ;; fn←5∘- where an operator-composed function is assigned
   (let ((right-operand (insym precedent))
+	(right-operand-axes (first (getf (first pre-properties) :axes)))
 	(left-operand (insym left-operand))
-	(left-operand-axes (first (getf (second properties) :axes)))
-	(right-operand-axes (first (getf (first pre-properties) :axes))))
+	(left-operand-axes (first (getf (second properties) :axes))))
     ;; get left axes from the left operand and right axes from the precedent's properties so the
     ;; functions can be properly curried if they have axes specified
     (append (list 'apl-compose (intern (string-upcase operator)))
