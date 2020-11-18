@@ -342,7 +342,7 @@
 
 (defmacro with-operand-derived (operand-specs &rest body)
   "Derive references to glyphs and functions from a set of operands passed to an operator so they can be used by the macro implementing the operator."
-  (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym)))
+  (let ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym)))
     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
        (let ,(loop :for symbol :in operand-specs
@@ -365,6 +365,70 @@
 					    (right-function-symbolic
 					     (list 'resolve-function :symbolic second-op second-axes)))))
 	 ,@body))))
+
+(defmacro with-derived-operands (operand-specs &rest body)
+  (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym))
+	 (right (if (member 'right operand-specs) 'right (gensym)))
+	 (left (if (member 'left operand-specs) 'left (gensym)))
+	 (axes (if (member 'axes operand-specs) 'axes (gensym))))
+    `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
+       (declare (ignorable ,second-op ,second-axes))
+       (let ,(loop :for symbol :in operand-specs
+		:when (and (not (member symbol '(right left axes)))
+			   (or (symbolp symbol) (characterp symbol)))
+		:collect (list symbol (case symbol
+					(left-op first-op)
+					(left-axes first-axes)
+					(left-glyph `(or-functional-character ,first-op :fn))
+					(left-fn-monadic
+					 `(if (resolve-function :monadic ,first-op ,first-axes)
+					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
+							     ,(resolve-function :monadic ,first-op ,first-axes)
+							     omega))))
+					(left-fn-monadic-inverse
+					 `(if (resolve-function :monadic-inverse ,first-op ,first-axes)
+					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
+							     ,(resolve-function :monadic-inverse
+										,first-op ,first-axes)
+							     omega))))
+					(left-fn-dyadic
+					 `(if (resolve-function :dyadic ,first-op ,first-axes)
+					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
+							      ,(resolve-function :dyadic ,first-op ,first-axes)
+							      omega alpha))))
+					(left-fn-dyadic-inverse
+					 `(if (resolve-function :dyadic-inverse ,first-op ,first-axes)
+					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
+							      ,(resolve-function :dyadic-inverse
+										 ,first-op ,first-axes)
+							      omega alpha))))
+					(left-fn-symbolic `(resolve-function :symbolic ,first-op ,first-axes))
+					(right-op second-op)
+					(right-axes second-axes)
+					(right-glyph `(or-functional-character ,second-op :fn))
+					(right-fn-monadic
+					 `(if (resolve-function :monadic ,second-op ,second-axes)
+					      `(λω (apl-call ,(or-functional-character ,second-op :fn)
+							     ,(resolve-function :monadic
+										,second-op ,second-axes)
+							     omega))))
+					(right-fn-dyadic
+					 `(if (resolve-function :dyadic ,second-op ,second-axes)
+					      `(λωα (apl-call ,(or-functional-character ,second-op :fn)
+							      ,(resolve-function :dyadic ,second-op ,second-axes)
+							      omega alpha))))
+					(right-fn-symbolic `(resolve-function :symbolic ,second-op ,second-axes)))))
+	 (declare (ignorable left-glyph right-glyph))
+	 (lambda (,@(if (member 'axes operand-specs)
+			(list axes)
+			(list right left)))
+	   ,@(if (or (not (member 'left operand-specs))
+		     (not (member 'right operand-specs)))
+		 `((declare (ignore ,@(if (not (member 'left operand-specs)) (list left))
+				    ,@(if (not (member 'right operand-specs)) (list right)))
+			    ,@(if (member 'axes operand-specs) `((ignorable axes))))))
+	   ;; (print (list :rr right left ,first-op ,second-op))
+	   ,@body)))))
 
 (defun resolve-function (mode reference &optional axes)
   "Retrieve the function corresponding to a given character or symbol in a given mode (monadic or dyadic)."
@@ -535,7 +599,7 @@ It remains here as a standard against which to compare methods for composing APL
   `(if (not (characterp ,reference))
        ,symbol (intern (string-upcase ,reference))))
 
-(defun enclose-axes (body axis-sets &key (set nil))
+(defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
   (let ((axes (first axis-sets)))
     (if (not axis-sets)
@@ -543,7 +607,7 @@ It remains here as a standard against which to compare methods for composing APL
 	      (if set `(multiple-value-bind (assignment-output assigned-array)
 			   (choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
 						 (list ,@axes))
-				   :set ,set)
+				   :set ,set ,@(if set-by (list :set-by set-by)))
 			 (if assigned-array (setf ,body assigned-array)
 			     assignment-output))
 		  `(choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
@@ -610,33 +674,37 @@ It remains here as a standard against which to compare methods for composing APL
        (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
        ,@form)))
 
-(defun do-over (input function axis &key reduce in-reverse)
+(defun do-over (input function axis &key reduce in-reverse last-axis)
   "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
   (let* ((dimensions (dims input))
-	 (output (make-array (if reduce (loop :for dim :in dimensions :for dx :from 0
-					   :when (/= dx axis) :collect dim)
-				 dimensions)))
+	 (axis (or axis (if last-axis (max 0 (1- (rank input))) 0)))
+	 (output (if (< 1 (size input))
+		     (make-array (if reduce (loop :for dim :in dimensions :for dx :from 0
+					       :when (/= dx axis) :collect dim)
+				     dimensions))))
 	 (rcoords (if reduce (loop :for i :below (1- (rank input)) :collect 0)))
 	 (icoords (loop :for i :below (rank input) :collect 0)))
-    (across input (lambda (elem coords)
-		    (declare (dynamic-extent elem coords))
-		    (if rcoords (let ((decrement 0))
-				  (loop :for c :in coords :for cx :from 0
-				     :when (= axis cx) :do (incf decrement)
-				     :when (/= axis cx) :do (setf (nth (- cx decrement) rcoords) c))))
-		    (loop :for c :in coords :for cx :from 0 :do (setf (nth cx icoords)
-								      (if (/= axis cx) c (if (not reduce)
-											     (1- c)))))
-		    (let ((elem (disclose elem)))
-		      (setf (apply #'aref output (if reduce rcoords coords))
-			    (if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
-				   (nth axis coords))
-				elem (funcall function elem (apply #'aref output
-								   (if reduce rcoords
-								       (or icoords (list 0)))))))))
-	    :ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
-								  (list (nth d dimensions)))))
-    output))
+    (if output
+	(across input (lambda (elem coords)
+			(declare (dynamic-extent elem coords))
+			(if rcoords (let ((decrement 0))
+				      (loop :for c :in coords :for cx :from 0
+					 :when (= axis cx) :do (incf decrement)
+					 :when (/= axis cx) :do (setf (nth (- cx decrement) rcoords) c))))
+			(loop :for c :in coords :for cx :from 0 :do (setf (nth cx icoords)
+									  (if (/= axis cx) c (if (not reduce)
+												 (1- c)))))
+			(let ((elem (disclose elem)))
+			  (setf (apply #'aref output (if reduce rcoords coords))
+				(if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
+				       (nth axis coords))
+				    elem (funcall function (apply #'aref output
+								  (if reduce rcoords
+								      (or icoords (list 0))))
+						  elem)))))
+		:ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
+								      (list (nth d dimensions))))))
+    (or output input)))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."

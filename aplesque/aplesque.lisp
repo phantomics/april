@@ -5,29 +5,33 @@
 
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
-(defun rmi-from-subscript-array (array subscripts)
+(defun rmi-from-subscript-vector (array subscripts)
   "Derive an array's row-major index from a vector of subscripts."
-  (let ((rank (rank array))
-	(dims (reverse (dims array)))
-	(length (length subscripts)))
-    (cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W." length rank))
-	  ((= 1 rank) (aref subscripts 0))
-	  (t (let ((result 0) (factor 1))
-	       (loop :for i :from (1- length) :downto 0
-		  :do (if (<= (first dims) (aref subscripts i))
-			  (error "Invalid index for dimension ~W." (1+ i))
-			  (setq result (+ result (* factor (aref subscripts i)))
-				factor (* factor (first dims))
-				dims (rest dims))))
-	       result)))))
+  (if (not (vectorp subscripts))
+      subscripts
+      (let ((rank (rank array))
+	    (dims (reverse (dims array)))
+	    (length (length subscripts)))
+	(cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W." length rank))
+	      ((= 1 rank) (aref subscripts 0))
+	      (t (let ((result 0) (factor 1) (simple-vector t))
+		   (loop :for i :from (1- length) :downto 0 :while simple-vector
+		      :do (if (not (integerp (aref subscripts i)))
+			      (setq simple-vector nil)
+			      (if (<= (first dims) (aref subscripts i))
+				  (error "Invalid index for dimension ~W." (1+ i))
+				  (setq result (+ result (* factor (aref subscripts i)))
+					factor (* factor (first dims))
+					dims (rest dims)))))
+		   (if simple-vector result)))))))
 
 (defun varef (array subscripts)
   "Reference an element in an array according to a vector of subscripts."
-  (row-major-aref array (rmi-from-subscript-array array subscripts)))
+  (row-major-aref array (rmi-from-subscript-vector array subscripts)))
 
 (defun (setf varef) (new-value array subscripts)
   "Set an element in an array according to a vector of subscripts."
-  (setf (row-major-aref array (rmi-from-subscript-array array subscripts))
+  (setf (row-major-aref array (rmi-from-subscript-vector array subscripts))
 	new-value))
 
 (defun is-unitary (value)
@@ -907,7 +911,7 @@
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
-(defun array-outer-product (alpha omega function)
+(defun array-outer-product (omega alpha function)
   "Find the outer product of two arrays with a function."
   (let* ((ascalar (if (= 0 (rank alpha)) (disclose alpha)))
 	 (oscalar (if (= 0 (rank omega)) (disclose omega)))
@@ -918,9 +922,8 @@
 	 (output (make-array (append adims odims))))
     (dotimes (x (size output))
       (setf (row-major-aref output x)
-	    (nest (funcall function
-			   (or ascalar (disclose (row-major-aref alpha (floor (/ x ovectors)))))
-			   (or oscalar (disclose (row-major-aref omega (mod x ovectors))))))))
+	    (nest (funcall function (or oscalar (disclose (row-major-aref omega (mod x ovectors))))
+			   (or ascalar (disclose (row-major-aref alpha (floor (/ x ovectors)))))))))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
@@ -1133,130 +1136,273 @@
 		       (incf (apply #'aref output match)))))
 	  output))))
 
-(defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
-  "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
-  (if (and (/= (length aindices) (rank input))
-	   (not (arrayp (first aindices))))
-      (error "Wrong number of indices, ~w, for array of rank ~w."
-	     (length aindices) (rank input)))
-  (let* ((idims (dims input))
-	 (aindices (loop :for item :in aindices :collect (disclose-scalar-elements item)))
-	 (output (let ((dims-out (if (or (and (listp (first aindices))
-					      (arrayp (caar aindices)))
-					 (and (arrayp (first aindices))
-					      (< 0 (size (first aindices)))
-					      (arrayp (row-major-aref (first aindices) 0))))
-				     (dims (first aindices))
-				     ;; if the first if the first indices is an array, that means that choose
-				     ;; indexing is being used, so the shape of the first index will be
-				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
-				     ;; to determine the shape of the output array
-				     (loop :for dim :in idims :for dx :from 0
-					:append (let ((index (nth dx aindices)))
-				     		  (if (or (vectorp index)
-							  (and (listp index) (< 1 (length index))))
-				     		      (list (length index))
-				     		      (if (and (arrayp index) (< 1 (array-total-size index)))
-				     			  (dims index)
-				     			  (if (not index)
-				     			      (list dim)))))))))
-		   (if (not dims-out)
-		       :unitary (make-array dims-out :element-type t))))
-	 (input-compatible (typep set (element-type input)))
-	 (true-input (if (not input-compatible)
-			 (make-array (dims input) :element-type (type-in-common (element-type input)
-										(assign-element-type set))))))
-    (if true-input (progn (across input (lambda (elem coords) 
-					  (declare (dynamic-extent elem coords))
-					  (setf (apply #'aref true-input coords) elem)))
-			  (setq input true-input)))
-    (labels ((process (indices &optional out-path in-path)
-	       (symbol-macrolet
-		   ((source-cell (apply #'aref input (reverse in-path)))
-		    (target-cell (apply #'aref output (reverse out-path)))
-		    (set-cell (if (= 0 (rank set))
-				  set (apply #'aref set (reverse out-path))))
-		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
-		 (cond ((and (not indices) (= (rank input) (length in-path)))
-			;; if the output is not a unitary value, set the target cell appropriately
-			(if (and out-path (not (eq :unitary output)))
-			    (setf target-cell (cond ((arrayp set)
-						     ;; if assigning a whole array, set the value of the source
-						     ;; cell to the value of the corresponding cell in
-						     ;; the array of values to be set
-						     (setf source-cell set-cell))
-						    (set (setf source-cell (if (functionp set)
-									       apply-set-function set)))
-						    (t (funcall fn source-cell))))
-			    (setq output (if set (setf source-cell (if (functionp set) apply-set-function set))
-					     source-cell))))
-		       ((and (not indices) (vectorp (first in-path))
-			     (and (arrayp (aref (first in-path) 0))
-				  (= 0 (rank (aref (first in-path) 0))))
-			     (vectorp (aref (aref (first in-path) 0))))
-		       	;; if using reach indexing, recurse on the sub-array specified
-			;; by the first coordinate vector
-		       	(setf target-cell (choose (disclose (apply #'aref input
-								   (array-to-list (aref (aref (first in-path) 0)))))
-						  (loop :for ix :from 1 :to (1- (length (first in-path)))
-						     :collect (funcall (lambda (item)
-									 (if (not (and (arrayp item)
-										       (= 0 (rank item))))
-									     item (disclose item)))
-								       (aref (first in-path) ix)))
-						  :set set :fn fn :set-coords set-coords)))
-		       ((and (not indices) (vectorp (first in-path)))
-		       	;; if using choose indexing, recurse using the index as the coordinates
-		       	(setf target-cell (choose input (array-to-list (first in-path))
-						  :set set :fn fn :set-coords set-coords)))
-		       (t (let ((this-index (first indices)))
-			    (cond ((and (not (eq :unitary output))
-					(arrayp set)
-					(not (= 0 (rank set)))
-					(or (not (= (rank output) (rank set)))
-					    (not (loop :for dx :below (rank output)
-						    :always (= (nth dx (dims output))
-							       (nth dx (dims set)))))))
-				   ;; if assigning a whole array, make sure the input and output area
-				   ;; have the same shape
-				   (error (concatenate 'string "When assigning from an array, the shape of the"
-						       " area to be assigned and the shape of the array to"
-						       " assign from must be the same.")))
-				  ((arrayp this-index)
-				   ;; iterate over the index if it's an array, unless it's a unitary vector
-				   (if (and (vectorp this-index)
-					    (= 1 (length this-index)))
-				       (process (rest indices)
-						out-path (cons (aref this-index 0) in-path))
-				       (across this-index (lambda (value coords)
-							    (declare (dynamic-extent value coords))
-							    (process (rest indices)
-								     (append (reverse coords) out-path)
-								     (cons value in-path))))))
-				  ((not this-index)
-				   ;; if there is no index, elide it by iterating over
-				   ;; this dimension of the array
-				   (let ((count 0))
-				     (dotimes (ix (nth (length in-path) idims))
-				       (process (rest indices) (cons count out-path)
-						(cons ix in-path))
-				       (incf count 1))))
-				  ((listp this-index)
-				   ;; iterate over the index if it's a list, same as with an array
-				   (if (= 1 (length this-index))
-				       (process (rest indices)
-						out-path (cons (first this-index) in-path))
-				       (let ((count 0))
-					 (loop :for ix :in this-index :do (process (rest indices)
-										   (cons count out-path)
-										   (cons ix in-path))
-					    (incf count 1)))))
-				  (t (process (rest indices)
-					      out-path (cons this-index in-path))))))))))
-      (if (not (and (arrayp set) (/= 0 (rank set))
-		    (not (arrayp (first aindices)))))
-          (process aindices) (error "Cannot assign an unenclosed array to a point in an array."))
-      (apply #'values (cons output (if true-input (list input)))))))
+;; (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
+;;   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
+;;   (if (and (/= (length aindices) (rank input))
+;; 	   (not (arrayp (first aindices))))
+;;       (error "Wrong number of indices, ~w, for array of rank ~w."
+;; 	     (length aindices) (rank input)))
+;;   (let* ((idims (dims input))
+;; 	 (aindices (loop :for item :in aindices :collect (disclose-scalar-elements item)))
+;; 	 (output (let ((dims-out (if (or (and (listp (first aindices))
+;; 					      (arrayp (caar aindices)))
+;; 					 (and (arrayp (first aindices))
+;; 					      (< 0 (size (first aindices)))
+;; 					      (arrayp (row-major-aref (first aindices) 0))))
+;; 				     (dims (first aindices))
+;; 				     ;; if the first if the first indices is an array, that means that choose
+;; 				     ;; indexing is being used, so the shape of the first index will be
+;; 				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
+;; 				     ;; to determine the shape of the output array
+;; 				     (loop :for dim :in idims :for dx :from 0
+;; 					:append (let ((index (nth dx aindices)))
+;; 				     		  (if (or (vectorp index)
+;; 							  (and (listp index) (< 1 (length index))))
+;; 				     		      (list (length index))
+;; 				     		      (if (and (arrayp index) (< 1 (array-total-size index)))
+;; 				     			  (dims index)
+;; 				     			  (if (not index)
+;; 				     			      (list dim)))))))))
+;; 		   (if (not dims-out)
+;; 		       :unitary (make-array dims-out :element-type t))))
+;; 	 (input-compatible (typep set (element-type input)))
+;; 	 (true-input (if (not input-compatible)
+;; 			 (make-array (dims input) :element-type (type-in-common (element-type input)
+;; 										(assign-element-type set))))))
+;;     (if true-input (progn (across input (lambda (elem coords) 
+;; 					  (declare (dynamic-extent elem coords))
+;; 					  (setf (apply #'aref true-input coords) elem)))
+;; 			  (setq input true-input)))
+;;     (labels ((process (indices &optional out-path in-path)
+;; 	       (symbol-macrolet
+;; 		   ((source-cell (apply #'aref input (reverse in-path)))
+;; 		    (target-cell (apply #'aref output (reverse out-path)))
+;; 		    (set-cell (if (= 0 (rank set))
+;; 				  set (apply #'aref set (reverse out-path))))
+;; 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
+;; 		 (cond ((and (not indices) (= (rank input) (length in-path)))
+;; 			;; if the output is not a unitary value, set the target cell appropriately
+;; 			(if (and out-path (not (eq :unitary output)))
+;; 			    (setf target-cell (cond ((arrayp set)
+;; 						     ;; if assigning a whole array, set the value of the source
+;; 						     ;; cell to the value of the corresponding cell in
+;; 						     ;; the array of values to be set
+;; 						     (setf source-cell set-cell))
+;; 						    (set (setf source-cell (if (functionp set)
+;; 									       apply-set-function set)))
+;; 						    (t (funcall fn source-cell))))
+;; 			    (setq output (if set (setf source-cell (if (functionp set) apply-set-function set))
+;; 					     source-cell))))
+;; 		       ((and (not indices) (vectorp (first in-path))
+;; 			     (and (arrayp (aref (first in-path) 0))
+;; 				  (= 0 (rank (aref (first in-path) 0))))
+;; 			     (vectorp (aref (aref (first in-path) 0))))
+;; 		       	;; if using reach indexing, recurse on the sub-array specified
+;; 			;; by the first coordinate vector
+;; 		       	(setf target-cell (choose (disclose (apply #'aref input
+;; 								   (array-to-list (aref (aref (first in-path) 0)))))
+;; 						  (loop :for ix :from 1 :to (1- (length (first in-path)))
+;; 						     :collect (funcall (lambda (item)
+;; 									 (if (not (and (arrayp item)
+;; 										       (= 0 (rank item))))
+;; 									     item (disclose item)))
+;; 								       (aref (first in-path) ix)))
+;; 						  :set set :fn fn :set-coords set-coords)))
+;; 		       ((and (not indices) (vectorp (first in-path)))
+;; 		       	;; if using choose indexing, recurse using the index as the coordinates
+;; 		       	(setf target-cell (choose input (array-to-list (first in-path))
+;; 						  :set set :fn fn :set-coords set-coords)))
+;; 		       (t (let ((this-index (first indices)))
+;; 			    (cond ((and (not (eq :unitary output))
+;; 					(arrayp set)
+;; 					(not (= 0 (rank set)))
+;; 					(or (not (= (rank output) (rank set)))
+;; 					    (not (loop :for dx :below (rank output)
+;; 						    :always (= (nth dx (dims output))
+;; 							       (nth dx (dims set)))))))
+;; 				   ;; if assigning a whole array, make sure the input and output area
+;; 				   ;; have the same shape
+;; 				   (error (concatenate 'string "When assigning from an array, the shape of the"
+;; 						       " area to be assigned and the shape of the array to"
+;; 						       " assign from must be the same.")))
+;; 				  ((arrayp this-index)
+;; 				   ;; iterate over the index if it's an array, unless it's a unitary vector
+;; 				   (if (and (vectorp this-index)
+;; 					    (= 1 (length this-index)))
+;; 				       (process (rest indices)
+;; 						out-path (cons (aref this-index 0) in-path))
+;; 				       (across this-index (lambda (value coords)
+;; 							    (declare (dynamic-extent value coords))
+;; 							    (process (rest indices)
+;; 								     (append (reverse coords) out-path)
+;; 								     (cons value in-path))))))
+;; 				  ((not this-index)
+;; 				   ;; if there is no index, elide it by iterating over
+;; 				   ;; this dimension of the array
+;; 				   (let ((count 0))
+;; 				     (dotimes (ix (nth (length in-path) idims))
+;; 				       (process (rest indices) (cons count out-path)
+;; 						(cons ix in-path))
+;; 				       (incf count 1))))
+;; 				  ((listp this-index)
+;; 				   ;; iterate over the index if it's a list, same as with an array
+;; 				   (if (= 1 (length this-index))
+;; 				       (process (rest indices)
+;; 						out-path (cons (first this-index) in-path))
+;; 				       (let ((count 0))
+;; 					 (loop :for ix :in this-index :do (process (rest indices)
+;; 										   (cons count out-path)
+;; 										   (cons ix in-path))
+;; 					    (incf count 1)))))
+;; 				  (t (process (rest indices)
+;; 					      out-path (cons this-index in-path))))))))))
+;;       (if (not (and (arrayp set) (/= 0 (rank set))
+;; 		    (not (arrayp (first aindices)))))
+;;           (process aindices) (error "Cannot assign an unenclosed array to a point in an array."))
+;;       (apply #'values (cons output (if true-input (list input)))))))
+
+(defun axes-to-indices (ic idims out-vector &optional if start)
+  "Take a list of axes and assign the derived row-major indices to a vector with a fill point."
+  ;; (print (list :ic ic idims out-vector))
+  (let* ((fic (first ic))
+	 (if (or if (let ((dims idims))
+		      (loop :while dims :collect (reduce #'* (setq dims (rest dims)))))))
+	 (fif (first if))
+	 (start (or start 0)) (at-index-end (not (rest idims))))
+    (cond ((null fic) ;; a nil axis is elided; all indices on dimension traversed
+	   (dotimes (i (first idims))
+	     (if at-index-end (vector-push (+ start i) out-vector)
+		 (axes-to-indices (rest ic) (rest idims) out-vector
+				  (rest if) (+ start (* fif i))))))
+	  ((integerp fic) ;; an integer axis designates a single index
+	   (if at-index-end (vector-push (+ start fic) out-vector)
+	       (axes-to-indices (rest ic) (rest idims) out-vector
+				(rest if) (+ start (* fif fic)))))
+	  ((vectorp fic) ;; a vector axis specifies the indices to be traversed
+	   (loop :for i :across fic
+	      :do (if at-index-end (vector-push (+ start i) out-vector)
+		      (axes-to-indices (rest ic) (rest idims) out-vector
+				       (rest if) (+ start (* fif i))))))
+	  ((arrayp fic)
+	   ;; a higher-dimensional array axis specifies indices to be traversed
+	   ;; populating a new dimension of the output array
+	   (dotimes (i (size fic))
+	     (if at-index-end (vector-push (+ start (row-major-aref fic i)) out-vector)
+		 (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
+				  (+ start (* fif  (row-major-aref fic i))))))))))
+
+(defun choose (input indices &key (set) (set-by))
+  (let* ((idims (dims input)) (sdims (if set (dims set)))
+	 (index1 (first indices)) (naxes (< 1 (length indices)))
+	 (odims (if naxes (loop :for i :in indices :for d :in idims :for s :from 0
+			     :append (let ((len (or (and (null i) (list d))
+						    (and (integerp i) nil)
+						    (and (arrayp i) (dims i)))))
+				       (if (and (not len) (not (integerp i)))
+					   (error "Invalid index."))
+				       ;; collect output dimensions according to indices;
+				       ;; this is necessary even when setting values
+				       ;; compatible with the input array in order
+				       ;; to catch invalid indices
+				       (if (and len sdims (or (< 1 (length len))
+							      (/= (first len) (nth s sdims))))
+					   (error "Invalid input."))
+				       ;; (if (<= 0 len) (list len))
+				       len))
+		    (if (or set set-by) (dims input)
+			(dims (or (first indices) input)))))
+	 (rmi-type (list 'integer 0 (reduce #'* idims)))
+	 (index-vector (if (and (arrayp index1) (not naxes))
+			   (let ((reach-indexing)
+				 (output (make-array (size index1) :element-type rmi-type)))
+			     ;; if each element in the indices is valid, either as an integer
+			     ;; or a vector, return the output, otherwise reach indexing is
+			     ;; being performed so turn on its flag and return nil
+			     (loop :for i :below (size index1) :while (not reach-indexing)
+				:do (let ((ss (rmi-from-subscript-vector
+					       input (disclose (row-major-aref index1 i)))))
+				      (if ss (setf (aref output i) ss)
+					  (setq reach-indexing t))))
+			     (if (not reach-indexing) output))))
+	 ;; create the vector of row-major indices
+	 (rmindices (if naxes (make-array (reduce #'* odims) :element-type rmi-type :fill-pointer 0)
+			(and indices (or index-vector
+					 (if (not (arrayp index1)) (vector index1)
+					     (make-array (size index1) :displaced-to index1
+							 :element-type (element-type index1)))))))
+	 ;; if there is a set-by function, there's no efficient way to derive the output type
+	 ;; so just set it to t, otherwise use the most efficient common type
+	 (set-type (if set (if set-by t (type-in-common (element-type input) (element-type set)))))
+	 ;; create output array if 1. nothing is being set, this is just a retrieval operation, or
+	 ;; 2. a scalar value is being set and its type is not compatible with the input
+	 ;; or 3. the input and the items to set are in arrays of different types
+	 (output (if (or set-by (and (or (not set)
+					 ;; an output array is used if the types of the input and
+					 ;; values to set are not compatible
+					 (not (or (eq t (element-type input))
+						  (and (not (arrayp set)) (typep set (element-type input)))
+						  (and (arrayp set) (not (eq t set-type))
+						       (typep input set-type)))))
+				     ;; if setting is not being done (i.e. values are being retrieved)
+				     ;; and only one index is being fetched, an output array isn't needed
+				     (or set (< 1 (size rmindices))
+					 (and odims (< 1 (length indices))))))
+		     (make-array (if set idims odims)
+				 :element-type (if set-by t (or set-type (element-type input))))))
+	 ;; the default set-by function just returns the second argument
+	 (set-by (or set-by (if set (lambda (a b) (declare (ignore a)) b)))))
+    ;; if multiple axes have been passed, populate the vector of row-major indices
+    (if naxes (axes-to-indices indices idims rmindices))
+    (if (or set set-by)
+	(let ((pindices (if (and output indices) (make-array (size input) :initial-element 0))))
+	  ;; if an output array is being used, the processed indices vector stores the indices
+	  ;; of elements that have been processed so the ones that weren't can be assigned
+	  ;; values from the input
+	  (if (not indices) (dotimes (i (size input))
+			      ;; if there are no indices the set-by function is to
+			      ;; be run on all elements of the array
+			      (setf (row-major-aref output i)
+				    (apply set-by (row-major-aref input i)
+					   (and set (list set)))))
+	      (loop :for i :across rmindices :for o :from 0
+		 :do (if (integerp i)
+			 (let ((result (apply set-by (row-major-aref input i)
+					      ;; apply the set-by function to an element of the
+					      ;; set values if they're in an array or to the
+					      ;; set value if it's scalar
+					      (or (and (arrayp set) (< 0 (rank set))
+						       (list (row-major-aref set o)))
+						  (and set (list set))))))
+			   (if output (setf (row-major-aref output i) result)
+			       (setf (row-major-aref input i) result))
+			   (if pindices (setf (aref pindices i) 1)))
+			 (if (vectorp i) ;; this clause can only be reached when reach indexing
+			     ;; the set-by function is called on each pair of input
+			     ;; and replacement values
+			     (progn (setf (varef (or output input) i)
+					  (funcall set-by (varef input i)
+						   (or (and (arrayp set) (row-major-aref set o))
+						       set)))
+				    (if pindices
+					(setf (aref pindices (rmi-from-subscript-vector input i))
+					      1)))))))
+	  (if pindices (progn (dotimes (i (size input))
+				(if (= 0 (aref pindices i))
+				    (setf (row-major-aref output i)
+					  (row-major-aref input i))))
+			      output))
+	  (values nil output))
+	;; if a single index is specified, from the output, just retrieve its value
+	(if (not output) (row-major-aref input (row-major-aref rmindices 0))
+	    (progn (loop :for index :across rmindices :for o :from 0
+		      :do (let ((i (disclose index)))
+			    (setf (row-major-aref output o)
+				  (if (integerp i) (row-major-aref input i)
+				      ;; the vectorp clause is only used when reach-indexing
+				      (if (vectorp i)
+					  (choose (disclose (varef input (disclose (aref i 0))))
+						  (rest (array-to-list i))))))))
+		   output)))))
 
 (defun mix-arrays (axis input)
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
@@ -1315,7 +1461,7 @@
 (defun merge-arrays (input &key (nesting t))
   "Merge a set of arrays with the same rank and shape into a larger array."
   (if (= 1 (array-total-size input))
-      ;; if the input array is of size one, like #(#(2 4 6 8 10)), simply promote the sole element
+      ;; if the input array is of size one, like #(#0A#(2 4 6 8 10)), simply promote the sole element
       (array-promote (row-major-aref input 0))
       (let* ((first-sub-array (funcall (if nesting #'disclose #'identity)
 				       (row-major-aref input 0)))
