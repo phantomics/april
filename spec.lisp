@@ -167,7 +167,7 @@
 	    (is "7-2 3 4" #(5 4 3))))
   (× (has :titles ("Sign" "Multiply"))
      (ambivalent :asymmetric-scalar signum *)
-     (inverse (dyadic (scalar-function /)))
+     (inverse (dyadic /))
      (tests (is "×20 5 0 ¯7 3 ¯9" #(1 1 0 -1 1 -1))
 	    (is "2×3" 6)
 	    (is "4 5×8 9" #(32 45))))
@@ -1026,8 +1026,8 @@
 	     (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
 	     (is "' ' { (a w)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a∘.=w) = +/a∘.=a } 'dog'" #(0))))
   (∘ (has :title "Compose")
-     (pivotal (with-derived-operands (right left right-fn-monadic right-fn-dyadic
-					    left-fn-monadic left-fn-dyadic)
+     (pivotal (with-derived-operands (right left right-glyph right-fn-monadic right-fn-dyadic
+					    left-glyph left-fn-monadic left-fn-dyadic)
 		(let ((right (if (or (not (symbolp right)) (not (fboundp right)))
 				 right (symbol-function right)))
 		      (left (if (or (not (symbolp left)) (not (fboundp left)))
