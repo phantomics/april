@@ -19,6 +19,8 @@
 (defvar index-origin 1)
 (defvar print-precision 10)
 
+(defvar *function-identities* nil)
+
 ;; the names of library functions that curry functions having axes with index-origin, needed for the λχ macro
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
@@ -106,6 +108,21 @@
       (let ((data (gethash item (symbol-value symbol))))
 	(apply #'values (loop :for key :in keys :collect (getf data key))))))
 
+(defun get-workspace-alias (space symbol)
+  (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
+	(ws-symbol (intern (string symbol) space)))
+    (if (boundp aliases-symbol) (gethash ws-symbol (symbol-value aliases-symbol)))))
+
+(defun set-workspace-alias (space symbol glyph)
+  (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
+	(ws-symbol (intern (string symbol) space)))
+    (if (not (boundp aliases-symbol))
+	(setf (symbol-value aliases-symbol) (make-hash-table :test #'eq)))
+    (let ((ws-aliases (symbol-value aliases-symbol)))
+      (if (or (resolve-function :monadic glyph)
+	      (resolve-function :dyadic glyph))
+	  (setf (gethash ws-symbol ws-aliases) glyph)))))
+  
 (defun build-populator (metadata-symbol input)
   "Generate a function that will populate array elements with an empty array prototype." 
   (if (and (= 0 (size input))
@@ -355,7 +372,7 @@
 					(left-op first-op)
 					(left-axes first-axes)
 					(left-glyph (setq ignorables (cons 'left-glyph ignorables))
-					 `(or-functional-character ,first-op :fn))
+						    `(or-functional-character ,first-op :fn))
 					(left-fn-monadic
 					 `(if (resolve-function :monadic ,first-op ,first-axes)
 					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
@@ -577,12 +594,12 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((axes (first axis-sets)))
     (if (not axis-sets)
 	body (enclose-axes
-	      (if set `(multiple-value-bind (assignment-output assigned-array)
-			   (choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
+	      (if set `(let ((assignment-output
+			      (choose ,body (mapcar (lambda (array)
+						      (if array (apply-scalar #'- array index-origin)))
 						 (list ,@axes))
-				   :set ,set ,@(if set-by (list :set-by set-by)))
-			 (if assigned-array (setf ,body assigned-array)
-			     assignment-output))
+				   :set ,set ,@(if set-by (list :set-by set-by)))))
+			 (if assignment-output (setf ,body assignment-output)))
 		  `(choose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
 					 (list ,@axes))))
 	      (rest axis-sets)))))
@@ -659,7 +676,6 @@ It remains here as a standard against which to compare methods for composing APL
 	 (icoords (loop :for i :below (rank input) :collect 0)))
     (if output
 	(across input (lambda (elem coords)
-			(declare (dynamic-extent elem coords))
 			(if rcoords (let ((decrement 0))
 				      (loop :for c :in coords :for cx :from 0
 					 :when (= axis cx) :do (incf decrement)
