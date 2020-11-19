@@ -738,6 +738,80 @@ It remains here as a standard against which to compare methods for composing APL
 		   (if (< 1 (length exps))
 		       (cons 'progn exps) (first exps)))))))
 
+(defun generate-function-retriever (operand axes)
+  (let ((is-dyadic (gensym)) (is-inverse (gensym)))
+    (if (or (symbolp operand) (characterp operand))
+	(let ((left-fn-monadic (resolve-function :monadic operand axes))
+	      (left-fn-dyadic (resolve-function :dyadic operand axes))
+	      (left-fn-monadic-inverse (resolve-function :monadic-inverse operand axes))
+	      (left-fn-dyadic-inverse (resolve-function :dyadic-inverse operand axes)))
+	  `(lambda (,is-dyadic ,is-inverse)
+	     (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
+		 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
+	(let ((inverted (invert-function operand)))
+	  `(lambda (,is-dyadic ,is-inverse)
+	     (declare (ignore ,is-dyadic))
+	     (if ,is-inverse ,inverted ,operand))))))
+
+(defun invert-function (form)
+  "Attempt to create an inverse version of an APL function form. Used to implement the [⍣ power] operator's functionality with a negative integer as the right operand."
+  (cond ((eql 'apl-compose (first form))
+	 (destructuring-bind (op-glyph op-name right-fn-sym right-fn-form-monadic right-fn-form-dyadic
+				       left-fn-sym left-fn-form-monadic left-fn-form-dyadic
+				       &rest remaining)
+	     (rest form)
+	   (case op-name (operate-composed
+			  (append
+			   (list 'apl-compose op-glyph op-name)
+			   (if (eq :fn right-fn-sym)
+			       (list right-fn-sym (invert-function (fifth form))
+				     (invert-function (sixth form)))
+			       (let ((fn-glyph (aref (string right-fn-sym) 0)))
+				 (list right-fn-sym
+				       (if (resolve-function :monadic-inverse fn-glyph)
+					   `(λω (apl-call ,right-fn-sym
+							  ,(resolve-function :monadic-inverse
+									     fn-glyph)
+							  omega)))
+				       
+				       (if (resolve-function :dyadic-inverse fn-glyph)
+					   `(λωα (apl-call ,right-fn-sym
+							   ,(resolve-function :dyadic-inverse
+									      fn-glyph)
+							   omega alpha))))))
+			   (if (eq :fn left-fn-sym)
+			       (list left-fn-sym (invert-function (nth 8 form))
+				     (invert-function (nth 9 form)))
+			       (let ((fn-glyph (aref (string left-fn-sym) 0)))
+				 (list left-fn-sym
+				       (if (resolve-function :monadic-inverse fn-glyph)
+					   `(λω (apl-call ,left-fn-sym
+							  ,(resolve-function :monadic-inverse
+									     fn-glyph)
+							  omega)))
+				       
+				       (if (resolve-function :dyadic-inverse fn-glyph)
+					   `(λωα (apl-call ,left-fn-sym
+							   ,(resolve-function :dyadic-inverse
+									      fn-glyph)
+							   omega alpha))))))
+			   remaining)))))
+	((and (eql 'lambda (first form))
+	      (eql '⍵ (caadr form))
+	      (eql 'apl-call (first (fourth form))))
+	 (if (fifth form) (error "Can only invert functions with a single statement.")
+	     (list (first form) (second form) (third form)
+		   (invert-function (fourth form)))))
+	((eql 'apl-call (first form))
+	 (append (list (first form) (second form)
+		       (if (fifth form)
+			   (or (resolve-function :dyadic-inverse (aref (string (second form)) 0))
+			       (error "Cannot be inverted."))
+			   (or (resolve-function :monadic-inverse (aref (string (second form)) 0))
+			       (error "Cannot be inverted."))))
+		 (cdddr form)))
+	(t (error "Inversion of this statement type not supported."))))
+
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
   (let ((type (intern (string-upcase type) "KEYWORD"))

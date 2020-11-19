@@ -668,16 +668,6 @@
 		      (funcall function arg))))
       arg)))
 
-(defun generate-function-retriever (operand axes)
-  (let ((left-fn-monadic (resolve-function :monadic operand axes))
-	(left-fn-dyadic (resolve-function :dyadic operand axes))
-	(left-fn-monadic-inverse (resolve-function :monadic-inverse operand axes))
-	(left-fn-dyadic-inverse (resolve-function :dyadic-inverse operand axes)))
-    (let ((is-dyadic (gensym)) (is-inverse (gensym)))
-      `(lambda (,is-dyadic ,is-inverse)
-	 (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
-	     (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))))
-
 (defun operate-until (op-right op-left)
   "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
