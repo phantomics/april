@@ -119,7 +119,8 @@
     (if (not (boundp aliases-symbol))
 	(setf (symbol-value aliases-symbol) (make-hash-table :test #'eq)))
     (let ((ws-aliases (symbol-value aliases-symbol)))
-      (if (or (resolve-function :monadic glyph)
+      (if (or (null glyph)
+	      (resolve-function :monadic glyph)
 	      (resolve-function :dyadic glyph))
 	  (setf (gethash ws-symbol ws-aliases) glyph)))))
   

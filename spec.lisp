@@ -907,6 +907,8 @@
 	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)
 	    (is "+/⍬" 0)
 	    (is "×/⍬" 1)
+	    (is "f←+ ⋄ f/⍬" 0)
+	    (is "g←× ⋄ g/⍬" 1)
 	    (is "+/(1 2 3)(4 5 6)" #0A#(5 7 9))))
   (⌿ (has :title "Reduce First")
      (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
