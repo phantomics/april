@@ -1025,10 +1025,10 @@
   (∘ (has :title "Compose")
      (pivotal (with-derived-operands (right left right-fn-monadic right-fn-dyadic
 					    left-fn-monadic left-fn-dyadic)
-		(let ((right (if (not (symbolp right))
-				 right (or (symbol-function right) right)))
-		      (left (if (not (symbolp left))
-				left (or (symbol-function left) left))))
+		(let ((right (if (or (not (symbolp right)) (not (fboundp right)))
+				 right (symbol-function right)))
+		      (left (if (or (not (symbolp left)) (not (fboundp left)))
+				left (symbol-function left))))
 		  `(operate-composed ,right ,right-fn-monadic ,right-fn-dyadic
 				     ,left ,left-fn-monadic ,left-fn-dyadic
 				     ,(or (and (listp left) (eql 'lambda (first left))

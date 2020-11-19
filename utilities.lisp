@@ -343,9 +343,9 @@
 (defmacro with-derived-operands (operand-specs &rest body)
   "Derive references to data to be passed to an operator so they can be used by the macro implementing the operator."
   (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym))
-	 (right (if (member 'right operand-specs) 'right (gensym)))
-	 (left (if (member 'left operand-specs) 'left (gensym)))
-	 (axes (if (member 'axes operand-specs) 'axes (gensym))))
+	 (ignorables) (to-ignore))
+    (loop :for symbol :in '(right left)
+       :do (if (not (member symbol operand-specs)) (setq to-ignore (cons symbol to-ignore))))
     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
        (let ,(loop :for symbol :in operand-specs
@@ -354,7 +354,8 @@
 		:collect (list symbol (case symbol
 					(left-op first-op)
 					(left-axes first-axes)
-					(left-glyph `(or-functional-character ,first-op :fn))
+					(left-glyph (setq ignorables (cons 'left-glyph ignorables))
+					 `(or-functional-character ,first-op :fn))
 					(left-fn-monadic
 					 `(if (resolve-function :monadic ,first-op ,first-axes)
 					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
@@ -380,7 +381,8 @@
 					(left-fn-symbolic `(resolve-function :symbolic ,first-op ,first-axes))
 					(right-op second-op)
 					(right-axes second-axes)
-					(right-glyph `(or-functional-character ,second-op :fn))
+					(right-glyph (setq ignorables (cons 'right-glyph ignorables))
+					 `(or-functional-character ,second-op :fn))
 					(right-fn-monadic
 					 `(if (resolve-function :monadic ,second-op ,second-axes)
 					      `(λω (apl-call ,(or-functional-character ,second-op :fn)
@@ -393,15 +395,12 @@
 							      ,(resolve-function :dyadic ,second-op ,second-axes)
 							      omega alpha))))
 					(right-fn-symbolic `(resolve-function :symbolic ,second-op ,second-axes)))))
-	 (declare (ignorable left-glyph right-glyph))
+	 ,@(if ignorables `((declare (ignorable ,@ignorables))))
 	 (lambda (,@(if (member 'axes operand-specs)
-			(list axes)
-			(list right left)))
-	   ,@(if (or (not (member 'left operand-specs))
-		     (not (member 'right operand-specs)))
-		 `((declare (ignore ,@(if (not (member 'left operand-specs)) (list left))
-				    ,@(if (not (member 'right operand-specs)) (list right)))
-			    ,@(if (member 'axes operand-specs) `((ignorable axes))))))
+			(list 'axes)
+			(list 'right 'left)))
+	   (declare ,@(if (member 'axes operand-specs) `((ignorable axes))
+			  `((ignore ,@to-ignore))))
 	   ,@body)))))
 
 (defun resolve-function (mode reference &optional axes)
