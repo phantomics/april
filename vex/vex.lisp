@@ -82,7 +82,7 @@
 	  output))))
 
 (defgeneric of-lexicon (idiom lexicon glyph))
-(defmethod of-lexicon (idiom lexicon glyph)
+(defmethod of-lexicon ((idiom idiom) lexicon glyph)
   "Check whether a character belongs to a given Vex lexicon."
   (member glyph (getf (idiom-lexicons idiom) lexicon)))
 
@@ -97,7 +97,7 @@
 	 (if ,outcome 1 0)))))
 
 (defmacro reverse-op (is-dyadic &optional operation)
-  "Wrap a function so as to reverse the arguments passed to it, so (- 5 10) will result in 5."
+  "Wrap a function so as to reverse the arguments passed to it and (- 5 10) will thus result in 5."
   (let ((is-dyadic (if operation is-dyadic))
 	(operation (if operation operation is-dyadic))
 	(omega (gensym)) (alpha (gensym)))

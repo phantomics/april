@@ -102,7 +102,6 @@
   (let ((output (make-array (cons 1 (dims input))
 			    :element-type (element-type input))))
     (across input (lambda (elem coords)
-		    (declare (dynamic-extent elem coords))
 		    (setf (apply #'aref output 0 coords)
 			  elem)))
     output))
@@ -244,7 +243,6 @@
   "Iterate over an array/arrays of scalar values, performing operations upon them that will result in boolean values to be returned in an array with the same shape as the input array(s)."
   (let ((output (make-array (dims omega) :element-type 'bit :initial-element 0)))
     (across omega (lambda (elem coords)
-		    (declare (dynamic-extent elem coords))
 		    (if (= 1 (funcall test elem coords))
 			(setf (apply #'aref output coords)
 			      1))))
@@ -362,7 +360,6 @@
 						 (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
 				 (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
 				   (across highrank (lambda (elem coords)
-						      (declare (dynamic-extent elem coords))
 						      (loop :for a :across axes :for ax :from 0
 							 :do (setf (nth ax lrc) (nth a coords)))
 						      (setf (apply #'aref output coords)
@@ -395,7 +392,6 @@
 			:always (array-compare (row-major-aref item1 i) (row-major-aref item2 i))))))
 	  (let ((match t))
 	    (across item1 (lambda (item coords)
-			    (declare (dynamic-extent item coords))
 			    (let ((alternate (apply #'aref item2 coords)))
 			      (setq match (and match (or (and (arrayp item) (arrayp alternate)
 							      (array-compare item alternate))
@@ -632,7 +628,6 @@
 			   (setf (aref output (+ ix (if (= 0 degree) 0 (aref c-degrees (1- degree)))))
 				 value)))))
 		   (across input (lambda (elem coords)
-				   (declare (dynamic-extent elem coords))
 				   (let* ((exc (nth axis coords))
 					  (dx (if compress-mode exc (aref positive-indices exc)))
 					  (this-degree (aref degrees dx)))
@@ -681,7 +676,7 @@
       (loop :for out :across output :for oix :from 0
 	 :do (let ((item (aref out)))
 	       (across item (lambda (elem coords)
-			      (declare (ignore elem) (dynamic-extent elem coords))
+			      (declare (ignore elem))
 			      (loop :for c :in coords :for cx :from 0
 				 :do (setf (nth cx icoords)
 					   (if (/= cx axis) c (+ c offset input-offset))))
@@ -729,7 +724,7 @@
 				      :collect (if (= dx axis) partitions dim))))
 	       (icoords (loop :for i :below (rank input) :collect 0)))
 	  (across output (lambda (elem coords)
-			   (declare (ignore elem) (dynamic-extent coords))
+			   (declare (ignore elem))
 			   (let* ((focus (nth axis coords))
 				  (this-index (nth focus indices))
 				  (this-interval (nth focus intervals))
@@ -1090,7 +1085,6 @@
 		    0)
 		(if (= target input) 1 0))
 	    (progn (across input (lambda (element coords)
-				   (declare (dynamic-extent element coords))
 				   (setf (apply #'aref output coords)
 					 (if (funcall (if (eql 'character (element-type input))
 							  #'char= #'=)
@@ -1104,7 +1098,6 @@
 				   (dims target))))
 	  (loop :for match :in (let ((match-coords))
 				 (across input (lambda (element coords)
-						 (declare (dynamic-extent element coords))
 						 (if (equal element target-head)
 						     ;; make a copy of the coords list since (across) reuses it
 						     (setq match-coords (cons (loop :for c :in coords :collect c)
@@ -1125,7 +1118,7 @@
 					   (process-dims (rest starts) (rest extents) (rest limits) (1+ count))))))
 		     (process-dims match target-dims source-dims 0))
 		   (across input (lambda (element coords)
-				   (declare (ignore coords) (dynamic-extent element))
+				   (declare (ignore coords))
 				   (if (and (< target-index (length target-displaced))
 					    (not (equal element (aref target-displaced target-index))))
 				       (setq target-matched nil))
@@ -1135,131 +1128,6 @@
 		   (if (and target-matched (= target-index (length target-displaced)))
 		       (incf (apply #'aref output match)))))
 	  output))))
-
-;; (defun choose (input aindices &key (fn #'identity) (set nil) (set-coords nil))
-;;   "Retrieve and/or change elements of an array allowing elision, returning a new array whose shape is determined by the elision and number of indices selected unless indices for just one value are passed."
-;;   (if (and (/= (length aindices) (rank input))
-;; 	   (not (arrayp (first aindices))))
-;;       (error "Wrong number of indices, ~w, for array of rank ~w."
-;; 	     (length aindices) (rank input)))
-;;   (let* ((idims (dims input))
-;; 	 (aindices (loop :for item :in aindices :collect (disclose-scalar-elements item)))
-;; 	 (output (let ((dims-out (if (or (and (listp (first aindices))
-;; 					      (arrayp (caar aindices)))
-;; 					 (and (arrayp (first aindices))
-;; 					      (< 0 (size (first aindices)))
-;; 					      (arrayp (row-major-aref (first aindices) 0))))
-;; 				     (dims (first aindices))
-;; 				     ;; if the first if the first indices is an array, that means that choose
-;; 				     ;; indexing is being used, so the shape of the first index will be
-;; 				     ;; the shape of the output array. Otherwise, measure the shapes of the indices
-;; 				     ;; to determine the shape of the output array
-;; 				     (loop :for dim :in idims :for dx :from 0
-;; 					:append (let ((index (nth dx aindices)))
-;; 				     		  (if (or (vectorp index)
-;; 							  (and (listp index) (< 1 (length index))))
-;; 				     		      (list (length index))
-;; 				     		      (if (and (arrayp index) (< 1 (array-total-size index)))
-;; 				     			  (dims index)
-;; 				     			  (if (not index)
-;; 				     			      (list dim)))))))))
-;; 		   (if (not dims-out)
-;; 		       :unitary (make-array dims-out :element-type t))))
-;; 	 (input-compatible (typep set (element-type input)))
-;; 	 (true-input (if (not input-compatible)
-;; 			 (make-array (dims input) :element-type (type-in-common (element-type input)
-;; 										(assign-element-type set))))))
-;;     (if true-input (progn (across input (lambda (elem coords) 
-;; 					  (declare (dynamic-extent elem coords))
-;; 					  (setf (apply #'aref true-input coords) elem)))
-;; 			  (setq input true-input)))
-;;     (labels ((process (indices &optional out-path in-path)
-;; 	       (symbol-macrolet
-;; 		   ((source-cell (apply #'aref input (reverse in-path)))
-;; 		    (target-cell (apply #'aref output (reverse out-path)))
-;; 		    (set-cell (if (= 0 (rank set))
-;; 				  set (apply #'aref set (reverse out-path))))
-;; 		    (apply-set-function (apply set (cons source-cell (if set-coords (list (reverse in-path)))))))
-;; 		 (cond ((and (not indices) (= (rank input) (length in-path)))
-;; 			;; if the output is not a unitary value, set the target cell appropriately
-;; 			(if (and out-path (not (eq :unitary output)))
-;; 			    (setf target-cell (cond ((arrayp set)
-;; 						     ;; if assigning a whole array, set the value of the source
-;; 						     ;; cell to the value of the corresponding cell in
-;; 						     ;; the array of values to be set
-;; 						     (setf source-cell set-cell))
-;; 						    (set (setf source-cell (if (functionp set)
-;; 									       apply-set-function set)))
-;; 						    (t (funcall fn source-cell))))
-;; 			    (setq output (if set (setf source-cell (if (functionp set) apply-set-function set))
-;; 					     source-cell))))
-;; 		       ((and (not indices) (vectorp (first in-path))
-;; 			     (and (arrayp (aref (first in-path) 0))
-;; 				  (= 0 (rank (aref (first in-path) 0))))
-;; 			     (vectorp (aref (aref (first in-path) 0))))
-;; 		       	;; if using reach indexing, recurse on the sub-array specified
-;; 			;; by the first coordinate vector
-;; 		       	(setf target-cell (choose (disclose (apply #'aref input
-;; 								   (array-to-list (aref (aref (first in-path) 0)))))
-;; 						  (loop :for ix :from 1 :to (1- (length (first in-path)))
-;; 						     :collect (funcall (lambda (item)
-;; 									 (if (not (and (arrayp item)
-;; 										       (= 0 (rank item))))
-;; 									     item (disclose item)))
-;; 								       (aref (first in-path) ix)))
-;; 						  :set set :fn fn :set-coords set-coords)))
-;; 		       ((and (not indices) (vectorp (first in-path)))
-;; 		       	;; if using choose indexing, recurse using the index as the coordinates
-;; 		       	(setf target-cell (choose input (array-to-list (first in-path))
-;; 						  :set set :fn fn :set-coords set-coords)))
-;; 		       (t (let ((this-index (first indices)))
-;; 			    (cond ((and (not (eq :unitary output))
-;; 					(arrayp set)
-;; 					(not (= 0 (rank set)))
-;; 					(or (not (= (rank output) (rank set)))
-;; 					    (not (loop :for dx :below (rank output)
-;; 						    :always (= (nth dx (dims output))
-;; 							       (nth dx (dims set)))))))
-;; 				   ;; if assigning a whole array, make sure the input and output area
-;; 				   ;; have the same shape
-;; 				   (error (concatenate 'string "When assigning from an array, the shape of the"
-;; 						       " area to be assigned and the shape of the array to"
-;; 						       " assign from must be the same.")))
-;; 				  ((arrayp this-index)
-;; 				   ;; iterate over the index if it's an array, unless it's a unitary vector
-;; 				   (if (and (vectorp this-index)
-;; 					    (= 1 (length this-index)))
-;; 				       (process (rest indices)
-;; 						out-path (cons (aref this-index 0) in-path))
-;; 				       (across this-index (lambda (value coords)
-;; 							    (declare (dynamic-extent value coords))
-;; 							    (process (rest indices)
-;; 								     (append (reverse coords) out-path)
-;; 								     (cons value in-path))))))
-;; 				  ((not this-index)
-;; 				   ;; if there is no index, elide it by iterating over
-;; 				   ;; this dimension of the array
-;; 				   (let ((count 0))
-;; 				     (dotimes (ix (nth (length in-path) idims))
-;; 				       (process (rest indices) (cons count out-path)
-;; 						(cons ix in-path))
-;; 				       (incf count 1))))
-;; 				  ((listp this-index)
-;; 				   ;; iterate over the index if it's a list, same as with an array
-;; 				   (if (= 1 (length this-index))
-;; 				       (process (rest indices)
-;; 						out-path (cons (first this-index) in-path))
-;; 				       (let ((count 0))
-;; 					 (loop :for ix :in this-index :do (process (rest indices)
-;; 										   (cons count out-path)
-;; 										   (cons ix in-path))
-;; 					    (incf count 1)))))
-;; 				  (t (process (rest indices)
-;; 					      out-path (cons this-index in-path))))))))))
-;;       (if (not (and (arrayp set) (/= 0 (rank set))
-;; 		    (not (arrayp (first aindices)))))
-;;           (process aindices) (error "Cannot assign an unenclosed array to a point in an array."))
-;;       (apply #'values (cons output (if true-input (list input)))))))
 
 (defun axes-to-indices (ic idims out-vector &optional if start)
   "Take a list of axes and assign the derived row-major indices to a vector with a fill point."
@@ -1391,7 +1259,7 @@
 				    (setf (row-major-aref output i)
 					  (row-major-aref input i))))
 			      output))
-	  (values nil output))
+	  output)
 	;; if a single index is specified, from the output, just retrieve its value
 	(if (not output) (row-major-aref input (row-major-aref rmindices 0))
 	    (progn (loop :for index :across rmindices :for o :from 0
@@ -1444,7 +1312,6 @@
 		 (output (make-array out-dims :element-type type :initial-element (if (eql 'character type)
 										      #\  (coerce 0 type)))))
 	    (across idisc (lambda (oelem ocoords)
-			    (declare (dynamic-extent oelem ocoords))
 			    (if (arrayp oelem)
 				(across oelem (lambda (ielem icoords)
 						(if (> max-rank (length icoords))
@@ -1476,7 +1343,6 @@
 	     (ocoords (loop :for i :below out-rank :collect 0))
 	     (dims-match t))
 	(across input (lambda (elem coords)
-			(declare (dynamic-extent elem coords))
 			(let ((elem (funcall (if nesting #'disclose #'identity) elem)))
 			  (if (and dims-match (or (not (dims elem))
 						  (reduce #'eq (mapcar #'= inner-dims (dims elem)))))
@@ -1487,7 +1353,6 @@
 				  ;; otherwise, iterate across the element and assing the element to the output
 				  ;; coordinates derived from the ombined outer and inner array coordinates
 				  (across elem (lambda (sub-elem sub-coords)
-						 (declare (dynamic-extent sub-elem sub-coords))
 						 (let ((cix 0))
 						   (loop :for c :in coords :do (setf (nth cix ocoords) c
 										     cix (1+ cix)))
@@ -1511,7 +1376,6 @@
 		(setf (row-major-aref output i)
 		      (nest (make-array (nth axis idims) :element-type (type-of input)))))
 	      (across input (lambda (elem coords)
-			      (declare (dynamic-extent elem coords))
 			      (let ((ix 0))
 				(loop :for coord :in coords :for cix :from 0
 				   :when (not (= cix axis)) :do (setf (nth ix ocoords) coord
@@ -1627,7 +1491,6 @@
 		 ;; of coordinates to set each value in the nested output arrays to the corresponding values in
 		 ;; the original array
 		 (across matrix (lambda (item coords)
-				  (declare (dynamic-extent item coords))
 				  (loop :for d :in outer-dims :for dx :from 0 :do (setf (nth dx ocoords)
 											(nth d coords)))
 				  (loop :for d :in inner-dims :for dx :from 0 :do (setf (nth dx icoords)
@@ -1648,7 +1511,6 @@
 	     (output (make-array idims :element-type (element-type input)))
 	     (rdimension (nth axis idims)))
 	(across input (lambda (item coords)
-			(declare (dynamic-extent item coords))
 			(let ((degree (if (integerp degrees)
 					  degrees (if degrees (let ((dcix 0))
 								(loop :for coord :in coords
@@ -1800,10 +1662,10 @@
 	 (ref-coords (loop :for d :across window-dims :collect 0))
 	 (acoords (loop :for d :in output-dims :collect 0)))
     (across output (lambda (elem coords)
-		     (declare (ignore elem) (dynamic-extent coords))
+		     (declare (ignore elem))
 		     (let ((window (make-array (array-to-list window-dims) :element-type (element-type input))))
 		       (across window (lambda (welem wcoords)
-					(declare (ignore welem) (dynamic-extent wcoords))
+					(declare (ignore welem))
 					(dotimes (cix (length wcoords))
 					  (setf (nth cix ref-coords)
 						(let ((melem (aref movement cix))
@@ -1900,7 +1762,6 @@
 			       (last-col-type (aref col-types (1- last-coord)))
 			       (segments (aref col-segments last-coord)))
 	       (across input (lambda (elem coords)
-			       (declare (dynamic-extent elem coords))
 			       (let* ((last-coord (first (last coords)))
 				      (elem (disclose elem)))
 				 (flet ((add-column-types (&rest types)
@@ -1948,7 +1809,6 @@
 							 (if (typep elem 'ratio)
 							     (add-column-types :realpart-rational)))))))))))
 	       (across input (lambda (elem coords)
-			       (declare (dynamic-extent elem coords))
 			       (let* ((last-coord (first (last coords)))
 				      (elem-width 1)
 				      (elem-height 1)
@@ -2070,7 +1930,6 @@
 					      :element-type 'character :initial-element output-default-char))))
 		 (across strings
 			 (lambda (chars coords)
-			   (declare (dynamic-extent chars coords))
 			   ;; calculate the row of output currently being produced
 			   (let* ((row (reduce #'+ (mapcar #'* (rest (reverse coords))
 							   (let ((current 1))
@@ -2092,7 +1951,6 @@
 				   ;; is different depending on whether collated output is being produced
 				   (across chars
 					   (lambda (element ecoords)
-					     (declare (dynamic-extent element ecoords))
 					     (let* ((x-coord (+ (or (second ecoords) (first ecoords))
 								(if (is-pure-character-column last-coord)
 								    0 (aref x-offsets last-coord))
@@ -2126,7 +1984,7 @@
 		 (if (and append (not (char= append output-default-char)))
 		     (let ((last-dim (first (last (dims output)))))
 		       (if to-collate (across output (lambda (elem coords)
-						       (declare (ignore elem) (dynamic-extent coords))
+						       (declare (ignore elem))
 						       (setf (apply #'aref output coords) append)))
 			   (if append (dotimes (row (first (dims output)))
 					 (setf (aref output row (1- last-dim)) append))))))

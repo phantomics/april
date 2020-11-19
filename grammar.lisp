@@ -168,8 +168,11 @@
 			 (values nil nil tokens)))
 		 (if (and (symbolp this-item)
 			  (not (getf properties :glyph))
-			  (is-workspace-function this-item))
-		     (values this-item (list :axes axes :type '(:function :referenced))
+			  (or (is-workspace-function this-item)
+			      (get-workspace-alias space this-item)))
+		     (values (if (not (get-workspace-alias space this-item))
+				 this-item (get-workspace-alias space this-item))
+			     (list :axes axes :type '(:function :referenced))
 			     remaining)
 		     (if (and (symbolp this-item)
 			      (not (getf properties :glyph))
@@ -271,10 +274,8 @@
 	    `(setq (inws ,symbol) (apl-call ,fn-sym ,fn-content (inws ,symbol) ,precedent
 					    ,@(if function-axes `((list ,@(first function-axes))))))
 	    (enclose-axes `(inws, symbol)
-			  symbol-axes ;; :set `(lambda (item) (apl-call ,fn-sym ,fn-content item ,precedent))
-			  :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))
-			  :set precedent
-			  ))))
+			  symbol-axes :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))
+			  :set precedent))))
   '(:type (:array :assigned :by-result-assignment-operator)))
  (selective-assignment
   ;; match a selective value assignment like (3↑x)←5
@@ -328,7 +329,9 @@
 			 `(setq output-stream ,(intern symbol-string package-string))
 			 (error "Invalid assignment to ⎕OST.")))
 		   (error "Invalid assignment to ⎕OST."))))
-	  (t (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
+	  (t (if (symbolp symbol)
+		 (set-workspace-alias space symbol nil))
+	     (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
 			       symbol (list 'inws symbol))))
 	       (if axes (enclose-axes symbol axes :set precedent)
 		   ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
@@ -343,7 +346,13 @@
   (progn (if (is-workspace-value symbol)
 	     (makunbound (intern (string symbol) space)))
          (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)
-         `(setf (symbol-function (quote (inws ,symbol))) ,precedent))
+	 (if (characterp precedent)
+	     (if (or (resolve-function :monadic precedent)
+		     (resolve-function :dyadic precedent))
+		 (progn (set-workspace-alias space symbol precedent)
+			(format nil "~a aliases ~a" symbol precedent)))
+	     (progn (set-workspace-alias space symbol nil)
+		    `(setf (symbol-function (quote (inws ,symbol))) ,precedent))))
   '(:type (:function :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
@@ -392,9 +401,7 @@
  (train-composition
   ;; match a train function composition like (-,÷)
   ((:with-preceding-type :function)
-   ;; TODO: two subsequent function pattern matches causes exponentially long compile times, fix this
    (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
-   ;; (center :element function :times 1 :special '(:omit (:value-assignment :function-assignment)))
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
   (destructuring-bind (right omega alpha center)
       (list precedent (gensym) (gensym)
