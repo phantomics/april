@@ -109,11 +109,13 @@
 	(apply #'values (loop :for key :in keys :collect (getf data key))))))
 
 (defun get-workspace-alias (space symbol)
+  "Find an existing alias of a lexical function in a workspace."
   (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
 	(ws-symbol (intern (string symbol) space)))
     (if (boundp aliases-symbol) (gethash ws-symbol (symbol-value aliases-symbol)))))
 
 (defun set-workspace-alias (space symbol glyph)
+  "Set an alias for a lexical function in a workspace, as when compiling f←+."
   (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
 	(ws-symbol (intern (string symbol) space)))
     (if (not (boundp aliases-symbol))
@@ -606,6 +608,7 @@ It remains here as a standard against which to compare methods for composing APL
 	      (rest axis-sets)))))
 
 (defun coerce-type (array type-index)
+  "Create an array with a numerically designated type holding the contents of the given array."
   (let ((type (case type-index (0 t) (-1 'bit) (1 '(unsigned-byte 2)) (2 '(unsigned-byte 4))
 		    (-3 '(unsigned-byte 7)) (3 '(unsigned-byte 8)) (-4 '(unsigned-byte 15))
 		    (4 '(unsigned-byte 16)) (-5 '(unsigned-byte 31)) (5 '(unsigned-byte 32))
@@ -739,6 +742,7 @@ It remains here as a standard against which to compare methods for composing APL
 		       (cons 'progn exps) (first exps)))))))
 
 (defun generate-function-retriever (operand axes)
+  "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
   (let ((is-dyadic (gensym)) (is-inverse (gensym)))
     (if (or (symbolp operand) (characterp operand))
 	(let ((left-fn-monadic (resolve-function :monadic operand axes))

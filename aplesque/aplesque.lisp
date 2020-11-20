@@ -1164,6 +1164,7 @@
 				  (+ start (* fif  (row-major-aref fic i))))))))))
 
 (defun choose (input indices &key (set) (set-by))
+  "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((idims (dims input)) (sdims (if set (dims set)))
 	 (index1 (first indices)) (naxes (< 1 (length indices)))
 	 (odims (if naxes (loop :for i :in indices :for d :in idims :for s :from 0

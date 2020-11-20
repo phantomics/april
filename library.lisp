@@ -59,6 +59,7 @@
 	    (error "The argument to ⍳ must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
 (defun inverse-count-to (vector index-origin)
+  "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
   (if (not (vectorp vector))
       (error "Inverse ⍳ can only be invoked on a vector, at least for now.")
       (if (loop :for e :across vector :for i :from index-origin :always (= e i))
@@ -547,6 +548,7 @@
       (error "Area of array to be reassigned does not match shape of values to be assigned.")))
 
 (defun match-lexical-function-identity (glyph)
+  "Find the identity value of a lexical function based on its character.xs"
   (second (assoc glyph '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1) 
 			 (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
 			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⌈ most-negative-long-float)
@@ -554,6 +556,7 @@
 		 :test #'char=)))
 
 (defun operate-reducing (function function-glyph axis &optional last-axis)
+  "Generate a function reducing an array along an axis by a function. Used to implement [/ reduce]."
   (lambda (omega)
     (if (= 0 (size omega))
         (or (and (= 1 (rank omega))
@@ -563,6 +566,7 @@
 				:reduce t :in-reverse t :last-axis last-axis)))))
 
 (defun operate-each (function-monadic function-dyadic)
+  "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (let ((function-monadic (lambda (o) (nest (funcall function-monadic (disclose o)))))
 	(function-dyadic (lambda (o a) (nest (funcall function-dyadic (disclose o)
 						      (disclose a))))))
@@ -619,6 +623,7 @@
 		   (if (not fn-left) left omega))))))
 
 (defun operate-at-rank (rank function-monadic function-dyadic)
+  "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
     (let* ((odims (dims omega)) (adims (dims alpha))
 	   (odivs (if (< rank (rank omega))
