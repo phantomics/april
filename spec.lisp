@@ -155,7 +155,7 @@
 		       :description "Scalar numeric functions change individual numeric values. They include basic arithmetic and other numeric operations, and they can be applied over arrays."))
   (+ (has :titles ("Conjugate" "Add"))
      (ambivalent :asymmetric-scalar conjugate +)
-     (inverse (ambivalent :asymmetric-scalar conjugate -))
+     (inverse (ambivalent :asymmetric-scalar conjugate (λωα (- alpha (abs omega)))))
      (tests (is "+5" 5)
 	    (is "+5J2" #C(5 -2))
 	    (is "1+1" 2)
@@ -559,7 +559,7 @@
   							    (if (arrayp (first axes))
 								(first axes)
 								(vector (first axes)))))
-  			  (if (= 0 (rank omega))
+  			  (if (not (arrayp omega))
   			      omega (make-array nil :initial-contents omega))))
   		 (λωαχ (partitioned-enclose alpha omega *last-axis*)))
      (tests (is "⊂2" 2)
@@ -568,6 +568,9 @@
 	    (is "⊂⍳5" #0A#(1 2 3 4 5))
   	    (is "1+⊂⍳5" #0A#(2 3 4 5 6))
 	    (is "⊂'abc'" #0A"abc")
+	    (is "≡⊂5 5" 2)
+	    (is "≡⊂⊂5 5" 3)
+	    (is "≡⊂⊂⊂5 5" 4)
   	    (is "1,⊂3 4⍴⍳7" #(1 #0A#2A((1 2 3 4) (5 6 7 1) (2 3 4 5))))
   	    (is "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
   		#2A(("GRAY" "GOLD" "BLUE") ("SILK" "WOOL" "YARN")))
@@ -1032,8 +1035,10 @@
 				 right (symbol-function right)))
 		      (left (if (or (not (symbolp left)) (not (fboundp left)))
 				left (symbol-function left))))
-		  `(operate-composed ,right ,right-fn-monadic ,right-fn-dyadic
-				     ,left ,left-fn-monadic ,left-fn-dyadic
+		  `(operate-composed ,(if (not (listp right)) right :fn)
+				     ,right-fn-monadic ,right-fn-dyadic
+				     ,(if (not (listp left)) left :fn)
+				     ,left-fn-monadic ,left-fn-dyadic
 				     ,(or (and (listp left) (eql 'lambda (first left))
 					       (= 1 (length (second left))))
 					(not left-fn-dyadic))))))
