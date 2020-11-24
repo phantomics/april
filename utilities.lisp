@@ -180,22 +180,29 @@
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
-  (let ((result (gensym)) (printout (gensym)))
+  (let ((result (gensym)) (printout (gensym))
+	;; get the symbol referencing a function passed as the output
+	(function-name-value (if (and (listp form) (eql 'function (first form)))
+				 `(string (quote ,(second form))))))
     `(let* ((,result ,form)
 	    (,printout ,(if (and (or (getf options :print-to)
 				     (getf options :output-printed)))
 			    ;; don't print the results of assignment unless the :print-assignment option is set,
 			    ;; as done when compiling a ⎕← expression
-			    (if (and (listp form)
+			    (or (and function-name-value
+				     `(concatenate 'string "∇" ,function-name-value))
+				;; if a bare function name is to be output, prefix it with ∇
+				(and (listp form)
 				     (eql 'apl-assign (first form))
-				     (not (getf options :print-assignment)))
-				"" `(matrix-print ,result :append #\Newline
-						  :segment (lambda (n &optional s)
-							     (aplesque::count-segments
-							      n ,(getf options :print-precision) s))
-						  :format (lambda (n &optional s r)
-							    (print-apl-number-string
-							     n s ,(getf options :print-precision) nil r)))))))
+				     (not (getf options :print-assignment))
+				     "")
+				`(matrix-print ,result :append #\Newline
+					       :segment (lambda (n &optional s)
+							  (aplesque::count-segments
+							   n ,(getf options :print-precision) s))
+					       :format (lambda (n &optional s r)
+							 (print-apl-number-string
+							  n s ,(getf options :print-precision) nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if (getf options :print-to)
@@ -368,7 +375,7 @@
        :do (if (not (member symbol operand-specs)) (setq to-ignore (cons symbol to-ignore))))
     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
        (declare (ignorable ,second-op ,second-axes))
-       (let ,(loop :for symbol :in operand-specs
+       (let (,@(loop :for symbol :in operand-specs
 		:when (and (not (member symbol '(right left axes)))
 			   (or (symbolp symbol) (characterp symbol)))
 		:collect (list symbol (case symbol
@@ -380,7 +387,9 @@
 					 `(if (resolve-function :monadic ,first-op ,first-axes)
 					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
 							     ,(resolve-function :monadic ,first-op ,first-axes)
-							     omega))))
+							     omega))
+					      (if (and (listp ,first-op) (eql 'function (first ,first-op)))
+						  ,first-op)))
 					(left-fn-monadic-inverse
 					 `(if (resolve-function :monadic-inverse ,first-op ,first-axes)
 					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
@@ -391,7 +400,9 @@
 					 `(if (resolve-function :dyadic ,first-op ,first-axes)
 					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
 							      ,(resolve-function :dyadic ,first-op ,first-axes)
-							      omega alpha))))
+							      omega alpha))
+					      (if (and (listp ,first-op) (eql 'function (first ,first-op)))
+						  ,first-op)))
 					(left-fn-dyadic-inverse
 					 `(if (resolve-function :dyadic-inverse ,first-op ,first-axes)
 					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
@@ -408,13 +419,18 @@
 					      `(λω (apl-call ,(or-functional-character ,second-op :fn)
 							     ,(resolve-function :monadic
 										,second-op ,second-axes)
-							     omega))))
+							     omega))
+					      (if (and (listp ,second-op) (eql 'function (first ,second-op)))
+						  ,second-op)))
 					(right-fn-dyadic
 					 `(if (resolve-function :dyadic ,second-op ,second-axes)
 					      `(λωα (apl-call ,(or-functional-character ,second-op :fn)
 							      ,(resolve-function :dyadic ,second-op ,second-axes)
-							      omega alpha))))
-					(right-fn-symbolic `(resolve-function :symbolic ,second-op ,second-axes)))))
+							      omega alpha))
+					      (if (and (listp ,second-op) (eql 'function (first ,second-op)))
+						  ,second-op)))
+					(right-fn-symbolic `(resolve-function :symbolic
+									      ,second-op ,second-axes))))))
 	 ,@(if ignorables `((declare (ignorable ,@ignorables))))
 	 (lambda (,@(if (member 'axes operand-specs)
 			(list 'axes)
@@ -830,7 +846,6 @@ It remains here as a standard against which to compare methods for composing APL
 								     (not (member fn-glyph '(#\+ #\×)))))
 							    pair (reverse pair))))
 						    (list first-clause second-clause)))
-				    
 				    remaining))))))
 	((eql 'λω (first form))
 	 (list 'λω (invert-function (second form))))
@@ -856,7 +871,9 @@ It remains here as a standard against which to compare methods for composing APL
 					(error "No monadic inverse for ~a."
 					       (aref (string (second form)) 0)))))))
 		 (cdddr form)))
-	(t (error "Inversion of this statement type not supported."))))
+	(t `(lambda (omega &optional alpha)
+	      (declare (ignore omega alpha))
+	      (error "Inversion of this statement type not supported.")))))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."

@@ -1256,6 +1256,8 @@
   (for "Three-element monadic function train with inline function." "(+ {⍺×⍵} -)5" -25)
   (for "Three-element monadic function train with variable-referenced and inline functions."
        "f←{⍺×⍵} ⋄ ({3+⍵} f -)5" -40)
+  (for "Three-element function train with referenced functions at ends."
+       "of←{⍵+1} ⋄ ef←{⍵+2} ⋄ (of , ef) 5" #(6 7))
   (for "Five-element monadic function train." "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
   (for "Five-element monadic function train with second argument value at end."
        "(3 5⍴-,÷)5" #2A((-5 1/5 -5 1/5 -5) (1/5 -5 1/5 -5 1/5) (-5 1/5 -5 1/5 -5)))
@@ -1579,8 +1581,9 @@ c   2.56  3
   (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
 	       "0.0154 0.3125 ¯15.456
-"))
-
+")
+  (for-printed "Function name." "fun←{⍵+5} ⋄ fun" "∇fun"))
+ 
  (arbitrary-test-set
   (with (:name :output-specification-tests)
 	(:tests-profile :title "Output Specification Tests"))

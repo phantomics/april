@@ -85,10 +85,9 @@
 			(or (eql '⍵ this-item)
 			    (eql '⍺ this-item)
 			    (getf properties :symbol-overriding)
-			    (and (symbolp this-item)
-				 (not (is-workspace-function this-item))))
-			(not (member (intern (string-upcase this-item))
-				     (rest (assoc :function (idiom-symbols idiom)))))
+			    (not (is-workspace-function this-item)))
+			;; (not (member (intern (string-upcase this-item))
+			;; 	     (rest (assoc :function (idiom-symbols idiom)))))
 			(or (not (getf properties :type))
 			    (eq :symbol (first (getf properties :type)))))
 		   (values (if (not (member (string-upcase this-item)
@@ -97,6 +96,9 @@
 			   (append (if vector-axes (list :vector-axes vector-axes))
 					     (list :axes axes :type '(:symbol)))
 			   remaining))
+		  ;; ((and (symbolp this-item)
+		  ;; 	(is-workspace-function this-item))
+		  ;;  )
 		  ;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
 		  ;; the appropriate cancellation flag
 		  ((and (getf properties :cancel-if)
@@ -225,7 +227,10 @@
   (let ((axes (getf (first properties) :axes)))
     (if (or (not axes) (of-lexicon idiom :functions function-element))
 	;; if axes are present, this is an n-argument function
-	function-element `(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
+	(if (not (and (symbolp function-element)
+		      (is-workspace-function function-element)))
+	    function-element `(function (inws ,function-element)))
+	`(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
   (list :type (if (and (getf (first properties) :axes)
 		       (not (of-lexicon idiom :functions function-element)))
 		  '(:array :evaluated) '(:function :symbol-function))
@@ -412,25 +417,35 @@
    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
   (destructuring-bind (right omega alpha center)
       (list precedent (gensym) (gensym)
-	    (resolve-function :dyadic (if (not (symbolp center))
-					  center (intern (string center) space))))
+	    (if (listp center)
+		center (resolve-function :dyadic (if (not (symbolp center))
+						     center (intern (string center) space)))))
+    ;; train composition is only valid when there is only one function in the precedent
+    ;; or when continuing a train composition as for (×,-,÷)5
     (if (and center (or (= 1 (length pre-properties))
 			(and (member :train-composition (getf (first pre-properties) :type))
 			     (not (member :closed (getf (first pre-properties) :type))))))
-	;; train composition is only valid when there is only one function in the precedent
-	;; or when continuing a train composition as for (×,-,÷)5
-	`(lambda (,omega &optional ,alpha)
-	   (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
-				(apl-call ,(or-functional-character right :fn) ,(resolve-function :dyadic right)
-					  ,omega ,alpha)
-				,(let ((left-fn (resolve-function :dyadic left)))
-				   (if (not left-fn)
-				       left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega ,alpha))))
-	       (apl-call ,(or-functional-character center :fn) ,center
-			 (apl-call ,(or-functional-character right :fn) ,(resolve-function :monadic right) ,omega)
-			 ,(let ((left-fn (resolve-function :monadic left)))
-			    (if (not left-fn)
-				left `(apl-call ,(or-functional-character left :fn) ,left-fn ,omega))))))))
+	;; functions are resolved here, failure to resolve indicates a value in the train
+	(let ((right-fn-monadic (if (and (listp right) (eql 'function (first right)))
+				    right (resolve-function :monadic right)))
+	      (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
+				   right (resolve-function :dyadic right)))
+	      (left-fn-monadic (if (and (listp left) (eql 'function (first left)))
+				   left (resolve-function :monadic left)))
+	      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
+				  left (resolve-function :dyadic left))))
+	  `(lambda (,omega &optional ,alpha)
+	     (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
+				  (apl-call ,(or-functional-character right :fn)
+					    ,right-fn-dyadic ,omega ,alpha)
+				  ,(if (not left-fn-dyadic)
+				       left `(apl-call ,(or-functional-character left :fn)
+						       ,left-fn-dyadic ,omega ,alpha)))
+		 (apl-call ,(or-functional-character center :fn) ,center
+			   (apl-call ,(or-functional-character right :fn) ,right-fn-monadic ,omega)
+			   ,(if (not left-fn-monadic)
+				left `(apl-call ,(or-functional-character left :fn)
+						,left-fn-monadic ,omega))))))))
   (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
  (pivotal-composition
   ;; match a pivotal function composition like ×.+, part of a functional expression
@@ -458,7 +473,9 @@
    ;; the value match is canceled when encountering a pivotal operator composition on the left side
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-  (let ((fn-content (if (functionp fn-element)
+  (let ((fn-content (if (or (functionp fn-element)
+			    (and (listp fn-element)
+				 (eql 'function (first fn-element))))
 			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
