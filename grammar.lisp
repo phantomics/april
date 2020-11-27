@@ -265,10 +265,13 @@
   ;; the local workspace as cannot be done through a normal function
   ((:with-preceding-type :array)
    (evaluate-function :element (function :glyph ⍎)))
-  (let ((omega (gensym)))
-    `(funcall (lambda (,omega) (eval (vex-program this-idiom (list (list :space ,space)
-								   '(:state :print-output nil))
-						  ,omega)))
+  (let ((omega (gensym))
+	(space-suffix (subseq space (length "APRIL-WORKSPACE-"))))
+    ;; remove the initial "APRIL-WORKSPACE-" from the space name to get its suffix for
+    ;; invocation of vex-program
+    `(funcall (lambda (,omega) (eval (vex-program this-idiom `((:space ,',space-suffix)
+							       (:state :print-output nil))
+						  (string ,omega))))
 	      ,precedent))
   '(:type (:array :result-of-evaluated-string)))
  (value-assignment-by-function-result

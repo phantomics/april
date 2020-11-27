@@ -119,7 +119,7 @@
 
 (defun find-first-dimension (omega)
   "Find the first dimension of an array. Used to implement [≢ first dimension]."
-  (if (not (arrayp omega))
+  (if (= 0 (rank omega))
       1 (first (dims omega))))
 
 (defun membership (omega alpha)
