@@ -1370,8 +1370,9 @@
 
 (defun split-array (input &optional axis)
   "Split an array into a set of sub-arrays."
-  (if (or (is-unitary input) (> 2 (rank input)))
-      (nest input)
+  (if (> 2 (rank input))
+      (if (not (arrayp input))
+	  input (make-array nil :initial-element input))
       (let* ((axis (if axis axis (1- (rank input))))
 		   (idims (dims input))
 		   (ocoords (loop :for i :below (1- (rank input)) :collect 0))

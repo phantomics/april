@@ -55,7 +55,7 @@
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :lexical-operators-unitary :general-tests
-		      :system-variable-function-tests :printed-format-tests)
+		      :system-variable-function-tests :function-inversion-tests :printed-format-tests)
 	       (:arbitrary-test :output-specification-tests)
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 	       	      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
@@ -63,7 +63,7 @@
 	       (:demo :general-tests :lexical-functions-scalar-numeric
 	       	      :lexical-functions-scalar-logical :lexical-functions-array :lexical-functions-special
 	       	      :lexical-operators-lateral :lexical-operators-pivotal :lexical-operators-unitary
-	       	      :system-variable-function-tests :printed-format-tests))
+	       	      :system-variable-function-tests :function-inversion-tests :printed-format-tests))
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
@@ -162,31 +162,31 @@
 		       :description "Scalar numeric functions change individual numeric values. They include basic arithmetic and other numeric operations, and they can be applied over arrays."))
   (+ (has :titles ("Conjugate" "Add"))
      (ambivalent :asymmetric-scalar conjugate +)
-     (inverse (ambivalent :asymmetric-scalar conjugate -))
+     (inverse (ambivalent conjugate - (reverse-op -)))
      (tests (is "+5" 5)
 	    (is "+5J2" #C(5 -2))
 	    (is "1+1" 2)
 	    (is "1+1 2 3" #(2 3 4))))
   (- (has :titles ("Negate" "Subtract"))
      (ambivalent :symmetric-scalar (reverse-op -))
-     (inverse (ambivalent :symmetric-scalar (reverse-op -)))
+     (inverse (ambivalent (reverse-op -) (reverse-op -) +))
      (tests (is "2-1" 1)
 	    (is "7-2 3 4" #(5 4 3))))
   (× (has :titles ("Sign" "Multiply"))
      (ambivalent :asymmetric-scalar signum *)
-     (inverse (dyadic /))
+     (inverse (dyadic / (reverse-op /)))
      (tests (is "×20 5 0 ¯7 3 ¯9" #(1 1 0 -1 1 -1))
 	    (is "2×3" 6)
 	    (is "4 5×8 9" #(32 45))))
   (÷ (has :titles ("Reciprocal" "Divide"))
      (ambivalent :symmetric-scalar (reverse-op /))
-     (inverse (ambivalent :symmetric-scalar (reverse-op /)))
+     (inverse (ambivalent (reverse-op /) (reverse-op /) *))
      (tests (is "6÷2" 3)
 	    (is "12÷6 3 2" #(2 4 6))
 	    (is "÷2 4 8" #(1/2 1/4 1/8))))
   (⋆ (has :titles ("Exponential" "Power") :aliases (*))
      (ambivalent :asymmetric-scalar exp (reverse-op :dyadic expt))
-     (inverse (ambivalent :symmetric-scalar log))
+     (inverse (ambivalent log))
      (tests (is "⌊1000×⋆2" 7389)
 	    (is "2⋆4" 16)
 	    (is "⌊16⋆÷2" 4)))
@@ -367,6 +367,8 @@
   	    (is "≡⍳3" 1)
   	    (is "≡(1 2)(3 4)" 2)
   	    (is "≡1 (2 3) (4 5 (6 7)) 8" -3)
+	    (IS "≡↓↓2 3⍴⍳6" 3)
+	    (IS "≡↓↓↓2 3⍴⍳6" 4)
 	    (is "3≡3" 1)
 	    (is "4≡2" 0)
 	    (is "''≡''" 1)))
@@ -537,6 +539,9 @@
 	    (is "↓⍳5" #0A#(1 2 3 4 5))
 	    (is "↓3 4⍴⍳9" #(#0A#(1 2 3 4) #0A#(5 6 7 8) #0A#(9 1 2 3)))
   	    (is "↓[1]3 4⍴⍳9" #(#0A#(1 5 9) #0A#(2 6 1) #0A#(3 7 2) #0A#(4 8 3)))
+	    (is "↓2 2⍴⍳4" #(#0A#(1 2) #0A#(3 4)))
+	    (is "↓↓2 2⍴⍳4" #0A#(#0A#(1 2) #0A#(3 4)))
+	    (is "↓↓↓2 2⍴⍳4" #0A#0A#(#0A#(1 2) #0A#(3 4)))
 	    (is "1↓2" #())
 	    (is "2↓3" #())
   	    (is "2↓⍳9" #(3 4 5 6 7 8 9))
@@ -862,7 +867,9 @@
   (⍎ (has :title "Evaluate")
      (symbolic :special-lexical-form-evaluate)
      (tests (is "⍎'1+1'" 2)
-	    (is "⍎'5','+3 2 1'" #(8 7 6))))
+	    (is "⍎'5','+3 2 1'" #(8 7 6))
+	    (is "⍎'3'" 3)
+	    (is "v←⍳3 ⋄ ⍎'v'" #(1 2 3))))
   (← (has :title "Assign")
      (symbolic :special-lexical-form-assign)
      (tests (is "x←55 ⋄ x" 55)
@@ -1280,6 +1287,16 @@
 	       "2.72 7.39 20.1  2.71828 7.38906 20.0855")
   (for "Alphabetical and numeric vectors." "⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
   (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7)))
+
+ (test-set
+  (with (:name :function-inversion-tests)
+	(:tests-profile :title "Function Inversion Tests")
+	(:demo-profile :title "Function Inversion Demos"
+		       :description "Demos of the negative-indexed power operator that inverts simple functions passed to it."))
+  (for "Inverse addition."       "(3+⍣¯1⊢8),((3∘+)⍣¯1⊢8),(+∘3)⍣¯1⊢8" #(5 5 5))
+  (for "Inverse subtraction."    "(3-⍣¯1⊢8),((3∘-)⍣¯1⊢8),(-∘3)⍣¯1⊢8" #(-5 -5 11))
+  (for "Inverse multiplication." "(3×⍣¯1⊢8),((3∘×)⍣¯1⊢8),(×∘3)⍣¯1⊢8" #(8/3 8/3 8/3))
+  (for "Inverse division."       "(3÷⍣¯1⊢8),((3∘÷)⍣¯1⊢8),(÷∘3)⍣¯1⊢8" #(3/8 3/8 24)))
  
  (test-set
   (with (:name :printed-format-tests)

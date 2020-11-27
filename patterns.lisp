@@ -11,7 +11,7 @@
  (with :idiom-symbol idiom :space-symbol workspace :process-symbol process
        :properties-symbol properties :precedent-symbol precedent)
  (sum-until-pattern
-  ;; optimize the pattern ⊃⌽,Y to sum until Y
+  ;; optimize the pattern ⊃⌽,Y to get the last row-major element of Y
   ((:with-preceding-type :array)
    (disclose-function :element (function :glyph \,))
    (rotate-function :element (function :glyph ⌽))
