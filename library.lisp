@@ -548,7 +548,7 @@
       (error "Area of array to be reassigned does not match shape of values to be assigned.")))
 
 (defun match-lexical-function-identity (glyph)
-  "Find the identity value of a lexical function based on its character.xs"
+  "Find the identity value of a lexical function based on its character."
   (second (assoc glyph '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1) 
 			 (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
 			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⌈ most-negative-long-float)
@@ -571,13 +571,17 @@
 	(function-dyadic (lambda (o a) (nest (funcall function-dyadic (disclose o)
 						      (disclose a))))))
     (lambda (omega &optional alpha)
-      (if (not alpha) (aops:each function-monadic omega)
+      (if (not alpha)
+	  (if (and (arrayp omega) (/= 0 (rank omega)))
+	      (aops:each function-monadic omega)
+	      (funcall function-monadic omega))
 	  (if (and (arrayp alpha) (/= 0 (rank alpha)))
 	      (if (and (arrayp omega) (/= 0 (rank omega)))
 		  (aops:each function-dyadic omega alpha)
 		  (aops:each (lambda (x) (funcall function-dyadic omega x)) alpha))
 	      (if (and (arrayp omega) (/= 0 (rank omega)))
-		  (aops:each (lambda (x) (funcall function-dyadic x alpha)) omega)))))))
+		  (aops:each (lambda (x) (funcall function-dyadic x alpha)) omega)
+		  (funcall function-dyadic omega alpha)))))))
 
 (defun operate-grouping (function)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
