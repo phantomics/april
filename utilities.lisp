@@ -53,7 +53,9 @@
 
 (defmacro insym (symbol)
   "Macro used in grammar.lisp to intern value-referencing symbols in appropriate workspace package."
-  `(if (not (symbolp ,symbol)) ,symbol (intern (string ,symbol) space)))
+  `(if (or (not (symbolp ,symbol))
+	   (member ,symbol '(⍵ ⍺))) ;; TODO: this is a hack for now, create a list of all reserved symbol names
+       ,symbol (intern (string ,symbol) space)))
 
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
@@ -765,10 +767,15 @@ It remains here as a standard against which to compare methods for composing APL
   "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
   (let ((is-dyadic (gensym)) (is-inverse (gensym)))
     (if (or (symbolp operand) (characterp operand))
-	(let ((left-fn-monadic (resolve-function :monadic operand axes))
-	      (left-fn-dyadic (resolve-function :dyadic operand axes))
-	      (left-fn-monadic-inverse (resolve-function :monadic-inverse operand axes))
-	      (left-fn-dyadic-inverse (first (resolve-function :dyadic-inverse operand axes))))
+	(let ((left-fn-monadic
+	       `(λω (apl-call ,operand ,(resolve-function :monadic operand axes) omega)))
+	      (left-fn-dyadic
+	       `(λωα (apl-call ,operand ,(resolve-function :dyadic operand axes) omega alpha)))
+	      (left-fn-monadic-inverse
+	       `(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
+	      (left-fn-dyadic-inverse
+	       `(λωα (apl-call ,operand ,(first (resolve-function :dyadic-inverse operand axes))
+			       omega alpha))))
 	  `(lambda (,is-dyadic ,is-inverse)
 	     (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
 		 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
@@ -777,256 +784,54 @@ It remains here as a standard against which to compare methods for composing APL
 	     (declare (ignore ,is-dyadic))
 	     (if ,is-inverse ,inverted ,operand))))))
 
-;; (defun invert-function (form)
-;;   "Attempt to create an inverse version of an APL function form. Used to implement the [⍣ power] operator's functionality with a negative integer as the right operand."
-;;   (cond ((eql 'apl-compose (first form))
-;; 	 (destructuring-bind (op-glyph op-name right-fn-sym right-fn-form-monadic right-fn-form-dyadic
-;; 				       left-fn-sym left-fn-form-monadic left-fn-form-dyadic
-;; 				       &rest remaining)
-;; 	     (rest form)
-;; 	   (case op-name (operate-composed
-;; 			  (let ((first-clause
-;; 				 (if (or (eq :fn left-fn-sym)
-;; 					 (not (symbolp left-fn-sym)))
-;; 				     (if (and (listp left-fn-form-monadic)
-;; 					      (not (null left-fn-form-monadic)))
-;; 					 (list left-fn-sym (invert-function left-fn-form-monadic)
-;; 					       (invert-function left-fn-form-dyadic))
-;; 					 (list left-fn-sym left-fn-form-monadic left-fn-form-dyadic))
-;; 				     (let ((fn-glyph (if (symbolp left-fn-sym)
-;; 							 (aref (string left-fn-sym) 0)
-;; 							 left-fn-sym)))
-;; 				       (list left-fn-sym
-;; 					     (if (resolve-function :monadic-inverse fn-glyph)
-;; 						 `(λω (apl-call ,left-fn-sym
-;; 								,(resolve-function :monadic-inverse
-;; 										   fn-glyph)
-;; 								omega)))
-					     
-;; 					     (if (resolve-function :dyadic-inverse fn-glyph)
-;; 						 `(λωα (apl-call ,left-fn-sym
-;; 								 ,(resolve-function :dyadic-inverse
-;; 										    fn-glyph)
-;; 								 omega alpha)))))))
-;; 				(second-clause
-;; 				 (if (or (eq :fn right-fn-sym)
-;; 					 (not (symbolp right-fn-sym)))
-;; 				     (if (and (listp right-fn-form-monadic)
-;; 					      (not (null right-fn-form-monadic)))
-;; 					 (list right-fn-sym (invert-function right-fn-form-monadic)
-;; 					       (invert-function right-fn-form-dyadic))
-;; 					 (list right-fn-sym right-fn-form-monadic right-fn-form-dyadic))
-;; 				     (let ((fn-glyph (if (symbolp right-fn-sym)
-;; 							 (aref (string right-fn-sym) 0)
-;; 							 right-fn-sym)))
-;; 				       (list right-fn-sym
-;; 					     (if (resolve-function :monadic-inverse fn-glyph)
-;; 						 `(λω (apl-call ,right-fn-sym
-;; 								,(resolve-function :monadic-inverse
-;; 										   fn-glyph)
-;; 								omega)))
-					     
-;; 					     (if (resolve-function :dyadic-inverse fn-glyph)
-;; 						 `(λωα (apl-call ,right-fn-sym
-;; 								 ,(resolve-function :dyadic-inverse
-;; 										    fn-glyph)
-;; 								 omega alpha))))))))
-;; 			    (append (list 'apl-compose op-glyph op-name)
-;; 				    (apply #'append
-;; 					   ;; hackish solution to handle uniform chirality for + and × inversions
-;; 					   (funcall (lambda (pair)
-;; 						      (let ((fn-glyph
-;; 							     (if (or (characterp right-fn-sym)
-;; 								     (and (symbolp right-fn-sym)
-;; 									  (not (eq :fn right-fn-sym))))
-;; 								 (if (characterp right-fn-sym)
-;; 								     right-fn-sym (aref (string right-fn-sym) 0)))))
-;; 							(if (or (not fn-glyph)
-;; 								(and (or (eq :fn left-fn-sym)
-;; 									 (not (symbolp left-fn-sym)))
-;; 								     (not (member fn-glyph '(#\+ #\×)))))
-;; 							    pair (reverse pair))))
-;; 						    (list first-clause second-clause)))
-;; 				    remaining))))))
-;; 	((eql 'λω (first form))
-;; 	 (list 'λω (invert-function (second form))))
-;; 	((eql 'λωα (first form))
-;; 	 (list 'λωα (invert-function (second form))))
-;; 	((and (eql 'lambda (first form))
-;; 	      (eql '⍵ (caadr form))
-;; 	      (eql 'apl-call (first (fourth form))))
-;; 	 (if (fifth form) (error "Can only invert functions with a single statement.")
-;; 	     (list (first form) (second form) (third form)
-;; 		   (invert-function (fourth form)))))
-;; 	((eql 'apl-call (first form))
-;; 	 (append (list (first form) (second form)
-;; 		       (if (eq :fn (second form))
-;; 			   (invert-function (third form))
-;; 			   (if (fifth form)
-;; 			       (or (resolve-function :dyadic-inverse (aref (string (second form)) 0))
-;; 				   (λωα (declare (ignore omega alpha))
-;; 					(error "No dyadic inverse for ~a."
-;; 					       (aref (string (second form)) 0))))
-;; 			       (or (resolve-function :monadic-inverse (aref (string (second form)) 0))
-;; 				   (λω (declare (ignore omega))
-;; 					(error "No monadic inverse for ~a."
-;; 					       (aref (string (second form)) 0)))))))
-;; 		 (cdddr form)))
-;; 	(t `(lambda (omega &optional alpha)
-;; 	      (declare (ignore omega alpha))
-;; 	      (error "Inversion of this statement type not supported.")))))
-
-;; (defun invert-function (form)
-;;   (match form
-;;     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
-;; 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
-;;      (let ((left-clause
-;; 	    (if (or (eq :fn left-fn-sym)
-;; 		    (not (symbolp left-fn-sym)))
-;; 		(if (and (listp left-fn-form-monadic)
-;; 			 (not (null left-fn-form-monadic)))
-;; 		    (list left-fn-sym (invert-function left-fn-form-monadic)
-;; 			  (invert-function left-fn-form-dyadic))
-;; 		    (list left-fn-sym left-fn-form-monadic left-fn-form-dyadic))
-;; 		(let ((fn-glyph (if (not (symbolp left-fn-sym))
-;; 				    left-fn-sym (aref (string left-fn-sym) 0))))
-;; 		  (list left-fn-sym
-;; 			(if (resolve-function :monadic-inverse fn-glyph)
-;; 			    `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-;; 					   omega)))
-;; 			(if (resolve-function :dyadic-inverse fn-glyph)
-;; 			    `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-;; 					    omega alpha)))))))
-;; 	   (right-clause
-;; 	    (if (or (eq :fn right-fn-sym)
-;; 		    (not (symbolp right-fn-sym)))
-;; 		(if (and (listp right-fn-form-monadic)
-;; 			 (not (null right-fn-form-monadic)))
-;; 		    (list right-fn-sym (invert-function right-fn-form-monadic)
-;; 			  (invert-function right-fn-form-dyadic))
-;; 		    (list right-fn-sym right-fn-form-monadic right-fn-form-dyadic))
-;; 		(let ((fn-glyph (if (not (symbolp right-fn-sym))
-;; 				    right-fn-sym (aref (string right-fn-sym) 0))))
-;; 		  (list right-fn-sym
-;; 			(if (resolve-function :monadic-inverse fn-glyph)
-;; 			    `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-;; 					   omega)))
-;; 			(if (resolve-function :dyadic-inverse fn-glyph)
-;; 			    `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-;; 					    omega alpha))))))))
-;;        (append (list 'apl-compose '∘ 'operate-composed)
-;; 	       (apply #'append ;; hackish solution to handle uniform chirality for + and × inversions
-;; 		      (funcall (lambda (pair)
-;; 				 (let ((fn-glyph (if (or (characterp right-fn-sym)
-;; 							 (and (symbolp right-fn-sym)
-;; 							      (not (eq :fn right-fn-sym))))
-;; 						     (if (characterp right-fn-sym)
-;; 							 right-fn-sym (aref (string right-fn-sym) 0)))))
-;; 				   (if (or (not fn-glyph)
-;; 					   (and (or (eq :fn left-fn-sym)
-;; 						    (not (symbolp left-fn-sym)))
-;; 						(not (member fn-glyph '(#\+ #\×)))))
-;; 				       pair (reverse pair))))
-;; 			       (list left-clause right-clause)))
-;; 	       remaining)))
-;;     ((list (guard first (member first '(λω λωα))) second)
-;;      (list first (invert-function second)))
-;;     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
-;; 	   first-form rest-forms)
-;;      (print (list :r1 first-form rest-forms))
-;;      (if rest-forms `(lambda ,args ,declare-form
-;; 			     (error "This function has more than one statement and this cannot be inverted."))
-;; 	 `(lambda ,args ,declare-form ,(invert-function first-form))))
-;;     ((list* 'lambda args first-form rest-forms)
-;;      (print (list :r2 form first-form rest-forms))
-;;      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
-;; 			     (error "This function has more than one statement and this cannot be inverted."))
-;; 	 `(lambda ,args (apl-call ,symbol ,(invert-function first-form)))))
-;;     ((list* 'apl-call function-symbol function-form rest)
-;;      (print (list :ii function-form rest))
-;;      (print `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
-;; 				      (invert-function function-form)
-;; 				      (if (second rest)
-;; 					  (or (resolve-function :dyadic-inverse
-;; 								(aref (string function-symbol) 0))
-;; 					      (λωα (declare (ignore omega alpha))
-;; 						   (error "No dyadic inverse for ~a."
-;; 							  (aref (string function-symbol) 0))))
-;; 					  (or (resolve-function :monadic-inverse
-;; 								(aref (string function-symbol) 0))
-;; 					      (λω (declare (ignore omega))
-;; 						  (error "No monadic inverse for ~a."
-;; 							 (aref (string function-symbol) 0))))))
-;; 		,@(if (eql 'omega (first rest))
-;; 		      rest (reverse rest)))))
-;;     ))
-
 (defun invert-function (form)
   (match form
     ((list* 'apl-compose '∘ 'operate-composed (guard op1 (or (not (characterp op1))))
-	    op1-monadic op1-dyadic op2-sym op2-monadic op2-dyadic remaining)
-     `(apl-compose ∘ operate-composed ,op1 ,op1-monadic ,op1-dyadic ,op2-sym
-		     ,(resolve-function :monadic-inverse op2-sym)
-		     ,(or (second (resolve-function :dyadic-inverse op2-sym))
-			  (first (resolve-function :dyadic-inverse op2-sym)))
+	    nil nil op2-sym _ _ remaining)
+     `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
+		     (λω (apl-call ,op2-sym ,(resolve-function :monadic-inverse op2-sym) omega))
+		     (λωα (apl-call ,op2-sym ,(first (last (resolve-function :dyadic-inverse op2-sym)))
+				    omega alpha))
 		     ,@remaining))
-    ((list* 'apl-compose '∘ 'operate-composed op1-sym op1-monadic op1-dyadic
-	    (guard op2 (not (characterp op2)))
-	    op2-monadic op2-dyadic remaining)
-     `(apl-compose ∘ operate-composed ,op1-sym ,(resolve-function :monadic-inverse op1-sym)
-		     ,(first (resolve-function :dyadic-inverse op1-sym))
-		     ,op2 ,op2-monadic ,op2-dyadic ,@remaining))
+    ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
+	    nil nil remaining)
+     `(apl-compose ∘ operate-composed ,op1-sym
+		     (λω (apl-call ,op1-sym ,(resolve-function :monadic-inverse op1-sym) omega))
+		     (λωα (apl-call ,op1-sym ,(first (resolve-function :dyadic-inverse op1-sym))
+				    omega alpha))
+		     ,op2 nil nil ,@remaining))
     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
-     (let ((left-clause
-	    (if (or (eq :fn left-fn-sym)
-		    (not (symbolp left-fn-sym)))
-		(if (and (listp left-fn-form-monadic)
-			 (not (null left-fn-form-monadic)))
-		    (list left-fn-sym (invert-function left-fn-form-monadic)
-			  (invert-function left-fn-form-dyadic))
-		    (list left-fn-sym left-fn-form-monadic left-fn-form-dyadic))
-		(let ((fn-glyph (if (not (symbolp left-fn-sym))
-				    left-fn-sym (aref (string left-fn-sym) 0))))
-		  (list left-fn-sym
-			(if (resolve-function :monadic-inverse fn-glyph)
-			    `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-					   omega)))
-			(if (resolve-function :dyadic-inverse fn-glyph)
-			    `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-					    omega alpha)))))))
-	   (right-clause
-	    (if (or (eq :fn right-fn-sym)
-		    (not (symbolp right-fn-sym)))
-		(if (and (listp right-fn-form-monadic)
-			 (not (null right-fn-form-monadic)))
-		    (list right-fn-sym (invert-function right-fn-form-monadic)
-			  (invert-function right-fn-form-dyadic))
-		    (list right-fn-sym right-fn-form-monadic right-fn-form-dyadic))
-		(let ((fn-glyph (if (not (symbolp right-fn-sym))
-				    right-fn-sym (aref (string right-fn-sym) 0))))
-		  (list right-fn-sym
-			(if (resolve-function :monadic-inverse fn-glyph)
-			    `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-					   omega)))
-			(if (resolve-function :dyadic-inverse fn-glyph)
-			    `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-					    omega alpha))))))))
-       (append (list 'apl-compose '∘ 'operate-composed)
-	       (apply #'append ;; hackish solution to handle uniform chirality for + and × inversions
-		      (funcall (lambda (pair)
-				 (let ((fn-glyph (if (or (characterp right-fn-sym)
-							 (and (symbolp right-fn-sym)
-							      (not (eq :fn right-fn-sym))))
-						     (if (characterp right-fn-sym)
-							 right-fn-sym (aref (string right-fn-sym) 0)))))
-				   (if (or (not fn-glyph)
-					   (and (or (eq :fn left-fn-sym)
-						    (not (symbolp left-fn-sym)))
-						(not (member fn-glyph '(#\+ #\×)))))
-				       pair (reverse pair))))
-			       (list left-clause right-clause)))
-	       remaining)))
+     (let ((both-non-scalar (and (eq :fn right-fn-sym) (eq :fn left-fn-sym))))
+       (let ((left-clause
+	      (if (or (eq :fn left-fn-sym)
+		      (not (symbolp left-fn-sym)))
+		  (list left-fn-sym (invert-function left-fn-form-monadic)
+			(invert-function left-fn-form-dyadic))
+		  (let ((fn-glyph (if (not (symbolp left-fn-sym))
+				      left-fn-sym (aref (string left-fn-sym) 0))))
+		    (list left-fn-sym
+			  (if (resolve-function :monadic-inverse fn-glyph)
+			      `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+					     omega)))
+			  (if (resolve-function :dyadic-inverse fn-glyph)
+			      `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+					      omega alpha)))))))
+	     (right-clause
+	      (if (or (eq :fn right-fn-sym)
+		      (not (symbolp right-fn-sym)))
+		  (list right-fn-sym (invert-function right-fn-form-monadic)
+			(invert-function right-fn-form-dyadic))
+		  (let ((fn-glyph (if (not (symbolp right-fn-sym))
+				      right-fn-sym (aref (string right-fn-sym) 0))))
+		    (list right-fn-sym
+			  (if (resolve-function :monadic-inverse fn-glyph)
+			      `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+					     omega)))
+			  (if (resolve-function :dyadic-inverse fn-glyph)
+			      `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+					      omega alpha))))))))
+	 `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining))))
     ((list (guard first (member first '(λω λωα))) second)
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
@@ -1161,7 +966,8 @@ It remains here as a standard against which to compare methods for composing APL
 						     (if (or (eq :ambivalent inverse-function-type)
 							     (eq :dyadic inverse-function-type))
 							 (list :dyadic-inverse
-							       (first inverse-spec-body)))
+							       (or (rest inverse-spec-body)
+								   inverse-spec-body)))
 						     )))
 			      ((eq :operators type)
 			       `(:operators ,(first spec-body)))))))))

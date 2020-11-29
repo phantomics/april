@@ -661,14 +661,16 @@
 		(setq output (funcall function-monadic omega))))
 	(or output (merge-arrays odivs :nesting nil))))))
 
+(defun operate-atop (right-fn-monadic right-fn-dyadic left-fn-monadic)
+  (lambda (omega &optional alpha)
+    (if alpha (funcall left-fn-monadic (funcall right-fn-dyadic omega alpha))
+	(funcall left-fn-monadic (funcall right-fn-monadic omega)))))
+
 (defun operate-to-power (power function-retriever)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
     (let ((arg omega) (function (funcall function-retriever alpha (> 0 power))))
       (dotimes (index (abs power))
-	;; the if-statements below aren't the most elegant way to structure this; the (apl-call)
-	;; structures are repeated, but the (scalar-function) form needs to be immediately
-	;; inside (apl-call) in order for (apl-call)'s logic to work correctly
 	(setq arg (if alpha (funcall function arg alpha)
 		      (funcall function arg))))
       arg)))
