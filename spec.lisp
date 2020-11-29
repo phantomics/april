@@ -944,6 +944,8 @@
       (lateral (with-derived-operands (axes left-fn-monadic left-fn-dyadic)
 		 `(operate-each ,left-fn-monadic ,left-fn-dyadic)))
       (tests (is "⍳¨1 2 3" #(#0A#(1) #0A#(1 2) #0A#(1 2 3)))
+	     (is "{⍵÷3}¨10" 10/3)
+	     (is "1 {⍺+⍵÷3}¨10" 13/3)
   	     (is "3⍴¨1 2 3" #(#0A#(1 1 1) #0A#(2 2 2) #0A#(3 3 3)))
   	     (is "3 4 5⍴¨3" #(#0A#(3 3 3) #0A#(3 3 3 3) #0A#(3 3 3 3 3)))
   	     (is "1 ¯1⌽¨⊂⍳5" #(#0A#(2 3 4 5 1) #0A#(5 1 2 3 4)))
