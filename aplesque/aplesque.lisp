@@ -899,8 +899,8 @@
       (let ((result)
 	    (avix (floor (/ x ovectors)))
 	    (ovix (mod x ovectors)))
-	(if (< 0 avix) (adjust-array adisp asegment :displaced-to alpha
-				     :displaced-index-offset (* asegment avix)))
+	(if (< 0 avix) (setq adisp (make-array asegment :displaced-to alpha :element-type (element-type alpha)
+					       :displaced-index-offset (* asegment avix))))
 	(if (not (and (= osegment osize) (= 1 (rank omega))))
 	    (dotimes (i osegment) (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
 	(loop :for x :across (apply-scalar function1 (if odims oholder omega)

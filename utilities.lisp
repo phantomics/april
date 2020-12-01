@@ -5,7 +5,7 @@
 
 "Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with uses aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in library.lisp."
 
-(define-symbol-macro this-idiom (local-idiom april))
+(define-symbol-macro this-idiom *april-idiom*) ;; (local-idiom april))
 (define-symbol-macro atomic-vector (get-system-meta this-idiom :atomic-vector))
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (- (first axes) index-origin)))
@@ -689,38 +689,6 @@ It remains here as a standard against which to compare methods for composing APL
        (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
        ,@form)))
 
-(defun do-over (input function axis &key reduce in-reverse last-axis)
-  "Apply a dyadic function over elements of an array, inserting the results into an array of the same or similar shape (possibly less one or more dimensions). Used to implement reduce and scan operations."
-  (let* ((dimensions (dims input))
-	 (axis (or axis (if last-axis (max 0 (1- (rank input))) 0)))
-	 (output (if (< 1 (size input))
-		     (make-array (if reduce (loop :for dim :in dimensions :for dx :from 0
-					       :when (/= dx axis) :collect dim)
-				     dimensions))))
-	 (rcoords (if reduce (loop :for i :below (1- (rank input)) :collect 0)))
-	 (icoords (loop :for i :below (rank input) :collect 0)))
-    (if output
-	(across input (lambda (elem coords)
-			(if rcoords (let ((decrement 0))
-				      (loop :for c :in coords :for cx :from 0
-					 :when (= axis cx) :do (incf decrement)
-					 :when (/= axis cx) :do (setf (nth (- cx decrement) rcoords) c))))
-			(loop :for c :in coords :for cx :from 0 :do (setf (nth cx icoords)
-									  (if (/= axis cx) c (if (not reduce)
-												 (1- c)))))
-			(let ((elem (disclose elem)))
-			  
-			  (setf (apply #'aref output (if reduce rcoords coords))
-				(if (= (if (not in-reverse) 0 (1- (nth axis dimensions)))
-				       (nth axis coords))
-				    elem (funcall function (apply #'aref output
-								  (if reduce rcoords
-								      (or icoords (list 0))))
-						  elem)))))
-		:ranges (loop :for d :below (rank input) :collect (if (and in-reverse (= axis d))
-								      (list (nth d dimensions))))))
-    (or output input)))
-
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."
   (loop :for var-entry :in input-vars :collect (list (intern (lisp->camel-case (first var-entry)) space)
@@ -851,8 +819,8 @@ It remains here as a standard against which to compare methods for composing APL
      `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
 				      (invert-function function-form)
 				      (if (second rest)
-					  (or (resolve-function :dyadic-inverse
-								(aref (string function-symbol) 0))
+					  (or (first (resolve-function :dyadic-inverse
+								       (aref (string function-symbol) 0)))
 					      (λωα (declare (ignore omega alpha))
 						   (error "No dyadic inverse for ~a."
 							  (aref (string function-symbol) 0))))

@@ -239,14 +239,14 @@
 	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)
 	    (is "⌊1000×1○⍳9" #(841 909 141 -757 -959 -280 656 989 412))
 	    (is "⌈1 2 3○○.5 2 .25" #(1 1 1))
-	    (is "⌊1000×⊃,/9 11○⊂(¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5"
-		#2A((0 -550 549 -239 118 0 1570 1570 1311 1355)
-		    (0 1316 1316 1734 2095 1570 3141 0 2325 1064)
+	    ;; omit asin and atanh from the tests below because they
+	    ;; are not consistent across CL implementations
+	    (is "⌊1000×⊃,/9 11○⊂(¯1 ¯7~⍨¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5"
+		#2A((0 1316 1316 1734 2095 1570 3141 0 2325 1064)
 		    (0 -1444 1443 -1735 2079 0 0 0 754 1038)
 		    (0 -1733 1732 -1880 1940 1000 0 0 2128 3607)
 		    (0 -1108 1107 -1312 1442 0 0 0 238 215)
 		    (1570 3141 0 2325 1064 0 -1317 1316 -1735 -2096)
-		    (0 -1571 1570 -755 506 0 1316 -1317 1734 2095)
 		    (1000 0 0 2128 3607 0 1732 1732 1879 -1941)
 		    (0 -910 909 -3421 15069 0 0 0 -1510 -6885)
 		    (1000 -417 -417 -1566 -6897 0 0 0 3297 -15043)
@@ -901,9 +901,8 @@
 		       :description "Lateral operators take a single operand function to their left, hence the name 'lateral.' The combination of operator and function yields another function which may be applied to one or two arguments depending on the operator."))
   (/ (has :title "Reduce")
      (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
-		`(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph))
-				   ,(if axes `(- ,(first axes) index-origin))
-				   t)))
+		(let ((axes (if axes `(- ,(first axes) index-origin))))
+		  `(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph)) ,axes t))))
      (tests (is "+/1 2 3 4 5" 15)
 	    (is "⊢/⍳5" 5)
 	    (is "×/5" 5)
@@ -914,31 +913,40 @@
 	    (is "fn←{⍺+⍵} ⋄ fn/1 2 3 4 5" 15)
 	    (is "⌊10000×{⍺+÷⍵}/40/1" 16180)
 	    (is "+/⍬" 0)
+	    (is "-/⍬" 0)
 	    (is "×/⍬" 1)
+	    (is "÷/⍬" 1)
+	    (is "</⍬" 0)
+	    (is "≤/⍬" 1)
+	    (is "⊤/⍬" 0)
+	    (is "∪/⍬" #())
 	    (is "f←+ ⋄ f/⍬" 0)
-	    (is "g←× ⋄ g/⍬" 1)
+	    (is "g←÷ ⋄ g/⍬" 1)
 	    (is "+/(1 2 3)(4 5 6)" #0A#(5 7 9))))
   (⌿ (has :title "Reduce First")
      (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
-		`(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph))
-				   ,(if axes `(- ,(first axes) index-origin)))))
+		(let ((axes (if axes `(- ,(first axes) index-origin))))
+		  `(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph)) ,axes))))
      (tests (is "+⌿3 4⍴⍳12" #(15 18 21 24))
 	    (is "-⌿3 4⍴⍳12" #(5 6 7 8))
 	    (is "{⍺×⍵+3}⌿3 4⍴⍳12" #(63 162 303 492))
 	    (is "+⌿[2]3 4⍴⍳12" #(10 26 42))))
   (\\ (has :title "Scan")
       (lateral (with-derived-operands (axes left-fn-dyadic)
-		 `(λω (do-over omega ,left-fn-dyadic ,(if axes `(- ,(first axes) index-origin))
-			       :last-axis t))))
-      (tests (is "+\\1 2 3 4 5" #(1 3 6 10 15))
+		 (let ((axes (if axes `(- ,(first axes) index-origin))))
+		   `(operate-scanning ,left-fn-dyadic ,axes t))))
+      (tests (is "÷\\5" 5)
+	     (is "+\\1 2 3 4 5" #(1 3 6 10 15))
   	     (is "+\\3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))
-  	     (is "+\\[1]3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))))
+  	     (is "+\\[1]3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))
+	     (is "-\\2 3 4⍴⍳24" #3A(((1 -1 2 -2) (5 -1 6 -2) (9 -1 10 -2))
+				    ((13 -1 14 -2) (17 -1 18 -2) (21 -1 22 -2))))))
   (⍀ (has :title "Scan First")
      (lateral (with-derived-operands (axes left-fn-dyadic)
-		`(λω (do-over omega ,left-fn-dyadic ,(if axes `(- ,(first axes) index-origin))))))
+		`(operate-scanning ,left-fn-dyadic ,(if axes `(- ,(first axes) index-origin)))))
      (tests (is "+⍀1 2 3 4 5" #(1 3 6 10 15))
   	    (is "+⍀3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))
-  	    ;; (is "{⍺×⍵+3}⍀3 4⍴⍳12" #2A((1 2 3 4) (8 18 30 44) (96 234 420 660)))
+  	    (is "{⍺×⍵+3}⍀3 4⍴⍳12" #2A((1 2 3 4) (8 18 30 44) (63 162 303 492)))
   	    (is "+⍀[2]3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))))
   (\¨ (has :title "Each")
       (lateral (with-derived-operands (axes left-fn-monadic left-fn-dyadic)
@@ -1596,13 +1604,13 @@ c   2.56  3
 32.95J12.15  3.20J05.3  32.95J12.15
  3.20J05.3  32.95J12.15  3.20J05.3 
 ")
-  (for-printed "Another complex matrix." "0 ¯1 ¯2 ¯6 ¯7 ∘.○ ¯2 ¯2J0"
-	       " 0.00000000J01.7320508  0.00000000J01.7320508
-¯1.57079640J01.3169578 ¯1.57079640J01.3169578
- 3.14159270J¯1.3169578  3.14159270J¯1.3169578
- 1.31695780J03.1415927  1.31695780J03.1415927
-¯0.54930615J01.5707964 ¯0.54930615J01.5707964
-")
+;;   (for-printed "Another complex matrix." "¯2 ¯3 ¯4 ¯5 ¯6 ∘.○ ¯2 ¯2J3r5"
+;; 	       " 3.1415927J¯1.3169578  2.8133510J¯1.3797641 
+;; ¯1.1071488            ¯1.1347281J00.11386888
+;; ¯1.7320508            ¯1.7617970J00.68112284
+;; ¯1.4436355            ¯1.4752518J00.2638725 
+;;  1.3169578J03.1415927  1.3797641J02.813351  
+;; ")
   (for-printed "Stacked complex float, integer and rational."
 	       "⍪12.2J44 3J8 19J210r17"
 	       "12.2J044.0 
