@@ -936,21 +936,22 @@
 	       (loop :for item :in items-to-store
 		  :do (set (intern (lisp->camel-case (first item)) space)
 			   (second item)))))
+
+
+      (if (not (find-package space))
+	  (progn (make-package space)
+		 (set (intern "*SYSTEM*" space) (idiom-system idiom))
+		 (set (intern "*BRANCHES*" space) nil)
+		 (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
+		    :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
+			  (if (boundp native-symbol)
+			      (eval `(defvar ,(intern (string csym) space)
+				       ,(symbol-value native-symbol)))
+			      (if (listp (macroexpand native-symbol))
+				  (eval `(define-symbol-macro ,(intern (string csym) space)
+					     ,(macroexpand native-symbol)))))))))
       
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
-
-	(if (not (find-package space))
-	    (progn (make-package space)
-		   (set (intern "*SYSTEM*" space) (idiom-system idiom))
-		   (set (intern "*BRANCHES*" space) nil)
-		   (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
-		      :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
-			    (if (boundp native-symbol)
-				(eval `(defvar ,(intern (string csym) space)
-					 ,(symbol-value native-symbol)))
-				(if (listp (macroexpand native-symbol))
-				    (eval `(define-symbol-macro ,(intern (string csym) space)
-					       ,(macroexpand native-symbol)))))))))
 
 	;; if the (:restore-defaults) setting is passed,
 	;; the workspace settings will be restored to the defaults from the spec

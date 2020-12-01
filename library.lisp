@@ -67,9 +67,11 @@
 
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
+  (print (list :tt (type-of omega)))
   (if (or (not (arrayp omega))
 	  (= 0 (rank omega)))
-      #() (if (and (eql 'simple-array (first (type-of omega)))
+      #() (if (and (listp (type-of omega))
+		   (eql 'simple-array (first (type-of omega)))
 		   (eq t (second (type-of omega)))
 		   (eq nil (third (type-of omega))))
 	      0 (if (vectorp omega)
@@ -337,8 +339,8 @@
 	(uniques) (increment (reduce #'* (rest (dims array)))))
     (dotimes (x (first (dims array)))
       (if (and displaced (< 0 x))
-	  (adjust-array displaced (rest (dims array)) :element-type (element-type array)
-			:displaced-to array :displaced-index-offset (* x increment)))
+	  (setq displaced (make-array (rest (dims array)) :element-type (element-type array)
+				      :displaced-to array :displaced-index-offset (* x increment))))
       (if (member (or displaced (aref array x)) uniques :test #'array-compare)
 	  (setf (aref output x) 0)
 	  (setf uniques (cons (if displaced (make-array (rest (dims array)) :displaced-to array
@@ -549,21 +551,60 @@
 
 (defun match-lexical-function-identity (glyph)
   "Find the identity value of a lexical function based on its character."
-  (second (assoc glyph '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1) 
+  (second (assoc glyph '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1)
 			 (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
-			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⌈ most-negative-long-float)
-			 (#\⌊ most-positive-long-float))
+			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⊤ 0) (#\∪ #()) (#\⌽ 0) (#\⊖ 0)
+			 (#\⌈ most-negative-long-float) (#\⌊ most-positive-long-float))
 		 :test #'char=)))
 
 (defun operate-reducing (function function-glyph axis &optional last-axis)
-  "Generate a function reducing an array along an axis by a function. Used to implement [/ reduce]."
   (lambda (omega)
-    (if (= 0 (size omega))
-        (or (and (= 1 (rank omega))
-		 (match-lexical-function-identity (aref function-glyph 0)))
-	    (make-array 0))
-	(disclose-atom (do-over omega function axis
-				:reduce t :in-reverse t :last-axis last-axis)))))
+    (if (not (arrayp omega))
+	omega (if (= 0 (size omega))
+		  (or (and (= 1 (rank omega))
+			   (match-lexical-function-identity (aref function-glyph 0)))
+		      (make-array 0))
+		  (let* ((odims (dims omega))
+			 (axis (or axis (if (not last-axis) 0 (1- (rank omega)))))
+			 (rlen (nth axis odims))
+			 (increment (reduce #'* (nthcdr (1+ axis) odims)))
+			 (output (make-array (loop :for dim :in odims :for dx :from 0
+						:when (/= dx axis) :collect dim))))
+		    (dotimes (i (size output))
+		      (declare (optimize (safety 1)))
+		      (let ((value))
+			(loop :for ix :from (1- rlen) :downto 0
+			   :do (let ((item (row-major-aref
+					    omega (+ (* ix increment)
+						     (if (= 1 increment)
+							 0 (* (floor (/ i increment))
+							      (- (* increment rlen) increment)))
+						     (if (/= 1 increment) i (* i rlen))))))
+				 (setq value (if (not value) item (funcall function (disclose value)
+									   (disclose item))))))
+			(setf (row-major-aref output i) value)))
+		    (disclose-atom output))))))
+
+(defun operate-scanning (function axis &optional last-axis)
+  (lambda (omega)
+    (if (not (arrayp omega))
+	omega (let* ((odims (dims omega))
+		     (axis (or axis (if (not last-axis) 0 (1- (rank omega)))))
+		     (rlen (nth axis odims))
+		     (increment (reduce #'* (nthcdr (1+ axis) odims)))
+		     (output (make-array odims)))
+		(dotimes (i (size output))
+		  (declare (optimize (safety 1)))
+		  (let ((value))
+		    (loop :for ix :from (mod (floor (/ i increment)) rlen) :downto 0
+		       :do (let ((original (row-major-aref
+					    omega (+ (mod i increment) (* ix increment)
+						     (* increment rlen (floor (/ i (* increment rlen))))))))
+			     (setq value (if (not value) (disclose original)
+					     (funcall function (disclose value)
+						      (disclose original))))))
+		    (setf (row-major-aref output i) value)))
+		output))))
 
 (defun operate-each (function-monadic function-dyadic)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
