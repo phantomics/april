@@ -241,7 +241,7 @@
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
-  (let ((nstring (string-upcase number-string)))
+  (let ((nstring (string-upcase (regex-replace-all "[_]" number-string ""))))
     (if (and (not (eql 'complex component-of))
 	     (find #\J nstring))
 	(let ((halves (cl-ppcre:split "J" nstring)))
@@ -277,12 +277,16 @@
 	 (let ((output (format nil (format nil "~~~d,'~ad~a" (abs (first segments))
 					   ;; for negative values, empty space to the left must initially
 					   ;; be filled with ¯ characters; the reasoning is explained below
-					   (if (> 0 number) #\¯ (if (> 0 (first segments)) #\0 #\ ))
+					   (if (> 0 number) #\¯ (if (> 0 (first segments)) #\_ #\ ))
 					   (if (not (and (second segments)
 							 (or (> 0 (first segments))
 							     (> 0 (second segments)))))
 					       "" (make-array (1+ (abs (second segments)))
-							      :element-type 'base-char :initial-element #\ )))
+							      :element-type 'base-char :initial-element
+							      (if (and (< 0 (first segments))
+								       (second segments)
+								       (> 0 (second segments)))
+								  #\_ #\ ))))
 			       (abs number)))
 	       (number-found))
 	   (if (> 0 number)
@@ -318,7 +322,7 @@
 		  (total-length (+ 1 left-space right-space))
 		  (output (format nil (format nil "~~~d,~d,,,'~af~a" total-length right-space
 					      (if (> 0 number)
-						  #\¯ (if (< 0 (first segments)) #\  #\0))
+						  #\¯ (if (< 0 (first segments)) #\  #\_))
 					      (if (not (and right-padding (< 0 right-padding)))
 						  "" (make-array right-padding :element-type 'base-char
 								 :initial-element #\ )))

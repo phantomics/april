@@ -227,7 +227,7 @@ The biggest difference between April and other APLs lies in its implementation o
 
 ### Using rational numbers
 
-April is one of a few APL implementations to feature rational numbers. They are printed with a lowercase `r` separating the numberator and denominator. Examples:
+April is one of a few APL implementations to employ rational numbers. They are printed with a lowercase `r` separating the numberator and denominator. Examples:
 
 ```lisp
 * (april-f "÷⍳5")
@@ -246,6 +246,33 @@ Rational numbers can also be used as parts of complex numbers:
 3r4J9r5 3r2J18r5 9r4J27r5 3J36r5
 #(#C(3/4 9/5) #C(3/2 18/5) #C(9/4 27/5) #C(3 36/5))
 ```
+
+### Underscore-separated numbers
+
+In April, you can use underscores to separate parts of a number:
+
+```lisp
+* (april "1_000_000+5")
+1000005
+
+* (april "1__000_000__000_000+5")
+1000000000005
+
+* (april "1_00___0_0__00_0+5")
+10000005
+```
+
+As shown above, you can use any number of underscores anywhere within a number, they are simply ignored by the reader. Underscores are also used by the printer when printing columns of mixed complex floats and rationals:
+
+```lisp
+* (april-f "⍪12.2J44 3J8 19r13J5r2")
+12.20J44.0
+ 3___J_8  
+19r13J_5r2
+#2A((#C(12.2 44.0)) (#C(3 8)) (#C(19/13 5/2)))
+```
+
+Using the underscores as filler keeps the decimal points, rs and Js properly aligned for printing.
 
 ### Strings and Escaped Quotes
 
