@@ -1749,8 +1749,10 @@
 	((or (equalp #0A0 input) (= 0 (size input)))
 	 "")
 	((= 0 (rank input))
+	 ;; each layer of 0-rank enclosure adds 1 space of indentation
 	 (array-impress (aref input) :format format :segment segment :append append
-			:in-collated collate :prepend (if prepend t 1)))
+			:in-collated collate :prepend (if (eq prepend t)
+							  t (1+ (or prepend 0)))))
 	(t (let* ((idims (dims input))
 		  ;; the x-offset and y-offset for each column and row; each array has an extra element to
 		  ;; represent the total width and height of the output array
@@ -1845,23 +1847,25 @@
 				   ;; if this is the beginning of a new row, increment the row's y-offset
 				   ;; by the number of preceding empty rows
 				   (if (= 0 last-coord)
-				       (setf row (reduce #'+ (mapcar #'* (rest (reverse coords))
-								     (let ((current 1))
-								       (loop :for dim
-									  :in (cons 1 (rest (reverse (rest idims))))
-									  :collect (setq current
-											 (* current dim))))))
-					     ;; find the total number of empty lines preceding this row by encoding
-					     ;; the coordinates excepting the last two with a series of number bases
-					     ;; found by multiplying each dimension going backwards excepting the
-					     ;; last 2 by the previous base and adding 1
+				       (setf row (reduce
+						  #'+ (mapcar #'* (rest (reverse coords))
+							      (let ((current 1))
+								(loop :for dim
+								   :in (cons 1 (rest (reverse (rest idims))))
+								   :collect (setq current
+										  (* current dim))))))
+					     ;; find the total number of empty lines preceding this row by
+					     ;; encoding the coordinates excepting the last two with a series
+					     ;; of number bases found by multiplying each dimension going
+					     ;; backwards excepting the last 2 by the previous base and adding 1
 					     empty-rows
-					     (reduce #'+ (mapcar #'* (cddr (reverse coords))
-								 (cons 1 (let ((last 1))
-									   (loop :for dim
-									      :in (reverse (rest (butlast idims 2)))
-									      :collect (setq last
-											     (1+ (* dim last))))))))
+					     (reduce
+					      #'+ (mapcar #'* (cddr (reverse coords))
+							  (cons 1 (let ((last 1))
+								    (loop :for dim
+								       :in (reverse (rest (butlast idims 2)))
+								       :collect (setq last
+										      (1+ (* dim last))))))))
 					     (aref y-offsets row)
 					     (+ empty-rows (aref y-offsets row))))
 				   (setf this-col-width (max this-col-width elem-width)
@@ -1887,6 +1891,8 @@
 	       ;; indenting character
 	       ;; (print (list :seg col-segments col-widths x-offsets))
 	       (let ((total 0))
+		 ;; (print (list :st strings col-types col-segments col-widths x-offsets))
+		 ;; (print (list :pr prepend))
 		 (loop :for s :below (length col-segments) :for i :from 0
 		    :do (let ((char-column (and (eq :character (first (aref col-types s)))
 						(not (rest (aref col-types s))))))
@@ -1899,7 +1905,7 @@
 							     (+ (1- (length (aref col-segments s)))
 								(reduce #'+ (aref col-segments s))))
 							(aref col-widths s))
-				total (+ total (if (and prepend (= 0 i) (not (eq t prepend))) 1 0)
+				total (+ total (if (and prepend (= 0 i) (not (eq t prepend))) prepend 0)
 					 ;; add a prepending space if this is an array column
 					 ;; or if the prior column held arrays, this column doesn't
 					 ;; and this column is not a character-only column
@@ -1923,7 +1929,11 @@
 								(not (rest (aref col-types (1+ s))))))))
 					     1 0)))))
 		 (setf (aref x-offsets (1- (length x-offsets)))
-		       (- total (if prepend 1 0))))
+		       (- total (if prepend (if (eq t prepend) 1 prepend)
+				    0))))
+
+	       ;; (print (list :xt col-types col-segments col-widths x-offsets))
+	       ;; (princ #\Newline)
 	       
 	       (let* ((to-collate (and collate (or (not (eq t (element-type input)))
 						   (loop :for i :below (array-total-size input)
@@ -1935,7 +1945,7 @@
 					      :element-type 'character :initial-element output-default-char)
 				  (make-array (list (aref y-offsets (1- (length y-offsets)))
 						    (+ (if (or collate in-collated) 0 1)
-						       (if (and prepend (not (eq t prepend))) 1 0)
+						       (if (and prepend (not (eq t prepend))) prepend 0)
 						       (aref x-offsets (1- (length x-offsets)))))
 					      :element-type 'character :initial-element output-default-char))))
 		 (across strings

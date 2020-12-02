@@ -1293,7 +1293,7 @@
        "' ' (≠⊆⊢) ' one two  three'" #(#0A"one" #0A"two" #0A"three"))
   (for "Three-element dyadic function train with left argument value."
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
-  (for "Five-element dyadic function train with variable-referenced function."
+  (for "Five-element dyadic function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 #0A"one" #0A"one" #0A"two" #0A"three"))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
@@ -1583,6 +1583,10 @@ c   2.56  3
            1 1   
  abc         c  2
  abc  12345678  3
+")
+  (for-printed "Nested vector of vectors." "↓⍣2⊢2 2⍴⍳4" "  1 2  3 4
+")
+  (for-printed "Double-nested vector of vectors." "↓⍣3⊢2 2⍴⍳4" "   1 2  3 4
 ")
   (for-printed "Stacked floats with negative value under 1." "⍪¯0.75 1.25" "¯0.75
  1.25

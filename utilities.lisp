@@ -257,8 +257,7 @@
 		 (parse-apl-number-string (second halves) 'rational)))
 	    ;; the macron character is converted to the minus sign
 	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
-				       :float-format 'double-float
-				       )))))
+				       :float-format 'double-float)))))
 
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
@@ -776,36 +775,35 @@ It remains here as a standard against which to compare methods for composing APL
 		     ,op2 nil nil ,@remaining))
     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
-     (let ((both-non-scalar (and (eq :fn right-fn-sym) (eq :fn left-fn-sym))))
-       (let ((left-clause
-	      (if (or (eq :fn left-fn-sym)
-		      (not (symbolp left-fn-sym)))
-		  (list left-fn-sym (invert-function left-fn-form-monadic)
-			(invert-function left-fn-form-dyadic))
-		  (let ((fn-glyph (if (not (symbolp left-fn-sym))
-				      left-fn-sym (aref (string left-fn-sym) 0))))
-		    (list left-fn-sym
-			  (if (resolve-function :monadic-inverse fn-glyph)
-			      `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-					     omega)))
-			  (if (resolve-function :dyadic-inverse fn-glyph)
-			      `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-					      omega alpha)))))))
-	     (right-clause
-	      (if (or (eq :fn right-fn-sym)
-		      (not (symbolp right-fn-sym)))
-		  (list right-fn-sym (invert-function right-fn-form-monadic)
-			(invert-function right-fn-form-dyadic))
-		  (let ((fn-glyph (if (not (symbolp right-fn-sym))
-				      right-fn-sym (aref (string right-fn-sym) 0))))
-		    (list right-fn-sym
-			  (if (resolve-function :monadic-inverse fn-glyph)
-			      `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-					     omega)))
-			  (if (resolve-function :dyadic-inverse fn-glyph)
-			      `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-					      omega alpha))))))))
-	 `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining))))
+     (let ((left-clause
+	    (if (or (eq :fn left-fn-sym)
+		    (not (symbolp left-fn-sym)))
+		(list left-fn-sym (invert-function left-fn-form-monadic)
+		      (invert-function left-fn-form-dyadic))
+		(let ((fn-glyph (if (not (symbolp left-fn-sym))
+				    left-fn-sym (aref (string left-fn-sym) 0))))
+		  (list left-fn-sym
+			(if (resolve-function :monadic-inverse fn-glyph)
+			    `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+					   omega)))
+			(if (resolve-function :dyadic-inverse fn-glyph)
+			    `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+					    omega alpha)))))))
+	   (right-clause
+	    (if (or (eq :fn right-fn-sym)
+		    (not (symbolp right-fn-sym)))
+		(list right-fn-sym (invert-function right-fn-form-monadic)
+		      (invert-function right-fn-form-dyadic))
+		(let ((fn-glyph (if (not (symbolp right-fn-sym))
+				    right-fn-sym (aref (string right-fn-sym) 0))))
+		  (list right-fn-sym
+			(if (resolve-function :monadic-inverse fn-glyph)
+			    `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+					   omega)))
+			(if (resolve-function :dyadic-inverse fn-glyph)
+			    `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+					    omega alpha))))))))
+       `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)))
     ((list (guard first (member first '(λω λωα))) second)
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
