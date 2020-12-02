@@ -501,7 +501,7 @@ If you want to create a persistent workspace where the functions and variables y
 36
 ```
 
-In the above example, a workspace called `*space1*` is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the `(:space)` parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
+In the above example, a workspace called `space1` is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the `(:space)` parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
 
 ### (:state-persistent) sub-parameters
 
@@ -523,7 +523,7 @@ For example:
 #(1 2 3 4 5 6 7)
 ```
 
-Did you notice that when switching to a different space, in this case `*space2*`, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
+Did you notice that when switching to a different space, in this case `space2`, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
 
 You can use `(:state-persistent)` to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. For example:
 
@@ -558,7 +558,7 @@ If you just want to compile the code you enter into April without running it, us
 
 ### (:restore-defaults) parameter
 
-You can use this parameter to clear a workspace and return it to its default state. For example, to clear a workspace called `*space1*` enter:
+You can use this parameter to clear a workspace and return it to its default state. For example, to clear a workspace called `space1` enter:
 
 ```lisp
 * (april (with (:restore-defaults) (:space space1)))
