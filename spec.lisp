@@ -1331,7 +1331,11 @@
   (for "Inverse rotation." "(2⌽⍣¯1⊢⍳5)⍪1⊖⍣¯1⊢3 5⍴⍳9" #2A((4 5 1 2 3) (2 3 4 5 6) (1 2 3 4 5) (6 7 8 9 1)))
   (for "Inverse encode."   "1760 3 12⊤⍣¯1⊢2 0 10" 82)
   (for "Inverse decode."   "1760 3 12⊥⍣¯1⊢82" #(2 0 10))
-  (for "Inversion of Celsius-Fahrenheit conversion." "⌊(32∘+)∘(×∘1.8)⍣¯1⊢212" 100))
+  (for "Inversion of Celsius-Fahrenheit conversion." "⌊(32∘+)∘(×∘1.8)⍣¯1⊢212" 100)
+  (for "Inversion of scanning addition." "+\\⍣¯1⊢+\\⍳5" #(1 2 3 4 5))
+  (for "Inversion of composed addition applied over each." "(+∘5)¨⍣¯1⊢-\\⍳5" #(-4 -6 -3 -7 -2))
+  (for "Inversion of composed division applied over each." "(÷∘5)¨⍣¯1⊢+\\⍳5" #(5 15 30 50 75))
+  (for "Double inversion of addition." "3 (+⍣¯1)⍣¯1⊢5" 8))
  
  (test-set
   (with (:name :printed-format-tests)

@@ -758,7 +758,10 @@ It remains here as a standard against which to compare methods for composing APL
 	     (if ,is-inverse ,inverted ,operand))))))
 
 (defun invert-function (form)
+  ;; (print (list :ff form))
   (match form
+    ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
+     `(apl-compose ⍣ operate-to-power (- ,degree) ,@rest))
     ((list* 'apl-compose '∘ 'operate-composed (guard op1 (or (not (characterp op1))))
 	    nil nil op2-sym _ _ remaining)
      `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
@@ -804,20 +807,30 @@ It remains here as a standard against which to compare methods for composing APL
 			    `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
 					    omega alpha))))))))
        `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)))
+    ((list* 'apl-compose '\\ 'operate-scanning operand remaining)
+     `(apl-compose \\ operate-scanning ,(invert-function operand) ,@remaining t))
+    ((list 'apl-compose '\¨ 'operate-each op-monadic op-dyadic)
+     `(apl-compose \¨ operate-each ,(invert-function op-monadic)
+		   ,(invert-function op-dyadic)))
+    ;; ((list 'apl-compose '⍨ 'lambda args funcall-form)
+    ;;  (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
+    ;; 				     rest)
+    ;; 			      (print `(apl-compose ⍨ lambda ,args (funcall ,(invert-function sub-lambda)
+    ;; 								    ,@rest)))))
+    ;; 	 (error "Composition with ⍨ not invertable.")))
     ((list (guard first (member first '(λω λωα))) second)
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
 	   first-form rest-forms)
      (if rest-forms `(lambda ,args ,declare-form
-			     (error "This function has more than one statement and this cannot be inverted."))
+			     (error "This function has more than one statement and thus cannot be inverted."))
 	 `(lambda ,args ,declare-form ,(invert-function first-form))))
     ((list* 'lambda args first-form rest-forms)
      ;; (print (list :r2 form first-form rest-forms))
      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
-    			     (error "This function has more than one statement and this cannot be inverted."))
+    			     (error "This function has more than one statement and thus cannot be inverted."))
     	 ;; `(lambda ,args (apl-call ,symbol ,(invert-function first-form)))
-	 `(lambda ,args ,(invert-function first-form))
-	 ))
+	 `(lambda ,args ,(invert-function first-form))))
     ((list* 'apl-call function-symbol function-form rest)
      ;; (print (list :ii function-form rest))
      `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
@@ -950,19 +963,3 @@ It remains here as a standard against which to compare methods for composing APL
   (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function
 	   #:λω #:λωα #:λωχ #:λωαχ))
 
-#|
-
-(append
- ;; (funcall
- ;;  (lambda (pair)
- ;;    (let ((fn-glyph (if (or (characterp left-fn-sym)
- ;; 			       (symbolp left-fn-sym))
- ;; 			   (if (characterp left-fn-sym)
- ;; 			       left-fn-sym (aref (string left-fn-sym) 0)))))
- ;; 	 (if (not (and fn-glyph (or (eq :fn right-fn-sym)
- ;; 				    (not (symbolp right-fn-sym)))
- ;; 		       (member fn-glyph '(#\+ #\×))))
- ;; 	     pair (list (first pair) (second pair)))))
- (list
-
-|#
