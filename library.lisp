@@ -584,7 +584,7 @@
 			(setf (row-major-aref output i) value)))
 		    (disclose-atom output))))))
 
-(defun operate-scanning (function axis &optional last-axis)
+(defun operate-scanning (function axis &optional last-axis inverse)
   (lambda (omega)
     (if (not (arrayp omega))
 	omega (let* ((odims (dims omega))
@@ -594,14 +594,28 @@
 		     (output (make-array odims)))
 		(dotimes (i (size output))
 		  (declare (optimize (safety 1)))
-		  (let ((value))
-		    (loop :for ix :from (mod (floor (/ i increment)) rlen) :downto 0
-		       :do (let ((original (row-major-aref
-					    omega (+ (mod i increment) (* ix increment)
-						     (* increment rlen (floor (/ i (* increment rlen))))))))
-			     (setq value (if (not value) (disclose original)
-					     (funcall function (disclose value)
-						      (disclose original))))))
+		  (let ((value)	(vector-index (mod (floor (/ i increment)) rlen)))
+		    (if inverse
+			(let ((original (disclose (row-major-aref
+						   omega (+ (mod i increment)
+							    (* increment vector-index)
+							    (* increment rlen
+							       (floor (/ i (* increment rlen)))))))))
+			  (setq value (if (= 0 vector-index)
+					  original
+					  (funcall function original
+						   (disclose
+						    (row-major-aref
+						     omega (+ (mod i increment)
+							      (* increment (1- vector-index))
+							      (* increment rlen
+								 (floor (/ i (* increment rlen)))))))))))
+			(loop :for ix :from vector-index :downto 0
+			   :do (let ((original (row-major-aref
+						omega (+ (mod i increment) (* ix increment)
+							 (* increment rlen (floor (/ i (* increment rlen))))))))
+				 (setq value (if (not value) (disclose original)
+						 (funcall function value (disclose original)))))))
 		    (setf (row-major-aref output i) value)))
 		output))))
 
