@@ -67,7 +67,6 @@
 
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
-  (print (list :tt (type-of omega)))
   (if (or (not (arrayp omega))
 	  (= 0 (rank omega)))
       #() (if (and (listp (type-of omega))
