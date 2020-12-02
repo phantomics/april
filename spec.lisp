@@ -1589,10 +1589,10 @@ c   2.56  3
 ")
   (for-printed "Stacked rational fractions and integers."
 	       "⍪21r8 90 122r17 3r21 3 9r212"
-	       " 21r008
+	       " 21r__8
  90    
-122r017
-  1r007
+122r_17
+  1r__7
   3    
   9r212
 ")
@@ -1600,9 +1600,9 @@ c   2.56  3
 	       "3r4J9r5 3r2J18r5 9r4J27r5 3J36r5
 ")
   (for-printed "Matrix of complex numbers." "3 3⍴3.2J5.3 32.95J12.15"
-	       " 3.20J05.3  32.95J12.15  3.20J05.3 
-32.95J12.15  3.20J05.3  32.95J12.15
- 3.20J05.3  32.95J12.15  3.20J05.3 
+	       " 3.20J_5.3  32.95J12.15  3.20J_5.3 
+32.95J12.15  3.20J_5.3  32.95J12.15
+ 3.20J_5.3  32.95J12.15  3.20J_5.3 
 ")
 ;;   (for-printed "Another complex matrix." "¯2 ¯3 ¯4 ¯5 ¯6 ∘.○ ¯2 ¯2J3r5"
 ;; 	       " 3.1415927J¯1.3169578  2.8133510J¯1.3797641 
@@ -1613,20 +1613,20 @@ c   2.56  3
 ;; ")
   (for-printed "Stacked complex float, integer and rational."
 	       "⍪12.2J44 3J8 19J210r17"
-	       "12.2J044.0 
- 3  J008   
-19  J210r17
+	       "12.2J_44.0 
+ 3__J__8   
+19__J210r17
 ")
   (for-printed "Stacked complex float, integer and non-complex rational."
 	       "⍪12.2J44 3J8 19r13"
 	       "12.20J44.0
- 3   J08  
+ 3___J_8  
 19r13     
 ")
   (for-printed "Stacked complex float and rational fractions."
 	       "⍪12.2J44 3r8J8r21 19r313J21r17"
 	       "12.200J44.0 
- 3r008J08r21
+ 3r__8J_8r21
 19r313J21r17
 ")
   (for-printed "Output of variable assignment (should be empty)." "x←1" "")
