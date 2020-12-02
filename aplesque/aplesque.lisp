@@ -1697,16 +1697,17 @@
 
 (defun count-segments (value precision &optional segments)
   "Count the lengths of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
-  (flet ((is-rational-fraction (number)
-	   (and (rationalp number) (not (integerp number))))
-	 (process-rational (number)
+  (flet ((process-rational (number)
 	   (list (write-to-string (numerator number))
 		 (write-to-string (denominator number)))))
-    (let* ((strings (if (is-rational-fraction value)
+    (let* ((strings (if (typep value 'ratio)
 			(process-rational value)
-			(append (if (is-rational-fraction (realpart value))
+			(append (if (typep (realpart value) 'ratio)
 				    (process-rational (realpart value))
-				    (let ((sections (cl-ppcre:split #\. (write-to-string (realpart value)))))
+				    (let* ((number-string (first (cl-ppcre:split
+								  #\D (string-upcase
+								       (write-to-string (realpart value))))))
+					   (sections (cl-ppcre:split #\. number-string)))
 				      ;; if there are 4 or more segments, as when printing complex floats or rationals,
 				      ;; and a complex value occurs with an integer real part, create a 0-length
 				      ;; second segment so that the lengths of the imaginary components are correctly
@@ -1715,9 +1716,12 @@
 								(= 1 (length sections)))
 							   (list nil)))))
 				(if (complexp value)
-				    (if (is-rational-fraction (imagpart value))
+				    (if (typep (imagpart value) 'ratio)
 					(process-rational (imagpart value))
-				        (cl-ppcre:split #\. (write-to-string (imagpart value))))))))
+					(let ((number-string (first (cl-ppcre:split
+								     #\D (string-upcase
+									  (write-to-string (imagpart value)))))))
+				          (cl-ppcre:split #\. number-string)))))))
 	   (more-strings (< (length segments) (length strings)))
 	   (precision (+ precision (if (and (realp value) (> 0 value)) 1 0))))
       ;; TODO: provide for e-notation

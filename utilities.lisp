@@ -244,7 +244,7 @@
   (let ((nstring (string-upcase (regex-replace-all "[_]" number-string ""))))
     (if (and (not (eql 'complex component-of))
 	     (find #\J nstring))
-	(let ((halves (cl-ppcre:split "J" nstring)))
+	(let ((halves (cl-ppcre:split #\J nstring)))
 	  (if (and (= 2 (length halves))
 		   (< 0 (length (first halves)))
 		   (< 0 (length (second halves))))
@@ -252,12 +252,12 @@
 		       (parse-apl-number-string (second halves) 'complex))))
 	(if (and (not (eql 'rational component-of))
 		 (find #\R nstring))
-	    (let ((halves (cl-ppcre:split "R" nstring)))
+	    (let ((halves (cl-ppcre:split #\R nstring)))
 	      (/ (parse-apl-number-string (first halves) 'rational)
 		 (parse-apl-number-string (second halves) 'rational)))
 	    ;; the macron character is converted to the minus sign
 	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
-				       ;; :float-format 'double-float
+				       :float-format 'double-float
 				       )))))
 
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
@@ -305,8 +305,8 @@
 	((rationalp number)
 	 (format nil "~ar~a" (print-apl-number-string (numerator number) (list (first segments)) precision)
 		 (print-apl-number-string (denominator number) (list (- (abs (second segments)))) precision)))
-	(t (let* ((number-string (write-to-string number))
-		  (number-sections (cl-ppcre:split "[.]" number-string))
+	(t (let* ((number-string (first (cl-ppcre:split #\D (string-upcase (write-to-string number)))))
+		  (number-sections (cl-ppcre:split #\. number-string))
 		  (right-padding (if (not (and (second segments) (< 0 (second segments))))
 				     0 (max 0 (- (second segments) (length (second number-sections))))))
 		  ;; space to left of decimal is expressed by the first segment
