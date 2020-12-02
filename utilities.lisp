@@ -256,7 +256,9 @@
 	      (/ (parse-apl-number-string (first halves) 'rational)
 		 (parse-apl-number-string (second halves) 'rational)))
 	    ;; the macron character is converted to the minus sign
-	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-"))))))
+	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
+				       ;; :float-format 'double-float
+				       )))))
 
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
