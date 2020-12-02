@@ -1891,8 +1891,6 @@
 	       ;; indenting character
 	       ;; (print (list :seg col-segments col-widths x-offsets))
 	       (let ((total 0))
-		 ;; (print (list :st strings col-types col-segments col-widths x-offsets))
-		 ;; (print (list :pr prepend))
 		 (loop :for s :below (length col-segments) :for i :from 0
 		    :do (let ((char-column (and (eq :character (first (aref col-types s)))
 						(not (rest (aref col-types s))))))
@@ -1929,11 +1927,8 @@
 								(not (rest (aref col-types (1+ s))))))))
 					     1 0)))))
 		 (setf (aref x-offsets (1- (length x-offsets)))
-		       (- total (if prepend (if (eq t prepend) 1 prepend)
-				    0))))
-
-	       ;; (print (list :xt col-types col-segments col-widths x-offsets))
-	       ;; (princ #\Newline)
+		       (- total (if (not prepend)
+				    0 (if (eq t prepend) 1 prepend)))))
 	       
 	       (let* ((to-collate (and collate (or (not (eq t (element-type input)))
 						   (loop :for i :below (array-total-size input)
