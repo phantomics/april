@@ -247,7 +247,7 @@ Rational numbers can also be used as parts of complex numbers:
 #(#C(3/4 9/5) #C(3/2 18/5) #C(9/4 27/5) #C(3 36/5))
 ```
 
-### Underscore-separated numbers
+### Underscores within numbers
 
 In April, you can use underscores to separate parts of a number:
 
@@ -265,16 +265,16 @@ In April, you can use underscores to separate parts of a number:
 As shown above, you can use any number of underscores anywhere within a number, they are simply ignored by the reader. Underscores are also used by the printer when printing columns of mixed complex floats and rationals:
 
 ```lisp
-* (april-f "⍪12.2J44 3J8 19r13J5r2")
-12.20J44.0
- 3___J_8  
-19r13J_5r2
-#2A((#C(12.2 44.0)) (#C(3 8)) (#C(19/13 5/2)))
+* (april-f "⍪12.2J99.11 3J8 19r13J5r2")
+12.20J99.11
+ 3___J_8   
+19r13J_5r_2
+#2A((#C(12.2 99.11)) (#C(3 8)) (#C(19/13 5/2)))
 ```
 
 Using the underscores as filler keeps the decimal points, rs and Js properly aligned for printing.
 
-### Strings and Escaped Quotes
+### Strings and escaped quotes
 
 In April, either single or double quotes can be used to enclose character strings:
 
