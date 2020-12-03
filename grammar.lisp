@@ -96,11 +96,8 @@
 			   (append (if vector-axes (list :vector-axes vector-axes))
 					     (list :axes axes :type '(:symbol)))
 			   remaining))
-		  ;; ((and (symbolp this-item)
-		  ;; 	(is-workspace-function this-item))
-		  ;;  )
-		  ;; if the pattern is set to cancel upon encountering a pivotal operator, it will do so and throw
-		  ;; the appropriate cancellation flag
+		  ;; if the pattern is set to cancel upon encountering a pivotal operator,
+		  ;; it will do so and throw the appropriate cancellation flag
 		  ((and (getf properties :cancel-if)
 			(eq :pivotal-composition (getf properties :cancel-if))
 			(listp this-item)
@@ -152,10 +149,11 @@
 				     (fn (if (not polyadic-args)
 					     fn (cons (butlast (first fn) 1)
 						      (rest fn)))))
+				;; (print (glean-symbols-from-tokens fn space))
 				(values (output-function (if (= 1 (length fn))
 							     (list (funcall process fn))
 							     (mapcar process fn))
-							 polyadic-args)
+							 polyadic-args (glean-symbols-from-tokens fn space))
 					(list :type '(:function :closure)
 					      :axes axes :obligate-dyadic obligate-dyadic)
 					remaining)))
