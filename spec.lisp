@@ -1295,6 +1295,7 @@
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
   (for "Five-element dyadic function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 #0A"one" #0A"one" #0A"two" #0A"three"))
+  (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
@@ -1342,12 +1343,16 @@
 	(:tests-profile :title "Printed Data Format Tests")
 	(:demo-profile :title "Data Format Demos"
 		       :description "More demos showing how different types of data are formatted in April."))
-  (for-printed "Single integer." "5" "5")
-  (for-printed "Negative integer." "¯5" "¯5")
+  (for-printed "Single integer." "5" "5
+")
+  (for-printed "Negative integer." "¯5" "¯5
+")
   (for-printed "Rational numbers." "÷⍳5" "1 1r2 1r3 1r4 1r5
 ")
-  (for-printed "Floating point number." "25.006" "25.006")
-  (for-printed "Imaginary number." "3J9" "3J9")
+  (for-printed "Floating point number." "25.006" "25.006
+")
+  (for-printed "Imaginary number." "3J9" "3J9
+")
   (for-printed "Numeric vector." "1+1 2 3" "2 3 4
 ")
   (for-printed "Vector of mixed integers and floats." "12.5 3 42.890 90.5001 8 65"
@@ -1638,7 +1643,8 @@ c   2.56  3
 19r313J21r17
 ")
   (for-printed "Output of variable assignment (should be empty)." "x←1" "")
-  (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
+  (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000
+")
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
 	       "0.0154 0.3125 ¯15.456
 ")
