@@ -167,7 +167,7 @@
   "This is macro is used to build variable assignment forms and includes logic for stranded assignments."
   (if (or (not (listp symbol))
 	  (eql 'inws (first symbol)))
-      `(set ',symbol ,value)
+      `(setq ,symbol ,value)
       (let ((values (gensym "A")))
 	`(let ((,values ,value))
 	   (if (and (arrayp ,values)
@@ -687,12 +687,15 @@ It remains here as a standard against which to compare methods for composing APL
 		       (apply-props form properties)
 		       form))))))
 
-(defun output-function (form &optional arguments)
+(defun output-function (form &optional arguments lexical-variable-symbols)
   "Express an APL inline function like {⍵+5}."
   (let ((arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
        (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
-       ,@form)))
+       ,@(if (not lexical-variable-symbols)
+	     form `((let ,(loop :for sym :in lexical-variable-symbols
+			     :collect `((inws ,sym)))
+		      ,@form))))))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."
@@ -756,6 +759,25 @@ It remains here as a standard against which to compare methods for composing APL
 	  `(lambda (,is-dyadic ,is-inverse)
 	     (declare (ignore ,is-dyadic))
 	     (if ,is-inverse ,inverted ,operand))))))
+
+(defun glean-symbols-from-tokens (tokens space &optional token-list)
+  "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
+  (let ((previous-token)
+	(token-list (or token-list (list :tokens))))
+    (loop :for token :in tokens
+       :do (if (listp token) (glean-symbols-from-tokens token space token-list)
+	       (if (and (symbolp token)
+			(not (keywordp token))
+			(not (member token *idiom-native-symbols*))
+			(not (member token token-list))
+			(listp previous-token)
+			(eql :fn (first previous-token))
+			(characterp (second previous-token))
+			(char= #\← (second previous-token)))
+		   (setf (rest token-list)
+			 (cons token (rest token-list)))))
+	 (setq previous-token token))
+    (rest token-list)))
 
 (defun invert-function (form)
   ;; (print (list :ff form))

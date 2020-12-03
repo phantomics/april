@@ -1742,7 +1742,8 @@
 	;; a function input produces an empty string
 	((not (arrayp input))
 	 (if (characterp input) (string input)
-	     (funcall format input (funcall segment input))))
+	     (concatenate 'string (funcall format input (funcall segment input))
+			  (list #\Newline))))
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) input) ;;(if (not prepend) input (concatenate 'string (list #\ ) input)))
 	;; empty arrays are printed as empty strings
