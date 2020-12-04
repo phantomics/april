@@ -1738,19 +1738,17 @@
 
 (defun array-impress (input &key (prepend) (append) (collate) (in-collated) (format) (segment))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."
-  (cond ((functionp input) "")
-	;; a function input produces an empty string
+  (cond ((or (functionp input) (= 0 (size input)))
+	 (concatenate 'string (list #\Newline)))
+	;; a function input produces an empty string, as does an empty array
 	((not (arrayp input))
-	 (if (characterp input) (string input)
+	 (if (characterp input) (concatenate 'string (list input #\Newline))
 	     (concatenate 'string (funcall format input (funcall segment input))
 			  (list #\Newline))))
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) input) ;;(if (not prepend) input (concatenate 'string (list #\ ) input)))
-	;; empty arrays are printed as empty strings
-	((or (equalp #0A0 input) (= 0 (size input)))
-	 "")
+	;; each layer of 0-rank enclosure adds 1 space of indentation
 	((= 0 (rank input))
-	 ;; each layer of 0-rank enclosure adds 1 space of indentation
 	 (array-impress (aref input) :format format :segment segment :append append
 			:in-collated collate :prepend (if (eq prepend t)
 							  t (1+ (or prepend 0)))))
