@@ -55,7 +55,8 @@
  (doc-profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 		      :lexical-operators-pivotal :lexical-operators-unitary :general-tests
-		      :system-variable-function-tests :function-inversion-tests :printed-format-tests)
+		      :system-variable-function-tests :function-inversion-tests
+		      :printed-format-tests)
 	       (:arbitrary-test :output-specification-tests)
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 	       	      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
@@ -63,7 +64,8 @@
 	       (:demo :general-tests :lexical-functions-scalar-numeric
 	       	      :lexical-functions-scalar-logical :lexical-functions-array :lexical-functions-special
 	       	      :lexical-operators-lateral :lexical-operators-pivotal :lexical-operators-unitary
-	       	      :system-variable-function-tests :function-inversion-tests :printed-format-tests))
+	       	      :system-variable-function-tests :function-inversion-tests
+		      :printed-format-tests))
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
@@ -162,37 +164,37 @@
 		       :description "Scalar numeric functions change individual numeric values. They include basic arithmetic and other numeric operations, and they can be applied over arrays."))
   (+ (has :titles ("Conjugate" "Add"))
      (ambivalent :asymmetric-scalar conjugate +)
-     (inverse (ambivalent conjugate - (reverse-op -)))
+     (inverse (ambivalent conjugate :plain - :right-composed (reverse-op -) :commuted (λω (/ omega 2))))
      (tests (is "+5" 5)
 	    (is "+5J2" #C(5 -2))
 	    (is "1+1" 2)
 	    (is "1+1 2 3" #(2 3 4))))
   (- (has :titles ("Negate" "Subtract"))
      (ambivalent :symmetric-scalar (reverse-op -))
-     (inverse (ambivalent (reverse-op -) (reverse-op -) +))
+     (inverse (ambivalent (reverse-op -) :plain (reverse-op -) :right-composed +))
      (tests (is "2-1" 1)
 	    (is "7-2 3 4" #(5 4 3))))
   (× (has :titles ("Sign" "Multiply"))
      (ambivalent :asymmetric-scalar signum *)
-     (inverse (dyadic / (reverse-op /)))
+     (inverse (dyadic :plain / :right-composed (reverse-op /) :commuted sqrt))
      (tests (is "×20 5 0 ¯7 3 ¯9" #(1 1 0 -1 1 -1))
 	    (is "2×3" 6)
 	    (is "4 5×8 9" #(32 45))))
   (÷ (has :titles ("Reciprocal" "Divide"))
      (ambivalent :symmetric-scalar (reverse-op /))
-     (inverse (ambivalent (reverse-op /) (reverse-op /) *))
+     (inverse (ambivalent (reverse-op /) :plain (reverse-op /) :right-composed *))
      (tests (is "6÷2" 3)
 	    (is "12÷6 3 2" #(2 4 6))
 	    (is "÷2 4 8" #(1/2 1/4 1/8))))
   (⋆ (has :titles ("Exponential" "Power") :aliases (*))
      (ambivalent :asymmetric-scalar exp (reverse-op :dyadic expt))
-     (inverse (ambivalent log log (λωα (expt alpha (/ omega)))))
+     (inverse (ambivalent log :plain log :right-composed (λωα (expt alpha (/ omega)))))
      (tests (is "⌊1000×⋆2" 7389)
 	    (is "2⋆4" 16)
 	    (is "⌊16⋆÷2" 4)))
   (⍟ (has :titles ("Natural Logarithm" "Logarithm"))
      (ambivalent :symmetric-scalar log)
-     (inverse (ambivalent exp (reverse-op expt) (λωα (expt omega (/ alpha)))))
+     (inverse (ambivalent exp :plain (reverse-op expt) :right-composed (λωα (expt omega (/ alpha)))))
      (tests (is "⌊1000×⍟5" 1609)
 	    (is "⌊2⍟8" 3)))
   (\| (has :titles ("Magnitude" "Residue"))
@@ -210,11 +212,13 @@
 				   (5 1 0 0 0 0 1)))))
   (⌈ (has :titles ("Ceiling" "Maximum"))
      (ambivalent :asymmetric-scalar ceiling (reverse-op max))
+     (inverse (dyadic :commuted identity))
      (tests (is "⌈1.0001" 2)
 	    (is "⌈1.9998" 2)
 	    (is "3⌈0 1 2 3 4 5" #(3 3 3 3 4 5))))
   (⌊ (has :titles ("Floor" "Minimum"))
      (ambivalent :asymmetric-scalar floor (reverse-op min))
+     (inverse (dyadic :commuted identity))
      (tests (is "⌊1.0001" 1)
 	    (is "⌊1.9998" 1)
 	    (is "3⌊0 1 2 3 4 5" #(0 1 2 3 3 3))))
@@ -232,9 +236,10 @@
 							     :collect (+ index-origin (random omega)))))))))
   (○ (has :titles ("Pi Times" "Circular"))
      (ambivalent :asymmetric-scalar (λω (* pi omega)) (call-circular))
-     (inverse (ambivalent (λω (/ omega pi)) (call-circular :inverse)
-			  (λωα (declare (ignore omega alpha))
-			       (error "Inverse [○ circular] may not take an implicit right argument."))))
+     (inverse (ambivalent (λω (/ omega pi)) :plain (call-circular :inverse)
+      			  :right-composed (λωα (declare (ignore omega alpha))
+      					       (error "Inverse [○ circular] may not take an ~a"
+						      "implicit right argument."))))
      (tests (is "⌊100000×○1" 314159)
 	    (is "(⌊1000×1÷2⋆÷2)=⌊1000×1○○÷4" 1)
 	    (is "⌊1000×1○⍳9" #(841 909 141 -757 -959 -280 656 989 412))
@@ -670,7 +675,7 @@
   (⌽ (has :titles ("Reverse" "Rotate"))
      (ambivalent (λωχ (turn omega *last-axis*))
   		 (λωαχ (turn omega *last-axis* alpha)))
-     (inverse (ambivalent #'identity (λωαχ (turn omega *last-axis* (apply-scalar #'- alpha)))))
+     (inverse (ambivalent #'identity :plain (λωαχ (turn omega *last-axis* (apply-scalar #'- alpha)))))
      (tests (is "⌽3" 3)
 	    (is "⌽1 2 3 4 5" #(5 4 3 2 1))
   	    (is "⌽3 4⍴⍳9" #2A((4 3 2 1) (8 7 6 5) (3 2 1 9)))
@@ -681,7 +686,7 @@
   (⊖ (has :titles ("Reverse First" "Rotate First"))
      (ambivalent (λωχ (turn omega *first-axis*))
   		 (λωαχ (turn omega *first-axis* alpha)))
-     (inverse (ambivalent #'identity (λωαχ (turn omega *first-axis* (apply-scalar #'- alpha)))))
+     (inverse (ambivalent #'identity :plain (λωαχ (turn omega *first-axis* (apply-scalar #'- alpha)))))
      (tests (is "⊖4" 4)
 	    (is "⊖1 2 3 4 5" #(5 4 3 2 1))
   	    (is "⊖3 4⍴⍳9" #2A((9 1 2 3) (5 6 7 8) (1 2 3 4)))
@@ -696,7 +701,7 @@
   					     ((5 3 7 5 9) (7 2 9 4 2) (6 4 8 6 1) (8 3 1 5 3)))))))
   (⍉ (has :titles ("Transpose" "Permute"))
      (ambivalent (permute-array index-origin) (permute-array index-origin))
-     (inverse (ambivalent (permute-array index-origin) (permute-array index-origin)))
+     (inverse (ambivalent (permute-array index-origin) :plain (permute-array index-origin)))
      (tests (is "⍉2" 2)
 	    (is "⍉2 3 4⍴⍳9" #3A(((1 4) (5 8) (9 3)) ((2 5) (6 9) (1 4))
   				((3 6) (7 1) (2 5)) ((4 7) (8 2) (3 6))))
@@ -706,12 +711,12 @@
   				     ((4 8 3) (5 9 4) (6 1 5) (7 2 6))))))
   (/ (has :title "Replicate")
      (dyadic (λωαχ (expand-array alpha omega *last-axis* (quote (inws *value-meta*)) :compress-mode t)))
-     (inverse (dyadic (λωαχ (if (is-unitary omega)
-				;; TODO: this inverse functionality is probably not complete
-				(expand-array alpha omega *last-axis*
-					      (quote (inws *value-meta*)) :compress-mode t)
-				(error "Inverse [/ replicate] can only accept~a"
-				       " a scalar right argument.")))))
+     (inverse (dyadic :plain (λωαχ (if (is-unitary omega)
+				       ;; TODO: this inverse functionality is probably not complete
+				       (expand-array alpha omega *last-axis*
+						     (quote (inws *value-meta*)) :compress-mode t)
+				       (error "Inverse [/ replicate] can only accept~a"
+					      " a scalar right argument.")))))
      (tests (is "3/1" #*111)
 	    (is "2/8" #(8 8))
 	    (is "5/3" #(3 3 3 3 3))
@@ -725,12 +730,12 @@
   					 (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
   (⌿ (has :title "Replicate First")
      (dyadic (λωαχ (expand-array alpha omega *first-axis* (quote (inws *value-meta*)) :compress-mode t)))
-     (inverse (dyadic (λωαχ (if (is-unitary omega)
-				;; TODO: this inverse functionality is probably not complete
-				(expand-array alpha omega *first-axis*
-					      (quote (inws *value-meta*)) :compress-mode t)
-				(error "Inverse [/ replicate] can only accept~a"
-				       " a scalar right argument.")))))
+     (inverse (dyadic :plain (λωαχ (if (is-unitary omega)
+				       ;; TODO: this inverse functionality is probably not complete
+				       (expand-array alpha omega *first-axis*
+						     (quote (inws *value-meta*)) :compress-mode t)
+				       (error "Inverse [/ replicate] can only accept~a"
+					      " a scalar right argument.")))))
      (tests (is "3⌿2" #(2 2 2))
 	    (is "4⌿7 8" #(7 7 7 7 8 8 8 8))
 	    (is "3⌿3 3⍴⍳9" #2A((1 2 3) (1 2 3) (1 2 3) (4 5 6) (4 5 6) (4 5 6) (7 8 9) (7 8 9) (7 8 9)))
@@ -799,7 +804,7 @@
   	    (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
   (⊤ (has :title "Encode")
      (dyadic #'encode)
-     (inverse (dyadic #'decode))
+     (inverse (dyadic :plain #'decode))
      (tests (is "9⊤15" 6)
 	    (is "6 2 8⊤12" #(0 1 4))
 	    (is "1760 3 12⊤82" #(2 0 10))
@@ -809,7 +814,7 @@
   		#3A(((0 0) (0 0)) ((0 0) (1 1)) ((6 12) (2 9)) ((4 8) (12 0))))))
   (⊥ (has :title "Decode")
      (dyadic #'decode)
-     (inverse (dyadic #'encode))
+     (inverse (dyadic :plain #'encode))
      (tests (is "14⊥7" 7)
 	    (is "6⊥12 50" 122)
 	    (is "10⊥2 6 7 1" 2671)
@@ -826,8 +831,7 @@
   (⊢ (has :titles ("Identity" "Right"))
      (ambivalent #'identity (λωα (declare (ignore alpha))
 				 omega))
-     (inverse (ambivalent #'identity (λωα (declare (ignore alpha))
-					  omega)))
+     (inverse (ambivalent #'identity :plain (λωα (declare (ignore alpha)) omega)))
      (tests (is "⊢77" 77)
 	    (is "55⊢77" 77)))
   (⊣ (has :titles ("Empty" "Left"))
@@ -1312,9 +1316,9 @@
 
  (test-set
   (with (:name :function-inversion-tests)
-	(:tests-profile :title "Function Inversion Tests")
-	(:demo-profile :title "Function Inversion Demos"
-		       :description "Demos of the negative-indexed [⍣ power] operator that inverts simple functions passed to it."))
+ 	(:tests-profile :title "Function Inversion Tests")
+ 	(:demo-profile :title "Function Inversion Demos"
+ 		       :description "Demos of the negative-indexed [⍣ power] operator that inverts simple functions passed to it."))
   (for "Inverse addition."       "(3+⍣¯1⊢8),((3∘+)⍣¯1⊢8),(+∘3)⍣¯1⊢8" #(5 5 5))
   (for "Inverse subtraction."    "(3-⍣¯1⊢8),((3∘-)⍣¯1⊢8),(-∘3)⍣¯1⊢8" #(-5 -5 11))
   (for "Inverse multiplication." "(3×⍣¯1⊢8),((3∘×)⍣¯1⊢8),(×∘3)⍣¯1⊢8" #(8/3 8/3 8/3))
@@ -1324,7 +1328,7 @@
   (for "Inverse circular ops."   "y←⍳12 ⋄ (5○⍨-y)=(y∘○)⍣¯1⊢5" #(1 1 1 1 1 1 1 1 1 1 1 1))
   (for "Inverse indexing." "⍳⍣¯1⊢1 2 3 4 5" 5)
   (for "Inverse mix."      "↑⍣¯2⊢2 3 4⍴⍳9" #(#0A#(#0A#(1 2 3 4) #0A#(5 6 7 8) #0A#(9 1 2 3))
-					     #0A#(#0A#(4 5 6 7) #0A#(8 9 1 2) #0A#(3 4 5 6))))
+  					     #0A#(#0A#(4 5 6 7) #0A#(8 9 1 2) #0A#(3 4 5 6))))
   (for "Inverse split."    "↓⍣¯1⊢(1 2 3) (4 5 6) (7 8 9)" #2A((1 2 3) (4 5 6) (7 8 9)))
   (for "Inverse nest."     "⊆⍣¯1⊢⍳5" #(1 2 3 4 5))
   (for "Inverse disclose." "⊃⍣¯1⊢⍳5" #0A#(1 2 3 4 5))
@@ -1336,7 +1340,11 @@
   (for "Inversion of scanning addition." "+\\⍣¯1⊢+\\⍳5" #(1 2 3 4 5))
   (for "Inversion of composed addition applied over each." "(+∘5)¨⍣¯1⊢-\\⍳5" #(-4 -6 -3 -7 -2))
   (for "Inversion of composed division applied over each." "(÷∘5)¨⍣¯1⊢+\\⍳5" #(5 15 30 50 75))
-  (for "Double inversion of addition." "3 (+⍣¯1)⍣¯1⊢5" 8))
+  (for "Double inversion of addition." "3 (+⍣¯1)⍣¯1⊢5" 8)
+  (for "Commutative inversion of addition."       "+⍨⍣¯1⊢64" 32)
+  (for "Commutative inversion of multiplication." "×⍨⍣¯1⊢64" 8.0)
+  (for "Commutative inversion of max and min."    "(⌈⍨⍣¯1⊢64),⌊⍨⍣¯1⊢64" #(64 64))
+  )
  
  (test-set
   (with (:name :printed-format-tests)
@@ -1416,7 +1424,8 @@
                    5 5 5     
                    5 5 5     
 ")
-  (for-printed "Single scalar character." "'A'" "A")
+  (for-printed "Single scalar character." "'A'" "A
+")
   (for-printed "Character vector (string)." "'ABCDE'" "ABCDE")
   (for-printed "Character matrix." "2 5⍴'ABCDEFGHIJ'" "ABCDE
 FGHIJ
@@ -1642,7 +1651,7 @@ c   2.56  3
  3r__8J_8r21
 19r313J21r17
 ")
-  (for-printed "Output of variable assignment (should be empty)." "x←1" "")
+  (for-printed "Output of variable assignment (just a newline)." "x←1" "")
   (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000
 ")
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
@@ -1668,10 +1677,11 @@ c   2.56  3
 	 "3.14159 6.28319 9.42478
 ")
 
-     (princ (format nil "~%λ Output of function definition (empty string).~%"))
+     (princ (format nil "~%λ Output of function definition (just a newline).~%"))
      (print-and-run (april-f (with (:state :print-to out-str)) "{⍵+3}"))
      (is (get-output-stream-string out-str)
-	 ""))
+	 "
+"))
    (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
 	  (multiple-value-bind (out1 out2)
 	      (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5))

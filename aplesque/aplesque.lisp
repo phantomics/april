@@ -409,6 +409,7 @@
     (if (= 0 (rank input))
 	(multiple-value-bind (next-layer new-uniform new-possible-depth)
 	    (array-depth (aref input) (1+ layer) uniform possible-depth)
+	  (declare (ignore new-uniform))
 	  (setq new-layer (max new-layer next-layer)
 		possible-depth new-possible-depth)
 	  (if (not possible-depth) (setq possible-depth new-layer)))
