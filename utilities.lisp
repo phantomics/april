@@ -413,9 +413,10 @@
 					(left-fn-dyadic-inverse
 					 `(if (resolve-function :dyadic-inverse ,first-op ,first-axes)
 					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
-							      ,(first
+							      ,(getf
 								(resolve-function :dyadic-inverse
-										  ,first-op ,first-axes))
+										  ,first-op ,first-axes)
+								:plain)
 							      omega alpha))))
 					(left-fn-symbolic `(resolve-function :symbolic ,first-op ,first-axes))
 					(right-op second-op)
@@ -743,15 +744,16 @@ It remains here as a standard against which to compare methods for composing APL
   "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
   (let ((is-dyadic (gensym)) (is-inverse (gensym)))
     (if (or (symbolp operand) (characterp operand))
-	(let ((left-fn-monadic
-	       `(λω (apl-call ,operand ,(resolve-function :monadic operand axes) omega)))
-	      (left-fn-dyadic
-	       `(λωα (apl-call ,operand ,(resolve-function :dyadic operand axes) omega alpha)))
-	      (left-fn-monadic-inverse
-	       `(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
-	      (left-fn-dyadic-inverse
-	       `(λωα (apl-call ,operand ,(first (resolve-function :dyadic-inverse operand axes))
-			       omega alpha))))
+	(let* ((dyinv-forms (resolve-function :dyadic-inverse operand axes))
+	       (left-fn-monadic
+		`(λω (apl-call ,operand ,(resolve-function :monadic operand axes) omega)))
+	       (left-fn-dyadic
+		`(λωα (apl-call ,operand ,(resolve-function :dyadic operand axes) omega alpha)))
+	       (left-fn-monadic-inverse
+		`(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
+	       (left-fn-dyadic-inverse
+		`(λωα (apl-call ,operand ,(or (getf dyinv-forms :plain))
+				omega alpha))))
 	  `(lambda (,is-dyadic ,is-inverse)
 	     (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
 		 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
@@ -786,18 +788,23 @@ It remains here as a standard against which to compare methods for composing APL
      `(apl-compose ⍣ operate-to-power (- ,degree) ,@rest))
     ((list* 'apl-compose '∘ 'operate-composed (guard op1 (or (not (characterp op1))))
 	    nil nil op2-sym _ _ remaining)
-     `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
-		     (λω (apl-call ,op2-sym ,(resolve-function :monadic-inverse op2-sym) omega))
-		     (λωα (apl-call ,op2-sym ,(first (last (resolve-function :dyadic-inverse op2-sym)))
-				    omega alpha))
-		     ,@remaining))
+     (let ((dyinv-forms (resolve-function :dyadic-inverse op2-sym)))
+       `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
+		       (λω (apl-call ,op2-sym ,(resolve-function :monadic-inverse op2-sym) omega))
+		       (λωα (apl-call ,op2-sym ;; ,(first (last (resolve-function :dyadic-inverse op2-sym)))
+				      ,(getf dyinv-forms :right-composed)
+				      omega alpha))
+		       ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
 	    nil nil remaining)
-     `(apl-compose ∘ operate-composed ,op1-sym
-		     (λω (apl-call ,op1-sym ,(resolve-function :monadic-inverse op1-sym) omega))
-		     (λωα (apl-call ,op1-sym ,(first (resolve-function :dyadic-inverse op1-sym))
-				    omega alpha))
-		     ,op2 nil nil ,@remaining))
+     (let ((dyinv-forms (resolve-function :dyadic-inverse op1-sym)))
+       `(apl-compose ∘ operate-composed ,op1-sym
+		       (λω (apl-call ,op1-sym ,(resolve-function :monadic-inverse op1-sym) omega))
+		       (λωα (apl-call ,op1-sym ;; ,(first (resolve-function :dyadic-inverse op1-sym))
+				      ,(or (getf dyinv-forms :left-composed)
+					   (getf dyinv-forms :plain))
+				      omega alpha))
+		       ,op2 nil nil ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
      (let ((left-clause
@@ -834,12 +841,19 @@ It remains here as a standard against which to compare methods for composing APL
     ((list 'apl-compose '\¨ 'operate-each op-monadic op-dyadic)
      `(apl-compose \¨ operate-each ,(invert-function op-monadic)
 		   ,(invert-function op-dyadic)))
-    ;; ((list 'apl-compose '⍨ 'lambda args funcall-form)
-    ;;  (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
-    ;; 				     rest)
-    ;; 			      (print `(apl-compose ⍨ lambda ,args (funcall ,(invert-function sub-lambda)
-    ;; 								    ,@rest)))))
-    ;; 	 (error "Composition with ⍨ not invertable.")))
+    ((list 'apl-compose '⍨ 'lambda args funcall-form)
+     ;; (print (list :ff form))
+     (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
+    				     rest)
+			      (let* ((fn-glyph (second (second sub-lambda)))
+				     (dyinv-forms (resolve-function
+						   :dyadic-inverse (aref (string fn-glyph) 0))))
+				`(apl-compose ⍨ lambda ,args
+						(funcall (λω (apl-call ,fn-glyph
+									,(getf dyinv-forms :commuted)
+									omega alpha))
+							 omega)))))
+    	 (error "Composition with ⍨ not invertable.")))
     ((list (guard first (member first '(λω λωα))) second)
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
@@ -855,21 +869,21 @@ It remains here as a standard against which to compare methods for composing APL
 	 `(lambda ,args ,(invert-function first-form))))
     ((list* 'apl-call function-symbol function-form rest)
      ;; (print (list :ii function-form rest))
-     `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
-				      (invert-function function-form)
-				      (if (second rest)
-					  (or (first (resolve-function :dyadic-inverse
-								       (aref (string function-symbol) 0)))
-					      (λωα (declare (ignore omega alpha))
-						   (error "No dyadic inverse for ~a."
-							  (aref (string function-symbol) 0))))
-					  (or (resolve-function :monadic-inverse
-								(aref (string function-symbol) 0))
-					      (λω (declare (ignore omega))
-						  (error "No monadic inverse for ~a."
-							 (aref (string function-symbol) 0))))))
-		,@(if (eql 'omega (first rest))
-		      rest (reverse rest))))
+     (let ((dyinv-forms (resolve-function :dyadic-inverse (aref (string function-symbol) 0))))
+       `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
+					(invert-function function-form)
+					(if (second rest)
+					    (or (getf dyinv-forms :plain)
+						(λωα (declare (ignore omega alpha))
+						     (error "No dyadic inverse for ~a."
+							    (aref (string function-symbol) 0))))
+					    (or (resolve-function :monadic-inverse
+								  (aref (string function-symbol) 0))
+						(λω (declare (ignore omega))
+						    (error "No monadic inverse for ~a."
+							   (aref (string function-symbol) 0))))))
+		  ,@(if (eql 'omega (first rest))
+			rest (reverse rest)))))
     ))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
@@ -908,9 +922,11 @@ It remains here as a standard against which to compare methods for composing APL
 					(if (or (eq :ambivalent inverse-function-type)
 						(eq :dyadic inverse-function-type))
 					    (list :dyadic-inverse
-						  (mapcar (lambda (item) `(scalar-function ,item))
-							  (if (eq :dyadic inverse-function-type)
-							      inverse-spec-body (rest inverse-spec-body)))))
+						  (funcall (lambda (spec)
+							     (loop :for (key val) :on spec :by #'cddr
+								:append (list key `(scalar-function ,val))))
+							   (if (eq :dyadic inverse-function-type)
+							       inverse-spec-body (rest inverse-spec-body)))))
 					)))
 	  (t `(,glyph :lexicons ,(cond ((eq :functions type)
 					`(:functions ,@(if (eq :ambivalent function-type)
@@ -945,9 +961,11 @@ It remains here as a standard against which to compare methods for composing APL
 							   '(:inverse-scalar-functions
 							     :inverse-scalar-monadic-functions))
 						     ,@(if (or (and (eq :dyadic inverse-function-type)
+								    (listp (car inverse-spec-body))
 								    (eql 'scalar-function
 									 (caar inverse-spec-body)))
 							       (and (eq :ambivalent function-type)
+								    (listp (cadr inverse-spec-body))
 								    (eql 'scalar-function
 									 (caadr inverse-spec-body))))
 							   '(:inverse-scalar-functions
@@ -970,12 +988,10 @@ It remains here as a standard against which to compare methods for composing APL
 							     (eq :monadic inverse-function-type))
 							 (list :monadic-inverse
 							       (first inverse-spec-body)))
-						     (if (or (eq :ambivalent inverse-function-type)
-							     (eq :dyadic inverse-function-type))
-							 (list :dyadic-inverse
-							       (or (rest inverse-spec-body)
-								   inverse-spec-body)))
-						     )))
+						     (if (eq :ambivalent inverse-function-type)
+							 (list :dyadic-inverse (rest inverse-spec-body))
+							 (if (eq :dyadic inverse-function-type)
+							     (list :dyadic-inverse inverse-spec-body))))))
 			      ((eq :operators type)
 			       `(:operators ,(first spec-body)))))))))
 
