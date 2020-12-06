@@ -186,7 +186,8 @@
 	;; get the symbol referencing a function passed as the output
 	(function-name-value (if (and (listp form) (eql 'function (first form)))
 				 `(string (quote ,(second form))))))
-    `(let* ((,result ,form)
+    `(let* ((,result ,(if (not (getf options :unformat-output))
+			  form `(apl-unformat-array ,form)))
 	    (,printout ,(if (and (or (getf options :print-to)
 				     (getf options :output-printed)))
 			    ;; don't print the results of assignment unless the :print-assignment option is set,
@@ -215,6 +216,32 @@
 	    (if (eq :only (getf options :output-printed))
 		printout `(values ,result ,printout))
 	    result))))
+
+(defun apl-format-array (array)
+  "Convert a Lisp array into APL-compatible format, with all nested arrays wrapped in 0-rank arrays."
+  (if (or (not (arrayp array))
+	  (not (eq t (element-type array))))
+      array (let ((output (make-array (dims array))))
+	      (dotimes (i (size array))
+		(let ((original (row-major-aref array i)))
+		  (setf (row-major-aref output i)
+			(if (or (not (arrayp original))
+				(= 0 (rank original)))
+			    original (make-array nil :initial-element (apl-format-array original))))))
+	      output)))
+
+(defun apl-unformat-array (array)
+  "Convert an APL-compatible array into normative Lisp format, with all nested arrays extracted from their 0-rank holders."
+  (if (or (not (arrayp array))
+	  (not (eq t (element-type array))))
+      array (let ((output (make-array (dims array))))
+	      (dotimes (i (size array))
+		(let ((original (row-major-aref array i)))
+		  (setf (row-major-aref output i)
+			(if (not (and (arrayp original)
+				      (= 0 (rank original))))
+			    original (apl-unformat-array (aref original))))))
+	      output)))
 
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
@@ -752,16 +779,22 @@ It remains here as a standard against which to compare methods for composing APL
 	       (left-fn-monadic-inverse
 		`(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
 	       (left-fn-dyadic-inverse
-		`(λωα (apl-call ,operand ,(or (getf dyinv-forms :plain))
-				omega alpha))))
+		`(λωα (apl-call ,operand ,(or (getf dyinv-forms :plain)) omega alpha))))
 	  `(lambda (,is-dyadic ,is-inverse)
 	     (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
 		 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
-	(let ((inverted (invert-function operand)))
-	  `(lambda (,is-dyadic ,is-inverse)
-	     (declare (ignore ,is-dyadic))
-	     (if ,is-inverse ,inverted ,operand))))))
-
+	(or (match operand ((list 'function (list 'inws (guard symbol (symbolp symbol))))
+			    (let ((inverse-operand
+				   `(function (inws ,(intern (concatenate
+							      'string "𝕚∇" (string symbol)))))))
+			      `(lambda (,is-dyadic ,is-inverse)
+				 (declare (ignore ,is-dyadic))
+				 (if ,is-inverse ,inverse-operand ,operand)))))
+	    (let ((inverted (invert-function operand)))
+	      `(lambda (,is-dyadic ,is-inverse)
+		 (declare (ignore ,is-dyadic))
+		 (if ,is-inverse ,inverted ,operand)))))))
+  
 (defun glean-symbols-from-tokens (tokens space &optional token-list)
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
   (let ((previous-token)
@@ -782,31 +815,51 @@ It remains here as a standard against which to compare methods for composing APL
     (rest token-list)))
 
 (defun invert-function (form)
+  "Invert a function expression. For use with the [⍣ power] operator used with a negative right operand."
   ;; (print (list :ff form))
   (match form
     ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
+     ;; invert a [⍣ power] operation - all that needs be done is negate the right operand
      `(apl-compose ⍣ operate-to-power (- ,degree) ,@rest))
-    ((list* 'apl-compose '∘ 'operate-composed (guard op1 (or (not (characterp op1))))
+    ((list* 'apl-compose '∘ 'operate-composed
+	    (list 'apl-compose '\. 'lambda '(o a)
+		  (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
+								    (eql 'apl-call (caadr opfn))))))
+	    _ _ rest)
+     ;; invert a right-composition of an [∘. outer product] operation
+     `(apl-compose ∘ operate-composed :inverted-op nil
+		     (λωα (inverse-outer-product omega (λωα ,(invert-function (second opfn)))
+						 nil alpha))
+		     ,@rest))
+    ((list* 'apl-compose '∘ 'operate-composed op1 nil nil
+	    (list 'apl-compose '\. 'lambda '(o a)
+		  (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
+								    (eql 'apl-call (caadr opfn))))))
+	    _ _ rest)
+     ;; invert a left-composition of an [∘. outer product] operation
+     `(apl-compose ∘ operate-composed ,op1 nil nil :inverted-op nil
+		     (λωα (inverse-outer-product alpha (λωα ,(invert-function (second opfn)))
+						omega))
+		     ,@rest))
+    ((list* 'apl-compose '∘ 'operate-composed (guard op1 (not (characterp op1)))
 	    nil nil op2-sym _ _ remaining)
+     ;; invert a [∘ compose] operation with a value on the left
      (let ((dyinv-forms (resolve-function :dyadic-inverse op2-sym)))
        `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
 		       (λω (apl-call ,op2-sym ,(resolve-function :monadic-inverse op2-sym) omega))
-		       (λωα (apl-call ,op2-sym ;; ,(first (last (resolve-function :dyadic-inverse op2-sym)))
-				      ,(getf dyinv-forms :right-composed)
-				      omega alpha))
+		       (λωα (apl-call ,op2-sym ,(getf dyinv-forms :right-composed) omega alpha))
 		       ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
 	    nil nil remaining)
+     ;; invert a [∘ compose] operatiopn with a value on the right
      (let ((dyinv-forms (resolve-function :dyadic-inverse op1-sym)))
        `(apl-compose ∘ operate-composed ,op1-sym
 		       (λω (apl-call ,op1-sym ,(resolve-function :monadic-inverse op1-sym) omega))
-		       (λωα (apl-call ,op1-sym ;; ,(first (resolve-function :dyadic-inverse op1-sym))
-				      ,(or (getf dyinv-forms :left-composed)
-					   (getf dyinv-forms :plain))
-				      omega alpha))
+		       (λωα (apl-call ,op1-sym ,(getf dyinv-forms :plain) omega alpha))
 		       ,op2 nil nil ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
+     ;; invert a [∘ compose] operatiopn with two function operands
      (let ((left-clause
 	    (if (or (eq :fn left-fn-sym)
 		    (not (symbolp left-fn-sym)))
@@ -837,12 +890,14 @@ It remains here as a standard against which to compare methods for composing APL
 					    omega alpha))))))))
        `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)))
     ((list* 'apl-compose '\\ 'operate-scanning operand remaining)
+     ;; invert a [\ scan] operation
      `(apl-compose \\ operate-scanning ,(invert-function operand) ,@remaining t))
     ((list 'apl-compose '\¨ 'operate-each op-monadic op-dyadic)
+     ;; invert an [¨ each] operation
      `(apl-compose \¨ operate-each ,(invert-function op-monadic)
 		   ,(invert-function op-dyadic)))
     ((list 'apl-compose '⍨ 'lambda args funcall-form)
-     ;; (print (list :ff form))
+     ;; invert a [⍨ commute] operation
      (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
     				     rest)
 			      (let* ((fn-glyph (second (second sub-lambda)))
@@ -855,20 +910,22 @@ It remains here as a standard against which to compare methods for composing APL
 							 omega)))))
     	 (error "Composition with ⍨ not invertable.")))
     ((list (guard first (member first '(λω λωα))) second)
+     ;; invert a λω or λωα macro lambda expression
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
-	   first-form rest-forms)
+	    first-form rest-forms)
+     ;; invert an arbitrary lambda - WIP
      (if rest-forms `(lambda ,args ,declare-form
 			     (error "This function has more than one statement and thus cannot be inverted."))
 	 `(lambda ,args ,declare-form ,(invert-function first-form))))
     ((list* 'lambda args first-form rest-forms)
-     ;; (print (list :r2 form first-form rest-forms))
+     ;; invert an arbitrary lambda - WIP
      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
     			     (error "This function has more than one statement and thus cannot be inverted."))
     	 ;; `(lambda ,args (apl-call ,symbol ,(invert-function first-form)))
 	 `(lambda ,args ,(invert-function first-form))))
     ((list* 'apl-call function-symbol function-form rest)
-     ;; (print (list :ii function-form rest))
+     ;; invert an apl-call expression - WIP
      (let ((dyinv-forms (resolve-function :dyadic-inverse (aref (string function-symbol) 0))))
        `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
 					(invert-function function-form)

@@ -227,7 +227,7 @@ The biggest difference between April and other APLs lies in its implementation o
 
 ### Using rational numbers
 
-April is one of a few APL implementations to employ rational numbers. They are printed with a lowercase `r` separating the numberator and denominator. Examples:
+April is one of a few APL implementations to include rational numbers. They are printed with a lowercase `r` separating the numerator and denominator. Examples:
 
 ```lisp
 * (april-f "÷⍳5")

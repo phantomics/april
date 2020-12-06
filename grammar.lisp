@@ -109,6 +109,7 @@
  ;; match a function, whether lexical like ⍳, symbolic like fn after fn←{1+⍵}, or inline like {⍵+5}
  (function (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
+	     ;; (print (list :oo this-item remaining))
 	     (if (listp this-item)
 		 ;; process a function specification starting with :fn
 		 (if (or (eq :fn (first this-item))
@@ -119,7 +120,8 @@
 				  (of-lexicon idiom :symbolic-functions (third this-item)))
 			      ;; check that the following item is a value and not a function, otherwise it
 			      ;; must be an operator
-			      (or (and (not (listp (first remaining)))
+			      (or (not remaining)
+				  (and (not (listp (first remaining)))
 				       (or (not (symbolp (first remaining)))
 					   (is-workspace-value (first remaining))))
 				  ;; this clause is needed in case of an index-referenced value being passed
@@ -149,7 +151,6 @@
 				     (fn (if (not polyadic-args)
 					     fn (cons (butlast (first fn) 1)
 						      (rest fn)))))
-				;; (print (glean-symbols-from-tokens fn space))
 				(values (output-function (if (= 1 (length fn))
 							     (list (funcall process fn))
 							     (mapcar process fn))
@@ -356,16 +357,24 @@
   ((:with-preceding-type :function)
    (assignment-function :element (function :glyph ←))
    (symbol :element (array :symbol-overriding t)))
-  (progn (if (is-workspace-value symbol)
-	     (makunbound (intern (string symbol) space)))
-         (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)
-	 (if (characterp precedent)
-	     (if (or (resolve-function :monadic precedent)
-		     (resolve-function :dyadic precedent))
-		 (progn (set-workspace-alias space symbol precedent)
-			(format nil "~a aliases ~a" symbol precedent)))
-	     (progn (set-workspace-alias space symbol nil)
-		    `(setf (symbol-function (quote (inws ,symbol))) ,precedent))))
+  (let* ((inverted (if (listp precedent) (invert-function precedent)))
+	 (inverted-symbol (if inverted (intern (concatenate 'string "𝕚∇" (string symbol))))))
+    (if (is-workspace-value symbol)
+	(makunbound (intern (string symbol) space)))
+    (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)
+    (if inverted (progn (if (is-workspace-value inverted-symbol)
+			    (makunbound (intern (string inverted-symbol) space)))
+			(setf (symbol-function (intern (string inverted-symbol) space))
+			      #'dummy-nargument-function)))
+    (if (characterp precedent)
+	(if (or (resolve-function :monadic precedent)
+		(resolve-function :dyadic precedent))
+	    (progn (set-workspace-alias space symbol precedent)
+		   (format nil "~a aliases ~a" symbol precedent)))
+	(progn (set-workspace-alias space symbol nil)
+	       `(setf (symbol-function (quote (inws ,symbol))) ,precedent
+		      ,@(if inverted `((symbol-function (quote (inws ,inverted-symbol)))
+				       ,inverted))))))
   '(:type (:function :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
@@ -460,6 +469,7 @@
 	(right-operand-axes (first (getf (first pre-properties) :axes)))
 	(left-operand (insym left-operand))
 	(left-operand-axes (first (getf (second properties) :axes))))
+    ;; (print (list :ii precedent left-operand right-operand left-operand))
     ;; get left axes from the left operand and right axes from the precedent's properties so the
     ;; functions can be properly curried if they have axes specified
     (append (list 'apl-compose (intern (string-upcase operator)))

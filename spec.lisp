@@ -140,7 +140,10 @@
 					(append (list :print-precision 'print-precision)
 						(if (getf state :print) (list :print-to 'output-stream))
 						(if (getf state :output-printed)
-						    (list :output-printed (getf state :output-printed))))))))))
+						    (list :output-printed (getf state :output-printed)))
+						(if (getf state :unformat-output)
+						    (list :unformat-output
+							  (getf state :unformat-output))))))))))
 	    :postprocess-value
 	    (lambda (form state)
 	      (append (list 'apl-output form)
@@ -1284,6 +1287,15 @@
   (for "Selective assignment of array elements by compress function."
        "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
 					   (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
+  (for "Inline pivotal operation-derived function expression."
+       "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))
+  (for "Composed pivotal operation-derived function expression."
+       "1 2 3∘(×.+)⊢4 5 6" 315)
+  (for "Multiple composed pivotal operations called in sequence."
+       "(4 5 6∘(∘.×)) (1 2 3∘(∘.+)) 10 20 30"
+       #3A(((44 84 124) (48 88 128) (52 92 132))
+	   ((55 105 155) (60 110 160) (65 115 165))
+	   ((66 126 186) (72 132 192) (78 138 198))))
   (for "Basic three-element monadic function train." "(-,÷)5" #(-5 1/5))
   (for "Three-element monadic function train with inline function." "(+ {⍺×⍵} -)5" -25)
   (for "Three-element monadic function train with variable-referenced and inline functions."
@@ -1344,7 +1356,11 @@
   (for "Commutative inversion of addition."       "+⍨⍣¯1⊢64" 32)
   (for "Commutative inversion of multiplication." "×⍨⍣¯1⊢64" 8.0)
   (for "Commutative inversion of max and min."    "(⌈⍨⍣¯1⊢64),⌊⍨⍣¯1⊢64" #(64 64))
-  )
+  (for "Inversion of commuted outer product." "((∘.×)∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6" #(1 2 3))
+  (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
+  (for "More complex outer product inversion."
+       "((∘.×)∘4 5 6)⍣¯1⊢((∘.×)∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
+  (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8))
  
  (test-set
   (with (:name :printed-format-tests)
