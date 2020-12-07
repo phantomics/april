@@ -226,8 +226,8 @@
 			      (princ #\Newline))))))))
 
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
-  (declare (ignore symbol mode))
   "Process arbitrary tests within a spec containing expressions that are evaluated without being wrapped in an (april ...) form."
+  (declare (ignore symbol mode))
   (loop :for test :in test-set :append (append '((princ (format nil "~%")))
 					       (list test))))
 
@@ -937,11 +937,17 @@
 		  :do (set (intern (lisp->camel-case (first item)) space)
 			   (second item)))))
 
-
       (if (not (find-package space))
 	  (progn (make-package space)
+		 (proclaim (list 'special (intern "*SYSTEM*" space)
+				 (intern "*BRANCHES*" space) (intern "*INDEX-ORIGIN*" space)
+				 (intern "*PRINT-PRECISION*" space)))
 		 (set (intern "*SYSTEM*" space) (idiom-system idiom))
 		 (set (intern "*BRANCHES*" space) nil)
+		 (setf (symbol-value (intern "*INDEX-ORIGIN*" space))
+		       (getf (getf (idiom-system idiom) :workspace-defaults) :index-origin))
+		 (setf (symbol-value (intern "*PRINT-PRECISION*" space))
+		       (getf (getf (idiom-system idiom) :workspace-defaults) :print-precision))
 		 (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
 		    :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
 			  (if (boundp native-symbol)
@@ -1002,4 +1008,6 @@
 				   (list (cons 'values (mapcar (lambda (return-var)
 								 (intern (lisp->camel-case return-var) space))
 							       output-vars)))))
+		       (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
+			    :by #'cddr :collect (string-upcase key))
 		       options system-vars vars-declared space)))))))

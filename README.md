@@ -139,7 +139,7 @@ Setting state properties for the APL instance can be done like this:
 
 Instead of an APL string, the first argument to `(april)` or `(april-f)` may be a list of parameters for the APL environment. The APL expression is then passed in the second argument.
 
-For example, you can use the `:count-from` parameter to determine whether the APL instance will start counting from 0 or 1. We'll get into more detail on how these parameters work later.
+For example, you can use the `:count-from` parameter to determine whether functions in the evaluated APL code will start counting from 0 or 1. We'll get into more detail on how these parameters work later.
 
 ```lisp
 * (april-f (with (:state :count-from 1)) "⍳9")
@@ -206,7 +206,7 @@ The inside the `"string"`, the two backslashes evaluate to a single backslash. I
 For the most part, April's syntax and functions follow standard APL conventions. But there are a few areas where April differs from typical APL implementations along with some unique language features. Most notably:
 
 ```lisp
-;; k-style if statements
+;; k-style if-statements
 * (april "x←5 ⋄ $[x>3;8;12]")
 8
 
@@ -223,7 +223,7 @@ For the most part, April's syntax and functions follow standard APL conventions.
 7
 ```
 
-The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
+The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if-statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
 
 ### Using rational numbers
 
@@ -347,7 +347,17 @@ Let's learn some more about what's going on in that code. The sub-parameters of 
 
 #### :count-from
 
-Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1. In the code above, `⍳b` with `b` equal to 5 counts from 0 to 4, whereas with the default `:count-from` value of 1, `⍳b` would count from 1 to 5.
+Sets the index from which April counts. Almost always set to 0 or 1. The default value is 1. In the code above, `⍳b` with `b` equal to 5 counts from 0 to 4, whereas with the default `:count-from` value of 1, `⍳b` would count from 1 to 5. When you set :count-from, it only affects the APL code evaluated in the expression to which the :count-from option is passed. For example:
+
+```lisp
+
+* (april (with (:state :count-from 0)) "⍳9")
+#(0 1 2 3 4 5 6 7 8)
+
+* (april "⍳9")
+#(1 2 3 4 5 6 7 8 9)
+
+```
 
 #### :in
 
@@ -503,6 +513,16 @@ If you want to create a persistent workspace where the functions and variables y
 
 In the above example, a workspace called `space1` is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the `(:space)` parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
 
+When you invoke `(april)` without naming a workspace, a workspace called `common` is used.
+
+```lisp
+* (april (with (:space common)) "a←5")
+5
+
+* (april "a+5")
+10
+```
+
 ### (:state-persistent) sub-parameters
 
 You can use the `(:state-persistent)` parameter to set state values within the workspace. It works like `(:state)`, but the difference is that when you change the state using `(:state-persistent)`, those changes will stay saved in the workspace until you reverse them, whereas the changes you make with `:state` are lost once the following code is done evaluating.
@@ -549,11 +569,14 @@ If you just want to compile the code you enter into April without running it, us
 
 ```lisp
 * (april (with (:compile-only)) "1+1 2 3")
-(LET* ((INDEX-ORIGIN 1) (PRINT-PRECISION 10))
-  (DECLARE (IGNORABLE INDEX-ORIGIN PRINT-PRECISION))
-  (APL-OUTPUT
-   (DISCLOSE-ATOM (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) (AVECTOR 1)))
-   :PRINT-PRECISION PRINT-PRECISION))
+(IN-APRIL-WORKSPACE COMMON
+                    (LET* ((OUTPUT-STREAM *STANDARD-OUTPUT*))
+                      (DECLARE (IGNORABLE OUTPUT-STREAM))
+                      (SYMBOL-MACROLET ((INDEX-ORIGIN 𝕊*INDEX-ORIGIN*)
+                                        (PRINT-PRECISION 𝕊*PRINT-PRECISION*))
+                        (APL-OUTPUT
+                         (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
+                         :PRINT-PRECISION PRINT-PRECISION))))
 ```
 
 ### (:restore-defaults) parameter
@@ -680,6 +703,44 @@ Additionally, April exposes this special system variable not found in other APL 
 ```
 
 [Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
+
+## About Workspace Variables: Index Origin and Print Precision
+
+Above, you learned how to use the `:count-from`/`:index-origin` and `:print-precision` sub-parameters to control how April counts and prints. Using these parameters with an April invocation will affect *only* the code passed to that particular April invocation. What if you want to create a change in these parameters that will persist in a given workspace until it's changed again?
+
+Traditional APL dialects use the `⎕IO` and `⎕PP` system variables to set the index origin and print precision in a workspace, and using them in April will make a change that persists in the workspace. For example:
+
+```lisp
+* (april-f (with (:space space1)) "⎕IO←0 ⋄ ⍳9")
+0 1 2 3 4 5 6 7 8
+#(0 1 2 3 4 5 6 7 8)
+
+* (april-f (with (:space space1)) "⍳9")
+0 1 2 3 4 5 6 7 8
+#(0 1 2 3 4 5 6 7 8)
+
+* (april-f (with (:space space2)) "⍳9")
+1 2 3 4 5 6 7 8 9
+#(1 2 3 4 5 6 7 8 9)
+```
+
+Switching to the workspace `space2`, the default index origin of 1 is used again.
+
+If you pass an `:index-origin`, `:count-from` or `:print-precision` sub-parameter to an APL invocation, it will override whatever value is present in the active workspace. However, it will only affect the code passed to the individual `(april)` invocation that has the sub-parameter(s) passed.
+
+```lisp
+* (april-f (with (:space space1)) "⎕IO←0 ⋄ ⍳9")
+0 1 2 3 4 5 6 7 8
+#(0 1 2 3 4 5 6 7 8)
+
+* (april-f (with (:state :count-from 1)) "⍳9")
+1 2 3 4 5 6 7 8 9
+#(1 2 3 4 5 6 7 8 9)
+
+* (april-f (with (:space space1)) "⍳9")
+0 1 2 3 4 5 6 7 8
+#(0 1 2 3 4 5 6 7 8)
+```
 
 ## Setting a Custom Output Stream
 

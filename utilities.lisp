@@ -14,11 +14,6 @@
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
-;; TODO: figure out why these dynamic variables are needed; some tests fail despite being compiled
-;; within (let) forms that specify these values
-(defvar index-origin 1)
-(defvar print-precision 10)
-
 (defvar *function-identities* nil)
 
 ;; the names of library functions that curry functions having axes with index-origin, needed for the λχ macro
@@ -730,7 +725,7 @@ It remains here as a standard against which to compare methods for composing APL
   (loop :for var-entry :in input-vars :collect (list (intern (lisp->camel-case (first var-entry)) space)
 						     (second var-entry))))
 
-(defun build-compiled-code (exps options system-vars vars-declared space)
+(defun build-compiled-code (exps workspace-symbols options system-vars vars-declared space)
   "Return a set of compiled April expressions within the proper context."
   (let* ((branch-index (gensym "A")) (branches-sym (intern "*BRANCHES*" space))
 	 (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
@@ -759,11 +754,23 @@ It remains here as a standard against which to compare methods for composing APL
 				  code `(quote ,code)))
 	       (if (or system-vars vars-declared)
 		   `(with-april-workspace ,(or (second (assoc :space options)) 'common)
-		      (let* (,@system-vars ,@vars-declared)
-			(declare (ignorable ,@(mapcar #'first system-vars)))
-			,@(if (or (not tags-found) (not (boundp branches-sym)))
-			      exps `((tagbody ,@(butlast (process-tags exps) 1))
-				     ,(first (last exps))))))
+		      (let* (,@(loop :for var :in system-vars
+				  :when (not (member (string-upcase (first var)) workspace-symbols
+						     :test #'string=))
+				  :collect var)
+			     ,@vars-declared)
+			(declare (ignorable ,@(loop :for var :in system-vars
+						 :when (not (member (string-upcase (first var)) workspace-symbols
+								    :test #'string=))
+						 :collect (first var))))
+			(symbol-macrolet ,(loop :for var :in system-vars
+					     :when (member (string-upcase (first var)) workspace-symbols
+							   :test #'string=)
+					     :collect var)
+			  ;; (declare (ignorable ,@(mapcar #'first system-vars)))
+			  ,@(if (or (not tags-found) (not (boundp branches-sym)))
+				exps `((tagbody ,@(butlast (process-tags exps) 1))
+				       ,(first (last exps)))))))
 		   (if (< 1 (length exps))
 		       (cons 'progn exps) (first exps)))))))
 
@@ -815,7 +822,7 @@ It remains here as a standard against which to compare methods for composing APL
     (rest token-list)))
 
 (defun invert-function (form)
-  "Invert a function expression. For use with the [⍣ power] operator used with a negative right operand."
+  "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
   ;; (print (list :ff form))
   (match form
     ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
@@ -900,6 +907,7 @@ It remains here as a standard against which to compare methods for composing APL
      ;; invert a [⍨ commute] operation
      (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
     				     rest)
+			      (declare (ignore rest))
 			      (let* ((fn-glyph (second (second sub-lambda)))
 				     (dyinv-forms (resolve-function
 						   :dyadic-inverse (aref (string fn-glyph) 0))))
