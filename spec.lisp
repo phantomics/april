@@ -1233,6 +1233,7 @@
        "a←9 10 11 ⋄ 1 2 a[2] 3 4 5 6[3]" 4)
   (for "Index of inline nested vector." "(1 2 3 4) 15[1]" #0A#(1 2 3 4))
   (for "Manifold left-associative indexing." "'a' 2[1] 2[1] 2[1] 2[1] 2[1]" #\a)
+  (for "Index of vector of strings." "'abc' 'def' 'ghi'[2]" #0A"def")
   (for "Indexing with empty vectors to create n-dimensional empty arrays."
        "a←3 4⍴⍳12 ⋄ ⍴a[⍬;]" #(0 4))
   (for "Application of functions to indexed array elements."
