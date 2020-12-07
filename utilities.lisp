@@ -20,7 +20,7 @@
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 
-(defmacro with-april-workspace (name body)
+(defmacro in-april-workspace (name body)
   "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
   (labels ((replace-symbols (form)
 	     (loop :for item :in form :for ix :from 0
@@ -753,7 +753,7 @@ It remains here as a standard against which to compare methods for composing APL
       (funcall (lambda (code) (if (not (assoc :compile-only options))
 				  code `(quote ,code)))
 	       (if (or system-vars vars-declared)
-		   `(with-april-workspace ,(or (second (assoc :space options)) 'common)
+		   `(in-april-workspace ,(or (second (assoc :space options)) 'common)
 		      (let* (,@(loop :for var :in system-vars
 				  :when (not (member (string-upcase (first var)) workspace-symbols
 						     :test #'string=))
