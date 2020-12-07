@@ -637,7 +637,7 @@
 		  (aops:each (lambda (x) (funcall function-dyadic x alpha)) omega)
 		  (funcall function-dyadic omega alpha)))))))
 
-(defun operate-grouping (function)
+(defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   (lambda (omega &optional alpha)
     (let* ((keys (or alpha omega))

@@ -40,8 +40,9 @@
 
  ;; system variables and default state of an April workspace
  (system :atomic-vector *atomic-vector* :output-printed nil
-	 :base-state '(:index-origin 1 :comparison-tolerance 1e-14 :print-precision 10
-		       :output-stream '*standard-output*))
+	 :base-state '(:comparison-tolerance 1e-14
+		       :output-stream '*standard-output*)
+	 :workspace-defaults '(:index-origin 1 :print-precision 10))
 
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
@@ -127,8 +128,14 @@
 				      (getf state :print-to)
 				      (second (getf state :output-stream)))))
 		      (loop :for var :in '(:index-origin :print-precision)
-			 :collect (list (intern (string-upcase var) "APRIL")
-					(getf state var)))))
+			 :collect (if (eq :index-origin var)
+				      (list 'index-origin (or (getf state :index-origin)
+							      `(inws *index-origin*)))
+				      (if (eq :print-precision var)
+					  (list 'print-precision (or (getf state :print-precision)
+								     `(inws *print-precision*)))
+					  (list (intern (string-upcase var) "APRIL")
+						(getf state var)))))))
 	    :postprocess-compiled
 	    (lambda (state &rest inline-arguments)
 	      (lambda (form)
@@ -155,7 +162,7 @@
 	    :build-compiled-code #'build-compiled-code)
 
  ;; specs for multi-character symbols exposed within the language
- (symbols (:variable ⎕ to-output ⎕io index-origin ⎕pp print-precision ⎕ost output-stream)
+ (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕ost output-stream)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
 	  (:function ⎕t coerce-type))
  
@@ -996,7 +1003,7 @@
   	    (is "fn←{⍺+3×⍵} ⋄ 16 fn⍨8" 56)))
   (⌸ (has :title "Key")
      (lateral (with-derived-operands (axes left-fn-dyadic)
-		`(operate-grouping ,left-fn-dyadic)))
+		`(operate-grouping ,left-fn-dyadic index-origin)))
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' 'Pear' 'Pear'
     quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
     	        #2A((#0A"Apple" #0A#(12 2)) (#0A"Orange" #0A#(3 8)) (#0A"Pear" #0A#(6 7 3)) (#0A"Peach" #0A#(16))))
@@ -1237,7 +1244,7 @@
   (for "Strand assignment of variables including a system variable."
        "(x ⎕IO y)←10 0 2 ⋄ x+y×⍳5" #(10 12 14 16 18))
   (for "Strand assignment of nested scalar variable."
-       "(a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
+       "⎕IO←1 ⋄ (a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."
@@ -1321,9 +1328,9 @@
 	(:demo-profile :title "System Variable and Function Demos"
 		       :description "Demos illustrating the use of system variables and functions."))
   (for "Setting the index origin." "a←⍳3 ⋄ ⎕io←0 ⋄ a,⍳3" #(1 2 3 0 1 2))
-  (for-printed "Setting the print precision." "⎕pp←3 ⋄ a←⍕*⍳3 ⋄ ⎕pp←6 ⋄ a,'  ',⍕*⍳3"
+  (for-printed "Setting the print precision." "⎕pp←3 ⋄ ⎕io←1 ⋄ a←⍕*⍳3 ⋄ ⎕pp←6 ⋄ a,'  ',⍕*⍳3"
 	       "2.72 7.39 20.1  2.71828 7.38906 20.0855")
-  (for "Alphabetical and numeric vectors." "⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+  (for "Alphabetical and numeric vectors." "⎕pp←10 ⋄ ⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
   (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7)))
 
  (test-set
