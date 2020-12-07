@@ -70,7 +70,8 @@
 		  ((and (stringp this-item)
 			(or (not (getf properties :type))
 			    (eq :string (first (getf properties :type)))))
-		   (values this-item (append (if vector-axes (list :vector-axes vector-axes))
+		   (values this-item (append (if (or axes vector-axes)
+						 (list :vector-axes (or vector-axes axes)))
 					     (list :axes axes :type '(:array :string)))
 			   remaining))
 		  ;; process scalar character values
