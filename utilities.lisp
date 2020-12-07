@@ -875,8 +875,7 @@ It remains here as a standard against which to compare methods for composing APL
 		    (not (symbolp left-fn-sym)))
 		(list left-fn-sym (invert-function left-fn-form-monadic)
 		      (invert-function left-fn-form-dyadic))
-		(let ((fn-glyph (if (not (symbolp left-fn-sym))
-				    left-fn-sym (aref (string left-fn-sym) 0))))
+		(let ((fn-glyph (aref (string left-fn-sym) 0)))
 		  (list left-fn-sym
 			(if (resolve-function :monadic-inverse fn-glyph)
 			    `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
@@ -889,8 +888,7 @@ It remains here as a standard against which to compare methods for composing APL
 		    (not (symbolp right-fn-sym)))
 		(list right-fn-sym (invert-function right-fn-form-monadic)
 		      (invert-function right-fn-form-dyadic))
-		(let ((fn-glyph (if (not (symbolp right-fn-sym))
-				    right-fn-sym (aref (string right-fn-sym) 0))))
+		(let ((fn-glyph (aref (string right-fn-sym) 0)))
 		  (list right-fn-sym
 			(if (resolve-function :monadic-inverse fn-glyph)
 			    `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
@@ -909,8 +907,7 @@ It remains here as a standard against which to compare methods for composing APL
     ((list 'apl-compose '⍨ 'lambda args funcall-form)
      ;; invert a [⍨ commute] operation
      (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
-    				     rest)
-			      (declare (ignore rest))
+    				     _)
 			      (let* ((fn-glyph (second (second sub-lambda)))
 				     (dyinv-forms (resolve-function
 						   :dyadic-inverse (aref (string fn-glyph) 0))))
