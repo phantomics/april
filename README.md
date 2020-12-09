@@ -548,7 +548,7 @@ NIL ;; the result of not running code after the function is stored
 30
 ```
 
-As shown above, dash-separated variable and function names are converted to camel case, just as when passing input values with the `:in` sub-parameter of `(:state)`. Note also that functions passed into April this way are not dapted for use with arrays the way that functions created within April are. For instance, if you enter:
+As shown above, dash-separated variable and function names are converted to camel case, just as when passing input values with the `:in` sub-parameter of `(:state)`. Note also that functions passed into April this way are not adapted for use with arrays the way that functions created within April are. For instance, if you enter:
 
 ```lisp
 * (april (with (:store-fun (add-ten (x) (+ x 10)))) "")
