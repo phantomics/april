@@ -293,7 +293,8 @@
 						    #'process-lex-tests-for)
 						   ((string= "TEST-SET" (string-upcase (first subspec)))
 						    #'process-general-tests-for)
-						   ((string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
+						   ((string= "ARBITRARY-TEST-SET"
+							     (string-upcase (first subspec)))
 						    #'process-arbitrary-tests-for))
 					     symbol test-set :mode mode)))))))
 
@@ -392,10 +393,10 @@
 	   (printout-sym (concatenate 'string symbol-string "-F"))
 	   (inline-sym (concatenate 'string symbol-string "-C"))
 	   (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
-	   (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym)))
+	   (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym))
+	   (ws-name (gensym)) (ws-fullname (gensym)))
       `(progn ,@(if (not extension)
-		    `(;; (defvar ,idiom-symbol)
-		      (proclaim '(special ,idiom-symbol))
+		    `((proclaim '(special ,idiom-symbol))
 		      (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
 	      (setf (idiom-system ,idiom-symbol)
 		    (append (idiom-system ,idiom-symbol)
@@ -451,32 +452,27 @@
 				    (string= "DEMO" (string-upcase (first ,options))))
 			       ;; the (demo) setting is used to print demos of the language
 			       `(progn ,@',demo-forms "Demos complete!"))
-			      (t `(progn ,(if (and ,input-string (assoc :space (rest ,options)))
-					      `(defvar ,(second (assoc :space (rest ,options)))))
-					 ;; TODO: defvar here should not be necessary since the symbol
-					 ;; is set by vex-program if it doesn't exist, but a warning is displayed
-					 ;; nonetheless, investigate this
-					 ,(if (or (and ,input-string (or (stringp ,input-string)
-									 (listp ,input-string)))
-						  (and (not ,input-string)
-						       (stringp ,options)))
-					      (vex-program ,idiom-symbol
-							   (if ,input-string
-							       (if (or (string= "WITH" (string (first ,options)))
-								       (string= "SET" (string (first ,options))))
-								   (rest ,options)
-								   (error "Incorrect option syntax.")))
-							   (if ,input-string ,input-string ,options))
-					      ;; this clause results in compilation at runtime of an
-					      ;; evaluated string value
-					      `(eval (vex-program
-						      ,',idiom-symbol
-						      ,(if ,input-string
-							   (if (or (string= "WITH" (string (first ,options)))
-								   (string= "SET" (string (first ,options))))
-							       `(quote ,(rest ,options))
-							       (error "Incorrect option syntax.")))
-						      ,(if ,input-string ,input-string ,options))))))))
+			      (t (if (or (and ,input-string (or (stringp ,input-string)
+								(listp ,input-string)))
+					 (and (not ,input-string)
+					      (stringp ,options)))
+				     (vex-program ,idiom-symbol
+						  (if ,input-string
+						      (if (or (string= "WITH" (string (first ,options)))
+							      (string= "SET" (string (first ,options))))
+							  (rest ,options)
+							  (error "Incorrect option syntax.")))
+						  (if ,input-string ,input-string ,options))
+				     ;; this clause results in compilation at runtime of an
+				     ;; evaluated string value
+				     `(eval (vex-program
+					     ,',idiom-symbol
+					     ,(if ,input-string
+						  (if (or (string= "WITH" (string (first ,options)))
+							  (string= "SET" (string (first ,options))))
+						      `(quote ,(rest ,options))
+						      (error "Incorrect option syntax.")))
+					     ,(if ,input-string ,input-string ,options)))))))
 		      (defmacro ,(intern printout-sym (symbol-package symbol))
 			  (&rest ,options)
 			;; an alternate evaluation macro that prints formatted evaluation results
@@ -510,9 +506,7 @@
 			  (,options &optional ,input-path)
 			;; an evaluation macro that loads code from a file,
 			;; evaluating the path expression
-			`(progn ,(if (and ,input-path (assoc :space (rest ,options)))
-				     `(defvar ,(second (assoc :space (rest ,options)))))
-				,(let ((,pathname (if ,input-path (eval ,input-path)
+			`(progn ,(let ((,pathname (if ,input-path (eval ,input-path)
 						      (eval ,options))))
 				   (if (pathnamep ,pathname)
 				       (vex-program ,idiom-symbol
@@ -549,7 +543,30 @@
 						   (if (listp ,item)
 						       (,process ,item)
 						       ,item)))))
-			  (cons 'progn (,process ,body))))))
+			  (cons 'progn (,process ,body))))
+		      (defmacro ,(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+					 (symbol-package symbol))
+			  (,ws-name)
+			;; this macro creates a context enclosure within which evaluations have a default
+			;; context; use this to evaluate many times with the same (with) expression
+			(let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
+							"-WORKSPACE-" (string-upcase ,ws-name))))
+			  `(if (not (find-package ,,ws-fullname))
+			       (progn (make-package ,,ws-fullname)
+			    	      (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
+			    			      (intern "*BRANCHES*" ,,ws-fullname)
+			    			      (intern "*INDEX-ORIGIN*" ,,ws-fullname)
+			    			      (intern "*PRINT-PRECISION*" ,,ws-fullname)))
+			    	      (set (intern "*SYSTEM*" ,,ws-fullname) ,',(cons 'list (of-subspec system)))
+			    	      (set (intern "*BRANCHES*" ,,ws-fullname) nil)
+			    	      (set (intern "*INDEX-ORIGIN*" ,,ws-fullname)
+			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
+				      		   :index-origin))
+			    	      (set (intern "*PRINT-PRECISION*" ,,ws-fullname)
+			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
+				      		   :print-precision))
+				      (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
+			       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))))
 	      ;; print a summary of the idiom as it was specified or extended
 	      (let ((items 0)
 		    (set-index 0)
@@ -916,13 +933,24 @@
 			(let ((item-properties (rest item)))
 			  (process-item item-symbol item-properties))))))))
 
+(defmacro ws-assign-val (symbol value)
+  "Assignment macro for use with (:store-val) directive."
+  `(progn (if (not (boundp ',symbol))
+	      (proclaim '(special ,symbol)))
+	  (setf (symbol-value ',symbol) ,value)))
+
+(defmacro ws-assign-fun (symbol value)
+  "Assignment macro for use with (:store-fun) directive."
+  `(progn (if (not (boundp ',symbol))
+	      (proclaim '(special ,symbol)))
+	  (setf (symbol-function ',symbol) ,value)))
+
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
 	 (space (concatenate 'string (string-upcase (idiom-name idiom))
 			    "-WORKSPACE-" (if (not (second (assoc :space options)))
 					      "COMMON" (string-upcase (second (assoc :space options))))))
-	 (state-persistent (rest (assoc :state-persistent options)))
 	 (state-to-use) (system-to-use))
     (labels ((assign-from (source dest)
 	       (if (not source)
@@ -933,31 +961,12 @@
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom))
 			    (process-lines remaining (append output (list (composer idiom space out)))))))
-	     (store-items (items-to-store)
+	     (get-item-refs (items-to-store &optional storing-functions)
 	       (loop :for item :in items-to-store
-		  :do (set (intern (lisp->camel-case (first item)) space)
-			   (second item)))))
+		  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
+				 (intern (lisp->camel-case (first item)))
+				 (second item)))))
 
-      (if (not (find-package space))
-	  (progn (make-package space)
-		 (proclaim (list 'special (intern "*SYSTEM*" space)
-				 (intern "*BRANCHES*" space) (intern "*INDEX-ORIGIN*" space)
-				 (intern "*PRINT-PRECISION*" space)))
-		 (set (intern "*SYSTEM*" space) (idiom-system idiom))
-		 (set (intern "*BRANCHES*" space) nil)
-		 (setf (symbol-value (intern "*INDEX-ORIGIN*" space))
-		       (getf (getf (idiom-system idiom) :workspace-defaults) :index-origin))
-		 (setf (symbol-value (intern "*PRINT-PRECISION*" space))
-		       (getf (getf (idiom-system idiom) :workspace-defaults) :print-precision))
-		 (loop :for (cname csym) :on (rest (assoc :constant (idiom-symbols idiom))) :by #'cddr
-		    :do (let ((native-symbol (intern (string csym) (string-upcase (idiom-name idiom)))))
-			  (if (boundp native-symbol)
-			      (eval `(defvar ,(intern (string csym) space)
-				       ,(symbol-value native-symbol)))
-			      (if (listp (macroexpand native-symbol))
-				  (eval `(define-symbol-macro ,(intern (string csym) space)
-					     ,(macroexpand native-symbol)))))))))
-      
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
 
 	;; if the (:restore-defaults) setting is passed,
@@ -965,22 +974,14 @@
 	(if (assoc :restore-defaults options)
 	    (setf (getf ws-system :state) (getf ws-system :base-state)))
 	
-	(setq state (funcall (of-utilities idiom :preprocess-state-input) state)
-	      state-persistent (funcall (of-utilities idiom :preprocess-state-input) state-persistent))
-
-	(if state-persistent (setf (getf ws-system :state)
-				   (assign-from state-persistent (getf ws-system :state))))
+	(setq state (funcall (of-utilities idiom :preprocess-state-input) state))
 
 	(setf state-to-use (assign-from (getf ws-system :base-state) state-to-use)
 	      state-to-use (assign-from (getf ws-system :state) state-to-use)
-	      state-to-use (assign-from state-persistent state-to-use)
 	      state-to-use (assign-from state state-to-use)
 	      system-to-use (assign-from ws-system system-to-use)
 	      system-to-use (assign-from state system-to-use))
 
-	(store-items (rest (assoc :store-val options)))
-	(store-items (rest (assoc :store-fun options)))	
-	
 	(if string
 	    (let* ((string (if (stringp string)
 			       ;; just pass the string through if it's not a pathname;
@@ -993,6 +994,8 @@
 								:append (list line '(#\Newline))))))))
 		   (input-vars (getf state-to-use :in))
 		   (output-vars (getf state-to-use :out))
+		   (stored-refs (append (get-item-refs (rest (assoc :store-val options)))
+					(get-item-refs (rest (assoc :store-fun options)) t)))
 		   (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
 								 string)))
 		   (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
@@ -1011,4 +1014,4 @@
 							       output-vars)))))
 		       (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
 			    :by #'cddr :collect (string-upcase key))
-		       options system-vars vars-declared space)))))))
+		       options system-vars vars-declared stored-refs space)))))))

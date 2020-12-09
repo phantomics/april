@@ -14,7 +14,8 @@
 	       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⍸⋄←→⍝§⎕⍞⍤⍥⍣⍇⍈⍐⍗⌸⌺ ┘┐┌└┼─├┤┴┬│"))
 
-(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision to-output output-stream))
+(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision *digit-vector* *alphabet-vector*
+				 *apl-timestamp* to-output output-stream))
 
 (let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument
        (vector (lambda (x) (exp (complex 0 x)))
@@ -40,8 +41,7 @@
 
  ;; system variables and default state of an April workspace
  (system :atomic-vector *atomic-vector* :output-printed nil
-	 :base-state '(:comparison-tolerance 1e-14
-		       :output-stream '*standard-output*)
+	 :base-state '(:comparison-tolerance 1e-14 :output-stream '*standard-output*)
 	 :workspace-defaults '(:index-origin 1 :print-precision 10))
 
  ;; standard grammar components, with elements to match the basic language forms and
@@ -105,16 +105,14 @@
 					:element-type 'character :displaced-to string
 					:displaced-index-offset (if last-index (1+ last-index) 0))
 		   :do (setq last-index index))))
-	    
 	    ;; macro to process lexical specs of functions and operators
 	    :process-lexicon #'april-function-glyph-processor
 	    :format-value #'format-value
-	    ;; process system state input passed when April is invoked, i.e. with (april (with (:state ...)) "...")
+	    ;; process system state input passed as with (april (with (:state ...)) "...")
 	    :preprocess-state-input
 	    (lambda (state)
-	      (if (getf state :count-from)
-		  (setf (getf state :index-origin)
-			(getf state :count-from)))
+	      (if (getf state :count-from) (setf (getf state :index-origin)
+						 (getf state :count-from)))
 	      state)
 	    ;; converts parts of the system state into lists that will form part of the local lexical
 	    ;; environment in which the compiled APL code runs, i.e. the (let) form into which
@@ -1792,6 +1790,8 @@ c   2.56  3
 	      #(0 1 2 3 4 5 6) :test #'equalp))
    
    )))
+
+(april-create-workspace common)
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
