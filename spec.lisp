@@ -990,7 +990,9 @@
 						 #0A#2A((6 12 18) (24 30 36) (42 48 54)))
 					     (#0A#2A((7 14 21) (28 35 42) (49 56 63))
 						 #0A#2A((8 16 24) (32 40 48) (56 64 72))
-						 #0A#2A((9 18 27) (36 45 54) (63 72 81)))))))
+						 #0A#2A((9 18 27) (36 45 54) (63 72 81)))))
+	     (is "(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'"
+		 #(#0A#(#0A"abc") #0A#(#0A"a" #0A"|b" #0A"|c")))))
   (⍨ (has :title "Commute")
      (lateral (with-derived-operands (axes left-fn-dyadic)
 		;; Generate a function applying a function to arguments in reverse order, or duplicating a single argument.
