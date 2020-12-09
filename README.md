@@ -650,7 +650,7 @@ Both of the values assigned to `⎕` are printed in order before the expression'
 Perhaps you'd like to write files containing pure APL code rather than passing strings to `(april)` within Lisp code. The `(april-load)` macro has you covered. For example:
 
 ```apl
-⍝ Contents of file test.apl
+⍝ contents of file test.apl
 
 v  ← ⍳9
 fn ← {⍵+10}
