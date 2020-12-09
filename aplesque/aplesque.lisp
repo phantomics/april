@@ -1498,7 +1498,7 @@
 		     (setq outer-dims (cons axis outer-dims))))
 	       (setq inner-dims (reverse inner-dims)
 		     outer-dims (reverse outer-dims))
-	       ;; create a new blank array of the outer dimensions containing blank arrays of the inner dimensions
+	       ;; create a blank array of the outer dimensions containing blank arrays of the inner dimensions
 	       (let* ((ocoords (loop :for d :in outer-dims :collect (nth d matrix-dims)))
 		      (icoords (loop :for d :in inner-dims :collect (nth d matrix-dims)))
 		      (new-matrix (make-array ocoords :initial-contents

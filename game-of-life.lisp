@@ -45,7 +45,7 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
 				(if starting-field (april-c "{⍺↑⍵}" starting-field
 							    (vector new-height new-width))
 				    (april-c "{⎕IO←0 ⋄ ?(|⍺ ⍵)⍴2}" (or new-width *life-default-dimension*)
-					 (or new-height new-width *life-default-dimension*))))
+					     (or new-height new-width *life-default-dimension*))))
 			 (april-c "{⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}" life-array)))
     (incf life-generation)
     (april-c "{⎕IO←0 ⋄ ⎕←' ⍬_║▐▀'[(0,(1+⊢/⍴⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)

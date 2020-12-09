@@ -496,9 +496,16 @@ If you don't want to receive the Lisp value output by April and only want the fo
 
 This way, the formatted string will be the only returned value.
 
-### (:space) sub-parameter
+### (:space) parameter
 
-If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, use the `(:space)` parameter. For example:
+If you want to create a persistent workspace where the functions and variables you've created are stored and can be used in multiple calls to April, you must first create the workspace. Here's how:
+
+```
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+```
+
+Then, to evaluate April code within use the `(:space)` parameter. For example:
 
 ```lisp
 * (april-f (with (:space space1)) "a←5+2 ⋄ b←3×9")
@@ -511,7 +518,7 @@ If you want to create a persistent workspace where the functions and variables y
 36
 ```
 
-In the above example, a workspace called `space1` is created, two variables and a function are stored within it, and then the function is called on the sum of the variables. When you invoke the `(:space)` parameter followed by a symbol that is not defined, the symbol is set to point to a dynamic variable containing a hash table that stores the workspace data.
+In the above example, a workspace called `space1` is created, two variables and a function are stored within it, and then the function is called on the sum of the variables.
 
 When you invoke `(april)` without naming a workspace, a workspace called `common` is used.
 
@@ -523,45 +530,34 @@ When you invoke `(april)` without naming a workspace, a workspace called `common
 10
 ```
 
-### (:state-persistent) sub-parameters
+### (:store-val) and (:store-fun) parameters
 
-You can use the `(:state-persistent)` parameter to set state values within the workspace. It works like `(:state)`, but the difference is that when you change the state using `(:state-persistent)`, those changes will stay saved in the workspace until you reverse them, whereas the changes you make with `:state` are lost once the following code is done evaluating.
-
-For example:
+If you'd like to add values and functions from the Lisp instance into an April workspace, you can use the `(:store-val)` and `(:store-fun)` parameters. Here is an example:
 
 ```lisp
-* (april-f (with (:state-persistent :count-from 0) (:space space1)) "⍳7")
-0 1 2 3 4 5 6
-#(0 1 2 3 4 5 6)
+* (april (with (:store-val (a 12) (b 45))) "a+b+10")
+67
 
-* (april-f (with (:space space1)) "⍳7")
-0 1 2 3 4 5 6
-#(0 1 2 3 4 5 6)
+* (april "3×a")
+36
 
-* (april-f (with (:space space2)) "⍳7")
-1 2 3 4 5 6 7
-#(1 2 3 4 5 6 7)
+* (april (with (:store-fun (add-ten (lambda (x) (+ x 10))))) "")
+NIL ;; the result of not running code after the function is stored
+
+* (april "addTen 20")
+30
 ```
 
-Did you notice that when switching to a different space, in this case `space2`, the customized values are lost? Custom state settings affect only the specific workspace where they are set.
-
-You can use `(:state-persistent)` to set persistent input variables that will stay available for each piece of code you run in your April instance. If these input variables refer to external Lisp variables, changing the external variables will change the values available to April. For example:
+As shown above, dash-separated variable and function names are converted to camel case, just as when passing input values with the `:in` sub-parameter of `(:state)`. Note also that functions passed into April this way are not dapted for use with arrays the way that functions created within April are. For instance, if you enter:
 
 ```lisp
-* (defvar *dynamic-var* 2)
-*DYNAMIC-VAR*
+* (april (with (:store-fun (add-ten (x) (+ x 10)))) "")
+NIL
 
-* (april-f (with (:state-persistent :in ((dyn-var *dynamic-var*)))
-                 (:space space1))
-           "dynVar⍟512")
-9.0
-
-* (setq *dynamic-var* 8)
-8
-
-* (april-f (with (:space space1)) "dynVar⍟512")
-3.0
+* (april "addTen 1 2 3 4 5")
 ```
+
+You will get an error stating `The value #(1 2 3 4 5) is not of type NUMBER ...`. That's because in Lisp, you can't add 10 to the vector `#(1 2 3 4 5)`, which is what the function is attempting to do. Use caution when adding arbitrary Lisp functions into an April workspace.
 
 ### (:compile-only) parameter
 
@@ -570,13 +566,12 @@ If you just want to compile the code you enter into April without running it, us
 ```lisp
 * (april (with (:compile-only)) "1+1 2 3")
 (IN-APRIL-WORKSPACE COMMON
-                    (LET* ((OUTPUT-STREAM *STANDARD-OUTPUT*))
-                      (DECLARE (IGNORABLE OUTPUT-STREAM))
-                      (SYMBOL-MACROLET ((INDEX-ORIGIN 𝕊*INDEX-ORIGIN*)
-                                        (PRINT-PRECISION 𝕊*PRINT-PRECISION*))
-                        (APL-OUTPUT
-                         (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
-                         :PRINT-PRECISION PRINT-PRECISION))))
+  (LET* ((OUTPUT-STREAM *STANDARD-OUTPUT*))
+    (DECLARE (IGNORABLE OUTPUT-STREAM))
+    (SYMBOL-MACROLET ((INDEX-ORIGIN 𝕊*INDEX-ORIGIN*)
+                      (PRINT-PRECISION 𝕊*PRINT-PRECISION*))
+      (APL-OUTPUT (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
+                  :PRINT-PRECISION PRINT-PRECISION))))
 ```
 
 ### (:restore-defaults) parameter
@@ -613,6 +608,9 @@ After the string where the April function is written, pass the variables that wi
 Perhaps you'd like to make multiple calls to April using the same workspace and other parameters and you don't want to have to enter the same parameters over and over again. The `(with-april-context)` macro can help. For example:
 
 ```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
 * (with-april-context ((:space space1) (:state :index-origin 0))
     (april "g←5")
     (april "g×3+⍳9"))
@@ -622,6 +620,9 @@ Perhaps you'd like to make multiple calls to April using the same workspace and 
 Inside the body of the `(with-april-context)` macro, each of the `(april)` invocations act as if they were passed the options `(with (:space space1) (:state :index-origin 0))`. 
 
 ```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
 * (with-april-context ((:space space1) (:state :index-origin 0))
     (april "x←⍳3")
     (april (with (:state :index-origin 1)) "x,⍳5"))
@@ -678,6 +679,9 @@ Note that the argument to `(april-load)` must be a pathname, not merely a string
 The `(april-load)` macro may take a first argument containing the same parameters that can be passed to `(april)`. For example:
 
 ```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
 * (april-load (with (:space space1) (:state :index-origin 0)) #P"/path/to/test.apl")
 10 11 12 13 14 15 16 17 18
 #(10 11 12 13 14 15 16 17 18)
@@ -711,6 +715,12 @@ Above, you learned how to use the `:count-from`/`:index-origin` and `:print-prec
 Traditional APL dialects use the `⎕IO` and `⎕PP` system variables to set the index origin and print precision in a workspace, and using them in April will make a change that persists in the workspace. For example:
 
 ```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
+* (april-create-workspace space2)
+"Successfully created workspace ｢SPACE2｣."
+
 * (april-f (with (:space space1)) "⎕IO←0 ⋄ ⍳9")
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)
@@ -729,6 +739,9 @@ Switching to the workspace `space2`, the default index origin of 1 is used again
 If you pass an `:index-origin`, `:count-from` or `:print-precision` sub-parameter to an APL invocation, it will override whatever value is present in the active workspace. However, it will only affect the code passed to the individual `(april)` invocation that has the sub-parameter(s) passed.
 
 ```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
 * (april-f (with (:space space1)) "⎕IO←0 ⋄ ⍳9")
 0 1 2 3 4 5 6 7 8
 #(0 1 2 3 4 5 6 7 8)

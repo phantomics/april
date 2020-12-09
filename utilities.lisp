@@ -20,19 +20,18 @@
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 
-(defmacro in-april-workspace (name body)
+(defmacro in-april-workspace (name &body body)
   "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
-  (labels ((replace-symbols (form)
-	     (loop :for item :in form :for ix :from 0
-		:do (if (listp item)
-			(if (and (second item) (not (third item))
-				 (symbolp (second item)) (eql 'inws (first item)))
-			    (setf (nth ix form)
-				  (intern (string (second item))
-					  (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
-			    (replace-symbols item))))))
-    (replace-symbols body)
-    body))
+  (let ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
+    (labels ((replace-symbols (form)
+	       (loop :for item :in form :for ix :from 0
+		  :do (if (listp item)
+			  (if (and (second item) (not (third item))
+				   (symbolp (second item)) (eql 'inws (first item)))
+			      (setf (nth ix form) (intern (string (second item)) space-name))
+			      (replace-symbols item))))))
+      (replace-symbols body)
+      (first body))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\𝕊 (lambda (stream character)
@@ -726,7 +725,7 @@ It remains here as a standard against which to compare methods for composing APL
   (loop :for var-entry :in input-vars :collect (list (intern (lisp->camel-case (first var-entry)) space)
 						     (second var-entry))))
 
-(defun build-compiled-code (exps workspace-symbols options system-vars vars-declared space)
+(defun build-compiled-code (exps workspace-symbols options system-vars vars-declared stored-refs space)
   "Return a set of compiled April expressions within the proper context."
   (let* ((branch-index (gensym "A")) (branches-sym (intern "*BRANCHES*" space))
 	 (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
@@ -768,6 +767,9 @@ It remains here as a standard against which to compare methods for composing APL
 					     :when (member (string-upcase (first var)) workspace-symbols
 							   :test #'string=)
 					     :collect var)
+			  ;; ,@(if stored-refs (list (cons 'setf stored-refs)))
+			  ,@(loop :for ref :in stored-refs
+			       :collect (list (first ref) (list 'inws (second ref)) (third ref)))
 			  ;; (declare (ignorable ,@(mapcar #'first system-vars)))
 			  ,@(if (or (not tags-found) (not (boundp branches-sym)))
 				exps `((tagbody ,@(butlast (process-tags exps) 1))

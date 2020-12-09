@@ -87,8 +87,6 @@
 			    (eql '⍺ this-item)
 			    (getf properties :symbol-overriding)
 			    (not (is-workspace-function this-item)))
-			;; (not (member (intern (string-upcase this-item))
-			;; 	     (rest (assoc :function (idiom-symbols idiom)))))
 			(or (not (getf properties :type))
 			    (eq :symbol (first (getf properties :type)))))
 		   (values (if (not (member (string-upcase this-item)
@@ -323,7 +321,10 @@
        :do (if (is-workspace-function symbol)
 	       (fmakunbound (intern (string symbol) space)))
 	 (if (not (boundp (intern (string symbol) space)))
-	     (eval `(defvar ,(intern (string symbol) space) nil))))
+	     (progn (proclaim (list 'special (intern (string symbol) space)))
+		    (set (intern (string symbol) space) nil))
+	     ;; (eval `(defvar ,(intern (string symbol) space) nil))
+	     ))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
 	   `(apl-output ,precedent :print-precision print-precision
