@@ -841,7 +841,7 @@ In Common Lisp, a 0-dimensional array can also be considered a type of scalar si
 ```lisp
 * (make-array 3 :initial-element (vector 1 2 3)) ;; a vector of vectors
 #(#(1 2 3) #(1 2 3) #(1 2 3))
-``
+```
 
 The most important difference between nested arrays in APL compared to Common Lisp is that *in APL, all elements of a non-scalar array must be scalar*. That means that you can't have a non-scalar array directly inside of a nested array. The only type of array that can hold something non-scalar is a 0-dimensional scalar array. In April, the array shown above looks like this:
 
