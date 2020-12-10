@@ -291,10 +291,8 @@
 	(let* ((match-count 0)
 	       (matches (loop :for item :across alpha :when (find item omega :test #'array-compare)
 			   :collect item :and :do (incf match-count))))
-	  (if (= 1 match-count)
-	      (first matches)
-	      (make-array (list match-count) :initial-contents matches
-			  :element-type (type-in-common (element-type alpha) (element-type omega))))))))
+	  (make-array (list match-count) :initial-contents matches
+		      :element-type (type-in-common (element-type alpha) (element-type omega)))))))
 
 (defun unique (omega)
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
