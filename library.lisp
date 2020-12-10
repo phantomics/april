@@ -56,14 +56,14 @@
 						     coords (loop :for c :in coords
 							       :collect (+ c index-origin)))))))
 	      output)
-	    (error "The argument to ⍳ must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
+	    (error "The argument to [⍳ index] must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
   (if (not (vectorp vector))
-      (error "Inverse ⍳ can only be invoked on a vector, at least for now.")
+      (error "Inverse [⍳ index] can only be invoked on a vector, at least for now.")
       (if (loop :for e :across vector :for i :from index-origin :always (= e i))
-	  (length vector) (error "The argument to inverse ⍳ is not an index vector."))))
+	  (length vector) (error "The argument to inverse [⍳ index] is not an index vector."))))
 
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
@@ -267,7 +267,7 @@
 			       (disclose (pick-point (aref point 0) input))))))
       ;; TODO: swap out the vector-based point for an array-based point
       (if (= 1 (array-total-size omega))
-	  (error "Right argument to dyadic ⊃ may not be unitary.")
+	  (error "Right argument to dyadic [⊃ pick] may not be unitary.")
 	  (disclose (pick-point alpha omega))))))
 
 (defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
@@ -307,8 +307,9 @@
 	  (loop :for item :across vector :when (not (find item uniques :test #'array-compare))
 	     :do (setq uniques (cons item uniques)
 		       unique-count (1+ unique-count)))
-	  (disclose (make-array unique-count :element-type (element-type vector)
-				:initial-contents (reverse uniques)))))))
+	  (funcall (lambda (result) (if (vectorp omega) result (mix-arrays 1 result)))
+		   (make-array unique-count :element-type (element-type vector)
+			       :initial-contents (reverse uniques)))))))
 
 (defun array-union (omega alpha)
   "Return a vector of unique values from two arrays. Used to implement [∪ union]."
@@ -775,9 +776,9 @@
     (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
 				   :collect (if (= i 0) index nil))))
       (if (not (or (and (< 2 (rank right-value))
-			(error "The right operand of ⌺ may not have more than 2 dimensions."))
+			(error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
 		   (and (not left-function)
-			(error "The left operand of ⌺ must be a function."))))
+			(error "The left operand of [⌺ stencil] must be a function."))))
 	  (let ((window-dims (if (not (arrayp right-value))
 				 (vector right-value)
 				 (if (= 1 (rank right-value))
