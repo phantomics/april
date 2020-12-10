@@ -498,7 +498,7 @@ This way, the formatted string will be the only returned value.
 
 #### :unformat-output
 
-APL and Common Lisp use different models for nested arrays. [Read more about it here.](#enabling-apl-input-in-emacs) If you'd like to receive nested array output from April where the nested arrays are not wrapped in 0-rank scalar arrays, you can use the `:unformat-output` sub-parameter. Here's an example of the difference this sub-parameter makes:
+APL and Common Lisp use different models for nested arrays. [Read more about it here.](#differences-between-apl-and-common-lisp-nested-array-models) If you'd like to receive nested array output from April where the nested arrays are not wrapped in 0-rank scalar arrays, you can use the `:unformat-output` sub-parameter. Here's an example of the difference this sub-parameter makes:
 
 ```lisp
 * (april "2 2⍴⊂2 2⍴⍳4")
@@ -850,7 +850,7 @@ The most important difference between nested arrays in APL compared to Common Li
 #(#0A#(1 2 3) #0A#(4 5 6) #0A#(7 8 9))
 ```
 
-Every sub-vector inside the nested vector is enclosed in a 0-rank scalar array, hence the `#0A` (standing for "0-dimensional array") in front of each vector. The nested arrays produceed by April can be cumbersome to work with in Common Lisp. If you wanted to fetch the digit 2 from the `array` above, you'd need to evaluate `(aref (aref (aref array 0)) 1)` to get it. The `:unformat-output` sub-parameter of `:state` allows you to disclose the nested elements of April arrays when they are passed back to Common Lisp. [Click here to learn how to use it.](#enabling-apl-input-in-vim)
+Every sub-vector inside the nested vector is enclosed in a 0-rank scalar array, hence the `#0A` (standing for "0-dimensional array") in front of each vector. The nested arrays produceed by April can be cumbersome to work with in Common Lisp. If you wanted to fetch the digit 2 from the `array` above, you'd need to evaluate `(aref (aref (aref array 0)) 1)` to get it. The `:unformat-output` sub-parameter of `:state` allows you to disclose the nested elements of April arrays when they are passed back to Common Lisp. [Click here to learn how to use it.](#unformat-output)
 
 Another challenge comes when passing nested arrays from Common Lisp into April. When arrays that aren't properly APL-formatted are passed in, the results can be unpredictable.
 
