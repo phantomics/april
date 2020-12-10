@@ -287,7 +287,7 @@
 	(alpha (enclose alpha)))
     (if (or (not (vectorp alpha))
 	    (not (vectorp omega)))
-	(error "Arguments must be vectors.")
+	(error "Arguments to [∩ intersection] must be vectors.")
 	(let* ((match-count 0)
 	       (matches (loop :for item :across alpha :when (find item omega :test #'array-compare)
 			   :collect item :and :do (incf match-count))))
@@ -296,20 +296,18 @@
 
 (defun unique (omega)
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
-  (if (not (arrayp omega))
-      omega (let ((vector (if (vectorp omega)
-			      omega (re-enclose omega (make-array (1- (rank omega))
-								  :element-type 'fixnum
-								  :initial-contents
-								  (loop :for i :from 1 :to (1- (rank omega))
-								     :collect i))))))
-	      (let ((uniques) (unique-count 0))
-		(loop :for item :across vector :when (not (find item uniques :test #'array-compare))
-		   :do (setq uniques (cons item uniques)
-			     unique-count (1+ unique-count)))
-		(if (= 1 unique-count)
-		    (disclose (first uniques))
-		    (make-array unique-count :element-type (element-type vector)
+  (if (not (arrayp omega)) (vector omega)
+      (let ((vector (if (vectorp omega)
+			omega (re-enclose omega (make-array (1- (rank omega))
+							    :element-type 'fixnum
+							    :initial-contents
+							    (loop :for i :from 1 :to (1- (rank omega))
+							       :collect i))))))
+	(let ((uniques) (unique-count 0))
+	  (loop :for item :across vector :when (not (find item uniques :test #'array-compare))
+	     :do (setq uniques (cons item uniques)
+		       unique-count (1+ unique-count)))
+	  (disclose (make-array unique-count :element-type (element-type vector)
 				:initial-contents (reverse uniques)))))))
 
 (defun array-union (omega alpha)
