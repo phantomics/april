@@ -846,11 +846,11 @@ In Common Lisp, a 0-dimensional array can also be considered a type of scalar si
 The most important difference between nested arrays in APL compared to Common Lisp is that *in APL, all elements of a non-scalar array must be scalar*. That means that you can't have a non-scalar array directly inside of a nested array. The only type of array that can hold something non-scalar is a 0-dimensional scalar array. In April, the array shown above looks like this:
 
 ```lisp
-* (april "0 3 6+3⍴⊂⍳3")
-#(#0A#(1 2 3) #0A#(4 5 6) #0A#(7 8 9))
+* (april "3⍴⊂⍳3")
+#(#0A#(1 2 3) #0A#(1 2 3) #0A#(1 2 3))
 ```
 
-Every sub-vector inside the nested vector is enclosed in a 0-rank scalar array, hence the `#0A` (standing for "0-dimensional array") in front of each vector. The nested arrays produceed by April can be cumbersome to work with in Common Lisp. If you wanted to fetch the digit 2 from the `array` above, you'd need to evaluate `(aref (aref (aref array 0)) 1)` to get it. The `:unformat-output` sub-parameter of `:state` allows you to disclose the nested elements of April arrays when they are passed back to Common Lisp. [Click here to learn how to use it.](#unformat-output)
+Every sub-vector inside the nested vector is enclosed in a 0-rank scalar array, hence the `#0A` (standing for "0-dimensional array") in front of each vector. The nested arrays produceed by April can be cumbersome to work with in Common Lisp. If you wanted to fetch the first digit 2 from the `array` above, you'd need to evaluate `(aref (aref (aref array 0)) 1)` to get it. The `:unformat-output` sub-parameter of `:state` allows you to disclose the nested elements of April arrays when they are passed back to Common Lisp. [Click here to learn how to use it.](#unformat-output)
 
 Another challenge comes when passing nested arrays from Common Lisp into April. When arrays that aren't properly APL-formatted are passed in, the results can be unpredictable.
 
