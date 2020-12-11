@@ -1300,6 +1300,8 @@
        "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
 					   (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
   (for "Selective assignment of elements within nested array by take function."
+       "x←3⍴⊂⍳4 ⋄ (1↑x[1])←99 ⋄ x" #(99 #0A#(1 2 3 4) #0A#(1 2 3 4)))
+  (for "Selective assignment of elements within nested array by take function."
        "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#0A#(99 2 3 4) #0A#(1 2 3 4) #0A#(1 2 3 4)))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))

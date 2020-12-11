@@ -620,7 +620,6 @@
 							 (element-type input)
 							 (assign-element-type input))
 				       :initial-element (apl-array-prototype input))))
-	       ;; (print (list :input input output axis degrees))
 	       ;; in compress-mode: degrees must = length of axis,
 	       ;; zeroes are omitted from output, negatives add zeroes
 	       ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis

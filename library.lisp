@@ -515,13 +515,19 @@
     (funcall (if (not is-scalar) #'identity (lambda (o) (make-array nil :initial-element o)))
 	     output)))
 
-(defun generate-selection-form (form)
+(defun generate-selection-form (form space)
   "Validate a selection form for use with selective-assignment, i.e. (3↑x)←5."
-  (let ((value-symbol) (set-form) (value-placeholder (gensym)))
+  (let ((value-symbol) (set-form) (choose-unpicked)
+	(value-placeholder (gensym)))
     (labels ((val-wssym (s)
 	       (or (symbolp s)
 		   (and (listp s) (eql 'inws (first s))
 			(symbolp (second s)))))
+	     (pick-aliased (symbol)
+	       (let ((alias-entry (get-workspace-alias space symbol)))
+		 (and (symbolp symbol)
+		      (characterp alias-entry)
+		      (char= #\⊃ alias-entry))))
 	     (process-form (f)
 	       (match f ((list* 'apl-call fn-symbol fn-form first-arg rest)
 			 (if (and (listp first-arg) (eql 'apl-call (first first-arg)))
@@ -531,11 +537,20 @@
 					    (setq value-symbol first-arg)
 					    (if (and (eql 'choose (first first-arg))
 						     (val-wssym (second first-arg)))
-						(setq value-symbol first-arg
-						      set-form
-						      (append first-arg	(list :set value-placeholder))))))
+						(if (or (eql '⊃ fn-symbol)
+							(pick-aliased fn-symbol))
+						    (setq value-symbol first-arg
+							  set-form
+							  (append first-arg
+								  (list :set value-placeholder)))
+						    (setq value-symbol (second first-arg)
+							  choose-unpicked t)))))
 				    (if value-symbol `(apl-call ,fn-symbol ,fn-form
-								,value-placeholder ,@rest))))))))
+								,(if (not choose-unpicked)
+								     value-placeholder
+								     (append (list 'choose value-placeholder)
+									     (cddr first-arg)))
+								,@rest))))))))
       (let ((form-out (process-form form)))
 	(values form-out value-symbol value-placeholder set-form)))))
 
