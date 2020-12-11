@@ -572,34 +572,6 @@
 	output)
       (error "Area of array to be reassigned does not match shape of values to be assigned.")))
 
-;; (defun validate-selection-form (form)
-;;   "Validate a selection form for use with selective-assignment, i.e. (3↑x)←5."
-;;   (let ((value-symbol) (value-placeholder (gensym)))
-;;     (labels ((val-wssym (s)
-;; 	       (or (symbolp s)
-;; 		   (and (listp s) (eql 'inws (first s))
-;; 			(symbolp (second s)))))
-;; 	     (process-form (f)
-;; 	       (match f ((list* 'apl-call fn-symbol fn-form first-arg rest)
-;; 			 (if (and (listp first-arg) (eql 'apl-call (first first-arg)))
-;; 			     `(apl-call ,fn-symbol ,fn-form ,(process-form first-arg) ,@rest)
-;; 			     (progn (print (list :ff fn-symbol first-arg))
-;; 				    (if (member fn-symbol '(↑ ↓ / ⊃))
-;; 					(if (val-wssym first-arg)
-;; 					    (setq value-symbol first-arg)
-;; 					    (if (eql 'choose (first first-arg))
-;; 						(if (val-wssym (second first-arg))
-;; 						    (setq value-symbol (second first-arg)
-;; 							  value-placeholder
-;; 							  `(choose ,value-placeholder
-;; 								   ,@(cddr first-arg)))))))
-;; 				    (print (list :vs value-symbol))
-;; 				    (if value-symbol `(apl-call ,fn-symbol ,fn-form
-;; 								,value-placeholder ,@rest)
-;; 					(error "Not a valid form for selective assignment."))))))))
-;;       (let ((form-out (process-form form)))
-;; 	(values form-out value-symbol)))))
-
 (defun match-lexical-function-identity (glyph)
   "Find the identity value of a lexical function based on its character."
   (second (assoc glyph '((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1)
