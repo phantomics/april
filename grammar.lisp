@@ -295,17 +295,21 @@
   ((:with-preceding-type :array)
    (assignment-function :element (function :glyph ←))
    (selection-form :pattern (:type (:array) :special '(:omit (:value-assignment)))))
-  (if (and (listp selection-form) (eql 'apl-call (first selection-form))
-	   (member (second selection-form) '(↑ ↓ / ⊃)))
-      (let ((index-array (gensym)) (indices (gensym))
-	    (array-assigning (fourth selection-form)))
-	(setf (fourth selection-form) index-array)
-	;; generate an array whose each cell is its row-major index, perform the subtractive function on
-	;; it and then use assign-selected to assign new values to the cells at the remaining indices
-	;; of the original array
-	`(let* ((,index-array (generate-index-array ,array-assigning))
-		(,indices (enclose ,selection-form)))
-	   (setq ,array-assigning (assign-selected ,array-assigning ,indices ,precedent)))))
+  (if (and (listp selection-form) (eql 'apl-call (first selection-form)))
+      (multiple-value-bind (sel-form sel-item placeholder set-form)
+	  (generate-selection-form selection-form)
+	(if sel-form
+	    ;; generate an array whose each cell is its row-major index, perform the subtractive function on
+	    ;; it and then use assign-selected to assign new values to the cells at the remaining indices
+	    ;; of the original array
+	    (let ((item (gensym)) (indices (gensym)))
+	      `(let* ((,item ,sel-item)
+		      (,placeholder (generate-index-array ,item))
+		      (,indices (enclose ,sel-form))
+		      ,@(if set-form `((,placeholder (make-array nil :initial-element
+								 (assign-selected (disclose ,item)
+										  ,indices ,precedent))))))
+		 ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent))))))))
   '(:type (:array :assigned)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression
@@ -322,9 +326,7 @@
 	       (fmakunbound (intern (string symbol) space)))
 	 (if (not (boundp (intern (string symbol) space)))
 	     (progn (proclaim (list 'special (intern (string symbol) space)))
-		    (set (intern (string symbol) space) nil))
-	     ;; (eval `(defvar ,(intern (string symbol) space) nil))
-	     ))
+		    (set (intern (string symbol) space) nil))))
     (cond ((eql 'to-output symbol)
 	   ;; a special case to handle ⎕← quad output
 	   `(apl-output ,precedent :print-precision print-precision
