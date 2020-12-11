@@ -297,7 +297,7 @@
    (selection-form :pattern (:type (:array) :special '(:omit (:value-assignment)))))
   (if (and (listp selection-form) (eql 'apl-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
-	  (generate-selection-form selection-form)
+	  (generate-selection-form selection-form space)
 	(if sel-form
 	    ;; generate an array whose each cell is its row-major index, perform the subtractive function on
 	    ;; it and then use assign-selected to assign new values to the cells at the remaining indices
