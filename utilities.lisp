@@ -825,7 +825,7 @@ It remains here as a standard against which to compare methods for composing APL
 	 (setq previous-token token))
     (rest token-list)))
 
-(defun invert-function (form)
+(defun invert-function (form &optional to-wrap)
   "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
   ;; (print (list :ff form))
   (match form
@@ -923,33 +923,54 @@ It remains here as a standard against which to compare methods for composing APL
      (list first (invert-function second)))
     ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
 	    first-form rest-forms)
-     ;; invert an arbitrary lambda - WIP
+     ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args ,declare-form
 			     (error "This function has more than one statement and thus cannot be inverted."))
 	 `(lambda ,args ,declare-form ,(invert-function first-form))))
     ((list* 'lambda args first-form rest-forms)
-     ;; invert an arbitrary lambda - WIP
+     ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
     			     (error "This function has more than one statement and thus cannot be inverted."))
-    	 ;; `(lambda ,args (apl-call ,symbol ,(invert-function first-form)))
 	 `(lambda ,args ,(invert-function first-form))))
-    ((list* 'apl-call function-symbol function-form rest)
-     ;; invert an apl-call expression - WIP
-     (let ((dyinv-forms (resolve-function :dyadic-inverse (aref (string function-symbol) 0))))
-       `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
-					(invert-function function-form)
-					(if (second rest)
-					    (or (getf dyinv-forms :plain)
-						(λωα (declare (ignore omega alpha))
-						     (error "No dyadic inverse for ~a."
-							    (aref (string function-symbol) 0))))
-					    (or (resolve-function :monadic-inverse
-								  (aref (string function-symbol) 0))
-						(λω (declare (ignore omega))
-						    (error "No monadic inverse for ~a."
-							   (aref (string function-symbol) 0))))))
-		  ,@(if (eql 'omega (first rest))
-			rest (reverse rest)))))
+    ((list* 'apl-call function-symbol function-form arg1 arg2-rest)
+     (destructuring-bind (&optional arg2 &rest rest) arg2-rest
+       ;; invert an apl-call expression - WIP
+       (let* ((function-char (aref (string function-symbol) 0))
+    	      (dyinv-forms (resolve-function :dyadic-inverse function-char))
+    	      (to-invert (or (member arg1 '(⍵ ⍺ omega alpha))
+    			     (and (listp arg1) (eql 'apl-call (first arg1)))))
+    	      (arg1-var (if to-invert arg1))
+    	      (arg2-var (if (or (member arg2 '(⍵ ⍺ omega alpha))
+    				(and (listp arg2) (eql 'apl-call (first arg2))))
+    			    arg2))
+    	      (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
+    				   (and (listp arg2) (eql 'apl-call (first arg2))))))
+    	      (to-wrap (or to-wrap #'identity)))
+    	  ;; (print (list :ff form arg1 arg2 arg1-var arg2-var))
+    	 (let ((wrapper
+    		(lambda (item)
+    		  `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
+    						    (invert-function function-form)
+    						    (if arg2 (or (if to-invert (getf dyinv-forms :plain)
+    								     (or (getf dyinv-forms :right-composed)
+    									 (getf dyinv-forms :plain)))
+    								 (λωα (declare (ignore omega alpha))
+    								      (error "No dyadic inverse for ~a."
+    									     function-char)))
+    							(or (resolve-function :monadic-inverse function-char)
+    							    (λω (declare (ignore omega))
+    								(error "No monadic inverse for ~a."
+    								       function-char)))))
+    			      ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
+    						     #'identity #'reverse)
+    						 (list (if (and arg1-var (not arg2-var))
+							   (funcall to-wrap item) arg1)
+    						       (if (and arg2-var (not arg1-var))
+							   (funcall to-wrap item) arg2)))
+    					rest)))))
+    	   (if last-layer (funcall wrapper (or arg1-var arg2-var))
+    	       (invert-function (or arg1-var arg2-var) wrapper))))))
+    
     ))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)

@@ -94,7 +94,7 @@
 							       (row-major-aref omega 0)))))
       output)))
 
-(defun at-index (omega alpha axes index-origin)
+(defun at-index (omega alpha axes index-origin &optional to-set)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
   (if (not (arrayp omega))
       (if (and (numberp alpha)
@@ -111,7 +111,8 @@
 			  (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
 			  (loop :for dim :below (rank omega)
 			     :collect (if (member dim axis) (first coords))
-			     :when (member dim axis) :do (setq coords (rest coords))))))))
+			     :when (member dim axis) :do (setq coords (rest coords)))))
+	      :set to-set)))
 
 (defun find-depth (omega)
   "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
@@ -225,15 +226,16 @@
     (let* ((alpha-index alpha)
 	   (alpha (if (arrayp alpha)
 		      alpha (vector alpha)))
-	   (output (section omega (if axes (make-array (rank omega)
-						       :initial-contents
-						       (loop :for axis :below (rank omega)
-							  :collect (if inverse
-								       (if (/= axis (- (first axes) index-origin))
-									   0 alpha-index)
-								       (if (= axis (- (first axes) index-origin))
-									   alpha-index (nth axis (dims omega))))))
-				      alpha)
+	   (output (section omega
+			    (if axes (make-array (rank omega)
+						 :initial-contents
+						 (loop :for axis :below (rank omega)
+						    :collect (if inverse
+								 (if (/= axis (- (first axes) index-origin))
+								     0 alpha-index)
+								 (if (= axis (- (first axes) index-origin))
+								     alpha-index (nth axis (dims omega))))))
+				alpha)
 			    :inverse inverse :populator (build-populator metadata-symbol omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
@@ -369,12 +371,22 @@
   (array-inner-product (invert-matrix omega) alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
 		       #'+))
 
-(defun encode (omega alpha)
+(defun encode (omega alpha &optional inverse)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
   (let* ((omega (if (arrayp omega)
 		    omega (enclose omega)))
 	 (alpha (if (arrayp alpha)
-		    alpha (enclose alpha)))
+		    alpha (if (not inverse)
+			      ;; if the encode is an inverted decode, extend a
+			      ;; scalar left argument to the appropriate degree
+			      (enclose alpha) (let ((max-omega 0))
+						(if (arrayp omega)
+						    (dotimes (i (size omega))
+						      (setq max-omega
+							    (max max-omega (row-major-aref omega i))))
+						    (setq max-omega omega))
+						(make-array (ceiling (/ max-omega alpha))
+							    :initial-element alpha)))))
 	 (odims (dims omega)) (adims (dims alpha))
 	 (last-adim (first (last adims)))
 	 (out-coords (loop :for i :below (+ (- (rank alpha) (count 1 adims))
@@ -516,41 +528,65 @@
 	     output)))
 
 (defun generate-selection-form (form space)
-  "Validate a selection form for use with selective-assignment, i.e. (3↑x)←5."
+  "Generate a selection form for use with selective-assignment, i.e. (3↑x)←5."
   (let ((value-symbol) (set-form) (choose-unpicked)
 	(value-placeholder (gensym)))
     (labels ((val-wssym (s)
 	       (or (symbolp s)
 		   (and (listp s) (eql 'inws (first s))
 			(symbolp (second s)))))
-	     (pick-aliased (symbol)
+	     (sfun-aliased (symbol)
+	       (let ((alias-entry (get-workspace-alias space symbol)))
+		 (and (symbolp symbol)
+		      (characterp alias-entry)
+		      (member alias-entry '(#\↑ #\↓ #\/ #\⊃) :test #'char=))))
+	     (atin-aliased (symbol)
+	       (let ((alias-entry (get-workspace-alias space symbol)))
+		 (and (symbolp symbol)
+		      (characterp alias-entry)
+		      (char= #\⌷ alias-entry))))
+	     (disc-aliased (symbol)
 	       (let ((alias-entry (get-workspace-alias space symbol)))
 		 (and (symbolp symbol)
 		      (characterp alias-entry)
 		      (char= #\⊃ alias-entry))))
 	     (process-form (f)
 	       (match f ((list* 'apl-call fn-symbol fn-form first-arg rest)
+			 ;; recursively descend through the expression in search of an expression containing
+			 ;; the variable and one of the four functions usable for selective assignment
 			 (if (and (listp first-arg) (eql 'apl-call (first first-arg)))
 			     `(apl-call ,fn-symbol ,fn-form ,(process-form first-arg) ,@rest)
-			     (progn (if (member fn-symbol '(↑ ↓ / ⊃))
-					(if (val-wssym first-arg)
-					    (setq value-symbol first-arg)
-					    (if (and (eql 'choose (first first-arg))
-						     (val-wssym (second first-arg)))
-						(if (or (eql '⊃ fn-symbol)
-							(pick-aliased fn-symbol))
-						    (setq value-symbol first-arg
-							  set-form
-							  (append first-arg
-								  (list :set value-placeholder)))
-						    (setq value-symbol (second first-arg)
-							  choose-unpicked t)))))
-				    (if value-symbol `(apl-call ,fn-symbol ,fn-form
-								,(if (not choose-unpicked)
-								     value-placeholder
-								     (append (list 'choose value-placeholder)
-									     (cddr first-arg)))
-								,@rest))))))))
+			     (if (or (eql fn-symbol '⌷)
+				     (atin-aliased fn-symbol))
+				 ;; assigning to a [⌷ at index] form is an just an alternate version
+				 ;; of assigning to axes, like x[1;3]←5
+				 (let ((form-copy (copy-list fn-form)))
+				   (setf (second form-copy)
+					 (append (second form-copy) (list value-placeholder))
+					 (third form) form-copy
+					 set-form (fourth form))
+				   form)
+				 (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
+						(sfun-aliased fn-symbol))
+					    (if (val-wssym first-arg)
+						(setq value-symbol first-arg)
+						(if (and (eql 'choose (first first-arg))
+							 (val-wssym (second first-arg)))
+						    (if (or (eql '⊃ fn-symbol)
+							    (disc-aliased fn-symbol))
+							(setq value-symbol first-arg
+							      set-form
+							      (append first-arg
+								      (list :set value-placeholder)))
+							(setq value-symbol (second first-arg)
+							      choose-unpicked t)))))
+					(if value-symbol
+					    `(apl-call ,fn-symbol ,fn-form
+						       ,(if (not choose-unpicked)
+							    value-placeholder
+							    (append (list 'choose value-placeholder)
+								    (cddr first-arg)))
+						       ,@rest)))))))))
       (let ((form-out (process-form form)))
 	(values form-out value-symbol value-placeholder set-form)))))
 
@@ -596,6 +632,7 @@
 		 :test #'char=)))
 
 (defun operate-reducing (function function-glyph axis &optional last-axis)
+  "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega)
     (if (not (arrayp omega))
 	omega (if (= 0 (size omega))
@@ -624,6 +661,7 @@
 		    (disclose-atom output))))))
 
 (defun operate-scanning (function axis &optional last-axis inverse)
+  "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega)
     (if (not (arrayp omega))
 	omega (let* ((odims (dims omega))
@@ -786,16 +824,17 @@
 		      (funcall function arg))))
       arg)))
 
-(defun operate-until (op-right op-left)
+(defun operate-until (op-right op-left-monadic op-left-dyadic)
   "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
     (declare (ignorable alpha))
     (let ((arg omega)
 	  (prior-arg omega))
-      (loop :while (= 0 (funcall op-right prior-arg arg))
-	    :do (setq prior-arg arg
-		      arg (if alpha (funcall op-left arg alpha)
-			      (funcall op-left arg))))
+      (loop :for index :from 0 :while (or (= 0 index)
+					  (= 0 (funcall op-right prior-arg arg)))
+	 :do (setq prior-arg arg
+		   arg (if alpha (funcall op-left-dyadic arg alpha)
+			   (funcall op-left-monadic arg))))
       arg)))
 
 (defun operate-at (left right left-fn-m left-fn-d right-fn)
