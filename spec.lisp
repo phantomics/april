@@ -1288,6 +1288,8 @@
        "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
        #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 	   (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+  (for "Assignment of array element referenced by [⌷ index] function."
+       "x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x" #2A((1 #\a 3) (4 5 6) (7 8 9)))
   (for "Selective assignment of vector portion to value by take function."
        "x←⍳8 ⋄ (3↑x)←20 ⋄ x" #(20 20 20 4 5 6 7 8))
   (for "Selective assignment of vector portion to sub-vector by take function."
