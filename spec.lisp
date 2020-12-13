@@ -31,7 +31,7 @@
       (if (and (integerp function-index) (<= -12 function-index 12))
 	  (funcall (aref circular-functions (+ 12 (funcall (if inverse #'- #'identity)
 							   function-index)))
-		   value)
+		   (* 1.0d0 value))
 	  (error "Invalid argument to [○ circular]; the left argument must be an~a"
 		 " integer between ¯12 and 12.")))))
 
@@ -825,7 +825,7 @@
   		#3A(((0 0) (0 0)) ((0 0) (1 1)) ((6 12) (2 9)) ((4 8) (12 0))))))
   (⊥ (has :title "Decode")
      (dyadic #'decode)
-     (inverse (dyadic :plain #'encode))
+     (inverse (dyadic :plain (λωα (encode omega alpha :inverse))))
      (tests (is "14⊥7" 7)
 	    (is "6⊥12 50" 122)
 	    (is "10⊥2 6 7 1" 2671)
@@ -1112,8 +1112,9 @@
 			 (funcall ,left-fn-monadic (funcall ,right-fn-monadic ,omega)))))))
      (tests (is "s←88 67 72 ⋄ w←15 35 22 ⋄ (w×s)÷⍥(+/)w" 5249/72)))
   (⍣ (has :title "Power")
-     (pivotal (with-derived-operands (right left right-fn-dyadic left-fn-monadic left-op left-axes)
-		(if right-fn-dyadic `(operate-until ,right-fn-dyadic ,(or left-fn-monadic left))
+     (pivotal (with-derived-operands (right left right-fn-dyadic left-fn-monadic
+					    left-fn-dyadic left-op left-axes)
+		(if right-fn-dyadic `(operate-until ,right-fn-dyadic ,(or left-fn-monadic left) ,left-fn-dyadic)
 		    `(operate-to-power ,right ,(generate-function-retriever left-op left-axes)))))
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
   	    (is "{2+⍵}⍣3⊢9" 15)
@@ -1121,7 +1122,8 @@
   	    (is "fn←{2+⍵}⍣{10<⍺} ⋄ fn 2" 12)
   	    (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14)
   	    (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
-	    (is "(2 2⍴⍳4) {↓⍣⍵⊢⍺} 2" #0A#(#0A#(1 2) #0A#(3 4)))))
+	    (is "(2 2⍴⍳4) {↓⍣⍵⊢⍺} 2" #0A#(#0A#(1 2) #0A#(3 4)))
+	    (is "⌊1_000_000_000×2○⍣=1" 739085133)))
   (@ (has :title "At")
      (pivotal (with-derived-operands (right left right-fn-monadic left-fn-monadic left-fn-dyadic)
 		`(operate-at ,(if (not (or left-fn-dyadic left-fn-monadic)) left)
@@ -1364,6 +1366,9 @@
   (for "Inverse rotation." "(2⌽⍣¯1⊢⍳5)⍪1⊖⍣¯1⊢3 5⍴⍳9" #2A((4 5 1 2 3) (2 3 4 5 6) (1 2 3 4 5) (6 7 8 9 1)))
   (for "Inverse encode."   "1760 3 12⊤⍣¯1⊢2 0 10" 82)
   (for "Inverse decode."   "1760 3 12⊥⍣¯1⊢82" #(2 0 10))
+  (for "Inverse composed decode extending left argument." "(2∘⊥)⍣¯1⊢5" #(1 0 1))
+  (for "Inverse composed decode extending left argument with array as right argument."
+       "(6∘⊥)⍣¯1⊢10 5 8 3" #2A((1 0 1 0) (4 5 2 3)))
   (for "Inversion of Celsius-Fahrenheit conversion." "⌊(32∘+)∘(×∘1.8)⍣¯1⊢212" 100)
   (for "Inversion of scanning addition." "+\\⍣¯1⊢+\\⍳5" #(1 2 3 4 5))
   (for "Inversion of composed addition applied over each." "(+∘5)¨⍣¯1⊢-\\⍳5" #(-4 -6 -3 -7 -2))
@@ -1376,7 +1381,10 @@
   (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
   (for "More complex outer product inversion."
        "((∘.×)∘4 5 6)⍣¯1⊢((∘.×)∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
-  (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8))
+  (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
+  (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
+  (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
+  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0))
  
  (test-set
   (with (:name :printed-format-tests)
@@ -1689,7 +1697,7 @@ c   2.56  3
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
 	       "0.0154 0.3125 ¯15.456
 ")
-  (for-printed "Function name." "fun←{⍵+5} ⋄ fun" "∇fun"))
+  (for-printed "Function name." "⎕pp←10 ⋄ fun←{⍵+5} ⋄ fun" "∇fun"))
  
  (arbitrary-test-set
   (with (:name :output-specification-tests)

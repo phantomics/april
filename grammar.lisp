@@ -302,14 +302,17 @@
 	    ;; generate an array whose each cell is its row-major index, perform the subtractive function on
 	    ;; it and then use assign-selected to assign new values to the cells at the remaining indices
 	    ;; of the original array
-	    (let ((item (gensym)) (indices (gensym)))
-	      `(let* ((,item ,sel-item)
-		      (,placeholder (generate-index-array ,item))
-		      (,indices (enclose ,sel-form))
-		      ,@(if set-form `((,placeholder (make-array nil :initial-element
-								 (assign-selected (disclose ,item)
-										  ,indices ,precedent))))))
-		 ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent))))))))
+	    (if sel-item
+		(let ((item (gensym)) (indices (gensym)))
+		  `(let* ((,item ,sel-item)
+			  (,placeholder (generate-index-array ,item))
+			  (,indices (enclose ,sel-form))
+			  ,@(if set-form `((,placeholder (make-array nil :initial-element
+								     (assign-selected (disclose ,item)
+										      ,indices ,precedent))))))
+		     ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent)))))
+		`(let ((,placeholder ,precedent))
+		   (setf ,set-form ,sel-form))))))
   '(:type (:array :assigned)))
  (value-assignment
   ;; match a value assignment like a←1 2 3, part of an array expression

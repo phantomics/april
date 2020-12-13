@@ -175,7 +175,7 @@
   "Process specs for general tests not associated with a specific function or operator."
   (append (if (not (eq :time mode))
 	      `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
-						    "∇ ")
+						    "⍎ ")
 						   ((string= "FOR-PRINTED" (string-upcase (first test-set)))
 						    (if (eq :test mode) "⎕ Printed: " "⎕ ")))
 				(second test-set)))
