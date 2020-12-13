@@ -32,7 +32,7 @@
 
 (setf lparallel:*kernel* *april-parallel-kernel*)
 
-(set-system-meta this-idiom :thread-count *april-thread-count*)
+;; (set-system-meta this-idiom :thread-count *april-thread-count*)
 
 (defun rmi-convert (dims index)
   "Convert row-major [index] into a list of the corresponding array coordinates according to [dims] dimensions of array."
@@ -93,3 +93,41 @@
 						   (aref start-points i))))
     (values start-points section-lengths section-count)))
 
+
+(defun pacross (array function &key (indices))
+  "Move across an array and perform operations on each element and its coordinates, operating on sections of the array in parallel via pdotimes."
+  (let* ((dims (aops:dims array)) (size (aops:size array))
+	 ;; (displaced-vector (make-array size :element-type (element-type array) :displaced-to array))
+	 (output (make-array dims))
+	 (count-vector (make-array size :element-type t :displaced-to output))
+	 (input-vector (make-array size :initial-contents (loop :for i :below size :collect i))))
+    (loop :for i :below size :do (setf (aref count-vector i) i))
+    (lparallel:pmap-into count-vector function input-vector)
+    output))
+
+(defun pturn (input axis &optional degrees)
+  "Rotate an array on a given axis by a given number of degrees or an array containing degree values for each sub-vector."
+  (if (not (arrayp input))
+      input
+      (let* ((ocoords (loop :for i :below (aops:rank input) :collect 0))
+	     (dcoords (if (not (integerp degrees)) (loop :for i :below (1- (aops:rank input)) :collect 0)))
+	     (dims (aops:dims input))
+	     (rdimension (nth axis dims)))
+	(pacross input (lambda (item)
+			 (declare (dynamic-extent item))
+			 (let* ((coords (rmi-convert dims item))
+				(degree (if (integerp degrees)
+					    degrees (if degrees (let ((dcix 0))
+								  (loop :for coord :in coords
+								     :counting coord :into this-axis
+								     :when (/= axis (1- this-axis))
+								     :do (setf (nth dcix dcoords) coord
+									       dcix (1+ dcix)))
+								  (apply #'aref degrees dcoords))))))
+			   (loop :for coord :in coords :counting coord :into this-axis
+			      :do (setf (nth (1- this-axis) ocoords)
+					(if (or (/= axis (1- this-axis))
+						(and degree (= 0 degree)))
+					    coord (if degree (mod (+ coord degree) rdimension)
+						      (+ rdimension 1 coord)))))
+			   (apply #'aref input ocoords)))))))
