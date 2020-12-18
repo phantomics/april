@@ -652,7 +652,7 @@
 			   :do (let ((item (row-major-aref
 					    omega (+ (* ix increment)
 						     (if (= 1 increment)
-							 0 (* (floor (/ i increment))
+							 0 (* (floor i increment)
 							      (- (* increment rlen) increment)))
 						     (if (/= 1 increment) i (* i rlen))))))
 				 (setq value (if (not value) item (funcall function (disclose value)
@@ -671,13 +671,13 @@
 		     (output (make-array odims)))
 		(dotimes (i (size output))
 		  (declare (optimize (safety 1)))
-		  (let ((value)	(vector-index (mod (floor (/ i increment)) rlen)))
+		  (let ((value)	(vector-index (mod (floor i increment) rlen)))
 		    (if inverse
 			(let ((original (disclose (row-major-aref
 						   omega (+ (mod i increment)
 							    (* increment vector-index)
 							    (* increment rlen
-							       (floor (/ i (* increment rlen)))))))))
+							       (floor i (* increment rlen))))))))
 			  (setq value (if (= 0 vector-index)
 					  original
 					  (funcall function original
@@ -686,11 +686,11 @@
 						     omega (+ (mod i increment)
 							      (* increment (1- vector-index))
 							      (* increment rlen
-								 (floor (/ i (* increment rlen)))))))))))
+								 (floor i (* increment rlen))))))))))
 			(loop :for ix :from vector-index :downto 0
 			   :do (let ((original (row-major-aref
 						omega (+ (mod i increment) (* ix increment)
-							 (* increment rlen (floor (/ i (* increment rlen))))))))
+							 (* increment rlen (floor i (* increment rlen)))))))
 				 (setq value (if (not value) (disclose original)
 						 (funcall function value (disclose original)))))))
 		    (setf (row-major-aref output i) value)))

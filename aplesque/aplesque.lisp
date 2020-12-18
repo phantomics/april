@@ -497,10 +497,18 @@
 (defun catenate (a1 a2 axis)
   "Join two arrays along the specified axis."
   (let* ((rank1 (rank a1)) (rank2 (rank a2))
+	 (dims1 (dims a1)) (dims2 (dims a2))
 	 (max-rank (max rank1 rank2)) (uneven (/= rank1 rank2))
+	 (lower-rank (if uneven (if (< rank1 rank2) 0 1)))
 	 (offset (if (and uneven (< rank1 rank2)) 1 (nth axis (dims a1))))
 	 (output-type (type-in-common (if (arrayp a1) (element-type a1) (assign-element-type a1))
-				      (if (arrayp a2) (element-type a2) (assign-element-type a2)))))
+				      (if (arrayp a2) (element-type a2) (assign-element-type a2))))
+	 (ax1-len (if (and uneven (= 0 lower-rank)) 1 (or (nth axis dims1) 1)))
+	 (ax2-len (if (and uneven (= 1 lower-rank)) 1 (or (nth axis dims2) 1)))
+	 (increment (reduce #'* (nthcdr (1+ axis) (if (and uneven (= 0 lower-rank))
+						      dims2 dims1))))
+	 (vset1 (* increment ax1-len)) (vset2 (* increment ax2-len))
+	 (catax-length) (out-vset))
     (if (and (> axis (1- max-rank))
 	     (not (and (= 0 axis max-rank))))
 	(error "Invalid axis (~a) for array with ~a dimensions." (1+ axis) max-rank))
@@ -518,30 +526,29 @@
 					;; axis dimension of the other array if both are the same rank
 					(loop :for i :from 0 :for rdim :in (dims ref-array)
 					   :collect (if (= i axis)
-							(+ rdim (if uneven 1 (nth i (dims second-array))))
+							(setq catax-length
+							      (+ rdim (if uneven
+									  1 (nth i (dims second-array)))))
 							(if (or (not (dims second-array))
 								(= rdim (nth (- i (if (and uneven (> i axis))
 										      1 0))
 									     (dims second-array))))
 							    rdim (error "Mismatched array dimensions."))))))
 				  :element-type output-type)))
-	  (across output (lambda (elem coords)
-			   (declare (ignore elem))
-			   (let* ((first-array)
-				  (in-coords (loop :for x :from 0 :for c :in coords
-						:when (and (= x axis)
-							   (if (setq first-array (< c offset))
-							       (not (arrayp a1)) (not (arrayp a2))))
-						:do (return nil)
-						:when (not (and uneven (= x axis)
-								(if first-array (< rank1 rank2)
-								    (> rank1 rank2))))
-						:collect (if (or first-array (/= x axis))
-							     c (- c offset))))
-				  (in-array (if first-array a1 a2)))
-	  		     (setf (apply #'aref output coords)
-	  			   (if (not in-coords)
-				       in-array (apply #'aref in-array in-coords))))))
+	  (setq out-vset (* increment catax-length))
+	  
+	  (dotimes (i (size output))
+	    (multiple-value-bind (sets sremainder) (floor i out-vset)
+	      (let ((vix (nth-value 1 (floor sremainder out-vset))))
+	  	(let* ((first-input (< vix vset1))
+	  	       (input (if first-input a1 a2))
+	  	       (input-vset (if first-input vset1 vset2))
+	  	       (offset (if first-input 0 vset1)))
+	  	  (setf (row-major-aref output i)
+	  		(nest (if (not (arrayp input))
+	  			  input (row-major-aref input (+ vix (* sets input-vset)
+	  							 (- offset))))))))))
+	  
 	  output))))
 
 (defun laminate (a1 a2 axis)
@@ -769,7 +776,6 @@
           (let* ((input-length (array-total-size input))
                  (output-length (reduce #'* output-dims))
                  (output (make-array output-dims :element-type (if populator t (element-type input)))))
-            ;;(declare)
 	    ;; TODO: optimization caused problems due to type uncertainty; solution?
 	    ;; (optimize (safety 0) (speed 3))
 	    (if (or populator (< 0 (size input)))
@@ -897,7 +903,7 @@
 	 (output (make-array (append (butlast adims) (rest odims)))))
     (dotimes (x (size output))
       (let ((result)
-	    (avix (floor (/ x ovectors)))
+	    (avix (floor x ovectors))
 	    (ovix (mod x ovectors)))
 	(if (< 0 avix) (setq adisp (make-array asegment :displaced-to alpha :element-type (element-type alpha)
 					       :displaced-index-offset (* asegment avix))))
@@ -919,7 +925,7 @@
     (dotimes (x (size output))
       (setf (row-major-aref output x)
       	    (nest (funcall function (or oscalar (disclose (row-major-aref omega (mod x osize))))
-      			   (or ascalar (disclose (row-major-aref alpha (floor (/ x osize)))))))))
+      			   (or ascalar (disclose (row-major-aref alpha (floor x osize))))))))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
@@ -1078,7 +1084,8 @@
 						   (sub-array (if (vectorp sub-array)
 								  sub-array
 								  (make-array (array-total-size sub-array)
-									      :element-type (element-type sub-array)
+									      :element-type
+									      (element-type sub-array)
 									      :displaced-to sub-array))))
 					      (if (vector-grade (alpha-compare atomic-vector #'<)
 								ref sub-array)
@@ -1130,7 +1137,8 @@
 					   (setf (nth count element-list)
 						 (iota (min extent (- limit start))
 						       :start start))
-					   (process-dims (rest starts) (rest extents) (rest limits) (1+ count))))))
+					   (process-dims (rest starts) (rest extents)
+							 (rest limits) (1+ count))))))
 		     (process-dims match target-dims source-dims 0))
 		   (across input (lambda (element coords)
 				   (declare (ignore coords))
@@ -1519,32 +1527,30 @@
 		 new-matrix))))))
 
 (defun turn (input axis &optional degrees)
-  "Rotate an array on a given axis by a given number of degrees or an array containing degree values for each sub-vector."
+  "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (if (not (arrayp input))
-      input
-      (let* ((idims (dims input))
-	     (ocoords (loop :for i :below (rank input) :collect 0))
-	     (dcoords (if (not (integerp degrees)) (loop :for i :below (1- (rank input)) :collect 0)))
-	     (output (make-array idims :element-type (element-type input)))
-	     (rdimension (nth axis idims)))
-	(across input (lambda (item coords)
-			(let ((degree (if (integerp degrees)
-					  degrees (if degrees (let ((dcix 0))
-								(loop :for coord :in coords
-								   :for this-axis :from 0
-								   :when (/= axis this-axis)
-								   :do (setf (nth dcix dcoords) coord
-									     dcix (1+ dcix)))
-								(apply #'aref degrees dcoords))))))
-			  (loop :for coord :in coords :for this-axis :from 0
-			     :do (setf (nth this-axis ocoords)
-				       (if (or (/= axis this-axis)
-					       (and degree (= 0 degree)))
-					   coord (if degree (mod (- coord degree) rdimension)
-						     (- rdimension 1 coord)))))
-			  (setf (apply #'aref output ocoords)
-				item))))
-	output)))
+      input (let* ((idims (dims input))
+		   (rlen (nth axis idims))
+		   (increment (reduce #'* (nthcdr (1+ axis) idims)))
+		   (vset-size (* increment (nth axis idims)))
+		   (output (make-array idims :element-type (element-type input)))
+		   (adjuster (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))))
+	      (dotimes (i (size input))
+		(declare (optimize (safety 1)))
+		(let ((vindex (funcall adjuster
+				       (mod (- (floor i increment)
+					       (if (integerp degrees)
+					       	   degrees (if (arrayp degrees)
+					       		       (row-major-aref
+					       			degrees
+					       			(+ (mod i increment)
+					       			   (* increment (floor i vset-size))))
+					       		       0)))
+					    rlen))))
+ 		  (setf (row-major-aref output (+ (mod i increment) (* increment vindex)
+					          (* vset-size (floor i vset-size))))
+			(row-major-aref input i))))
+	      output)))
 
 (defun invert-matrix (in-matrix)
   "Find the inverse of a square matrix."
@@ -1689,7 +1695,7 @@
 						      (wdim (aref window-dims cix)))
 						  (+ (nth cix wcoords)
 						     (- (* melem (nth cix coords))
-							(floor (* 1/2 (- wdim (if (evenp wdim) 1 0)))))))))
+							(floor (- wdim (if (evenp wdim) 1 0)) 2))))))
 					(setf (apply #'aref window wcoords)
 					      (if (not (loop :for coord :in ref-coords :for cix :from 0
 							  :always (<= 0 coord (1- (aref idims cix)))))
@@ -2022,39 +2028,3 @@
        (if (stringp ,rendered)
 	   ,rendered (make-array (array-total-size ,rendered)
 				 :element-type 'character :displaced-to ,rendered)))))
-
-#|
-
-(defun each-scalar (function omega)
-  "Iterate over an array/arrays of scalar values, operating upon them and returning the output in the most efficiently-stored array capable of holding said output."
-  (let ((type)
-	(output (make-array (dims omega))))
-    (if (not (arrayp omega))
-	omega (progn (across omega (lambda (elem coords)
-				     (declare (dynamic-extent elem coords))
-				     (let ((result (if (eq t function)
-						       elem (funcall function elem coords))))
-				       (if type (if (not (typep result type))
-						    (setq type (type-in-common type (assign-element-type result))))
-					   (setq type (assign-element-type result)))
-				       (if coords (setf (apply #'aref output coords) result)
-					   (setf (aref output) result))
-				       ;; output second value to halt traversal of output array;
-				       ;; if the type will be t and no change is being made to the array values,
-				       ;; and thus the function value is t as well, end the traversal
-				       ;; since there's no longer a point
-				       (values nil (and (eq t type)
-							(eq t function))))))
-		     (if (eq t type)
-			 (if (eq t function)
-			     ;; if the traversal was terminated and thus the proper output is the original input,
-			     ;; return that instead of the output
-			     omega output)
-			 (let ((true-output (make-array (dims omega) :element-type type)))
-			   (across output (lambda (elem coords)
-					    (declare (dynamic-extent elem coords))
-					    (setf (apply #'aref true-output coords)
-						  elem)))
-			   true-output))))))
-
-|#
