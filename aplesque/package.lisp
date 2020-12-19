@@ -10,7 +10,7 @@
 	   #:invert-matrix #:interval-index #:turn #:partition-array #:merge-arrays #:stencil
 	   #:array-impress #:matrix-print #:disclose-unitary-array #:apply-scalar #:each-boolean
 	   #:get-first-or-disclose #:assign-element-type #:type-in-common #:initialize-for-environment
-	   #:disclose-scalar-elements #:array-outer-product #:inverse-outer-product)
-  (:use #:cl #:cl-ppcre #:alexandria #:array-operations #:parse-number #:symbol-munger #:lparallel)
+	   #:disclose-scalar-elements #:array-outer-product #:inverse-outer-product #:copy-nested-array)
+  (:use #:cl #:cl-ppcre #:alexandria #:array-operations #:parse-number #:symbol-munger #:lparallel #:cl-cpus)
   (:shadowing-import-from #:array-operations #:flatten)
   (:shadowing-import-from #:cl-ppcre #:split))

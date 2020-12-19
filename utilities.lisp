@@ -127,7 +127,7 @@
   "Generate a function that will populate array elements with an empty array prototype." 
   (if (and (= 0 (size input))
 	   (get-workspace-item-meta metadata-symbol input :eaprototype))
-      (lambda () (copy-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
+      (lambda () (copy-nested-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
 
 (defun make-prototype-of (array)
   "Make a prototype version of an array; all values in the array will be blank spaces for character arrays or zeroes for other types of arrays."
@@ -248,7 +248,9 @@
   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
   (let ((type))
     (loop :for item :in items :while (not (eq t type))
-       :do (setq type (type-in-common type (assign-element-type item))))
+       :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
+									(> 0 item))
+								    item (max 16 item))))))
     `(make-array (list ,(length items))
 		 :element-type (quote ,type)
 		 ;; enclose each array included in an APL vector

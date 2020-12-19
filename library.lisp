@@ -39,7 +39,8 @@
   (let ((index (disclose index)))
     (if (integerp index)
 	(if (= 0 index) (vector)
-	    (let ((output (make-array (list index) :element-type (list 'integer 0 index))))
+	    (let ((output (make-array index :element-type (list 'integer 0 (if (> 0 index)
+									       index (max 16 index))))))
 	      (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
 	      output))
 	(if (vectorp index)
@@ -78,7 +79,7 @@
 				:initial-contents (list (length omega)))
 		    (let* ((omega-dims (dims omega))
 			   (max-dim (reduce #'max omega-dims)))
-		      (make-array (list (length omega-dims))
+		      (make-array (length omega-dims)
 				  :initial-contents omega-dims :element-type (list 'integer 0 max-dim)))))))
 
 (defun reshape-array (metadata-symbol)
@@ -189,7 +190,7 @@
 		(let ((o-dims (dims omega)))
 		  (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
 			      :element-type (element-type omega)
-			      :displaced-to (copy-array omega))))))
+			      :displaced-to (copy-nested-array omega))))))
 
 (defun ravel-array (index-origin)
   "Wrapper for aplesque [,ravel] function incorporating index origin from current workspace."
