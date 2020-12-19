@@ -5,6 +5,11 @@
 
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
+(defvar *aplesque-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
+							  :name "april-language-kernel"))
+
+(setf lparallel:*kernel* *aplesque-parallel-kernel*)
+
 (defun rmi-from-subscript-vector (array subscripts)
   "Derive an array's row-major index from a vector of subscripts."
   (if (not (vectorp subscripts))
@@ -105,6 +110,17 @@
 		    (setf (apply #'aref output 0 coords)
 			  elem)))
     output))
+
+(defun copy-nested-array (array)
+  "Copy an array along with nested sub-arrays within it."
+  (if (not (arrayp array))
+      array (if (not (eq t (element-type array)))
+		(copy-array array)
+		(let ((output (make-array (dims array))))
+		  (dotimes (i (size output))
+		    (setf (row-major-aref output i)
+			  (copy-nested-array (row-major-aref array i))))
+		  output))))
 
 (defun array-to-list (input)
   "Convert array to list."
@@ -494,6 +510,77 @@
 										     (aref idims dx)))))))))
 		  output))))))
 
+;; (defun section (input dimensions &key (inverse nil) (populator nil))
+;;   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
+;;   (if (= 0 (rank input))
+;;       (if inverse (make-array 0)
+;; 	  (let* ((prototype (apl-array-prototype input))
+;; 		 (output (make-array (array-to-list dimensions)
+;; 				     :element-type (assign-element-type input)
+;; 				     :initial-element (if (not (arrayp prototype)) prototype))))
+;; 	    (if (< 0 (size output))
+;; 		(setf (row-major-aref output 0) input))
+;; 	    (if (arrayp prototype)
+;; 		(loop :for i :from 1 :to (1- (size output)) :do (setf (row-major-aref output i)
+;; 								      (copy-nested-array prototype))))
+;; 	    output))
+;;       (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
+;; 	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
+;; 	  ;; passed to the function to create the empty output array
+;; 	  (make-array (append (array-to-list dimensions)
+;; 			      (loop :for i :from (length dimensions) :to (1- (rank input))
+;; 				 :collect (nth i (dims input))))
+;; 		      :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
+;; 					(element-type (aref (row-major-aref input 0)))
+;; 					(assign-element-type (row-major-aref input 0))))
+;; 	  (let ((rdiff (- (rank input) (length dimensions)))
+;; 		(idims (make-array (rank input) :element-type (list 'integer 0 (size input))
+;; 				   :initial-contents (dims input))))
+;; 	    (if (< 0 rdiff)
+;; 		(setq dimensions (make-array (rank input) :element-type (list 'integer 0 (size input))
+;; 					     :initial-contents (loop :for x :below (rank input)
+;; 								  :collect (if (< x rdiff) (aref dimensions x)
+;; 									       (if inverse 0 (aref idims x))))))
+;; 		(if (> 0 rdiff)
+;; 		    (error "Too many subscripts (~w) for input array of rank ~w." (length dimensions) (rank input))))
+;; 	    (if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
+;; 		(make-array (loop :for i :below (rank input) :collect 0))
+;; 		(let* ((fill-element (apl-array-prototype input))
+;; 		       (output (make-array (loop :for odim :across dimensions :for idim :across idims
+;; 					      :collect (if (not inverse) (abs odim) (- idim (abs odim))))
+;; 					   :element-type (if populator t (element-type input))
+;; 					   :initial-element (if (and (not populator)
+;; 								     (not (arrayp fill-element)))
+;; 								fill-element))))
+;; 		  (if populator (dotimes (i (size output)) (setf (row-major-aref output i)
+;; 								 (make-array nil :initial-element
+;; 									     (funcall populator))))
+;; 		      (if (arrayp fill-element)
+;; 			  (dotimes (i (size output)) (setf (row-major-aref output i)
+;; 							   (copy-nested-array fill-element)))))
+;; 		  (if (< 0 (size input))
+;; 		      (across input (lambda (element coords)
+;; 				      (setf (apply #'aref output
+;; 						   (loop :for c :in coords :for cx :from 0
+;; 						      :collect (- c (if inverse (if (> 0 (aref dimensions cx))
+;; 										    0 (aref dimensions cx))
+;; 									(if (< 0 (aref dimensions cx))
+;; 									    0 (+ (aref dimensions cx)
+;; 										 (aref idims cx)))))))
+;; 					    element))
+;; 			      :ranges (loop :for d :across dimensions :for dx :from 0
+;; 					 :collect (let ((point (if inverse (if (> 0 d) 0 d)
+;; 								   (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
+;; 						    (list point (if inverse
+;; 								    (+ point (- (aref idims dx)
+;; 										1 (abs (aref dimensions dx))))
+;; 								    (+ -1 point (min (abs (aref dimensions dx))
+;; 										     (aref idims dx))))))))
+;; 		      (dotimes (i (size input))
+;; 			)
+;; 		      )
+;; 		  output))))))
+
 (defun catenate (a1 a2 axis)
   "Join two arrays along the specified axis."
   (let* ((rank1 (rank a1)) (rank2 (rank a2))
@@ -537,19 +624,29 @@
 				  :element-type output-type)))
 	  (setq out-vset (* increment catax-length))
 	  
-	  (dotimes (i (size output))
+	  (pdotimes (i (size output))
 	    (multiple-value-bind (sets sremainder) (floor i out-vset)
 	      (let ((vix (nth-value 1 (floor sremainder out-vset))))
 	  	(let* ((first-input (< vix vset1))
 	  	       (input (if first-input a1 a2))
 	  	       (input-vset (if first-input vset1 vset2))
-	  	       (offset (if first-input 0 vset1)))
+	  	       (offset (- (if first-input 0 vset1))))
 	  	  (setf (row-major-aref output i)
 	  		(nest (if (not (arrayp input))
-	  			  input (row-major-aref input (+ vix (* sets input-vset)
-	  							 (- offset))))))))))
-	  
+	  			  input (row-major-aref input (+ vix offset (* sets input-vset))))))))))
 	  output))))
+
+(let ((output (make-array '(20 20) :initial-element '_)))
+  (check-type output simple-array)
+  (pdotimes (i (array-total-size output) output)
+    (setf (row-major-aref output i)
+          (random-elt '(a b c d e f g h)))))
+
+(let ((output (make-array '(20 20) :initial-element 0 :element-type '(unsigned-byte 4))))
+  (check-type output simple-array)
+  (pdotimes (i (array-total-size output) output)
+    (setf (row-major-aref output i)
+          (random-elt '(1 2 3 4 5 6)))))
 
 (defun laminate (a1 a2 axis)
   "Join the two arrays along a new axis inserted before the specified axis, the new axis having a length of 2."
@@ -769,8 +866,15 @@
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (or (not (arrayp input))
 	  (= 0 (rank input)))
-      (make-array output-dims :element-type (assign-element-type input)
-		  :initial-element (if (not (arrayp input)) input (copy-array input)))
+      (let ((output (make-array output-dims :element-type (assign-element-type (if (or (not (integerp input))
+										       (> 0 input))
+										   input (max 16 input)))
+				:initial-element (copy-nested-array input))))
+	(if (arrayp input)
+	    (dotimes (i (1- (size output)))
+	      (setf (row-major-aref output (1+ i))
+		    (copy-nested-array input))))
+	output)
       (if (= 0 (length output-dims))
           (row-major-aref input 0)
           (let* ((input-length (array-total-size input))
@@ -783,7 +887,7 @@
 		  (setf (row-major-aref output index)
 			(if populator (make-array nil :initial-element (funcall populator))
 			    (let ((item (row-major-aref input (mod index input-length))))
-			      (if (not (arrayp item)) item (copy-array item)))))))
+			      (if (not (arrayp item)) item (copy-nested-array item)))))))
             output))))
 
 (defun near-realp (x)
@@ -1428,7 +1532,7 @@
 					       (dims input)
 					       (- (ceiling (first axes))
 						  count-from)))
-				  :element-type (element-type input) :displaced-to (copy-array input)))
+				  :element-type (element-type input) :displaced-to (copy-nested-array input)))
 		     ;; TODO: fix these clauses
 		     ;; ((and (< 1 (length (first axes)))
 		     ;; 	 (or (> 0 (aref (first axes) 0))
@@ -1458,11 +1562,11 @@
 						      output))))))
 			  (make-array (dproc (dims input))
 				      :element-type (element-type input)
-				      :displaced-to (copy-array input))))))
+				      :displaced-to (copy-nested-array input))))))
 	  ;; TODO: this generates an array of type vector, not simple-array since it's displaced, is this a
 	  ;; problem? Look into it
 	  (make-array (array-total-size input) :element-type (element-type input)
-		      :displaced-to (copy-array input)))))
+		      :displaced-to (copy-nested-array input)))))
 
 (defun re-enclose (matrix axes &key (nest t))
   "Convert an array into a set of sub-arrays within a larger array. The dimensions of the containing array and the sub-arrays will be some combination of the dimensions of the original array. For example, a 2 x 3 x 4 array may be composed into a 3-element vector containing 2 x 4 dimensional arrays."
@@ -1535,7 +1639,7 @@
 		   (vset-size (* increment (nth axis idims)))
 		   (output (make-array idims :element-type (element-type input)))
 		   (adjuster (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))))
-	      (dotimes (i (size input))
+	      (pdotimes (i (size input))
 		(declare (optimize (safety 1)))
 		(let ((vindex (funcall adjuster
 				       (mod (- (floor i increment)
