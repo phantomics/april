@@ -145,7 +145,7 @@
 			      omega (make-array (array-total-size omega)
 						:displaced-to omega :element-type (element-type omega)))))
 	  ;; TODO: this could be faster with use of a hash table and other additions
-	  (dotimes (index (array-total-size output))
+	  (pdotimes (index (array-total-size output))
 	    (let ((found))
 	      (loop :for item :across to-search :while (not found)
 		 :do (setq found (compare item (row-major-aref alpha index))))
@@ -175,9 +175,8 @@
 							     (first coords))
 							 indices))))))
 	       (if (not indices)
-		   0 (make-array (list match-count)
-				 :element-type (if (< 1 orank)
-						   t (list 'integer 0 (reduce #'max indices)))
+		   0 (make-array match-count :element-type (if (< 1 orank)
+							       t (list 'integer 0 (reduce #'max indices)))
 				 :initial-contents (reverse indices)))))))
 
 (defun tabulate (omega)
