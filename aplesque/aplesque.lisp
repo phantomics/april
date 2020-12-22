@@ -30,6 +30,30 @@
 					dims (rest dims)))))
 		   (if simple-vector result)))))))
 
+(defun ranges-to-rmi-vector (ranges factors &optional vector count)
+  (let* ((count (or count 0))
+	 (range (first ranges))
+	 (factor (first factors))
+	 (vlength (reduce #'* (loop :for r :in ranges :collect (1+ (- (second r) (first r))))))
+	 (vector (or vector (make-array vlength :fill-pointer 0))))
+    (loop :for i :from (first range) :to (second range)
+       :do (if (not (rest ranges))
+	       (vector-push (+ count (* i factor)) vector)
+	       (ranges-to-rmi-vector (rest ranges) (rest factors) vector (+ count (* i factor)))))
+    vector))
+
+(defun segment-area (size section-count)
+  (let* ((section-count (min section-count size))
+	 (division-size (/ size section-count))
+	 (start-points (make-array (list section-count)))
+	 (section-lengths (make-array (list section-count))))
+    (loop :for i :below section-count :do (setf (aref start-points i) (floor (* i division-size))))
+    (loop :for i :below section-count :do (setf (aref section-lengths i)
+						(- (if (= i (1- section-count))
+						       size (aref start-points (1+ i)))
+						   (aref start-points i))))
+    (values start-points section-lengths section-count)))
+
 (defun varef (array subscripts)
   "Reference an element in an array according to a vector of subscripts."
   (row-major-aref array (rmi-from-subscript-vector array subscripts)))
@@ -264,64 +288,54 @@
 			      1))))
     output))
 
-(defun initialize-for-environment (function-id localizer &optional environment)
-  (declare (ignore environment))
-  (case function-id
-    (:across
-     (setf (symbol-function 'across)
-	   (funcall
-	    localizer
-	    (lambda (input function &key elements indices reverse-axes count ranges
-				      foreach finally (depth 0) (dimensions (dims input)))
-	      "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
-	      (let* ((proceeding t)
-		     (indices (or indices (loop :for i :below (rank input) :collect 0)))
-		     (first-of-elements (first elements))
-		     (elems (if (listp first-of-elements)
-				first-of-elements (list first-of-elements)))
-		     (range (first ranges)))
-		(flet ((process-this (elix)
-			 (setf (nth depth indices) elix)
-			 (if (< depth (1- (rank input)))
-			     ;; if the halt-if-true value is output by the function, traversal across the array
-			     ;; will end by means of nullifying the proceeding variable; this will result in
-			     ;; a nil return value from the across function which will stop its recursive parents
-			     (multiple-value-bind (still-proceeding new-count)
-				 (across input function :dimensions dimensions :elements (rest elements)
-					 :indices indices :reverse-axes reverse-axes :depth (1+ depth)
-					 :count count :ranges (rest ranges) :foreach foreach)
-			       (setq proceeding still-proceeding count new-count))
-			     (multiple-value-bind (output halt-if-true)
-				 (funcall function (apply #'aref input indices)
-					  indices)
-			       (declare (ignore output))
-			       (if (and foreach (functionp foreach)) (funcall foreach))
-			       (if count (decf count))
-			       (if (or halt-if-true (and count (> 1 count)))
-				   (setq proceeding nil))))))
-		  ;; (print (list :ii indices reverse-axes elems))
-		  (if (= 0 (rank input))
-		      (funcall function (disclose input) nil)
-		      (if elems (if (listp (rest elems))
-				    (loop :for el :in elems :while proceeding :do (process-this el))
-				    (if (< (first elems) (rest elems))
-					(loop :for el :from (first elems)
-					   :to (rest elems) :do (process-this el))
-					(loop :for el :from (first elems) :downto (rest elems)
-					   :do (process-this el))))
-			  (if (and range (or (and (not (second range))
-						  (= (nth depth dimensions) (first range)))
-					     (eq t (reduce #'> range))))
-			      (loop :for el :from (min (first range) (1- (nth depth dimensions)))
-				 :downto (or (second range) 0)
-				 :while proceeding :do (process-this el))
-			      (loop :for el :from (or (first range) 0)
-				 :to (or (second range) (1- (nth depth dimensions)))
-				 :while proceeding :do (process-this el)))))
-		  (if (and finally (functionp finally)) (funcall finally))
-		  (values proceeding count)))))))))
-
-(initialize-for-environment :across #'identity)
+(defun across (input function &key elements indices reverse-axes count ranges
+				foreach finally (depth 0) (dimensions (dims input)))
+  "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."
+  (let* ((proceeding t)
+	 (indices (or indices (loop :for i :below (rank input) :collect 0)))
+	 (first-of-elements (first elements))
+	 (elems (if (listp first-of-elements)
+		    first-of-elements (list first-of-elements)))
+	 (range (first ranges)))
+    (flet ((process-this (elix)
+	     (setf (nth depth indices) elix)
+	     (if (< depth (1- (rank input)))
+		 ;; if the halt-if-true value is output by the function, traversal across the array
+		 ;; will end by means of nullifying the proceeding variable; this will result in
+		 ;; a nil return value from the across function which will stop its recursive parents
+		 (multiple-value-bind (still-proceeding new-count)
+		     (across input function :dimensions dimensions :elements (rest elements)
+			     :indices indices :reverse-axes reverse-axes :depth (1+ depth)
+			     :count count :ranges (rest ranges) :foreach foreach)
+		   (setq proceeding still-proceeding count new-count))
+		 (multiple-value-bind (output halt-if-true)
+		     (funcall function (apply #'aref input indices)
+			      indices)
+		   (declare (ignore output))
+		   (if (and foreach (functionp foreach)) (funcall foreach))
+		   (if count (decf count))
+		   (if (or halt-if-true (and count (> 1 count)))
+		       (setq proceeding nil))))))
+      (if (= 0 (rank input))
+	  (funcall function (disclose input) nil)
+	  (if elems (if (listp (rest elems))
+			(loop :for el :in elems :while proceeding :do (process-this el))
+			(if (< (first elems) (rest elems))
+			    (loop :for el :from (first elems)
+			       :to (rest elems) :do (process-this el))
+			    (loop :for el :from (first elems) :downto (rest elems)
+			       :do (process-this el))))
+	      (if (and range (or (and (not (second range))
+				      (= (nth depth dimensions) (first range)))
+				 (eq t (reduce #'> range))))
+		  (loop :for el :from (min (first range) (1- (nth depth dimensions)))
+		     :downto (or (second range) 0)
+		     :while proceeding :do (process-this el))
+		  (loop :for el :from (or (first range) 0)
+		     :to (or (second range) (1- (nth depth dimensions)))
+		     :while proceeding :do (process-this el)))))
+      (if (and finally (functionp finally)) (funcall finally))
+      (values proceeding count))))
 
 (defun apply-scalar (function omega &optional alpha axes is-boolean)
   "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
@@ -350,7 +364,7 @@
 	  (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
 						       (apply-scalar function oscalar alpha axes is-boolean)
 						       (funcall function oscalar))))
-	      (dotimes (i (size omega))
+	      (pdotimes (i (size omega))
 		 (setf (row-major-aref output i) (nest (apply-scalar function (row-major-aref omega i))))))
 	  (if (and oscalar ascalar)
 	      ;; if both arguments are scalar or 1-element, return the output of the function on both,
@@ -362,7 +376,7 @@
 		      (and (= orank arank)
 			   (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
 		  ;; map the function over identically-shaped arrays
-		  (dotimes (i (size (if oscalar alpha omega)))
+		  (pdotimes (i (size (if oscalar alpha omega)))
 		    (setf (row-major-aref output i)
 			  (nest (apply-scalar function
 					      (if oscalar oscalar (disclose (row-major-aref omega i)))
@@ -455,7 +469,7 @@
 		(setf (row-major-aref output 0) input))
 	    (if (arrayp prototype)
 		(loop :for i :from 1 :to (1- (size output)) :do (setf (row-major-aref output i)
-								      (copy-array prototype))))
+								      (copy-nested-array prototype))))
 	    output))
       (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
 	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
@@ -475,13 +489,20 @@
 								  :collect (if (< x rdiff) (aref dimensions x)
 									       (if inverse 0 (aref idims x))))))
 		(if (> 0 rdiff)
-		    (error "Too many subscripts (~w) for input array of rank ~w." (length dimensions) (rank input))))
+		    (error "Too many subscripts (~w) for input array of rank ~w."
+			   (length dimensions) (rank input))))
 	    (if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
 		(make-array (loop :for i :below (rank input) :collect 0))
-		(let* ((fill-element (apl-array-prototype input))
-		       (output (make-array (loop :for odim :across dimensions :for idim :across idims
-					      :collect (if (not inverse) (abs odim) (- idim (abs odim))))
-					   :element-type (if populator t (element-type input))
+		(let* ((odims (loop :for odim :across dimensions :for idim :across idims
+				 :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+		       (fill-element (apl-array-prototype input))
+		       (id-factors (let ((factor 1))
+				    (reverse (loop :for d :in (reverse (dims input))
+						:collect factor :do (setq factor (* factor d))))))
+		       (od-factors (let ((factor 1))
+				    (reverse (loop :for d :in (reverse odims)
+						:collect factor :do (setq factor (* factor d))))))
+		       (output (make-array odims :element-type (if populator t (element-type input))
 					   :initial-element (if (and (not populator)
 								     (not (arrayp fill-element)))
 								fill-element))))
@@ -489,97 +510,27 @@
 								 (make-array nil :initial-element
 									     (funcall populator))))
 		      (if (arrayp fill-element)
-			  (dotimes (i (size output)) (setf (row-major-aref output i) (copy-array fill-element)))))
+			  (dotimes (i (size output)) (setf (row-major-aref output i)
+							   (copy-nested-array fill-element)))))
 		  (if (< 0 (size input))
-		      (across input (lambda (element coords)
-				      (setf (apply #'aref output
-						   (loop :for c :in coords :for cx :from 0
-						      :collect (- c (if inverse (if (> 0 (aref dimensions cx))
-										    0 (aref dimensions cx))
-									(if (< 0 (aref dimensions cx))
-									    0 (+ (aref dimensions cx)
-										 (aref idims cx)))))))
-					    element))
-			      :ranges (loop :for d :across dimensions :for dx :from 0
-					 :collect (let ((point (if inverse (if (> 0 d) 0 d)
-								   (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
-						    (list point (if inverse
-								    (+ point (- (aref idims dx)
-										1 (abs (aref dimensions dx))))
-								    (+ -1 point (min (abs (aref dimensions dx))
-										     (aref idims dx)))))))))
+		      (plet ((iranges (loop :for d :across dimensions :for id :across idims
+		      			 :collect (let ((point (if inverse (if (> 0 d) 0 d)
+		      						   (if (< 0 d) 0
+		      						       (max 0 (+ d id))))))
+		      				    (list point (if inverse (+ point (- id 1 (abs d)))
+		      						    (+ point -1 (min id (abs d))))))))
+			     (oranges (loop :for d :across dimensions :for id :across idims
+		      			 :collect (let ((point (if inverse 0
+		      						   (if (or (< 0 d) (> id (abs d)))
+								       0 (abs (+ d id))))))
+		      				    (list point (if inverse (+ point (- id 1 (abs d)))
+		      						    (+ point -1 (min id (abs d)))))))))
+			(plet ((iindices (ranges-to-rmi-vector iranges id-factors))
+			       (oindices (ranges-to-rmi-vector oranges od-factors)))
+		      	  (pdotimes (i (length iindices))
+		      	    (setf (row-major-aref output (aref oindices i))
+		      		  (row-major-aref input (aref iindices i)))))))
 		  output))))))
-
-;; (defun section (input dimensions &key (inverse nil) (populator nil))
-;;   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
-;;   (if (= 0 (rank input))
-;;       (if inverse (make-array 0)
-;; 	  (let* ((prototype (apl-array-prototype input))
-;; 		 (output (make-array (array-to-list dimensions)
-;; 				     :element-type (assign-element-type input)
-;; 				     :initial-element (if (not (arrayp prototype)) prototype))))
-;; 	    (if (< 0 (size output))
-;; 		(setf (row-major-aref output 0) input))
-;; 	    (if (arrayp prototype)
-;; 		(loop :for i :from 1 :to (1- (size output)) :do (setf (row-major-aref output i)
-;; 								      (copy-nested-array prototype))))
-;; 	    output))
-;;       (if (and (not inverse) (= 0 (loop :for d :across dimensions :summing (abs d) :into r :finally (return r))))
-;; 	  ;; in the case of a 0-size take of the array, append the remaining dimensions to the vector of zeroes
-;; 	  ;; passed to the function to create the empty output array
-;; 	  (make-array (append (array-to-list dimensions)
-;; 			      (loop :for i :from (length dimensions) :to (1- (rank input))
-;; 				 :collect (nth i (dims input))))
-;; 		      :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
-;; 					(element-type (aref (row-major-aref input 0)))
-;; 					(assign-element-type (row-major-aref input 0))))
-;; 	  (let ((rdiff (- (rank input) (length dimensions)))
-;; 		(idims (make-array (rank input) :element-type (list 'integer 0 (size input))
-;; 				   :initial-contents (dims input))))
-;; 	    (if (< 0 rdiff)
-;; 		(setq dimensions (make-array (rank input) :element-type (list 'integer 0 (size input))
-;; 					     :initial-contents (loop :for x :below (rank input)
-;; 								  :collect (if (< x rdiff) (aref dimensions x)
-;; 									       (if inverse 0 (aref idims x))))))
-;; 		(if (> 0 rdiff)
-;; 		    (error "Too many subscripts (~w) for input array of rank ~w." (length dimensions) (rank input))))
-;; 	    (if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
-;; 		(make-array (loop :for i :below (rank input) :collect 0))
-;; 		(let* ((fill-element (apl-array-prototype input))
-;; 		       (output (make-array (loop :for odim :across dimensions :for idim :across idims
-;; 					      :collect (if (not inverse) (abs odim) (- idim (abs odim))))
-;; 					   :element-type (if populator t (element-type input))
-;; 					   :initial-element (if (and (not populator)
-;; 								     (not (arrayp fill-element)))
-;; 								fill-element))))
-;; 		  (if populator (dotimes (i (size output)) (setf (row-major-aref output i)
-;; 								 (make-array nil :initial-element
-;; 									     (funcall populator))))
-;; 		      (if (arrayp fill-element)
-;; 			  (dotimes (i (size output)) (setf (row-major-aref output i)
-;; 							   (copy-nested-array fill-element)))))
-;; 		  (if (< 0 (size input))
-;; 		      (across input (lambda (element coords)
-;; 				      (setf (apply #'aref output
-;; 						   (loop :for c :in coords :for cx :from 0
-;; 						      :collect (- c (if inverse (if (> 0 (aref dimensions cx))
-;; 										    0 (aref dimensions cx))
-;; 									(if (< 0 (aref dimensions cx))
-;; 									    0 (+ (aref dimensions cx)
-;; 										 (aref idims cx)))))))
-;; 					    element))
-;; 			      :ranges (loop :for d :across dimensions :for dx :from 0
-;; 					 :collect (let ((point (if inverse (if (> 0 d) 0 d)
-;; 								   (if (< 0 d) 0 (max 0 (+ d (aref idims dx)))))))
-;; 						    (list point (if inverse
-;; 								    (+ point (- (aref idims dx)
-;; 										1 (abs (aref dimensions dx))))
-;; 								    (+ -1 point (min (abs (aref dimensions dx))
-;; 										     (aref idims dx))))))))
-;; 		      (dotimes (i (size input))
-;; 			)
-;; 		      )
-;; 		  output))))))
 
 (defun catenate (a1 a2 axis)
   "Join two arrays along the specified axis."
@@ -635,18 +586,6 @@
 	  		(nest (if (not (arrayp input))
 	  			  input (row-major-aref input (+ vix offset (* sets input-vset))))))))))
 	  output))))
-
-(let ((output (make-array '(20 20) :initial-element '_)))
-  (check-type output simple-array)
-  (pdotimes (i (array-total-size output) output)
-    (setf (row-major-aref output i)
-          (random-elt '(a b c d e f g h)))))
-
-(let ((output (make-array '(20 20) :initial-element 0 :element-type '(unsigned-byte 4))))
-  (check-type output simple-array)
-  (pdotimes (i (array-total-size output) output)
-    (setf (row-major-aref output i)
-          (random-elt '(1 2 3 4 5 6)))))
 
 (defun laminate (a1 a2 axis)
   "Join the two arrays along a new axis inserted before the specified axis, the new axis having a length of 2."
@@ -871,7 +810,7 @@
 										   input (max 16 input)))
 				:initial-element (copy-nested-array input))))
 	(if (arrayp input)
-	    (dotimes (i (1- (size output)))
+	    (pdotimes (i (1- (size output)))
 	      (setf (row-major-aref output (1+ i))
 		    (copy-nested-array input))))
 	output)
@@ -883,7 +822,7 @@
 	    ;; TODO: optimization caused problems due to type uncertainty; solution?
 	    ;; (optimize (safety 0) (speed 3))
 	    (if (or populator (< 0 (size input)))
-		(dotimes (index output-length)
+		(pdotimes (index output-length)
 		  (setf (row-major-aref output index)
 			(if populator (make-array nil :initial-element (funcall populator))
 			    (let ((item (row-major-aref input (mod index input-length))))
@@ -1354,35 +1293,36 @@
 	  ;; if an output array is being used, the processed indices vector stores the indices
 	  ;; of elements that have been processed so the ones that weren't can be assigned
 	  ;; values from the input
-	  (if (not indices) (dotimes (i (size input))
+	  (if (not indices) (pdotimes (i (size input))
 			      ;; if there are no indices the set-by function is to
 			      ;; be run on all elements of the array
 			      (setf (row-major-aref output i)
 				    (apply set-by (row-major-aref input i)
 					   (and set (list set)))))
-	      (loop :for i :across rmindices :for o :from 0
-		 :do (if (integerp i)
-			 (let ((result (apply set-by (row-major-aref input i)
-					      ;; apply the set-by function to an element of the
-					      ;; set values if they're in an array or to the
-					      ;; set value if it's scalar
-					      (or (and (arrayp set) (< 0 (rank set))
-						       (list (row-major-aref set o)))
-						  (and set (list set))))))
-			   (if output (setf (row-major-aref output i) result)
-			       (setf (row-major-aref input i) result))
-			   (if pindices (setf (aref pindices i) 1)))
-			 (if (vectorp i) ;; this clause can only be reached when reach indexing
-			     ;; the set-by function is called on each pair of input
-			     ;; and replacement values
-			     (progn (setf (varef (or output input) i)
-					  (funcall set-by (varef input i)
-						   (or (and (arrayp set) (row-major-aref set o))
-						       set)))
-				    (if pindices
-					(setf (aref pindices (rmi-from-subscript-vector input i))
-					      1)))))))
-	  (if pindices (progn (dotimes (i (size input))
+	      (pdotimes (o (length rmindices))
+		(let ((i (aref rmindices o)))
+		  (if (integerp i)
+		      (let ((result (apply set-by (row-major-aref input i)
+					   ;; apply the set-by function to an element of the
+					   ;; set values if they're in an array or to the
+					   ;; set value if it's scalar
+					   (or (and (arrayp set) (< 0 (rank set))
+						    (list (row-major-aref set o)))
+					       (and set (list set))))))
+			(if output (setf (row-major-aref output i) result)
+			    (setf (row-major-aref input i) result))
+			(if pindices (setf (aref pindices i) 1)))
+		      (if (vectorp i) ;; this clause can only be reached when reach indexing
+			  ;; the set-by function is called on each pair of input
+			  ;; and replacement values
+			  (progn (setf (varef (or output input) i)
+				       (funcall set-by (varef input i)
+						(or (and (arrayp set) (row-major-aref set o))
+						    set)))
+				 (if pindices
+				     (setf (aref pindices (rmi-from-subscript-vector input i))
+					   1))))))))
+	  (if pindices (progn (pdotimes (i (size input))
 				(if (= 0 (aref pindices i))
 				    (setf (row-major-aref output i)
 					  (row-major-aref input i))))
@@ -1390,14 +1330,14 @@
 	  output)
 	;; if a single index is specified, from the output, just retrieve its value
 	(if (not output) (row-major-aref input (row-major-aref rmindices 0))
-	    (progn (loop :for index :across rmindices :for o :from 0
-		      :do (let ((i (disclose index)))
-			    (setf (row-major-aref output o)
-				  (if (integerp i) (row-major-aref input i)
-				      ;; the vectorp clause is only used when reach-indexing
-				      (if (vectorp i)
-					  (choose (disclose (varef input (disclose (aref i 0))))
-						  (rest (array-to-list i))))))))
+	    (progn (pdotimes (o (length rmindices))
+		     (let ((i (disclose (aref rmindices o))))
+		       (setf (row-major-aref output o)
+			     (if (integerp i) (row-major-aref input i)
+				 ;; the vectorp clause is only used when reach-indexing
+				 (if (vectorp i)
+				     (choose (disclose (varef input (disclose (aref i 0))))
+					     (rest (array-to-list i))))))))
 		   output)))))
 
 (defun mix-arrays (axis input)
