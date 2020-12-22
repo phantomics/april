@@ -6,7 +6,7 @@
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
 (defvar *aplesque-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
-							  :name "april-language-kernel"))
+							  :name "aplesque-provisional-kernel"))
 
 (setf lparallel:*kernel* *aplesque-parallel-kernel*)
 
@@ -789,17 +789,16 @@
   "Create a vector containing all elements of the input array in ravel order, breaking down nested and multidimensional arrays."
   (if (or (not (arrayp input))
 	  (= 1 (array-total-size input)))
-      input (let ((raveled (make-array (array-total-size input) :element-type (element-type input)
-				       :displaced-to input)))
-	      (loop :for item :across raveled :do (if (arrayp item)
-						      (multiple-value-bind (out new-length)
-							  (enlist item t output output-length)
-							(setq output out output-length new-length))
-						      (setq output (cons item output)
-							    output-length (1+ output-length))))
-	      (if internal (values output output-length)
-		  (make-array output-length :element-type (element-type input)
-			      :initial-contents (reverse output))))))
+      input (progn (dotimes (i (size input))
+		     (let ((item (row-major-aref input i)))
+		       (if (arrayp item) (multiple-value-bind (out new-length)
+					     (enlist item t output output-length)
+					   (setq output out output-length new-length))
+			   (setq output (cons item output)
+				 output-length (1+ output-length)))))
+		   (if internal (values output output-length)
+		       (make-array output-length :element-type (element-type input)
+				   :initial-contents (reverse output))))))
 
 (defun reshape-to-fit (input output-dims &key (populator))
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
