@@ -41,7 +41,7 @@
 	(if (= 0 index) (vector)
 	    (let ((output (make-array index :element-type (list 'integer 0 (if (> 0 index)
 									       index (max 16 index))))))
-	      (loop :for ix :below index :do (setf (aref output ix) (+ ix index-origin)))
+	      (pdotimes (i index) (setf (aref output i) (+ i index-origin)))
 	      output))
 	(if (vectorp index)
 	    (let ((output (make-array (array-to-list index))))
@@ -646,7 +646,7 @@
 			 (increment (reduce #'* (nthcdr (1+ axis) odims)))
 			 (output (make-array (loop :for dim :in odims :for dx :from 0
 						:when (/= dx axis) :collect dim))))
-		    (dotimes (i (size output))
+		    (pdotimes (i (size output))
 		      (declare (optimize (safety 1)))
 		      (let ((value))
 			(loop :for ix :from (1- rlen) :downto 0
@@ -670,7 +670,7 @@
 		     (rlen (nth axis odims))
 		     (increment (reduce #'* (nthcdr (1+ axis) odims)))
 		     (output (make-array odims)))
-		(dotimes (i (size output))
+		(pdotimes (i (size output))
 		  (declare (optimize (safety 1)))
 		  (let ((value)	(vector-index (mod (floor i increment) rlen)))
 		    (if inverse
@@ -717,12 +717,12 @@
 				 (make-array output-dims))))
 		(if (not alpha)
 		    (if oscalar (setq output (funcall function-monadic oscalar))
-			(dotimes (i (size omega))
+			(pdotimes (i (size omega))
 			  (setf (row-major-aref output i)
 				(wrap (funcall function-monadic (row-major-aref omega i))))))
 		    (if (and oscalar ascalar)
 			(setq output (funcall function-dyadic omega alpha))
-			(dotimes (i (size (if oscalar alpha omega)))
+			(pdotimes (i (size (if oscalar alpha omega)))
 			  (setf (row-major-aref output i)
 				(wrap (funcall function-dyadic
 					       (if oscalar oscalar (disclose (row-major-aref omega i)))
