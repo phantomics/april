@@ -14,7 +14,7 @@
 	       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⍸⋄←→⍝§⎕⍞⍤⍥⍣⍇⍈⍐⍗⌸⌺ ┘┐┌└┼─├┤┴┬│"))
 
-(defvar *idiom-native-symbols* '(⍺ ⍵ index-origin print-precision *digit-vector* *alphabet-vector*
+(defvar *idiom-native-symbols* '(⍺ ⍵ ⍺⍺ ⍵⍵ index-origin print-precision *digit-vector* *alphabet-vector*
 				 *apl-timestamp* to-output output-stream))
 
 (let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument

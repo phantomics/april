@@ -809,7 +809,7 @@
 										   input (max 16 input)))
 				:initial-element (copy-nested-array input))))
 	(if (arrayp input)
-	    (pdotimes (i (1- (size output)))
+	    (dotimes (i (1- (size output)))
 	      (setf (row-major-aref output (1+ i))
 		    (copy-nested-array input))))
 	output)
@@ -821,7 +821,7 @@
 	    ;; TODO: optimization caused problems due to type uncertainty; solution?
 	    ;; (optimize (safety 0) (speed 3))
 	    (if (or populator (< 0 (size input)))
-		(pdotimes (index output-length)
+		(dotimes (index output-length)
 		  (setf (row-major-aref output index)
 			(if populator (make-array nil :initial-element (funcall populator))
 			    (let ((item (row-major-aref input (mod index input-length))))
@@ -1742,7 +1742,8 @@
 					(setf (apply #'aref window wcoords)
 					      (if (not (loop :for coord :in ref-coords :for cix :from 0
 							  :always (<= 0 coord (1- (aref idims cix)))))
-						  0 (apply #'aref input ref-coords)))))
+						  (apl-array-prototype input)
+						  (apply #'aref input ref-coords)))))
 		       (loop :for coord :in coords :for cix :from 0
 			  :do (setf (nth cix acoords)
 				    (* (aref movement cix)
