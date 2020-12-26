@@ -12,6 +12,8 @@
  ;; match an array, either inline like "1 2 3", referenced by a variable, or contained within a (closure)
  (array (multiple-value-bind (axes this-item remaining)
 	    (extract-axes process tokens)
+	  ;; TODO: add a passthrough value mode for symbols that are being assigned!
+	  ;; this is the only way to get them assignable after the first time
 	  (let ((vector-axes (getf (first preceding-props) :vector-axes)))
 	    (cond ((and (listp this-item)
 			(not (or (eq :fn (first this-item))
@@ -83,13 +85,17 @@
 			   remaining))
 		  ;; process symbol-referenced values
 		  ((and (symbolp this-item)
-			(or (eql '⍵ this-item)
-			    (eql '⍺ this-item)
+			(or (member this-item '(⍵ ⍺) :test #'eql)
 			    (getf properties :symbol-overriding)
 			    (not (is-workspace-function this-item)))
+			(or (not (is-workspace-operator this-item))
+			    (getf properties :symbol-overriding))
+			(not (member (intern (string-upcase this-item))
+			 	     (rest (assoc :function (idiom-symbols idiom)))))
+			(not (member this-item '(⍺⍺ ⍵⍵) :test #'eql))
 			(or (not (getf properties :type))
 			    (eq :symbol (first (getf properties :type)))))
-		   (values (if (not (member (string-upcase this-item)
+		   (values (if (not (member (intern (string-upcase this-item))
 					    (rest (assoc :function (idiom-symbols idiom)))))
 			       this-item (intern (string-upcase this-item)))
 			   (append (if vector-axes (list :vector-axes vector-axes))
@@ -108,7 +114,6 @@
  ;; match a function, whether lexical like ⍳, symbolic like fn after fn←{1+⍵}, or inline like {⍵+5}
  (function (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
-	     ;; (print (list :oo this-item remaining))
 	     (if (listp this-item)
 		 ;; process a function specification starting with :fn
 		 (if (or (eq :fn (first this-item))
@@ -149,12 +154,19 @@
 							(mapcar #'caar (cdar (last (first fn))))))
 				     (fn (if (not polyadic-args)
 					     fn (cons (butlast (first fn) 1)
-						      (rest fn)))))
+						      (rest fn))))
+				     (symbols-used (glean-symbols-from-tokens fn space))
+				     (is-inline-operator (intersection '(⍺⍺ ⍵⍵)
+								       (rest (assoc :args symbols-used))))
+				     (is-pivotal-operator (member '⍵⍵ (rest (assoc :args symbols-used)))))
 				(values (output-function (if (= 1 (length fn))
 							     (list (funcall process fn))
 							     (mapcar process fn))
-							 polyadic-args (glean-symbols-from-tokens fn space))
-					(list :type '(:function :closure)
+							 polyadic-args symbols-used)
+					(list :type (if is-inline-operator
+							(list :operator :closure
+							      (if is-pivotal-operator :pivotal :lateral))
+							'(:function :closure))
 					      :axes axes :obligate-dyadic obligate-dyadic)
 					remaining)))
 			     (t (values nil nil tokens))))
@@ -171,24 +183,24 @@
 			       (values nil nil tokens)))
 			 (values nil nil tokens)))
 		 (if (and (symbolp this-item)
-			  (not (getf properties :glyph))
-			  (or (is-workspace-function this-item)
-			      (get-workspace-alias space this-item)))
-		     ;; process workspace-aliased lexical functions, as when
-		     ;; f←+ has been set
-		     (values (if (not (get-workspace-alias space this-item))
-				 this-item (get-workspace-alias space this-item))
-			     (list :axes axes :type '(:function :referenced))
-			     remaining)
-		     (if (and (symbolp this-item)
-			      (not (getf properties :glyph))
-			      (member (string-upcase this-item)
-				      (rest (assoc :function (idiom-symbols idiom)))))
-			 (values (symbol-function (getf (rest (assoc :function (idiom-symbols idiom)))
-							this-item))
-				 (list :axes axes :type '(:function :referenced))
-				 remaining)
-			 (values nil nil tokens))))))
+			  (not (getf properties :glyph)))
+		     (cond ((or (is-workspace-function this-item)
+				(get-workspace-alias space this-item))
+			    ;; process workspace-aliased lexical functions, as when f←+ has been set
+			    (values (if (not (get-workspace-alias space this-item))
+					this-item (get-workspace-alias space this-item))
+				    (list :axes axes :type '(:function :referenced))
+				    remaining))
+			   ((member this-item '(⍵⍵ ⍺⍺))
+			    (values this-item (list :axes axes :type '(:function :operator-reference))
+				    remaining))
+			   ((member (intern (string-upcase this-item))
+				    (rest (assoc :function (idiom-symbols idiom))))
+			    (values (list 'function (getf (rest (assoc :function (idiom-symbols idiom)))
+							  (intern (string-upcase this-item))))
+				    (list :axes axes :type '(:function :referenced))
+				    remaining))
+			   (t (values nil nil tokens)))))))
  ;; match a reference to an operator, this must be a lexical reference like ⍣
  (operator (multiple-value-bind (axes this-item remaining)
 	       (extract-axes process tokens)
@@ -207,7 +219,26 @@
 				(values nil nil tokens)))
 			   (valid-by-valence (values op-symbol (list :axes axes :type (list :operator op-type)) 
 						     remaining))
-			   (t (values nil nil tokens)))))))))
+			   (t (values nil nil tokens)))))
+		 (if (symbolp this-item)
+		     ;; if the operator is represented by a symbol, it is a user-defined operator
+		     ;; and the appropriate variable name should be verified in the workspace
+		     (let* ((symbol-string (string this-item))
+			    (type-to-find (getf properties :valence))
+			    (lop-string (if (eq :lateral (getf properties :valence))
+					    (concatenate 'string "𝕆𝕃∇" symbol-string)))
+			    (pop-string (if (eq :pivotal (getf properties :valence))
+					    (concatenate 'string "𝕆ℙ∇" symbol-string)))
+			    (bound-op (if (and lop-string (fboundp (intern lop-string space)))
+					  (intern lop-string)
+					  (if (and pop-string (fboundp (intern pop-string space)))
+					      (intern pop-string)))))
+		       (if bound-op
+			   (values bound-op (list :axes axes :type
+						  (list :operator (or (getf properties :valence)
+								      (if (fboundp (intern pop-string space))
+									  :pivotal :lateral))))
+				   remaining))))))))
 
 (set-composer-patterns
  composer-opening-patterns-apl-standard
@@ -231,7 +262,11 @@
 	`(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
   (list :type (if (and (getf (first properties) :axes)
 		       (not (of-lexicon idiom :functions function-element)))
-		  '(:array :evaluated) '(:function :symbol-function))
+		  '(:array :evaluated)
+		  (if (member :operator (getf (first properties) :type))
+		      (list :operator :inline-operator (if (member :pivotal (getf (first properties) :type))
+							   :pivotal :lateral))
+		      '(:function :inline-function)))
 	:axes (getf (first properties) :axes)))
  (lateral-composition
   ;; match a lateral function composition like +/, marking the beginning of a functional expression
@@ -240,11 +275,25 @@
 		      :special '(:omit (:value-assignment :function-assignment :operation)))))
   (let ((operand (insym operand))
 	(operator-axes (first (getf (first properties) :axes)))
-	(operand-axes (first (getf (second properties) :axes))))
-    (append (list 'apl-compose (intern (string-upcase operator)))
+	(operand-axes (first (getf (second properties) :axes)))
+	(omega (gensym)) (alpha (gensym)))
+    (cons 'apl-compose
 	    ;; call the operator constructor on the output of the operand constructor which integrates axes
-	    (funcall (funcall (resolve-operator :lateral operator) operand operand-axes)
-		     operator-axes)))
+	  (if (symbolp operator) (list :op (list 'inws operator)
+				       (if (listp operand)
+					   operand (if (characterp operand)
+						       `(lambda (,omega &optional ,alpha)
+							  (if ,alpha
+							      (apl-call :fn ,(resolve-function :dyadic operand)
+									,omega ,alpha)
+							      (apl-call :fn ,(resolve-function :monadic operand)
+									,omega)))))
+				       ;; TODO: implement operand axes
+				       ;; operand-axes
+				       )
+	      (cons (intern (string-upcase operator))
+		    (funcall (funcall (resolve-operator :lateral operator) operand operand-axes)
+			     operator-axes)))))
   '(:type (:function :operator-composed :lateral)))
  (unitary-operator
   ;; match a unitary operator like $
@@ -383,6 +432,25 @@
 		      ,@(if inverted `((symbol-function (quote (inws ,inverted-symbol)))
 				       ,inverted))))))
   '(:type (:function :assigned)))
+ (operator-assignment
+  ;; match an operator assignment like f←{⍵×2}, part of a functional expression
+  ((:with-preceding-type :operator)
+   (assignment-function :element (function :glyph ←))
+   (symbol :element (array :symbol-overriding t)))
+  (let* ((operator-type (getf (first pre-properties) :type))
+	 (operator-symbol (intern (concatenate 'string (if (member :pivotal operator-type) "𝕆ℙ∇" "𝕆𝕃∇")
+					       (string symbol)))))
+    (if (is-workspace-value symbol)
+	(makunbound (intern (string symbol) space)))
+    (setf (symbol-function (intern (string operator-symbol) space)) #'dummy-nargument-function)
+    (if (characterp precedent)
+	(if (or (resolve-operator :lateral precedent)
+		(resolve-operator :pivotal precedent))
+	    (progn (set-workspace-alias space symbol precedent)
+		   (format nil "~a aliases ~a" symbol precedent)))
+	(progn (set-workspace-alias space symbol nil)
+	       `(setf (symbol-function (quote (inws ,operator-symbol))) ,precedent))))
+  '(:type (:operator :assigned)))
  (branch
   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
   ((:with-preceding-type :array)
@@ -475,14 +543,46 @@
   (let ((right-operand (insym precedent))
 	(right-operand-axes (first (getf (first pre-properties) :axes)))
 	(left-operand (insym left-operand))
-	(left-operand-axes (first (getf (second properties) :axes))))
-    ;; (print (list :ii precedent left-operand right-operand left-operand))
+	(left-operand-axes (first (getf (second properties) :axes)))
+	(omega (gensym)) (alpha (gensym)))
     ;; get left axes from the left operand and right axes from the precedent's properties so the
     ;; functions can be properly curried if they have axes specified
-    (append (list 'apl-compose (intern (string-upcase operator)))
-	    (funcall (funcall (resolve-operator :pivotal operator)
-			      left-operand left-operand-axes right-operand right-operand-axes)
-		     right-operand left-operand)))
+    ;; (append (list 'apl-compose (intern (string-upcase operator)))
+    ;; 	    (funcall (funcall (resolve-operator :pivotal operator)
+    ;; 			      left-operand left-operand-axes right-operand right-operand-axes)
+    ;; 		     right-operand left-operand)))
+
+    (cons 'apl-compose
+	  ;; call the operator constructor on the output of the operand constructor which integrates axes
+	  (if (symbolp operator) (list :op (list 'inws operator)
+				       (if (listp left-operand)
+					   left-operand (if (characterp left-operand)
+							    `(lambda (,omega &optional ,alpha)
+							       (if ,alpha
+								   (apl-call :fn ,(resolve-function
+										   :dyadic left-operand)
+									     ,omega ,alpha)
+								   (apl-call :fn ,(resolve-function
+										   :monadic left-operand)
+									     ,omega)))))
+				       (if (listp right-operand)
+					   left-operand (if (characterp right-operand)
+							    `(lambda (,omega &optional ,alpha)
+							       (if ,alpha
+								   (apl-call :fn ,(resolve-function
+										   :dyadic right-operand)
+									     ,omega ,alpha)
+								   (apl-call :fn ,(resolve-function
+										   :monadic right-operand)
+									     ,omega)))))
+				       ;; TODO: implement operand axes
+				       ;; operand-axes
+				       )
+	      (cons (intern (string-upcase operator))
+		    (funcall (funcall (resolve-operator :pivotal operator)
+				      left-operand left-operand-axes right-operand right-operand-axes)
+			     right-operand left-operand)))))
+    
   '(:type (:function :operator-composed :pivotal)))
  (operation
   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
@@ -492,6 +592,7 @@
    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
   (let ((fn-content (if (or (functionp fn-element)
+			    (member fn-element '(⍺⍺ ⍵⍵))
 			    (and (listp fn-element)
 				 (eql 'function (first fn-element))))
 			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))

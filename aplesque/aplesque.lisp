@@ -364,7 +364,7 @@
 	  (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
 						       (apply-scalar function oscalar alpha axes is-boolean)
 						       (funcall function oscalar))))
-	      (pdotimes (i (size omega))
+	      (dotimes (i (size omega))
 		 (setf (row-major-aref output i) (nest (apply-scalar function (row-major-aref omega i))))))
 	  (if (and oscalar ascalar)
 	      ;; if both arguments are scalar or 1-element, return the output of the function on both,
@@ -376,7 +376,7 @@
 		      (and (= orank arank)
 			   (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
 		  ;; map the function over identically-shaped arrays
-		  (pdotimes (i (size (if oscalar alpha omega)))
+		  (dotimes (i (size (if oscalar alpha omega)))
 		    (setf (row-major-aref output i)
 			  (nest (apply-scalar function
 					      (if oscalar oscalar (disclose (row-major-aref omega i)))
@@ -527,7 +527,7 @@
 		      						    (+ point -1 (min id (abs d)))))))))
 			(plet ((iindices (ranges-to-rmi-vector iranges id-factors))
 			       (oindices (ranges-to-rmi-vector oranges od-factors)))
-		      	  (pdotimes (i (length iindices))
+		      	  (dotimes (i (length iindices))
 		      	    (setf (row-major-aref output (aref oindices i))
 		      		  (row-major-aref input (aref iindices i)))))))
 		  output))))))
@@ -1292,13 +1292,13 @@
 	  ;; if an output array is being used, the processed indices vector stores the indices
 	  ;; of elements that have been processed so the ones that weren't can be assigned
 	  ;; values from the input
-	  (if (not indices) (pdotimes (i (size input))
+	  (if (not indices) (dotimes (i (size input))
 			      ;; if there are no indices the set-by function is to
 			      ;; be run on all elements of the array
 			      (setf (row-major-aref output i)
 				    (apply set-by (row-major-aref input i)
 					   (and set (list set)))))
-	      (pdotimes (o (length rmindices))
+	      (dotimes (o (length rmindices))
 		(let ((i (aref rmindices o)))
 		  (if (integerp i)
 		      (let ((result (apply set-by (row-major-aref input i)
@@ -1321,7 +1321,7 @@
 				 (if pindices
 				     (setf (aref pindices (rmi-from-subscript-vector input i))
 					   1))))))))
-	  (if pindices (progn (pdotimes (i (size input))
+	  (if pindices (progn (dotimes (i (size input))
 				(if (= 0 (aref pindices i))
 				    (setf (row-major-aref output i)
 					  (row-major-aref input i))))

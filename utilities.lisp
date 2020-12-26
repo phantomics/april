@@ -91,6 +91,13 @@
   "Checks if a variable is present in the current workspace as a function."
   `(fboundp (intern (string ,item) space)))
 
+(defmacro is-workspace-operator (item)
+  "Checks if a variable is present in the current workspace as a function."
+  `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
+			space))
+       (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
+			space))))
+
 (defun set-workspace-item-meta (symbol item &rest data)
   "Sets one or more metadata for an item in a workspace."
   (if (not (boundp symbol))
@@ -372,7 +379,7 @@
 	 ;; unless they're one element in which case the character is disclosed
 	 (if (= 3 (length element))
 	     (aref element 1) (subseq element 1 (1- (length element)))))
-	((member element '("⍺" "⍵") :test #'string=)
+	((member element '("⍺" "⍵" "⍺⍺" "⍵⍵") :test #'string=)
 	 ;; alpha and omega characters are directly changed to symbols in the April package
 	 (intern element idiom-name))
 	((numeric-string-p element)
@@ -515,8 +522,8 @@
   (if (integerp (first axis-list))
       (- (first axis-list) io)
       (if (vectorp (first axis-list))
-	  (let ((output (make-array (list (length (first axis-list)))))
-		(ix 0))
+	  (let ((ix 0)
+		(output (make-array (list (length (first axis-list))))))
 	    (loop :for i :across (first axis-list) :do (setf (aref output ix) (- i io)
 							     ix (1+ ix)))
 	    output))))
@@ -676,8 +683,9 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun output-value (space form &optional properties)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
-  ;; (print :abcd)
   (labels ((enclose-symbol (item)
+	     ;; enclose the symbol in an (inws) form for interning in the workspace
+	     ;; if it isn't one of the designated idiom-native symbols
 	     (if (or (not (symbolp item))
 		     (member item *idiom-native-symbols*))
 		 item `(inws ,item)))
@@ -697,8 +705,8 @@ It remains here as a standard against which to compare methods for composing APL
 					 (characterp (first form))
 					 (and (arrayp (first form))
 					      (= 0 (size (first form))))
-					 (eql '⍺ (first form))
-					 (eql '⍵ (first form))
+					 (member (first form) '(⍺ ⍵ ⍺⍺ ⍵⍵)
+						 :test #'eql)
 					 (and (symbolp (first form))
 					      (and (boundp (intern (string (first form)) space))
 						   (not (fboundp (intern (string (first form)) space)))))))
@@ -715,13 +723,18 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun output-function (form &optional arguments lexical-variable-symbols)
   "Express an APL inline function like {⍵+5}."
-  (let ((arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
-    `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
-       (declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
-       ,@(if (not lexical-variable-symbols)
-	     form `((let ,(loop :for sym :in lexical-variable-symbols
-			     :collect `((inws ,sym)))
-		      ,@form))))))
+  (let ((assigned-symbols (rest (assoc :assigned lexical-variable-symbols)))
+	(arg-symbols (rest (assoc :args lexical-variable-symbols)))
+	(arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+    (funcall (if (not (intersection arg-symbols '(⍺⍺ ⍵⍵)))
+		 #'identity (lambda (form) `(lambda (,@(if (member '⍺⍺ arg-symbols) '(⍺⍺))
+						     ,@(if (member '⍵⍵ arg-symbols) '(⍵⍵)))
+					      ,form)))
+	     `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
+		(declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
+		,@(if (not assigned-symbols)
+		      form `((let ,(loop :for sym :in assigned-symbols :collect `((inws ,sym)))
+			       ,@form)))))))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."
@@ -811,25 +824,31 @@ It remains here as a standard against which to compare methods for composing APL
 (defun glean-symbols-from-tokens (tokens space &optional token-list)
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
   (let ((previous-token)
-	(token-list (or token-list (list :tokens))))
+	(token-list (or token-list (list (list :args) (list :assigned)))))
     (loop :for token :in tokens
        :do (if (listp token) (glean-symbols-from-tokens token space token-list)
 	       (if (and (symbolp token)
 			(not (keywordp token))
-			(not (member token *idiom-native-symbols*))
-			(not (member token token-list))
-			(listp previous-token)
-			(eql :fn (first previous-token))
-			(characterp (second previous-token))
-			(char= #\← (second previous-token)))
-		   (setf (rest token-list)
-			 (cons token (rest token-list)))))
+			;; (not (member token *idiom-native-symbols*))
+			;; (not (member token token-list))
+			)
+		   (cond ((and (not (member token *idiom-native-symbols*))
+			       (not (member token (rest (assoc :assigned token-list))))
+			       (listp previous-token)
+			       (eql :fn (first previous-token))
+			       (characterp (second previous-token))
+			       (char= #\← (second previous-token)))
+			  (setf (rest (assoc :assigned token-list))
+				(cons token (rest (assoc :assigned token-list)))))
+			 ((and (member token '(⍺ ⍵ ⍺⍺ ⍵⍵))
+			       (not (member token (rest (assoc :args token-list)))))
+			  (setf (rest (assoc :args token-list))
+				(cons token (rest (assoc :args token-list))))))))
 	 (setq previous-token token))
-    (rest token-list)))
+    token-list))
 
 (defun invert-function (form &optional to-wrap)
   "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
-  ;; (print (list :ff form))
   (match form
     ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
      ;; invert a [⍣ power] operation - all that needs be done is negate the right operand
@@ -948,7 +967,7 @@ It remains here as a standard against which to compare methods for composing APL
     	      (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
     				   (and (listp arg2) (eql 'apl-call (first arg2))))))
     	      (to-wrap (or to-wrap #'identity)))
-    	  ;; (print (list :ff form arg1 arg2 arg1-var arg2-var))
+    	 ;; (print (list :ff form arg1 arg2 arg1-var arg2-var))
     	 (let ((wrapper
     		(lambda (item)
     		  `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
@@ -972,7 +991,6 @@ It remains here as a standard against which to compare methods for composing APL
     					rest)))))
     	   (if last-layer (funcall wrapper (or arg1-var arg2-var))
     	       (invert-function (or arg1-var arg2-var) wrapper))))))
-    
     ))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
