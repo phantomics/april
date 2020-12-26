@@ -82,9 +82,21 @@
 	    ;; this code preprocessor removes comments, including comment-only lines
 	    :prep-code-string
 	    (lambda (string)
-	      (regex-replace-all "^\\s{0,}⍝(.*)[\\r\\n]|(?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|
-                                  (?<=[\\r\\n])\\s{0,}⍝(.*)[\\r\\n]|(?<=[^\\r\\n])\\s{0,}⍝(.*)(?=[\\r\\n])"
-				 string ""))
+	      (let* ((osindex 0)
+		     (commented)
+		     (input-length (length string))
+		     (out-string (make-string input-length)))
+		(dotimes (i input-length)
+		  (if commented (if (or (char= #\Newline (aref string i))
+					(char= #\Return (aref string i)))
+				    (setf commented nil
+					  (row-major-aref out-string osindex) (aref string i)
+					  osindex (1+ osindex)))
+		      (if (char= #\⍝ (aref string i))
+			  (setq commented t)
+			  (setf (row-major-aref out-string osindex) (aref string i)
+				osindex (1+ osindex)))))
+		(subseq out-string 0 osindex)))
 	    ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
 	    :process-axis-string
 	    (lambda (string)
@@ -1224,6 +1236,7 @@
     ⍝ This is another comment.
     v←⍳3 ⋄ f2 f1 v,4 5"
        #(8 10 12 14 16))
+  (for "One-line assignment followed by comment." "f←1 2 3 ⍝ Comment follows." #(1 2 3))
   (for "Monadic inline function." "{⍵+3} 3 4 5" #(6 7 8))
   (for "Dyadic inline function." "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
   (for "Vector of input variables and discrete values processed within a function."
