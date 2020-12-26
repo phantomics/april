@@ -1398,6 +1398,9 @@
   (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
   (for "More complex outer product inversion."
        "((∘.×)∘4 5 6)⍣¯1⊢((∘.×)∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
+  (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #(#0A"" #0A"a" #0A"b" #0A"ab"))
+  (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
+       #(#0A"" #0A"a" #0A"b" #0A"ab" #0A"c" #0A"ac" #0A"bc" #0A"abc"))
   (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)

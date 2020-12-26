@@ -385,7 +385,9 @@
 						      (setq max-omega
 							    (max max-omega (row-major-aref omega i))))
 						    (setq max-omega omega))
-						(make-array (ceiling (/ max-omega alpha))
+						(make-array ;; (floor max-omega alpha)
+							    (floor (1+ (/ (log max-omega)
+									  (log alpha))))
 							    :initial-element alpha)))))
 	 (odims (dims omega)) (adims (dims alpha))
 	 (last-adim (first (last adims)))
