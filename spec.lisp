@@ -15,7 +15,7 @@
 	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⍸⋄←→⍝§⎕⍞⍤⍥⍣⍇⍈⍐⍗⌸⌺ ┘┐┌└┼─├┤┴┬│"))
 
 (defvar *idiom-native-symbols* '(⍺ ⍵ ⍺⍺ ⍵⍵ index-origin print-precision *digit-vector* *alphabet-vector*
-				 *apl-timestamp* to-output output-stream))
+				 *atomic-vector* *apl-timestamp* to-output output-stream))
 
 (let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument
        (vector (lambda (x) (exp (complex 0 x)))
@@ -1332,6 +1332,8 @@
   (for "Five-element dyadic function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 #0A"one" #0A"one" #0A"two" #0A"three"))
   (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
+  (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
+  (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
