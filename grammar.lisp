@@ -599,8 +599,7 @@
 			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
-    (print (list :ff precedent fn-content value))
-    (print `(apl-call ,fn-sym ,fn-content ,precedent
+    `(apl-call ,fn-sym ,fn-content ,precedent
 	       ,@(if value (list (output-value space value (rest properties))))
-	       ,@(if axes `((list ,@(first axes)))))))
+	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))
