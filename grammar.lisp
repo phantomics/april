@@ -238,7 +238,8 @@
 						  (list :operator (or (getf properties :valence)
 								      (if (fboundp (intern pop-string space))
 									  :pivotal :lateral))))
-				   remaining))))))))
+				   remaining)
+			   (values nil nil tokens))))))))
 
 (set-composer-patterns
  composer-opening-patterns-apl-standard
@@ -347,19 +348,30 @@
   (if (and (listp selection-form) (eql 'apl-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
 	  (generate-selection-form selection-form space)
+	;; (print (list :sel sel-form selection-form))
 	(if sel-form
 	    ;; generate an array whose each cell is its row-major index, perform the subtractive function on
 	    ;; it and then use assign-selected to assign new values to the cells at the remaining indices
 	    ;; of the original array
 	    (if sel-item
 		(let ((item (gensym)) (indices (gensym)))
-		  `(let* ((,item ,sel-item)
-			  (,placeholder (generate-index-array ,item))
-			  (,indices (enclose ,sel-form))
-			  ,@(if set-form `((,placeholder (make-array nil :initial-element
-								     (assign-selected (disclose ,item)
-										      ,indices ,precedent))))))
-		     ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent)))))
+		  ;; `(let* ((,item ,sel-item)
+		  ;; 	  (,placeholder (generate-index-array ,item))
+		  ;; 	  (,indices (enclose ,sel-form))
+		  ;; 	  ,@(if set-form `((,placeholder (make-array nil :initial-element
+		  ;; 						     (assign-selected (disclose ,item)
+		  ;; 								      ,indices ,precedent))))))
+		  ;;    ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent))))
+		  `(apl-assign
+		    ,sel-item
+		    (let* ((,item ,sel-item)
+			   (,placeholder (generate-index-array ,item))
+			   (,indices (enclose ,sel-form))
+			   ,@(if set-form `((,placeholder (make-array nil :initial-element
+								      (assign-selected (disclose ,item)
+										       ,indices ,precedent))))))
+		      ,(or set-form `(assign-selected ,sel-item ,indices ,precedent))))
+		  )
 		`(let ((,placeholder ,precedent))
 		   (setf ,set-form ,sel-form))))))
   '(:type (:array :assigned)))
@@ -519,7 +531,6 @@
 				   left (resolve-function :monadic left)))
 	      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
 				  left (resolve-function :dyadic left))))
-	  (print 9900)
 	  `(lambda (,omega &optional ,alpha)
 	     (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
 				  (apl-call ,(or-functional-character right :fn)

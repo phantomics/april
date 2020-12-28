@@ -32,6 +32,8 @@
 
 (setf lparallel:*kernel* *april-parallel-kernel*)
 
+;; (lparallel:task-categories-running)
+
 ;; (set-system-meta this-idiom :thread-count *april-thread-count*)
 
 ;; (defun rmi-convert (dims index)
