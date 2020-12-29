@@ -14,7 +14,7 @@
 		    o a)))
     (let ((included)
 	  (omega-vector (if (or (vectorp omega)	(not (arrayp omega)))
-			    (disclose omega)
+			    (disclose2 omega)
 			    (make-array (list (array-total-size omega))
 					:displaced-to omega :element-type (element-type omega)))))
       (loop :for element :across alpha
@@ -36,7 +36,7 @@
 
 (defun count-to (index index-origin)
   "Implementation of APL's ⍳ function."
-  (let ((index (disclose index)))
+  (let ((index (disclose2 index)))
     (if (integerp index)
 	(if (= 0 index) (vector)
 	    (let ((output (make-array index :element-type (list 'integer 0 (if (> 0 index)
@@ -169,9 +169,9 @@
 							  coords)))
 				     (incf match-count)
 				     (setq indices (cons (if (< 1 orank)
-							     (nest (make-array
-								    orank :element-type (list 'integer 0 max-coord)
-								    :initial-contents coords))
+							     (make-array
+							      orank :element-type (list 'integer 0 max-coord)
+							      :initial-contents coords)
 							     (first coords))
 							 indices))))))
 	       (if (not indices)
@@ -252,7 +252,7 @@
   (lambda (omega alpha)
     (labels ((pick-point (point input)
 	       (if (is-unitary point)
-		   (let ((point (disclose point)))
+		   (let ((point (disclose2 point)))
 		     ;; if this is the last level of nesting specified, fetch the element
 		     (if (not (arrayp point))
 			 (aref input (- point index-origin))
@@ -266,11 +266,11 @@
 					       :initial-contents (loop :for i :from 1 :to (1- (length point))
 								    :collect (aref point i)))
 				   (aref point 1))
-			       (disclose (pick-point (aref point 0) input))))))
+			       (disclose2 (pick-point (aref point 0) input))))))
       ;; TODO: swap out the vector-based point for an array-based point
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic [⊃ pick] may not be unitary.")
-	  (disclose (pick-point alpha omega))))))
+	  (disclose2 (pick-point alpha omega))))))
 
 (defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
@@ -639,26 +639,29 @@
 		  (or (and (= 1 (rank omega))
 			   (match-lexical-function-identity (aref function-glyph 0)))
 		      (make-array 0))
-		  (let* ((odims (dims omega))
-			 (axis (or axis (if (not last-axis) 0 (1- (rank omega)))))
-			 (rlen (nth axis odims))
-			 (increment (reduce #'* (nthcdr (1+ axis) odims)))
-			 (output (make-array (loop :for dim :in odims :for dx :from 0
-						:when (/= dx axis) :collect dim))))
-		    (dotimes (i (size output))
-		      (declare (optimize (safety 1)))
-		      (let ((value))
-			(loop :for ix :from (1- rlen) :downto 0
-			   :do (let ((item (row-major-aref
-					    omega (+ (* ix increment)
-						     (if (= 1 increment)
-							 0 (* (floor i increment)
-							      (- (* increment rlen) increment)))
-						     (if (/= 1 increment) i (* i rlen))))))
-				 (setq value (if (not value) item (funcall function (disclose value)
-									   (disclose item))))))
-			(setf (row-major-aref output i) value)))
-		    (disclose-atom output))))))
+		  (if (= 0 (rank omega))
+		      (make-array nil :initial-element (funcall function (aref omega)
+								(aref omega)))
+		      (let* ((odims (dims omega))
+			     (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank omega))))))
+			     (rlen (nth axis odims))
+			     (increment (reduce #'* (nthcdr (1+ axis) odims)))
+			     (output (make-array (loop :for dim :in odims :for dx :from 0
+						    :when (/= dx axis) :collect dim))))
+			(dotimes (i (size output))
+			  (declare (optimize (safety 1)))
+			  (let ((value))
+			    (loop :for ix :from (1- rlen) :downto 0
+			       :do (let ((item (row-major-aref
+						omega (+ (* ix increment)
+							 (if (= 1 increment)
+							     0 (* (floor i increment)
+								  (- (* increment rlen) increment)))
+							 (if (/= 1 increment) i (* i rlen))))))
+				     (setq value (if (not value) item (funcall function (disclose2 value)
+									       (disclose2 item))))))
+			    (setf (row-major-aref output i) value)))
+			(disclose-atom output)))))))
 
 (defun operate-scanning (function axis &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
@@ -673,7 +676,7 @@
 		  (declare (optimize (safety 1)))
 		  (let ((value)	(vector-index (mod (floor i increment) rlen)))
 		    (if inverse
-			(let ((original (disclose (row-major-aref
+			(let ((original (disclose2 (row-major-aref
 						   omega (+ (mod i increment)
 							    (* increment vector-index)
 							    (* increment rlen
@@ -681,7 +684,7 @@
 			  (setq value (if (= 0 vector-index)
 					  original
 					  (funcall function original
-						   (disclose
+						   (disclose2
 						    (row-major-aref
 						     omega (+ (mod i increment)
 							      (* increment (1- vector-index))
@@ -691,20 +694,20 @@
 			   :do (let ((original (row-major-aref
 						omega (+ (mod i increment) (* ix increment)
 							 (* increment rlen (floor i (* increment rlen)))))))
-				 (setq value (if (not value) (disclose original)
-						 (funcall function value (disclose original)))))))
+				 (setq value (if (not value) (disclose2 original)
+						 (funcall function value (disclose2 original)))))))
 		    (setf (row-major-aref output i) value)))
 		output))))
 
 (defun operate-each (function-monadic function-dyadic)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
-  (let ((function-monadic (lambda (o) (nest (funcall function-monadic (disclose o)))))
-	(function-dyadic (lambda (o a) (nest (funcall function-dyadic (disclose o) (disclose a))))))
+  (let ((function-monadic (lambda (o) (funcall function-monadic (disclose2 o))))
+	(function-dyadic (lambda (o a) (funcall function-dyadic (disclose2 o) (disclose2 a)))))
     (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
 			 i (make-array nil :initial-element i))))
       (lambda (omega &optional alpha)
-	(let* ((oscalar (if (is-unitary omega) (disclose omega)))
-	       (ascalar (if (is-unitary alpha) (disclose alpha)))
+	(let* ((oscalar (if (is-unitary omega) (disclose2 omega)))
+	       (ascalar (if (is-unitary alpha) (disclose2 alpha)))
 	       (odims (dims omega)) (adims (dims alpha))
 	       (orank (rank omega)) (arank (rank alpha)))
 	  (if (not (or oscalar ascalar (not alpha)
@@ -718,14 +721,14 @@
 		    (if oscalar (setq output (funcall function-monadic oscalar))
 			(dotimes (i (size omega))
 			  (setf (row-major-aref output i)
-				(wrap (funcall function-monadic (row-major-aref omega i))))))
+				(funcall function-monadic (row-major-aref omega i)))))
 		    (if (and oscalar ascalar)
 			(setq output (funcall function-dyadic omega alpha))
 			(dotimes (i (size (if oscalar alpha omega)))
 			  (setf (row-major-aref output i)
-				(wrap (funcall function-dyadic
-					       (if oscalar oscalar (disclose (row-major-aref omega i)))
-					       (if ascalar ascalar (disclose (row-major-aref alpha i)))))))))
+				(funcall function-dyadic
+					 (if oscalar oscalar (disclose2 (row-major-aref omega i)))
+					 (if ascalar ascalar (disclose2 (row-major-aref alpha i))))))))
 		output)))))))
 
 (defun operate-grouping (function index-origin)
@@ -872,4 +875,4 @@
 				   (choose right-value (iaxes right-value 1))
 				   (make-array (length right-value) :element-type 'fixnum
 					       :initial-element 1)))))
-	    (merge-arrays (stencil omega left-function window-dims movement)))))))
+	    (merge-arrays (stencil omega left-function window-dims movement) :nesting nil))))))
