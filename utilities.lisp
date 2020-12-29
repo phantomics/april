@@ -5,7 +5,7 @@
 
 "Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with uses aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in library.lisp."
 
-(define-symbol-macro this-idiom *april-idiom*) ;; (local-idiom april))
+(define-symbol-macro this-idiom *april-idiom*)
 (define-symbol-macro atomic-vector (get-system-meta this-idiom :atomic-vector))
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (- (first axes) index-origin)))
@@ -176,7 +176,7 @@
 		    (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
 	   ,@(loop :for s :in (rest symbol) :for sx :from 0
-		:collect (let ((set-to `(disclose (if (or (not (arrayp ,values)) (= 1 (size ,values)))
+		:collect (let ((set-to `(disclose2 (if (or (not (arrayp ,values)) (= 1 (size ,values)))
 						      ,values (aref ,values ,sx)))))
 			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
 			       `(set ',s ,set-to))))
@@ -188,8 +188,7 @@
 	;; get the symbol referencing a function passed as the output
 	(function-name-value (if (and (listp form) (eql 'function (first form)))
 				 `(string (quote ,(second form))))))
-    `(let* ((,result ,(if (not (getf options :unformat-output))
-			  form `(apl-unformat-array ,form)))
+    `(let* ((,result ,form)
 	    (,printout ,(if (and (or (getf options :print-to)
 				     (getf options :output-printed)))
 			    ;; don't print the results of assignment unless the :print-assignment option is set,
@@ -219,32 +218,6 @@
 		printout `(values ,result ,printout))
 	    result))))
 
-(defun apl-format-array (array)
-  "Convert a Lisp array into APL-compatible format, with all nested arrays wrapped in 0-rank arrays."
-  (if (or (not (arrayp array))
-	  (not (eq t (element-type array))))
-      array (let ((output (make-array (dims array))))
-	      (dotimes (i (size array))
-		(let ((original (row-major-aref array i)))
-		  (setf (row-major-aref output i)
-			(if (or (not (arrayp original))
-				(= 0 (rank original)))
-			    original (make-array nil :initial-element (apl-format-array original))))))
-	      output)))
-
-(defun apl-unformat-array (array)
-  "Convert an APL-compatible array into normative Lisp format, with all nested arrays extracted from their 0-rank holders."
-  (if (or (not (arrayp array))
-	  (not (eq t (element-type array))))
-      array (let ((output (make-array (dims array))))
-	      (dotimes (i (size array))
-		(let ((original (row-major-aref array i)))
-		  (setf (row-major-aref output i)
-			(if (not (and (arrayp original)
-				      (= 0 (rank original))))
-			    original (apl-unformat-array (aref original))))))
-	      output)))
-
 (defun array-to-nested-vector (array)
   "Convert an array to a nested vector. Useful for applications such as JSON conversion where multidimensional arrays must be converted to nested vectors."
   (aops:each (lambda (member) (if (not (and (arrayp member) (< 1 (rank member))))
@@ -261,10 +234,7 @@
     `(make-array (list ,(length items))
 		 :element-type (quote ,type)
 		 ;; enclose each array included in an APL vector
-		 :initial-contents (mapcar (lambda (item) (if (or (not (arrayp item))
-								  (= 0 (rank item)))
-							      item (make-array nil :initial-contents item)))
-					   (list ,@items)))))
+		 :initial-contents (list ,@items))))
 
 (defun numeric-string-p (string)
   "Checks whether the argument is a numeric string."
