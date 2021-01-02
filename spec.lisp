@@ -46,8 +46,9 @@
 
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
- (grammar (:elements composer-elements-apl-standard)
+ (grammar (:elements (list :array #'process-value :function #'process-function :operator #'process-operator))
 	  (:opening-patterns composer-opening-patterns-apl-standard)
+	  (:opening-patterns2 *composer-opening-patterns-new*)
 	  (:following-patterns composer-following-patterns-apl-standard
 			       composer-optimized-patterns-common))
 
@@ -62,11 +63,10 @@
 	       (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
 	       	      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
 	       	      :lexical-operators-pivotal :lexical-operators-unitary :general-tests)
-	       (:demo :general-tests :lexical-functions-scalar-numeric
-	       	      :lexical-functions-scalar-logical :lexical-functions-array :lexical-functions-special
-	       	      :lexical-operators-lateral :lexical-operators-pivotal :lexical-operators-unitary
-	       	      :system-variable-function-tests :function-inversion-tests
-		      :printed-format-tests))
+	       (:demo :general-tests :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
+		      :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
+		      :lexical-operators-pivotal :lexical-operators-unitary :system-variable-function-tests
+		      :function-inversion-tests :printed-format-tests))
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
@@ -241,8 +241,8 @@
      (ambivalent (scalar-function (λω (if (integerp omega)
 					  (+ index-origin (random omega))
 					  (error "The right arguments to ? must be non-negative integers."))))
-		 (λωα (let ((omega (disclose omega))
-			    (alpha (disclose alpha)))
+		 (λωα (let ((omega (disclose2 omega))
+			    (alpha (disclose2 alpha)))
 			(if (or (not (integerp omega))
 				(not (integerp alpha)))
 			    (error "Both arguments to ? must be single non-negative integers.")

@@ -66,15 +66,12 @@
 (defun is-unitary (value)
   "Check whether this array has only one member, returning true if the argument is not an array."
   (or (not (arrayp value))
-      (not (dims value))
-      (and (dims value)
-	   (loop :for dim :in (dims value) :always (= 1 dim)))))
+      (= 1 (size value))))
 
 (defun enclose (item)
   "Enclose non-array values, passing through arguments that are already arrays."
   (if (arrayp item)
-      item (make-array 1 :element-type (assign-element-type item)
-		       :initial-element item)))
+      item (make-array 1 :initial-element item :element-type (assign-element-type item))))
 
 (defun nest (input)
   "Enclose simple arrays and return nested arrays as-is."
@@ -84,27 +81,22 @@
 		       :never (arrayp item)))))
       input (make-array nil :initial-contents input)))
 
-(defun disclose (item &key if-array)
+(defun disclose (item)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
-  (if (not (and (arrayp item)
-		(is-unitary item)
-		(or (not if-array)
-		    (arrayp (row-major-aref item 0)))))
+  (if (not (and (arrayp item) (is-unitary item)))
       item (row-major-aref item 0)))
 
 (defun disclose2 (array)
-  (if (or (not (arrayp array))
-	  (< 0 (rank array)))
+  "Disclose a scalar nested array."
+  (if (or (< 0 (rank array))
+	  (not (arrayp array)))
       array (aref array)))
 
 (defun get-first-or-disclose (omega)
   (if (not (arrayp omega))
       omega (if (= 0 (rank omega))
 		(aref omega) (if (< 0 (length omega))
-				 (let ((output (row-major-aref omega 0)))
-				   (if (or (not (arrayp output))
-					   (< 0 (rank output)))
-				       output (aref output)))
+				 (disclose2 (row-major-aref omega 0))
 				 (apl-array-prototype omega)))))
 
 (defun disclose-unitary-array (item)
@@ -335,9 +327,8 @@
   "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
   (let* ((orank (rank omega)) (arank (rank alpha))
 	 (axes (if axes (enclose axes)))
-	 ;; TODO: these must be original (disclose)
-	 (oscalar (if (is-unitary omega) (disclose omega)))
-	 (ascalar (if (is-unitary alpha) (disclose alpha)))
+	 (oscalar (if (is-unitary omega) (get-first-or-disclose omega)))
+	 (ascalar (if (is-unitary alpha) (get-first-or-disclose alpha)))
 	 (output-dims (dims (if axes (if (> arank orank) alpha omega)
 				(if oscalar alpha omega))))
 	 (output-type (if (or (not is-boolean)
@@ -692,8 +683,8 @@
 
     ;; a scalar position argument is extended to the length of the input's first dimension
     (dotimes (i (if (is-unitary positions) (first idims) (length positions)))
-      ;; TODO: this must be original (disclose)
-      (let ((p (if (is-unitary positions) (disclose positions) (aref positions i))))
+      (let ((p (if (is-unitary positions) (get-first-or-disclose positions)
+		   (aref positions i))))
 	(if (= 0 p) (progn (if intervals (incf (first intervals)) (incf offset))
 			   (incf input-offset))
 	    (progn (setq intervals (append (loop :for i :below p :collect 0) intervals))
