@@ -33,6 +33,10 @@
    (composer-opening-patterns :accessor idiom-composer-opening-patterns
 			      :initform nil
 			      :initarg :composer-opening-patterns)
+   ;; TODO: replace original opening-patterns
+   (composer-opening-patterns2 :accessor idiom-composer-opening-patterns2
+			       :initform nil
+			       :initarg :composer-opening-patterns2)
    (composer-following-patterns :accessor idiom-composer-following-patterns
 				:initform nil
 				:initarg :composer-following-patterns)))
@@ -384,6 +388,9 @@
 		      (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
 									  (of-subspec grammar))))
 				   :collect `(funcall (function ,pset) ,idiom-symbol))))
+	      (idiom-composer-opening-patterns2 ,idiom-symbol)
+	      (append (idiom-composer-opening-patterns2 ,idiom-symbol)
+		      ,(second (assoc :opening-patterns2 (of-subspec grammar))))
 	      (idiom-composer-following-patterns ,idiom-symbol)
 	      (append (idiom-composer-following-patterns ,idiom-symbol)
 		      (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
@@ -426,10 +433,10 @@
 		      op-specs))
 	      ,@(if (assoc :elements (of-subspec grammar))
 		    `((setf (idiom-grammar-elements ,idiom-symbol)
-			    (loop :for ,elem
-			       :in (funcall (function ,(second (assoc :elements (of-subspec grammar))))
-					    ,idiom-symbol)
-			       :append ,elem))))
+			    ,(second (assoc :elements (of-subspec grammar))))))
+	      ;; ,@(if (assoc :opening-patterns2 (of-subspec grammar))
+	      ;; 	    `((setf (idiom-grammar-elements ,idiom-symbol)
+	      ;; 		    ,(second (assoc :opening-patterns2 (of-subspec grammar))))))
 	      (setf ,@pattern-settings)
 	      ,@(if (not extension)
 		    `((defmacro ,(intern symbol-string (symbol-package symbol))
@@ -572,13 +579,8 @@
 		    (set-index 0)
 		    (output "")
 		    (sets (list (list "basic grammar element"
-				      ,(if (assoc :elements (of-subspec grammar))
-					   `(let ((elements (funcall (function
-								      ,(second (assoc :elements
-										      (of-subspec grammar))))
-								     ,idiom-symbol)))
-					      (if elements (length elements) 0))
-					   0))
+				      ,(if (not (assoc :elements (of-subspec grammar)))
+					   0 (* 1/2 (length (second (assoc :elements (of-subspec grammar)))))))
 				(list "opening grammar pattern"
 				      (length (progn ,@(loop :for pset
 							  :in (reverse (rest (assoc :opening-patterns
@@ -691,7 +693,8 @@
 			    (?eq (aref boundary-chars 1)))
 		   enclosed)))
 	     (process-lines (lines &optional output)
-	       (if (= 0 (length lines))
+	       (if (or (= 0 (length lines))
+		       (loop :for c :across lines :always (char= c #\ )))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom))
 			    (process-lines remaining (append output (list out))))))
@@ -805,10 +808,10 @@
 	;; (print (list :prec pre-props precedent tokens properties))
 	(loop :while (not processed)
 	   :for pattern :in (if precedent (idiom-composer-following-patterns idiom)
-				(idiom-composer-opening-patterns idiom))
+				(idiom-composer-opening-patterns2 idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name) (getf special-params :omit))))
-	   :do ;; (print (list :xi pattern (getf pattern :function)))
+	   :do ;; (print (list :xi pattern))
 	     (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (getf pattern :function)
 			    tokens space (lambda (item &optional sub-props)
@@ -934,6 +937,79 @@
 			       `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
 			(let ((item-properties (rest item)))
 			  (process-item item-symbol item-properties))))))))
+(quote
+(defun process-patterns (idiom token space process &optional precedent properties preceding-properties)
+  (let ((invalid)
+	(sub-properties))
+    (let ((item (gensym)) (item-props (gensym))
+	  (collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
+      (labels ((process-item (item-symbol item-properties)
+		 (let ((multiple (getf item-properties :times))
+		       (optional (getf item-properties :optional))
+		       (element-type (getf item-properties :element))
+		       (pattern-type (getf item-properties :pattern)))
+		   (cond ;; (pattern-type
+			 ;;  `(if (not ,invalid-symbol)
+			 ;;       (multiple-value-bind (item item-props ,remaining)
+			 ;; 	   (funcall ,process ,tokens-symbol
+			 ;; 		    ,@(if (and (listp (second item-properties))
+			 ;; 			       (getf (second item-properties) :special))
+			 ;; 			  `((list :special ,(getf (second item-properties) :special)))))
+			 ;; 	 (setq ,sub-props (cons item-props ,sub-props))
+			 ;; 	 (if ,(cond ((getf pattern-type :type)
+			 ;; 		     `(loop :for type :in (list ,@(getf pattern-type :type))
+			 ;; 			 :always (member type (getf item-props :type))))
+			 ;; 		    (t t))
+			 ;; 	     (setq item-symbol item
+			 ;; 		   ,tokens-symbol ,remaining)
+			 ;; 	     (setq ,invalid-symbol t)))))
+			 (element-type
+			  `(if (not ,invalid-symbol)
+			       (let ((matching t)
+				     (collected)
+				     (rem ,tokens-symbol)
+				     (initial-remaining ,tokens-symbol))
+				 (declare (ignorable ,initial-remaining))
+				 (loop ,@(if (eq :any multiple)
+					     `(:while (and ,matching ,rem))
+					     `(:for x from 0 to ,(if multiple (1- multiple) 0)))
+				    ;; the element-checking function call is invoked on each token
+				    :do (multiple-value-bind (item item-props ,remaining)
+					    (funcall (getf (idiom-grammar-elements idiom) base-type)
+						     rem (cond ((listp base-type) `(quote ,(rest base-type))))
+						     process idiom space sub-props)
+					  ;; only push the returned properties onto the list if the item matched
+					  (if (and item item-props (not (getf item-props :cancel-flag)))
+					      (setq ,sub-props (cons item-props ,sub-props)))
+					  ;; if a cancel-flag property is returned, void the collected items
+					  ;; and reset the remaining items back to the original list of tokens
+					  (if (getf item-props :cancel-flag)
+					      (setq ,rem ,initial-remaining
+						    ,collected nil))
+					  ;; blank the collection after a mismatch if a pattern is to be
+					  ;; matched multiple times, as with :times N
+					  ,(if (numberp multiple) `(if (not item) (setq ,collected nil)))
+					  (if (and item ,matching)
+					      (setq ,collected (cons item ,collected)
+						    ,rem ,remaining)
+					      (setq ,matching nil))))
+				 (if ,(if (not optional) collected t)
+				     (setq item-symbol (if (< 1 (length ,collected))
+							    ,collected (first ,collected))
+					   ,tokens-symbol ,rem)
+				     (setq ,invalid-symbol t))
+				 (list :out item-symbol ,tokens-symbol ,collected ,optional))))))))
+	(loop :for item :in sequence
+	   :collect (let* ((item-symbol (first item)))
+		      (if (keywordp item-symbol)
+			  (cond ((eq :with-preceding-type item-symbol)
+				 `(setq ,invalid-symbol (loop :for item :in (getf ,properties-symbol :type)
+							   :never (eq item ,(second item)))))
+				((eq :rest item-symbol)
+				 `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
+			  (let ((item-properties (rest item)))
+			    (process-item item-symbol item-properties)))))))))
+)
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."

@@ -412,11 +412,11 @@
 					      (if (and (listp ,first-op) (eql 'function (first ,first-op)))
 						  ,first-op)))
 					(left-fn-dyadic-inverse
-					 `(if (resolve-function :dyadic-inverse ,first-op ,first-axes)
+					 `(if (resolve-function :dyadic-inverse ,first-op)
 					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
 							      ,(getf
 								(resolve-function :dyadic-inverse
-										  ,first-op ,first-axes)
+										  ,first-op)
 								:plain)
 							      omega alpha))))
 					(left-fn-symbolic `(resolve-function :symbolic ,first-op ,first-axes))
