@@ -1304,7 +1304,7 @@
   (for "Selective assignment of elements within nested array by take function."
        "x←3⍴⊂⍳4 ⋄ (1↑x[1])←99 ⋄ x" #(99 #(1 2 3 4) #(1 2 3 4)))
   ;; (for "Selective assignment of elements within nested array by pick function."
-  ;;      "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#0A#(99 2 3 4) #0A#(1 2 3 4) #0A#(1 2 3 4)))
+  ;;      "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))
   (for "Composed pivotal operation-derived function expression."
@@ -1332,6 +1332,7 @@
   (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
+  (for "Inline lateral operator." "× {8 ⍺⍺ 5×2+⍵} 5" 280)
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
@@ -1387,9 +1388,9 @@
   (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
        #("" "a" "b" "ab" "c" "ac" "bc" "abc"))
   (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
-  ;; (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
-  ;; (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
-  ;; (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
+  (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
+  (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
+  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
   )
  
  (test-set
