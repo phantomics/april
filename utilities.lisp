@@ -20,18 +20,23 @@
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 
-(defmacro in-april-workspace (name &body body)
-  "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
-  (let ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
-    (labels ((replace-symbols (form)
-	       (loop :for item :in form :for ix :from 0
-		  :do (if (listp item)
-			  (if (and (second item) (not (third item))
-				   (symbolp (second item)) (eql 'inws (first item)))
-			      (setf (nth ix form) (intern (string (second item)) space-name))
-			      (replace-symbols item))))))
-      (replace-symbols body)
-      (first body))))
+(let ((this-package (package-name *package*)))
+  (defmacro in-april-workspace (name &body body)
+    "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
+    (let ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
+      (labels ((replace-symbols (form)
+		 (loop :for item :in form :for ix :from 0
+		    :do (if (listp item)
+			    (if (and (second item) (not (third item))
+				     (symbolp (second item)) (eql 'inws (first item)))
+				(setf (nth ix form) (intern (string (second item)) space-name))
+				(replace-symbols item))
+			    (if (and (symbolp item)
+				     (string= "+WORKSPACE-NAME+" (string-upcase item)))
+				(setf (nth ix form) (intern (string-upcase name)
+							    this-package)))))))
+	(replace-symbols body)
+	(first body)))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\𝕊 (lambda (stream character)

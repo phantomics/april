@@ -34,9 +34,9 @@
 			      :initform nil
 			      :initarg :composer-opening-patterns)
    ;; TODO: replace original opening-patterns
-   (composer-opening-patterns2 :accessor idiom-composer-opening-patterns2
-			       :initform nil
-			       :initarg :composer-opening-patterns2)
+   ;; (composer-opening-patterns2 :accessor idiom-composer-opening-patterns2
+   ;; 			       :initform nil
+   ;; 			       :initarg :composer-opening-patterns2)
    (composer-following-patterns :accessor idiom-composer-following-patterns
 				:initform nil
 				:initarg :composer-following-patterns)))
@@ -383,14 +383,15 @@
 	   ;; spec is intuitive, with more specific pattern sets such as optimization templates being included
 	   ;; after less specific ones like the baseline grammar
 	   (pattern-settings
-	    `((idiom-composer-opening-patterns ,idiom-symbol)
+	    `(
+	      ;; (idiom-composer-opening-patterns ,idiom-symbol)
+	      ;; (append (idiom-composer-opening-patterns ,idiom-symbol)
+	      ;; 	      (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
+	      ;; 								  (of-subspec grammar))))
+	      ;; 			   :collect `(funcall (function ,pset) ,idiom-symbol))))
+	      (idiom-composer-opening-patterns ,idiom-symbol)
 	      (append (idiom-composer-opening-patterns ,idiom-symbol)
-		      (append ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
-									  (of-subspec grammar))))
-				   :collect `(funcall (function ,pset) ,idiom-symbol))))
-	      (idiom-composer-opening-patterns2 ,idiom-symbol)
-	      (append (idiom-composer-opening-patterns2 ,idiom-symbol)
-		      ,(second (assoc :opening-patterns2 (of-subspec grammar))))
+		      ,(second (assoc :opening-patterns (of-subspec grammar))))
 	      (idiom-composer-following-patterns ,idiom-symbol)
 	      (append (idiom-composer-following-patterns ,idiom-symbol)
 		      (append ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
@@ -582,10 +583,10 @@
 				      ,(if (not (assoc :elements (of-subspec grammar)))
 					   0 (* 1/2 (length (second (assoc :elements (of-subspec grammar)))))))
 				(list "opening grammar pattern"
-				      (length (progn ,@(loop :for pset
-							  :in (reverse (rest (assoc :opening-patterns
-										    (of-subspec grammar))))
-							  :collect `(funcall (function ,pset) ,idiom-symbol)))))
+				      (+ (progn ,@(loop :for pset
+						     :in (reverse (rest (assoc :opening-patterns
+									       (of-subspec grammar))))
+						     :collect `(length ,pset)))))
 				(list "following grammar pattern"
 				      (length (progn ,@(loop :for pset
 							  :in (reverse (rest (assoc :following-patterns
@@ -808,7 +809,7 @@
 	;; (print (list :prec pre-props precedent tokens properties))
 	(loop :while (not processed)
 	   :for pattern :in (if precedent (idiom-composer-following-patterns idiom)
-				(idiom-composer-opening-patterns2 idiom))
+				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name) (getf special-params :omit))))
 	   :do ;; (print (list :xi pattern))
@@ -872,7 +873,7 @@
 							     (t base-type)))
 					"KEYWORD"))
 			 ,rem ,(cond ((listp base-type) `(quote ,(rest base-type))))
-			 ,process ,idiom ,space ,sub-props))
+			 ,process ,idiom ,space))
 	     (process-item (item-symbol item-properties)
 	       (let ((multiple (getf item-properties :times))
 		     (optional (getf item-properties :optional))

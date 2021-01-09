@@ -5,82 +5,78 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
-(defun process-value (tokens properties process idiom space preceding-props)
+(defun process-value (tokens properties process idiom space)
   (multiple-value-bind (axes this-item remaining)
       (extract-axes process tokens)
     ;; (print (list :tt tokens properties process idiom space preceding-props))
     ;; TODO: add a passthrough value mode for symbols that are being assigned!
     ;; this is the only way to get them assignable after the first time
-    (let ((vector-axes (getf (first preceding-props) :vector-axes)))
-      (cond ((and (listp this-item)
-		  (not (or (eq :fn (first this-item))
-			   (eq :op (first this-item)))))
-	     ;; if the item is a closure, evaluate it and return the result
-	     (multiple-value-bind (output out-properties)
-		 (funcall process this-item)
-	       (if (eq :array (first (getf out-properties :type)))
-		   (progn (setf (getf out-properties :type)
-				(cons (first (getf out-properties :type))
-				      (cons :enclosed (rest (getf out-properties :type))))
-				;; (getf out-properties :axes) axes
-				;; (getf out-properties :vector-axes) vector-axes
-				)
-			  (values output out-properties remaining))
-		   (values nil nil tokens))))
-	    ;; process the empty vector expressed by the [⍬ zilde] character
-	    ((eq :empty-array this-item)
-	     (values (make-array 0)
-		     (list :type '(:array :empty))
-		     (rest tokens)))
-	    ;; process numerical values
-	    ((and (numberp this-item)
-		  (or (not (getf properties :type))
-		      (eq :number (first (getf properties :type)))))
-	     (values this-item (list :type '(:array :number))
-		     (rest tokens)))
-	    ;; process string values
-	    ((and (stringp this-item)
-		  (or (not (getf properties :type))
-		      (eq :string (first (getf properties :type)))))
-	     (values this-item (list :type '(:array :string))
-		     remaining))
-	    ;; process scalar character values
-	    ((and (characterp this-item)
-		  (or (not (getf properties :type))
-		      (eq :character (first (getf properties :type)))))
-	     (values this-item (list :type '(:array :character))
-		     remaining))
-	    ;; process symbol-referenced values
-	    ((and (symbolp this-item)
-		  (or (member this-item '(⍵ ⍺) :test #'eql)
-		      (getf properties :symbol-overriding)
-		      (not (is-workspace-function this-item)))
-		  (or (not (is-workspace-operator this-item))
-		      (getf properties :symbol-overriding))
-		  (not (member (intern (string-upcase this-item))
-			       (rest (assoc :function (idiom-symbols idiom)))))
-		  (not (member this-item '(⍺⍺ ⍵⍵) :test #'eql))
-		  (or (not (getf properties :type))
-		      (eq :symbol (first (getf properties :type)))))
-	     (values (if (not (member (intern (string-upcase this-item))
-				      (rest (assoc :function (idiom-symbols idiom)))))
-			 this-item (intern (string-upcase this-item)))
-		     (append (if vector-axes (list :vector-axes vector-axes))
-			     (list :axes axes :type '(:symbol)))
-		     remaining))
-	    ;; if the pattern is set to cancel upon encountering a pivotal operator,
-	    ;; it will do so and throw the appropriate cancellation flag
-	    ((and (getf properties :cancel-if)
-		  (eq :pivotal-composition (getf properties :cancel-if))
-		  (listp this-item)
-		  (eq :op (first this-item))
-		  (eq :pivotal (second this-item)))
-	     (values nil '(:cancel-flag :pivotal-composition)
-		     tokens))
-	    (t (values nil nil tokens))))))
+    (cond ((and (listp this-item)
+		(not (or (eq :fn (first this-item))
+			 (eq :op (first this-item)))))
+	   ;; if the item is a closure, evaluate it and return the result
+	   (multiple-value-bind (output out-properties)
+	       (funcall process this-item)
+	     (if (eq :array (first (getf out-properties :type)))
+		 (progn (setf (getf out-properties :type)
+			      (cons (first (getf out-properties :type))
+				    (cons :enclosed (rest (getf out-properties :type)))))
+			(values output out-properties remaining))
+		 (values nil nil tokens))))
+	  ;; process the empty vector expressed by the [⍬ zilde] character
+	  ((eq :empty-array this-item)
+	   (values (make-array 0)
+		   (list :type '(:array :empty))
+		   (rest tokens)))
+	  ;; process numerical values
+	  ((and (numberp this-item)
+		(or (not (getf properties :type))
+		    (eq :number (first (getf properties :type)))))
+	   (values this-item (list :type '(:array :number))
+		   (rest tokens)))
+	  ;; process string values
+	  ((and (stringp this-item)
+		(or (not (getf properties :type))
+		    (eq :string (first (getf properties :type)))))
+	   (values this-item (list :type '(:array :string))
+		   remaining))
+	  ;; process scalar character values
+	  ((and (characterp this-item)
+		(or (not (getf properties :type))
+		    (eq :character (first (getf properties :type)))))
+	   (values this-item (list :type '(:array :character))
+		   remaining))
+	  ;; process symbol-referenced values
+	  ((and (symbolp this-item)
+		(or (member this-item '(⍵ ⍺) :test #'eql)
+		    (getf properties :symbol-overriding)
+		    (not (is-workspace-function this-item)))
+		(or (not (is-workspace-operator this-item))
+		    (getf properties :symbol-overriding))
+		(not (member (intern (string-upcase this-item))
+			     (rest (assoc :function (idiom-symbols idiom)))))
+		(not (member this-item '(⍺⍺ ⍵⍵) :test #'eql))
+		(or (not (getf properties :type))
+		    (eq :symbol (first (getf properties :type)))))
+	   (values (if (not (member (intern (string-upcase this-item))
+				    (rest (assoc :function (idiom-symbols idiom)))))
+		       this-item (intern (string-upcase this-item)))
+		   (list :axes axes :type '(:symbol))
+		   remaining))
+	  ;; if the pattern is set to cancel upon encountering a pivotal operator,
+	  ;; it will do so and throw the appropriate cancellation flag
+	  ((and (getf properties :cancel-if)
+		(eq :pivotal-composition (getf properties :cancel-if))
+		(listp this-item)
+		(eq :op (first this-item))
+		(eq :pivotal (second this-item)))
+	   (values nil '(:cancel-flag :pivotal-composition)
+		   tokens))
+	  (t (values nil nil tokens)))))
 
-(defun process-function (tokens properties process idiom space preceding-props)
+(defun process-function (tokens properties process idiom space)
   ;; (print (list :iio tokens properties))
+  ;; (destructuring-bind (this-item &rest remaining)
   (let ((this-item (first tokens))
 	(remaining (rest tokens)))
     (if (listp this-item)
@@ -102,13 +98,7 @@
 			 ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
 			 (and (listp (first remaining))
 			      (eq :axes (caar remaining))
-			      (symbolp (second remaining)))
-			 ;; this clause is needed to test for closures returning a value
-			 ;; to the left of the overloaded glyph as in (1⌷3 4)/5
-			 (multiple-value-bind (output out-properties)
-			     (funcall process (list (first remaining)))
-			   (declare (ignore output))
-			   (eq :array (first (getf out-properties :type)))))))
+			      (symbolp (second remaining))))))
 	    (let ((fn (first (last this-item)))
 		  (obligate-dyadic (and (eq :op (first this-item))
 					(of-lexicon idiom :dyadic-functions (third this-item))))
@@ -141,18 +131,19 @@
 					 :obligate-dyadic obligate-dyadic)
 				   remaining))))
 		    (t (values nil nil tokens))))
-	    ;; process sub-list in case it is a functional expression, but don't do this
-	    ;; if looking for a specific functional glyph
+	    ;; process sub-list in case it is a functional expression like (+∘*),
+	    ;; but don't do this if looking for a specific functional glyph
 	    (if (not (getf properties :glyph))
-		(multiple-value-bind (output out-properties)
-		    (funcall process this-item)
-		  (if (eq :function (first (getf out-properties :type)))
-		      (progn (setf (getf out-properties :type)
-				   (cons (first (getf out-properties :type))
-					 (cons :enclosed (rest (getf out-properties :type)))))
-			     (values output properties remaining))
-		      (values nil nil tokens)))
-		(values nil nil tokens)))
+	    	(multiple-value-bind (output out-properties)
+	    	    (funcall process this-item)
+	    	  (if (eq :function (first (getf out-properties :type)))
+	    	      (progn (setf (getf out-properties :type)
+	    			   (cons (first (getf out-properties :type))
+	    				 (cons :enclosed (rest (getf out-properties :type)))))
+	    		     (values output properties remaining))
+	    	      (values nil nil tokens)))
+	    	(values nil nil tokens))
+	    )
 	(if (and (symbolp this-item)
 		 (not (getf properties :glyph)))
 	    (cond ((or (is-workspace-function this-item)
@@ -173,7 +164,7 @@
 			   remaining))
 		  (t (values nil nil tokens)))))))
 
-(defun process-operator (tokens properties process idiom space preceding-props)
+(defun process-operator (tokens properties process idiom space)
   (let ((this-item (first tokens)) (remaining (rest tokens)))
     (if (listp this-item)
 	(if (eq :op (first this-item))
@@ -231,10 +222,7 @@
   (declare (ignorable precedent properties preceding-properties))
   (let ((axes) (value-elements) (value-props) (stopped)
 	(items tokens) (item (first tokens)) (rest-items (rest tokens)))
-    (labels ((val-process (item)
-	       (multiple-value-list (process-value (list item) properties process
-						   *april-idiom* space preceding-properties)))
-	     (axes-enclose (item axes)
+    (labels ((axes-enclose (item axes)
 	       (if (not axes) item (enclose-axes item axes))))
       (progn (if (and (listp item) (eql :axes (first item)))
     		 (setq axes (list (loop :for axis :in (rest item) :collect (funcall process axis)))
@@ -257,12 +245,11 @@
 				  (setq items rest-items item (first items) rest-items (rest items)
 					value-elements (cons output value-elements)
 					value-props (cons properties value-props)))))
-			(let ((output (val-process item)))
-			  ;; process a standard value string - a number, character or string
-			  (if (first output)
-			      (setq items rest-items item (first items) rest-items (rest items)
-				    value-elements (cons (first output) value-elements)
-				    value-props (cons (second output) value-props))))
+			(multiple-value-bind (value-out value-properties)
+			    (process-value (list item) properties process *april-idiom* space)
+			  (if value-out (setq items rest-items item (first items) rest-items (rest items)
+					      value-elements (cons value-out value-elements)
+					      value-props (cons value-properties value-props))))
 			(setq stopped t))))
       (if value-elements
 	  (values (axes-enclose (output-value space (if (< 1 (length value-elements))
@@ -273,34 +260,67 @@
 		  items)
 	  (values nil nil tokens)))))
 
+(defmacro assigning-segments (spec assignments &body rest)
+  (destructuring-bind (_ tokens-sym &key (as) (process) (properties) (space)) spec
+    (declare (ignore _))
+    (destructuring-bind (items-sym item-sym rest-sym) as
+      `(let (,@(loop :for a :in assignments :append (if (symbolp (first a))
+							(list (list (first a))) (mapcar #'list (first a))))
+	     (,items-sym ,tokens-sym) (,item-sym (first ,tokens-sym)) (,rest-sym (rest ,tokens-sym)))
+	 (progn ,@(loop :for a :in assignments
+		   :collect (destructuring-bind (symbol form &rest params) a
+			      (cond ((eql 'assign-axes (first form))
+				     (let ((axis (gensym)))
+				       `(if (and (listp ,item-sym) (eql :axes (first ,item-sym)))
+					    (setq ,symbol (list (loop :for ,axis :in (rest ,item-sym)
+								   :collect (funcall ,process ,axis)))
+						  ,items-sym ,rest-sym ,item-sym (first ,items-sym)
+						  ,rest-sym (rest ,items-sym)))))
+				    ((eql 'assign-element (first form))
+				     (let ((form-out (gensym)) (form-properties (gensym)))
+				       `(multiple-value-bind (,form-out ,form-properties)
+					    (,(intern (concatenate 'string "PROCESS-"
+								   (string-upcase (second form))))
+					      (list item)
+					      ,properties ,process *april-idiom* ,space)
+					  (setq ,(first symbol) ,form-out
+						,(second symbol) ,form-properties
+    						,items-sym ,rest-sym ,item-sym (first ,items-sym)
+						,rest-sym (rest ,items-sym)))))
+				    ((eql 'sub-process (first form))
+				     (let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
+				       `(multiple-value-bind (,form-out ,form-properties ,remaining)
+					    (funcall ,process ,items-sym ,@(if (third form) (list (third form))))
+					  (setq ,(first symbol) ,form-out ,(second symbol) ,form-properties
+    						,items-sym ,remaining ,item-sym (first ,items-sym)
+						,rest-sym (rest ,items-sym)))))
+				    ((eq :do-passing (first form))
+				     `(setq ,symbol ,(second form)))
+				    )))
+	      ,@rest)))))
+
 (defun composer-pattern-function (tokens space process &optional precedent properties preceding-properties)
   (declare (ignorable precedent properties preceding-properties))
   ;; (print (list :aat tokens))
-  (let ((axes) (function-form) (function-props)
-	(items tokens) (item (first tokens)) (rest-items (rest tokens)))
-    (progn (if (and (listp item) (eql :axes (first item)))
-    	       (setq axes (list (loop :for axis :in (rest item) :collect (funcall process axis)))
-    		     items rest-items item (first items) rest-items (rest items)))
-	   (multiple-value-bind (form-out form-properties)
-	       (process-function (list item) properties process *april-idiom* space preceding-properties)
-	     (setq function-form form-out function-props form-properties
-    		   items rest-items item (first items) rest-items (rest items))))
+  (assigning-segments (traversing tokens :as (items item rest-items)
+				  :process process :properties properties :space space)
+      ((function-axes (assign-axes))
+       ((function-form function-props) (assign-element :function) :required t))
     (let ((is-function (or (not (member :overloaded-operator (getf function-props :type)))
 			   (let ((next (if items (multiple-value-list (funcall process items)))))
 			     ;; (print (list :next next remaining))
 			     (not (member :function (getf (second next) :type)))))))
-      ;; (print (list :iii item is-function))
       (if (and function-form is-function)
-	  (values (if (or (not axes) (of-lexicon *april-idiom* :functions function-form))
+	  (values (if (or (not function-axes) (of-lexicon *april-idiom* :functions function-form))
 		      (if (not (and (symbolp function-form) (is-workspace-function function-form)))
 			  function-form `(function (inws ,function-form)))
-		      `(apl-call :nafn (function ,(insym function-form)) ,@(first axes)))
+		      `(apl-call :nafn (function ,(insym function-form)) ,@(first function-axes)))
 		  (list :type (if (member :operator (getf function-props :type))
 				  (list :operator :inline-operator
 					(if (member :pivotal (getf function-props :type))
 					    :pivotal :lateral))
 				  '(:function :inline-function))
-			:axes axes)
+			:axes function-axes)
 		  items)
 	  (values nil nil tokens)))))
 
@@ -309,99 +329,68 @@
   (declare (ignorable precedent properties preceding-properties))
   ;; (print (list :tok tokens))
   (labels ((verify-lateral-operator-symbol (symbol)
-	     ;; (print (list :sy symbol))
-	     (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
-	       (if (fboundp (intern (string symbol) space)) symbol))))
-    (let ((operator-axes) (operator-form) (operator-props)
-	  (operand-axes) (operand-form) (operand-props)
-	  (symbol-referenced) (items tokens) (item (first tokens)) (rest-items (rest tokens))
-	  (alpha (gensym)) (omega (gensym)))
+	     (and (symbolp symbol)
+		  (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
+		    (if (fboundp (intern (string symbol) space)) symbol)))))
+    (let ((item (first tokens)))
       (if (and (listp item) (eq :fn (first item)))
 	  (multiple-value-bind (operator-definition properties)
-	      (process-operator (list item) properties process
-				*april-idiom* space preceding-properties)
-	    ;; (print (list :iii operator-definition properties))
-	    (if operator-definition (values operator-definition properties rest-items)))
-	  (progn (if (and (listp item) (eql :axes (first item)))
-    		     (setq operator-axes (list (loop :for axis :in (rest item) :collect (funcall process axis)))
-    			   items rest-items item (first items) rest-items (rest items)))
-		 (multiple-value-bind (form-out form-properties)
-		     (process-operator (list item) properties process *april-idiom* space preceding-properties)
-		   (setq symbol-referenced (and (symbolp item) (verify-lateral-operator-symbol item))
-			 operator-form form-out operator-props form-properties
-    			 items rest-items item (first items) rest-items (rest items)))
-		 ;; (print (list :oo operator-form))
-		 (if (and (listp item) (eql :axes (first item)))
-    		     (setq operand-axes (list (loop :for axis :in (rest item) :collect (funcall process axis)))
-    			   items rest-items item (first items) rest-items (rest items)))
-		 (multiple-value-bind (form-out form-properties remaining)
-		     (funcall process items ;; (if symbol-referenced items rest-items)
-			      (list :special '(:omit (:value-assignment :function-assignment
-						      :operation :operator-assignment))
-				    :valence :lateral))
-		   (setq operand-form form-out operand-props form-properties
-    			 items remaining item (first items) rest-items (rest items)))
-		 ;; (print (list :sym symbol-referenced operator-form))
-		 (if symbol-referenced
-		     (values (list 'apl-compose :op (list 'inws symbol-referenced)
-	  			   (if (listp operand-form)
-	  			       operand-form
-				       (if (characterp operand-form)
-	  		    		   `(lambda (,omega &optional ,alpha)
-	  		    		      (if ,alpha (apl-call :fn ,(resolve-function
-									 :dyadic operand-form)
-	  		    					   ,omega ,alpha)
-	  		    			  (apl-call :fn ,(resolve-function
-								  :monadic operand-form)
-	  		    				    ,omega)))))
-	  			   ;; TODO: implement operand axes
-	  			   ;; operand-axes
-	  			   )
-	  		     '(:type (:function :operator-composed :lateral))
-	  		     items)
-		     (let ((operator (and (member :operator (getf operator-props :type))
-	      				  (member :lateral (getf operator-props :type))
-	      				  operator-form)))
-		       (if operator (values (cons 'apl-compose
-	      					  (cons (intern (string-upcase operator))
-	      						(funcall (funcall (resolve-operator :lateral operator)
-	      								  operand-form (first operand-axes))
-	      							 (first operator-axes))))
-	      				    '(:type (:function :operator-composed :lateral))
-	      				    items)
-			   (values nil nil tokens)))))))))
+	      (process-operator (list item) properties process *april-idiom* space)
+	    (if operator-definition (values operator-definition properties (rest tokens))))
+	  (let ((alpha (gensym)) (omega (gensym)))
+	    (assigning-segments (traversing tokens :as (items item rest-items)
+					    :process process :properties properties :space space)
+		((operator-axes (assign-axes))
+		 (symbol-referenced (:do-passing (verify-lateral-operator-symbol item)))
+		 ((operator-form operator-props) (assign-element :operator) :required t)
+		 (operand-axes (assign-axes))
+		 ((operand-form operand-props)
+		  (sub-process process (list :special '(:omit (:value-assignment :function-assignment
+							       :operation :operator-assignment))
+					     :valence :lateral))
+		  :required t))
+	      (if symbol-referenced
+		  (values (list 'apl-compose :op (list 'inws symbol-referenced)
+	  			(if (listp operand-form)
+	  			    operand-form
+				    (if (characterp operand-form)
+	  		    		`(lambda (,omega &optional ,alpha)
+	  		    		   (if ,alpha (apl-call :fn ,(resolve-function :dyadic operand-form)
+	  		    					,omega ,alpha)
+	  		    		       (apl-call :fn ,(resolve-function :monadic operand-form)
+	  		    				 ,omega)))))
+	  			;; TODO: implement operand axes
+	  			;; operand-axes
+	  			)
+	  		  '(:type (:function :operator-composed :lateral))
+	  		  items)
+		  (let ((operator (and (member :operator (getf operator-props :type))
+	      			       (member :lateral (getf operator-props :type))
+	      			       operator-form)))
+		    (if operator (values (cons 'apl-compose
+	      				       (cons (intern (string-upcase operator))
+	      					     (funcall (funcall (resolve-operator :lateral operator)
+	      							       operand-form (first operand-axes))
+	      						      (first operator-axes))))
+	      				 '(:type (:function :operator-composed :lateral))
+	      				 items)
+			(values nil nil tokens))))))))))
 
 (defun composer-pattern-unitary-operation
     (tokens space process &optional precedent properties preceding-properties)
-  (declare (ignorable precedent properties preceding-properties))
-  (labels ((op-process (item)
-	     (multiple-value-list (process-operator (list item) properties process
-						    *april-idiom* space preceding-properties)))
-	   (items-process (items &optional)
-	     (let ((output) (processed) (processed-properties))
-	       ;; (print (list :ff items processed processed-properties))
-	       (match items
-		 ((list* (guard item (first (setq output (op-process item)))) rest)
-		  (setq items (rest items)
-			processed (cons (first output) processed)
-			processed-properties (cons (second output) processed-properties))))
-	       (values processed processed-properties items))))
-    ;; (print (list :aa tokens space))
-    (multiple-value-bind (axes this-item remaining)
-	(extract-axes process tokens)
-      (let ((axes (first axes))
-	    (tokens (cons this-item remaining)))
-	;; (print (list :ax axes tokens))
-	(multiple-value-bind (items properties remaining) (items-process tokens)
-	  (let ((operator (and (member :operator (getf (first properties) :type))
-			       (member :unitary (getf (first properties) :type))
-			       (first items))))
-	    (if (resolve-operator :unitary operator)
-		(values (funcall (resolve-operator :unitary operator)
-				 space axes)
-			'(:type (:array :evaluated))
-			remaining)
-		(values nil nil tokens))))))))
+  (assigning-segments (traversing tokens :as (items item rest-items)
+				  :process process :properties properties :space space)
+      ((operator-axes (assign-axes) :required t)
+       ((operator-form operator-props) (assign-element :operator)))
+    (let ((operator (and (member :operator (getf operator-props :type))
+			 (member :unitary (getf operator-props :type))
+			 operator-form)))
+      (if (resolve-operator :unitary operator)
+	  (values (funcall (resolve-operator :unitary operator) space
+			   (first operator-axes))
+		  '(:type (:array :evaluated))
+		  items)
+	  (values nil nil tokens)))))
 
 (defvar *composer-opening-patterns-new*)
 
@@ -416,20 +405,6 @@
  composer-following-patterns-apl-standard
  (with :idiom-symbol idiom :space-symbol space :process-symbol process
        :properties-symbol properties :precedent-symbol precedent :pre-properties-symbol pre-properties)
- (evaluation-of-character-array
-  ;; match the use of the code string evaluation function ⍎, evaluating the code with access to
-  ;; the local workspace as cannot be done through a normal function
-  ((:with-preceding-type :array)
-   (evaluate-function :element (function :glyph ⍎)))
-  (let ((omega (gensym))
-	(space-suffix (subseq space (length "APRIL-WORKSPACE-"))))
-    ;; remove the initial "APRIL-WORKSPACE-" from the space name to get its suffix for
-    ;; invocation of vex-program
-    `(funcall (lambda (,omega) (eval (vex-program this-idiom `((:space ,',space-suffix)
-							       (:state :print-output nil))
-						  (string ,omega))))
-	      ,precedent))
-  '(:type (:array :result-of-evaluated-string)))
  (value-assignment-by-function-result
   ;; match the assignment of a function result to a value, like a+←5
   ((:with-preceding-type :array)
@@ -735,74 +710,3 @@
 	       ,@(if axes `((list ,@(first axes))))))
   '(:type (:array :evaluated))))
 
-
-
-
-
-
-;; (set-composer-patterns
-;;  composer-opening-patterns-apl-standard
-;;  (with :idiom-symbol idiom :space-symbol space :process-symbol process
-;;        :properties-symbol properties :pre-properties-symbol pre-properties)
-;;  (value
-;;   ;; match an array like 1 2 3, marking the beginning of an array expression
-;;   ;; ...or a functional expression if the array is an operand to a pivotal operator
-;;   ((value :element array :times :any))
-;;   (output-value space value properties)
-;;   '(:type (:array :explicit)))
-;;  (function
-;;   ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
-;;   ((function-element :element function :times 1))
-;;   (let ((axes (getf (first properties) :axes)))
-;;     (if (or (not axes) (of-lexicon idiom :functions function-element))
-;; 	;; if axes are present, this is an n-argument function
-;; 	(if (not (and (symbolp function-element)
-;; 		      (is-workspace-function function-element)))
-;; 	    function-element `(function (inws ,function-element)))
-;; 	`(apl-call :nafn (function ,(insym function-element)) ,@(first axes))))
-;;   (list :type (if (and (getf (first properties) :axes)
-;; 		       (not (of-lexicon idiom :functions function-element)))
-;; 		  '(:array :evaluated)
-;; 		  (if (member :operator (getf (first properties) :type))
-;; 		      (list :operator :inline-operator (if (member :pivotal (getf (first properties) :type))
-;; 							   :pivotal :lateral))
-;; 		      '(:function :inline-function)))
-;; 	:axes (getf (first properties) :axes)))
-;;  (lateral-composition
-;;   ;; match a lateral function composition like +/, marking the beginning of a functional expression
-;;   ((operator :element (operator :valence :lateral))
-;;    ;; (operator :pattern (:type (:operator) :special '(:omit (:value-assignment :function-assignment :operation))))
-;;    (operand :pattern (:type (:function)
-;; 		      :special '(:omit (:value-assignment :function-assignment :operation)))))
-;;   (let ((operand (insym operand))
-;; 	(operator-axes (first (getf (first properties) :axes)))
-;; 	(operand-axes (first (getf (second properties) :axes)))
-;; 	(omega (gensym)) (alpha (gensym)))
-;;     ;; (print (list :op2 operator operand))
-;;     (if (not (listp operator))
-;; 	(cons 'apl-compose
-;; 	      ;; call the operator constructor on the output of the operand constructor which integrates axes
-;; 	      (if (symbolp operator) (list :op (list 'inws operator)
-;; 					   (if (listp operand)
-;; 					       operand (if (characterp operand)
-;; 							   `(lambda (,omega &optional ,alpha)
-;; 							      (if ,alpha
-;; 								  (apl-call :fn ,(resolve-function :dyadic operand)
-;; 									    ,omega ,alpha)
-;; 								  (apl-call :fn ,(resolve-function :monadic operand)
-;; 									    ,omega)))))
-;; 					   ;; TODO: implement operand axes
-;; 					   ;; operand-axes
-;; 					   )
-;; 		  (cons (intern (string-upcase operator))
-;; 			(funcall (funcall (resolve-operator :lateral operator) operand operand-axes)
-;; 				 operator-axes))))))
-;;   '(:type (:function :operator-composed :lateral)))
-;;  (unitary-operator
-;;   ;; match a unitary operator like $
-;;   ((operator :element (operator :valence :unitary)))
-;;   (let ((axes (first (getf (first properties) :axes))))
-;;     (if (resolve-operator :unitary operator)
-;; 	(funcall (resolve-operator :unitary operator)
-;; 		 space axes)))
-;;   '(:type (:array :evaluated))))

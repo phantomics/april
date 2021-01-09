@@ -47,8 +47,8 @@
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
  (grammar (:elements (list :array #'process-value :function #'process-function :operator #'process-operator))
-	  (:opening-patterns composer-opening-patterns-apl-standard)
-	  (:opening-patterns2 *composer-opening-patterns-new*)
+	  ;; (:opening-patterns composer-opening-patterns-apl-standard)
+	  (:opening-patterns *composer-opening-patterns-new*)
 	  (:following-patterns composer-following-patterns-apl-standard
 			       composer-optimized-patterns-common))
 
@@ -880,11 +880,14 @@
 				(#\2 #\8 #\. #\2 #\7 #\4 #\3 #\3 #\  #\  #\3 #\. #\1 #\4 #\1 #\5 #\9 #\ 
 				     #\  #\6 #\. #\2 #\8 #\3 #\1 #\9 #\  #\  #\9 #\. #\4 #\2 #\4 #\7 #\8)))))
   (⍎ (has :title "Evaluate")
-     (symbolic :special-lexical-form-evaluate)
+     (monadic (λω (eval (vex-program *april-idiom* '((state :print-output nil)
+						     (:space +workspace-name+))
+				     (string omega)))))
      (tests (is "⍎'1+1'" 2)
 	    (is "⍎'5','+3 2 1'" #(8 7 6))
 	    (is "⍎'3'" 3)
-	    (is "v←⍳3 ⋄ ⍎'v'" #(1 2 3))))
+	    (is "v←⍳3 ⋄ ⍎'v'" #(1 2 3))
+	    (is "⍎¨'1+1' '2+2' '3+3'" #(2 4 6))))
   (← (has :title "Assign")
      (symbolic :special-lexical-form-assign)
      (tests (is "x←55 ⋄ x" 55)
