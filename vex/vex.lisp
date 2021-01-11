@@ -33,10 +33,6 @@
    (composer-opening-patterns :accessor idiom-composer-opening-patterns
 			      :initform nil
 			      :initarg :composer-opening-patterns)
-   ;; TODO: replace original opening-patterns
-   ;; (composer-opening-patterns2 :accessor idiom-composer-opening-patterns2
-   ;; 			       :initform nil
-   ;; 			       :initarg :composer-opening-patterns2)
    (composer-following-patterns :accessor idiom-composer-following-patterns
 				:initform nil
 				:initarg :composer-following-patterns)))

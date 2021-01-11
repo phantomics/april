@@ -50,7 +50,8 @@
 	  ;; (:opening-patterns composer-opening-patterns-apl-standard)
 	  (:opening-patterns *composer-opening-patterns-new*)
 	  (:following-patterns composer-following-patterns-apl-standard
-			       composer-optimized-patterns-common))
+			       ;; composer-optimized-patterns-common
+			       ))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -880,8 +881,7 @@
 				(#\2 #\8 #\. #\2 #\7 #\4 #\3 #\3 #\  #\  #\3 #\. #\1 #\4 #\1 #\5 #\9 #\ 
 				     #\  #\6 #\. #\2 #\8 #\3 #\1 #\9 #\  #\  #\9 #\. #\4 #\2 #\4 #\7 #\8)))))
   (⍎ (has :title "Evaluate")
-     (monadic (λω (eval (vex-program *april-idiom* '((state :print-output nil)
-						     (:space +workspace-name+))
+     (monadic (λω (eval (vex-program *april-idiom* '((state :print-output nil) (:space +workspace-name+))
 				     (string omega)))))
      (tests (is "⍎'1+1'" 2)
 	    (is "⍎'5','+3 2 1'" #(8 7 6))
@@ -1333,8 +1333,8 @@
   (for "Five-element dyadic function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 "one" "one" "two" "three"))
   (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
-  (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
-  (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
+  ;; (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
+  ;; (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Inline lateral operator." "× {8 ⍺⍺ 5×2+⍵} 5" 280)
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
