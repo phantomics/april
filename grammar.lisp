@@ -94,7 +94,7 @@
 			 (and (not (listp (first remaining)))
 			      (or (not (symbolp (first remaining)))
 				  (is-workspace-value (first remaining))))
-			 ;; this clause is needed in case of an index-referenced value being passed
+		 ;; this clause is needed in case of an index-referenced value being passed
 			 ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
 			 (and (listp (first remaining))
 			      (eq :axes (caar remaining))
@@ -260,67 +260,51 @@
 		  items)
 	  (values nil nil tokens)))))
 
-(defmacro assigning-segments (spec assignments &body rest)
-  (destructuring-bind (_ tokens-sym &key (as) (process) (properties) (space)) spec
-    (declare (ignore _))
-    (destructuring-bind (items-sym item-sym rest-sym) as
-      `(let (,@(loop :for a :in assignments :append (if (symbolp (first a))
-							(list (list (first a))) (mapcar #'list (first a))))
-	     (,items-sym ,tokens-sym) (,item-sym (first ,tokens-sym)) (,rest-sym (rest ,tokens-sym)))
-	 (progn ,@(loop :for a :in assignments
-		   :collect (destructuring-bind (symbol form &rest params) a
-			      (cond ((eql 'assign-axes (first form))
-				     (let ((axis (gensym)))
-				       `(if (and (listp ,item-sym) (eql :axes (first ,item-sym)))
-					    (setq ,symbol (list (loop :for ,axis :in (rest ,item-sym)
-								   :collect (funcall ,process ,axis)))
-						  ,items-sym ,rest-sym ,item-sym (first ,items-sym)
-						  ,rest-sym (rest ,items-sym)))))
-				    ((eql 'assign-element (first form))
-				     (let ((form-out (gensym)) (form-properties (gensym)))
-				       `(multiple-value-bind (,form-out ,form-properties)
-					    (,(intern (concatenate 'string "PROCESS-"
-								   (string-upcase (second form))))
-					      (list item)
-					      ,properties ,process *april-idiom* ,space)
-					  (setq ,(first symbol) ,form-out
-						,(second symbol) ,form-properties
-    						,items-sym ,rest-sym ,item-sym (first ,items-sym)
-						,rest-sym (rest ,items-sym)))))
-				    ((eql 'sub-process (first form))
-				     (let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
-				       `(multiple-value-bind (,form-out ,form-properties ,remaining)
-					    (funcall ,process ,items-sym ,@(if (third form) (list (third form))))
-					  (setq ,(first symbol) ,form-out ,(second symbol) ,form-properties
-    						,items-sym ,remaining ,item-sym (first ,items-sym)
-						,rest-sym (rest ,items-sym)))))
-				    ((eq :do-passing (first form))
-				     `(setq ,symbol ,(second form)))
-				    )))
-	      ,@rest)))))
+(defmacro assign-axes (symbol process item items rest-items)
+  (let ((axis (gensym)))
+    `(if (and (listp ,item) (eql :axes (first ,item)))
+	 (setq ,symbol (list (loop :for ,axis :in (rest ,item) :collect (funcall ,process ,axis)))
+    	       ,items ,rest-items ,item (first ,items) ,rest-items (rest ,items)))))
+
+(defmacro assign-element (symbol-form symbol-props function process properties space item items rest-items)
+  (let ((form-out (gensym)) (form-properties (gensym)))
+    `(multiple-value-bind (,form-out ,form-properties)
+	 (,function (list ,item) ,properties ,process *april-idiom* ,space)
+       (if ,form-out
+	   (setq ,symbol-form ,form-out ,symbol-props ,form-properties
+    		 ,items ,rest-items ,item (first ,items) ,rest-items (rest ,items))))))
+
+(defmacro assign-subprocessed (symbol-form symbol-props process properties item items rest-items)
+  (let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
+    `(multiple-value-bind (,form-out ,form-properties ,remaining)
+	 (funcall ,process ,items ,properties)
+       (setq ,symbol-form ,form-out ,symbol-props ,form-properties
+    	     ,items ,remaining ,item (first ,items) ,rest-items (rest ,items)))))
 
 (defun composer-pattern-function (tokens space process &optional precedent properties preceding-properties)
   (declare (ignorable precedent properties preceding-properties))
   ;; (print (list :aat tokens))
-  (assigning-segments (traversing tokens :as (items item rest-items)
-				  :process process :properties properties :space space)
-      ((function-axes (assign-axes))
-       ((function-form function-props) (assign-element :function) :required t))
+  (let ((axes) (function-form) (function-props)
+	(items tokens) (item (first tokens)) (rest-items (rest tokens)))
+    (progn (assign-axes axes process item items rest-items)
+	   (assign-element function-form function-props process-function process
+			   nil space item items rest-items))
     (let ((is-function (or (not (member :overloaded-operator (getf function-props :type)))
 			   (let ((next (if items (multiple-value-list (funcall process items)))))
 			     ;; (print (list :next next remaining))
 			     (not (member :function (getf (second next) :type)))))))
+      ;; (print (list :iii item is-function))
       (if (and function-form is-function)
-	  (values (if (or (not function-axes) (of-lexicon *april-idiom* :functions function-form))
+	  (values (if (or (not axes) (of-lexicon *april-idiom* :functions function-form))
 		      (if (not (and (symbolp function-form) (is-workspace-function function-form)))
 			  function-form `(function (inws ,function-form)))
-		      `(apl-call :nafn (function ,(insym function-form)) ,@(first function-axes)))
+		      `(apl-call :nafn (function ,(insym function-form)) ,@(first axes)))
 		  (list :type (if (member :operator (getf function-props :type))
 				  (list :operator :inline-operator
 					(if (member :pivotal (getf function-props :type))
 					    :pivotal :lateral))
 				  '(:function :inline-function))
-			:axes function-axes)
+			:axes axes)
 		  items)
 	  (values nil nil tokens)))))
 
@@ -329,65 +313,65 @@
   (declare (ignorable precedent properties preceding-properties))
   ;; (print (list :tok tokens))
   (labels ((verify-lateral-operator-symbol (symbol)
-	     (and (symbolp symbol)
-		  (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
-		    (if (fboundp (intern (string symbol) space)) symbol)))))
-    (let ((item (first tokens)))
+	     (if (symbolp symbol) (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
+				  (if (fboundp (intern (string symbol) space)) symbol)))))
+    (let ((operator-axes) (operator-form) (operator-props) (operand-axes) (operand-form) (operand-props)
+	  (symbol-referenced) (items tokens) (item (first tokens)) (rest-items (rest tokens))
+	  (alpha (gensym)) (omega (gensym)))
       (if (and (listp item) (eq :fn (first item)))
 	  (multiple-value-bind (operator-definition properties)
 	      (process-operator (list item) properties process *april-idiom* space)
-	    (if operator-definition (values operator-definition properties (rest tokens))))
-	  (let ((alpha (gensym)) (omega (gensym)))
-	    (assigning-segments (traversing tokens :as (items item rest-items)
-					    :process process :properties properties :space space)
-		((operator-axes (assign-axes))
-		 (symbol-referenced (:do-passing (verify-lateral-operator-symbol item)))
-		 ((operator-form operator-props) (assign-element :operator) :required t)
-		 (operand-axes (assign-axes))
-		 ((operand-form operand-props)
-		  (sub-process process (list :special '(:omit (:value-assignment :function-assignment
-							       :operation :operator-assignment))
-					     :valence :lateral))
-		  :required t))
-	      (if symbol-referenced
-		  (values (list 'apl-compose :op (list 'inws symbol-referenced)
-	  			(if (listp operand-form)
-	  			    operand-form
-				    (if (characterp operand-form)
-	  		    		`(lambda (,omega &optional ,alpha)
-	  		    		   (if ,alpha (apl-call :fn ,(resolve-function :dyadic operand-form)
-	  		    					,omega ,alpha)
-	  		    		       (apl-call :fn ,(resolve-function :monadic operand-form)
-	  		    				 ,omega)))))
-	  			;; TODO: implement operand axes
-	  			;; operand-axes
-	  			)
-	  		  '(:type (:function :operator-composed :lateral))
-	  		  items)
-		  (let ((operator (and (member :operator (getf operator-props :type))
-	      			       (member :lateral (getf operator-props :type))
-	      			       operator-form)))
-		    (if operator (values (cons 'apl-compose
-	      				       (cons (intern (string-upcase operator))
-	      					     (funcall (funcall (resolve-operator :lateral operator)
-	      							       operand-form (first operand-axes))
-	      						      (first operator-axes))))
-	      				 '(:type (:function :operator-composed :lateral))
-	      				 items)
-			(values nil nil tokens))))))))))
+	    (if operator-definition (values operator-definition properties rest-items)))
+	  (progn(assign-axes operator-axes process item items rest-items)
+		 (setq symbol-referenced (verify-lateral-operator-symbol item))
+		 (assign-element operator-form operator-props process-operator
+				 process nil space item items rest-items)
+		 (assign-axes operand-axes process item items rest-items)
+		 (assign-subprocessed operand-form operand-props process
+		 		      (list :special '(:omit (:value-assignment :function-assignment
+		 					      :operation :operator-assignment))
+		 			    :valence :lateral)
+		 		      item items rest-items)
+		 (if symbol-referenced
+		     (values (list 'apl-compose :op (list 'inws symbol-referenced)
+	  			   (if (listp operand-form)
+	  			       operand-form
+				       (if (characterp operand-form)
+	  		    		   `(lambda (,omega &optional ,alpha)
+	  		    		      (if ,alpha (apl-call :fn ,(resolve-function
+									 :dyadic operand-form)
+	  		    					   ,omega ,alpha)
+	  		    			  (apl-call :fn ,(resolve-function
+								  :monadic operand-form)
+	  		    				    ,omega)))))
+	  			   ;; TODO: implement operand axes
+	  			   ;; operand-axes
+	  			   )
+	  		     '(:type (:function :operator-composed :lateral))
+	  		     items)
+		     (let ((operator (and (member :operator (getf operator-props :type))
+	      				  (member :lateral (getf operator-props :type))
+	      				  operator-form)))
+		       (if operator (values (cons 'apl-compose
+	      					  (cons (intern (string-upcase operator))
+	      						(funcall (funcall (resolve-operator :lateral operator)
+	      								  operand-form (first operand-axes))
+	      							 (first operator-axes))))
+	      				    '(:type (:function :operator-composed :lateral))
+	      				    items)
+			   (values nil nil tokens)))))))))
 
 (defun composer-pattern-unitary-operation
     (tokens space process &optional precedent properties preceding-properties)
-  (assigning-segments (traversing tokens :as (items item rest-items)
-				  :process process :properties properties :space space)
-      ((operator-axes (assign-axes) :required t)
-       ((operator-form operator-props) (assign-element :operator)))
+  (let ((operator-axes) (operator-form) (operator-props)
+	(items tokens) (item (first tokens)) (rest-items (rest tokens)))
+    (assign-axes operator-axes process item items rest-items)
+    (assign-element operator-form operator-props process-operator process nil space item items rest-items)
     (let ((operator (and (member :operator (getf operator-props :type))
 			 (member :unitary (getf operator-props :type))
 			 operator-form)))
       (if (resolve-operator :unitary operator)
-	  (values (funcall (resolve-operator :unitary operator) space
-			   (first operator-axes))
+	  (values (funcall (resolve-operator :unitary operator) space (first operator-axes))
 		  '(:type (:array :evaluated))
 		  items)
 	  (values nil nil tokens)))))
@@ -398,8 +382,7 @@
       (list (list :name :value :function #'composer-pattern-value)
 	    (list :name :function :function #'composer-pattern-function)
 	    (list :name :lateral-composition :function #'composer-pattern-lateral-composition)
-	    (list :name :unitary-operator :function #'composer-pattern-unitary-operation)
-	    ))
+	    (list :name :unitary-operator :function #'composer-pattern-unitary-operation)))
 
 (set-composer-patterns
  composer-following-patterns-apl-standard
