@@ -1315,8 +1315,8 @@
 					   (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
   (for "Selective assignment of elements within nested array by take function."
        "x←3⍴⊂⍳4 ⋄ (1↑x[1])←99 ⋄ x" #(99 #(1 2 3 4) #(1 2 3 4)))
-  ;; (for "Selective assignment of elements within nested array by pick function."
-  ;;      "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
+  (for "Selective assignment of elements within nested array by pick function."
+       "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))
   (for "Composed pivotal operation-derived function expression."
