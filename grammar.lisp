@@ -18,9 +18,10 @@
 	   (multiple-value-bind (output out-properties)
 	       (funcall process this-item)
 	     (if (eq :array (first (getf out-properties :type)))
-		 (progn (setf (getf out-properties :type)
-			      (cons (first (getf out-properties :type))
-				    (cons :enclosed (rest (getf out-properties :type)))))
+		 (progn (if (not (member :enclosed (getf out-properties :type)))
+			    (setf (getf out-properties :type)
+				  (cons (first (getf out-properties :type))
+					(cons :enclosed (rest (getf out-properties :type))))))
 			(values output out-properties remaining))
 		 (values nil nil tokens))))
 	  ;; process the empty vector expressed by the [⍬ zilde] character
@@ -94,7 +95,7 @@
 			 (and (not (listp (first remaining)))
 			      (or (not (symbolp (first remaining)))
 				  (is-workspace-value (first remaining))))
-		 ;; this clause is needed in case of an index-referenced value being passed
+			 ;; this clause is needed in case of an index-referenced value being passed
 			 ;; as the function's left value, i.e. v←⍳5 ⋄ v[4]/7 8
 			 (and (listp (first remaining))
 			      (eq :axes (caar remaining))
@@ -142,8 +143,7 @@
 	    				 (cons :enclosed (rest (getf out-properties :type)))))
 	    		     (values output properties remaining))
 	    	      (values nil nil tokens)))
-	    	(values nil nil tokens))
-	    )
+	    	(values nil nil tokens)))
 	(if (and (symbolp this-item)
 		 (not (getf properties :glyph)))
 	    (cond ((or (is-workspace-function this-item)
@@ -283,7 +283,6 @@
 
 (defun composer-pattern-function (tokens space process &optional precedent properties preceding-properties)
   (declare (ignorable precedent properties preceding-properties))
-  ;; (print (list :aat tokens))
   (let ((axes) (function-form) (function-props)
 	(items tokens) (item (first tokens)) (rest-items (rest tokens)))
     (progn (assign-axes axes process item items rest-items)
@@ -291,9 +290,7 @@
 			   nil space item items rest-items))
     (let ((is-function (or (not (member :overloaded-operator (getf function-props :type)))
 			   (let ((next (if items (multiple-value-list (funcall process items)))))
-			     ;; (print (list :next next remaining))
 			     (not (member :function (getf (second next) :type)))))))
-      ;; (print (list :iii item is-function))
       (if (and function-form is-function)
 	  (values (if (or (not axes) (of-lexicon *april-idiom* :functions function-form))
 		      (if (not (and (symbolp function-form) (is-workspace-function function-form)))
@@ -311,7 +308,6 @@
 (defun composer-pattern-lateral-composition
     (tokens space process &optional precedent properties preceding-properties)
   (declare (ignorable precedent properties preceding-properties))
-  ;; (print (list :tok tokens))
   (labels ((verify-lateral-operator-symbol (symbol)
 	     (if (symbolp symbol) (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
 				  (if (fboundp (intern (string symbol) space)) symbol)))))
@@ -322,16 +318,18 @@
 	  (multiple-value-bind (operator-definition properties)
 	      (process-operator (list item) properties process *april-idiom* space)
 	    (if operator-definition (values operator-definition properties rest-items)))
-	  (progn(assign-axes operator-axes process item items rest-items)
+	  (progn (assign-axes operator-axes process item items rest-items)
 		 (setq symbol-referenced (verify-lateral-operator-symbol item))
-		 (assign-element operator-form operator-props process-operator
-				 process nil space item items rest-items)
-		 (assign-axes operand-axes process item items rest-items)
-		 (assign-subprocessed operand-form operand-props process
-		 		      (list :special '(:omit (:value-assignment :function-assignment
-		 					      :operation :operator-assignment))
-		 			    :valence :lateral)
-		 		      item items rest-items)
+		 (assign-element operator-form operator-props process-operator process
+				 '(:valence :lateral) space item items rest-items)
+		 ;; (print (list :opf operator-form))
+		 ;; (error "True.")
+		 (if operator-form
+		     (progn (assign-axes operand-axes process item items rest-items)
+			    (assign-subprocessed operand-form operand-props process
+		 				 (list :special '(:omit (:value-assignment :function-assignment
+		 							 :operation :operator-assignment)))
+		 				 item items rest-items)))
 		 (if symbol-referenced
 		     (values (list 'apl-compose :op (list 'inws symbol-referenced)
 	  			   (if (listp operand-form)
@@ -406,7 +404,7 @@
 			  symbol-axes :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))
 			  :set precedent))))
   '(:type (:array :assigned :by-result-assignment-operator)))
- (selective-assignment
+ (value-assignment-by-selection
   ;; match a selective value assignment like (3↑x)←5
   ((:with-preceding-type :array)
    (assignment-function :element (function :glyph ←))
@@ -688,6 +686,7 @@
 			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))
 	(fn-sym (or-functional-character fn-element :fn))
 	(axes (getf (first properties) :axes)))
+    ;; (print (list :val value))
     `(apl-call ,fn-sym ,fn-content ,precedent
 	       ,@(if value (list (output-value space value (rest properties))))
 	       ,@(if axes `((list ,@(first axes))))))
