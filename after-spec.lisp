@@ -58,31 +58,22 @@
 		   ;; to the cells at the remaining indices of the original array
 		   (values (if sel-item
 			       (let ((item (gensym)) (indices (gensym)))
-				 (print (list))
-				 (if (or (symbolp sel-item)
-					 (and (listp sel-item)
-					      (eql 'inws (first sel-item))
-					      (symbolp (second sel-item))))
-				     `(apl-assign
-				       ,sel-item
-				       (let* ((,item ,sel-item)
-					      (,placeholder (generate-index-array ,item))
-					      (,indices (enclose ,sel-form))
-					      ,@(if set-form
-						    `((,placeholder
-						       (make-array nil :initial-element
-								   (assign-selected (disclose2 ,item)
-										    ,indices ,precedent))))))
-					 ,(or set-form `(assign-selected ,sel-item ,indices ,precedent))))
-				     `(let* ((,item ,sel-item)
-					     (,placeholder (generate-index-array ,item))
-					     (,indices (enclose ,sel-form))
-					     ,@(if set-form
-						   `((,placeholder
-						      (make-array nil :initial-element
-								  (assign-selected (disclose2 ,item)
-										   ,indices ,precedent))))))
-					,(or set-form `(assign-selected ,sel-item ,indices ,precedent)))))
+				 (funcall (lambda (form)
+					    (if (not (or (symbolp sel-item)
+							 (and (listp sel-item)
+							      (eql 'inws (first sel-item))
+							      (symbolp (second sel-item)))))
+						form (list 'apl-assign sel-item form)))
+					  `(let* ((,item ,sel-item)
+						  (,placeholder (generate-index-array ,item))
+						  (,indices (enclose ,sel-form))
+						  ,@(if set-form
+							`((,placeholder
+							   (make-array nil :initial-element
+								       (assign-selected
+									(disclose2 ,item)
+									,indices ,precedent))))))
+					     ,(or set-form `(assign-selected ,sel-item ,indices ,precedent)))))
 			       `(let ((,placeholder ,precedent))
 				  (setf ,set-form ,sel-form)))
 			   '(:type (:array :assigned))
