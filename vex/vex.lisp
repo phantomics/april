@@ -656,7 +656,7 @@
 			   (aref content 0)
 			   (make-array (1- (length content)) :element-type 'character
 				       :displaced-to content))))))
-	     (=vex-closure (boundary-chars &optional transform-by)
+	     (=vex-closure (boundary-chars &optional transform-by &key (disallow-linebreaks))
 	       (let ((balance 1)
 		     (char-index 0))
 		 (=destructure (_ enclosed _)
@@ -664,16 +664,23 @@
 			    ;; for some reason, the first character in the string is iterated over twice here,
 			    ;; so the character index is checked and nothing is done for the first character
 			    ;; TODO: fix this
-			    (=transform (=subseq (%some (?satisfies
-							 (lambda (char)
-							   (if (and (char= char (aref boundary-chars 0))
-								    (< 0 char-index))
-							       (incf balance 1))
-							   (if (and (char= char (aref boundary-chars 1))
-								    (< 0 char-index))
-							       (incf balance -1))
-							   (incf char-index 1)
-							   (< 0 balance)))))
+			    (=transform (=subseq
+					 (%some (?satisfies
+						 (lambda (char)
+						   (if (and disallow-linebreaks
+							    (funcall (of-utilities
+								      idiom :match-newline-character)
+								     char))
+						       (error "Newlines cannot occur within a ~a closure."
+							      boundary-chars))
+						   (if (and (char= char (aref boundary-chars 0))
+							    (< 0 char-index))
+						       (incf balance 1))
+						   (if (and (char= char (aref boundary-chars 1))
+							    (< 0 char-index))
+						       (incf balance -1))
+						   (incf char-index 1)
+						   (< 0 balance)))))
 					(if transform-by transform-by
 					    (lambda (string-content)
 					      (first (parse string-content (=vex-string idiom))))))
@@ -725,7 +732,7 @@
 					(of-lexicon idiom :operators char)))))))
 	  (=destructure (_ item _ break rest)
 	      (=list (%any (?blank-character))
-		     (%or (=vex-closure "()")
+		     (%or (=vex-closure "()" nil :disallow-linebreaks t)
 			  (=vex-closure "[]" #'handle-axes)
 			  (=vex-closure "{}" #'handle-function)
 			  (=vex-errant-closing-character ")]}([{")
@@ -861,6 +868,8 @@
 	    )))))
 
 #|
+These are examples of the output of the three macro-builders above.
+
 (defmacro assign-axes (symbol process item items rest-items)
   (let ((axis (gensym)))
     `(if (and (listp ,item) (eql :axes (first ,item)))
@@ -963,189 +972,3 @@
 		       (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
 			    :by #'cddr :collect (string-upcase key))
 		       options system-vars vars-declared stored-refs space)))))))
-
-
-;; (defmacro set-composer-patterns (name with &rest params)
-;;   "Generate part of a Vex grammar from a set of parameters."
-;;   (let* ((with (rest with))
-;; 	 (idiom (gensym)) (token (gensym)) (invalid (gensym)) (properties (gensym))
-;; 	 (space (or (getf with :space-symbol) (gensym)))
-;; 	 (precedent-symbol (getf with :precedent-symbol))
-;; 	 (precedent (or precedent-symbol (gensym)))
-;; 	 (process (or (getf with :process-symbol) (gensym)))
-;; 	 (sub-properties (or (getf with :properties-symbol) (gensym)))
-;; 	 (preceding-properties (or (getf with :pre-properties-symbol) (gensym)))
-;; 	 (idiom-symbol (getf with :idiom-symbol)))
-;;     `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
-;;        (let ((,idiom-symbol ,idiom))
-;; 	 (declare (ignorable ,idiom-symbol))
-;; 	 (list ,@(loop :for param :in params
-;; 		    :collect `(list :name ,(intern (string-upcase (first param)) "KEYWORD")
-;; 				    :function (lambda (,token ,space ,process
-;; 						       &optional ,precedent ,properties ,preceding-properties)
-;; 						(declare (ignorable ,precedent ,properties
-;; 								    ,preceding-properties))
-;; 						(let ((,invalid)
-;; 						      (,sub-properties)
-;; 						      ,@(loop :for token :in (second param)
-;; 							   :when (not (keywordp (first token)))
-;; 							   :collect (list (first token) nil)))
-;; 						  ,@(build-composer-pattern (second param)
-;; 									    idiom-symbol token invalid properties
-;; 									    process space sub-properties)
-;; 						  (setq ,sub-properties (reverse ,sub-properties))
-;; 						  ;; reverse the sub-properties since they are
-;; 						  ;; consed into the list
-;; 						  (if (not ,invalid)
-;; 						      (values ,(third param) ,(fourth param) ,token)))))))))))
-
-;; (defun build-composer-pattern (sequence idiom tokens-symbol invalid-symbol properties-symbol
-;; 			       process space sub-props)
-;;   "Generate a pattern for language compilation from a set of specs entered as part of a grammar."
-;;   (let ((item (gensym)) (item-props (gensym)) (remaining (gensym)) (matching (gensym))
-;; 	(collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
-;;     (labels ((element-check (base-type)
-;; 	       ;; call the function that checks for a particular element type
-;; 	       `(funcall (getf (idiom-grammar-elements ,idiom)
-;; 			       ,(intern (string-upcase (cond ((listp base-type) (first base-type))
-;; 							     (t base-type)))
-;; 					"KEYWORD"))
-;; 			 ,rem ,(cond ((listp base-type) `(quote ,(rest base-type))))
-;; 			 ,process ,idiom ,space))
-;; 	     (process-item (item-symbol item-properties)
-;; 	       (let ((multiple (getf item-properties :times))
-;; 		     (optional (getf item-properties :optional))
-;; 		     (element-type (getf item-properties :element))
-;; 		     (pattern-type (getf item-properties :pattern)))
-;; 		 (cond (pattern-type
-;; 			`(if (not ,invalid-symbol)
-;; 			     (multiple-value-bind (,item ,item-props ,remaining)
-;; 				 (funcall ,process ,tokens-symbol
-;; 					  ,@(if (and (listp (second item-properties))
-;; 						     (getf (second item-properties) :special))
-;; 						`((list :special ,(getf (second item-properties) :special)))))
-;; 			       (setq ,sub-props (cons ,item-props ,sub-props))
-;; 			       (if ,(cond ((getf pattern-type :type)
-;; 					   `(loop :for type :in (list ,@(getf pattern-type :type))
-;; 					       :always (member type (getf ,item-props :type))))
-;; 					  (t t))
-;; 				   (setq ,item-symbol ,item
-;; 					 ,tokens-symbol ,remaining)
-;; 				   (setq ,invalid-symbol t)))))
-;; 		       (element-type
-;; 			`(if (not ,invalid-symbol)
-;; 			     (let ((,matching t)
-;; 				   (,collected)
-;; 				   (,rem ,tokens-symbol)
-;; 				   (,initial-remaining ,tokens-symbol))
-;; 			       (declare (ignorable ,initial-remaining))
-;; 			       (loop ,@(if (eq :any multiple)
-;; 					   `(:while (and ,matching ,rem))
-;; 					   `(:for x from 0 to ,(if multiple (1- multiple) 0)))
-;; 				  ;; the element-checking function call is invoked on each token
-;; 				  :do (multiple-value-bind (,item ,item-props ,remaining)
-;; 					  ,(element-check element-type)
-;; 					;; only push the returned properties onto the list if the item matched
-;; 					(if (and ,item ,item-props (not (getf ,item-props :cancel-flag)))
-;; 					    (setq ,sub-props (cons ,item-props ,sub-props)))
-;; 					;; if a cancel-flag property is returned, void the collected items
-;; 					;; and reset the remaining items back to the original list of tokens
-;; 					(if (getf ,item-props :cancel-flag)
-;; 					    (setq ,rem ,initial-remaining
-;; 						  ,collected nil))
-;; 					;; blank the collection after a mismatch if a pattern is to be
-;; 					;; matched multiple times, as with :times N
-;; 					,(if (numberp multiple) `(if (not ,item) (setq ,collected nil)))
-;; 					(if (and ,item ,matching)
-;; 					    (setq ,collected (cons ,item ,collected)
-;; 						  ,rem ,remaining)
-;; 					    (setq ,matching nil))))
-;; 			       (if ,(if (not optional) collected t)
-;; 				   (setq ,item-symbol (if (< 1 (length ,collected))
-;; 							  ,collected (first ,collected))
-;; 					 ,tokens-symbol ,rem)
-;; 				   (setq ,invalid-symbol t))
-;; 			       (list :out ,item-symbol ,tokens-symbol ,collected ,optional))))))))
-;;       (loop :for item :in sequence
-;; 	 :collect (let* ((item-symbol (first item)))
-;; 		    (if (keywordp item-symbol)
-;; 			(cond ((eq :with-preceding-type item-symbol)
-;; 			       `(setq ,invalid-symbol (loop :for item :in (getf ,properties-symbol :type)
-;; 							 :never (eq item ,(second item)))))
-;; 			      ((eq :rest item-symbol)
-;; 			       `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
-;; 			(let ((item-properties (rest item)))
-;; 			  (process-item item-symbol item-properties))))))))
-;; (quote
-;; (defun process-patterns (idiom token space process &optional precedent properties preceding-properties)
-;;   (let ((invalid)
-;; 	(sub-properties))
-;;     (let ((item (gensym)) (item-props (gensym))
-;; 	  (collected (gensym)) (rem (gensym)) (initial-remaining (gensym)))
-;;       (labels ((process-item (item-symbol item-properties)
-;; 		 (let ((multiple (getf item-properties :times))
-;; 		       (optional (getf item-properties :optional))
-;; 		       (element-type (getf item-properties :element))
-;; 		       (pattern-type (getf item-properties :pattern)))
-;; 		   (cond ;; (pattern-type
-;; 			 ;;  `(if (not ,invalid-symbol)
-;; 			 ;;       (multiple-value-bind (item item-props ,remaining)
-;; 			 ;; 	   (funcall ,process ,tokens-symbol
-;; 			 ;; 		    ,@(if (and (listp (second item-properties))
-;; 			 ;; 			       (getf (second item-properties) :special))
-;; 			 ;; 			  `((list :special ,(getf (second item-properties) :special)))))
-;; 			 ;; 	 (setq ,sub-props (cons item-props ,sub-props))
-;; 			 ;; 	 (if ,(cond ((getf pattern-type :type)
-;; 			 ;; 		     `(loop :for type :in (list ,@(getf pattern-type :type))
-;; 			 ;; 			 :always (member type (getf item-props :type))))
-;; 			 ;; 		    (t t))
-;; 			 ;; 	     (setq item-symbol item
-;; 			 ;; 		   ,tokens-symbol ,remaining)
-;; 			 ;; 	     (setq ,invalid-symbol t)))))
-;; 			 (element-type
-;; 			  `(if (not ,invalid-symbol)
-;; 			       (let ((matching t)
-;; 				     (collected)
-;; 				     (rem ,tokens-symbol)
-;; 				     (initial-remaining ,tokens-symbol))
-;; 				 (declare (ignorable ,initial-remaining))
-;; 				 (loop ,@(if (eq :any multiple)
-;; 					     `(:while (and ,matching ,rem))
-;; 					     `(:for x from 0 to ,(if multiple (1- multiple) 0)))
-;; 				    ;; the element-checking function call is invoked on each token
-;; 				    :do (multiple-value-bind (item item-props ,remaining)
-;; 					    (funcall (getf (idiom-grammar-elements idiom) base-type)
-;; 						     rem (cond ((listp base-type) `(quote ,(rest base-type))))
-;; 						     process idiom space sub-props)
-;; 					  ;; only push the returned properties onto the list if the item matched
-;; 					  (if (and item item-props (not (getf item-props :cancel-flag)))
-;; 					      (setq ,sub-props (cons item-props ,sub-props)))
-;; 					  ;; if a cancel-flag property is returned, void the collected items
-;; 					  ;; and reset the remaining items back to the original list of tokens
-;; 					  (if (getf item-props :cancel-flag)
-;; 					      (setq ,rem ,initial-remaining
-;; 						    ,collected nil))
-;; 					  ;; blank the collection after a mismatch if a pattern is to be
-;; 					  ;; matched multiple times, as with :times N
-;; 					  ,(if (numberp multiple) `(if (not item) (setq ,collected nil)))
-;; 					  (if (and item ,matching)
-;; 					      (setq ,collected (cons item ,collected)
-;; 						    ,rem ,remaining)
-;; 					      (setq ,matching nil))))
-;; 				 (if ,(if (not optional) collected t)
-;; 				     (setq item-symbol (if (< 1 (length ,collected))
-;; 							    ,collected (first ,collected))
-;; 					   ,tokens-symbol ,rem)
-;; 				     (setq ,invalid-symbol t))
-;; 				 (list :out item-symbol ,tokens-symbol ,collected ,optional))))))))
-;; 	(loop :for item :in sequence
-;; 	   :collect (let* ((item-symbol (first item)))
-;; 		      (if (keywordp item-symbol)
-;; 			  (cond ((eq :with-preceding-type item-symbol)
-;; 				 `(setq ,invalid-symbol (loop :for item :in (getf ,properties-symbol :type)
-;; 							   :never (eq item ,(second item)))))
-;; 				((eq :rest item-symbol)
-;; 				 `(setq ,invalid-symbol (< 0 (length ,tokens-symbol)))))
-;; 			  (let ((item-properties (rest item)))
-;; 			    (process-item item-symbol item-properties)))))))))
-;; )
