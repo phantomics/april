@@ -230,14 +230,19 @@
 	   (alpha (if (arrayp alpha)
 		      alpha (vector alpha)))
 	   (output (section omega
-			    (if axes (make-array (rank omega)
-						 :initial-contents
-						 (loop :for axis :below (rank omega)
-						    :collect (if inverse
-								 (if (/= axis (- (first axes) index-origin))
-								     0 alpha-index)
-								 (if (= axis (- (first axes) index-origin))
-								     alpha-index (nth axis (dims omega))))))
+			    (if axes (let ((dims (make-array
+						  (rank omega)
+						  :initial-contents (if inverse (loop :for i :below (rank omega)
+										   :collect 0)
+									(dims omega))))
+					   (spec-axes (first axes)))
+				       (if (integerp spec-axes)
+					   (setf (aref dims (- spec-axes index-origin)) (aref alpha 0))
+					   (if (vectorp spec-axes)
+					       (loop :for ax :across spec-axes :for ix :from 0
+						  :do (setf (aref dims (- ax index-origin))
+							    (aref alpha ix)))))
+				       dims)
 				alpha)
 			    :inverse inverse :populator (build-populator metadata-symbol omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
