@@ -105,8 +105,11 @@
 					   (apply-scalar #'- alpha index-origin)))
 			  ;; the inefficient array-to-list is used here in case of nested
 			  ;; alpha arguments like (⊂1 2 3)⌷...
-			  (axis (if (first axes) (loop :for item :across (first axes)
-						    :collect (- item index-origin)))))
+			  (axis (if axes (if (vectorp (first axes))
+					     (loop :for item :across (first axes)
+						:collect (- item index-origin))
+					     (if (integerp (first axes))
+						 (list (- (first axes) index-origin)))))))
 		      (if (not axis)
 			  ;; pad coordinates with nil elements in the case of an elided reference
 			  (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))

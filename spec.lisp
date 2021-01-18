@@ -384,6 +384,7 @@
   	    (is "2 3 4⌷4 5 6⍴⍳9" 1)
   	    (is "1 3⌷2 3 4⍴⍳5" #(4 5 1 2))
   	    (is "1 3⌷[1 3]2 3 4⍴⍳5" #(3 2 1))
+	    (is "1⌷[2]3 3⍴⍳9" #(1 4 7))
   	    (is "(⊂4 5 2 6 3 7 1)⌷'MARANGA'" "ANAGRAM")))
   (≡ (has :titles ("Depth" "Match"))
      (ambivalent #'find-depth (boolean-op array-compare))
