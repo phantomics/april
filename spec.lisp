@@ -46,10 +46,9 @@
 
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
- (grammar (:elements (list :array #'process-value :function #'process-function :operator #'process-operator))
-	  ;; (:opening-patterns composer-opening-patterns-apl-standard)
+ (grammar (:elements '(:array #'process-value :function #'process-function :operator #'process-operator))
 	  (:opening-patterns *composer-opening-patterns-new*)
-	  (:following-patterns composer-following-patterns-apl-standard
+	  (:following-patterns *composer-following-patterns-new*
 			       ;; composer-optimized-patterns-common
 			       ))
 
@@ -104,8 +103,11 @@
 		    (delimiters '(#\[ #\( #\{ #\] #\) #\})))
 		(loop :for char :across string :counting char :into charix
 		   :do (let ((mx (length (member char delimiters))))
-			 (if (< 3 mx) (incf (aref nesting (- 6 mx)) 1)
-			     (if (< 0 mx 4) (incf (aref nesting (- 3 mx)) -1)
+			 (if (< 3 mx) (incf (aref nesting (- 6 mx)))
+			     (if (< 0 mx 4) (if (< 0 (aref nesting (- 3 mx)))
+						(decf (aref nesting (- 3 mx)))
+						(error "Each closing ~a must match with an opening ~a."
+						       (nth mx delimiters) (nth (- 3 mx) delimiters)))
 				 (if (and (char= char #\;)
 					  (= 0 (loop :for ncount :across nesting :summing ncount)))
 				     (setq indices (cons (1- charix) indices)))))))
@@ -583,8 +585,7 @@
   							    (if (arrayp (first axes))
 								(first axes)
 								(vector (first axes)))))
-  			  (if (not (arrayp omega))
-  			      omega (make-array nil :initial-contents omega))))
+  			  (enclose omega)))
   		 (λωαχ (partitioned-enclose alpha omega *last-axis*)))
      (tests (is "⊂2" 2)
 	    (is "(⊂2)=2" 1)
@@ -654,6 +655,7 @@
 	    (is "⊃⍬" 0)
 	    (is "' '=⊃''" 1)
 	    (is "⊃¨⍴¨'one' 'a' 'two' 'three'" #(3 0 3 5))
+	    (is "⊃⊂¨3⍴⊂⍳3" #0A#(1 2 3))
 	    (is "2⊃2 4 6 8" 4)
   	    (is "2⊃(1 2 3)(4 5 6)(7 8 9)" #(4 5 6))
   	    (is "2 2⊃(1 2 3)(4 5 6)(7 8 9)" 5)
@@ -1299,6 +1301,8 @@
        #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
 	   (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
   (for "Assignment of array element referenced by [⌷ index] function."
+       "x←3 3⍴⍳9 ⋄ (2 3⌷x)←33 ⋄ x" #2A((1 2 3) (4 5 33) (7 8 9)))
+  (for "Assignment of array element referenced by [⌷ index] function to different type."
        "x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x" #2A((1 #\a 3) (4 5 6) (7 8 9)))
   (for "Selective assignment of vector portion to value by take function."
        "x←⍳8 ⋄ (3↑x)←20 ⋄ x" #(20 20 20 4 5 6 7 8))
@@ -1345,6 +1349,12 @@
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Inline lateral operator." "× {8 ⍺⍺ 5×2+⍵} 5" 280)
+  (for "Inline pivotal operator." "2-{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)}≤⊢3" -1)
+  (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
+  (for "Array processing function applied over nested array."
+       "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
+  (for "Indexed element of above array."
+       "{⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(#0A#(1 5) 3))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 

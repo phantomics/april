@@ -16,5 +16,4 @@
    (:file "grammar")
    (:file "patterns")
    (:file "spec")
-   (:file "after-spec")
    (:file "game-of-life")))

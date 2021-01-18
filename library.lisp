@@ -140,7 +140,7 @@
 	    (if (not (loop :for item :across omega :never (compare item alpha)))
 		1 0))
 	(let* ((output (make-array (dims alpha) :element-type 'bit :initial-element 0))
-	       (omega (enclose omega))
+	       (omega (enclose-atom omega))
 	       (to-search (if (vectorp omega)
 			      omega (make-array (array-total-size omega)
 						:displaced-to omega :element-type (element-type omega)))))
@@ -270,7 +270,7 @@
       ;; TODO: swap out the vector-based point for an array-based point
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic [⊃ pick] may not be unitary.")
-	  (disclose2 (pick-point alpha omega))))))
+	  (pick-point alpha omega)))))
 
 (defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
@@ -285,8 +285,8 @@
 
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."
-  (let ((omega (enclose omega))
-	(alpha (enclose alpha)))
+  (let ((omega (enclose-atom omega))
+	(alpha (enclose-atom alpha)))
     (if (or (not (vectorp alpha))
 	    (not (vectorp omega)))
 	(error "Arguments to [∩ intersection] must be vectors.")
@@ -315,8 +315,8 @@
 
 (defun array-union (omega alpha)
   "Return a vector of unique values from two arrays. Used to implement [∪ union]."
-  (let ((omega (enclose omega))
-	(alpha (enclose alpha)))
+  (let ((omega (enclose-atom omega))
+	(alpha (enclose-atom alpha)))
     (if (or (not (vectorp alpha))
 	    (not (vectorp omega)))
 	(error "Arguments must be vectors.")
@@ -352,7 +352,7 @@
   "Wraps (aops:permute) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
-	omega (aops:permute (if alpha (loop :for i :across (enclose alpha) :collect (- i index-origin))
+	omega (aops:permute (if alpha (loop :for i :across (enclose-atom alpha) :collect (- i index-origin))
 				(loop :for i :from (1- (rank omega)) :downto 0 :collect i))
 			    omega))))
 
@@ -374,19 +374,19 @@
 (defun encode (omega alpha &optional inverse)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
   (let* ((omega (if (arrayp omega)
-		    omega (enclose omega)))
+		    omega (enclose-atom omega)))
 	 (alpha (if (arrayp alpha)
 		    alpha (if (not inverse)
 			      ;; if the encode is an inverted decode, extend a
 			      ;; scalar left argument to the appropriate degree
-			      (enclose alpha) (let ((max-omega 0))
-						(if (arrayp omega)
-						    (dotimes (i (size omega))
-						      (setq max-omega
-							    (max max-omega (row-major-aref omega i))))
-						    (setq max-omega omega))
-						(make-array (1+ (floor (log max-omega) (log alpha)))
-							    :initial-element alpha)))))
+			      (enclose-atom alpha) (let ((max-omega 0))
+						 (if (arrayp omega)
+						     (dotimes (i (size omega))
+						       (setq max-omega
+							     (max max-omega (row-major-aref omega i))))
+						     (setq max-omega omega))
+						 (make-array (1+ (floor (log max-omega) (log alpha)))
+							     :initial-element alpha)))))
 	 (odims (dims omega)) (adims (dims alpha))
 	 (last-adim (first (last adims)))
 	 (out-coords (loop :for i :below (+ (- (rank alpha) (count 1 adims))
@@ -430,9 +430,9 @@
 (defun decode (omega alpha)
   "Decode an array of numbers as per a given set of bases. Used to implement [⊥ decode]."
   (let* ((omega (if (arrayp omega)
-		    omega (enclose omega)))
+		    omega (enclose-atom omega)))
 	 (alpha (if (arrayp alpha)
-		    alpha (enclose alpha)))
+		    alpha (enclose-atom alpha)))
 	 (odims (dims omega)) (adims (dims alpha))
 	 (last-adim (first (last adims)))
 	 (rba-coords (loop :for i :below (rank alpha) :collect 0))
