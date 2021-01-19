@@ -260,14 +260,20 @@
 		   (< 0 (length (second halves))))
 	      (complex (parse-apl-number-string (first halves) 'complex)
 		       (parse-apl-number-string (second halves) 'complex))))
-	(if (and (not (eql 'rational component-of))
-		 (find #\R nstring))
-	    (let ((halves (cl-ppcre:split #\R nstring)))
-	      (/ (parse-apl-number-string (first halves) 'rational)
-		 (parse-apl-number-string (second halves) 'rational)))
-	    ;; the macron character is converted to the minus sign
-	    (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
-				       :float-format 'double-float)))))
+	(if (find #\E nstring)
+	    (let ((exp-float (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
+							:float-format 'double-float)))
+	      (if (< double-float-epsilon (nth-value 1 (floor exp-float)))
+		  exp-float (let ((halves (mapcar #'parse-apl-number-string (cl-ppcre:split #\E nstring))))
+			      (floor (* (first halves) (expt 10 (second halves)))))))
+	    (if (and (not (eql 'rational component-of))
+		     (find #\R nstring))
+		(let ((halves (cl-ppcre:split #\R nstring)))
+		  (/ (parse-apl-number-string (first halves) 'rational)
+		     (parse-apl-number-string (second halves) 'rational)))
+		;; the macron character is converted to the minus sign
+		(parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
+					   :float-format 'double-float))))))
 
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
