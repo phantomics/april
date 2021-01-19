@@ -368,7 +368,8 @@
 		    items))
 	  (values nil nil tokens)))))
 
-(defun value-assignment-by-selection (tokens space idiom process &optional precedent properties preceding-properties)
+(defun value-assignment-by-selection
+    (tokens space idiom process &optional precedent properties preceding-properties)
   "Match a selective value assignment like (3↑x)←5."
   (declare (ignorable precedent properties preceding-properties))
   (symbol-macrolet ((item (first items)) (rest-items (rest items)))
@@ -424,6 +425,8 @@
 	  (assign-element asop asop-props process-function '(:glyph ←)))
       (if asop (assign-axes axes))
       (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t)))
+
+      ;; (print (list :aa asop symbol symbol-props))
       ;; (if asop (assign-subprocessed symbol symbol-props
       ;; 				    '(:special (:omit (:value-assignment :function-assignment)))))
       ;; (APRIL "5+(a b c)←1 2 3") fn←{⍺+⍵} ⋄ ⌊10_000×{⍺+÷⍵}/40/1 ⋄ {⍺×⍵+3}⌿3 4⍴⍳12 ⋄ {⍵÷3}¨10 ⋄ 1 {⍺+⍵÷3}¨10
