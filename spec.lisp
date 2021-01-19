@@ -912,7 +912,9 @@
 	    (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
 	    (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
-     (symbolic :outer-product-designator)))
+     (symbolic :outer-product-designator))
+  (∇ (has :title "Function Self-Reference")
+     (symbolic :self-reference)))
 
  ;; APL's character-represented operators, which take one or two functions or arrays as input
  ;; and generate a function
@@ -1059,6 +1061,8 @@
 	     (is "1 2 3∘.⌽[3]⊂2 3 4⍴⍳9" #(#3A(((2 3 4 1) (6 7 8 5) (1 2 3 9)) ((5 6 7 4) (9 1 2 8) (4 5 6 3)))
 					  #3A(((3 4 1 2) (7 8 5 6) (2 3 9 1)) ((6 7 4 5) (1 2 8 9) (5 6 3 4)))
 					  #3A(((4 1 2 3) (8 5 6 7) (3 9 1 2)) ((7 4 5 6) (2 8 9 1) (6 3 4 5)))))
+	     (is "(1 2 3) (2 3 4)∘.(⌽[1])⊂3 3⍴⍳9" #(#2A((4 8 3) (7 2 6) (1 5 9))
+							#2A((7 2 6) (1 5 9) (4 8 3))))
 	     (is "⍬∘.=⍬" #2A())
 	     (is "''∘.=''" #2A())
 	     (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
@@ -1274,7 +1278,7 @@
        "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
 				      (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
   (for "Selection from witthin an array with spaces in axis specification."
-       "(3 4⍴⍳12)[ ;4 3]" #2A((4 3) (8 7) (12 11)))
+       "(3 4⍴⍳12)[ ;4 3 ]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
   (for "Assignment from an array to an area of an array with the same shape."
@@ -1359,6 +1363,8 @@
        "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
   (for "Indexed element of above array."
        "{⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(#0A#(1 5) 3))
+  (for "Fibonacci sequence generated using [∇ self] for self-reference within a function."
+       "{$[(⍵=1)∨⍵=2;1;(∇ (⍵-2))+∇ (⍵-1)]}¨⍳7" #(1 1 2 3 5 8 13))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
@@ -1416,8 +1422,7 @@
   (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
-  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
-  )
+  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0))
  
  (test-set
   (with (:name :printed-format-tests)

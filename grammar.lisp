@@ -102,11 +102,12 @@
 	  (if (not (getf properties :glyph))
 	      (multiple-value-bind (output out-properties)
 	    	  (funcall process this-item)
+		;; (print (list :fnout output out-properties))
 	    	(if (eq :function (first (getf out-properties :type)))
 	    	    (progn (setf (getf out-properties :type)
 	    			 (cons (first (getf out-properties :type))
 	    			       (cons :enclosed (rest (getf out-properties :type)))))
-	    		   (values output properties))
+	    		   (values output out-properties))
 	    	    (values nil nil)))
 	      (values nil nil)))
       (if (and (symbolp this-item)
@@ -258,13 +259,15 @@
 	    (values (if (or (not axes) (of-lexicon idiom :functions function-form))
 			(if (not (and (symbolp function-form) (is-workspace-function function-form)))
 			    function-form `(function (inws ,function-form)))
-			`(apl-call :nafn (function ,(insym function-form)) ,@(first axes)))
+			(let ((call-form (if (listp function-form)
+					     function-form `(function ,(insym function-form)))))
+			  `(apl-call :nafn ,call-form ,@(first axes))))
 		    (list :type (if (member :operator (getf function-props :type))
 				    (list :operator :inline-operator
 					  (if (member :pivotal (getf function-props :type))
 					      :pivotal :lateral))
 				    '(:function :inline-function))
-			  :axes axes)
+			  :axes (or axes (getf function-props :axes)))
 		    items)
 	    (values nil nil tokens))))))
 
@@ -421,6 +424,11 @@
 	  (assign-element asop asop-props process-function '(:glyph ←)))
       (if asop (assign-axes axes))
       (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t)))
+      ;; (if asop (assign-subprocessed symbol symbol-props
+      ;; 				    '(:special (:omit (:value-assignment :function-assignment)))))
+      ;; (APRIL "5+(a b c)←1 2 3") fn←{⍺+⍵} ⋄ ⌊10_000×{⍺+÷⍵}/40/1 ⋄ {⍺×⍵+3}⌿3 4⍴⍳12 ⋄ {⍵÷3}¨10 ⋄ 1 {⍺+⍵÷3}¨10
+      ;; (⍳3)⌽[3]¨⊂2 3 4⍴⍳9 ⋄ (3 3⍴⊂3 3⍴⍳9)×¨3 3⍴⍳9 ⋄ fn←{⍺+2×⍵} ⋄ 15 25 35 fn⍤1⊢2 2 3⍴⍳8
+      
       (let ((output
 	     (if symbol
 		 (progn
@@ -665,6 +673,7 @@
 		       (left-operand (insym left-operand))
 		       ;; (left-operand-axes (first (getf (second properties) :axes)))
 		       (omega (gensym)) (alpha (gensym)))
+		   ;; (print (list :right right-operand pre-properties))
 		   (if (or (symbolp operator) (and (listp operator)
 						   (member :pivotal (getf operator-props :type))))
 		       `(apl-compose :op ,(if (listp operator)
@@ -744,13 +753,18 @@
 		 (if (and (not function-axes) (member :axes function-props))
 		     (setq function-axes (getf function-props :axes)))
 		 (let ((output (if is-function
-				   (let ((fn-content (if (or (functionp fn-element)
-							     (member fn-element '(⍺⍺ ⍵⍵))
-							     (and (listp fn-element)
-								  (eql 'function (first fn-element))))
-							 fn-element (resolve-function (if value :dyadic :monadic)
-										      (insym fn-element))))
-					 (fn-sym (or-functional-character fn-element :fn)))
+				   (let* ((fn-content (if (or (functionp fn-element)
+							      (member fn-element '(⍺⍺ ⍵⍵))
+							      (and (listp fn-element)
+								   (eql 'function (first fn-element))))
+							  fn-element (or (resolve-function
+									  (if value :dyadic :monadic)
+									  (insym fn-element))
+									 (resolve-function
+									  :symbolic fn-element))))
+					  (fn-content (if (not (eq :self-reference fn-content))
+							  fn-content '#'∇self))
+					  (fn-sym (or-functional-character fn-element :fn)))
 				     `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list value))
 						,@(if function-axes `((list ,@(first function-axes)))))))))
 		   (if output (values output '(:type (:array :evaluated)) items)

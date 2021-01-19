@@ -56,6 +56,10 @@
 	   (member ,symbol '(⍵ ⍺))) ;; TODO: this is a hack for now, create a list of all reserved symbol names
        ,symbol (intern (string ,symbol) space)))
 
+(defmacro alambda (params &body body)
+  `(labels ((∇self ,params ,@body))
+     #'∇self))
+
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
   (declare (ignorable rest))
@@ -706,7 +710,8 @@ It remains here as a standard against which to compare methods for composing APL
 		 #'identity (lambda (form) `(lambda (,@(if (member '⍺⍺ arg-symbols) '(⍺⍺))
 						     ,@(if (member '⍵⍵ arg-symbols) '(⍵⍵)))
 					      ,form)))
-	     `(lambda ,(if arguments arguments `(⍵ &optional ⍺))
+	     ;; alambda
+	     `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
 		(declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
 		,@(if (not assigned-symbols)
 		      form `((let ,(loop :for sym :in assigned-symbols :collect `((inws ,sym)))
@@ -918,13 +923,13 @@ It remains here as a standard against which to compare methods for composing APL
     ((list (guard first (member first '(λω λωα))) second)
      ;; invert a λω or λωα macro lambda expression
      (list first (invert-function second)))
-    ((list* 'lambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
+    ((list* 'alambda args (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
 	    first-form rest-forms)
      ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args ,declare-form
 			     (error "This function has more than one statement and thus cannot be inverted."))
 	 `(lambda ,args ,declare-form ,(invert-function first-form))))
-    ((list* 'lambda args first-form rest-forms)
+    ((list* 'alambda args first-form rest-forms)
      ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
     			     (error "This function has more than one statement and thus cannot be inverted."))
@@ -966,8 +971,7 @@ It remains here as a standard against which to compare methods for composing APL
 							   (funcall to-wrap item) arg2)))
     					rest)))))
     	   (if last-layer (funcall wrapper (or arg1-var arg2-var))
-    	       (invert-function (or arg1-var arg2-var) wrapper))))))
-    ))
+    	       (invert-function (or arg1-var arg2-var) wrapper))))))))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."

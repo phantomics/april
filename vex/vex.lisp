@@ -819,6 +819,7 @@
 				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name) (getf special-params :omit))))
+	   ;; :do (print (list :xi (getf pattern :name)))
 	   :do (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (symbol-function (getf pattern :function))
 			    tokens space idiom (lambda (item &optional sub-props)
