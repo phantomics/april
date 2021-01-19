@@ -912,7 +912,7 @@
 
 (defun array-inner-product (alpha omega function1 function2)
   "Find the inner product of two arrays with two functions."
-  (let* ((adims (dims alpha)) (odims (dims omega))
+  (let* ((adims (dims alpha)) (odims (dims omega)) (arank (rank alpha)) (orank (rank omega))
 	 (asegment (first (last adims)))
 	 (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
 		       (first odims) (error "To find an inner product the last dimension of the left array ~w"
@@ -928,11 +928,13 @@
 	    (ovix (mod x ovectors)))
 	(if (< 0 avix) (setq adisp (make-array asegment :displaced-to alpha :element-type (element-type alpha)
 					       :displaced-index-offset (* asegment avix))))
-	(if (not (and (= osegment osize) (= 1 (rank omega))))
+	(if (and osegment (not (and (= osegment osize) (= 1 (rank omega)))))
 	    (dotimes (i osegment) (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
-	(loop :for x :across (apply-scalar function1 (if odims oholder omega)
-					   (if adims adisp alpha))
-	   :do (setq result (if (not result) x (funcall function2 x result))))
+	(if (= 0 arank orank)
+	    (setq result (funcall function1 omega alpha))
+	    (loop :for x :across (apply-scalar function1 (if odims oholder omega)
+					       (if adims adisp alpha))
+	       :do (setq result (if (not result) x (funcall function2 x result)))))
 	(setf (row-major-aref output x) result)))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
