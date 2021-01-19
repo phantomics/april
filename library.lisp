@@ -578,7 +578,7 @@
 						(sfun-aliased fn-symbol))
 					    (if (val-wssym first-arg)
 						(setq value-symbol first-arg)
-						(if (and (eql 'choose (first first-arg))
+						(if (and (eql 'achoose (first first-arg))
 							 (val-wssym (second first-arg)))
 						    (if (or (eql '⊃ fn-symbol)
 							    (disc-aliased fn-symbol))
@@ -592,7 +592,7 @@
 					    `(apl-call ,fn-symbol ,fn-form
 						       ,(if (not choose-unpicked)
 							    value-placeholder
-							    (append (list 'choose value-placeholder)
+							    (append (list 'achoose value-placeholder)
 								    (cddr first-arg)))
 						       ,@rest)))))))))
       (let ((form-out (process-form form)))
