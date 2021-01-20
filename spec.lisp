@@ -1331,6 +1331,8 @@
        "x←3⍴⊂⍳4 ⋄ (1↑x[1])←99 ⋄ x" #(99 #(1 2 3 4) #(1 2 3 4)))
   (for "Selective assignment of elements within nested array by pick function."
        "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
+  (for "Multiple assignment with selective assignment in midstream."
+       "a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b" #(#(1 2 30 4 5) 30))
   (for "Index of variable with value assigned inside its own index."
        "y[⍋y←1 8 4 2]" #(1 2 4 8))
   (for "Inline pivotal operation-derived function expression."

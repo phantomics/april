@@ -828,6 +828,7 @@
 			    precedent properties pre-props)
 		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
+	;; (print (list :rem tokens))
 	(if special-params (setf (getf properties :special) special-params))
 	(if (not processed)
 	    (values precedent properties tokens)
