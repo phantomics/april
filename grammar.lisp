@@ -102,7 +102,6 @@
 	  (if (not (getf properties :glyph))
 	      (multiple-value-bind (output out-properties)
 	    	  (funcall process this-item)
-		;; (print (list :fnout output out-properties))
 	    	(if (eq :function (first (getf out-properties :type)))
 	    	    (progn (setf (getf out-properties :type)
 	    			 (cons (first (getf out-properties :type))
@@ -378,40 +377,46 @@
 	  (preceding-special-props (getf (first preceding-properties) :special)))
       (if (not (member :value-assignment-by-selection (getf preceding-special-props :omit)))
 	  (assign-element asop asop-props process-function '(:glyph ←)))
-      (if asop (assign-subprocessed selection-form sform-specs
-				    '(:special (:omit (:value-assignment :function-assignment)))))
-      (or (and selection-form (listp selection-form) (eql 'apl-call (first selection-form))
-	       (multiple-value-bind (sel-form sel-item placeholder set-form)
-		   (generate-selection-form selection-form space)
-		 (if sel-form
-		     ;; generate an array whose each cell is its row-major index, perform the
-		     ;; subtractive function on it and then use assign-selected to assign new values
-		     ;; to the cells at the remaining indices of the original array
-		     (values (if sel-item
-				 (let ((item (gensym)) (indices (gensym)))
-				   (funcall (lambda (form)
-					      (if (not (or (symbolp sel-item)
-							   (and (listp sel-item)
-								(eql 'inws (first sel-item))
-								(symbolp (second sel-item)))))
-						  form (list 'apl-assign sel-item form)))
-					    `(let* ((,item ,sel-item)
-						    (,placeholder (generate-index-array ,item))
-						    (,indices (enclose-atom ,sel-form))
-						    ,@(if set-form
-							  `((,placeholder
-							     (make-array nil :initial-element
-									 (assign-selected
-									  (disclose2 ,item)
-									  ,indices ,precedent))))))
-					       ,(or set-form `(assign-selected ,sel-item ,indices ,precedent)))))
-				 (let ((output (gensym)))
-				   `(let* ((,placeholder ,precedent)
-					   (,output ,sel-form))
-				      (if ,output (setf ,set-form ,output)))))
-			     '(:type (:array :assigned))
-			     items))))
-	  (values nil nil tokens)))))
+      (if asop (let ((items (if (not (listp (first items)))
+				items (first items))))
+		 (assign-subprocessed selection-form sform-specs
+				      '(:special (:omit (:value-assignment :function-assignment))))))
+      (if selection-form (setf items (rest items)))
+      (let ((output
+	     (if (and selection-form (listp selection-form) (eql 'apl-call (first selection-form)))
+		 (multiple-value-bind (sel-form sel-item placeholder set-form)
+		     (generate-selection-form selection-form space)
+		   (if sel-form
+		       ;; generate an array whose each cell is its row-major index, perform the
+		       ;; subtractive function on it and then use assign-selected to assign new values
+		       ;; to the cells at the remaining indices of the original array
+		       (if sel-item
+			   (let ((item (gensym)) (indices (gensym)))
+			     (funcall (lambda (form)
+					(if (not (or (symbolp sel-item)
+						     (and (listp sel-item)
+							  (eql 'inws (first sel-item))
+							  (symbolp (second sel-item)))))
+					    ;; the assigned value is returned at the end so things like
+					    ;; a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
+					    form `(progn (apl-assign ,sel-item ,form)
+							 ,precedent)))
+				      `(let* ((,item ,sel-item)
+					      (,placeholder (generate-index-array ,item))
+					      (,indices (enclose-atom ,sel-form))
+					      ,@(if set-form `((,placeholder
+								(make-array nil :initial-element
+									    (assign-selected
+									     (disclose2 ,item)
+									     ,indices ,precedent))))))
+					 ,(or set-form `(assign-selected
+							 ,sel-item ,indices ,precedent)))))
+			   (let ((output (gensym)))
+			     `(let* ((,placeholder ,precedent)
+				     (,output ,sel-form))
+				(if ,output (setf ,set-form ,output))))))))))
+	(if output (values output '(:type (:array :assigned)) items)
+	    (values nil nil tokens))))))
 
 (defun value-assignment-standard (tokens space idiom process &optional precedent properties preceding-properties)
   "Match a value assignment like a←1 2 3, part of a value expression."
@@ -426,7 +431,6 @@
       (if asop (assign-axes axes))
       (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t)))
 
-      ;; (print (list :aa asop symbol symbol-props))
       ;; (if asop (assign-subprocessed symbol symbol-props
       ;; 				    '(:special (:omit (:value-assignment :function-assignment)))))
       ;; (APRIL "5+(a b c)←1 2 3") fn←{⍺+⍵} ⋄ ⌊10_000×{⍺+÷⍵}/40/1 ⋄ {⍺×⍵+3}⌿3 4⍴⍳12 ⋄ {⍵÷3}¨10 ⋄ 1 {⍺+⍵÷3}¨10
