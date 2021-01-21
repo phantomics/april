@@ -519,64 +519,6 @@
 	  (if output (values output '(:type (:array :assigned)) items)
 	      (values nil nil tokens)))))))
 
-;; (defun value-assignment-standard (tokens space idiom process &optional precedent properties preceding-properties)
-;;   "Match a value assignment like a←1 2 3, part of a value expression."
-;;   (declare (ignorable precedent properties))
-;;   (symbol-macrolet ((item (first items)) (rest-items (rest items)))
-;;     (let ((asop) (asop-props) (axes) (symbol) (symbol-props) (symbols) (symbols-props) (items tokens)
-;; 	  (preceding-type (getf (first preceding-properties) :type))
-;; 	  (preceding-special-props (getf (first preceding-properties) :special)))
-;;       (if (and (eq :array (first preceding-type))
-;; 	       (not (member :value-assignment (getf preceding-special-props :omit))))
-;; 	  (assign-element asop asop-props process-function '(:glyph ←)))
-;;       (if asop (assign-axes axes))
-;;       (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t)))
-      
-;;       (let ((output
-;; 	     (if symbol
-;; 		 (progn
-;; 		   ;; ensure symbol(s) are not bound to function values in the workspace, and
-;; 		   ;; define them as dynamic variables if they're unbound there;
-;; 		   ;; remove symbols from (inws) unless they're bare and thus idiom-native
-;; 		   (loop :for symbol :in (if t ;;(not (listp symbol)) (list symbol)
-;; 					     (mapcar (lambda (s) (if (not (listp s)) s (second s))) symbols))
-;; 		      :do (if (is-workspace-function symbol)
-;; 			      (fmakunbound (intern (string symbol) space)))
-;; 			(if (not (boundp (intern (string symbol) space)))
-;; 			    (progn (proclaim (list 'special (intern (string symbol) space)))
-;; 				   (set (intern (string symbol) space) nil))))
-;; 		   (cond ((eql 'to-output symbol)
-;; 			  ;; a special case to handle ⎕← quad output
-;; 			  `(apl-output ,precedent :print-precision print-precision
-;; 				       :print-to output-stream :print-assignment t))
-;; 			 ((eql 'output-stream symbol)
-;; 			  ;; a special case to handle ⎕ost← setting the output stream; the provided string
-;; 			  ;; is interned in the current working package
-;; 			  (if (stringp precedent)
-;; 			      ;; setq is used instead of apl-assign because output-stream is a lexical variable
-;; 			      `(setq output-stream ,(intern precedent (package-name *package*)))
-;; 			      (if (listp precedent)
-;; 				  (destructuring-bind (vector-symbol package-string symbol-string) precedent
-;; 				    (if (and (eql 'avector vector-symbol)
-;; 					     (stringp package-string)
-;; 					     (stringp symbol-string))
-;; 					;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
-;; 					;; intern the symbol like (intern "OUT-STR" "APRIL")
-;; 					`(setq output-stream ,(intern symbol-string package-string))
-;; 					(error "Invalid assignment to ⎕OST.")))
-;; 				  (error "Invalid assignment to ⎕OST."))))
-;; 			 (t (if (symbolp symbol)
-;; 				(set-workspace-alias space symbol nil))
-;; 			    (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
-;; 					      symbol (list 'inws symbol))))
-;; 			      ;; (print (list :ss symbol precedent))
-;; 			      (if axes (enclose-axes symbol axes :set precedent)
-;; 				  ;; enclose the symbol in (inws) so the (with-april-workspace) macro
-;; 				  ;; will correctly intern it, unless it's one of the system variables
-;; 				  `(apl-assign ,symbol ,precedent)))))))))
-;; 	(if output (values output '(:type (:array :assigned)) items)
-;; 	    (values nil nil tokens))))))
-
 (defun function-assignment (tokens space idiom process &optional precedent properties preceding-properties)
   "Match a function assignment like f←{⍵×2}, part of a functional expression."
   (declare (ignorable precedent properties))
