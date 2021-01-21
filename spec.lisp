@@ -1274,6 +1274,8 @@
        "(x ⎕IO y)←10 0 2 ⋄ x+y×⍳5" #(10 12 14 16 18))
   (for "Strand assignment of nested scalar variable."
        "⎕IO←1 ⋄ (a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
+  (for "Strand assignment of variables without parentheses." "a b c←4 5 6 ⋄ a×b,c" #(20 24))
+  (for "Strand assignment with nesting." "d (e f)←7 (8 9) ⋄ e⍴d×f" #(63 63 63 63 63 63 63 63))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."

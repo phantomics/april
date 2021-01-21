@@ -173,9 +173,7 @@
 
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
-  (if (not (and (not (stringp item))
-		(arrayp item)
-		(is-unitary item)
+  (if (not (and (not (stringp item)) (arrayp item) (is-unitary item)
 		(not (arrayp (row-major-aref item 0)))))
       item (row-major-aref item 0)))
 
@@ -184,17 +182,27 @@
   (if (or (not (listp symbol))
 	  (eql 'inws (first symbol)))
       `(setq ,symbol ,value)
-      (let ((values (gensym "A")))
+      (let ((assign-forms) (values (gensym "A"))
+	    (symbols (if (not (eql 'avector (first symbol)))
+			 symbol (rest symbol))))
+	(labels ((build-aref (symbol path)
+		   (if (not path) symbol (build-aref `(aref ,symbol ,(first path)) (rest path))))
+		 (process-symbols (sym-list &optional path)
+		   (loop :for s :in sym-list :for sx :from 0
+		      :do (let ((path-to (cons sx path)))
+			    (if (and (listp s) (not (eql 'inws (first s))))
+				(process-symbols s path-to)
+				(let ((set-to `(disclose2 (if (or (not (arrayp ,values)) (= 1 (size ,values)))
+							      ,values ,(build-aref values (reverse path-to))))))
+				  (setq assign-forms (cons (if (member s *idiom-native-symbols*)
+							       `(setq ,s ,set-to) `(set ',s ,set-to))
+							   assign-forms))))))))
+	  (process-symbols symbols)
 	`(let ((,values ,value))
 	   (if (and (arrayp ,values)
 		    (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
 	       (error "Mismatched number of symbols and values for string assignment."))
-	   ,@(loop :for s :in (rest symbol) :for sx :from 0
-		:collect (let ((set-to `(disclose2 (if (or (not (arrayp ,values)) (= 1 (size ,values)))
-						      ,values (aref ,values ,sx)))))
-			   (if (member s *idiom-native-symbols*) `(setq ,s ,set-to)
-			       `(set ',s ,set-to))))
-	   ,values))))
+	   ,@assign-forms ,values)))))
 
 (defmacro apl-output (form &rest options)
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
