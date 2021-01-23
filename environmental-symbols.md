@@ -10,10 +10,11 @@ These symbols represent values defining the environment in which April code runs
 
 These variables can be reassigned by the user; for instance, `⎕io←0` sets the index origin to 0.
 
-|Symbol|Name             |Description|
-|------|-----------------|-----------|
-|`⎕IO` |Index Origin     |The number from which counting begins; may be 1 (default) or 0.|
-|`⎕PP` |Print Precision  |Precision at which decimal values are expressed for printing; default 10.|
+|Symbol|Name                |Description|
+|------|--------------------|-----------|
+|`⎕IO` |Index Origin        |The number from which counting begins; may be 1 (default) or 0.|
+|`⎕CT` |Comparison Tolerance|Difference between floating point numbers below which they are considered equal.|
+|`⎕PP` |Print Precision     |Precision at which decimal values are expressed for printing; default 10.|
 
 ### April's Unique System Variables
 

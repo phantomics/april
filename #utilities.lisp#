@@ -729,7 +729,6 @@ It remains here as a standard against which to compare methods for composing APL
 		 #'identity (lambda (form) `(lambda (,@(if (member '⍺⍺ arg-symbols) '(⍺⍺))
 						     ,@(if (member '⍵⍵ arg-symbols) '(⍵⍵)))
 					      ,form)))
-	     ;; alambda
 	     `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
 		(declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
 		,@(if (not assigned-symbols)

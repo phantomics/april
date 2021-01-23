@@ -15,7 +15,7 @@
     (let ((included)
 	  (omega-vector (if (or (vectorp omega)	(not (arrayp omega)))
 			    (disclose2 omega)
-			    (make-array (list (array-total-size omega))
+			    (make-array (array-total-size omega)
 					:displaced-to omega :element-type (element-type omega)))))
       (loop :for element :across alpha
 	 :do (let ((include t))
@@ -27,12 +27,23 @@
       (make-array (list (length included)) :element-type (element-type alpha)
 		  :initial-contents (reverse included)))))
 
-(defun scalar-compare (omega alpha)
+(defun scalar-compare (comparison-tolerance)
   "Compare two scalar values as appropriate for APL."
-  (funcall (if (and (characterp alpha) (characterp omega))
-	       #'char= (if (and (numberp alpha) (numberp omega))
-			   #'= (lambda (a o) (declare (ignore a o)))))
-	   omega alpha))
+  (lambda (omega alpha)
+    (funcall (if (and (characterp alpha) (characterp omega))
+		 #'char= (if (and (numberp alpha) (numberp omega))
+			     (if (not (or (floatp alpha) (floatp omega)))
+				 #'= (lambda (a o) (> comparison-tolerance (abs (- a o)))))
+			     (lambda (a o) (declare (ignore a o)))))
+	     omega alpha)))
+
+(defun compare-by (symbol comparison-tolerance)
+  (lambda (omega alpha)
+    (funcall (if (and (numberp alpha) (numberp omega))
+		 (if (not (or (floatp alpha) (floatp omega)))
+		     (symbol-function symbol) (lambda (a o) (and (< comparison-tolerance (abs (- a o)))
+								 (funcall (symbol-function symbol) a o)))))
+	     omega alpha)))
 
 (defun count-to (index index-origin)
   "Implementation of APL's ⍳ function."
