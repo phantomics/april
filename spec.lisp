@@ -41,8 +41,8 @@
 
  ;; system variables and default state of an April workspace
  (system :atomic-vector *atomic-vector* :output-printed nil
-	 :base-state '(:comparison-tolerance 1e-14 :output-stream '*standard-output*)
-	 :workspace-defaults '(:index-origin 1 :print-precision 10))
+	 :base-state '(:comparison-tolerance (inws *comparison-tolerance*) :output-stream '*standard-output*)
+	 :workspace-defaults '(:index-origin 1 :print-precision 10 :comparison-tolerance double-float-epsilon))
 
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
@@ -138,20 +138,17 @@
 				  (if (getf state :print-to)
 				      (getf state :print-to)
 				      (second (getf state :output-stream)))))
-		      (loop :for var :in '(:index-origin :print-precision)
-			 :collect (if (eq :index-origin var)
-				      (list 'index-origin (or (getf state :index-origin)
-							      `(inws *index-origin*)))
-				      (if (eq :print-precision var)
-					  (list 'print-precision (or (getf state :print-precision)
-								     `(inws *print-precision*)))
-					  (list (intern (string-upcase var) "APRIL")
-						(getf state var)))))))
+		      (list (list 'index-origin (or (getf state :index-origin)
+						    `(inws *index-origin*)))
+			    (list 'print-precision (or (getf state :print-precision)
+						       `(inws *print-precision*)))
+			    (list 'comparison-tolerance (or (getf state :comparison-tolerance)
+							    `(inws *comparison-tolerance*))))))
 	    :postprocess-compiled
 	    (lambda (state &rest inline-arguments)
 	      (lambda (form)
-		(let ((final-form (if inline-arguments `(apl-call :fn ,(first (last form))
-										   ,@inline-arguments)
+		(let ((final-form (if inline-arguments
+				      `(apl-call :fn ,(first (last form)) ,@inline-arguments)
 				      (first (last form)))))
 		  (append (butlast form)
 			  (list (append (list 'apl-output final-form)
@@ -170,7 +167,8 @@
 	    :build-compiled-code #'build-compiled-code)
 
  ;; specs for multi-character symbols exposed within the language
- (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕ost output-stream)
+ (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision
+		       ⎕ost output-stream ⎕ct *comparison-tolerance*)
 	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
 	  (:function ⎕t coerce-type))
  
@@ -300,24 +298,25 @@
 	(:demo-profile :title "Scalar Logical Function Demos"
 		       :description "Scalar logical functions compare individual values, and like scalar numeric functions they can be applied over arrays."))
   (< (has :title "Less")
-     (dyadic (scalar-function (boolean-op <)))
+     (dyadic (scalar-function (boolean-op (compare-by '< comparison-tolerance))))
      (tests (is "3<1 2 3 4 5" #*00011)))
   (≤ (has :title "Less or Equal")
-     (dyadic (scalar-function (boolean-op <=)))
+     (dyadic (scalar-function (boolean-op (compare-by '<= comparison-tolerance))))
      (tests (is "3≤1 2 3 4 5" #*00111)))
   (= (has :title "Equal")
-     (dyadic (scalar-function (boolean-op scalar-compare)))
+     (dyadic (scalar-function (boolean-op (scalar-compare comparison-tolerance))))
      (tests (is "3=1 2 3 4 5" #*00100)
 	    (is "'cat'='hat'" #*011)))
   (≥ (has :title "Greater or Equal")
-     (dyadic (scalar-function (boolean-op >=)))
+     (dyadic (scalar-function (boolean-op (compare-by '>= comparison-tolerance))))
      (tests (is "3≥1 2 3 4 5" #*11100)))
   (> (has :title "Greater")
-     (dyadic (scalar-function (boolean-op >)))
+     (dyadic (scalar-function (boolean-op (compare-by '> comparison-tolerance))))
      (tests (is "3>1 2 3 4 5" #*11000)))
   (≠ (has :titles ("Unique Mask" "Not Equal"))
      (ambivalent #'unique-mask
-		 (scalar-function (boolean-op (λωα (not (scalar-compare omega alpha))))))
+		 (scalar-function (boolean-op (λωα (not (funcall (scalar-compare comparison-tolerance)
+								 omega alpha))))))
      (tests (is "≠2 4 7 4 6 8 3 5 2 4 2 5 6 7" #*11101111000000)
 	    (is "≠'ONE' 'TWO' 'ONE' 'THREE' 'TWO' 'THREE'" #*110100)
 	    (IS "≠↑'ONE' 'TWO' 'ONE' 'THREE' 'TWO' 'THREE'" #*110100)
@@ -1768,6 +1767,10 @@ c   2.56  3
      (is (get-output-stream-string out-str)
 	 "
 "))
+   (progn (princ (format nil "λ Floating-point comparisons with varying comparison tolerance.~%"))
+	  (is (print-and-run (april-c "{g←1.00001<1.0001 ⋄ ⎕ct←0.0001 ⋄ h←g,1.00001<1.0001 ⋄ ⎕ct←⍵ ⋄ h}"
+				      double-float-epsilon))
+	      #*10))
    (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
 	  (multiple-value-bind (out1 out2)
 	      (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5))

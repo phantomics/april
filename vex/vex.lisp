@@ -552,8 +552,10 @@
 			    	      (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
 			    			      (intern "*BRANCHES*" ,,ws-fullname)
 			    			      (intern "*INDEX-ORIGIN*" ,,ws-fullname)
-			    			      (intern "*PRINT-PRECISION*" ,,ws-fullname)))
+			    			      (intern "*PRINT-PRECISION*" ,,ws-fullname)
+			    			      (intern "*COMPARISON-TOLERANCE*" ,,ws-fullname)))
 			    	      (set (intern "*SYSTEM*" ,,ws-fullname) ,',(cons 'list (of-subspec system)))
+				      ;; TODO: following is APL-specific, move into spec
 			    	      (set (intern "*BRANCHES*" ,,ws-fullname) nil)
 			    	      (set (intern "*INDEX-ORIGIN*" ,,ws-fullname)
 			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
@@ -561,6 +563,9 @@
 			    	      (set (intern "*PRINT-PRECISION*" ,,ws-fullname)
 			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
 				      		   :print-precision))
+			    	      (set (intern "*COMPARISON-TOLERANCE*" ,,ws-fullname)
+			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
+				      		   :comparison-tolerance))
 				      (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
 			       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))))
 	      ;; print a summary of the idiom as it was specified or extended
