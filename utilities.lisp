@@ -20,6 +20,10 @@
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 
+(defvar *april-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
+						       :name "april-language-kernel"))
+(setq lparallel:*kernel* *april-parallel-kernel*)
+
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
     "Reader macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
@@ -192,8 +196,8 @@
 		      :do (let ((path-to (cons sx path)))
 			    (if (and (listp s) (not (eql 'inws (first s))))
 				(process-symbols s path-to)
-				(let ((set-to `(disclose2 (if (or (not (arrayp ,values)) (= 1 (size ,values)))
-							      ,values ,(build-aref values (reverse path-to))))))
+				(let ((set-to `(disclose (if (or (not (arrayp ,values)) (= 1 (size ,values)))
+							     ,values ,(build-aref values (reverse path-to))))))
 				  (setq assign-forms (cons (if (member s *idiom-native-symbols*)
 							       `(setq ,s ,set-to) `(set ',s ,set-to))
 							   assign-forms))))))))
