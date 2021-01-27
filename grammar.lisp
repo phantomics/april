@@ -391,26 +391,25 @@
 		       ;; subtractive function on it and then use assign-selected to assign new values
 		       ;; to the cells at the remaining indices of the original array
 		       (if sel-item
-			   (let ((item (gensym)) (indices (gensym)))
-			     (funcall (lambda (form)
-					(if (not (or (symbolp sel-item)
-						     (and (listp sel-item)
-							  (eql 'inws (first sel-item))
-							  (symbolp (second sel-item)))))
-					    ;; the assigned value is returned at the end so things like
-					    ;; a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
-					    form `(progn (apl-assign ,sel-item ,form)
-							 ,precedent)))
-				      `(let* ((,item ,sel-item)
-					      (,placeholder (generate-index-array ,item))
-					      (,indices (enclose-atom ,sel-form))
-					      ,@(if set-form `((,placeholder
-								(make-array nil :initial-element
-									    (assign-selected
-									     (disclose2 ,item)
-									     ,indices ,precedent))))))
-					 ,(or set-form `(assign-selected
-							 ,sel-item ,indices ,precedent)))))
+			   (let ((item (gensym)) (indices (gensym)) (prec (gensym)))
+			     `(let* ((,item ,sel-item)
+				     (,placeholder (generate-index-array ,item))
+				     (,prec ,precedent)
+				     (,indices (enclose-atom ,sel-form))
+				     ,@(if set-form `((,placeholder
+						       (make-array nil :initial-element
+								   (assign-selected (disclose ,item)
+										    ,indices ,prec))))))
+				,(funcall (lambda (form)
+					    (if (not (or (symbolp sel-item)
+					      		 (and (listp sel-item)
+					      		      (eql 'inws (first sel-item))
+					      		      (symbolp (second sel-item)))))
+						;; the assigned value is returned at the end so
+						;; things like a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
+						form `(progn (apl-assign ,sel-item ,form)
+							     ,prec)))
+					  (or set-form `(assign-selected ,sel-item ,indices ,prec)))))
 			   (let ((output (gensym)))
 			     `(let* ((,placeholder ,precedent)
 				     (,output ,sel-form))
@@ -871,7 +870,7 @@
 ;; 		  ;; 	  (,placeholder (generate-index-array ,item))
 ;; 		  ;; 	  (,indices (enclose-atom ,sel-form))
 ;; 		  ;; 	  ,@(if set-form `((,placeholder (make-array nil :initial-element
-;; 		  ;; 						     (assign-selected (disclose2 ,item)
+;; 		  ;; 						     (assign-selected (disclose ,item)
 ;; 		  ;; 								      ,indices ,precedent))))))
 ;; 		  ;;    ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent))))
 ;; 		  `(apl-assign
@@ -880,7 +879,7 @@
 ;; 			   (,placeholder (generate-index-array ,item))
 ;; 			   (,indices (enclose-atom ,sel-form))
 ;; 			   ,@(if set-form `((,placeholder (make-array nil :initial-element
-;; 								      (assign-selected (disclose2 ,item)
+;; 								      (assign-selected (disclose ,item)
 ;; 										       ,indices ,precedent))))))
 ;; 		      ,(or set-form `(assign-selected ,sel-item ,indices ,precedent))))
 ;; 		  )

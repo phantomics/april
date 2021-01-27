@@ -14,7 +14,7 @@
 		    o a)))
     (let ((included)
 	  (omega-vector (if (or (vectorp omega)	(not (arrayp omega)))
-			    (disclose2 omega)
+			    (disclose omega)
 			    (make-array (array-total-size omega)
 					:displaced-to omega :element-type (element-type omega)))))
       (loop :for element :across alpha
@@ -47,12 +47,12 @@
 
 (defun count-to (index index-origin)
   "Implementation of APL's ⍳ function."
-  (let ((index (disclose2 index)))
+  (let ((index (disclose index)))
     (if (integerp index)
 	(if (= 0 index) (vector)
 	    (let ((output (make-array index :element-type (list 'integer 0 (if (> 0 index)
 									       index (max 16 index))))))
-	      (pdotimes (i index) (setf (aref output i) (+ i index-origin)))
+	      (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
 	      output))
 	(if (vectorp index)
 	    (let ((output (make-array (array-to-list index))))
@@ -61,8 +61,7 @@
 			       (setf (apply #'aref output coords)
 				     (make-array (length index)
 						 :element-type
-						 (list 'integer 0 (+ index-origin
-								     (reduce #'max coords)))
+						 (list 'integer 0 (+ index-origin (reduce #'max coords)))
 						 :initial-contents
 						 (if (= 0 index-origin)
 						     coords (loop :for c :in coords
@@ -159,7 +158,7 @@
 			      omega (make-array (array-total-size omega)
 						:displaced-to omega :element-type (element-type omega)))))
 	  ;; TODO: this could be faster with use of a hash table and other additions
-	  (pdotimes (index (array-total-size output))
+	  (xdotimes output (index (array-total-size output))
 	    (let ((found))
 	      (loop :for item :across to-search :while (not found)
 		 :do (setq found (compare item (row-major-aref alpha index))))
@@ -271,7 +270,7 @@
   (lambda (omega alpha)
     (labels ((pick-point (point input)
 	       (if (is-unitary point)
-		   (let ((point (disclose2 point)))
+		   (let ((point (disclose point)))
 		     ;; if this is the last level of nesting specified, fetch the element
 		     (if (not (arrayp point))
 			 (aref input (- point index-origin))
@@ -285,7 +284,7 @@
 					       :initial-contents (loop :for i :from 1 :to (1- (length point))
 								    :collect (aref point i)))
 				   (aref point 1))
-			       (disclose2 (pick-point (aref point 0) input))))))
+			       (disclose (pick-point (aref point 0) input))))))
       ;; TODO: swap out the vector-based point for an array-based point
       (if (= 1 (array-total-size omega))
 	  (error "Right argument to dyadic [⊃ pick] may not be unitary.")
@@ -513,8 +512,8 @@
 	 (input-displaced (if (/= 2 (rank in-matrix))
 			      (make-array (list 1 (length in-matrix)) :element-type (element-type input)
 					  :displaced-to input))))
-    (if input-displaced (dotimes (i (length in-matrix)) (setf (row-major-aref input i)
-							      (aref in-matrix i))))
+    (if input-displaced (xdotimes input (i (length in-matrix)) (setf (row-major-aref input i)
+								     (aref in-matrix i))))
     (let ((result (array-inner-product (invert-matrix (array-inner-product (or input-displaced
 									       (aops:permute '(1 0) input))
 									   input #'* #'+))
@@ -542,7 +541,7 @@
   (let* ((is-scalar (= 0 (rank array)))
 	 (array (if is-scalar (aref array) array))
 	 (output (make-array (dims array) :element-type (list 'integer 0 (size array)))))
-    (dotimes (i (size array)) (setf (row-major-aref output i) i))
+    (xdotimes output (i (size array)) (setf (row-major-aref output i) i))
     (funcall (if (not is-scalar) #'identity (lambda (o) (make-array nil :initial-element o)))
 	     output)))
 
@@ -625,18 +624,18 @@
 	     (output (if (not to-copy-input)
 			 array (make-array (dims array) :element-type (if (/= 0 (rank values))
 									  t (assign-element-type values)))))
-	     (assigned-indices (if to-copy-input
-				   (make-array (size array) :element-type 'bit :initial-element 0))))
+	     (assigned-indices (if to-copy-input (make-array (size array) :element-type '(unsigned-byte 8)
+							     :initial-element 0))))
 	;; TODO: is assigning bits slow?
 	;; iterate through the items to be assigned and, if an empty array has been initialized for
 	;; the output, store the indices that have been assigned to new data
-	(dotimes (i (size indices))
+	(xdotimes output (i (size indices))
 	  (setf (row-major-aref output (row-major-aref indices i))
 		(if (= 0 (rank values)) values (row-major-aref values i)))
 	  (if to-copy-input (setf (aref assigned-indices (row-major-aref indices i)) 1)))
 	;; if the original array was assigned to just return it, or if a new array was created
 	;; iterate through the old array and copy the non-assigned data to the output
-	(if to-copy-input (dotimes (i (size array))
+	(if to-copy-input (xdotimes output (i (size array))
 			    (if (= 0 (aref assigned-indices i))
 				(setf (row-major-aref output i) (row-major-aref array i)))))
 	output)
@@ -667,7 +666,7 @@
 			     (increment (reduce #'* (nthcdr (1+ axis) odims)))
 			     (output (make-array (loop :for dim :in odims :for dx :from 0
 						    :when (/= dx axis) :collect dim))))
-			(dotimes (i (size output))
+			(xdotimes output (i (size output))
 			  (declare (optimize (safety 1)))
 			  (let ((value))
 			    (loop :for ix :from (1- rlen) :downto 0
@@ -677,8 +676,8 @@
 							     0 (* (floor i increment)
 								  (- (* increment rlen) increment)))
 							 (if (/= 1 increment) i (* i rlen))))))
-				     (setq value (if (not value) item (funcall function (disclose2 value)
-									       (disclose2 item))))))
+				     (setq value (if (not value) item (funcall function (disclose value)
+									       (disclose item))))))
 			    (setf (row-major-aref output i) value)))
 			(disclose-atom output)))))))
 
@@ -691,11 +690,11 @@
 		     (rlen (nth axis odims))
 		     (increment (reduce #'* (nthcdr (1+ axis) odims)))
 		     (output (make-array odims)))
-		(dotimes (i (size output))
+		(xdotimes output (i (size output))
 		  (declare (optimize (safety 1)))
 		  (let ((value)	(vector-index (mod (floor i increment) rlen)))
 		    (if inverse
-			(let ((original (disclose2 (row-major-aref
+			(let ((original (disclose (row-major-aref
 						   omega (+ (mod i increment)
 							    (* increment vector-index)
 							    (* increment rlen
@@ -703,7 +702,7 @@
 			  (setq value (if (= 0 vector-index)
 					  original
 					  (funcall function original
-						   (disclose2
+						   (disclose
 						    (row-major-aref
 						     omega (+ (mod i increment)
 							      (* increment (1- vector-index))
@@ -713,15 +712,15 @@
 			   :do (let ((original (row-major-aref
 						omega (+ (mod i increment) (* ix increment)
 							 (* increment rlen (floor i (* increment rlen)))))))
-				 (setq value (if (not value) (disclose2 original)
-						 (funcall function value (disclose2 original)))))))
+				 (setq value (if (not value) (disclose original)
+						 (funcall function value (disclose original)))))))
 		    (setf (row-major-aref output i) value)))
 		output))))
 
 (defun operate-each (function-monadic function-dyadic)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (let (;; (function-monadic (lambda (o) (funcall function-monadic o)))
-   	(function-dyadic (lambda (o a) (funcall function-dyadic (disclose2 o) (disclose2 a)))))
+   	(function-dyadic (lambda (o a) (funcall function-dyadic (disclose o) (disclose a)))))
     (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
 			 i (make-array nil :initial-element i))))
       (lambda (omega &optional alpha)
@@ -738,12 +737,12 @@
 				 (make-array output-dims))))
 		(if alpha (if (and oscalar ascalar)
 			      (setq output (funcall function-dyadic omega alpha))
-			      (dotimes (i (size (if oscalar alpha omega)))
+			      (xdotimes (if oscalar alpha omega) (i (size (if oscalar alpha omega)))
 				(setf (row-major-aref output i)
 				      (funcall function-dyadic (or oscalar (row-major-aref omega i))
 					       (or ascalar (row-major-aref alpha i))))))
 		    (if oscalar (setq output (funcall function-monadic oscalar))
-			(dotimes (i (size omega))
+			(xdotimes omega (i (size omega))
 			  (setf (row-major-aref output i)
 				(funcall function-monadic (row-major-aref omega i))))))
 		output)))))))
@@ -816,7 +815,7 @@
 	   (odiv-interval (/ osize odiv-size))
 	   (adiv-interval (if alpha (/ asize adiv-size))))
       (flet ((generate-divs (div-array ref-array div-dims div-size)
-      	       (dotimes (i (size div-array))
+      	       (xdotimes div-array (i (size div-array))
       		 (setf (row-major-aref div-array i)
       		       (if (= 0 (rank div-array)) ref-array
       			   (make-array div-dims :element-type (element-type ref-array)
@@ -828,12 +827,12 @@
 			    ;; 	   (= 0 (rank (row-major-aref odivs 0)))
 			    ;; 	   (= 0 (rank (row-major-aref adivs 0))))
 			    ;; TODO: what's a better heuristic for deciding whether to disclose?
-			    t (dotimes (i (size output))
+			    t (xdotimes output (i (size output))
 				(setf (row-major-aref output i) (disclose (row-major-aref output i)))))
 			   (mix-arrays (max (rank odivs) (rank adivs))
 				       output)))
 	    (let ((output (make-array (dims odivs))))
-	      (dotimes (i (size output))
+	      (xdotimes output (i (size output))
 		(setf (row-major-aref output i) (funcall function-monadic (row-major-aref odivs i))))
 	      (mix-arrays (rank output) output)))))))
 
@@ -855,8 +854,7 @@
   "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
     (declare (ignorable alpha))
-    (let ((arg omega)
-	  (prior-arg omega))
+    (let ((arg omega) (prior-arg omega))
       (loop :for index :from 0 :while (or (= 0 index)
 					  (= 0 (funcall op-right prior-arg arg)))
 	 :do (setq prior-arg arg

@@ -10,7 +10,6 @@
 	       "decimals" "parse-number" "symbol-munger" "prove" "simple-date-time" "trivia")
   :components 
   ((:file "package")
-   (:file "parallel")
    (:file "utilities")
    (:file "library")
    (:file "grammar")

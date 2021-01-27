@@ -10,6 +10,24 @@
 
 (setf lparallel:*kernel* *aplesque-parallel-kernel*)
 
+(defun get-free-threads ()
+  (let ((workers (lparallel.kernel::workers lparallel:*kernel*)))
+    (loop :for w :across workers :when (not (lparallel.kernel::running-category w))
+       :counting w :into total :finally (return total))))
+
+(defmacro xdotimes (object clause &body body)
+  (let ((asym (gensym)) (eltype (gensym)) (free-threads (gensym)))
+    `(let* ((,asym ,object)
+	    (,eltype (element-type ,asym))
+	    (,free-threads (get-free-threads)))
+       (if (or (= 0 ,free-threads)
+	       (eql 'bit ,eltype)
+	       (and (listp ,eltype)
+		    (member 'unsigned-byte ,eltype)
+		    (> 7 (second ,eltype))))
+	   (dotimes ,clause ,@body)
+	   (pdotimes ,(append clause (list nil free-threads)) ,@body)))))
+
 (defun rmi-from-subscript-vector (array subscripts)
   "Derive an array's row-major index from a vector of subscripts."
   (if (not (vectorp subscripts))
@@ -85,12 +103,12 @@
 		       :never (arrayp item)))))
       input (make-array nil :initial-contents input)))
 
-(defun disclose (item)
+(defun disclose-unitary (item)
   "If the argument is an array with only one member, disclose it, otherwise do nothing."
   (if (not (and (arrayp item) (is-unitary item)))
       item (row-major-aref item 0)))
 
-(defun disclose2 (array)
+(defun disclose (array)
   "Disclose a scalar nested array."
   (if (or (< 0 (rank array))
 	  (not (arrayp array)))
@@ -142,7 +160,7 @@
   "Convert array to list."
   (if (or (not (arrayp input))
 	  (= 0 (rank input)))
-      (list (disclose2 input))
+      (list (disclose input))
       (let* ((dimensions (dims input))
 	     (depth (1- (length dimensions)))
 	     (indices (make-list (1+ depth) :initial-element 0)))
@@ -307,7 +325,7 @@
 		   (if (or halt-if-true (and count (> 1 count)))
 		       (setq proceeding nil))))))
       (if (= 0 (rank input))
-	  (funcall function (disclose2 input) nil)
+	  (funcall function (disclose input) nil)
 	  (if elems (if (listp (rest elems))
 			(loop :for el :in elems :while proceeding :do (process-this el))
 			(if (< (first elems) (rest elems))
@@ -354,7 +372,7 @@
 	  (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
 						       (apply-scalar function oscalar alpha axes is-boolean)
 						       (funcall function oscalar))))
-	      (dotimes (i (size omega))
+	      (xdotimes output (i (size omega))
 		 (setf (row-major-aref output i) (nest (apply-scalar function (row-major-aref omega i))))))
 	  (if (and oscalar ascalar)
 	      ;; if both arguments are scalar or 1-element, return the output of the function on both,
@@ -366,11 +384,11 @@
 		      (and (= orank arank)
 			   (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
 		  ;; map the function over identically-shaped arrays
-		  (dotimes (i (size (if oscalar alpha omega)))
+		  (xdotimes output (i (size (if oscalar alpha omega)))
 		    (setf (row-major-aref output i)
 			  (nest (apply-scalar function
-					      (if oscalar oscalar (disclose2 (row-major-aref omega i)))
-					      (if ascalar ascalar (disclose2 (row-major-aref alpha i)))))))
+					      (if oscalar oscalar (disclose (row-major-aref omega i)))
+					      (if ascalar ascalar (disclose (row-major-aref alpha i)))))))
 		  ;; if axes are given, go across the higher-ranked function and call the function on its
 		  ;; elements along with the appropriate elements of the lower-ranked function
 		  (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
@@ -489,11 +507,11 @@
 					   :initial-element (if (and (not populator)
 								     (not (arrayp fill-element)))
 								fill-element))))
-		  (if populator (dotimes (i (size output)) (setf (row-major-aref output i)
-								 (funcall populator)))
+		  (if populator (xdotimes output (i (size output)) (setf (row-major-aref output i)
+									 (funcall populator)))
 		      (if (arrayp fill-element)
-			  (dotimes (i (size output)) (setf (row-major-aref output i)
-							   (copy-nested-array fill-element)))))
+			  (xdotimes output (i (size output)) (setf (row-major-aref output i)
+								   (copy-nested-array fill-element)))))
 		  (if (< 0 (size input))
 		      (plet ((iranges (loop :for d :across dimensions :for id :across idims
 		      			 :collect (let ((point (if inverse (if (> 0 d) 0 d)
@@ -509,7 +527,7 @@
 		      						    (+ point -1 (min id (abs d)))))))))
 			(plet ((iindices (ranges-to-rmi-vector iranges id-factors))
 			       (oindices (ranges-to-rmi-vector oranges od-factors)))
-		      	  (dotimes (i (length iindices))
+		      	  (xdotimes output (i (length iindices))
 		      	    (setf (row-major-aref output (aref oindices i))
 		      		  (row-major-aref input (aref iindices i)))))))
 		  output))))))
@@ -557,7 +575,7 @@
 				  :element-type output-type)))
 	  (setq out-vset (* increment catax-length))
 	  
-	  (pdotimes (i (size output))
+	  (xdotimes output (i (size output))
 	    (multiple-value-bind (sets sremainder) (floor i out-vset)
 	      (let ((vix (nth-value 1 (floor sremainder out-vset))))
 	  	(let* ((first-input (< vix vset1))
@@ -597,13 +615,13 @@
 		 (let ((output (make-array (abs degrees)
 					   :element-type (element-type input)
 					   :initial-element (if (not populator) (apl-array-prototype input)))))
-		   (if populator (dotimes (i (length output)) (setf (row-major-aref output i)
-								    (funcall populator))))
+		   (if populator (xdotimes output (i (length output)) (setf (row-major-aref output i)
+									    (funcall populator))))
 		   output))))
 	((and (or (not (arrayp input))
 		  (= 0 (rank input)))
 	      (not (arrayp degrees)))
-	 (make-array degrees :element-type (type-of input) :initial-element (disclose2 input)))
+	 (make-array degrees :element-type (type-of input) :initial-element (disclose input)))
 	((and compress-mode (not (is-unitary input))
 	      (and (arrayp degrees)
 		   (/= (length degrees)
@@ -652,9 +670,10 @@
 		   (let ((value (if (not (arrayp input)) input (row-major-aref input 0))))
 		     (dotimes (degree (length degrees))
 		       (let ((this-degree (aref degrees degree)))
-			 (dotimes (ix this-degree)
+			 (xdotimes output (ix this-degree)
 			   (setf (aref output (+ ix (if (= 0 degree) 0 (aref c-degrees (1- degree)))))
 				 value)))))
+		   ;; TODO: linearize this
 		   (across input (lambda (elem coords)
 				   (let* ((exc (nth axis coords))
 					  (dx (if compress-mode exc (aref positive-indices exc)))
@@ -786,11 +805,11 @@
       (let ((output (make-array output-dims :element-type (assign-element-type (if (or (not (integerp input))
 										       (> 0 input))
 										   input (max 16 input)))
-				:initial-element (disclose2 (copy-nested-array input)))))
+				:initial-element (disclose (copy-nested-array input)))))
 	(if (arrayp input)
-	    (dotimes (i (1- (size output)))
+	    (xdotimes output (i (1- (size output)))
 	      (setf (row-major-aref output (1+ i))
-		    (disclose2 (copy-nested-array input)))))
+		    (disclose (copy-nested-array input)))))
 	output)
       (if (= 0 (length output-dims))
           (row-major-aref input 0)
@@ -800,9 +819,9 @@
 	    ;; TODO: optimization caused problems due to type uncertainty; solution?
 	    ;; (optimize (safety 0) (speed 3))
 	    (if (or populator (< 0 (size input)))
-		(dotimes (index output-length)
+		(xdotimes output (index output-length)
 		  (setf (row-major-aref output index)
-			(disclose2 (if populator (funcall populator)
+			(disclose (if populator (funcall populator)
 				      (let ((item (row-major-aref input (mod index input-length))))
 					(if (not (arrayp item)) item (copy-nested-array item))))))))
             output))))
@@ -922,6 +941,7 @@
 	 (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
 				omega (make-array osegment :element-type (element-type omega)))))
 	 (output (make-array (append (butlast adims) (rest odims)))))
+    ;; TODO: can't parallelize yet
     (dotimes (x (size output))
       (let ((result)
 	    (avix (floor x ovectors))
@@ -941,14 +961,14 @@
 
 (defun array-outer-product (omega alpha function)
   "Find the outer product of two arrays with a function."
-  (let* ((ascalar (if (= 0 (rank alpha)) (disclose2 alpha)))
-	 (oscalar (if (= 0 (rank omega)) (disclose2 omega)))
+  (let* ((ascalar (if (= 0 (rank alpha)) (disclose alpha)))
+	 (oscalar (if (= 0 (rank omega)) (disclose omega)))
 	 (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
 	 (output (make-array (append adims odims))))
-    (dotimes (x (size output))
+    (xdotimes output (x (size output))
       (setf (row-major-aref output x)
-      	    (funcall function (or oscalar (disclose2 (row-major-aref omega (mod x osize))))
-      		     (or ascalar (disclose2 (row-major-aref alpha (floor x osize)))))))
+      	    (funcall function (or oscalar (disclose (row-major-aref omega (mod x osize))))
+      		     (or ascalar (disclose (row-major-aref alpha (floor x osize)))))))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
@@ -958,11 +978,11 @@
 	 (interval (reduce #'* (dims original)))
 	 (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
 				 (butlast (dims input) (rank original))))))
-    (dotimes (x (size output))
+    (xdotimes output (x (size output))
       (let ((input-index (* x (if left-original 1 interval))))
 	(setf (row-major-aref output x)
-	      (nest (funcall function (disclose2 (row-major-aref input input-index))
-			     (disclose2 (row-major-aref original 0)))))))
+	      (nest (funcall function (disclose (row-major-aref input input-index))
+			     (disclose (row-major-aref original 0)))))))
     (funcall (if (= 0 (rank output)) #'disclose #'identity)
 	     output)))
 
@@ -970,7 +990,7 @@
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
   (let* ((original-set set)
 	 (set (if (or (vectorp set) (= 0 (rank set)))
-		  (disclose2 set)
+		  (disclose set)
 		  (let ((vectors (reduce #'* (butlast (dims set))))
 			(last-dim (first (last (dims set)))))
 		    (make-array vectors :initial-contents
@@ -980,16 +1000,15 @@
 							:displaced-index-offset (* i last-dim)))))))
 	 (to-search (if (or (vectorp original-set) (not (arrayp original-set)))
 			(if (vectorp to-search)
-			    to-search (vector (disclose2 to-search)))
+			    to-search (vector (disclose to-search)))
 			(if (= (first (last (dims set)))
 			       (first (last (dims to-search))))
 			    (let ((vectors (reduce #'* (butlast (dims to-search))))
 				  (last-dim (first (last (dims to-search)))))
 			      (make-array vectors :initial-contents
 					  (loop :for i :below vectors
-					     :collect (make-array last-dim
+					     :collect (make-array last-dim :displaced-to to-search
 								  :element-type (element-type to-search)
-								  :displaced-to to-search
 								  :displaced-index-offset
 								  (* i last-dim)))))
 			    (error "Mismatch between array shapes - the last axes of ~w"
@@ -998,14 +1017,14 @@
 		      set (vector set)))
 	 (maximum (+ count-from (length to-find)))
 	 (results (make-array (dims to-search) :element-type 'number)))
-    (dotimes (index (array-total-size results))
+    (xdotimes results (index (array-total-size results))
       (let* ((search-index (row-major-aref to-search index))
 	     (found (position search-index to-find :test #'array-compare)))
 	(setf (row-major-aref results index)
 	      (if found (+ count-from found)
 		  maximum))))
     ;; TODO: must be original disclose
-    (disclose results)))
+    (disclose-unitary results)))
 
 (defun alpha-compare (atomic-vector compare-by)
   "Compare the contents of a vector according to their positions in an array, as when comparing an array of letters by their positions in the alphabet."
@@ -1044,8 +1063,8 @@
 			(vector (make-array input-length))
 			(graded-array (make-array input-length
 						  :element-type (list 'integer 0 input-length))))
-		   (dotimes (i input-length) (setf (aref graded-array i) (+ i count-from)))
-		   (dotimes (vix (length vector))
+		   (xdotimes graded-array (i input-length) (setf (aref graded-array i) (+ i count-from)))
+		   (xdotimes vector (vix (length vector))
 		     (setf (aref vector vix) (if (and (arrayp (aref input vix))
 						      (< 1 (rank (aref input vix))))
 						 (grade (aref input vix)
@@ -1091,7 +1110,7 @@
 	  (let ((last-number))
 	    (if (loop :for i :across reference :always (or (not last-number) (< last-number i))
 		   :do (setq last-number i))
-		(disclose (aops:each (interval-compare reference) (enclose-atom items)))
+		(disclose-unitary (aops:each (interval-compare reference) (enclose-atom items)))
 		(error "Values left argument to ⍸ must be in ascending order.")))
 	  (if (and (<= (rank reference) (rank items))
 		   (loop :for x :in (reverse (rest (dims reference)))
@@ -1241,7 +1260,7 @@
 			     ;; being performed so turn on its flag and return nil
 			     (loop :for i :below (size index1) :while (not reach-indexing)
 				:do (let ((ss (rmi-from-subscript-vector
-					       input (disclose2 (row-major-aref index1 i)))))
+					       input (disclose (row-major-aref index1 i)))))
 				      (if ss (setf (aref output i) ss)
 					  (setq reach-indexing t))))
 			     (if (not reach-indexing) output))))
@@ -1279,35 +1298,35 @@
 	  ;; if an output array is being used, the processed indices vector stores the indices
 	  ;; of elements that have been processed so the ones that weren't can be assigned
 	  ;; values from the input
-	  (if (not indices) (dotimes (i (size input))
-			      ;; if there are no indices the set-by function is to
-			      ;; be run on all elements of the array
-			      (setf (row-major-aref output i)
-				    (apply set-by (row-major-aref input i)
-					   (and set (list set)))))
-	      (dotimes (o (length rmindices))
-		(let ((i (aref rmindices o)))
-		  (if (integerp i)
-		      (let ((result (disclose2 (apply set-by (row-major-aref input i)
-						      ;; apply the set-by function to an element of the
-						      ;; set values if they're in an array or to the
-						      ;; set value if it's scalar
-						      (or (and (arrayp set) (< 0 (rank set))
-							       (list (row-major-aref set o)))
-							  (and set (list set)))))))
-			(if output (setf (row-major-aref output i) result)
-			    (setf (row-major-aref input i) result))
-			(if pindices (setf (aref pindices i) 1)))
-		      (if (vectorp i) ;; this clause can only be reached when reach indexing
-			  ;; the set-by function is called on each pair of input
-			  ;; and replacement values
-			  (progn (setf (varef (or output input) i)
-				       (funcall set-by (varef input i)
-						(or (and (arrayp set) (row-major-aref set o))
-						    set)))
-				 (if pindices
-				     (setf (aref pindices (rmi-from-subscript-vector input i))
-					   1))))))))
+	  (if indices (dotimes (o (length rmindices))
+			(let ((i (aref rmindices o)))
+			  (if (integerp i)
+			      (let ((result (disclose (apply set-by (row-major-aref input i)
+							     ;; apply the set-by function to an element
+							     ;; of the set values if they're in an array
+							     ;; or to the set value if it's scalar
+							     (or (and (arrayp set) (< 0 (rank set))
+								      (list (row-major-aref set o)))
+								 (and set (list set)))))))
+				(if output (setf (row-major-aref output i) result)
+				    (setf (row-major-aref input i) result))
+				(if pindices (setf (aref pindices i) 1)))
+			      (if (vectorp i) ;; this clause can only be reached when reach indexing
+				  ;; the set-by function is called on each pair of input
+				  ;; and replacement values
+				  (progn (setf (varef (or output input) i)
+					       (funcall set-by (varef input i)
+							(or (and (arrayp set) (row-major-aref set o))
+							    set)))
+					 (if pindices
+					     (setf (aref pindices (rmi-from-subscript-vector input i))
+						   1)))))))
+	      (dotimes (i (size input))
+		;; if there are no indices the set-by function is to
+		;; be run on all elements of the array
+		(setf (row-major-aref output i)
+		      (apply set-by (row-major-aref input i)
+			     (and set (list set))))))
 	  (if pindices (progn (dotimes (i (size input))
 				(if (= 0 (aref pindices i))
 				    (setf (row-major-aref output i)
@@ -1316,13 +1335,13 @@
 	  output)
 	;; if a single index is specified, from the output, just retrieve its value
 	(if (not output) (enclose (row-major-aref input (row-major-aref rmindices 0)))
-	    (progn (pdotimes (o (length rmindices))
+	    (progn (dotimes (o (length rmindices))
 		     (let ((i (aref rmindices o)))
 		       (setf (row-major-aref output o)
 			     (if (integerp i) (row-major-aref input i)
 				 ;; the vectorp clause is only used when reach-indexing
 				 (if (vectorp i)
-				     (choose (disclose2 (varef input (disclose2 (aref i 0))))
+				     (choose (disclose (varef input (disclose (aref i 0))))
 					     (rest (array-to-list i))))))))
 		   output)))))
 
@@ -1400,7 +1419,7 @@
 			      (if (is-unitary elem)
 				  ;; if the element is a unitary array, just assign
 				  ;; its element to the appropriate output coordinates
-				  (setf (apply #'aref output coords) (disclose2 elem))
+				  (setf (apply #'aref output coords) (disclose elem))
 				  ;; otherwise, iterate across the element and assing the element to the output
 				  ;; coordinates derived from the ombined outer and inner array coordinates
 				  (across elem (lambda (sub-elem sub-coords)
@@ -1559,7 +1578,7 @@
 		   (vset-size (* increment (nth axis idims)))
 		   (output (make-array idims :element-type (element-type input)))
 		   (adjuster (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))))
-	      (pdotimes (i (size input))
+	      (xdotimes input (i (size input))
 		(declare (optimize (safety 1)))
 		(let ((vindex (funcall adjuster
 				       (mod (- (floor i increment)
@@ -1814,7 +1833,7 @@
 			       (segments (aref col-segments last-coord)))
 	       (across input (lambda (elem coords)
 			       (let* ((last-coord (first (last coords)))
-				      (elem (disclose2 elem)))
+				      (elem (disclose elem)))
 				 (flet ((add-column-types (&rest types)
 					  (loop :for type :in types
 					     :do (if (not (member type this-col-type))
