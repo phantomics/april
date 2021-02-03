@@ -50,8 +50,7 @@
   (let ((index (disclose index)))
     (if (integerp index)
 	(if (= 0 index) (vector)
-	    (let ((output (make-array index :element-type (list 'integer 0 (if (> 0 index)
-									       index (max 16 index))))))
+	    (let ((output (make-array index :element-type (list 'integer 0 index))))
 	      (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
 	      output))
 	(if (vectorp index)
@@ -786,9 +785,10 @@
 	    (if is-confirmed-monadic (funcall left-fn-monadic processed)
 		(if alpha (funcall left-fn-dyadic processed alpha)
 		    (funcall left-fn-monadic processed))))
-	  (funcall (or right-fn-dyadic left-fn-dyadic)
-		   (if (not fn-right) right omega)
-		   (if (not fn-left) left omega))))))
+	  (if alpha (error "This function does not take a left argument.")
+	      (funcall (or right-fn-dyadic left-fn-dyadic)
+		       (if (not fn-right) right omega)
+		       (if (not fn-left) left omega)))))))
 
 (defun operate-at-rank (rank function-monadic function-dyadic)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
