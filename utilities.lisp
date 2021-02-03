@@ -990,6 +990,7 @@ It remains here as a standard against which to compare methods for composing APL
     	      (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
     				   (and (listp arg2) (eql 'apl-call (first arg2))))))
     	      (to-wrap (or to-wrap #'identity)))
+    	 ;; (print (list :ff form arg1 arg2 arg1-var arg2-var))
     	 (flet ((wrapper (item)
     		  `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
     						   (invert-function function-form)
