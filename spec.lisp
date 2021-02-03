@@ -1416,7 +1416,7 @@
   (for "Inverse composed decode extending left argument." "(2∘⊥)⍣¯1⊢5" #(1 0 1))
   (for "Inverse composed decode extending left argument with array as right argument."
        "(6∘⊥)⍣¯1⊢10 5 8 3" #2A((1 0 1 0) (4 5 2 3)))
-  ;; (for "Inversion of nested compound functions." "3 +∘(2∘-)⍣¯1⊢5" 0)
+  (for "Inversion of nested compound functions." "(3 +∘(2∘-)⍣¯1⊢5),3 +∘(2∘-)⍣¯1⊢5" #(0 0))
   (for "Inversion of Celsius-Fahrenheit conversion." "⌊(32∘+)∘(×∘1.8)⍣¯1⊢212" 100)
   (for "Inverse composed function." "(3(+∘÷∘-)⍣1⊢5),3(+∘÷∘-)⍣¯1⊢5" #(14/5 -1/2))
   (for "Inversion of scanning addition." "+\\⍣¯1⊢+\\⍳5" #(1 2 3 4 5))
