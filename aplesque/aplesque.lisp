@@ -696,7 +696,6 @@
 	 (input (enclose-atom input)) (positions (enclose-atom positions))
 	 (idims (dims input)) (axis-size (nth axis idims)))
     (declare (dynamic-extent intervals offset input-offset axis-size))
-
     ;; a scalar position argument is extended to the length of the input's first dimension
     (dotimes (i (if (is-unitary positions) (first idims) (length positions)))
       (let ((p (if (is-unitary positions) (get-first-or-disclose positions)
@@ -802,9 +801,7 @@
   "Reshape an array into a given set of dimensions, truncating or repeating the elements in the array until the dimensions are satisfied if the new array's size is different from the old."
   (if (or (not (arrayp input))
 	  (= 0 (rank input)))
-      (let ((output (make-array output-dims :element-type (assign-element-type (if (or (not (integerp input))
-										       (> 0 input))
-										   input (max 16 input)))
+      (let ((output (make-array output-dims :element-type (assign-element-type input)
 				:initial-element (disclose (copy-nested-array input)))))
 	(if (arrayp input)
 	    (xdotimes output (i (1- (size output)))
@@ -1318,16 +1315,15 @@
 					       (funcall set-by (varef input i)
 							(or (and (arrayp set) (row-major-aref set o))
 							    set)))
-					 (if pindices
-					     (setf (aref pindices (rmi-from-subscript-vector input i))
-						   1)))))))
-	      (dotimes (i (size input))
+					 (if pindices (setf (aref pindices (rmi-from-subscript-vector input i))
+							    1)))))))
+	      (xdotimes output (i (size input))
 		;; if there are no indices the set-by function is to
 		;; be run on all elements of the array
 		(setf (row-major-aref output i)
 		      (apply set-by (row-major-aref input i)
 			     (and set (list set))))))
-	  (if pindices (progn (dotimes (i (size input))
+	  (if pindices (progn (xdotimes output (i (size input))
 				(if (= 0 (aref pindices i))
 				    (setf (row-major-aref output i)
 					  (row-major-aref input i))))
@@ -1335,7 +1331,7 @@
 	  output)
 	;; if a single index is specified, from the output, just retrieve its value
 	(if (not output) (enclose (row-major-aref input (row-major-aref rmindices 0)))
-	    (progn (dotimes (o (length rmindices))
+	    (progn (xdotimes output (o (length rmindices))
 		     (let ((i (aref rmindices o)))
 		       (setf (row-major-aref output o)
 			     (if (integerp i) (row-major-aref input i)
@@ -1443,7 +1439,7 @@
 		   (ocoords (loop :for i :below (1- (rank input)) :collect 0))
 		   (output (make-array (loop :for dim :in idims :for dx :from 0 :when (not (= dx axis))
 					  :collect dim))))
-	      (dotimes (i (size output))
+	      (xdotimes output (i (size output))
 		(setf (row-major-aref output i)
 		      (make-array (nth axis idims) :element-type (type-of input))))
 	      (across input (lambda (elem coords)
@@ -1524,7 +1520,7 @@
 	       (let* ((axis (aref axes 0))
 		      (output (make-array (loop :for d :in (dims matrix) :for dx :from 0
 					     :when (/= dx axis) :collect d))))
-		 (dotimes (o (size output))
+		 (xdotimes output (o (size output))
 		   (setf (row-major-aref output o) (make-array (nth axis (dims matrix))
 							       :element-type (element-type matrix))))
 		 (across matrix (lambda (elem coords)

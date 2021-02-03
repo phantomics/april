@@ -884,21 +884,19 @@ It remains here as a standard against which to compare methods for composing APL
 	    nil nil op2-sym _ _ remaining)
      ;; invert a [∘ compose] operation with a value on the left
      (let ((dyinv-forms (resolve-function :dyadic-inverse op2-sym)))
-       `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym
-		       (λω (apl-call ,op2-sym ,(resolve-function :monadic-inverse op2-sym) omega))
+       `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym nil
 		       (λωα (apl-call ,op2-sym ,(getf dyinv-forms :right-composed) omega alpha))
 		       ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
 	    nil nil remaining)
-     ;; invert a [∘ compose] operatiopn with a value on the right
+     ;; invert a [∘ compose] operation with a value on the right
      (let ((dyinv-forms (resolve-function :dyadic-inverse op1-sym)))
-       `(apl-compose ∘ operate-composed ,op1-sym
-		       (λω (apl-call ,op1-sym ,(resolve-function :monadic-inverse op1-sym) omega))
+       `(apl-compose ∘ operate-composed ,op1-sym nil
 		       (λωα (apl-call ,op1-sym ,(getf dyinv-forms :plain) omega alpha))
 		       ,op2 nil nil ,@remaining)))
     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
 	    left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
-     ;; invert a [∘ compose] operatiopn with two function operands
+     ;; invert a [∘ compose] operation with two function operands
      (let ((left-clause
 	    (if (or (eq :fn left-fn-sym)
 		    (not (symbolp left-fn-sym)))
@@ -925,7 +923,26 @@ It remains here as a standard against which to compare methods for composing APL
 			(if (resolve-function :dyadic-inverse fn-glyph)
 			    `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
 					    omega alpha))))))))
-       `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)))
+       ;; (print (list :lr left-clause right-clause))
+       (if (and (listp (first right-clause))
+		(listp (first left-clause)))
+	   `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
+	   `(lambda (omega &optional alpha)
+	      (if (not alpha)
+		  (funcall (apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
+			   omega)
+       		  (apl-call ,(first right-clause)
+       			    ,(resolve-function :monadic-inverse (first right-clause))
+       			    ,(if (listp (first left-clause))
+       				 (third (third (second (third left-clause))))
+       				 `(if alpha (apl-call ,(first left-clause)
+       						      ,(getf (resolve-function
+							      :dyadic-inverse (first left-clause))
+       							     :plain)
+       						      omega alpha)
+       				      (apl-call ,(first left-clause)
+       						,(resolve-function :monadic-inverse (first left-clause))
+       						omega)))))))))
     ((list* 'apl-compose '\\ 'operate-scanning operand remaining)
      ;; invert a [\ scan] operation
      `(apl-compose \\ operate-scanning ,(invert-function operand) ,@remaining t))
@@ -954,12 +971,12 @@ It remains here as a standard against which to compare methods for composing APL
      ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args ,declare-form
 			     (error "This function has more than one statement and thus cannot be inverted."))
-	 `(lambda ,args ,declare-form ,(invert-function first-form))))
+	 `(alambda ,args ,declare-form ,(invert-function first-form))))
     ((list* 'alambda args first-form rest-forms)
      ;; invert an arbitrary lambda
      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
     			     (error "This function has more than one statement and thus cannot be inverted."))
-	 `(lambda ,args ,(invert-function first-form))))
+	 `(alambda ,args ,(invert-function first-form))))
     ((list* 'apl-call function-symbol function-form arg1 arg2-rest)
      (destructuring-bind (&optional arg2 &rest rest) arg2-rest
        ;; invert an apl-call expression - WIP
@@ -975,8 +992,7 @@ It remains here as a standard against which to compare methods for composing APL
     				   (and (listp arg2) (eql 'apl-call (first arg2))))))
     	      (to-wrap (or to-wrap #'identity)))
     	 ;; (print (list :ff form arg1 arg2 arg1-var arg2-var))
-    	 (let ((wrapper
-    		(lambda (item)
+    	 (flet ((wrapper (item)
     		  `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
     						   (invert-function function-form)
     						   (if arg2 (or (if to-invert (getf dyinv-forms :plain)
@@ -989,15 +1005,16 @@ It remains here as a standard against which to compare methods for composing APL
     							   `(λω (declare (ignore omega))
     								(error "No monadic inverse for ~a."
     								       ,function-char)))))
-    			      ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
-    						     #'identity #'reverse)
-    						 (list (if (and arg1-var (not arg2-var))
-							   (funcall to-wrap item) arg1)
-    						       (if (and arg2-var (not arg1-var))
-							   (funcall to-wrap item) arg2)))
-    					rest)))))
-    	   (if last-layer (funcall wrapper (or arg1-var arg2-var))
-    	       (invert-function (or arg1-var arg2-var) wrapper))))))))
+    			     ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
+    						    #'identity #'reverse)
+    						(append (list (if (and arg1-var (not arg2-var))
+								  (funcall to-wrap item) arg1))
+    							(if (and arg2-var (not arg1-var))
+							    (list (funcall to-wrap item))
+							    (if arg2 (list arg2)))))
+    				       rest))))
+    	   (if last-layer (wrapper (or arg1-var arg2-var))
+    	       (invert-function (or arg1-var arg2-var) #'wrapper))))))))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."

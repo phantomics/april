@@ -839,38 +839,41 @@
 
 (defmacro composer-pattern-template
     (macro-names tokens-sym space-sym idiom-sym process-sym precedent-sym
-     properties-sym preceding-properties-sym items-sym item-sym rest-items-sym)
+     properties-sym preceding-properties-sym special-props-sym items-sym item-sym rest-items-sym)
   (let ((name (gensym)) (var-names (gensym))
 	(assignment-clauses (gensym)) (generation (gensym)) (out-form (gensym)) (out-props (gensym))
 	(axis (gensym)) (symbol (gensym)) (symbol-form (gensym)) (symbol-props (gensym)) (function (gensym))
-	(form-out (gensym)) (form-properties (gensym)) (remaining (gensym))
+	(prec-spec (gensym)) (form-out (gensym)) (form-properties (gensym)) (remaining (gensym))
 	(args-list (list tokens-sym space-sym idiom-sym process-sym '&optional precedent-sym properties-sym
 			 preceding-properties-sym items-sym item-sym rest-items-sym)))
-    `(progn
-       (defmacro ,(first macro-names) (,name ,var-names ,assignment-clauses &body ,generation)
-	 `(defun ,,name ,',args-list
-       	    (declare (ignorable ,',precedent-sym ,',properties-sym ,',preceding-properties-sym))
-	    (symbol-macrolet ((,',item-sym (first ,',items-sym)) (,',rest-items-sym (rest ,',items-sym)))
-       	      (let* ((,',items-sym ,',tokens-sym) ,@(mapcar #'list ,var-names))
-       		,@,assignment-clauses
-       		(multiple-value-bind (,',out-form ,',out-props) ,(first ,generation)
-       		  (if ,',out-form (values ,',out-form ,',out-props ,',items-sym)
-       		      (values nil nil ,',tokens-sym)))))))
-       (defmacro ,(second macro-names) (,symbol)
-	 `(if (and (listp ,',item-sym) (eql :axes (first ,',item-sym)))
-	      (setq ,,symbol (list (loop :for ,',axis :in (rest ,',item-sym)
-				      :collect (funcall ,',process-sym ,',axis)))
-    		    ,',items-sym ,',rest-items-sym)))
-       (defmacro ,(third macro-names) (,symbol-form ,symbol-props ,function &optional ,properties-sym)
-	 `(multiple-value-bind (,',form-out ,',form-properties)
-	      (,,function ,',item-sym ,,properties-sym ,',process-sym ,',idiom-sym ,',space-sym)
-	    (if ,',form-out (setq ,,symbol-form ,',form-out ,,symbol-props ,',form-properties
-				  ,',items-sym ,',rest-items-sym))))
-       (defmacro ,(fourth macro-names) (,symbol-form ,symbol-props ,properties-sym)
-	 `(multiple-value-bind (,',out-form ,',out-props ,',remaining)
-	      (funcall ,',process-sym ,',items-sym ,,properties-sym)
-	     (setq ,,symbol-form ,',out-form ,,symbol-props ,',out-props ,',items-sym ,',remaining)
-	    )))))
+    `(progn (defmacro ,(first macro-names) (,name ,var-names ,assignment-clauses &body ,generation)
+	      `(defun ,,name ,',args-list
+       		 (declare (ignorable ,',precedent-sym ,',properties-sym ,',preceding-properties-sym))
+		 (symbol-macrolet ((,',item-sym (first ,',items-sym)) (,',rest-items-sym (rest ,',items-sym)))
+       		   (let* ((,',items-sym ,',tokens-sym)
+			  (,',special-props-sym (getf (first ,',preceding-properties-sym) :special))
+			  ,@(mapcar #'list ,var-names))
+       		     ,@,assignment-clauses
+		     (if (not (member ,(intern (string-upcase ,name) "KEYWORD")
+				      (getf ,',special-props-sym :omit)))
+       			 (multiple-value-bind (,',out-form ,',out-props) ,(first ,generation)
+       			   (if ,',out-form (values ,',out-form ,',out-props ,',items-sym)
+       			       (values nil nil ,',tokens-sym)))
+			 (values nil nil ,',tokens-sym))))))
+	    (defmacro ,(second macro-names) (,symbol)
+	      `(if (and (listp ,',item-sym) (eql :axes (first ,',item-sym)))
+		   (setq ,,symbol (list (loop :for ,',axis :in (rest ,',item-sym)
+					   :collect (funcall ,',process-sym ,',axis)))
+    			 ,',items-sym ,',rest-items-sym)))
+	    (defmacro ,(third macro-names) (,symbol-form ,symbol-props ,function &optional ,properties-sym)
+	      `(multiple-value-bind (,',form-out ,',form-properties)
+		   (,,function ,',item-sym ,,properties-sym ,',process-sym ,',idiom-sym ,',space-sym)
+		 (if ,',form-out (setq ,,symbol-form ,',form-out ,,symbol-props ,',form-properties
+				       ,',items-sym ,',rest-items-sym))))
+	    (defmacro ,(fourth macro-names) (,symbol-form ,symbol-props ,properties-sym)
+	      `(multiple-value-bind (,',out-form ,',out-props ,',remaining)
+		   (funcall ,',process-sym ,',items-sym ,,properties-sym)
+		 (setq ,,symbol-form ,',out-form ,,symbol-props ,',out-props ,',items-sym ,',remaining))))))
 
 #|
 These are examples of the output of the three macro-builders above.
