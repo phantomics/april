@@ -301,7 +301,7 @@
 								    (not (integerp (realpart number))))
 								(if (not (third segments))
 								    0 (- (second segments)))))
-						      precision)
+						      precision nil t)
 		 (print-apl-number-string (imagpart number) (if (third segments)
 								(list (- (third segments))
 								      (or (fourth segments) 0))
@@ -346,12 +346,10 @@
 		  ;; space to right of decimal can be explicitly specified by decimal argument
 		  ;; or expressed by second segment length, whose length may be expanded if the digits
 		  ;; on the left don't fill out the precision, as with ⎕pp←6 ⋄ ⍪3005 0.125
-		  (right-space (or decimals (max 1 (- (max (abs (second segments))
-							   (min (length (second number-sections))
-								(+ (abs (second segments))
-								   (- (first segments)
-								      (length (first number-sections))))))
-						      right-padding))))
+		  (right-space (+ (or decimals (max 1 (- (max (abs (second segments))
+							      (min (length (second number-sections))
+								   (abs (second segments))))
+							 right-padding)))))
 		  ;; total number length is left space + right space + one for decimal dot
 		  (total-length (+ 1 left-space right-space))
 		  (output (format nil (format nil "~~~d,~d,,,'~af~a" total-length right-space
@@ -361,6 +359,14 @@
 						  "" (make-array right-padding :element-type 'base-char
 								 :initial-element #\ )))
 				  (abs number))))
+	     ;; (print (list :out output (format nil "~~~d,~d,,,'~af~a" total-length right-space
+	     ;; 				      (if (> 0 number)
+	     ;; 					  #\¯ (if (< 0 (first segments)) #\  #\_))
+	     ;; 				      (if (not (and right-padding (< 0 right-padding)))
+	     ;; 					  "" (make-array right-padding :element-type 'base-char
+	     ;; 							 :initial-element #\ )))
+	     ;; 		  segments left-space right-space number-sections))
+	     ;; (princ #\Newline)
 	     (if (> 0 number)
 		 (let ((start-at (if (< 0 (first segments)) 0 1)))
 		   (loop :for i :from start-at :while (char= #\¯ (aref output i))
@@ -987,7 +993,6 @@ It remains here as a standard against which to compare methods for composing APL
     	      (arg2-var (if (or (member arg2 '(⍵ ⍺ omega alpha))
     				(and (listp arg2) (eql 'apl-call (first arg2))))
     			    arg2))
-	      (arg2-alpha (eql arg2 '⍺))
     	      (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
     				   (and (listp arg2) (eql 'apl-call (first arg2))))))
     	      (to-wrap (or to-wrap #'identity)))
@@ -1006,9 +1011,10 @@ It remains here as a standard against which to compare methods for composing APL
     								       ,function-char)))))
     			     ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
     						    #'identity #'reverse)
-    						(append (list (if (or arg2-alpha (and arg1-var (not arg2-var)))
+    						(append (list (if (or (listp arg1)
+								      (and arg1-var (not arg2-var)))
 								  (funcall to-wrap item) arg1))
-    							(if (and (not arg2-alpha)
+    							(if (and (not (member arg2 '(⍵ ⍺)))
 								 (and arg2-var (not arg1-var)))
 							    (list (funcall to-wrap item))
 							    (if arg2 (list arg2)))))
