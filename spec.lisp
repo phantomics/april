@@ -1436,7 +1436,8 @@
   (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
-  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0))
+  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
+  (for "Dyadic arbitrary function inverted." "(3 {⍵+÷-⍺}⍣¯1⊢5), 3 {⍺+÷-⍵}⍣¯1⊢5" #(1/2 -1/2)))
  
  (test-set
   (with (:name :printed-format-tests)
@@ -1718,13 +1719,13 @@ c   2.56  3
 32.95J12.15  3.20J_5.3  32.95J12.15
  3.20J_5.3  32.95J12.15  3.20J_5.3 
 ")
-;;   (for-printed "Another complex matrix." "¯2 ¯3 ¯4 ¯5 ¯6 ∘.○ ¯2 ¯2J3r5"
-;; 	       " 3.1415927J¯1.3169578  2.8133510J¯1.3797641 
-;; ¯1.1071488            ¯1.1347281J00.11386888
-;; ¯1.7320508            ¯1.7617970J00.68112284
-;; ¯1.4436355            ¯1.4752518J00.2638725 
-;;  1.3169578J03.1415927  1.3797641J02.813351  
-;; ")
+  (for-printed "Another complex matrix." "⎕pp←10 ⋄ ¯2 ¯3 ¯4 ¯5 ¯6 ∘.○ ¯2 ¯2J3r5"
+	       " 3.141592654J¯1.316957897  2.813351012J¯1.379764132
+¯1.107148718              ¯1.134728076J_0.113868882
+¯1.732050808              ¯1.761796881J_0.681122786
+¯1.443635475              ¯1.475251760J_0.263872484
+ 1.316957897J_3.141592654  1.379764132J_2.813351012
+")
   (for-printed "Stacked complex float, integer and rational."
 	       "⍪12.2J44 3J8 19J210r17"
 	       "12.2J_44.0 
