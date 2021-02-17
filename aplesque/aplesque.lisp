@@ -23,8 +23,8 @@
        (if (or (= 0 ,free-threads)
 	       (eql 'bit ,eltype)
 	       (and (listp ,eltype)
-		    (member 'unsigned-byte ,eltype)
-		    (> 7 (second ,eltype))))
+	   	    (member 'unsigned-byte ,eltype)
+	   	    (> 7 (second ,eltype))))
 	   (dotimes ,clause ,@body)
 	   (pdotimes ,(append clause (list nil free-threads)) ,@body)))))
 
@@ -607,13 +607,11 @@
 (defun expand (degrees input axis &key (compress-mode) (populator))
   "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
   (cond ((= 0 (size input))
-	 (if compress-mode
-	     (error "An empty array cannot be compressed.")
+	 (if compress-mode (error "An empty array cannot be compressed.")
 	     (if (or (arrayp degrees)
 		     (not (> 0 degrees)))
 		 (error "An empty array can only be expanded to a single negative degree.")
-		 (let ((output (make-array (abs degrees)
-					   :element-type (element-type input)
+		 (let ((output (make-array (abs degrees) :element-type (element-type input)
 					   :initial-element (if (not populator) (apl-array-prototype input)))))
 		   (if populator (xdotimes output (i (length output)) (setf (row-major-aref output i)
 									    (funcall populator))))
@@ -638,24 +636,24 @@
 		"positive degrees are not equal to length of selected input axis."))
 	(t (let* ((degrees (if (arrayp degrees) degrees
 			       (make-array (nth axis (dims input)) :initial-element degrees)))
-		  ;; (input (if (arrayp input) input (vector input)))
 		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
-		  (c-degrees (make-array (length degrees)
-					 :element-type 'fixnum :initial-element 0))
+		  (c-degrees (make-array (length degrees) :element-type 'fixnum :initial-element 0))
 		  (positive-index-list (if (not compress-mode)
 					   (loop :for degree :below (length degrees)
 					      :when (< 0 (aref degrees degree)) :collect degree)))
 		  (positive-indices (if positive-index-list (make-array (length positive-index-list)
 									:element-type 'fixnum
 									:initial-contents positive-index-list)))
+		  (vvx (reduce #'* (loop :for d :in (dims input) :for dx :from 0
+		   	 	       :when (> dx axis) :collect d)))
+		  (vlen (nth axis (dims input)))
 		  (ex-dim))
 	     (declare (dynamic-extent ex-dim))
 	     (loop :for degree :across degrees :for dx :from 0
 		:summing (max (abs degree) (if compress-mode 0 1))
 		:into this-dim :do (setf (aref c-degrees dx) this-dim)
 		:finally (setq ex-dim this-dim))
-	     (let ((ocoords (loop :for i :below (rank input) :collect 0))
-		   (output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
+	     (let ((output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
 					  :collect (if (or (= index axis) (is-unitary input))
 						       ex-dim dim))
 				       :element-type (if (arrayp input)
@@ -674,20 +672,37 @@
 			   (setf (aref output (+ ix (if (= 0 degree) 0 (aref c-degrees (1- degree)))))
 				 value)))))
 		   ;; TODO: linearize this
-		   (across input (lambda (elem coords)
-				   (let* ((exc (nth axis coords))
-					  (dx (if compress-mode exc (aref positive-indices exc)))
-					  (this-degree (aref degrees dx)))
-				     (dotimes (ix this-degree)
-				       (loop :for coord :in coords :for cix :from 0
-					  :do (setf (nth cix ocoords)
-						    (if (not (= cix axis))
-							coord (+ ix (if (= 0 exc)
-									0 (if (= 1 (length degrees))
-									      (* exc (aref c-degrees 0))
-									      (aref c-degrees (1- dx))))))))
-				       (setf (apply #'aref output ocoords)
-					     (if (> 0 this-degree) 0 elem)))))))
+		   ;; (across input (lambda (elem coords)
+		   ;; 		   (let* ((exc (nth axis coords))
+		   ;; 			  (dx (if compress-mode exc (aref positive-indices exc)))
+		   ;; 			  (this-degree (aref degrees dx)))
+		   ;; 		     (dotimes (ix this-degree)
+		   ;; 		       (loop :for coord :in coords :for cix :from 0
+		   ;; 		       	  :do (setf (nth cix ocoords)
+		   ;; 		       		    (if (not (= cix axis))
+		   ;; 		       			coord (+ ix (if (= 0 exc)
+		   ;; 		       					0 (if (= 1 (length degrees))
+		   ;; 		       					      (* exc (aref c-degrees 0))
+		   ;; 		       					      (aref c-degrees (1- dx))))))))
+		   ;; 		       (setf (apply #'aref output ocoords)
+		   ;; 			     (if (> 0 this-degree) 0 elem))))))
+
+		   (dotimes (i (size input))
+		     (let* ((seg (floor i (if (= 1 vvx) vlen vvx)))
+		   	    (exc (mod i (if (= 1 vvx) vlen vvx)))
+		    	    (dx (if compress-mode (if (= 1 vvx) exc seg)
+		   		    (aref positive-indices (if (= 1 vvx) exc seg))))
+	       	    	    (this-degree (aref degrees dx))
+		   	    (offset (if compress-mode (if (= 1 vvx) (if (= 0 exc) 0 (aref c-degrees (1- exc)))
+		   					  (if (= 0 seg) 0 (aref c-degrees (1- seg))))
+		   			(if (= 1 vvx) (if (= 0 dx) 0 (aref c-degrees (1- dx)))
+		   			    (if (= 0 seg) 0 (aref c-degrees seg))))))
+		       (dotimes (d this-degree)
+		       	 (setf (row-major-aref output (+ (* d vvx) (* offset vvx)
+		   					 (if (= 1 vvx) 0 exc)
+		   					 (if (< 1 vvx) 0 (* ex-dim seg))))
+		       	       (row-major-aref input i)))))
+		   )
 	       output)))))
 
 (defun partitioned-enclose (positions input axis)
@@ -1750,51 +1765,6 @@
 								 :element-type '(signed-byte 8)))))))
     output))
 
-;; (defun count-segments (value precision &optional segments)
-;;   "Count the lengths of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
-;;   (print (list :val value segments))
-;;   (flet ((process-rational (number)
-;; 	   (list (write-to-string (numerator number))
-;; 		 (write-to-string (denominator number)))))
-;;     (let* ((strings (if (typep value 'ratio)
-;; 			(process-rational value)
-;; 			(append (if (typep (realpart value) 'ratio)
-;; 				    (process-rational (realpart value))
-;; 				    (let* ((number-string (first (cl-ppcre:split
-;; 								  #\D (string-upcase
-;; 								       (write-to-string (realpart value))))))
-;; 					   (sections (cl-ppcre:split #\. number-string)))
-;; 				      ;; if there are 4 or more segments, as when printing complex floats or
-;; 				      ;; rationals, and a complex value occurs with an integer real part,
-;; 				      ;; create a 0-length second segment so that the lengths of the imaginary
-;; 				      ;; components are correctly assigned to the 3rd and 4th columns,
-;; 				      ;; as for printing ⍪12.2J44 3J8 19J210r17
-;; 				      (append sections (if (and (< 3 (length segments))
-;; 								(= 1 (length sections)))
-;; 							   (list nil)))))
-;; 				(if (complexp value)
-;; 				    (if (typep (imagpart value) 'ratio)
-;; 					(process-rational (imagpart value))
-;; 					(let ((number-string (first (cl-ppcre:split
-;; 								     #\D (string-upcase
-;; 									  (write-to-string (imagpart value)))))))
-;; 				          (cl-ppcre:split #\. number-string)))))))
-;; 	   (more-strings (< (length segments) (length strings)))
-;; 	   (precision (+ precision (if (and (realp value) (> 0 value)) 1 0))))
-;;       ;; TODO: provide for e-notation
-;;       (print (list :str strings precision))
-;;       (loop :for i :from 0 :for s :in (if more-strings strings segments)
-;; 	 :collect (if (> 0 precision)
-;; 		      (if (/= 0 (mod i 2))
-;; 			  (abs precision) (max (or (nth i segments) 0)
-;; 					       (length (nth i strings))))
-;; 		      (min (if (= 0 (mod i 2))
-;; 			       precision (- precision (- (max (or (nth (1- i) segments) 0)
-;; 							      (length (nth (1- i) strings)))
-;; 							 0)))
-;; 			   (max (or (nth i segments) 0)
-;; 				(length (nth i strings)))))))))
-
 (defun count-segments (value precision &optional segments)
   "Count the lengths of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
   (flet ((process-rational (number)
@@ -1839,7 +1809,6 @@
 				(max (or (nth i segments) 0)
 				     (length (nth i strings))))
 			   (or (nth i segments) 0)))))))
-
 
 (defun array-impress (input &key (prepend) (append) (collate) (in-collated) (format) (segment))
   "Render the contents of an array into a character matrix or, if the collate option is taken, an array with sub-matrices of characters."

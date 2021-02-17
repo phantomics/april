@@ -47,8 +47,8 @@
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
  (grammar (:elements '(:array #'process-value :function #'process-function :operator #'process-operator))
-	  (:opening-patterns *composer-opening-patterns-new*)
-	  (:following-patterns *composer-following-patterns-new*
+	  (:opening-patterns *composer-opening-patterns*)
+	  (:following-patterns *composer-following-patterns*
 			       ;; composer-optimized-patterns-common
 			       ))
 
@@ -495,8 +495,8 @@
   	    (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
   					 (1 2 3 4 5 6 9 1 2 3)))))
   (↑ (has :titles ("Mix" "Take"))
-     (ambivalent (λωχ (mix-arrays (print (if axes (- (ceiling (first axes)) index-origin)
-  				      (rank omega)))
+     (ambivalent (λωχ (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
+  				      (rank omega))
   				  omega))
   		 (section-array index-origin (quote (inws *value-meta*))))
      (inverse (monadic (λωχ (split-array omega *last-axis*))))
@@ -582,7 +582,7 @@
   	    (is "¯2↓⍳9" #(1 2 3 4 5 6 7))
   	    (is "¯2 ¯2↓5 8⍴⍳9" #2A((1 2 3 4 5 6) (9 1 2 3 4 5) (8 9 1 2 3 4)))
   	    (is "4 5↓2 3⍴1" #2A())))
-  (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
+  (⊂ (has :titles ("Enclose" "Partitioned Enclose")) ;; parallelize
      (ambivalent (λωχ (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
   							    (if (arrayp (first axes))
 								(first axes)
@@ -627,7 +627,7 @@
   		#(#2A((9 1 2 3 4 5 6 7) (8 9 1 2 3 4 5 6)) #2A((7 8 9 1 2 3 4 5))))
 	    (is "2 0 1 3 0 2 0 1⊂'abcdefg'" #(#() "ab" "c" #() #() "de" #() "fg" #()))
 	    (is "0 0 2 0 1⊂'abcdefg'" #(#() "cd" "efg"))))
-  (⊆ (has :titles ("Nest" "Partition"))
+  (⊆ (has :titles ("Nest" "Partition")) ;; parallelize
      (ambivalent #'nest (λωαχ (partition-array alpha omega *last-axis*)))
      (inverse (monadic #'identity))
      (tests (is "⊆⍳3" #0A#(1 2 3))
@@ -724,7 +724,7 @@
 	    (is "1⍉⍳3" #(1 2 3))
   	    (is "1 3 2⍉2 3 4⍴⍳9" #3A(((1 5 9) (2 6 1) (3 7 2) (4 8 3))
   				     ((4 8 3) (5 9 4) (6 1 5) (7 2 6))))))
-  (/ (has :title "Replicate")
+  (/ (has :title "Replicate") ;; parallelize
      (dyadic (λωαχ (expand-array alpha omega *last-axis* (quote (inws *value-meta*)) :compress-mode t)))
      (inverse (dyadic :plain (λωαχ (if (is-unitary omega)
 				       ;; TODO: this inverse functionality is probably not complete
@@ -766,6 +766,7 @@
 	     (is "3\\7" #(7 7 7))
 	     (is "1 ¯2 3 ¯4 5\\'.'" ".  ...    .....")
   	     (is "1 ¯2 2 0 1\\3+2 3⍴⍳6" #2A((4 0 0 5 5 0 6) (7 0 0 8 8 0 9)))
+	     (is "1 ¯2 2 0 1\\⍳3" #(1 0 0 2 2 0 3))
   	     (is "1 0 1\\[1]3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))
   	     (is "1 ¯2 3 4\\[1]3 5⍴⍳9" #2A((1 2 3 4 5) (0 0 0 0 0) (0 0 0 0 0)
   					   (6 7 8 9 1) (6 7 8 9 1) (6 7 8 9 1)
@@ -817,7 +818,7 @@
   	    (is "⌹4 2⍴1 3 ¯4 9" #2A((3/14 -1/14 3/14 -1/14) (2/21 1/42 2/21 1/42)))
   	    (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
   	    (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
-  (⊤ (has :title "Encode")
+  (⊤ (has :title "Encode") ;; linearize
      (dyadic #'encode)
      (inverse (dyadic :plain #'decode))
      (tests (is "9⊤15" 6)
@@ -827,7 +828,7 @@
   	    (is "2 2 2 2 2⊤⍳5" #2A((0 0 0 0 0) (0 0 0 0 0) (0 0 0 1 1) (0 1 1 0 0) (1 0 1 0 1)))
   	    (is "16 16 16 16⊤2 2⍴100 200 300 400"
   		#3A(((0 0) (0 0)) ((0 0) (1 1)) ((6 12) (2 9)) ((4 8) (12 0))))))
-  (⊥ (has :title "Decode")
+  (⊥ (has :title "Decode") ;; linearize
      (dyadic #'decode)
      (inverse (dyadic :plain (λωα (encode omega alpha :inverse))))
      (tests (is "14⊥7" 7)
@@ -1154,7 +1155,7 @@
   	    (is "÷@3 5 ⍳9" #(1 2 1/3 4 1/5 6 7 8 9))
   	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18))
   	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148))))
-  (⌺ (has :title "Stencil")
+  (⌺ (has :title "Stencil") ;; linearize
      (pivotal (with-derived-operands (right left-fn-dyadic)
 		`(operate-stenciling ,right ,left-fn-dyadic)))
      (tests (is "{⊂⍵}⌺(⍪3 2)⍳8" #(#(0 1 2) #(2 3 4) #(4 5 6) #(6 7 8)))

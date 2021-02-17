@@ -181,3 +181,96 @@
 					    (setf (apply #'aref true-output coords)
 						  elem)))
 			   true-output))))))
+
+(defun expand (degrees input axis &key (compress-mode) (populator))
+  "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
+  (cond ((= 0 (size input))
+	 (if compress-mode (error "An empty array cannot be compressed.")
+	     (if (or (arrayp degrees)
+		     (not (> 0 degrees)))
+		 (error "An empty array can only be expanded to a single negative degree.")
+		 (let ((output (make-array (abs degrees)
+					   :element-type (element-type input)
+					   :initial-element (if (not populator) (apl-array-prototype input)))))
+		   (if populator (xdotimes output (i (length output)) (setf (row-major-aref output i)
+									    (funcall populator))))
+		   output))))
+	((and (or (not (arrayp input))
+		  (= 0 (rank input)))
+	      (not (arrayp degrees)))
+	 (make-array degrees :element-type (type-of input) :initial-element (disclose input)))
+	((and compress-mode (not (is-unitary input))
+	      (and (arrayp degrees)
+		   (/= (length degrees)
+		       (nth axis (dims input)))))
+	 (error "Attempting to replicate elements across array but ~a"
+		"degrees are not equal to length of selected input axis."))
+	((and (not compress-mode)
+	      (and (arrayp input)
+		   (< 1 (array-total-size input)))
+	      (/= (loop :for degree :across degrees :when (< 0 degree)
+		     :counting degree :into dcount :finally (return dcount))
+		  (nth axis (dims input))))
+	 (error "Attempting to expand elements across array but ~a"
+		"positive degrees are not equal to length of selected input axis."))
+	(t (let* ((degrees (if (arrayp degrees) degrees
+			       (make-array (nth axis (dims input)) :initial-element degrees)))
+		  ;; TODO: is there a more elegant way to handle scalar degrees or input when both aren't scalar?
+		  (c-degrees (make-array (length degrees)
+					 :element-type 'fixnum :initial-element 0))
+		  (positive-index-list (if (not compress-mode)
+					   (loop :for degree :below (length degrees)
+					      :when (< 0 (aref degrees degree)) :collect degree)))
+		  (positive-indices (if positive-index-list (make-array (length positive-index-list)
+									:element-type 'fixnum
+									:initial-contents positive-index-list)))
+		  (ocoords (loop :for i :below (rank input) :collect 0))
+		  (vvx (reduce #'* (loop :for d :in (dims input) :for dx :from 0
+		   	 	       :when (> dx axis) :collect d)))
+		  (vint (reduce #'* (loop :for d :in (dims input) :for dx :from 0
+		   	 	       :while (< dx axis) :collect d)))
+		  (vvec (reduce #'* (loop :for d :in (dims input) :for dx :from 0
+		   	 	       :when (/= dx axis) :collect d)))
+		  (vlen (nth axis (dims input)))
+		  (vllast (first (last (dims input))))
+		  (vvt (reduce #'* (nthcdr (1+ axis) (dims input))))
+		  (ex-dim))
+	     (declare (dynamic-extent ex-dim))
+	     (loop :for degree :across degrees :for dx :from 0
+		:summing (max (abs degree) (if compress-mode 0 1))
+		:into this-dim :do (setf (aref c-degrees dx) this-dim)
+		:finally (setq ex-dim this-dim))
+	     (let ((output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
+					  :collect (if (or (= index axis) (is-unitary input))
+						       ex-dim dim))
+				       :element-type (if (arrayp input)
+							 (element-type input)
+							 (assign-element-type input))
+				       :initial-element (apl-array-prototype input))))
+	       ;; in compress-mode: degrees must = length of axis,
+	       ;; zeroes are omitted from output, negatives add zeroes
+	       ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
+	       (if (is-unitary input)
+		   ;; if the input is a unitary value, just expand or replicate with that value
+		   (let ((value (if (not (arrayp input)) input (row-major-aref input 0))))
+		     (dotimes (degree (length degrees))
+		       (let ((this-degree (aref degrees degree)))
+			 (xdotimes output (ix this-degree)
+			   (setf (aref output (+ ix (if (= 0 degree) 0 (aref c-degrees (1- degree)))))
+				 value)))))
+		   ;; TODO: linearize this
+		   (across input (lambda (elem coords)
+		   		   (let* ((exc (nth axis coords))
+		   			  (dx (if compress-mode exc (aref positive-indices exc)))
+		   			  (this-degree (aref degrees dx)))
+		   		     (dotimes (ix this-degree)
+		   		       (loop :for coord :in coords :for cix :from 0
+		   		       	  :do (setf (nth cix ocoords)
+		   		       		    (if (not (= cix axis))
+		   		       			coord (print (+ ix (if (= 0 exc)
+		   		       					0 (if (= 1 (length degrees))
+		   		       					      (* exc (aref c-degrees 0))
+		   		       					      (aref c-degrees (1- dx)))))))))
+		   		       (setf (apply #'aref output ocoords)
+		   			     (if (> 0 this-degree) 0 elem)))))))
+	       output)))))

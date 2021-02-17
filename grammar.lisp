@@ -124,7 +124,8 @@
 		 (values (list 'function (getf (rest (assoc :function (idiom-symbols idiom)))
 					       (intern (string-upcase this-item))))
 			 (list :type '(:function :referenced))))
-		(t (values nil nil))))))
+		(t (values nil nil)))
+	  (values nil nil))))
 
 (defun process-operator (this-item properties process idiom space)
   (if (listp this-item)
@@ -172,9 +173,11 @@
 		(values bound-op (list :type (list :operator (or (getf properties :valence)
 								 (if (fboundp (intern pop-string space))
 								     :pivotal :lateral)))))
-		(values nil nil))))))
+		(values nil nil)))
+	  (values nil nil))))
 
 (defun composer-pattern-value (tokens space idiom process &optional precedent properties preceding-properties)
+  "Match an array like 1 2 3, marking the beginning of an array expression, or a functional expression if the array is an operand to a pivotal operator."
   (declare (ignorable precedent properties preceding-properties))
   (symbol-macrolet ((item (first items)) (rest-items (rest items)))
     (let ((axes) (value-elements) (value-props) (stopped) (items tokens))
@@ -221,6 +224,7 @@
  tokens space idiom process precedent properties preceding-properties special-props items item rest-items)
 
 (composer-pattern composer-pattern-function (axes function-form function-props prior-items)
+    ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
     ((assign-axes axes)
      (setq prior-items items)
      (assign-element function-form function-props process-function)
@@ -232,6 +236,7 @@
 			   (not (member :function (getf (second next) :type)))))))
     (if (and function-form is-function)
 	(values (if (or (not axes) (of-lexicon idiom :functions function-form))
+		    ;; if axes are present, this is an n-argument function
 		    (if (not (and (symbolp function-form) (is-workspace-function function-form)))
 			function-form `(function (inws ,function-form)))
 		    (let ((call-form (if (listp function-form)
@@ -251,6 +256,7 @@
   (composer-pattern composer-pattern-lateral-composition
       (operator-axes operator-form operator-props operand-axes operand-form
 		     operand-props symbol-referenced)
+      ;; match a lateral function composition like +/, marking the beginning of a functional expression
       ((assign-axes operator-axes)
        (setq symbol-referenced (verify-lateral-operator-symbol item space))
        (assign-element operator-form operator-props process-operator '(:valence :lateral))
@@ -259,6 +265,7 @@
 		 				     '(:special (:omit (:value-assignment :function-assignment
 		 							:operation :operator-assignment)))))))
     (if symbol-referenced
+	;; call the operator constructor on the output of the operand constructor which integrates axes
 	(values (list 'apl-compose :op (list 'inws symbol-referenced)
 	  	      (if (listp operand-form)
 	  		  operand-form
@@ -285,6 +292,7 @@
 	      		       items))))))
 
 (composer-pattern composer-pattern-unitary-operation (operator-axes operator-form operator-props)
+    ;; match a unitary operator like $
     ((assign-axes operator-axes)
      (assign-element operator-form operator-props process-operator '(:valence :unitary)))
   (let ((operator (and (member :operator (getf operator-props :type))
@@ -295,9 +303,9 @@
 		'(:type (:array :evaluated))
 		items))))
 
-(defvar *composer-opening-patterns-new*)
+(defvar *composer-opening-patterns*)
 
-(setq *composer-opening-patterns-new*
+(setq *composer-opening-patterns*
       '((:name :value :function composer-pattern-value)
 	(:name :function :function composer-pattern-function)
 	(:name :lateral-composition :function composer-pattern-lateral-composition)
@@ -366,199 +374,105 @@
 			     (if ,output (setf ,set-form ,output))))))
 		'(:type (:array :assigned)) items))))
 
-;; (composer-pattern value-assignment-standard
-;;     (asop asop-props axes symbol symbol-props symbols symbols-props symbols-list preceding-type)
-;;     ((setq preceding-type (getf (first preceding-properties) :type))
-;;      (if (and (eq :array (first preceding-type)))
-;; 	 (assign-element asop asop-props process-function '(:glyph ←)))
-;;      (labels ((get-symbol-list (list)
-;; 		(let ((valid t))
-;; 		  (if (listp list)
-;; 		      (let ((out-list (loop :while valid :for i :in (if (not (eql 'avector (first list)))
-;; 									list (rest list))
-;; 					 :collect (setq valid (if (symbolp i)
-;; 								  (progn (if (not (member i symbols-list))
-;; 									     (setq symbols-list
-;; 										   (cons i symbols-list)))
-;; 									 i)
-;; 								  (if (and (listp i) (eql 'inws (first i)))
-;; 								      (progn (setq symbols-list
-;; 										   (cons (second i)
-;; 											 symbols-list))
-;; 									     i)
-;; 								      (get-symbol-list i)))))))
-;; 			(if valid out-list))))))
-;;        (if asop (progn (assign-axes axes)
-;; 		       (let ((symbols-present t))
-;;       			 (loop :while symbols-present
-;;       			    :do (multiple-value-bind (symbol-out symbol-props)
-;;       				    (process-value item '(:symbol-overriding t) process idiom space)
-;; 				  (if (listp symbol-out)
-;; 				      (setq symbol-out (get-symbol-list symbol-out))
-;; 				      (if (symbolp symbol-out)
-;; 					  (progn (if (not (member symbol-out symbols-list))
-;; 						     (setq symbols-list (cons symbol-out symbols-list)))
-;; 						 (if (not (member symbol-out *idiom-native-symbols*))
-;; 						     (setq symbol-out (list 'inws symbol-out))))))
-;;       				  (if (and symbol-out (or (symbolp symbol-out)
-;; 							  (and symbol-out (listp symbol-out))))
-;;       				      (setq items rest-items
-;;       					    symbols (cons symbol-out symbols)
-;;       					    symbols-props (cons symbol-props symbols-props))
-;; 				      (setq symbols-present nil))))
-;; 			 (if (and (= 1 (length symbols))
-;; 				  (listp (first symbols)))
-;; 			     (setq symbols (first symbols)))
-;; 			 (setq symbol (if (symbolp (first symbols))
-;; 					  (if (eql 'inws (first symbols))
-;; 					      symbols (first symbols))
-;; 					  (if (listp (first symbols))
-;; 					      (caar symbols)))))))))
+(composer-pattern value-assignment-standard
+    (asop asop-props axes symbol symbol-props symbols symbols-props symbols-list preceding-type)
+    ;; match a value assignment like a←1 2 3, part of an array expression
+    ((setq preceding-type (getf (first preceding-properties) :type))
+     (if (and (eq :array (first preceding-type))
+	      (not (member :value-assignment (getf special-props :omit))))
+	 (assign-element asop asop-props process-function '(:glyph ←)))
+     (if asop (labels ((get-symbol-list (list)
+			 (let ((valid t))
+			   (if (listp list)
+			       ;; build list of symbols to be assigned values
+			       ;; (multiple for stranded/nested assignment)
+			       (let ((out-list (loop :while valid :for i
+						  :in (if (not (eql 'avector (first list)))
+							  list (rest list))
+						  :collect (setq valid
+								 (if (symbolp i)
+								     (progn (if (not (member i symbols-list))
+										(setq symbols-list
+										      (cons i symbols-list)))
+									    i)
+								     (if (and (listp i) (eql 'inws (first i)))
+									 (progn (setq symbols-list
+										      (cons (second i)
+											    symbols-list))
+										i)
+									 (get-symbol-list i)))))))
+				 (if valid out-list))))))
+		(assign-axes axes)
+		(let ((symbols-present t))
+		  ;; collect each symbol to the left of ←, keeping them in (inws) forms if needed
+      		  (loop :while symbols-present
+      		     :do (multiple-value-bind (symbol-out symbol-props)
+      			     (process-value item '(:symbol-overriding t) process idiom space)
+			   (if (listp symbol-out)
+			       (setq symbol-out (get-symbol-list symbol-out))
+			       (if (symbolp symbol-out)
+				   (progn (if (not (member symbol-out symbols-list))
+					      (setq symbols-list (cons symbol-out symbols-list)))
+					  (if (not (member symbol-out *idiom-native-symbols*))
+					      (setq symbol-out (list 'inws symbol-out))))))
+      			   (if (and symbol-out (or (symbolp symbol-out)
+						   (and symbol-out (listp symbol-out))))
+      			       (setq items rest-items
+      				     symbols (cons symbol-out symbols)
+      				     symbols-props (cons symbol-props symbols-props))
+			       (setq symbols-present nil))))
+		  (if (and (= 1 (length symbols))
+			   (listp (first symbols)))
+		      (setq symbols (first symbols)))
+		  (setq symbol (if (symbolp (first symbols))
+				   (if (eql 'inws (first symbols))
+				       symbols (first symbols))
+				   (if (listp (first symbols))
+				       (caar symbols))))))))
 
-;;   (if symbols
-;;       ;; ensure symbol(s) are not bound to function values in the workspace, and
-;;       ;; define them as dynamic variables if they're unbound there;
-;;       ;; remove symbols from (inws) unless they're bare and thus idiom-native
-;;       (values
-;;        (progn (loop :for symbol :in symbols-list
-;; 		 :do (if (is-workspace-function symbol)
-;; 			 (fmakunbound (intern (string symbol) space)))
-;; 		   (if (not (boundp (intern (string symbol) space)))
-;; 		       (progn (proclaim (list 'special (intern (string symbol) space)))
-;; 			      (set (intern (string symbol) space) nil))))
-;; 	      (cond ((eql 'to-output symbol)
-;; 		     ;; a special case to handle ⎕← quad output
-;; 		     `(apl-output ,precedent :print-precision print-precision
-;; 				  :print-to output-stream :print-assignment t))
-;; 		    ((eql 'output-stream symbol)
-;; 		     ;; a special case to handle ⎕ost← setting the output stream; the provided string
-;; 		     ;; is interned in the current working package
-;; 		     (if (stringp precedent)
-;; 			 ;; setq is used instead of apl-assign because output-stream is a lexical variable
-;; 			 `(setq output-stream ,(intern precedent (package-name *package*)))
-;; 			 (if (listp precedent)
-;; 			     (destructuring-bind (vector-symbol package-string symbol-string) precedent
-;; 			       (if (and (eql 'avector vector-symbol)
-;; 					(stringp package-string)
-;; 					(stringp symbol-string))
-;; 				   ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
-;; 				   ;; intern the symbol like (intern "OUT-STR" "APRIL")
-;; 				   `(setq output-stream ,(intern symbol-string package-string))
-;; 				   (error "Invalid assignment to ⎕OST.")))
-;; 			     (error "Invalid assignment to ⎕OST."))))
-;; 		    (t (if (symbolp symbol)
-;; 			   (set-workspace-alias space symbol nil))
-;; 		       ;; (print (list :ss symbols symbol precedent))
-;; 		       (if axes (enclose-axes symbol axes :set precedent)
-;; 			   ;; enclose the symbol in (inws) so the (with-april-workspace) macro
-;; 			   ;; will correctly intern it, unless it's one of the system variables
-;; 			   `(apl-assign ,(if (not (and (listp symbols)
-;; 						       (not (eql 'inws (first symbols)))))
-;; 					     symbols (cons 'avector symbols))
-;; 					,precedent)))))
-;;        '(:type (:array :assigned)) items))
-;;   )
-
-(defun value-assignment-standard (tokens space idiom process &optional precedent properties preceding-properties)
-  "Match a value assignment like a←1 2 3, part of a value expression."
-  (declare (ignorable precedent properties))
-  (symbol-macrolet ((item (first items)) (rest-items (rest items)))
-    (let ((asop) (asop-props) (axes) (symbol) (symbol-props) (symbols) (symbols-props) (items tokens)
-	  (symbols-list)
-	  (preceding-type (getf (first preceding-properties) :type))
-	  (preceding-special-props (getf (first preceding-properties) :special)))
-      (labels ((get-symbol-list (list)
-		 (let ((valid t))
-		   (if (listp list)
-		       (let ((out-list (loop :while valid :for i :in (if (not (eql 'avector (first list)))
-									 list (rest list))
-					  :collect (setq valid (if (symbolp i)
-								   (progn (if (not (member i symbols-list))
-									      (setq symbols-list
-										    (cons i symbols-list)))
-									  i)
-								   (if (and (listp i) (eql 'inws (first i)))
-								       (progn (setq symbols-list
-										    (cons (second i)
-											  symbols-list))
-									      i)
-								       (get-symbol-list i)))))))
-			 (if valid out-list))))))
-	(if (and (eq :array (first preceding-type))
-		 (not (member :value-assignment (getf preceding-special-props :omit))))
-	    (assign-element asop asop-props process-function '(:glyph ←)))
-
-	(if asop (progn (assign-axes axes)
-			(let ((symbols-present t))
-      			  (loop :while symbols-present
-      			     :do (multiple-value-bind (symbol-out symbol-props)
-      				     (process-value item '(:symbol-overriding t) process idiom space)
-				   (if (listp symbol-out)
-				       (setq symbol-out (get-symbol-list symbol-out))
-				       (if (symbolp symbol-out)
-					   (progn (if (not (member symbol-out symbols-list))
-						      (setq symbols-list (cons symbol-out symbols-list)))
-						  (if (not (member symbol-out *idiom-native-symbols*))
-						      (setq symbol-out (list 'inws symbol-out))))))
-      				   (if (and symbol-out (or (symbolp symbol-out)
-							   (and symbol-out (listp symbol-out))))
-      				       (setq items rest-items
-      					     symbols (cons symbol-out symbols)
-      					     symbols-props (cons symbol-props symbols-props))
-				       (setq symbols-present nil))))
-			  (if (and (= 1 (length symbols))
-				   (listp (first symbols)))
-			      (setq symbols (first symbols)))
-			  (setq symbol (if (symbolp (first symbols))
-					   (if (eql 'inws (first symbols))
-					       symbols (first symbols))
-					   (if (listp (first symbols))
-					       (caar symbols)))))))
-	
-	(let ((output
-	       (if symbols
-		   (progn
-		     ;; ensure symbol(s) are not bound to function values in the workspace, and
-		     ;; define them as dynamic variables if they're unbound there;
-		     ;; remove symbols from (inws) unless they're bare and thus idiom-native
-		     (loop :for symbol :in symbols-list
-			:do (if (is-workspace-function symbol)
-				(fmakunbound (intern (string symbol) space)))
-			  (if (not (boundp (intern (string symbol) space)))
-			      (progn (proclaim (list 'special (intern (string symbol) space)))
-				     (set (intern (string symbol) space) nil))))
-		     (cond ((eql 'to-output symbol)
-			    ;; a special case to handle ⎕← quad output
-			    `(apl-output ,precedent :print-precision print-precision
-					 :print-to output-stream :print-assignment t))
-			   ((eql 'output-stream symbol)
-			    ;; a special case to handle ⎕ost← setting the output stream; the provided string
-			    ;; is interned in the current working package
-			    (if (stringp precedent)
-				;; setq is used instead of apl-assign because output-stream is a lexical variable
-				`(setq output-stream ,(intern precedent (package-name *package*)))
-				(if (listp precedent)
-				    (destructuring-bind (vector-symbol package-string symbol-string) precedent
-				      (if (and (eql 'avector vector-symbol)
-					       (stringp package-string)
-					       (stringp symbol-string))
-					  ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
-					  ;; intern the symbol like (intern "OUT-STR" "APRIL")
-					  `(setq output-stream ,(intern symbol-string package-string))
-					  (error "Invalid assignment to ⎕OST.")))
-				    (error "Invalid assignment to ⎕OST."))))
-			   (t (if (symbolp symbol)
-				  (set-workspace-alias space symbol nil))
-			      ;; (print (list :ss symbols symbol precedent))
-			      (if axes (enclose-axes symbol axes :set precedent)
-				  ;; enclose the symbol in (inws) so the (with-april-workspace) macro
-				  ;; will correctly intern it, unless it's one of the system variables
-				  `(apl-assign ,(if (not (and (listp symbols)
-							      (not (eql 'inws (first symbols)))))
-						    symbols (cons 'avector symbols))
-					       ,precedent))))))))
-	  (if output (values output '(:type (:array :assigned)) items)
-	      (values nil nil tokens)))))))
+  (if symbols
+      ;; ensure symbol(s) are not bound to function values in the workspace, and
+      ;; define them as dynamic variables if they're unbound there;
+      ;; remove symbols from (inws) unless they're bare and thus idiom-native
+      (values
+       (progn (loop :for symbol :in symbols-list
+		 :do (if (is-workspace-function symbol)
+			 (fmakunbound (intern (string symbol) space)))
+		   (if (not (boundp (intern (string symbol) space)))
+		       (progn (proclaim (list 'special (intern (string symbol) space)))
+			      (set (intern (string symbol) space) nil))))
+	      (cond ((eql 'to-output symbol)
+		     ;; a special case to handle ⎕← quad output
+		     `(apl-output ,precedent :print-precision print-precision
+				  :print-to output-stream :print-assignment t))
+		    ((eql 'output-stream symbol)
+		     ;; a special case to handle ⎕ost← setting the output stream; the provided string
+		     ;; is interned in the current working package
+		     (if (stringp precedent)
+			 ;; setq is used instead of apl-assign because output-stream is a lexical variable
+			 `(setq output-stream ,(intern precedent (package-name *package*)))
+			 (if (listp precedent)
+			     (destructuring-bind (vector-symbol package-string symbol-string) precedent
+			       (if (and (eql 'avector vector-symbol)
+					(stringp package-string)
+					(stringp symbol-string))
+				   ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
+				   ;; intern the symbol like (intern "OUT-STR" "APRIL")
+				   `(setq output-stream ,(intern symbol-string package-string))
+				   (error "Invalid assignment to ⎕OST.")))
+			     (error "Invalid assignment to ⎕OST."))))
+		    (t (if (symbolp symbol)
+			   (set-workspace-alias space symbol nil))
+		       ;; (print (list :ss symbols symbol precedent))
+		       (if axes (enclose-axes symbol axes :set precedent)
+			   ;; enclose the symbol in (inws) so the (with-april-workspace) macro
+			   ;; will correctly intern it, unless it's one of the system variables
+			   `(apl-assign ,(if (not (and (listp symbols)
+						       (not (eql 'inws (first symbols)))))
+					     symbols (cons 'avector symbols))
+					,precedent)))))
+       '(:type (:array :assigned))
+       items)))
 
 (composer-pattern function-assignment (asop asop-props symbol symbol-props preceding-type)
     ;; "Match a function assignment like f←{⍵×2}, part of a functional expression."
@@ -704,7 +618,7 @@
 (composer-pattern pivotal-or-lateral-inline-composition
     (operator operator-props left-operand-axes left-operand
 	      left-operand-props prior-items right-operand-axes preceding-type)
-    ;; "Match a pivotal function composition like ×.+, part of a functional expression. It may come after either a function or an array, since some operators take array operands."
+    ;; Match a pivotal function composition like ×.+, part of a functional expression. It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
      (assign-element operator operator-props process-operator '(:valence :pivotal))
      (if operator (progn (assign-axes left-operand-axes)
@@ -714,11 +628,17 @@
 			 ;; this is needed for things like ∊∘.+⍨10 2 to work correctly
 			 (if (not (member :symbolic-function (getf left-operand-props :type)))
 			     (progn (setq items prior-items item (first items) rest-items (rest items))
+				    ;; the special :omit property makes it so that the pattern matching
+				    ;; the operand may not be processed as a value assignment, function
+				    ;; assignment or operation, which allows for expressions like
+				    ;; fn←5∘- where an operator-composed function is assigned
 				    (assign-subprocessed
 				     left-operand left-operand-props
-				     '(:special (:omit (:value-assignment :function-assignment :operation)))
-				     ))))))
+				     '(:special (:omit (:value-assignment :function-assignment
+							:operation)))))))))
   (if operator
+      ;; get left axes from the left operand and right axes from the precedent's properties so the
+      ;; functions can be properly curried if they have axes specified
       (let ((right-operand (insym precedent))
 	    (right-operand-axes (first (getf (first preceding-properties) :axes)))
 	    (left-operand (insym left-operand))
@@ -781,18 +701,15 @@
     (function-axes fn-element function-props is-function value value-props prior-items preceding-type)
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
-	 ;; the value match is canceled when encountering a pivotal operator composition on the left side
-	 ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
 	 (progn (assign-subprocessed fn-element function-props
 				     '(:special (:omit (:function-assignment :value-assignment-by-selection))))
 		(setq is-function (eq :function (first (getf function-props :type)))
 		      prior-items items)
-		(if is-function
-		    (assign-subprocessed value value-props
-					 '(:special (:omit (:value-assignment :function-assignment
-							    :value-assignment-by-selection :branch
-		 					    :operation :operator-assignment))
-					   :valence :lateral)))
+		(if is-function (assign-subprocessed value value-props
+						     '(:special (:omit (:value-assignment :function-assignment
+									:value-assignment-by-selection :branch
+		 							:operation :operator-assignment))
+						       :valence :lateral)))
 		(if (not (eq :array (first (getf value-props :type))))
 		    (setq items prior-items value nil))
 		(if (and (not function-axes) (member :axes function-props))
@@ -804,6 +721,8 @@
 					 fn-element (or (resolve-function (if value :dyadic :monadic)
 									  (insym fn-element))
 							(resolve-function :symbolic fn-element))))
+			 ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
+			 ;; as a self-reference by lambdas invoked through the (alambda) macro
 			 (fn-content (if (not (eq :self-reference fn-content))
 					 fn-content '#'∇self))
 			 (fn-sym (or-functional-character fn-element :fn)))
@@ -811,9 +730,9 @@
 				       ,@(if function-axes `((list ,@(first function-axes)))))
 			    '(:type (:array :evaluated)) items))))
 
-(defvar *composer-following-patterns-new*)
+(defvar *composer-following-patterns*)
 
-(setq *composer-following-patterns-new*
+(setq *composer-following-patterns*
       '((:name :value-assignment-by-function-result :function value-assignment-by-function-result)
 	(:name :value-assignment-by-selection :function value-assignment-by-selection)
 	(:name :value-assignment-standard :function value-assignment-standard)
@@ -823,344 +742,3 @@
 	(:name :train-composition :function train-composition)
 	(:name :pivotal-or-lateral-inline-composition :function pivotal-or-lateral-inline-composition)
 	(:name :operation :function operation)))
-
-;; (set-composer-patterns
-;;  composer-following-patterns-apl-standard
-;;  (with :idiom-symbol idiom :space-symbol space :process-symbol process
-;;        :properties-symbol properties :precedent-symbol precedent :pre-properties-symbol pre-properties)
-;;  (value-assignment-by-function-result
-;;   ;; match the assignment of a function result to a value, like a+←5
-;;   ((:with-preceding-type :array)
-;;    (assignment-operator :element (function :glyph ←))
-;;    (fn-element :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
-;;    (symbol :element (array :symbol-overriding t)))
-;;   (if (is-workspace-value symbol)
-;;       (let ((fn-content (resolve-function :dyadic fn-element))
-;; 	    (fn-sym (or-functional-character fn-element :fn))
-;; 	    (symbol-axes (getf (third properties) :axes))
-;; 	    (function-axes (getf (first properties) :axes)))
-;; 	(if (not symbol-axes)
-;; 	    `(setq (inws ,symbol) (apl-call ,fn-sym ,fn-content (inws ,symbol) ,precedent
-;; 					    ,@(if function-axes `((list ,@(first function-axes))))))
-;; 	    (enclose-axes `(inws, symbol)
-;; 			  symbol-axes :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))
-;; 			  :set precedent))))
-;;   '(:type (:array :assigned :by-result-assignment-operator)))
-;;  (value-assignment-by-selection
-;;   ;; match a selective value assignment like (3↑x)←5
-;;   ((:with-preceding-type :array)
-;;    (assignment-function :element (function :glyph ←))
-;;    (selection-form :pattern (:type (:array) :special '(:omit (:value-assignment)))))
-;;   (if (and (listp selection-form) (eql 'apl-call (first selection-form)))
-;;       (multiple-value-bind (sel-form sel-item placeholder set-form)
-;; 	  (generate-selection-form selection-form space)
-;; 	;; (print (list :sel sel-form selection-form))
-;; 	(if sel-form
-;; 	    ;; generate an array whose each cell is its row-major index, perform the subtractive function on
-;; 	    ;; it and then use assign-selected to assign new values to the cells at the remaining indices
-;; 	    ;; of the original array
-;; 	    (if sel-item
-;; 		(let ((item (gensym)) (indices (gensym)))
-;; 		  ;; `(let* ((,item ,sel-item)
-;; 		  ;; 	  (,placeholder (generate-index-array ,item))
-;; 		  ;; 	  (,indices (enclose-atom ,sel-form))
-;; 		  ;; 	  ,@(if set-form `((,placeholder (make-array nil :initial-element
-;; 		  ;; 						     (assign-selected (disclose ,item)
-;; 		  ;; 								      ,indices ,precedent))))))
-;; 		  ;;    ,(or set-form `(setq ,sel-item (assign-selected ,sel-item ,indices ,precedent))))
-;; 		  `(apl-assign
-;; 		    ,sel-item
-;; 		    (let* ((,item ,sel-item)
-;; 			   (,placeholder (generate-index-array ,item))
-;; 			   (,indices (enclose-atom ,sel-form))
-;; 			   ,@(if set-form `((,placeholder (make-array nil :initial-element
-;; 								      (assign-selected (disclose ,item)
-;; 										       ,indices ,precedent))))))
-;; 		      ,(or set-form `(assign-selected ,sel-item ,indices ,precedent))))
-;; 		  )
-;; 		`(let ((,placeholder ,precedent))
-;; 		   (setf ,set-form ,sel-form))))))
-;;   '(:type (:array :assigned)))
-;;  (value-assignment
-;;   ;; match a value assignment like a←1 2 3, part of an array expression
-;;   ((:with-preceding-type :array)
-;;    (assignment-function :element (function :glyph ←))
-;;    (symbol :element (array :symbol-overriding t)))
-;;   (let ((axes (getf (second properties) :axes)))
-;;     ;; ensure symbol(s) are not bound to function values in the workspace, and
-;;     ;; define them as dynamic variables if they're unbound there
-;;     (loop :for symbol :in (if (not (listp symbol)) (list symbol)
-;; 			      ;; remove symbols from (inws) unless they're bare and thus idiom-native
-;; 			      (mapcar (lambda (s) (if (not (listp s)) s (second s))) symbol))
-;;        :do (if (is-workspace-function symbol)
-;; 	       (fmakunbound (intern (string symbol) space)))
-;; 	 (if (not (boundp (intern (string symbol) space)))
-;; 	     (progn (proclaim (list 'special (intern (string symbol) space)))
-;; 		    (set (intern (string symbol) space) nil))))
-;;     (cond ((eql 'to-output symbol)
-;; 	   ;; a special case to handle ⎕← quad output
-;; 	   `(apl-output ,precedent :print-precision print-precision
-;; 			:print-to output-stream :print-assignment t))
-;; 	  ((eql 'output-stream symbol)
-;; 	   ;; a special case to handle ⎕ost← setting the output stream; the provided string
-;; 	   ;; is interned in the current working package
-;; 	   (if (stringp precedent)
-;; 	       ;; setq is used instead of apl-assign because output-stream is a lexical variable
-;; 	       `(setq output-stream ,(intern precedent (package-name *package*)))
-;; 	       (if (listp precedent)
-;; 		   (destructuring-bind (vector-symbol package-string symbol-string) precedent
-;; 		     (if (and (eql 'avector vector-symbol)
-;; 			      (stringp package-string)
-;; 			      (stringp symbol-string))
-;; 			 ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
-;; 			 ;; intern the symbol like (intern "OUT-STR" "APRIL")
-;; 			 `(setq output-stream ,(intern symbol-string package-string))
-;; 			 (error "Invalid assignment to ⎕OST.")))
-;; 		   (error "Invalid assignment to ⎕OST."))))
-;; 	  (t (if (symbolp symbol)
-;; 		 (set-workspace-alias space symbol nil))
-;; 	     (let ((symbol (if (or (listp symbol) (member symbol *idiom-native-symbols*))
-;; 			       symbol (list 'inws symbol))))
-;; 	       (if axes (enclose-axes symbol axes :set precedent)
-;; 		   ;; enclose the symbol in (inws) so the (with-april-workspace) macro will corretly
-;; 		   ;; intern it, unless it's one of the system variables
-;; 		   `(apl-assign ,symbol ,precedent))))))
-;;   '(:type (:array :assigned)))
-;;  (function-assignment
-;;   ;; match a function assignment like f←{⍵×2}, part of a functional expression
-;;   ((:with-preceding-type :function)
-;;    (assignment-function :element (function :glyph ←))
-;;    (symbol :element (array :symbol-overriding t)))
-;;   (let* ((inverted (if (listp precedent) (invert-function precedent)))
-;; 	 (inverted-symbol (if inverted (intern (concatenate 'string "𝕚∇" (string symbol))))))
-;;     (if (is-workspace-value symbol)
-;; 	(makunbound (intern (string symbol) space)))
-;;     (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)
-;;     (if inverted (progn (if (is-workspace-value inverted-symbol)
-;; 			    (makunbound (intern (string inverted-symbol) space)))
-;; 			(setf (symbol-function (intern (string inverted-symbol) space))
-;; 			      #'dummy-nargument-function)))
-;;     (if (characterp precedent)
-;; 	(if (or (resolve-function :monadic precedent)
-;; 		(resolve-function :dyadic precedent))
-;; 	    (progn (set-workspace-alias space symbol precedent)
-;; 		   (format nil "~a aliases ~a" symbol precedent)))
-;; 	(progn (set-workspace-alias space symbol nil)
-;; 	       `(setf (symbol-function (quote (inws ,symbol))) ,precedent
-;; 		      ,@(if inverted `((symbol-function (quote (inws ,inverted-symbol)))
-;; 				       ,inverted))))))
-;;   '(:type (:function :assigned)))
-;;  (operator-assignment
-;;   ;; match an operator assignment like f←{⍵×2}, part of a functional expression
-;;   ((:with-preceding-type :operator)
-;;    (assignment-function :element (function :glyph ←))
-;;    (symbol :element (array :symbol-overriding t)))
-;;   (let* ((operator-type (getf (first pre-properties) :type))
-;; 	 (operator-symbol (intern (concatenate 'string (if (member :pivotal operator-type) "𝕆ℙ∇" "𝕆𝕃∇")
-;; 					       (string symbol)))))
-;;     (if (is-workspace-value symbol)
-;; 	(makunbound (intern (string symbol) space)))
-;;     (setf (symbol-function (intern (string operator-symbol) space)) #'dummy-nargument-function)
-;;     (if (characterp precedent)
-;; 	(if (or (resolve-operator :lateral precedent)
-;; 		(resolve-operator :pivotal precedent))
-;; 	    (progn (set-workspace-alias space symbol precedent)
-;; 		   (format nil "~a aliases ~a" symbol precedent)))
-;; 	(progn (set-workspace-alias space symbol nil)
-;; 	       `(setf (symbol-function (quote (inws ,operator-symbol))) ,precedent))))
-;;   '(:type (:operator :assigned)))
-;;  (branch
-;;   ;; match a branch-to statement like →1 or a branch point statement like 1→⎕
-;;   ((:with-preceding-type :array)
-;;    (branch-glyph :element (function :glyph →))
-;;    (branch-from :element (array :cancel-if :pivotal-composition) :optional t :times :any)
-;;    (determine-branch-by :element function :optional t :times 1))
-;;   (progn
-;;     (if (listp precedent)
-;; 	(if (loop :for item :in precedent :always (and (listp item) (eql 'inws (first item))))
-;; 	    (setq precedent (mapcar #'second precedent))
-;; 	    (if (eql 'inws (first precedent))
-;; 		(setq precedent (second precedent)))))
-;;     (if (and branch-from (eql 'to-output precedent)) ;;(string= "TO-OUTPUT" (string precedent)))
-;; 	;; if this is a branch point statement like X→⎕, do the following:
-;; 	(if (integerp branch-from)
-;; 	    ;; if the branch is designated by an integer like 5→⎕
-;; 	    (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
-;; 	      (setf *branches* (cons (list branch-from branch-symbol) *branches*))
-;; 	      branch-symbol)
-;; 	    ;; if the branch is designated by a symbol like doSomething→⎕
-;; 	    (if (symbolp branch-from)
-;; 		(progn (setf *branches* (cons branch-from *branches*))
-;; 		       branch-from)
-;; 		(error "Invalid left argument to →; must be a single integer value or a symbol.")))
-;; 	;; otherwise, this is a branch-to statement like →5 or →doSomething
-;; 	(if (or (integerp precedent)
-;; 		(symbolp precedent))
-;; 	    ;; if the target is an explicit symbol as in →mySymbol, or explicit index
-;; 	    ;; as in →3, just pass the symbol through
-;; 	    (list 'go precedent)
-;; 	    (if (loop :for item :in (rest precedent) :always (symbolp item)) ;;(symbolp (second item)))
-;; 		;; if the target is one of an array of possible destination symbols...
-;; 		(if (integerp branch-from)
-;; 		    ;; if there is an explicit index to the left of the arrow, grab the corresponding
-;; 		    ;; symbol unless the index is outside the array's scope, in which case a (list) is returned
-;; 		    ;; so nothing is done
-;; 		    (if (< 0 branch-from (length (rest precedent)))
-;; 			(list 'go (second (nth (1- branch-from) (rest precedent))))
-;; 			(list 'list))
-;; 		    ;; otherwise, there must be an expression to the left of the arrow, as with
-;; 		    ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-;; 		    (list 'go precedent branch-from))
-;; 		(list 'go precedent)))))
-;;   '(:type (:branch)))
-;;  (train-composition
-;;   ;; match a train function composition like (-,÷)
-;;   ((:with-preceding-type :function)
-;;    (center :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
-;;    (left :pattern (:special '(:omit (:value-assignment :function-assignment)))))
-;;   (destructuring-bind (right omega alpha center)
-;;       (list precedent (gensym) (gensym)
-;;  	    (if (listp center)
-;;  		center (resolve-function :dyadic (if (not (symbolp center))
-;;  						     center (intern (string center) space)))))
-;;     ;; train composition is only valid when there is only one function in the precedent
-;;     ;; or when continuing a train composition as for (×,-,÷)5
-;;     (if (and center (or (= 1 (length pre-properties))
-;;  			(and (member :train-composition (getf (first pre-properties) :type))
-;;  			     (not (member :closed (getf (first pre-properties) :type))))))
-;;  	;; functions are resolved here, failure to resolve indicates a value in the train
-;;  	(let ((right-fn-monadic (if (and (listp right) (eql 'function (first right)))
-;;  				    right (resolve-function :monadic right)))
-;;  	      (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
-;;  				   right (resolve-function :dyadic right)))
-;;  	      (left-fn-monadic (if (and (listp left) (eql 'function (first left)))
-;;  				   left (resolve-function :monadic left)))
-;;  	      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
-;;  				  left (resolve-function :dyadic left))))
-;;  	  `(lambda (,omega &optional ,alpha)
-;;  	     (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
-;;  				  (apl-call ,(or-functional-character right :fn)
-;;  					    ,right-fn-dyadic ,omega ,alpha)
-;;  				  ,(if (not left-fn-dyadic)
-;;  				       left `(apl-call ,(or-functional-character left :fn)
-;;  						       ,left-fn-dyadic ,omega ,alpha)))
-;;  		 (apl-call ,(or-functional-character center :fn) ,center
-;;  			   (apl-call ,(or-functional-character right :fn) ,right-fn-monadic ,omega)
-;;  			   ,(if (not left-fn-monadic)
-;;  				left `(apl-call ,(or-functional-character left :fn)
-;;  						,left-fn-monadic ,omega))))))))
-;;   (list :type (list :function :train-composition (if (resolve-function :monadic left) :open :closed))))
-;;  (pivotal-or-lateral-inline-composition
-;;   ;; match a pivotal function composition like ×.+, part of a functional expression
-;;   ;; it may come after either a function or an array, since some operators take array operands
-;;   ((operator :element (operator :valence :pivotal))
-;;    (left-operand :pattern (:special '(:omit (:value-assignment :function-assignment :operation)))))
-;;   ;; the special :omit property makes it so that the pattern matching the operand may not be processed as
-;;   ;; a value assignment, function assignment or operation, which allows for expressions like
-;;   ;; fn←5∘- where an operator-composed function is assigned
-;;   (let ((right-operand (insym precedent))
-;; 	(right-operand-axes (first (getf (first pre-properties) :axes)))
-;; 	(left-operand (insym left-operand))
-;; 	(left-operand-axes (first (getf (second properties) :axes)))
-;; 	(omega (gensym)) (alpha (gensym)))
-;;     ;; get left axes from the left operand and right axes from the precedent's properties so the
-;;     ;; functions can be properly curried if they have axes specified
-;;     ;; (append (list 'apl-compose (intern (string-upcase operator)))
-;;     ;; 	    (funcall (funcall (resolve-operator :pivotal operator)
-;;     ;; 			      left-operand left-operand-axes right-operand right-operand-axes)
-;;     ;; 		     right-operand left-operand)))
-;;     ;; (cons 'apl-compose
-;; 	  ;; call the operator constructor on the output of the operand constructor which integrates axes
-;;     (if (symbolp operator) `(apl-compose :op ,(list 'inws operator)
-;; 					 ,(if (listp left-operand)
-;; 					      left-operand (if (characterp left-operand)
-;; 							       `(lambda (,omega &optional ,alpha)
-;; 								  (if ,alpha
-;; 								      (apl-call :fn ,(resolve-function
-;; 										      :dyadic left-operand)
-;; 										,omega ,alpha)
-;; 								      (apl-call :fn ,(resolve-function
-;; 										      :monadic left-operand)
-;; 										,omega)))))
-;; 					 ,(if (listp right-operand)
-;; 					      left-operand (if (characterp right-operand)
-;; 							       `(lambda (,omega &optional ,alpha)
-;; 								  (if ,alpha
-;; 								      (apl-call :fn ,(resolve-function
-;; 										      :dyadic right-operand)
-;; 										,omega ,alpha)
-;; 								      (apl-call :fn ,(resolve-function
-;; 										      :monadic right-operand)
-;; 										,omega)))))
-;; 				       ;; TODO: implement operand axes
-;; 				       ;; operand-axes
-;; 				       )
-;; 	      (if (listp operator)
-;; 		  `(apl-call :fn (apl-compose :op ,operator
-;; 					      ,(if (listp left-operand)
-;; 						   left-operand (if (characterp left-operand)
-;; 								    `(lambda (,omega &optional ,alpha)
-;; 								       (if ,alpha
-;; 									   (apl-call :fn ,(resolve-function
-;; 											  :dyadic left-operand)
-;; 										     ,omega ,alpha)
-;; 									   (apl-call :fn ,(resolve-function
-;; 											   :monadic left-operand)
-;; 										     ,omega))))))
-;; 			     ,precedent)
-;; 		  (cons 'apl-compose
-;; 			(cons (intern (string-upcase operator))
-;; 			      (funcall (funcall (resolve-operator :pivotal operator)
-;; 						left-operand left-operand-axes right-operand right-operand-axes)
-;; 				       right-operand left-operand))))))
-;;   '(:type (:function :operator-composed :pivotal)))
-;;  (operation
-;;   ;; match an operation on arrays like 1+1 2 3, ⍳9 or +/⍳5, these operations are the basis of APL
-;;   ((:with-preceding-type :array)
-;;    (fn-element :pattern (:type (:function) :special '(:omit (:value-assignment :function-assignment))))
-;;    ;; the value match is canceled when encountering a pivotal operator composition on the left side
-;;    ;; of the function element so that expressions like ÷.5 ⊢10 20 30 work properly
-;;    (value :element (array :cancel-if :pivotal-composition) :optional t :times :any))
-;;   (let ((fn-content (if (or (functionp fn-element)
-;; 			    (member fn-element '(⍺⍺ ⍵⍵))
-;; 			    (and (listp fn-element)
-;; 				 (eql 'function (first fn-element))))
-;; 			fn-element (resolve-function (if value :dyadic :monadic) (insym fn-element))))
-;; 	(fn-sym (or-functional-character fn-element :fn))
-;; 	(axes (getf (first properties) :axes)))
-;;     ;; (print (list :val value))
-;;     `(apl-call ,fn-sym ,fn-content ,precedent
-;; 	       ,@(if value (list (output-value space value (rest properties))))
-;; 	       ,@(if axes `((list ,@(first axes))))))
-;;   '(:type (:array :evaluated))))
-
-
-
-#|
-(vex::composer-pattern-template 
- composer-pattern tokens space idiom process precedent properties preceding-properties items item rest-items)
-
-
-
-(composer-pattern
- composer-pattern-function (axes function-form function-props)
- ((assign-axes axes process item items rest-items)
-  (assign-element function-form function-props process-function process
-		  nil space item items rest-items))
- (let ((is-function (or (not (member :overloaded-operator (getf function-props :type)))
-			   (let ((next (if items (multiple-value-list (funcall process items)))))
-			     (not (member :function (getf (second next) :type)))))))
-      (if (and function-form is-function)
-	  (values (if (or (not axes) (of-lexicon idiom :functions function-form))
-		      (if (not (and (symbolp function-form) (is-workspace-function function-form)))
-			  function-form `(function (inws ,function-form)))
-		      `(apl-call :nafn (function ,(insym function-form)) ,@(first axes)))
-		  (list :type (if (member :operator (getf function-props :type))
-				  (list :operator :inline-operator
-					(if (member :pivotal (getf function-props :type))
-					    :pivotal :lateral))
-				  '(:function :inline-function))
-			:axes axes)
-		  items))))
-
-|#
