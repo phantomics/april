@@ -242,9 +242,10 @@
 			(if (or (not (integerp omega))
 				(not (integerp alpha)))
 			    (error "Both arguments to ? must be single non-negative integers.")
-			    (make-array alpha :element-type (list 'integer 0 omega)
-					:initial-contents (loop :for i :below alpha
-							     :collect (+ index-origin (random omega)))))))))
+			    (if (> alpha omega)
+				(error "The left argument to ? must be less than or~a"
+				       " equal to the right argument.")
+				(knuth-shuffle (count-to alpha index-origin))))))))
   (○ (has :titles ("Pi Times" "Circular"))
      (ambivalent :asymmetric-scalar (λω (* pi omega)) (call-circular))
      (inverse (ambivalent (λω (/ omega pi)) :plain (call-circular :inverse)
