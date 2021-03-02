@@ -5,12 +5,23 @@
 
 "This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing."
 
-(defun knuth-shuffle (vector)
-  "Randomly shuffle a finite sequence. Used to implement [? deal]."
-  (loop :for i :from (length vector) :downto 2
-        do (rotatef (aref vector (random i))
-                    (aref vector (1- i))))
-  vector)
+(defun deal (index-origin)
+  "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
+  (lambda (omega alpha)
+    (let ((omega (disclose omega))
+	  (alpha (disclose alpha)))
+      (if (or (not (integerp omega))
+	      (not (integerp alpha)))
+	  (error "Both arguments to ? must be single non-negative integers.")
+	  (if (> alpha omega)
+	      (error "The left argument to ? must be less than or~a"
+		     " equal to the right argument.")
+	      (let ((vector (count-to alpha index-origin)))
+		;; perform Knuth shuffle of vector
+		(loop :for i :from (length vector) :downto 2
+		   :do (rotatef (aref vector (random i))
+				(aref vector (1- i))))
+		vector))))))
 
 (defun without (omega alpha)
   "Remove elements in omega from alpha. Used to implement dyadic [~ without]."
