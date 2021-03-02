@@ -427,7 +427,7 @@
 							     (floor a increment))))
       		       component (if (= 0 base) value (nth-value 1 (floor value base)))
       		       value (- value component)
-      		       element (if (= 0 last-base) 0 (/ component last-base))))
+      		       element (if (= 0 last-base) 0 (floor component last-base))))
       	  (if output (setf (row-major-aref output (+ o (* osize (floor a aseg-last))
 						     (* ofactor (mod a aseg-last))))
       			   element)
@@ -460,17 +460,17 @@
 	 (asegments (reduce #'* (butlast adims 1)))
 	 (av2 (first (last (dims alpha)))))
 
-    (if out-dims (dotimes (a asegments)
-		   (loop :for i :from (- (* av2 (1+ a)) 2) :downto (* av2 a)
-		      :do (setf (row-major-aref afactors i) (* (row-major-aref alpha (1+ i))
-							       (row-major-aref afactors (1+ i)))))))
-    (if out-dims (xdotimes output (i (size output))
-    		   (multiple-value-bind (a o) (floor i olvector)
-      		     (let ((result 0))
-    		       (loop :for index :below av2
-    	      		  :do (incf result (* (row-major-aref omega (+ o (* olvector index)))
-    	      				      (row-major-aref afactors (+ index (* a av2))))))
-    		       (setf (row-major-aref output i) result))))
+    (if out-dims (progn (dotimes (a asegments)
+			  (loop :for i :from (- (* av2 (1+ a)) 2) :downto (* av2 a)
+			     :do (setf (row-major-aref afactors i) (* (row-major-aref alpha (1+ i))
+								      (row-major-aref afactors (1+ i))))))
+			(xdotimes output (i (size output))
+    			  (multiple-value-bind (a o) (floor i olvector)
+      			    (let ((result 0))
+    			      (loop :for index :below av2
+    	      			 :do (incf result (* (row-major-aref omega (+ o (* olvector index)))
+    	      					     (row-major-aref afactors (+ index (* a av2))))))
+    			      (setf (row-major-aref output i) result)))))
     	(let ((result 0) (factor 1))
     	  (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
     	     :do (incf result (* factor (row-major-aref omega (min i (1- ovector)))))
@@ -692,8 +692,7 @@
 
 (defun operate-each (function-monadic function-dyadic)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
-  (let (;; (function-monadic (lambda (o) (funcall function-monadic o)))
-   	(function-dyadic (lambda (o a) (funcall function-dyadic (disclose o) (disclose a)))))
+  (let ((function-dyadic (lambda (o a) (funcall function-dyadic (disclose o) (disclose a)))))
     (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
 			 i (make-array nil :initial-element i))))
       (lambda (omega &optional alpha)
