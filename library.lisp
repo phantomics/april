@@ -14,14 +14,13 @@
 	      (not (integerp alpha)))
 	  (error "Both arguments to ? must be single non-negative integers.")
 	  (if (> alpha omega)
-	      (error "The left argument to ? must be less than or~a"
-		     " equal to the right argument.")
-	      (let ((vector (count-to alpha index-origin)))
+	      (error "The left argument to ? must be less than or equal to the right argument.")
+	      (let ((vector (count-to omega index-origin)))
 		;; perform Knuth shuffle of vector
-		(loop :for i :from (length vector) :downto 2
-		   :do (rotatef (aref vector (random i))
-				(aref vector (1- i))))
-		vector))))))
+		(loop :for i :from omega :downto 2 :do (rotatef (aref vector (random i))
+								(aref vector (1- i))))
+		(if (= alpha omega)
+		    vector (make-array alpha :displaced-to vector :element-type (element-type vector)))))))))
 
 (defun without (omega alpha)
   "Remove elements in omega from alpha. Used to implement dyadic [~ without]."
