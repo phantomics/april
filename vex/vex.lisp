@@ -709,7 +709,8 @@
 		       (loop :for c :across lines :always (char= c #\ )))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom))
-			    (process-lines remaining (append output (list out))))))
+			    (process-lines remaining (if (null out)
+							 output (append output (list out)))))))
 	     (handle-axes (input-string)
 	       (let ((each-axis (funcall (of-utilities idiom :process-axis-string)
 					 input-string)))
@@ -925,7 +926,9 @@ These are examples of the output of the three macro-builders above.
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
 			      (parse lines (=vex-string idiom))
-			    (process-lines remaining (append output (list (composer idiom space out)))))))
+			    (process-lines remaining
+					   (if (null out)
+					       output (append output (list (composer idiom space out))))))))
 	     (get-item-refs (items-to-store &optional storing-functions)
 	       (loop :for item :in items-to-store
 		  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
