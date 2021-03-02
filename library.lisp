@@ -204,7 +204,7 @@
 			      :displaced-to (copy-nested-array omega))))))
 
 (defun ravel-array (index-origin)
-  "Wrapper for aplesque [,ravel] function incorporating index origin from current workspace."
+  "Wrapper for aplesque [, ravel] function incorporating index origin from current workspace."
   (lambda (omega &optional axes)
     (ravel index-origin omega axes)))
 
@@ -784,9 +784,7 @@
 	   (odiv-size (reduce #'* odiv-dims))
 	   (adivs (if alpha (make-array (subseq adims 0 (- (rank alpha) acrank)))))
 	   (adiv-dims (if adivs (subseq adims (- (rank alpha) acrank))))
-	   (adiv-size (if alpha (reduce #'* adiv-dims)))
-	   (odiv-interval (/ osize odiv-size))
-	   (adiv-interval (if alpha (/ asize adiv-size))))
+	   (adiv-size (if alpha (reduce #'* adiv-dims))))
       (flet ((generate-divs (div-array ref-array div-dims div-size)
       	       (xdotimes div-array (i (size div-array))
       		 (setf (row-major-aref div-array i)

@@ -9,13 +9,8 @@
 
 (defvar *alphabet-vector* "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-(defvar *atomic-vector*
-  (concatenate 'string
-	       "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
-	       "¤‘’¶@£€≤≥≠∨∧⊂⊃∩∪⍺⍵⌶¯⍬∆⍙⌿⍀⊣⊢⌷¨⍨÷×∊⍴~↑↓⍳○*⌈⌊∇∘⊥⊤⍱⍲⍒⍋⍉⌽⊖⍟⌹⍕⍎⍫⍪≡≢ø^∣⍷⍸⋄←→⍝§⎕⍞⍤⍥⍣⍇⍈⍐⍗⌸⌺ ┘┐┌└┼─├┤┴┬│"))
-
 (defvar *idiom-native-symbols* '(⍺ ⍵ ⍺⍺ ⍵⍵ index-origin print-precision *digit-vector* *alphabet-vector*
-				 *atomic-vector* *apl-timestamp* to-output output-stream))
+				 *apl-timestamp* to-output output-stream))
 
 (let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument
        (vector (lambda (x) (exp (complex 0 x)))
@@ -40,7 +35,7 @@
  april
 
  ;; system variables and default state of an April workspace
- (system :atomic-vector *atomic-vector* :output-printed nil
+ (system :output-printed nil
 	 :base-state '(:comparison-tolerance (inws *comparison-tolerance*) :output-stream '*standard-output*)
 	 :workspace-defaults '(:index-origin 1 :print-precision 10 :comparison-tolerance double-float-epsilon))
 
@@ -169,7 +164,7 @@
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision
 		       ⎕ost output-stream ⎕ct *comparison-tolerance*)
-	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕av *atomic-vector* ⎕ts *apl-timestamp*)
+	  (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
 	  (:function ⎕t coerce-type))
  
  ;; APL's set of functions represented by characters
@@ -419,7 +414,7 @@
   					     ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
   (⍸ (has :titles ("Where" "Interval Index"))
      (ambivalent (λω (where-equal-to-one omega index-origin))
-  		 (interval-index atomic-vector))
+  		 #'interval-index)
      (tests (is "⍸1" 1)
 	    (is "⍸0 0 1 0 1 0 0 1 1 0" #(3 5 8 9))
   	    (is "⍸3=2 3 4⍴⍳9" #(#(1 1 3) #(1 3 4) #(2 3 1)))
@@ -782,11 +777,11 @@
 	    (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
   	    (is "1 0 1⍀3+2 3⍴⍳6" #2A((4 5 6) (0 0 0) (7 8 9)))))
   (⍋ (has :titles ("Grade Up" "Grade Up By"))
-     (ambivalent (λω (grade omega index-origin (alpha-compare atomic-vector #'<=)))
+     (ambivalent (λω (grade omega index-origin (alpha-compare #'<=)))
   		 (λωα (grade (if (vectorp alpha)
   				 (index-of omega alpha index-origin)
   				 (array-grade alpha omega))
-  			     index-origin (alpha-compare atomic-vector #'<))))
+  			     index-origin (alpha-compare #'<))))
      (tests (is "⍋2" 1)
 	    (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
   	    (is "⍋5 6⍴⍳16" #(1 4 2 5 3))
@@ -796,11 +791,11 @@
 	    (is "{⍵[⍋⍵]}'abcABC012xyzXYZ789'" "012789ABCXYZabcxyz")
   	    (is "(2 5⍴'ABCDEabcde')⍋'ACaEed'" #(1 3 2 6 4 5))))
   (⍒ (has :titles ("Grade Down" "Grade Down By"))
-     (ambivalent (λω (grade omega index-origin (alpha-compare atomic-vector #'>=)))
+     (ambivalent (λω (grade omega index-origin (alpha-compare #'>=)))
   		 (λωα (grade (if (vectorp alpha)
   				 (index-of omega alpha index-origin)
   				 (array-grade alpha omega))
-  			     index-origin (alpha-compare atomic-vector #'>))))
+  			     index-origin (alpha-compare #'>))))
      (tests (is "⍒3" 1)
 	    (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
   	    (is "⍒5 6⍴⍳12" #(2 4 1 3 5))
