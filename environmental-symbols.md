@@ -30,7 +30,6 @@ The values of these symbols are fixed and cannot be changed.
 
 |Symbol|Name             |Description|
 |------|-----------------|-----------|
-|`⎕AV` |Atomic Vector    |String of Unicode characters recognized by the language; used by ⍒⍋ grade functions and ⍸ index by function.|
 |`⎕A`  |Alphabet Vector  |String of capital letter characters of the English Roman alphabet.|
 |`⎕D`  |Digit Vector     |String of numeric characters from 0 to 9.|
 
