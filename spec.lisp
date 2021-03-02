@@ -1856,6 +1856,13 @@ c   2.56  3
      (is (print-and-run (get-output-stream-string other-out-str))
 	 "4 5 6
 " :test #'equalp))
+   (progn (princ (format nil "λ Multi-line function with comment at end.~%"))
+	  
+	  (is (print-and-run (april "fun←{
+ 5+⍵
+ ⍝ comment
+}
+fun 3")) 8))
    (progn (princ (format nil "λ Compact function calls.~%"))
 	  
 	  (is (print-and-run (april-c "{⍺×⍵}" 2 8)) 16)
