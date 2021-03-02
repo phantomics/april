@@ -461,6 +461,8 @@
 	 (out-dims (append (butlast adims 1) (rest odims)))
 	 (output (if out-dims (make-array out-dims)))
 	 (ovector (first odims))
+	 ;; extend a 1-column matrix to the length of the right argument's first dimension,
+	 ;; supporting use cases like (⍪5 10)⊥4 8⍴⍳9
 	 (alpha (if (< 1 asize) (if (not (and (< 1 osize) (= 1 (first (last adims)))))
 				    alpha (let ((out (make-array (append (butlast adims 1)
 									 (list ovector)))))
