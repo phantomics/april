@@ -27,6 +27,8 @@
 
 [⌊] Floor / Minimum
 
+[?] Random / Deal
+
 [○] Pi Times / Circular
 
 [~] Not / Without

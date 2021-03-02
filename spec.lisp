@@ -582,7 +582,7 @@
   	    (is "¯2↓⍳9" #(1 2 3 4 5 6 7))
   	    (is "¯2 ¯2↓5 8⍴⍳9" #2A((1 2 3 4 5 6) (9 1 2 3 4 5) (8 9 1 2 3 4)))
   	    (is "4 5↓2 3⍴1" #2A())))
-  (⊂ (has :titles ("Enclose" "Partitioned Enclose")) ;; parallelize
+  (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      (ambivalent (λωχ (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
   							    (if (arrayp (first axes))
 								(first axes)
@@ -627,7 +627,7 @@
   		#(#2A((9 1 2 3 4 5 6 7) (8 9 1 2 3 4 5 6)) #2A((7 8 9 1 2 3 4 5))))
 	    (is "2 0 1 3 0 2 0 1⊂'abcdefg'" #(#() "ab" "c" #() #() "de" #() "fg" #()))
 	    (is "0 0 2 0 1⊂'abcdefg'" #(#() "cd" "efg"))))
-  (⊆ (has :titles ("Nest" "Partition")) ;; parallelize
+  (⊆ (has :titles ("Nest" "Partition"))
      (ambivalent #'nest (λωαχ (partition-array alpha omega *last-axis*)))
      (inverse (monadic #'identity))
      (tests (is "⊆⍳3" #0A#(1 2 3))
@@ -724,7 +724,7 @@
 	    (is "1⍉⍳3" #(1 2 3))
   	    (is "1 3 2⍉2 3 4⍴⍳9" #3A(((1 5 9) (2 6 1) (3 7 2) (4 8 3))
   				     ((4 8 3) (5 9 4) (6 1 5) (7 2 6))))))
-  (/ (has :title "Replicate") ;; parallelize
+  (/ (has :title "Replicate")
      (dyadic (λωαχ (expand-array alpha omega *last-axis* (quote (inws *value-meta*)) :compress-mode t)))
      (inverse (dyadic :plain (λωαχ (if (is-unitary omega)
 				       ;; TODO: this inverse functionality is probably not complete
@@ -818,17 +818,26 @@
   	    (is "⌹4 2⍴1 3 ¯4 9" #2A((3/14 -1/14 3/14 -1/14) (2/21 1/42 2/21 1/42)))
   	    (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
   	    (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
-  (⊤ (has :title "Encode") ;; linearize
+  (⊤ (has :title "Encode")
      (dyadic #'encode)
      (inverse (dyadic :plain #'decode))
      (tests (is "9⊤15" 6)
 	    (is "6 2 8⊤12" #(0 1 4))
 	    (is "1760 3 12⊤82" #(2 0 10))
   	    (is "16 16 16 16⊤100" #(0 0 6 4))
+	    (is "0 12⊤8 64 256" #2A((0 5 21) (8 4 4)))
   	    (is "2 2 2 2 2⊤⍳5" #2A((0 0 0 0 0) (0 0 0 0 0) (0 0 0 1 1) (0 1 1 0 0) (1 0 1 0 1)))
-  	    (is "16 16 16 16⊤2 2⍴100 200 300 400"
-  		#3A(((0 0) (0 0)) ((0 0) (1 1)) ((6 12) (2 9)) ((4 8) (12 0))))))
-  (⊥ (has :title "Decode") ;; linearize
+  	    (is "16 16 16 16⊤2 2⍴100×⍳4"
+  		#3A(((0 0) (0 0)) ((0 0) (1 1)) ((6 12) (2 9)) ((4 8) (12 0))))
+	    (is "(2 2⍴16)⊤2 2⍴100 200 300 400"
+		#4A((((6 12) (2 9)) ((6 12) (2 9))) (((4 8) (12 0)) ((4 8) (12 0)))))
+	    (is "(2 2⍴16 8 8 16)⊤2 2⍴100×⍳4"
+		#4A((((12 9) (5 2)) ((6 4) (2 1))) (((4 0) (4 0)) ((4 8) (12 0)))))
+	    (is "(2 2⍴16 8 16 8)⊤2 2⍴100 200 300 400"
+		#4A((((6 12) (2 9)) ((4 1) (5 2))) (((4 8) (12 0)) ((4 0) (4 0)))))
+	    (is "(8 3⍴2 0 0 2 0 0 2 0 0 2 0 0 2 8 0 2 8 0 2 8 16 2 8 16)⊤83"
+		#2A((0 0 0) (1 0 0) (0 0 0) (1 0 0) (0 0 0) (0 1 0) (1 2 5) (1 3 3)))))
+  (⊥ (has :title "Decode")
      (dyadic #'decode)
      (inverse (dyadic :plain (λωα (encode omega alpha :inverse))))
      (tests (is "14⊥7" 7)
@@ -836,8 +845,16 @@
 	    (is "10⊥2 6 7 1" 2671)
   	    (is "32 14⊥7" 105)
   	    (is "1760 3 12⊥2 2 5" 101)
+	    (is "1J1⊥⍳4" #C(5 9))
   	    (is "1760 3 12⊥3 3⍴1 2 1 5 0 2 2 3 7" #(98 75 67))
-  	    (is "(3 3⍴1760 3 12)⊥3 3⍴2 2 5 1 4 9 6 6 7" #2A((90 126 295) (90 126 295) (90 126 295))))))
+  	    (is "(3 3⍴1760 3 12)⊥3 3⍴2 2 5 1 4 9 6 6 7" #2A((90 126 295) (90 126 295) (90 126 295)))
+	    (is "2⊥3 8⍴0 0 0 0 1 1 1 1 0 0 1 1 0 0 1 1 0 1 0 1 0 1 0 1" #(0 1 2 3 4 5 6 7))
+	    (is "(3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7" #2A((61 76 177) (142 166 399) (306 342 835)))
+	    (is "(3/⍪⍳4)⊥3 8⍴0 0 0 0 1 1 1 1 0 0 1 1 0 0 1 1 0 1 0 1 0 1 0 1"
+		#2A((0 1 1 2 1 2 2 3) (0 1 2 3 4 5 6 7)
+		    (0 1 3 4 9 10 12 13) (0 1 4 5 16 17 20 21)))
+	    (is "(⍪2 10)⊥3 8⍴0 0 0 0 1 1 1 1 0 0 1 1 0 0 1 1 0 1 0 1 0 1 0 1"
+		#2A((0 1 2 3 4 5 6 7) (0 1 10 11 100 101 110 111))))))
 
  (functions
   (with (:name :lexical-functions-special)
