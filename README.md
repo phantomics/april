@@ -711,7 +711,7 @@ Source code from files can thus be loaded into any workspace.
 April makes available the following APL system variables and functions:
 
 ```
-⎕IO ⎕CT ⎕TS ⎕PP ⎕AV ⎕A ⎕D
+⎕IO ⎕CT ⎕TS ⎕PP ⎕A ⎕D
 ```
 
 Additionally, April exposes this special system variable not found in other APL implementations:
