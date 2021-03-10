@@ -494,6 +494,7 @@
 		(make-array (loop :for i :below irank :collect 0))
 		(let* ((odims (loop :for odim :across dimensions :for idim :across idims
 				 :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+		       (osize (reduce #'* odims))
 		       (last-dim) (fill-element (apl-array-prototype input))
 		       (id-factors (make-array irank :element-type 'fixnum))
 		       (od-factors (make-array irank :element-type 'fixnum))
@@ -515,27 +516,42 @@
 			       last-dim d))
 
 		  ;; populate empty array elements if the array has a non-scalar prototype
-		  (if populator (xdotimes output (i (size output))
+		  (if populator (xdotimes output (i osize)
 				  (setf (row-major-aref output i) (funcall populator)))
 		      (if (arrayp fill-element)
-			  (xdotimes output (i (size output)) (setf (row-major-aref output i)
-								   (copy-nested-array fill-element)))))
-		  
+			  (xdotimes output (i osize) (setf (row-major-aref output i)
+							   (copy-nested-array fill-element)))))
+
 		  (if (< 0 isize)
-		      (xdotimes output (i isize)
-			(let ((oindex 0) (remaining i) (valid t))
-			  ;; calculate row-major offset for outer array dimensions
-			  (loop :for i :from 0 :to (- irank 1) :while valid
-			     :for dim :across dimensions :for id :across idims :for od :in odims
-			     :for ifactor :across id-factors :for ofactor :across od-factors
-			     :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-				   (let ((adj-index (- index (if inverse (if (> 0 dim) 0 dim)
-								 (if (< 0 dim) 0 (+ dim id))))))
-				     (if (< -1 adj-index od)
-					 (progn (incf oindex (* ofactor adj-index))
-						(setq remaining remainder))
-					 (setq valid nil)))))
-			  (if valid (setf (row-major-aref output oindex) (row-major-aref input i))))))
+		      (if (< isize osize)
+			  (xdotimes output (i isize)
+		      	    (let ((oindex 0) (remaining i) (valid t))
+		      	      ;; calculate row-major offset for outer array dimensions
+		      	      (loop :for i :from 0 :to (- irank 1) :while valid
+		      		 :for dim :across dimensions :for id :across idims :for od :in odims
+		      		 :for ifactor :across id-factors :for ofactor :across od-factors
+		      		 :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+		      		       (let ((adj-index (- index (if inverse (if (> 0 dim) 0 dim)
+		      						     (if (< 0 dim) 0 (+ dim id))))))
+		      			 (if (< -1 adj-index od)
+		      			     (progn (incf oindex (* ofactor adj-index))
+		      				    (setq remaining remainder))
+		      			     (setq valid nil)))))
+		      	      (if valid (setf (row-major-aref output oindex) (row-major-aref input i)))))
+			  (xdotimes output (o osize)
+			    (let ((iindex 0) (remaining o) (valid t))
+			      ;; calculate row-major offset for outer array dimensions
+			      (loop :for i :from 0 :to (- irank 1) :while valid
+				 :for dim :across dimensions :for id :across idims :for od :in odims
+				 :for ifactor :across id-factors :for ofactor :across od-factors
+				 :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+				       (let ((adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
+								     (if (< 0 dim) 0 (+ dim id))))))
+					 (if (< -1 adj-index id)
+					     (progn (incf iindex (* ifactor adj-index))
+						    (setq remaining remainder))
+					     (setq valid nil)))))
+			      (if valid (setf (row-major-aref output o) (row-major-aref input iindex)))))))
 		  output))))))
 
 (defun catenate (a1 a2 axis)
