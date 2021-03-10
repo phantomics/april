@@ -882,9 +882,10 @@
 				 (if (= 1 (rank right-value))
 				     right-value (choose right-value (iaxes right-value 0)))))
 		(movement (if (not (arrayp right-value))
-			       (vector 1)
-			       (if (= 2 (rank right-value))
-				   (choose right-value (iaxes right-value 1))
-				   (make-array (length right-value) :element-type 'fixnum
-					       :initial-element 1)))))
-	    (merge-arrays (stencil omega left-function window-dims movement) :nesting nil))))))
+			      (vector 1)
+			      (if (= 2 (rank right-value))
+				  (choose right-value (iaxes right-value 1))
+				  (make-array (length right-value) :element-type 'fixnum
+					      :initial-element 1)))))
+	    (mix-arrays (rank omega)
+			(stencil omega left-function window-dims movement)))))))

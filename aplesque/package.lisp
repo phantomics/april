@@ -7,7 +7,7 @@
 	   #:alpha-compare #:array-compare #:find-array #:ravel #:across #:re-enclose
 	   #:reshape-to-fit #:sprfact #:binomial #:scale-array #:mix-arrays #:array-inner-product
 	   #:is-unitary #:choose #:catenate #:laminate #:enclose-atom #:partitioned-enclose #:split-array
-	   #:invert-matrix #:interval-index #:turn #:partition-array #:merge-arrays #:stencil
+	   #:invert-matrix #:interval-index #:turn #:partition-array #:stencil
 	   #:array-impress #:matrix-print #:disclose-unitary-array #:apply-scalar
 	   #:get-first-or-disclose #:assign-element-type #:type-in-common #:initialize-for-environment
 	   #:array-outer-product #:inverse-outer-product #:copy-nested-array #:disclose #:xdotimes
