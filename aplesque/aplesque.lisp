@@ -1460,45 +1460,6 @@
 			    (row-major-aref input-element this-index)))))))
 	output)))
 
-(defun merge-arrays (input &key (nesting t))
-  "Merge a set of arrays with the same rank and shape into a larger array."
-  (if (= 1 (array-total-size input))
-      ;; if the input array is of size one, like #(#0A#(2 4 6 8 10)), simply promote the sole element
-      (array-promote (row-major-aref input 0))
-      (let* ((first-sub-array (funcall (if nesting #'disclose #'identity)
-				       (row-major-aref input 0)))
-	     (inner-dims (dims first-sub-array))
-	     (out-dims (append (remove 1 (dims input))
-			       (remove 1 inner-dims)))
-	     (out-rank (length out-dims))
-	     (input-vector (make-array (array-total-size input)
-				       :displaced-to input :element-type (element-type input)))
-	     (each-type (loop :for elem :across input-vector :collect (element-type elem)))
-	     (output (make-array out-dims :element-type (apply #'type-in-common each-type)))
-	     (ocoords (loop :for i :below out-rank :collect 0))
-	     (dims-match t))
-	(across input (lambda (elem coords)
-			;; TODO: fix up disclose logic for stuff like ⊂⍤2⊢2 3 4⍴⍳9
-			(let ((elem (funcall (if nesting #'disclose #'identity) elem)))
-			  (if (and dims-match (or (not (dims elem))
-						  (reduce #'eq (mapcar #'= inner-dims (dims elem)))))
-			      (if (is-unitary elem)
-				  ;; if the element is a unitary array, just assign
-				  ;; its element to the appropriate output coordinates
-				  (setf (apply #'aref output coords) (disclose elem))
-				  ;; otherwise, iterate across the element and assing the element to the output
-				  ;; coordinates derived from the ombined outer and inner array coordinates
-				  (across elem (lambda (sub-elem sub-coords)
-						 (let ((cix 0))
-						   (loop :for c :in coords :do (setf (nth cix ocoords) c
-										     cix (1+ cix)))
-						   (loop :for c :in sub-coords :do (setf (nth cix ocoords) c
-											 cix (1+ cix)))
-						   (setf (apply #'aref output ocoords)
-							 (nest sub-elem))))))
-			      (setq dims-match nil)))))
-	(if dims-match output))))
-
 (defun split-array (input &optional axis)
   "Split an array into a set of sub-arrays."
   (if (> 2 (rank input))
@@ -1801,41 +1762,63 @@
 
 (defun stencil (input process window-dims movement)
   "Apply a given function to sub-arrays of an array with specified dimensions sampled according to a given pattern of movement across the array."
-  (let* ((idims (apply #'vector (dims input)))
+  (let* ((irank (rank input))
+	 (idims (apply #'vector (dims input))) (last-dim)
+	 (wrank (length window-dims))
 	 (output-dims (loop :for dim :below (length window-dims)
 			 :collect (ceiling (- (/ (aref idims dim) (aref movement dim))
 					      (if (and (evenp (aref window-dims dim))
 						       (or (= 1 (aref movement dim))
 							   (oddp (aref idims dim))))
 						  1 0)))))
+	 (in-factors (make-array (rank input) :element-type 'fixnum))
+	 (win-factors (make-array wrank :element-type 'fixnum))
 	 (output (make-array output-dims))
 	 (ref-coords (loop :for d :across window-dims :collect 0))
 	 (acoords (loop :for d :in output-dims :collect 0)))
-    (across output (lambda (elem coords)
-		     (declare (ignore elem))
-		     (let ((window (make-array (array-to-list window-dims) :element-type (element-type input))))
-		       (across window (lambda (welem wcoords)
-					(declare (ignore welem))
-					(dotimes (cix (length wcoords))
-					  (setf (nth cix ref-coords)
-						(let ((melem (aref movement cix))
-						      (wdim (aref window-dims cix)))
-						  (+ (nth cix wcoords)
-						     (- (* melem (nth cix coords))
-							(floor (- wdim (if (evenp wdim) 1 0)) 2))))))
-					(setf (apply #'aref window wcoords)
-					      (if (not (loop :for coord :in ref-coords :for cix :from 0
-							  :always (<= 0 coord (1- (aref idims cix)))))
-						  (apl-array-prototype input)
-						  (apply #'aref input ref-coords)))))
-		       (loop :for coord :in coords :for cix :from 0
-			  :do (setf (nth cix acoords)
-				    (* (aref movement cix)
-				       (if (= 0 coord) 1 (if (= coord (1- (nth cix output-dims)))
-							     -1 0)))))
-		       (setf (apply #'aref output coords)
-			     (funcall process window (make-array (length coords) :initial-contents acoords
-								 :element-type '(signed-byte 8)))))))
+    
+    ;; generate dimensional factors vectors for input and output
+    (loop :for dx :below (length window-dims)
+       :do (let ((d (aref window-dims (- wrank 1 dx))))
+	     (setf (aref win-factors (- wrank 1 dx))
+		   (if (= 0 dx) 1 (* last-dim (aref win-factors (- wrank dx))))
+		   last-dim d)))
+    
+    ;; generate dimensional factors vectors for input and output
+    (loop :for dx :below (rank input)
+       :do (let ((d (aref idims (- irank 1 dx))))
+	     (setf (aref in-factors (- irank 1 dx))
+		   (if (= 0 dx) 1 (* last-dim (aref in-factors (- irank dx))))
+		   last-dim d)))
+    
+    (xdotimes output (o (size output))
+      (let* ((acoords (make-array (rank input) :element-type 'fixnum))
+	     (oindices (let ((remaining o))
+			 (loop :for if :across in-factors :for od :in output-dims :for ix :from 0
+			    :collect (multiple-value-bind (index remainder) (floor remaining if)
+				       (setf remaining remainder
+					     (aref acoords ix)
+					     (* (aref movement ix)
+						(if (= 0 index) 1 (if (= index (1- od)) -1 0))))
+				       index))))
+	     (window (make-array (array-to-list window-dims) :element-type (element-type input))))
+	(dotimes (w (size window))
+	  (let ((remaining w) (rmi 0) (valid t))
+	    (loop :for cix :below wrank :for wf :across win-factors :for oindex :in oindices
+	       :for melem :across movement :for wdim :across window-dims :while valid
+	       :do (multiple-value-bind (index remainder) (floor remaining wf)
+		     (let ((this-index (+ index (- (* melem oindex)
+						   (floor (- wdim (if (evenp wdim) 1 0)) 2)))))
+		       (setq remaining remainder)
+		       (if (<= 0 this-index (1- (aref idims cix)))
+			   (setq rmi (+ rmi (* this-index wf)))
+			   (setq valid nil)))))
+	    (setf (row-major-aref window w)
+		  (if (not valid)
+		      (apl-array-prototype input)
+		      (row-major-aref input rmi)))))
+	(setf (row-major-aref output o)
+	      (funcall process window acoords))))
     output))
 
 (defun count-segments (value precision &optional segments)
