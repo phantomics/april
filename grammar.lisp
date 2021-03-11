@@ -284,7 +284,8 @@
 	(let ((operator (and (member :operator (getf operator-props :type))
 	      		     (member :lateral (getf operator-props :type))
 	      		     operator-form)))
-	  (if operator (values (cons 'apl-compose (cons (intern (string-upcase operator))
+	  (if operator (values (cons 'apl-compose (cons (intern (string-upcase operator)
+								*package-name-string*)
 	      						(funcall (funcall (resolve-operator :lateral operator)
 	      								  operand-form (first operand-axes))
 	      							 (first operator-axes))))
@@ -341,6 +342,7 @@
 		(assign-subprocessed selection-form sform-specs
 				     '(:special (:omit (:value-assignment :function-assignment))))))
      (if selection-form (setf items (rest items))))
+  ;; (print (list :cc asop selection-form))
   (if (and selection-form (listp selection-form) (eql 'apl-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
 	  (generate-selection-form selection-form space)
@@ -689,7 +691,8 @@
 										    :monadic left-operand)
 									      ,omega))))))
 				   ,precedent)
-			(cons 'apl-compose (cons (intern (string-upcase operator))
+			(cons 'apl-compose (cons (intern (string-upcase operator)
+							 *package-name-string*)
 						 (funcall (funcall (resolve-operator :pivotal operator)
 								   left-operand left-operand-axes
 								   right-operand right-operand-axes)

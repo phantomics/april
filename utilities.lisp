@@ -18,6 +18,7 @@
 ;; the names of library functions that curry functions having axes with index-origin, needed for the λχ macro
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
+(defparameter *package-name-string* (package-name *package*))
 
 (defvar *april-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
 						       :name "april-language-kernel"))
@@ -654,7 +655,7 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro or-functional-character (reference symbol)
   "Return a symbol representing a functional character or, if the passed value is not a character, an arbitrary fallback symbol. Used to derive the initial symbol argument for (apl-call)."
   `(if (not (characterp ,reference))
-       ,symbol (intern (string-upcase ,reference))))
+       ,symbol (intern (string-upcase ,reference) ,*package-name-string*)))
 
 (defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
