@@ -524,6 +524,7 @@
 
 		  (if (< 0 isize)
 		      (if (< isize osize)
+			  ;; choose shorter path depending on whether input or output are larger
 			  (xdotimes output (i isize)
 		      	    (let ((oindex 0) (remaining i) (valid t))
 		      	      ;; calculate row-major offset for outer array dimensions
