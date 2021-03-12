@@ -342,7 +342,6 @@
 		(assign-subprocessed selection-form sform-specs
 				     '(:special (:omit (:value-assignment :function-assignment))))))
      (if selection-form (setf items (rest items))))
-  ;; (print (list :cc asop selection-form))
   (if (and selection-form (listp selection-form) (eql 'apl-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
 	  (generate-selection-form selection-form space)
@@ -646,7 +645,10 @@
 	    (left-operand (insym left-operand))
 	    ;; (left-operand-axes (first (getf (second properties) :axes)))
 	    (omega (gensym)) (alpha (gensym)))
-	;; (print (list :right right-operand pre-properties))
+	;; single character values are passed within a (:char) form so they aren't interpreted as
+	;; functional glyphs by the (resolve-function) calls
+	(if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
+	    (setq left-operand (list :char left-operand)))
 	(values (if (or (symbolp operator) (and (listp operator)
 						(member :pivotal (getf operator-props :type))))
 		    `(apl-compose :op ,(if (listp operator)

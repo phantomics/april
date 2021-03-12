@@ -1250,7 +1250,7 @@
 		 (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
 				  (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key (set) (set-by))
+(defun choose (input indices &key (set) (set-by) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((idims (dims input)) (sdims (if set (dims set)))
 	 (index1 (first indices)) (naxes (< 1 (length indices)))
@@ -1298,6 +1298,9 @@
 	 (output (if (or set-by (and (or (not set)
 					 ;; an output array is used if the types of the input and
 					 ;; values to set are not compatible
+					 (not modify-input)
+					 ;; the array may be changed in place only if the modify-input
+					 ;; parameter is not set
 					 (not (or (eq t (element-type input))
 						  (and (not (arrayp set)) (typep set (element-type input)))
 						  (and (arrayp set) (not (eq t set-type))

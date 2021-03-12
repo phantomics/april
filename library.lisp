@@ -576,6 +576,7 @@
 					 (third form) form-copy
 					 set-form (fourth form))
 				   form)
+				 ;; set the :modify-input parameter so the array is changed in place
 				 (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
 						(sfun-aliased fn-symbol))
 					    (if (val-wssym first-arg)
@@ -587,7 +588,8 @@
 							(setq value-symbol first-arg
 							      set-form
 							      (append first-arg
-								      (list :set value-placeholder)))
+								      (list :set value-placeholder
+									    :modify-input t)))
 							(setq value-symbol (second first-arg)
 							      choose-unpicked t)))))
 					(if value-symbol
