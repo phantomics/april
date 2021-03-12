@@ -485,6 +485,13 @@
 			(list 'right 'left)))
 	   (declare ,@(if (member 'axes operand-specs) `((ignorable axes))
 			  `((ignore ,@to-ignore))))
+	   ;; if bare character values were passed in wrapped in (:char) forms,
+	   ;; they are removed from those forms here
+	   ,@(if (not (member 'axes operand-specs))
+		 `((if (and (listp right) (eq :char (first right)))
+		       (setq right (second right)))
+		   (if (and (listp left) (eq :char (first left)))
+		       (setq left (second left)))))
 	   ,@body)))))
 
 (defun resolve-function (mode reference &optional axes)
@@ -659,15 +666,19 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
-  (let ((axes (first axis-sets)))
+  (let ((axes (first axis-sets))
+	(assignment-output (gensym)))
     (if (not axis-sets)
 	body (enclose-axes
-	      (if set `(let ((assignment-output
+	      (if set `(let ((,assignment-output
 			      (achoose ,body (mapcar (lambda (array)
 						       (if array (apply-scalar #'- array index-origin)))
 						     (list ,@axes))
-				       :set ,set ,@(if set-by (list :set-by set-by)))))
-			 (if assignment-output (setf ,body assignment-output)))
+				       :set ,set ,@(if set-by (list :set-by set-by))
+				       ;; setting the modify-input parameter so that the original value
+				       ;; is modified in place if possible
+				       :modify-input t)))
+			 (if ,assignment-output (setf ,body ,assignment-output)))
 		  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
 					  (list ,@axes))))
 	      (rest axis-sets)))))
