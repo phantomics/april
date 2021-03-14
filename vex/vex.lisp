@@ -825,7 +825,7 @@
 				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name) (getf special-params :omit))))
-	   ;; :do (print (list :xi (getf pattern :name)))
+	   ;; :do (print (list :xi (getf pattern :name) tokens precedent))
 	   :do (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (symbol-function (getf pattern :function))
 			    tokens space idiom (lambda (item &optional sub-props)
@@ -834,9 +834,8 @@
 		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
 		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
-	(if (not processed)
-	    (values precedent properties tokens)
-	    (composer idiom space tokens processed properties pre-props)))))
+	(if processed (composer idiom space tokens processed properties pre-props)
+	    (values precedent properties tokens)))))
 
 (defmacro composer-pattern-template
     (macro-names tokens-sym space-sym idiom-sym process-sym precedent-sym

@@ -103,9 +103,10 @@
 	      (multiple-value-bind (output out-properties)
 	    	  (funcall process this-item)
 	    	(if (eq :function (first (getf out-properties :type)))
-	    	    (progn (setf (getf out-properties :type)
-	    			 (cons (first (getf out-properties :type))
-	    			       (cons :enclosed (rest (getf out-properties :type)))))
+	    	    (progn (if (not (member :enclosed (getf out-properties :type)))
+			       (setf (getf out-properties :type)
+	    			     (cons (first (getf out-properties :type))
+	    				   (cons :enclosed (rest (getf out-properties :type))))))
 	    		   (values output out-properties))
 	    	    (values nil nil)))
 	      (values nil nil)))
@@ -147,13 +148,17 @@
 	      (let* ((fn (first (last this-item)))
 		     (symbols-used (glean-symbols-from-tokens fn space))
 		     (is-inline (intersection '(⍺⍺ ⍵⍵) (rest (assoc :args symbols-used))))
-		     (is-pivotal (member '⍵⍵ (rest (assoc :args symbols-used)))))
-		(if is-inline (values (output-function (if (= 1 (length fn))
-							   (list (funcall process fn))
-							   (mapcar process fn))
-						       nil symbols-used)
-				      (list :type (list :operator :closure
-							(if is-pivotal :pivotal :lateral))))
+		     (is-pivotal (member '⍵⍵ (rest (assoc :args symbols-used))))
+		     (valence (getf properties :valence)))
+		(if is-inline (if (or (not valence)
+				      (and is-pivotal (eq :pivotal valence))
+				      (and (not is-pivotal) (eq :lateral valence)))
+				  (values (output-function (if (= 1 (length fn))
+							       (list (funcall process fn))
+							       (mapcar process fn))
+							   nil symbols-used)
+					  (list :type (list :operator :closure
+							    (if is-pivotal :pivotal :lateral)))))
 		    (values nil nil)))
 	      (values nil nil)))
       (if (symbolp this-item)
@@ -464,7 +469,6 @@
 			     (error "Invalid assignment to ⎕OST."))))
 		    (t (if (symbolp symbol)
 			   (set-workspace-alias space symbol nil))
-		       ;; (print (list :ss symbols symbol precedent))
 		       (if axes (enclose-axes symbol axes :set precedent)
 			   ;; enclose the symbol in (inws) so the (with-april-workspace) macro
 			   ;; will correctly intern it, unless it's one of the system variables
@@ -616,9 +620,61 @@
 					(if (resolve-function :monadic left) :open :closed)))
 		      items))))))
 
-(composer-pattern pivotal-or-lateral-inline-composition
-    (operator operator-props left-operand-axes left-operand
-	      left-operand-props prior-items right-operand-axes preceding-type)
+(composer-pattern lateral-inline-composition
+    (operator operator-props left-operand-axes left-operand left-operand-props left-value
+	      left-value-props prior-items right-operand-axes preceding-type)
+    ;; Match an inline lateral operator composition like +{⍺⍺ ⍵}5.
+    ((setq preceding-type (getf (first preceding-properties) :type))
+     (assign-element operator operator-props process-operator '(:valence :lateral))
+     (if operator (progn (assign-axes left-operand-axes)
+			 (setq prior-items items)
+			 (assign-element left-operand left-operand-props process-function)
+			 ;; if the next function is symbolic, assign it uncomposed;
+			 ;; this is needed for things like ∊∘.+⍨10 2 to work correctly
+			 (if (not (member :symbolic-function (getf left-operand-props :type)))
+			     (progn (setq items prior-items item (first items) rest-items (rest items))
+				    ;; the special :omit property makes it so that the pattern matching
+				    ;; the operand may not be processed as a value assignment, function
+				    ;; assignment or operation, which allows for expressions like
+				    ;; fn←5∘- where an operator-composed function is assigned
+				    (assign-subprocessed
+				     left-operand left-operand-props
+				     '(:special (:omit (:value-assignment :function-assignment
+							:operation))))
+				    ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
+				    (assign-subprocessed
+				     left-value left-value-props
+				     '(:special (:omit (:value-assignment :function-assignment
+				    			:operation)))))))))
+  (if operator
+      ;; get left axes from the left operand and right axes from the precedent's properties so the
+      ;; functions can be properly curried if they have axes specified
+      (let ((left-operand (insym left-operand))
+	    ;; (left-operand-axes (first (getf (second properties) :axes)))
+	    (omega (gensym)) (alpha (gensym)))
+	;; single character values are passed within a (:char) form so they aren't interpreted as
+	;; functional glyphs by the (resolve-function) calls
+	(if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
+	    (setq left-operand (list :char left-operand)))
+	(values (if (and (listp operator) (member :lateral (getf operator-props :type)))
+		    `(apl-call :fn (apl-compose :op ,operator
+						,(if (listp left-operand)
+						     left-operand
+						     (if (characterp left-operand)
+							 `(lambda (,omega &optional ,alpha)
+							    (if ,alpha
+								(apl-call :fn ,(resolve-function
+										:dyadic left-operand)
+									  ,omega ,alpha)
+								(apl-call :fn ,(resolve-function
+										:monadic left-operand)
+									  ,omega))))))
+			       ,precedent ,@(if left-value (list left-value))))
+		'(:type (:function :operator-composed :lateral :inline)) items))))
+
+(composer-pattern pivotal-composition
+    (operator operator-props left-operand-axes left-operand left-operand-props left-value
+	      left-value-props prior-items right-operand-axes preceding-type)
     ;; Match a pivotal function composition like ×.+, part of a functional expression. It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
      (assign-element operator operator-props process-operator '(:valence :pivotal))
@@ -678,27 +734,11 @@
 				  ;; TODO: implement operand axes
 				  ;; operand-axes
 				  )
-		    (if (and (listp operator)
-			     (member :lateral (getf operator-props :type)))
-			`(apl-call :fn (apl-compose :op ,operator
-						    ,(if (listp left-operand)
-							 left-operand
-							 (if (characterp left-operand)
-							     `(lambda (,omega &optional ,alpha)
-								(if ,alpha
-								    (apl-call :fn ,(resolve-function
-										    :dyadic left-operand)
-									      ,omega ,alpha)
-								    (apl-call :fn ,(resolve-function
-										    :monadic left-operand)
-									      ,omega))))))
-				   ,precedent)
-			(cons 'apl-compose (cons (intern (string-upcase operator)
-							 *package-name-string*)
-						 (funcall (funcall (resolve-operator :pivotal operator)
-								   left-operand left-operand-axes
-								   right-operand right-operand-axes)
-							  right-operand left-operand)))))
+		    (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
+					     (funcall (funcall (resolve-operator :pivotal operator)
+							       left-operand left-operand-axes
+							       right-operand right-operand-axes)
+						      right-operand left-operand))))
 		'(:type (:function :operator-composed :pivotal)) items))))
 
 (composer-pattern operation
@@ -713,6 +753,7 @@
 		(if is-function (assign-subprocessed value value-props
 						     '(:special (:omit (:value-assignment :function-assignment
 									:value-assignment-by-selection :branch
+									:lateral-inline-composition
 		 							:operation :operator-assignment))
 						       :valence :lateral)))
 		(if (not (eq :array (first (getf value-props :type))))
@@ -745,5 +786,6 @@
 	(:name :operator-assignment :function operator-assignment)
 	(:name :branch :function branch)
 	(:name :train-composition :function train-composition)
-	(:name :pivotal-or-lateral-inline-composition :function pivotal-or-lateral-inline-composition)
+	(:name :lateral-inline-composition :function lateral-inline-composition)
+	(:name :pivotal-composition :function pivotal-composition)
 	(:name :operation :function operation)))
