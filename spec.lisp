@@ -1375,20 +1375,23 @@
        #3A(((44 84 124) (48 88 128) (52 92 132))
 	   ((55 105 155) (60 110 160) (65 115 165))
 	   ((66 126 186) (72 132 192) (78 138 198))))
-  (for "Basic three-element monadic function train." "(-,÷)5" #(-5 1/5))
-  (for "Three-element monadic function train with inline function." "(+ {⍺×⍵} -)5" -25)
-  (for "Three-element monadic function train with variable-referenced and inline functions."
+  (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
+       #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
+  (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
+  (for "Basic three-element monadic fork function train." "(-,÷)5" #(-5 1/5))
+  (for "Three-element monadic fork function train with inline function." "(+ {⍺×⍵} -)5" -25)
+  (for "Three-element monadic fork function train with variable-referenced and inline functions."
        "f←{⍺×⍵} ⋄ ({3+⍵} f -)5" -40)
-  (for "Three-element function train with referenced functions at ends."
+  (for "Three-element fork function train with referenced functions at ends."
        "of←{⍵+1} ⋄ ef←{⍵+2} ⋄ (of , ef) 5" #(6 7))
-  (for "Five-element monadic function train." "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
-  (for "Five-element monadic function train with second argument value at end."
+  (for "Five-element monadic fork function train." "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
+  (for "Five-element monadic fork function train with second argument value at end."
        "(3 5⍴-,÷)5" #2A((-5 1/5 -5 1/5 -5) (1/5 -5 1/5 -5 1/5) (-5 1/5 -5 1/5 -5)))
-  (for "Three-element dyadic function train."
+  (for "Three-element dyadic fork function train."
        "' ' (≠⊆⊢) ' one two  three'" #("one" "two" "three"))
-  (for "Three-element dyadic function train with left argument value."
+  (for "Three-element dyadic fork function train with left argument value."
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
-  (for "Five-element dyadic function train."
+  (for "Five-element dyadic fork function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 "one" "one" "two" "three"))
   (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
