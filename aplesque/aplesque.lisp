@@ -1624,7 +1624,7 @@
 		 ;; to their coordinates that was done to the original array's dimensions and apply the two sets
 		 ;; of coordinates to set each value in the nested output arrays to the corresponding values in
 		 ;; the original array
-		 (xdotimes output (i (size input))
+		 (xdotimes (row-major-aref output 0) (i (size input))
 		   (let* ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
 		     (loop :for f :in infactors :for fx :from 0
 			:do (multiple-value-bind (factor remaining) (floor rest f)
