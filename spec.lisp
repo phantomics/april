@@ -1393,7 +1393,10 @@
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Inline lateral operator." "× {8 ⍺⍺ 5×2+⍵} 5" 280)
   (for "Inline pivotal operator." "2-{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)}≤⊢3" -1)
+  (for "Inline lateral operator with left argument." "3 +{⍺ ⍺⍺ ⍵} 4" 7)
+  (for "Inline pivotal operator with unused left operand." "3 +{⍺ ⍵⍵ ⍵}× 4" 12)
   (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
+  (for "Lateral operator within a defined function." "fn←{÷ {⍺⍺ ⍵} 1+⍵} ⋄ - fn 2" -1/3)
   (for "Array processing function applied over nested array."
        "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
   (for "Indexed element of above array."

@@ -747,8 +747,9 @@ It remains here as a standard against which to compare methods for composing APL
 	(arg-symbols (rest (assoc :args lexical-variable-symbols)))
 	(arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (funcall (if (not (intersection arg-symbols '(⍺⍺ ⍵⍵)))
-		 #'identity (lambda (form) `(lambda (,@(if (member '⍺⍺ arg-symbols) '(⍺⍺))
-						     ,@(if (member '⍵⍵ arg-symbols) '(⍵⍵)))
+		 ;; the latter case wraps a user-defined operator
+		 #'identity (lambda (form) `(lambda (⍺⍺ &optional ⍵⍵)
+					      (declare (ignorable ⍺⍺ ⍵⍵))
 					      ,form)))
 	     `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
 		(declare (ignorable ,@(if arguments arguments '(⍵ ⍺))))
@@ -850,7 +851,11 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((previous-token)
 	(token-list (or token-list (list (list :args) (list :assigned)))))
     (loop :for token :in tokens
-       :do (if (listp token) (glean-symbols-from-tokens token space token-list)
+       :do (if (and (listp token) (not (eq :fn (first token))))
+	       ;; recursively descend into lists, but not functions contained within a function,
+	       ;; otherwise something like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline
+	       ;; operator is within it
+	       (glean-symbols-from-tokens token space token-list)
 	       (if (and (symbolp token)
 			(not (keywordp token))
 			;; (not (member token *idiom-native-symbols*))
