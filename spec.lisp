@@ -372,7 +372,9 @@
   	    (is "1 3⌷2 3 4⍴⍳5" #(4 5 1 2))
   	    (is "1 3⌷[1 3]2 3 4⍴⍳5" #(3 2 1))
 	    (is "1⌷[2]3 3⍴⍳9" #(1 4 7))
-  	    (is "(⊂4 5 2 6 3 7 1)⌷'MARANGA'" "ANAGRAM")))
+  	    (is "(⊂4 5 2 6 3 7 1)⌷'MARANGA'" "ANAGRAM")
+	    (is "(⍬,5) 1⌷5 5⍴⍳25" 21)
+	    (is "(5 4) 1⌷5 5⍴⍳25" #(21 16))))
   (≡ (has :titles ("Depth" "Match"))
      (ambivalent #'find-depth (boolean-op array-compare))
      (tests (is "≡1" 0)
@@ -1254,12 +1256,12 @@
   (for "Two array values operated upon." "4 12 16÷2 3 4" #(2 4 4))
   (for "Monadic operation upon nested vectors." "-(1 2 3)(4 5 6)" #(#0A#(-1 -2 -3) #0A#(-4 -5 -6)))
   (for "Dyadic operation upon nested vectors."
-       "((1 2 3)(4 5 6))×(7 8 9)(10 11 12)" #(#0A#(7 16 27) #0A#(40 55 72)))
+       "((1 2 3)(4 5 6))×(7 8 9)(10 11 12)" #(#(7 16 27) #(40 55 72)))
   (for "Scalar operation with axes on arrays of differing ranks."
        "1 2 3+[1]3 4⍴⍳9" #2A((2 3 4 5) (7 8 9 10) (12 4 5 6)))
   (for "As above on the second axis." "1 2 3 4+[2]3 4⍴⍳9" #2A((2 4 6 8) (6 8 10 12) (10 3 5 7)))
   (for "Boolean operation with vector of left arguments and enclosed vector on the right."
-       "3 4=⊂3 4 5" #(#0A#(1 0 0) #0A#(0 1 0)))
+       "3 4=⊂3 4 5" #(#(1 0 0) #(0 1 0)))
   (for "Value assigned to a variable." "x←9" 9)
   (for "Value assigned to a variable and operated upon." "3+x←9" 12)
   (for "Two statements on one line separated by a [⋄ diamond] character."
