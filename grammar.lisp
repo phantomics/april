@@ -268,7 +268,8 @@
        (if operator-form (progn (assign-axes operand-axes)
 				(assign-subprocessed operand-form operand-props
 		 				     '(:special (:omit (:value-assignment :function-assignment
-		 							:operation :operator-assignment)))))))
+		 							:operation :operator-assignment
+									:train-composition)))))))
     (if symbol-referenced
 	;; call the operator constructor on the output of the operand constructor which integrates axes
 	(values (list 'apl-compose :op (list 'inws symbol-referenced)
@@ -578,47 +579,70 @@
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :function (first preceding-type))
 	 (progn (assign-subprocessed center center-props
-				     '(:special (:omit (:value-assignment :function-assignment))))
+				     '(:special (:omit (:value-assignment :function-assignment
+							:train-composition))))
+		;; (print (list :cen center center-props))
 		(setq is-center-function (eq :function (first (getf center-props :type))))
 		(if is-center-function
 		    (assign-subprocessed left left-props
 					 '(:special (:omit (:value-assignment :function-assignment))))))))
-  (if (and left is-center-function)
-      (destructuring-bind (right omega alpha center)
-	  (list precedent (gensym) (gensym)
- 		(if (listp center)
- 		    center (resolve-function :dyadic (if (not (symbolp center))
- 							 center (intern (string center) space)))))
-	;; train composition is only valid when there is only one function in the precedent
-	;; or when continuing a train composition as for (×,-,÷)5
-	(if (and center (or (= 1 (length preceding-properties))
- 			    (and (member :train-composition (getf (first preceding-properties) :type))
- 				 (not (member :closed (getf (first preceding-properties) :type))))))
- 	    ;; functions are resolved here, failure to resolve indicates a value in the train
- 	    (let ((right-fn-monadic (if (and (listp right) (eql 'function (first right)))
- 					right (resolve-function :monadic right)))
- 		  (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
- 				       right (resolve-function :dyadic right)))
- 		  (left-fn-monadic (if (and (listp left) (eql 'function (first left)))
- 				       left (resolve-function :monadic left)))
- 		  (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
- 				      left (resolve-function :dyadic left))))
- 	      (values `(lambda (,omega &optional ,alpha)
- 			 (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
- 					      (apl-call ,(or-functional-character right :fn)
- 							,right-fn-dyadic ,omega ,alpha)
- 					      ,(if (not left-fn-dyadic)
- 						   left `(apl-call ,(or-functional-character left :fn)
- 								   ,left-fn-dyadic ,omega ,alpha)))
- 			     (apl-call ,(or-functional-character center :fn) ,center
- 				       (apl-call ,(or-functional-character right :fn)
-						 ,right-fn-monadic ,omega)
- 				       ,(if (not left-fn-monadic)
- 					    left `(apl-call ,(or-functional-character left :fn)
- 							    ,left-fn-monadic ,omega)))))
-		      (list :type (list :function :train-composition
-					(if (resolve-function :monadic left) :open :closed)))
-		      items))))))
+  (if is-center-function
+      (if (not left)
+	  ;; if there's no left function, match an atop composition like 'mississippi'(⍸∊)'sp'
+	  (let* ((omega (gensym)) (alpha (gensym)) (right precedent)
+		 (left-fn-monadic (if (listp center)
+				      center (resolve-function
+					      :monadic (if (not (symbolp center))
+							   center (intern (string center) space)))))
+		 (right-fn-monadic (if (and (listp right) (eql 'function (first right)))
+				       right (resolve-function :monadic right)))
+		 (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
+ 				      right (resolve-function :dyadic right))))
+	    ;; (print (list :oo right left center))
+	    (values `(lambda (,omega &optional ,alpha)
+		       (if ,alpha (apl-call ,(or-functional-character left :fn)
+					    ,left-fn-monadic (apl-call ,(or-functional-character right :fn)
+								       ,right-fn-dyadic ,omega ,alpha))
+			   (apl-call ,(or-functional-character left :fn)
+				     ,left-fn-monadic (apl-call ,(or-functional-character right :fn)
+								,right-fn-monadic ,omega))))
+		    (list :type (list :function :train-atop-composition))))
+	  ;; if there's a left function, match a fork composition like (-,÷)5
+	  (destructuring-bind (right omega alpha center)
+	      (list precedent (gensym) (gensym)
+ 		    (if (listp center)
+ 			center (resolve-function :dyadic (if (not (symbolp center))
+ 							     center (intern (string center) space)))))
+	    ;; train composition is only valid when there is only one function in the precedent
+	    ;; or when continuing a train composition as for (×,-,÷)5
+	    (if (and center (or (= 1 (length preceding-properties))
+ 				(and (member :train-fork-composition (getf (first preceding-properties) :type))
+ 				     (not (member :closed (getf (first preceding-properties) :type))))))
+ 		;; functions are resolved here, failure to resolve indicates a value in the train
+ 		(let ((right-fn-monadic (if (and (listp right) (eql 'function (first right)))
+ 					    right (resolve-function :monadic right)))
+ 		      (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
+ 					   right (resolve-function :dyadic right)))
+ 		      (left-fn-monadic (if (and (listp left) (eql 'function (first left)))
+ 					   left (resolve-function :monadic left)))
+ 		      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
+ 					  left (resolve-function :dyadic left))))
+ 		  (values `(lambda (,omega &optional ,alpha)
+ 			     (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
+ 						  (apl-call ,(or-functional-character right :fn)
+ 							    ,right-fn-dyadic ,omega ,alpha)
+ 						  ,(if (not left-fn-dyadic)
+ 						       left `(apl-call ,(or-functional-character left :fn)
+ 								       ,left-fn-dyadic ,omega ,alpha)))
+ 				 (apl-call ,(or-functional-character center :fn) ,center
+ 					   (apl-call ,(or-functional-character right :fn)
+						     ,right-fn-monadic ,omega)
+ 					   ,(if (not left-fn-monadic)
+ 						left `(apl-call ,(or-functional-character left :fn)
+ 								,left-fn-monadic ,omega)))))
+			  (list :type (list :function :train-fork-composition
+					    (if (resolve-function :monadic left) :open :closed)))
+			  items)))))))
 
 (composer-pattern lateral-inline-composition
     (operator operator-props left-operand-axes left-operand left-operand-props left-value
@@ -692,7 +716,7 @@
 				    (assign-subprocessed
 				     left-operand left-operand-props
 				     '(:special (:omit (:value-assignment :function-assignment
-							:operation)))))))))
+							:operation :train-composition)))))))))
   (if operator
       ;; get left axes from the left operand and right axes from the precedent's properties so the
       ;; functions can be properly curried if they have axes specified
@@ -747,7 +771,8 @@
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
 	 (progn (assign-subprocessed fn-element function-props
-				     '(:special (:omit (:function-assignment :value-assignment-by-selection))))
+				     '(:special (:omit (:function-assignment :value-assignment-by-selection
+							:train-composition))))
 		(setq is-function (eq :function (first (getf function-props :type)))
 		      prior-items items)
 		(if is-function (assign-subprocessed value value-props
