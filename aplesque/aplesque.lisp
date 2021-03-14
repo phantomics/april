@@ -383,9 +383,8 @@
 		  ;; map the function over identically-shaped arrays
 		  (xdotimes output (i (size (if oscalar alpha omega)))
 		    (setf (row-major-aref output i)
-			  (nest (apply-scalar function
-					      (if oscalar oscalar (disclose (row-major-aref omega i)))
-					      (if ascalar ascalar (disclose (row-major-aref alpha i)))))))
+			  (apply-scalar function (or oscalar (disclose (row-major-aref omega i)))
+					(or ascalar (disclose (row-major-aref alpha i))))))
 		  ;; if axes are given, go across the higher-ranked function and call the function on its
 		  ;; elements along with the appropriate elements of the lower-ranked function
 		  (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
@@ -981,7 +980,9 @@
 					       (if adims adisp alpha))
 	       :do (setq result (if (not result) x (funcall function2 x result)))))
 	(setf (row-major-aref output x) result)))
-    (funcall (if (= 0 (rank output)) #'disclose #'identity)
+    (funcall (if (and (= 0 (rank output))
+		      (not (arrayp (aref output))))
+		 #'disclose #'identity)
 	     output)))
 
 (defun array-outer-product (omega alpha function)
@@ -1253,6 +1254,9 @@
 (defun choose (input indices &key (set) (set-by) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((idims (dims input)) (sdims (if set (dims set)))
+	 ;; contents removed from 1-size arrays in the indices
+	 (indices (loop :for i :in indices :collect (if (not (and (arrayp i) (= 1 (size i))))
+							i (row-major-aref i 0))))
 	 (index1 (first indices)) (naxes (< 1 (length indices)))
 	 (odims (if naxes (loop :for i :in indices :for d :in idims :for s :from 0
 			     :append (let ((len (or (and (null i) (list d))
