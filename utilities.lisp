@@ -801,8 +801,8 @@ It remains here as a standard against which to compare methods for composing APL
 				  :collect var)
 			     ,@vars-declared)
 			(declare (ignorable ,@(loop :for var :in system-vars
-						 :when (not (member (string-upcase (first var)) workspace-symbols
-								    :test #'string=))
+						 :when (not (member (string-upcase (first var))
+								    workspace-symbols :test #'string=))
 						 :collect (first var))))
 			(symbol-macrolet ,(loop :for var :in system-vars
 					     :when (member (string-upcase (first var)) workspace-symbols
@@ -810,8 +810,8 @@ It remains here as a standard against which to compare methods for composing APL
 					     :collect var)
 			  ;; ,@(if stored-refs (list (cons 'setf stored-refs)))
 			  ,@(loop :for ref :in stored-refs
-			       :collect (list (first ref) (list 'inws (second ref)) (third ref)))
-			  ;; (declare (ignorable ,@(mapcar #'first system-vars)))
+			       :collect (list (first ref)
+					      (list 'inws (second ref)) (third ref)))
 			  ,@(if (or (not tags-found) (not (boundp branches-sym)))
 				exps `((tagbody ,@(butlast (process-tags exps) 1))
 				       ,(first (last exps)))))))

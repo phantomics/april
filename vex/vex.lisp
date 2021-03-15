@@ -939,6 +939,9 @@ These are examples of the output of the three macro-builders above.
 	       (if (not source)
 		   dest (progn (setf (getf dest (first source)) (second source))
 			       (assign-from (cddr source) dest))))
+	     (validate-var-symbol (symbol)
+	       (loop :for c :across (string symbol)
+		  :always (funcall (of-utilities idiom :match-token-character) c)))
 	     (process-lines (lines &optional output)
 	       (if (= 0 (length lines))
 		   output (destructuring-bind (out remaining)
@@ -947,12 +950,25 @@ These are examples of the output of the three macro-builders above.
 					   (if (null out)
 					       output (append output (list (composer idiom space out))))))))
 	     (get-item-refs (items-to-store &optional storing-functions)
+	       ;; Function or variable names passed as a string may be assigned literally as long as there are
+	       ;; no dashes present in them, so the variable name "iD" becomes iD within April, whereas a
+	       ;; variable named |iD| will become id within April. Strings are used instead of pipe-quoting
+	       ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
+	       ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
 	       (loop :for item :in items-to-store
 		  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
-				 (if (and (stringp (first item))
-					  (loop :for c :across (first item) :never (char= #\- c)))
-				     (intern (string (first item)))
-				     (intern (lisp->camel-case (print (first item)))))
+				 (if (validate-var-symbol (first item))
+				     (let ((sym (if (and (stringp (first item))
+							 (loop :for c :across (first item)
+							    :never (char= #\- c)))
+						    (string (first item))
+						    (lisp->camel-case (first item)))))
+				       (if storing-functions
+				   	   (setf (symbol-function (intern sym space))
+				  		 (of-utilities idiom :dummy-function)))
+				       (intern sym))
+				     (error "Invalid characters present in symbol ~a passed to :~a."
+					    (first item) (if storing-functions :store-fun :store-val)))
 				 (second item)))))
 
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
