@@ -142,8 +142,7 @@
 	    :postprocess-compiled
 	    (lambda (state &rest inline-arguments)
 	      (lambda (form)
-		(let ((final-form (if inline-arguments
-				      `(apl-call :fn ,(first (last form)) ,@inline-arguments)
+		(let ((final-form (if inline-arguments `(apl-call :fn ,(first (last form)) ,@inline-arguments)
 				      (first (last form)))))
 		  (append (butlast form)
 			  (list (append (list 'apl-output final-form)
@@ -158,7 +157,18 @@
 			      (if (getf state :print) (list :print-to 'output-stream))
 			      (if (getf state :output-printed)
 				  (list :output-printed (getf state :output-printed))))))
-	    :dummy-function #'dummy-nargument-function
+	    :process-stored-symbol
+	    (lambda (symbol space is-function)
+	      (if is-function (progn (if (and (boundp (intern symbol space))
+					      (not (fboundp (intern symbol space))))
+					 (makunbound (intern symbol space)))
+				     (setf (symbol-function (intern symbol space))
+					   #'dummy-nargument-function))
+		  (progn (if (fboundp (intern symbol space))
+			     (fmakunbound (intern symbol space)))
+			 (if (not (boundp (intern symbol space)))
+			     (progn (proclaim (list 'special (intern symbol space)))
+				    (set (intern symbol space) nil))))))
 	    :build-variable-declarations #'build-variable-declarations
 	    :build-compiled-code #'build-compiled-code)
 
