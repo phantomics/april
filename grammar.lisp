@@ -581,7 +581,6 @@
 	 (progn (assign-subprocessed center center-props
 				     '(:special (:omit (:value-assignment :function-assignment
 							:train-composition))))
-		;; (print (list :cen center center-props))
 		(setq is-center-function (eq :function (first (getf center-props :type))))
 		(if is-center-function
 		    (assign-subprocessed left left-props
@@ -598,7 +597,6 @@
 				       right (resolve-function :monadic right)))
 		 (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
  				      right (resolve-function :dyadic right))))
-	    ;; (print (list :oo right left center))
 	    (values `(lambda (,omega &optional ,alpha)
 		       (if ,alpha (apl-call ,(or-functional-character left :fn)
 					    ,left-fn-monadic (apl-call ,(or-functional-character right :fn)

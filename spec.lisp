@@ -158,6 +158,7 @@
 			      (if (getf state :print) (list :print-to 'output-stream))
 			      (if (getf state :output-printed)
 				  (list :output-printed (getf state :output-printed))))))
+	    :dummy-function #'dummy-nargument-function
 	    :build-variable-declarations #'build-variable-declarations
 	    :build-compiled-code #'build-compiled-code)
 
