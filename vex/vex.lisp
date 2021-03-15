@@ -949,14 +949,16 @@ These are examples of the output of the three macro-builders above.
 	     (get-item-refs (items-to-store &optional storing-functions)
 	       (loop :for item :in items-to-store
 		  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
-				 (intern (lisp->camel-case (first item)))
+				 (if (and (stringp (first item))
+					  (loop :for c :across (first item) :never (char= #\- c)))
+				     (intern (string (first item)))
+				     (intern (lisp->camel-case (print (first item)))))
 				 (second item)))))
 
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
 	
-	(setq state (funcall (of-utilities idiom :preprocess-state-input) state))
-
-	(setf state-to-use (assign-from (getf ws-system :base-state) state-to-use)
+	(setq state (funcall (of-utilities idiom :preprocess-state-input) state)
+	      state-to-use (assign-from (getf ws-system :base-state) state-to-use)
 	      state-to-use (assign-from (getf ws-system :state) state-to-use)
 	      state-to-use (assign-from state state-to-use)
 	      system-to-use (assign-from ws-system system-to-use)
