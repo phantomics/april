@@ -599,7 +599,7 @@ If you want to store functions or variables with names that are read literally r
 15
 
 ;; the presence of a dash causes an error
-(april (with (:store-fun ("aBC-deF" (lambda (x) (+ x 10))))) "abcDef 6")
+(april (with (:store-fun ("ab-cd" (lambda (x) (+ x 10))))) "abcd 6")
 Error: Invalid characters present in symbol aBC-deF passed to :STORE-FUN.
 ```
 
