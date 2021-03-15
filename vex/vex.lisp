@@ -567,7 +567,25 @@
 			    	      	   ,,(getf (second (getf (of-subspec system) :workspace-defaults))
 				      		   :comparison-tolerance))
 				      (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
-			       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))))
+			       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))
+		      (defmacro ,(intern (concatenate 'string symbol-string "-CLEAR-WORKSPACE")
+					 (symbol-package symbol))
+			  (,ws-name)
+			;; this macro creates a context enclosure within which evaluations have a default
+			;; context; use this to evaluate many times with the same (with) expression
+			(let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
+							 "-WORKSPACE-" (string-upcase ,ws-name))))
+			  `(if (find-package ,,ws-fullname)
+			       (progn (delete-package ,,ws-fullname)
+			       	      (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+			       			(symbol-package symbol))
+			       		 ,,ws-name)
+			       	      ,(format nil "The workspace ｢~a｣ has been cleared." ,ws-name))
+			       (progn (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+			       			  (symbol-package symbol))
+			        	  ,,ws-name)
+				      ,(format nil "No workspace called ｢~a｣ was found to clear; ~a"
+					       ,ws-name "the workspace has been created..")))))))
 	      ;; print a summary of the idiom as it was specified or extended
 	      (let ((items 0)
 		    (set-index 0)
@@ -935,11 +953,6 @@ These are examples of the output of the three macro-builders above.
 				 (second item)))))
 
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
-
-	;; if the (:restore-defaults) setting is passed,
-	;; the workspace settings will be restored to the defaults from the spec
-	(if (assoc :restore-defaults options)
-	    (setf (getf ws-system :state) (getf ws-system :base-state)))
 	
 	(setq state (funcall (of-utilities idiom :preprocess-state-input) state))
 

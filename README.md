@@ -189,6 +189,25 @@ More APL expressions:
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
 ```
 
+## Compact Function Calls: The (april-c) Macro
+
+Want to invoke April functions on some variables with less code? You can use the `(april-c)` macro. For example:
+
+```lisp
+* (april-c "{⍺×⍵}" 2 8)
+16
+
+* (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10)
+#(8 8 8 8 8 8 0 0 0 0)
+```
+
+After the string where the April function is written, pass the variables that will be input to the function and you'll receive the result with no need for a long `(with (:state ...))` clause. If you wish to pass parameters in a `(with)` clause, you can still do it with `(april-c)`.
+
+```lisp
+* (april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
+#(0 1 2 3 4 5 6)
+```
+
 ### A note on escaping characters
 
 April uses the backslash character `\` to implement the expand function and the scan operator. Because of the way Lisp strings work, this character must be escaped with a second `\` before it in order to enter APL code containing backslashes. For example:
@@ -588,33 +607,13 @@ If you just want to compile the code you enter into April without running it, us
                   :PRINT-PRECISION PRINT-PRECISION))))
 ```
 
-### (:restore-defaults) parameter
+## Clearing Workspaces: The (april-clear-workspace) Macro
 
-You can use this parameter to clear a workspace and return it to its default state. For example, to clear a workspace called `space1` enter:
-
-```lisp
-* (april (with (:restore-defaults) (:space space1)))
-```
-
-All `:in` and `:out` values will be nullified, `:count-from` will return to its default setting, etc.
-
-## Compact Function Calls: The (april-c) Macro
-
-Want to invoke April functions on some variables with less code? You can use the `(april-c)` macro. For example:
+You can use this macro to clear a workspace, removing all user-created variables within it and returning it to its default state. For example, to clear a workspace called `space1`, enter:
 
 ```lisp
-* (april-c "{⍺×⍵}" 2 8)
-16
-
-* (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10)
-#(8 8 8 8 8 8 0 0 0 0)
-```
-
-After the string where the April function is written, pass the variables that will be input to the function and you'll receive the result with no need for a long `(with (:state ...))` clause. If you wish to pass parameters in a `(with)` clause, you can still do it with `(april-c)`.
-
-```lisp
-* (april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
-#(0 1 2 3 4 5 6)
+* (april-clear-workspace space1)
+"The workspace ｢SPACE1｣ has been cleared."
 ```
 
 ## Sharing Scope: The (with-april-context) Macro
