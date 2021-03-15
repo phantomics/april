@@ -36,7 +36,7 @@
 
  ;; system variables and default state of an April workspace
  (system :output-printed nil
-	 :base-state '(:comparison-tolerance (inws *comparison-tolerance*) :output-stream '*standard-output*)
+	 :base-state '(:output-stream '*standard-output*)
 	 :workspace-defaults '(:index-origin 1 :print-precision 10 :comparison-tolerance double-float-epsilon))
 
  ;; standard grammar components, with elements to match the basic language forms and
@@ -1174,7 +1174,7 @@
      (pivotal (with-derived-operands (right left right-fn-monadic left-fn-monadic left-fn-dyadic)
 		`(operate-at ,(if (not (or left-fn-dyadic left-fn-monadic)) left)
 			     ,(if (not right-fn-monadic) right)
-			     ,left-fn-monadic ,left-fn-dyadic ,right-fn-monadic)))
+			     ,left-fn-monadic ,left-fn-dyadic ,right-fn-monadic index-origin)))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
 	    (is "(0@2 4)⍳9" #(1 0 3 0 5 6 7 8 9))
 	    (is "('*'@2)⍳5" #(1 #\* 3 4 5))
@@ -1182,6 +1182,11 @@
   					     (7 8 9 1 2) (1 0 1 0 1)))
   	    (is "0@(×∘(3∘|)) ⍳9" #(0 0 3 0 0 6 0 0 9))
   	    (is "÷@3 5 ⍳9" #(1 2 1/3 4 1/5 6 7 8 9))
+	    (is "⌽@(2∘|)⍳5" #(5 2 3 4 1))
+	    (is "⌽@1 3 5⊢⍳5" #(5 2 3 4 1))
+	    (is "⌽@1 3⊢4 5⍴⍳40" #2A((5 4 3 2 1) (6 7 8 9 10) (15 14 13 12 11) (16 17 18 19 20)))
+	    (is "⌽@1⊢2 4 5⍴⍳40" #3A(((5 4 3 2 1) (10 9 8 7 6) (15 14 13 12 11) (20 19 18 17 16))
+				    ((21 22 23 24 25) (26 27 28 29 30) (31 32 33 34 35) (36 37 38 39 40))))
   	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18))
   	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148))))
   (⌺ (has :title "Stencil")
