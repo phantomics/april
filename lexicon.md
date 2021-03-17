@@ -147,7 +147,7 @@
 
 [∘] Compose
 
-[⍤] Rank
+[⍤] Rank / Atop
 
 [⍥] Over
 

@@ -345,6 +345,7 @@
      (inverse (monadic (λω (inverse-count-to omega index-origin))))
      (tests (is "⍳5" #(1 2 3 4 5))
 	    (is "⍳0" #())
+	    (is "⍳⍴⍳5" #(1 2 3 4 5))
 	    (is "⍳2 3" #2A((#*11 #(1 2) #(1 3)) (#(2 1) #(2 2) #(2 3))))
 	    (is "⍳4 3" #2A((#*11 #(1 2) #(1 3)) (#(2 1) #(2 2) #(2 3))
 			   (#(3 1) #(3 2) #(3 3)) (#(4 1) #(4 2) #(4 3))))
@@ -1240,22 +1241,35 @@
      (unitary (lambda (workspace axes)
 		(declare (ignore workspace))
 		(let ((condition (gensym)))
-		  (labels ((build-clauses (clauses)
+		  (labels ((process-clause (clause)
+			     (if (or (not (listp clause))
+				     (not (eql 'avector (first clause))))
+				 clause (cons 'progn (reverse (rest clause)))))
+			   (build-clauses (clauses)
 			     `(let ((,condition (disclose-atom ,(first clauses))))
 				(if (or (not (integerp ,condition))
 					(/= 0 ,condition))
-				    ,(second clauses)
+				    ,(process-clause (second clauses))
 				    ,(if (third clauses)
 					 (if (fourth clauses)
 					     (build-clauses (cddr clauses))
-					     (third clauses))
+					     (process-clause (third clauses)))
 					 (make-array nil))))))
 		    (build-clauses axes)))))
      (tests (is "$[1;2;3]" 2)
 	    (is "$[0;2;3]" 3)
 	    (is "x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x" 15)
 	    (is "3+$[5>6;1;7>8;2;3]" 6)
-	    (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22))))
+	    (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
+	    (is "{$[⍵>5;
+       g←3
+       h←5
+       g+h;
+       c←8
+       d←2
+       c×d
+    ]}¨3 7
+" #(16 8)))))
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set
@@ -1491,16 +1505,12 @@
 	(:tests-profile :title "Printed Data Format Tests")
 	(:demo-profile :title "Data Format Demos"
 		       :description "More demos showing how different types of data are formatted in April."))
-  (for-printed "Single integer." "5" "5
-")
-  (for-printed "Negative integer." "¯5" "¯5
-")
+  (for-printed "Single integer." "5" "5")
+  (for-printed "Negative integer." "¯5" "¯5")
   (for-printed "Rational numbers." "÷⍳5" "1 1r2 1r3 1r4 1r5
 ")
-  (for-printed "Floating point number." "25.006" "25.006
-")
-  (for-printed "Imaginary number." "3J9" "3J9
-")
+  (for-printed "Floating point number." "25.006" "25.006")
+  (for-printed "Imaginary number." "3J9" "3J9")
   (for-printed "Numeric vector." "1+1 2 3" "2 3 4
 ")
   (for-printed "Vector of mixed integers and floats." "12.5 3 42.890 90.5001 8 65"
@@ -1564,8 +1574,7 @@
                    5 5 5     
                    5 5 5     
 ")
-  (for-printed "Single scalar character." "'A'" "A
-")
+  (for-printed "Single scalar character." "'A'" "A")
   (for-printed "Character vector (string)." "'ABCDE'" "ABCDE")
   (for-printed "Character matrix." "2 5⍴'ABCDEFGHIJ'" "ABCDE
 FGHIJ
@@ -1792,8 +1801,7 @@ c   2.56  3
 19r313J21r17
 ")
   (for-printed "Output of variable assignment (just a newline)." "x←1" "")
-  (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000
-")
+  (for-printed "Binomial of complex numbers." "⎕pp←4 ⋄ 2!3J2" "1.000J5.000")
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
 	       "0.0154 0.3125 ¯15.456
 ")
