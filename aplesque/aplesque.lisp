@@ -1896,9 +1896,8 @@
 	 (concatenate 'string (list #\Newline)))
 	;; a function input produces an empty string, as does an empty array
 	((not (arrayp input))
-	 (if (characterp input) (concatenate 'string (list input #\Newline))
-	     (concatenate 'string (funcall format input (funcall segment input))
-			  (list #\Newline))))
+	 (if (characterp input) (string input)
+	     (funcall format input (funcall segment input))))
 	;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
 	((stringp input) input)
 	;; each layer of 0-rank enclosure adds 1 space of indentation
