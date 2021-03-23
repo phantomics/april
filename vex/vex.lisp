@@ -268,11 +268,11 @@
 
 (defun build-doc-profile (symbol spec mode section-names)
   "Build a documentation or test profile from a set of section names in a Vex idiom specification."
-  (let ((specs (loop :for subspec :in spec :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-						     (string= "OPERATORS" (string-upcase (first subspec)))
-						     (string= "ARBITRARY-TEST-SET" (string-upcase
-										    (first subspec)))
-						     (string= "TEST-SET" (string-upcase (first subspec))))
+  (let ((specs (loop :for subspec :in spec
+		  :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
+			    (string= "OPERATORS" (string-upcase (first subspec)))
+			    (string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
+			    (string= "TEST-SET" (string-upcase (first subspec))))
 		  :collect subspec)))
     (loop :for name :in section-names
        :append (let* ((subspec (find name specs :test (lambda (id form)
@@ -438,7 +438,10 @@
 			       `(progn (setq prove:*enable-colors* nil)
 				       (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
 						 (count-symbol-in-spec 'prove:is ',atest-forms)))
-				       ,@',test-forms ,@',atest-forms  (finalize)
+				       (,',(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
+				        	   (symbol-package symbol))
+					   ,,(getf (of-subspec utilities) :test-parameters)
+					   ,@',test-forms ,@',atest-forms (finalize))
 				       (setq prove:*enable-colors* t)))
 			      ((and ,options (listp ,options)
 				    (string= "TIME-TESTS" (string-upcase (first ,options))))
@@ -680,8 +683,13 @@
 			   (make-array (1- (length content)) :element-type 'character
 				       :displaced-to content))))))
 	     (=vex-closure (boundary-chars &optional transform-by &key (disallow-linebreaks))
-	       (let ((balance 1)
-		     (char-index 0))
+	       (let* ((balance 1)
+		      (char-index 0)
+		      ;; disallow linebreak overriding opening and closing characters
+		      (dllen (if (stringp disallow-linebreaks) (length disallow-linebreaks)))
+		      (dlbor-opening-chars (if dllen (subseq disallow-linebreaks 0 (/ dllen 2))))
+		      (dlbor-closing-chars (if dllen (subseq disallow-linebreaks (/ dllen 2) dllen)))
+		      (dlb-overriding-balance 0))
 		 (=destructure (_ enclosed _)
 		     (=list (?eq (aref boundary-chars 0))
 			    ;; for some reason, the first character in the string is iterated over twice here,
@@ -691,17 +699,30 @@
 					 (%some (?satisfies
 						 (lambda (char)
 						   (if (and disallow-linebreaks
-							    (funcall (of-utilities
-								      idiom :match-newline-character)
-								     char))
+							    (if (funcall (of-utilities
+									  idiom :match-newline-character)
+									 char)
+								(or (= 0 dlb-overriding-balance)
+								    (not (funcall
+									  (of-utilities
+									   idiom
+									   :match-inline-newline-character)
+									  char)))))
 						       (error "Newlines cannot occur within a ~a closure."
 							      boundary-chars))
 						   (if (and (char= char (aref boundary-chars 0))
 							    (< 0 char-index))
-						       (incf balance 1))
-						   (if (and (char= char (aref boundary-chars 1))
-							    (< 0 char-index))
-						       (incf balance -1))
+						       (incf balance)
+						       (if (and (char= char (aref boundary-chars 1))
+								(< 0 char-index))
+							   (decf balance)))
+						   (if dlbor-opening-chars
+						       (if (not (loop :for c :across dlbor-opening-chars
+								   :never (char= char c)))
+							   (incf dlb-overriding-balance)
+							   (if (not (loop :for c :across dlbor-closing-chars
+								       :never (char= char c)))
+							       (decf dlb-overriding-balance))))
 						   (incf char-index 1)
 						   (< 0 balance)))))
 					(if transform-by transform-by
@@ -756,7 +777,7 @@
 					(of-lexicon idiom :operators char)))))))
 	  (=destructure (_ item _ break rest)
 	      (=list (%any (?blank-character))
-		     (%or (=vex-closure "()" nil :disallow-linebreaks t)
+		     (%or (=vex-closure "()" nil :disallow-linebreaks "{}")
 			  (=vex-closure "[]" #'handle-axes)
 			  (=vex-closure "{}" #'handle-function)
 			  (=vex-errant-closing-character ")]}([{")
@@ -833,7 +854,8 @@
   (if (not tokens)
       (values precedent properties)
       (let ((processed)
-	    (pre-props (if properties (cons properties pre-props) pre-props))
+	    (pre-props (if (not properties)
+			   pre-props (cons properties pre-props)))
 	    (special-params (getf properties :special)))
 	;; previous property values are stored in preceding-props so that grammar elements that
 	;; need to know the properties of precedents can access them for pivotal and train compositions
@@ -843,14 +865,13 @@
 				(idiom-composer-opening-patterns idiom))
 	   :when (or (not (getf special-params :omit))
 		     (not (member (getf pattern :name) (getf special-params :omit))))
-	   ;; :do (print (list :xi (getf pattern :name) tokens precedent))
 	   :do (multiple-value-bind (new-processed new-props remaining)
 		   (funcall (symbol-function (getf pattern :function))
 			    tokens space idiom (lambda (item &optional sub-props)
 						 (composer idiom space item nil sub-props))
 			    precedent properties pre-props)
 		 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
-		 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
+	       (if new-processed (setq processed new-processed properties new-props tokens remaining))))
 	(if special-params (setf (getf properties :special) special-params))
 	(if processed (composer idiom space tokens processed properties pre-props)
 	    (values precedent properties tokens)))))
@@ -948,7 +969,10 @@ These are examples of the output of the three macro-builders above.
 			      (parse lines (=vex-string idiom))
 			    (process-lines remaining
 					   (if (null out)
-					       output (append output (list (composer idiom space out))))))))
+					       output (append output
+							      (list (composer idiom space out nil nil
+									      '((:special
+										 (:top-level t)))))))))))
 	     (get-item-refs (items-to-store &optional storing-functions)
 	       ;; Function or variable names passed as a string may be assigned literally as long as there are
 	       ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

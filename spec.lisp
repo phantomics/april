@@ -64,13 +64,14 @@
 		      :function-inversion-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab)))
-	    :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return)))
+ (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab) :test #'char=))
+	    :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
+	    :match-inline-newline-character (lambda (char) (member char '(#\⋄ #\◊) :test #'char=))
 	    ;; set the language's valid blank, newline characters and token characters
 	    :match-token-character
 	    (lambda (char)
 	      (or (alphanumericp char)
-		  (member char '(#\. #\_ #\⎕ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬))))
+		  (member char '(#\. #\_ #\⎕ #\∆ #\⍙ #\¯ #\⍺ #\⍵ #\⍬) :test #'char=)))
 	    ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
 	    ;; depending on their context
 	    :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -80,8 +81,7 @@
 	      (let ((commented) (osindex 0)
 		    (out-string (make-string (length string) :initial-element #\ )))
 		(loop :for char :across string
-		   :do (if commented (if (or (char= char #\Newline)
-					     (char= char #\Return))
+		   :do (if commented (if (member char '(#\Newline #\Return) :test #'char=)
 					 (setf commented nil
 					       (row-major-aref out-string osindex) char
 					       osindex (1+ osindex)))
@@ -115,6 +115,7 @@
 		   :do (setq last-index index))))
 	    ;; macro to process lexical specs of functions and operators
 	    :process-lexicon #'april-function-glyph-processor
+	    :test-parameters '((:space unit-test-staging))
 	    :format-value #'format-value
 	    ;; process system state input passed as with (april (with (:state ...)) "...")
 	    :preprocess-state-input
@@ -1105,7 +1106,7 @@
 	     (is "⍬∘.=⍬" #2A())
 	     (is "''∘.=''" #2A())
 	     (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
-	     (is "' ' { (a w)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴a)=⍴w) ∧ ∧/(+/a∘.=w) = +/a∘.=a } 'dog'" #(0))
+	     (is "' ' { (A W)←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W) ∧ ∧/(+/A∘.=W) = +/A∘.=A } 'dog'" #(0))
 	     (is "⍴+.×⌿?2 30 30⍴1e10" #(30 30))))
   (∘ (has :title "Compose")
      (pivotal (with-derived-operands (right left right-glyph right-fn-monadic right-fn-dyadic
@@ -1262,12 +1263,12 @@
 	    (is "3+$[5>6;1;7>8;2;3]" 6)
 	    (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
 	    (is "{$[⍵>5;
-       g←3
-       h←5
-       g+h;
-       c←8
-       d←2
-       c×d
+       G←3
+       H←5
+       G+H;
+       C←8
+       D←2
+       C×D
     ]}¨3 7
 " #(16 8)))))
 
@@ -1423,7 +1424,7 @@
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
   (for "Five-element dyadic fork function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 "one" "one" "two" "three"))
-  (for "Recursive function." "f←{a←⍵-1 ⋄ $[a≥0;a,f a;0]} ⋄ f 5" #(4 3 2 1 0 0))
+  (for "Recursive function." "f←{A←⍵-1 ⋄ $[A≥0;A,f A;0]} ⋄ f 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Inline lateral operator." "× {8 ⍺⍺ 5×2+⍵} 5" 280)
@@ -1432,6 +1433,7 @@
   (for "Inline pivotal operator with unused left operand." "3 +{⍺ ⍵⍵ ⍵}× 4" 12)
   (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
   (for "Lateral operator within a defined function." "fn←{÷ {⍺⍺ ⍵} 1+⍵} ⋄ - fn 2" -1/3)
+  (for "Inline pivotal operator in parentheses with internal ⋄ breaks." "3 (+{⍺⍺ 2⋄⍺ ⍵⍵ ⍵}÷) 4" 3/4)
   (for "Array processing function applied over nested array."
        "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
   (for "Indexed element of above array."
@@ -1831,7 +1833,7 @@ c   2.56  3
 	 "
 "))
    (progn (princ (format nil "λ Floating-point comparisons with varying comparison tolerance.~%"))
-	  (is (print-and-run (april-c "{g←1.00001<1.0001 ⋄ ⎕ct←0.0001 ⋄ h←g,1.00001<1.0001 ⋄ ⎕ct←⍵ ⋄ h}"
+	  (is (print-and-run (april-c "{G←1.00001<1.0001 ⋄ ⎕ct←0.0001 ⋄ H←G,1.00001<1.0001 ⋄ ⎕ct←⍵ ⋄ H}"
 				      double-float-epsilon))
 	      #*10))
    (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
@@ -1929,6 +1931,7 @@ fun 3")) 8))
    )))
 
 (april-create-workspace common)
+(april-create-workspace unit-test-staging)
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
