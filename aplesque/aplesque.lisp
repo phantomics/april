@@ -5,11 +5,6 @@
 
 "A set of functions implementing APL-like array operations. Used to provide the functional backbone of the April language."
 
-(defvar *aplesque-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
-							  :name "aplesque-provisional-kernel"))
-
-(setf lparallel:*kernel* *aplesque-parallel-kernel*)
-
 (defun get-free-threads ()
   (let ((workers (lparallel.kernel::workers lparallel:*kernel*)))
     (loop :for w :across workers :when (not (lparallel.kernel::running-category w))
@@ -20,7 +15,8 @@
     `(let* ((,asym ,object)
 	    (,eltype (element-type ,asym))
 	    (,free-threads (get-free-threads)))
-       (if (or (= 0 ,free-threads)
+       (if (or (not lparallel:*kernel*)
+	       (= 0 ,free-threads)
 	       (eql 'bit ,eltype)
 	       (and (listp ,eltype)
 	   	    (member 'unsigned-byte ,eltype)

@@ -20,9 +20,13 @@
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 (defparameter *package-name-string* (package-name *package*))
 
-(defvar *april-parallel-kernel* (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
-						       :name "april-language-kernel"))
-(setq lparallel:*kernel* *april-parallel-kernel*)
+(defvar *april-parallel-kernel*)
+
+(defun make-kernel-if-absent ()
+  (if (not lparallel:*kernel*)
+      (setq lparallel:*kernel* (setq *april-parallel-kernel*
+				     (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
+							    :name "april-language-kernel")))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -771,6 +775,9 @@ It remains here as a standard against which to compare methods for composing APL
 	 (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
 	 (tags-matching (loop :for tag :in (symbol-value branches-sym)
 			   :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
+    ;; create an lparallel kernel if none is present; this is done at runtime so April's compilation
+    ;; doesn't entail the creation of a kernel
+    (make-kernel-if-absent)
     (flet ((process-tags (form)
 	     (loop :for sub-form :in form
 		:collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
