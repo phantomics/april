@@ -90,10 +90,11 @@
 			  (is-inline-operator (intersection '(⍺⍺ ⍵⍵) (rest (assoc :args symbols-used)))))
 		     ;; if this is an inline operator, pass just that keyword back
 		     (if is-inline-operator :is-inline-operator
-			 (values (output-function (if (= 1 (length fn))
-						      (list (funcall process fn))
-						      (mapcar process fn))
-						  polyadic-args symbols-used)
+			 (values (output-function
+				  (mapcar (lambda (f) (funcall process f ;;'(:special (:internal t))
+							       ))
+					  fn)
+				  polyadic-args symbols-used)
 				 (list :type '(:function :closure)
 				       :obligate-dyadic obligate-dyadic)))))
 		  (t (values nil nil))))
@@ -153,9 +154,7 @@
 		(if is-inline (if (or (not valence)
 				      (and is-pivotal (eq :pivotal valence))
 				      (and (not is-pivotal) (eq :lateral valence)))
-				  (values (output-function (if (= 1 (length fn))
-							       (list (funcall process fn))
-							       (mapcar process fn))
+				  (values (output-function (mapcar process fn)
 							   nil symbols-used)
 					  (list :type (list :operator :closure
 							    (if is-pivotal :pivotal :lateral)))))
@@ -189,7 +188,12 @@
       (labels ((axes-enclose (item axes)
 		 (if (not axes) item (enclose-axes item axes))))
 	(progn (if (and (listp item) (eql :axes (first item)))
-    		   (setq axes (list (loop :for axis :in (rest item) :collect (funcall process axis)))
+    		   (setq axes (list (loop :for axis :in (rest item)
+				       :collect (funcall process axis
+							 (if (member :top-level
+								     (getf (first (last preceding-properties))
+									   :special))
+							     '(:special (:top-level t))))))
     			 items rest-items))
 	       (loop :while (not stopped)
 		  :do (or (if (and (listp item) (eq :axes (first item)))
@@ -204,7 +208,10 @@
 					  stopped t))))
 			  (if (and (listp item) (not (member (first item) '(:op :fn :axes))))
 			      ;; if a closure is encountered, recurse to process it
-			      (multiple-value-bind (output properties remaining) (funcall process item)
+			      (multiple-value-bind (output properties remaining)
+				  (funcall process item (if (member :top-level
+								    (getf (first (last preceding-properties)) :special))
+							    '(:special (:top-level t))))
 				(if (eq :array (first (getf properties :type)))
 				    (setq items rest-items
 					  value-elements (cons output value-elements)
@@ -388,13 +395,14 @@
      (if (and (eq :array (first preceding-type))
 	      (not (member :value-assignment (getf special-props :omit))))
 	 (assign-element asop asop-props process-function '(:glyph ←)))
-     (if asop (labels ((get-symbol-list (list)
+     (if asop (labels ((get-symbol-list (list &optional inner)
 			 (let ((valid t))
 			   (if (listp list)
 			       ;; build list of symbols to be assigned values
 			       ;; (multiple for stranded/nested assignment)
 			       (let ((out-list (loop :while valid :for i
-						  :in (if (not (eql 'avector (first list)))
+						  :in (if (and (not inner)
+							       (not (eql 'avector (first list))))
 							  list (rest list))
 						  :collect (setq valid
 								 (if (symbolp i)
@@ -407,7 +415,7 @@
 										      (cons (second i)
 											    symbols-list))
 										i)
-									 (get-symbol-list i)))))))
+									 (get-symbol-list i t)))))))
 				 (if valid out-list))))))
 		(assign-axes axes)
 		(let ((symbols-present t))
@@ -436,18 +444,29 @@
 				       symbols (first symbols))
 				   (if (listp (first symbols))
 				       (caar symbols))))))))
-
+  
   (if symbols
       ;; ensure symbol(s) are not bound to function values in the workspace, and
       ;; define them as dynamic variables if they're unbound there;
       ;; remove symbols from (inws) unless they're bare and thus idiom-native
       (values
-       (progn (loop :for symbol :in symbols-list
+       (progn ;;(print (list :prec preceding-properties))
+	      (loop :for symbol :in symbols-list
 		 :do (if (is-workspace-function symbol)
 			 (fmakunbound (intern (string symbol) space)))
-		   (if (not (boundp (intern (string symbol) space)))
+		   (if (and (not (boundp (intern (string symbol) space)))
+			    (member :top-level (getf (first (last preceding-properties)) :special)))
 		       (progn (proclaim (list 'special (intern (string symbol) space)))
-			      (set (intern (string symbol) space) nil))))
+			      (set (intern (string symbol) space) nil))
+		       (if (and (boundp (intern (string symbol) space))
+				(not (member :top-level (getf (first (last preceding-properties)) :special)))
+				;; (member :internal (getf (first (last preceding-properties)) :special))
+				;; check whether the symbol is a special idiom symbol in which case it
+				;; may be assigned in a function without a problem
+				(loop :for (key value) :on (rest (assoc :variable (idiom-symbols idiom)))
+				   :by #'cddr :never (string= (string value) (string symbol))))
+			   (error "Attempting to bind lexical variable to symbol '~a' which is dynamically bound in workspace ｢~a｣."
+				  symbol space))))
 	      (cond ((eql 'to-output symbol)
 		     ;; a special case to handle ⎕← quad output
 		     `(apl-output ,precedent :print-precision print-precision
@@ -541,7 +560,7 @@
 		     (if (eql 'inws (first precedent))
 			 (setq precedent (second precedent)))))
 	     (values
-	      (if (and branch-from (eql 'to-output precedent)) ;;(string= "TO-OUTPUT" (string precedent)))
+	      (if (and branch-from (eql 'to-output precedent))
 		  ;; if this is a branch point statement like X→⎕, do the following:
 		  (if (integerp branch-from)
 		      ;; if the branch is designated by an integer like 5→⎕
@@ -559,7 +578,9 @@
 		      ;; if the target is an explicit symbol as in →mySymbol, or explicit index
 		      ;; as in →3, just pass the symbol through
 		      (list 'go precedent)
-		      (if (loop :for item :in (rest precedent) :always (symbolp item))
+		      (if (loop :for item :in (rest precedent)
+			     :always (or (symbolp item)
+					 (and (listp item) (eql 'inws (first item)))))
 			  ;; if the target is one of an array of possible destination symbols...
 			  (if (integerp branch-from)
 			      ;; if there is an explicit index to the left of the arrow,
@@ -570,7 +591,8 @@
 				  (list 'list))
 			      ;; otherwise, there must be an expression to the left of the arrow, as with
 			      ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-			      (list 'go precedent branch-from))
+			      (list 'go (mapcar #'second (rest precedent))
+				    branch-from))
 			  (list 'go precedent))))
 	      '(:type (:branch)) items))))
 
@@ -661,13 +683,12 @@
 				    ;; fn←5∘- where an operator-composed function is assigned
 				    (assign-subprocessed
 				     left-operand left-operand-props
-				     '(:special (:omit (:value-assignment :function-assignment
-							:operation))))
+				     '(:special (:omit (:value-assignment :function-assignment :operation))))
 				    ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
 				    (assign-subprocessed
 				     left-value left-value-props
 				     '(:special (:omit (:value-assignment :function-assignment
-				    			:operation)))))))))
+							:operation)))))))))
   (if operator
       ;; get left axes from the left operand and right axes from the precedent's properties so the
       ;; functions can be properly curried if they have axes specified
@@ -736,22 +757,18 @@
 				       (if (characterp left-operand)
 					   `(lambda (,omega &optional ,alpha)
 					      (if ,alpha
-						  (apl-call :fn ,(resolve-function
-								  :dyadic left-operand)
+						  (apl-call :fn ,(resolve-function :dyadic left-operand)
 							    ,omega ,alpha)
-						  (apl-call :fn ,(resolve-function
-								  :monadic left-operand)
+						  (apl-call :fn ,(resolve-function :monadic left-operand)
 							    ,omega)))))
 				  ,(if (listp right-operand)
 				       left-operand
 				       (if (characterp right-operand)
 					   `(lambda (,omega &optional ,alpha)
 					      (if ,alpha
-						  (apl-call :fn ,(resolve-function
-								  :dyadic right-operand)
+						  (apl-call :fn ,(resolve-function :dyadic right-operand)
 							    ,omega ,alpha)
-						  (apl-call :fn ,(resolve-function
-								  :monadic right-operand)
+						  (apl-call :fn ,(resolve-function :monadic right-operand)
 							    ,omega)))))
 				  ;; TODO: implement operand axes
 				  ;; operand-axes

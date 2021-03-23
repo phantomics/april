@@ -123,7 +123,7 @@
 (defun get-first-or-disclose (omega)
   (if (not (arrayp omega))
       omega (if (= 0 (rank omega))
-		(aref omega) (if (< 0 (length omega))
+		(aref omega) (if (< 0 (size omega))
 				 (row-major-aref omega 0)
 				 (apl-array-prototype omega)))))
 
@@ -1223,7 +1223,6 @@
 
 (defun axes-to-indices (ic idims out-vector &optional if start)
   "Take a list of axes and assign the derived row-major indices to a vector with a fill point."
-  ;; (print (list :ic ic idims out-vector))
   (let* ((fic (first ic))
 	 (if (or if (let ((dims idims))
 		      (loop :while dims :collect (reduce #'* (setq dims (rest dims)))))))
