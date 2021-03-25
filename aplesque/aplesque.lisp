@@ -24,6 +24,32 @@
 	   (dotimes ,clause ,@body)
 	   (pdotimes ,(append clause (list nil free-threads)) ,@body)))))
 
+(defmacro ydotimes (object clause &body body)
+  (let ((asym (gensym)) (eltype (gensym)) (free-threads (gensym))
+	(iterations (gensym)) (dividend (gensym)) (remainder (gensym))
+	(x (gensym)) (y (gensym)))
+    `(let* ((,asym ,object)
+	    (,eltype (element-type ,asym))
+	    (,free-threads (get-free-threads)))
+       (if (or (not lparallel:*kernel*)
+	       (= 0 ,free-threads))
+	   (dotimes ,clause ,@body)
+	   (if (or (eql 'bit ,eltype)
+		   (and (listp ,eltype)
+	   		(member 'unsigned-byte ,eltype)
+	   		(> 7 (second ,eltype))))
+	       (let ((,iterations (if (eq 'bit ,eltype)
+				      8 (/ 8 (second ,eltype)))))
+		 ;; (print (list :iter ,iterations))
+		 (multiple-value-bind (,dividend ,remainder) (ceiling ,(second clause) ,iterations)
+		   ;; (print (list :dd ,dividend ,remainder))
+		   (pdotimes ,(list x dividend nil free-threads)
+		     (dotimes (,y (+ ,iterations (if (< ,x (1- ,dividend))
+						     0 ,remainder)))
+		       (let ((,(first clause) (+ ,y (* ,x ,iterations))))
+			 ,@body)))))
+	       (pdotimes ,(append clause (list nil free-threads)) ,@body))))))
+
 (defun get-dimensional-factors (dimensions)
   (let ((factor) (last-index))
     (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
@@ -105,16 +131,16 @@
 		       :never (arrayp item)))))
       input (make-array nil :initial-contents input)))
 
-(defun disclose-unitary (item)
-  "If the argument is an array with only one member, disclose it, otherwise do nothing."
-  (if (not (and (arrayp item) (is-unitary item)))
-      item (row-major-aref item 0)))
-
 (defun disclose (array)
   "Disclose a scalar nested array."
   (if (or (< 0 (rank array))
 	  (not (arrayp array)))
       array (aref array)))
+
+(defun disclose-unitary (item)
+  "If the argument is an array with only one member, disclose it, otherwise do nothing."
+  (if (not (and (arrayp item) (is-unitary item)))
+      item (row-major-aref item 0)))
 
 (defun get-first-or-disclose (omega)
   (if (not (arrayp omega))
@@ -122,13 +148,6 @@
 		(aref omega) (if (< 0 (size omega))
 				 (row-major-aref omega 0)
 				 (apl-array-prototype omega)))))
-
-(defun disclose-unitary-array (item)
-  "Disclose an array if it's unitary, otherwise pass it back unchanged."
-  (if (and (arrayp item) (is-unitary item)
-	   (arrayp (row-major-aref item 0)))
-      (row-major-aref item 0)
-      item))
 
 (defun scale-array (unitary to-match &optional axis)
   "Scale up a 1-element array to fill the dimensions of the given array."
@@ -357,8 +376,9 @@
 	     ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
 	     (declare (dynamic-extent item))
 	     (if (not (or (arrayp omega) (arrayp alpha)))
-		 item (let* ((rank (aref #(nil 1) (max orank arank))))
-			(make-array rank :initial-contents (funcall (if rank #'list #'identity) item))))))
+		 item (let ((output (make-array (loop :for i :below (max orank arank) :collect 1))))
+			(setf (row-major-aref output  0) item)
+			output))))
       (if (not alpha)
 	  ;; if the function is being applied monadically, map it over the array
 	  ;; or recurse if an array is found inside
@@ -453,6 +473,7 @@
 
 (defun section (input dimensions &key (inverse nil) (populator nil))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
+  ;; (print (list :iin input dimensions))
   (if (= 0 (rank input))
       (if inverse (make-array 0)
 	  (let* ((prototype (apl-array-prototype input))
