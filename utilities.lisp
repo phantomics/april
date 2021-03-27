@@ -8,8 +8,8 @@
 (define-symbol-macro this-idiom *april-idiom*)
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (- (first axes) index-origin)))
-(define-symbol-macro *last-axis* (- (if axes (first axes) (max 1 (rank omega)))
-				    index-origin))
+(define-symbol-macro *last-axis* (if axes (- (first axes) index-origin)
+				     (max 0 (1- (rank omega)))))
 (define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
@@ -211,15 +211,15 @@
 	       (error "Mismatched number of symbols and values for string assignment."))
 	   ,@assign-forms ,values)))))
 
-(defmacro apl-output (form &rest options)
+(defmacro apl-output (form &key (print-to) (output-printed)
+			     (print-assignment) (print-precision) (with-newline))
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym))
 	;; get the symbol referencing a function passed as the output
 	(function-name-value (if (and (listp form) (eql 'function (first form)))
 				 `(string (quote ,(second form))))))
     `(let* ((,result ,form)
-	    (,printout ,(if (and (or (getf options :print-to)
-				     (getf options :output-printed)))
+	    (,printout ,(if (and (or print-to output-printed))
 			    ;; don't print the results of assignment unless the :print-assignment option is set,
 			    ;; as done when compiling a ⎕← expression
 			    (or (and function-name-value
@@ -227,29 +227,23 @@
 				;; if a bare function name is to be output, prefix it with ∇
 				(and (listp form)
 				     (eql 'apl-assign (first form))
-				     (not (getf options :print-assignment))
+				     (not print-assignment)
 				     "")
 				`(matrix-print ,result :append #\Newline
 					       :segment (lambda (n &optional s)
-							  (count-segments n ,(getf options :print-precision) s))
+							  (count-segments n ,print-precision s))
 					       :format (lambda (n &optional s r)
 							 (print-apl-number-string
-							  n s ,(getf options :print-precision) nil r)))))))
+							  n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ,(if (getf options :print-to)
-	    (let ((string-output `(progn (write-string ,printout ,(getf options :print-to))
-					 ;; (if (not (and (print (vectorp ,printout))
-					 ;; 	       (char= #\Newline
-					 ;; 		      (aref ,printout (1- (length ,printout))))))
-					 ;;     (write-char #\Newline ,(getf options :print-to))
-					 ;;     )
-					 )))
-	      `(if (arrayp ,result)
-		   ,string-output (concatenate 'string ,string-output (list #\Newline)))))
-       ,(if (getf options :output-printed)
-	    (if (eq :only (getf options :output-printed))
-		printout `(values ,result ,printout))
+       ,(if print-to (let ((string-output `(progn (write-string ,printout ,print-to))))
+		       `(progn (if (arrayp ,result)
+				   ,string-output (concatenate 'string ,string-output (list #\Newline)))
+			       ,@(if with-newline
+				     `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
+		       			   (write-char #\Newline ,print-to)))))))
+       ,(if output-printed (if (eq :only output-printed) printout `(values ,result ,printout))
 	    result))))
 
 (defun array-to-nested-vector (array)
@@ -717,7 +711,6 @@ It remains here as a standard against which to compare methods for composing APL
 				 (getf form-props :axes))
 		   (enclose-symbol item)))))
     (let ((properties (reverse properties)))
-      ;; (print (list :form form))
       (if form (if (listp form)
 		   (if (eql 'avector (first form))
 		       form (if (not (or (numberp (first form))
@@ -730,9 +723,8 @@ It remains here as a standard against which to compare methods for composing APL
 						 :test #'eql)
 					 (and (not (fboundp (first form)))
 					      (and (symbolp (first form))
-						   (and ;; (boundp (intern (string (first form)) space))
-						    (not (fboundp (intern (string (first form))
-									  space))))))))
+						   (and (not (fboundp (intern (string (first form))
+									      space))))))))
 				(if (= 1 (length properties))
 				    (apply-props form (first properties))
 				    (mapcar #'apply-props form properties))
@@ -857,7 +849,6 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((previous-token)
 	(is-stranded-assignment)
 	(token-list (or token-list (list (list :args) (list :assigned)))))
-    ;; (print (list :too tokens))
     (loop :for token :in tokens
        :do (if (and (listp token) (not (eq :fn (first token))))
 	       ;; recursively descend into lists, but not functions contained within a function,
@@ -870,16 +861,14 @@ It remains here as a standard against which to compare methods for composing APL
 					       (loop :for tk :in token :always (symbolp tk))))
 	       (if (and (not (keywordp token))
 			(symbolp token))
-		   ;; (not (member token *idiom-native-symbols*))
-		   ;; (not (member token token-list))
 		   (cond ((and (not (member token *idiom-native-symbols*))
 			       (not (member token (rest (assoc :assigned token-list))))
+			       (not (boundp (intern (string token) space)))
 			       (or is-strand-assignment
 				   (and (listp previous-token)
 					(eql :fn (first previous-token))
 					(characterp (second previous-token))
 					(char= #\← (second previous-token)))))
-			  ;; (print (list :tt token))
 			  (if is-stranded-assignment
 			      (loop :for tk :in token :do
 				   (if (not (member tk (rest (assoc :assigned token-list))))

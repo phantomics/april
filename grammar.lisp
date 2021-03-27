@@ -5,6 +5,11 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
+(define-symbol-macro include-lexvar-symbols
+    (if (getf (getf (first (last preceding-properties)) :special) :lexvar-symbols)
+	`(:lexvar-symbols ,(getf (getf (first (last preceding-properties)) :special)
+				 :lexvar-symbols))))
+
 (defun process-value (this-item properties process idiom space)
   ;; TODO: add a passthrough value mode for symbols that are being assigned!
   ;; this is the only way to get them assignable after the first time
@@ -56,6 +61,8 @@
 		 '(:type (:symbol))))
 	(t (values nil nil))))
 
+;; {ge←1 ⋄ {⎕←ge ⋄ ge←+1 ⋄ ge+⍵}¨⍳5} ⍬
+
 (defun process-function (this-item properties process idiom space)
   (if (listp this-item)
       ;; process a function specification starting with :fn
@@ -88,11 +95,23 @@
 					   (rest fn))))
 			  (symbols-used (glean-symbols-from-tokens fn space))
 			  (is-inline-operator (intersection '(⍺⍺ ⍵⍵) (rest (assoc :args symbols-used)))))
+		     (setf (rest (assoc :assigned symbols-used))
+			   (loop :for sym :in (rest (assoc :assigned symbols-used))
+			      :when (not (member sym (getf (getf properties :special) :lexvar-symbols)))
+			      :collect sym))
+		     ;; (print (list :prop properties fn symbols-used))
 		     ;; if this is an inline operator, pass just that keyword back
 		     (if is-inline-operator :is-inline-operator
 			 (values (output-function
-				  (mapcar (lambda (f) (funcall process f ;;'(:special (:internal t))
-							       ))
+				  (mapcar (lambda (f)
+					    (funcall process f
+						     (list :special
+							   (list :lexvar-symbols
+								 (remove-duplicates
+								  (append (rest (assoc :assigned
+										       symbols-used))
+									  (getf (getf properties :special)
+										:lexvar-symbols)))))))
 					  fn)
 				  polyadic-args symbols-used)
 				 (list :type '(:function :closure)
@@ -223,10 +242,12 @@
 						value-props (cons value-properties value-props))))
 			  (setq stopped t))))
 	(if value-elements
-	    (values (axes-enclose (output-value space (if (< 1 (length value-elements))
-							  value-elements (first value-elements))
-						value-props)
-				  axes)
+	    (values (if (member :statements (getf properties :special))
+			(cons 'progn (reverse value-elements))
+			(axes-enclose (output-value space (if (< 1 (length value-elements))
+							      value-elements (first value-elements))
+						    value-props)
+				      axes))
 		    '(:type (:array :explicit))
 		    items)
 	    (values nil nil tokens))))))
@@ -239,7 +260,7 @@
     ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
     ((assign-axes axes)
      (setq prior-items items)
-     (assign-element function-form function-props process-function)
+     (assign-element function-form function-props process-function (first (last preceding-properties)))
      (if (eq :is-inline-operator function-form)
 	 (progn (setq items prior-items)
 		(assign-element function-form function-props process-operator))))
@@ -274,9 +295,10 @@
        (assign-element operator-form operator-props process-operator '(:valence :lateral))
        (if operator-form (progn (assign-axes operand-axes)
 				(assign-subprocessed operand-form operand-props
-		 				     '(:special (:omit (:value-assignment :function-assignment
+		 				     `(:special (:omit (:value-assignment :function-assignment
 		 							:operation :operator-assignment
-									:train-composition)))))))
+									:train-composition)
+								 ,@include-lexvar-symbols))))))
     (if symbol-referenced
 	;; call the operator constructor on the output of the operand constructor which integrates axes
 	(values (list 'apl-compose :op (list 'inws symbol-referenced)
@@ -331,7 +353,8 @@
     ((assign-element asop asop-props process-function '(:glyph ←))
      (if asop (assign-axes function-axes))
      (if asop (assign-subprocessed fn-element fnel-specs
-				   '(:special (:omit (:value-assignment :function-assignment)))))
+				   `(:special (:omit (:value-assignment :function-assignment)
+					       ,@include-lexvar-symbols))))
      (if fn-element (assign-axes symbol-axes))
      (if fn-element (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (if (and fn-element (is-workspace-value symbol))
@@ -450,27 +473,17 @@
       ;; define them as dynamic variables if they're unbound there;
       ;; remove symbols from (inws) unless they're bare and thus idiom-native
       (values
-       (progn ;;(print (list :prec preceding-properties))
-	      (loop :for symbol :in symbols-list
+       (progn (loop :for symbol :in symbols-list
 		 :do (if (is-workspace-function symbol)
 			 (fmakunbound (intern (string symbol) space)))
 		   (if (and (not (boundp (intern (string symbol) space)))
 			    (member :top-level (getf (first (last preceding-properties)) :special)))
 		       (progn (proclaim (list 'special (intern (string symbol) space)))
-			      (set (intern (string symbol) space) nil))
-		       (if (and (boundp (intern (string symbol) space))
-				(not (member :top-level (getf (first (last preceding-properties)) :special)))
-				;; (member :internal (getf (first (last preceding-properties)) :special))
-				;; check whether the symbol is a special idiom symbol in which case it
-				;; may be assigned in a function without a problem
-				(loop :for (key value) :on (rest (assoc :variable (idiom-symbols idiom)))
-				   :by #'cddr :never (string= (string value) (string symbol))))
-			   (error "Attempting to bind lexical variable to symbol '~a' which is dynamically bound in workspace ｢~a｣."
-				  symbol space))))
+			      (set (intern (string symbol) space) nil))))
 	      (cond ((eql 'to-output symbol)
 		     ;; a special case to handle ⎕← quad output
 		     `(apl-output ,precedent :print-precision print-precision
-				  :print-to output-stream :print-assignment t))
+				  :print-to output-stream :print-assignment t :with-newline t))
 		    ((eql 'output-stream symbol)
 		     ;; a special case to handle ⎕ost← setting the output stream; the provided string
 		     ;; is interned in the current working package
@@ -601,12 +614,14 @@
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :function (first preceding-type))
 	 (progn (assign-subprocessed center center-props
-				     '(:special (:omit (:value-assignment :function-assignment
-							:train-composition))))
+				     `(:special (:omit (:value-assignment :function-assignment
+							:train-composition)
+						 ,@include-lexvar-symbols)))
 		(setq is-center-function (eq :function (first (getf center-props :type))))
 		(if is-center-function
 		    (assign-subprocessed left left-props
-					 '(:special (:omit (:value-assignment :function-assignment))))))))
+					 `(:special (:omit (:value-assignment :function-assignment)
+						     ,@include-lexvar-symbols)))))))
   (if is-center-function
       (if (not left)
 	  ;; if there's no left function, match an atop composition like 'mississippi'(⍸∊)'sp'
@@ -683,7 +698,8 @@
 				    ;; fn←5∘- where an operator-composed function is assigned
 				    (assign-subprocessed
 				     left-operand left-operand-props
-				     '(:special (:omit (:value-assignment :function-assignment :operation))))
+				     `(:special (:omit (:value-assignment :function-assignment :operation)
+						       ,@include-lexvar-symbols)))
 				    ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
 				    (assign-subprocessed
 				     left-value left-value-props
@@ -786,15 +802,17 @@
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
 	 (progn (assign-subprocessed fn-element function-props
-				     '(:special (:omit (:function-assignment :value-assignment-by-selection
-							:train-composition))))
+				     `(:special (:omit (:function-assignment :value-assignment-by-selection
+									     :train-composition)
+						       ,@include-lexvar-symbols)))
 		(setq is-function (eq :function (first (getf function-props :type)))
 		      prior-items items)
 		(if is-function (assign-subprocessed value value-props
-						     '(:special (:omit (:value-assignment :function-assignment
+						     `(:special (:omit (:value-assignment :function-assignment
 									:value-assignment-by-selection :branch
 									:lateral-inline-composition
 		 							:operation :operator-assignment))
+						       ,@include-lexvar-symbols
 						       :valence :lateral)))
 		(if (not (eq :array (first (getf value-props :type))))
 		    (setq items prior-items value nil))
