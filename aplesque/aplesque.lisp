@@ -668,8 +668,11 @@
 	((and (not compress-mode)
 	      (and (arrayp input)
 		   (< 1 (array-total-size input)))
-	      (/= (loop :for degree :across degrees :when (< 0 degree)
-		     :counting degree :into dcount :finally (return dcount))
+	      (/= (or (and (arrayp degrees)
+			   (loop :for degree :across degrees :when (< 0 degree)
+			      :counting degree :into dcount :finally (return dcount)))
+		      degrees
+		      )
 		  (nth axis (dims input))))
 	 (error "Attempting to expand elements across array but ~a"
 		"positive degrees are not equal to length of selected input axis."))
