@@ -354,10 +354,10 @@
      (if asop (assign-axes function-axes))
      (if asop (assign-subprocessed fn-element fnel-specs
 				   `(:special (:omit (:value-assignment :function-assignment)
-					       ,@include-lexvar-symbols))))
+						     ,@include-lexvar-symbols))))
      (if fn-element (assign-axes symbol-axes))
      (if fn-element (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (if (and fn-element (is-workspace-value symbol))
+  (if (and fn-element symbol);;(is-workspace-value symbol))
       (let ((fn-content (resolve-function :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn)))
 	(values (if (not symbol-axes)
