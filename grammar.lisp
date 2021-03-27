@@ -357,7 +357,7 @@
 						     ,@include-lexvar-symbols))))
      (if fn-element (assign-axes symbol-axes))
      (if fn-element (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (if (and fn-element symbol);;(is-workspace-value symbol))
+  (if (and fn-element symbol)
       (let ((fn-content (resolve-function :dyadic fn-element))
 	    (fn-sym (or-functional-character fn-element :fn)))
 	(values (if (not symbol-axes)
