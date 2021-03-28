@@ -655,29 +655,7 @@
 		  (or (and (= 1 (rank omega))
 			   (match-lexical-function-identity (aref function-glyph 0)))
 		      (make-array 0))
-		  (if (= 0 (rank omega))
-		      (make-array nil :initial-element (funcall function (aref omega)
-								(aref omega)))
-		      (let* ((odims (dims omega))
-			     (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank omega))))))
-			     (rlen (nth axis odims))
-			     (increment (reduce #'* (nthcdr (1+ axis) odims)))
-			     (output (make-array (loop :for dim :in odims :for dx :from 0
-						    :when (/= dx axis) :collect dim))))
-			(xdotimes output (i (size output))
-			  (declare (optimize (safety 1)))
-			  (let ((value))
-			    (loop :for ix :from (1- rlen) :downto 0
-			       :do (let ((item (row-major-aref
-						omega (+ (* ix increment)
-							 (if (= 1 increment)
-							     0 (* (floor i increment)
-								  (- (* increment rlen) increment)))
-							 (if (/= 1 increment) i (* i rlen))))))
-				     (setq value (if (not value) item (funcall function (disclose value)
-									       (disclose item))))))
-			    (setf (row-major-aref output i) value)))
-			(disclose-atom output)))))))
+		  (reduce-array omega function axis last-axis)))))
 
 (defun operate-scanning (function axis &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."

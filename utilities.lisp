@@ -22,7 +22,7 @@
 
 (defvar *april-parallel-kernel*)
 
-(defun make-kernel-if-absent ()
+(defun make-threading-kernel-if-absent ()
   (if (not lparallel:*kernel*)
       (setq lparallel:*kernel* (setq *april-parallel-kernel*
 				     (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
@@ -178,12 +178,6 @@
 (defun indent-code (string)
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
-
-(defun disclose-atom (item)
-  "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
-  (if (not (and (not (stringp item)) (arrayp item) (is-unitary item)
-		(not (arrayp (row-major-aref item 0)))))
-      item (row-major-aref item 0)))
 
 (defmacro apl-assign (symbol value)
   "This is macro is used to build variable assignment forms and includes logic for stranded assignments."
@@ -769,7 +763,6 @@ It remains here as a standard against which to compare methods for composing APL
 			   :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
     ;; create an lparallel kernel if none is present; this is done at runtime so April's compilation
     ;; doesn't entail the creation of a kernel
-    (make-kernel-if-absent)
     (flet ((process-tags (form)
 	     (loop :for sub-form :in form
 		:collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
@@ -802,11 +795,11 @@ It remains here as a standard against which to compare methods for composing APL
 						 :when (not (member (string-upcase (first var))
 								    workspace-symbols :test #'string=))
 						 :collect (first var))))
+			(make-threading-kernel-if-absent)
 			(symbol-macrolet ,(loop :for var :in system-vars
 					     :when (member (string-upcase (first var)) workspace-symbols
 							   :test #'string=)
 					     :collect var)
-			  ;; ,@(if stored-refs (list (cons 'setf stored-refs)))
 			  ,@(loop :for ref :in stored-refs
 			       :collect (list (first ref)
 					      (list 'inws (second ref)) (third ref)))
