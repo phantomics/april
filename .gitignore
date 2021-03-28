@@ -27,3 +27,6 @@
 *.sx32fsl
 *.wx64fsl
 *.wx32fsl
+
+# Data files
+*ubyte
