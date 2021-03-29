@@ -4,6 +4,7 @@
 
 (defparameter *package-symbol* (intern (package-name *package*) "KEYWORD"))
 
+;; binary format for .idx files
 (defbinary idx-file (:byte-order :big-endian)
   (empty 0 :type 16)
   (type 0 :type 8)
@@ -17,6 +18,7 @@
   			  (#x0e `(simple-array double-float (,(april-c "{×/⍵}" dimensions))))))))
 
 (defun idx-file-to-array (file-path)
+  "Load the contents of an .idx file into an array."
   (with-open-binary-file (in-raw file-path :direction :input)
     (with-wrapped-in-bit-stream (in in-raw :byte-order :big-endian)
       (let ((idx-input (read-binary 'idx-file in)))
@@ -28,6 +30,7 @@
 
 (let ((training-data) (training-labels) (test-data) (test-labels))
   (defun load-idx-files ()
+    "Load data from .idx files in input/ directory into four variables."
     (setq training-data (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
 									  "input/train-images.idx3-ubyte"))
 	  training-labels (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
@@ -37,6 +40,7 @@
 	  test-labels (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
 									"input/t10k-labels.idx1-ubyte")))
     "Data loaded.")
+  ;; these functions fetch the input data
   (defun get-training-data () training-data)
   (defun get-training-labels () training-labels)
   (defun get-test-data () test-data)
@@ -46,6 +50,7 @@
 	    (asdf:system-relative-pathname (intern (package-name *package*) "KEYWORD") "cnn.apl"))
 
 (defun train ()
+  "Train a convolutional neural network with a set of training data and test it against another dataset."
   (april (with (:space cnn-demo-space)
 	       (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
 			    (teimgs (get-test-data)) (telabs (get-test-labels)))))
@@ -66,7 +71,7 @@ index     ← 1
 startTime ← timeFactors⊥¯4↑⎕ts
 
 ⎕ ← 'Running Zhang with ',(⍕epochs),' epochs, batchSize ',(⍕batchSize),','
-⎕ ← (⍕trainings),' training images, ',(⍕tests),' tests and a rate of ',⍕rate
+⎕ ← (⍕trainings),' training images, ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
 ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 
 (k1 b1 k2 b2 fc b) ← {

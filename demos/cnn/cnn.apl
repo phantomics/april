@@ -36,10 +36,10 @@ conv         ← {s←1+(⍴⍵)-⍴⍺ ⋄ ⊃+/,⍺×(⍳⍴⍺){s↑⍺↓⍵
 
 ⍝ conv       ← {s ← 1+(⍴⍵)-⍴⍺ ⋄ ⊃+/,⍺×(⍳⍴⍺){s↑⍺↓⍵}¨⊂⍵}
 ⍝ conv       ← {a←⍵ ⋄ s←1+(⍴a)-⍴⍺ ⋄ ⊃+/,⍺×{s↑⍵↓a}¨⍳⍴⍺}
-⍝ conv       ← {s ← 1+(⍴⍵)-⍴⍺ ⋄ ∧/(⍴⍺)=⍴⍵ : s⍴+/,⍺×⍵ ⋄ ⊃+/,⍺×(⍳⍴⍺){s↑⍺↓⍵}¨⊂⍵}
-⍝ conv       ← {a ← ⍵ ⋄ s ← 1+(⍴a)-⍴⍺ ⋄ ∧/(⍴⍺)=⍴a : s⍴+/,⍺×a ⋄ ⊃+/,⍺{⍺×s↑⍵↓a}¨⊂⍳⍴⍺}
+⍝ conv       ← {s ← 1+(⍴⍵)-⍴⍺ ⋄ $[∧/(⍴⍺)=⍴⍵; s⍴+/,⍺×⍵; ⊃+/,⍺×(⍳⍴⍺){s↑⍺↓⍵}¨⊂⍵]}
+⍝ conv       ← {a ← ⍵ ⋄ s ← 1+(⍴a)-⍴⍺ $[∧/(⍴⍺)=⍴a; s⍴+/,⍺×a; ⊃+/,⍺{⍺×s↑⍵↓a}¨⊂⍳⍴⍺]}
 
-⍝ conv       ← { w←⍺ ⋄ a←⍵ ⋄ s ← 1+(⍴a)-⍴w ⋄ +⌿((×/⍴w),s)⍴w{⍺×⍵}⍤(0,(⍴⍴w))⊢{s↑⍵↓a}⍤1⊢⊃⍳⍴w }
+⍝ conv       ← {w←⍺ ⋄ a←⍵ ⋄ s ← 1+(⍴a)-⍴w ⋄ +⌿((×/⍴w),s)⍴w{⍺×⍵}⍤(0,(⍴⍴w))⊢{s↑⍵↓a}⍤1⊢⊃⍳⍴w}
              ⍝ Here is a version without the enclose/disclose and it got slower
              ⍝ and uglier.  Not sure whether there is an easy fix.
 
@@ -56,7 +56,7 @@ multiconv    ← {(a ws bs)←⍵ ⋄ bs{⍺+⍵ conv a}⍤(0,(⍴⍴a))⊢ws}
 
 ⍝ multiconv  ← {(a ws bias)←⍵ ⋄ ⊃bias+{⊂⍵ conv a}⍤(⍴⍴a)⊢ws}
 
-⍝ fcconv     ← {s ← 1+(⍴⍵)-⍴⍺ ⋄ s⍴+/,⍺×⍵ }
+⍝ fcconv     ← {s ← 1+(⍴⍵)-⍴⍺ ⋄ s⍴+/,⍺×⍵}
 ⍝ fclayer    ← {(a ws bias)←⍵ ⋄ bias{⍺ + ⍵ fcconv a}⍤(0,(⍴⍴a))⊢ws}
              ⍝ Here we can pre-optimise conv for FC layer, but it doesn't really help
 
@@ -86,7 +86,7 @@ avgpool      ← {(x y)←⍴⍵ ⋄ avg⍤2⊢(x÷2)(y÷2)2 2⍴⍉⍤2⊢(x÷2
 ⍝ avgpool    ← {a ← ⍵ ⋄ {(i j)←2×⍵ ⋄ avg ⊢ ((i (i+1))(j (j+1))) ⌷ a} ¨⍳(÷∘2⍴a)}
 ⍝ avgpool    ← {÷∘4{+/,⍵}⌺(2 2⍴2)⍤2⊢⍵}
 
-⍝backavgpool ← {(a f) ← ⍵ ⋄ ⊃⍪/{⊂⍵}⍤2⊢⊃,/{f⍴⍵÷×/f}¨a }
+⍝backavgpool ← {(a f) ← ⍵ ⋄ ⊃⍪/{⊂⍵}⍤2⊢⊃,/{f⍴⍵÷×/f}¨a}
              ⍝ For every element in `a` compute an array of shape `f` where all the
              ⍝ elements are the current element of `a` divided (prod f).
 

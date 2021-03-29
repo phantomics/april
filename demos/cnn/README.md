@@ -19,7 +19,7 @@ Evaluate:
 ...
 
 * (in-package "APRIL-DEMO.CNN")
-#<PACKAGE "APRIL-DEMO-CNN">
+#<PACKAGE "APRIL-DEMO.CNN">
 
 * (load-idx-files)
 "Data loaded."
