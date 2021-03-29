@@ -1,5 +1,5 @@
 (ql:quickload "april")
-(in-package "april")
+(in-package :april)
 (april-load #p"path.apl")
 
 
