@@ -1441,6 +1441,8 @@
   (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
   (for "Lateral operator within a defined function." "fn←{÷ {⍺⍺ ⍵} 1+⍵} ⋄ - fn 2" -1/3)
   (for "Inline pivotal operator in parentheses with internal ⋄ breaks." "3 (+{⍺⍺ 2⋄⍺ ⍵⍵ ⍵}÷) 4" 3/4)
+  (for "Operator composition of function within defined operator."
+       "filter←{(⍺⍺¨⍵)/⍵} ⋄ {2|⍵} filter ⍳20" #(1 3 5 7 9 11 13 15 17 19))
   (for "Array processing function applied over nested array."
        "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
   (for "Indexed element of above array."

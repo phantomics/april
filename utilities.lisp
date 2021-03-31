@@ -423,7 +423,7 @@
 							     ,(resolve-function :monadic ,first-op ,first-axes)
 							     omega))
 					      (if (and (listp ,first-op) (eql 'function (first ,first-op)))
-						  ,first-op)))
+						  ,first-op (if (eql '⍺⍺ ,first-op) ,first-op))))
 					(left-fn-monadic-inverse
 					 `(if (resolve-function :monadic-inverse ,first-op ,first-axes)
 					      `(λω (apl-call ,(or-functional-character ,first-op :fn)
@@ -436,7 +436,7 @@
 							      ,(resolve-function :dyadic ,first-op ,first-axes)
 							      omega alpha))
 					      (if (and (listp ,first-op) (eql 'function (first ,first-op)))
-						  ,first-op)))
+						  ,first-op (if (eql '⍺⍺ ,first-op) ,first-op))))
 					(left-fn-dyadic-inverse
 					 `(if (resolve-function :dyadic-inverse ,first-op)
 					      `(λωα (apl-call ,(or-functional-character ,first-op :fn)
@@ -457,14 +457,14 @@
 										,second-op ,second-axes)
 							     omega))
 					      (if (and (listp ,second-op) (eql 'function (first ,second-op)))
-						  ,second-op)))
+						  ,second-op (if (eql '⍵⍵ ,second-op) ,second-op))))
 					(right-fn-dyadic
 					 `(if (resolve-function :dyadic ,second-op ,second-axes)
 					      `(λωα (apl-call ,(or-functional-character ,second-op :fn)
 							      ,(resolve-function :dyadic ,second-op ,second-axes)
 							      omega alpha))
 					      (if (and (listp ,second-op) (eql 'function (first ,second-op)))
-						  ,second-op)))
+						  ,second-op (if (eql '⍵⍵ ,second-op) ,second-op))))
 					(right-fn-symbolic `(resolve-function :symbolic
 									      ,second-op ,second-axes))))))
 	 ,@(if ignorables `((declare (ignorable ,@ignorables))))
