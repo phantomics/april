@@ -1429,6 +1429,8 @@
        "' ' (≠⊆⊢) ' one two  three'" #("one" "two" "three"))
   (for "Three-element dyadic fork function train with left argument value."
        "(⍳8) (12>+) (⍳8)⋆1.2" #(1 1 1 1 1 0 0 0))
+  (for "Three-element monadic fork function train including operator-composed function."
+       "(1+-∘÷) 4" 3/4)
   (for "Five-element dyadic fork function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 "one" "one" "two" "three"))
   (for "Recursive function." "f←{A←⍵-1 ⋄ $[A≥0;A,f A;0]} ⋄ f 5" #(4 3 2 1 0 0))

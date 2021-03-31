@@ -621,7 +621,9 @@
 		(if is-center-function
 		    (assign-subprocessed left left-props
 					 `(:special (:omit (:value-assignment :function-assignment)
-						     ,@include-lexvar-symbols)))))))
+							   ,@include-lexvar-symbols))))))
+     ;; (print (list :cc center left precedent properties))
+     )
   (if is-center-function
       (if (not left)
 	  ;; if there's no left function, match an atop composition like 'mississippi'(⍸∊)'sp'
@@ -648,9 +650,13 @@
  		    (if (listp center)
  			center (resolve-function :dyadic (if (not (symbolp center))
  							     center (intern (string center) space)))))
+	    ;; (print (list :yy right alpha center preceding-properties))
 	    ;; train composition is only valid when there is only one function in the precedent
-	    ;; or when continuing a train composition as for (×,-,÷)5
+	    ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
+	    ;; functions are also valid as preceding functions, as with (1+-∘÷)
 	    (if (and center (or (= 1 (length preceding-properties))
+				(and (member :function (getf (first preceding-properties) :type))
+				     (member :operator-composed (getf (first preceding-properties) :type)))
  				(and (member :train-fork-composition (getf (first preceding-properties) :type))
  				     (not (member :closed (getf (first preceding-properties) :type))))))
  		;; functions are resolved here, failure to resolve indicates a value in the train
@@ -662,6 +668,7 @@
  					   left (resolve-function :monadic left)))
  		      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
  					  left (resolve-function :dyadic left))))
+		  ;; (print (list :ri right-fn-monadic right-fn-dyadic))
  		  (values `(lambda (,omega &optional ,alpha)
  			     (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
  						  (apl-call ,(or-functional-character right :fn)
