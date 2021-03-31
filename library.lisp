@@ -8,8 +8,8 @@
 (defun deal (index-origin)
   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
   (lambda (omega alpha)
-    (let ((omega (disclose omega))
-	  (alpha (disclose alpha)))
+    (let ((omega (disclose-unitary omega))
+	  (alpha (disclose-unitary alpha)))
       (if (or (not (integerp omega))
 	      (not (integerp alpha)))
 	  (error "Both arguments to ? must be single non-negative integers.")
