@@ -1681,6 +1681,14 @@
 
 (defun turn (input axis &optional degrees)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
+  (if (and degrees (not (or (is-unitary degrees)
+			    (and (= (rank degrees) (1- (rank input)))
+				 (loop :for dd :in (dims degrees)
+				    :for id :in (loop :for d :in (dims input) :for dx :from 0
+						   :when (/= dx axis) :collect d)
+				    :always (= dd id))))))
+      (error "Invalid degree array; degree array must have same dimensions as input array excluding the ~a"
+	     "axis along which the input array is to be rotated."))
   (if (not (arrayp input))
       input (let* ((idims (dims input))
 		   (rlen (nth axis idims))
@@ -1688,7 +1696,7 @@
 		   (vset-size (* increment (nth axis idims)))
 		   (output (make-array idims :element-type (element-type input)))
 		   (adjuster (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))))
-	      (xdotimes input (i (size input))
+	      (dotimes (i (size input))
 		(declare (optimize (safety 1)))
 		(let ((vindex (funcall adjuster
 				       (mod (- (floor i increment)
