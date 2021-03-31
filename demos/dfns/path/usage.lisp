@@ -1,7 +1,8 @@
 (ql:quickload "april")
-(in-package :april)
-(april-load #p"path.apl")
 
+(in-package :april)
+
+(april-load #p"demos/dfns/path/path.apl")
 
 ;; http://dfns.dyalog.com/s_path.htm
 
