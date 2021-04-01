@@ -649,13 +649,13 @@
 
 (defun operate-reducing (function function-glyph axis &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
-  (lambda (omega)
+  (lambda (omega &optional alpha)
     (if (not (arrayp omega))
 	omega (if (= 0 (size omega))
 		  (or (and (= 1 (rank omega))
 			   (match-lexical-function-identity (aref function-glyph 0)))
 		      (make-array 0))
-		  (reduce-array omega function axis last-axis)))))
+		  (reduce-array omega function axis last-axis alpha)))))
 
 (defun operate-scanning (function axis &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
@@ -774,7 +774,6 @@
 (defun operate-at-rank (rank function-monadic function-dyadic)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
-    ;; (print (list :oom (type-of omega) (type-of alpha)))
     (let* ((odims (dims omega)) (adims (dims alpha))
 	   (osize (size omega)) (asize (size alpha))
 	   (rank (if (not (arrayp rank))

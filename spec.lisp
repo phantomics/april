@@ -988,7 +988,11 @@
 	    (is "f←+ ⋄ f/⍬" 0)
 	    (is "g←÷ ⋄ g/⍬" 1)
 	    (is "+/(1 2 3)(4 5 6)" #0A#(5 7 9))
-	    (is "∩/¨(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'" #(#0A"abc" #0A""))))
+	    (is "∩/¨(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'" #(#0A"abc" #0A""))
+	    (is "4,/⍳12" #(#(1 2 3 4) #(2 3 4 5) #(3 4 5 6) #(4 5 6 7) #(5 6 7 8)
+			   #(6 7 8 9) #(7 8 9 10) #(8 9 10 11) #(9 10 11 12)))
+	    (is "⊃,/3 4+/¨⊂3 6⍴⍳9"
+		#2A((6 9 12 15 10 14 18) (24 18 12 6 25 20 15) (15 18 21 24 22 26 30)))))
   (⌿ (has :title "Reduce First")
      (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
 		(let ((axes (if axes `(- ,(first axes) index-origin))))
@@ -1433,6 +1437,8 @@
        "(1+-∘÷) 4" 3/4)
   (for "Five-element dyadic fork function train."
        "' ' (∊{⍺,⍵[⍺],⍵}≠⊆⊢) ' one two  three'" #(1 "one" "one" "two" "three"))
+  (for "Five-element monadic fork function train including lateral and pivotal function compositions."
+       "(⊢⌽⍨¯1+⍳∘≢)5 5⍴⍳25" #2A((1 2 3 4 5) (7 8 9 10 6) (13 14 15 11 12) (19 20 16 17 18) (25 21 22 23 24)))
   (for "Recursive function." "f←{A←⍵-1 ⋄ $[A≥0;A,f A;0]} ⋄ f 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)

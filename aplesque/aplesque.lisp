@@ -973,7 +973,8 @@
          (* (gamma (+ 1 k))
             (gamma (- n k -1))))))
 
-(defun reduce-array (input function axis &optional last-axis)
+(defun reduce-array (input function axis &optional last-axis window)
+  "Reduce an array along by a given function along a given dimension, optionally with a window interval."
   (if (= 0 (rank input))
       (make-array nil :initial-element (funcall function (aref input)
 						(aref input)))
@@ -981,24 +982,31 @@
 	     (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank input))))))
 	     (rlen (nth axis odims))
 	     (increment (reduce #'* (nthcdr (1+ axis) odims)))
+	     (wsegment)
 	     (output (make-array (loop :for dim :in odims :for dx :from 0
-				    :when (/= dx axis) :collect dim))))
+				    :when (/= dx axis) :collect dim
+				    :when (and window (= dx axis))
+				    :collect (setq wsegment (- dim (1- window)))))))
 	(xdotimes output (i (size output))
 	  (declare (optimize (safety 1)))
 	  (let ((value))
-	    (loop :for ix :from (1- rlen) :downto 0
+	    (loop :for ix :from (1- (or window rlen)) :downto 0
 	       :do (let ((item (row-major-aref
 				input (+ (* ix increment)
-					 (if (= 1 increment)
-					     0 (* (floor i increment)
-						  (- (* increment rlen) increment)))
-					 (if (/= 1 increment) i (* i rlen))))))
+					 (if window (* rlen (floor i wsegment))
+					     (if (= 1 increment)
+						 0 (* (floor i increment)
+						      (- (* increment rlen) increment))))
+					 (if (/= 1 increment) i
+					     (if window (if (>= 1 (rank input))
+							    i (mod i wsegment))
+						 (* i rlen)))))))
 		     (setq value (if (not value) item (funcall function (disclose value)
 							       (disclose item))))))
 	    (setf (row-major-aref output i) value)))
 	(if (not (and (= 0 (rank output))
-		  (= 0 (rank (aref output)))))
-	output (disclose output)))))
+		      (= 0 (rank (aref output)))))
+	    output (disclose output)))))
 
 (defun array-inner-product (alpha omega function1 function2)
   "Find the inner product of two arrays with two functions."
