@@ -210,7 +210,7 @@
 		     (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (second this-item) :symbols)))
 		     (is-inline (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
 		     (is-dyadic (member '⍺ arg-symbols))
-		     (is-pivotal (member '⍵⍵ arg-symbols))
+		     (is-pivotal (intersection arg-symbols '(⍹ ⍵⍵)))
 		     (valence (getf properties :valence)))
 		(if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
 		    (error "A defined operator may not include both [⍶ left value] and~a"
@@ -952,24 +952,22 @@
 		    `(apl-compose :op ,(if (eq :operator-self-reference operator)
 					   '∇oself (if (listp operator)
 						       operator (list 'inws operator)))
-				  ,(if (listp left-operand)
-				       left-operand
-				       (if (characterp left-operand)
-					   `(lambda (,omega &optional ,alpha)
-					      (if ,alpha
-						  (apl-call :fn ,(resolve-function :dyadic left-operand)
-							    ,omega ,alpha)
-						  (apl-call :fn ,(resolve-function :monadic left-operand)
-							    ,omega)))))
-				  ,(if (listp right-operand)
-				       left-operand
-				       (if (characterp right-operand)
-					   `(lambda (,omega &optional ,alpha)
-					      (if ,alpha
-						  (apl-call :fn ,(resolve-function :dyadic right-operand)
-							    ,omega ,alpha)
-						  (apl-call :fn ,(resolve-function :monadic right-operand)
-							    ,omega))))))
+				  ,(if (characterp left-operand)
+				       `(lambda (,omega &optional ,alpha)
+					  (if ,alpha
+					      (apl-call :fn ,(resolve-function :dyadic left-operand)
+							,omega ,alpha)
+					      (apl-call :fn ,(resolve-function :monadic left-operand)
+							,omega)))
+                                       left-operand)
+				  ,(if (characterp right-operand)
+				       `(lambda (,omega &optional ,alpha)
+					  (if ,alpha
+					      (apl-call :fn ,(resolve-function :dyadic right-operand)
+							,omega ,alpha)
+					      (apl-call :fn ,(resolve-function :monadic right-operand)
+							,omega)))
+                                       right-operand))
 		    (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
 					     (funcall (funcall (resolve-operator :pivotal operator)
 							       ;; TODO: taking (first) of axes
