@@ -449,8 +449,7 @@
 (defun unique-mask (array)
   "Return a 1 for each value encountered the first time in an array, 0 for others. Used to implement monadic [≠ unique mask]."
   (let ((output (make-array (first (dims array)) :element-type 'bit :initial-element 1))
-	(displaced (if (< 1 (rank array)) (make-array (rest (dims array))
-						      :displaced-to array
+	(displaced (if (< 1 (rank array)) (make-array (rest (dims array)) :displaced-to array
 						      :element-type (element-type array))))
 	(uniques) (increment (reduce #'* (rest (dims array)))))
     (dotimes (x (first (dims array)))
@@ -760,7 +759,7 @@
   "Find the identity value of a lexical function based on its character."
   (second (assoc glyph `((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1)
 			 (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
-			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⊤ 0) (#\∪ #()) (#\⌽ 0) (#\⊖ 0)
+			 (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⊤ 0) (#\∪ ,(vector)) (#\⌽ 0) (#\⊖ 0)
 			 (#\⌈ ,most-negative-long-float) (#\⌊ ,most-positive-long-float))
 		 :test #'char=)))
 
@@ -815,40 +814,55 @@
   (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
 		       i (make-array nil :initial-element i))))
     (lambda (omega &optional alpha)
-      (let* ((oscalar (if (is-unitary omega) omega))
-	     (ascalar (if (is-unitary alpha) alpha))
+      (let* ((oscalar (if (= 0 (rank omega)) omega))
+	     (ascalar (if (= 0 (rank alpha)) alpha))
+             (ouvec (if (= 1 (size omega)) omega))
+	     (auvec (if (= 1 (size alpha)) alpha))
 	     (odims (dims omega)) (adims (dims alpha))
 	     (orank (rank omega)) (arank (rank alpha))
 	     (max-rank (max orank arank)))
 	(flet ((disclose-any (item)
 		 (if (not (arrayp item))
 		     item (row-major-aref item 0)))
+               (disclose-nonscalar (item)
+		 (if (or (not (arrayp item))
+                         (= 0 (rank item)))
+		     item (row-major-aref item 0)))
 	       (this-enclose (item)
 		 (if (and (vectorp item)
 			  (= 1 (size item)))
 		     item (enclose item))))
-	  (if (not (or oscalar ascalar (not alpha)
+          ;; (print (list :om omega alpha oscalar)) ; ⍴⊢¨⊂1 2 3 ⊃¨↓⍳5
+	  (if (not (or oscalar ascalar ouvec auvec (not alpha)
 		       (and (= orank arank)
 			    (loop :for da :in adims :for do :in odims :always (= da do)))))
 	      (error "Mismatched left and right arguments to [¨ each].")
 	      (let* ((output-dims (dims (if oscalar alpha omega)))
-		     (output (make-array output-dims)))
-		(if alpha (if (and oscalar ascalar)
-			      (setf (row-major-aref output 0)
-				    (funcall function-dyadic (disclose-any omega)
-					     (disclose-any alpha)))
+		     (output (if (or (arrayp alpha) (arrayp omega))
+                                 (make-array output-dims))))
+                ;; (print (list :od output-dims))
+		(if alpha (if (and (or oscalar ouvec)
+                                   (or ascalar auvec))
+			      (if output (setf (row-major-aref output 0)
+                                               (funcall function-dyadic (disclose-any omega)
+					                (disclose-any alpha)))
+                                  (setf output (funcall function-dyadic omega alpha)))
 			      (dotimes (i (size (if oscalar alpha omega))) ;; xdo
-				(setf (row-major-aref output i)
-				      (funcall function-dyadic (if oscalar (disclose oscalar)
-								   (row-major-aref omega i))
-					       (if ascalar (disclose ascalar)
-						   (row-major-aref alpha i))))))
+                                (if output
+				    (setf (row-major-aref output i)
+				          (funcall function-dyadic (if (or oscalar ouvec)
+                                                                       (disclose-any omega)
+								       (row-major-aref omega i))
+					           (if (or ascalar auvec)
+                                                       (disclose-any alpha)
+						       (row-major-aref alpha i))))
+                                    (setf output (funcall function-dyadic omega alpha)))))
 		    ;; if 0-rank array is passed, disclose its content and enclose the result of the operation
 		    (if oscalar (setq output (enclose (funcall function-monadic (disclose-any oscalar))))
 			(dotimes (i (size omega)) ;; xdo
 			  (setf (row-major-aref output i)
 				(funcall function-monadic (row-major-aref omega i))))))
-		(disclose-atom output))))))))
+		output)))))))
 
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
@@ -878,11 +892,20 @@
 					    key))))
 	(mix-arrays 1 (apply #'vector item-sets))))))
 
-(defun operate-producing-inner (right left right-glyph)
+(defun operate-producing-inner (right left right-glyph left-glyph)
   (lambda (alpha omega)
-    (array-inner-product omega alpha right left
-			 (not (of-lexicon this-idiom :scalar-functions (aref right-glyph 0))))))
-
+    (if (or (= 0 (size omega))
+            (= 0 (size alpha)))
+        (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
+            (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
+            (if (= 1 (length left-glyph))
+                ;; inner product with empty vector gives the identity of the left operand
+                (or (match-lexical-function-identity (aref left-glyph 0))
+                    (error "Left operand given to [. inner product] has no identity."))
+                (error "Left operand given to [. inner product] has no identity; not a primitive function.")))
+        (array-inner-product omega alpha right left
+			     (not (of-lexicon this-idiom :scalar-functions (aref right-glyph 0)))))))
+  
 (defun operate-composed (right right-fn-monadic right-fn-dyadic
 			 left left-fn-monadic left-fn-dyadic is-confirmed-monadic)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
@@ -994,58 +1017,65 @@
     	(setq left-fn-d nil left-fn-m nil))
     (if (and (or left-fn-d left-fn-m)
 	     (or right-fn (or (vectorp right) (not (arrayp right)))))
-	(if (and (not right-fn)
-		 (not (vectorp omega)))
-	    ;; if the right operand is a vector or scalar and the right argument is an array of rank > 1,
-	    ;; split it into its major cells as enumerated by the right operand elements
-	    (let* ((to-process (split omega 1))
-		   (output-length (size to-process)))
-	      (if (vectorp right)
-		  (dotimes (i (length right)) ;; ydo
-		    (setf (aref to-process (- (aref right i) index-origin))
-			  (if alpha (funcall left-fn-d (aref to-process (- (aref right i) index-origin)
-							     alpha))
-			      (funcall left-fn-m (aref to-process (- (aref right i) index-origin))))))
-		  (setf (aref to-process (- right index-origin))
-			(if alpha (funcall left-fn-d (aref to-process (- right index-origin) alpha))
-			    (funcall left-fn-m (aref to-process (- right index-origin))))))
-	      (mix-arrays (max 1 (1- (rank (aref to-process 0))))
-			  to-process))
-	    ;; if the right operand is a function, collect the right argument's matching elements
-	    ;; into a vector, apply the left operand function to it and assign its elements to their
-	    ;; proper places in the copied right argument array and return it
-	    (let ((true-indices (make-array (size omega) :element-type '(unsigned-byte 8) :initial-element 0))
-		  (omega-copy (copy-array omega :element-type t))
-		  (sv-length 0))
+	;; if the right operand is a function, collect the right argument's matching elements
+	;; into a vector, apply the left operand function to it and assign its elements to their
+	;; proper places in the copied right argument array and return it
+	(if right-fn
+            (let ((true-indices (make-array (size omega) :initial-element 0))
+	          (omega-copy (copy-array omega :element-type t))
+	          (sv-length 0))
 	      (dotimes (i (size omega)) ;; xdo
-		(if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
-			(and (arrayp right)
-			     (not (loop :for r :below (size right) :never (= (row-major-aref right r)
-									     ;; (row-major-aref omega i)
+	        (if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
+	        	(and (arrayp right)
+	        	     (not (loop :for r :below (size right) :never (= (row-major-aref right r)
                                                                              (+ i index-origin))))))
-		    (incf (row-major-aref true-indices i))
-		    (if (and (integerp right) (= i (- right index-origin)))
-			(incf (row-major-aref true-indices i)))))
-	      (let* ((tvix 0)
-		     (true-vector (make-array (loop :for i :across true-indices :summing i)
-					      :element-type (element-type omega))))
-		(dotimes (i (size omega))
-		  (if (/= 0 (row-major-aref true-indices i))
-		      (progn (setf (row-major-aref true-vector tvix)
-				   (row-major-aref omega i))
-			     (incf (row-major-aref true-indices i) tvix)
-			     (incf tvix))))
-		(let ((to-assign (if alpha (funcall left-fn-d true-vector alpha)
-				     (funcall left-fn-m true-vector))))
-		  (dotimes (i (size omega)) ;; xdo 
+	            (incf (row-major-aref true-indices i))
+	            (if (and (integerp right) (= i (- right index-origin)))
+	        	(incf (row-major-aref true-indices i)))))
+	      (let ((tvix 0)
+	            (true-vector (make-array (loop :for i :across true-indices :summing i)
+	        			     :element-type (element-type omega))))
+	        (dotimes (i (size omega))
+	          (if (/= 0 (row-major-aref true-indices i))
+	              (progn (setf (row-major-aref true-vector tvix)
+	        		   (row-major-aref omega i))
+	        	     (incf (row-major-aref true-indices i) tvix)
+	        	     (incf tvix))))
+	        (let ((to-assign (if alpha (funcall left-fn-d true-vector alpha)
+	        		     (funcall left-fn-m true-vector))))
+	          (dotimes (i (size omega)) ;; xdo 
 	      	    (if (/= 0 (row-major-aref true-indices i))
 	      		(setf (row-major-aref omega-copy i)
 	      		      (if (= 1 (length true-vector))
-				  ;; if there is only one true element the to-assign value is
-				  ;; the value to be assigned, not a vector of values to assign
-				  (disclose to-assign)
-				  (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
-		  omega-copy))))
+	        		  ;; if there is only one true element the to-assign value is
+	        		  ;; the value to be assigned, not a vector of values to assign
+	        		  (disclose to-assign)
+	        		  (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
+	          omega-copy)))
+            (let* ((sv-length 0)
+                   (omega-copy (copy-array omega :element-type t))
+	           (indices-adjusted (if (not (arrayp right)) (- right index-origin)
+                                         (apply-scalar (lambda (a) (- a index-origin)) right)))
+                   (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
+                                                (cons indices-adjusted
+                                                      (loop :for i :below (1- (rank omega)) :collect nil)))))
+                   (out-sub-array (if alpha (funcall left-fn-d mod-array alpha)
+	                              (funcall left-fn-m mod-array)))
+                   (omega-msc (if (not (arrayp right)) ;; size of major cell in omega
+                                  1 (first (get-dimensional-factors (dims omega)))))
+                   (osa-msc (if (not (arrayp right)) ;; ... and in processed output
+                                1 (first (get-dimensional-factors (dims out-sub-array))))))
+              (dotimes (i (size out-sub-array))
+                (multiple-value-bind (major-cell remainder) (floor i osa-msc)
+                  (let ((omega-index (+ remainder
+                                        (* omega-msc (if (not (arrayp indices-adjusted))
+                                                         (if (vectorp omega) indices-adjusted major-cell)
+                                                         (aref indices-adjusted major-cell))))))
+                    (setf (row-major-aref omega-copy omega-index)
+                          (if (and (vectorp omega) (not (arrayp indices-adjusted)))
+                              (disclose out-sub-array)
+                              (row-major-aref out-sub-array i))))))
+              omega-copy))
 	;; if the right argument is an array of rank > 1, assign the left operand values or apply the
 	;; left operand function as per choose or reach indexing
 	(nth-value

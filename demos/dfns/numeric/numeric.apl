@@ -149,13 +149,27 @@ osc ← { $[1=⍵;1;2|⍵;∇ 1+3×⍵;∇ ⍵÷2] }         ⍝ Oscillate - pro
 range ← { (⍴⍵)⍴((⍴⍺)↓⍋⍋⍺,,⍵)-⍋⍋,⍵ }          ⍝ Numeric range classification.
 
 ⍝ From http://dfns.dyalog.com/c_rational.htm
-  
+
 rational ← {                                 ⍝ Rational approximation to real ⍵.
   ⍺←⎕CT ⋄ ⎕CT←⍺                              ⍝ default comparison tolerance.
   ↑⍵ 1÷⊂1∨⍵                                  ⍝ rational pair: ⍵≡÷⌿rational ⍵.
 }
 
-⍝ TODO: get roman numeral function in
+⍝ From http://dfns.dyalog.com/c_roman.htm
+
+roman ← {                                    ⍝ Roman numeral arithmetic.
+  ⍝ bug: why does the ⎕IO need to be assigned inside these functions?
+  num←{⎕IO←0 ⋄ {⍵+.××0.5+×⍵-1↓⍵,0}(,⍉1 5∘.×10*⍳4)[7|'IVXLCDMivxlcdm'⍳⍵]}
+  fmt←{⎕IO←0 ⋄ ~∘' ',1 0 0⍉(' '⍪3 4⍴'MCXI DLV ')[(0 4 2 2⊤0 16 20 22 24 32 36 38 39 28)[;⍵⊤⍨4⍴10];]}
+
+  depth←{$[⍹≥|≡⍵;⍺⍺ ⍵;∇¨⍵]}                  ⍝ apply function ⍺⍺ at depth ⍵⍵.
+  
+  nums←num depth 1                           ⍝ arabic from roman.
+  fmts←fmt depth 0                           ⍝ roman from arabic.
+
+  $[⍬≡⍺←⍬;fmts ⍺⍺ ⌊nums ⍵;                   ⍝ monadic operand function.
+    fmts(⌊nums ⍺)⍺⍺ ⌊nums ⍵]                 ⍝ dyadic operand function.
+}
 
 ⍝ From http://dfns.dyalog.com/c_stamps.htm
 
@@ -286,7 +300,46 @@ NormRand ← {                                 ⍝ Random numbers with a normal 
   ((¯2×⍟x)*0.5)×1○○2×y                       ⍝ Box-Muller distribution
 }
 
-⍝ Get the phinary function in when possible, it's big
+⍝ From http://dfns.dyalog.com/c_phinary.htm
+
+⍝ Loose comparison tolerance is needed here, why?
+phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation of numbers ⍵.
+  ⍺←1                                        ⍝ result formatted by default.
+  P←(1+5*÷2)÷2                               ⍝ Phi.
+  $[''≡0/∊⍵;{                                ⍝ char array: inverse: phinary → decimal.
+      $[1<|≡⍵;∇¨⍵;                           ⍝ nested: decode each.
+        '¯'=⊃⍵;-∇ 1↓⍵;                       ⍝ -ive: negation of inverse of +ive.
+        a←P⊥⎕D⍳⍵~'.'                         ⍝ phi decode of ⍵.
+        a÷P*(≢⍵∪'.')-1+(,⍵)⍳'.'              ⍝ adjusted by posn of phinary point.
+       ]
+    }⍵;                                      ⍝ ⍵ is char vect phinary number.
+    0≠≡⍵;⍺ ∇¨⍵;                              ⍝ higher rank, depth: encode each.
+    ⍵<0;'¯',⍺ ∇-⍵;                           ⍝ negative.
+    num←⍵                                    ⍝ target number.
+    ⍺{                                       ⍝ format of powers of phi.
+      $[⍺=0;⍵;                               ⍝ no formatting: raw powers.
+        ⍵≡⍬;,'0';                            ⍝ '0' better than '.'.
+        fmt←⌷∘'01'∘⊂                         ⍝ format '1010...'
+        lft←(⌽⍳0⌈1+⌈/⍵)∊⍵                    ⍝ digits to the left of '.'
+        rgt←(¯1-⍳0⌈|⌊/⍵)∊⍵                   ⍝   ..      ..  right   ..
+        $[rgt∧.=0;fmt lft;                   ⍝ all +ive: no phinary point.
+          lft∧.=0;'0.',fmt rgt;              ⍝ all -ive: leading '0.'
+          (fmt lft),'.',fmt rgt              ⍝ both: point-separated digits.
+       ]]
+    }⍬{                                      ⍝ accumulated powers of phi.
+      $[num=P+.*⍺;⍺;                         ⍝ convergence: done.
+        ∆←(-⍴⍺)↑1                            ⍝ delta (1 in least sig place)
+        $[num=P+.*⍺+∆;⍺+∆;                   ⍝ (⍺+∆) convergence: done.
+          k←⌊P⍟⍵                             ⍝ next power of phi.
+          (⍺,k)∇ ⍵-P*k                       ⍝ accumlated powers of phi.
+       ]]
+    }⍵
+   ]
+}
+
+⍝ From http://dfns.dyalog.com/s_phinary.htm
+
+align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨  
   
 ⍝ From http://dfns.dyalog.com/c_root.htm
 
