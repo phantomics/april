@@ -256,8 +256,8 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
       cells←{⍺⍪hzs⍪⍵}/rows                   ⍝ joined rows: array of 2D planes
       gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                   ⍝ increasing cell gaps for higher ranks
       cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                   ⍝ vertical cell join with ⍺⍺ gap
-      ⍝ top⊃↑
-      {⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
+      ⍝ top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells
+      top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
    ]]
 }
 
