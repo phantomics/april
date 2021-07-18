@@ -3,6 +3,74 @@
 
 ⍝⍝ Graph processing
 
+⍝ From http://dfns.dyalog.com/c_assign.htm
+
+assign ← {                                   ⍝ Hungarian method cost assignment.
+  rows←{(⍴⍵)⍴(⊃⌽⍴⍵)/∨/⍵}                     ⍝ row propagation.
+  cols←{(⍴⍵)⍴∨⌿⍵}                            ⍝ column propagation.
+  first←{(⍴⍵)⍴<\,⍵}                          ⍝ first 1 in bool matrix.
+
+  step4←{⍺+⍵}                                ⍝ initialize these symbols as functions
+  step3←{⍺+⍵}
+
+  step6←{costs zeros covers←⍵                ⍝ 6: adjust cost matrix.
+    cnext←costs+⍺×¯1 1+.×0 3∘.=covers        ⍝ add and subtract minimum value.
+    znext←zeros+(×costs)-×cnext              ⍝ amended zeros marker.
+    step4 cnext znext covers                 ⍝ next step: 4.
+  }
+
+  step5←{costs zeros prime←⍵                 ⍝ 5: exchange starred zeros.
+    star←(cols prime)∧zeros=2                ⍝ next star.
+    $[~1∊star;step3 ⍺{                       ⍝ no stars: next step :3.
+        {costs ⍵}{⍵-2×⍵=3}⍵-⍺∧⍵>1            ⍝ unstarred stars; starred primes.
+      }zeros;                                ⍝ adjusted zero markers.
+      pnext←(rows star)∧zeros=3              ⍝ next prime.
+      (⍺∨pnext∨star)∇ costs zeros pnext      ⍝ ⍺-accumulated prime-star-··· path.
+     ]
+  }
+
+  step4←{costs zeros covers←⍵                ⍝ 4: adjust covering lines.
+    mask←covers=0                            ⍝ mask of uncovered elements.
+    open←1=mask×zeros                        ⍝ uncovered zeros.
+    $[~1∊open;(⌊/(,mask)/,costs)step6 ⍵;     ⍝ no uncovered zeros, next step :6.
+      prime←first open                       ⍝ choose first uncovered zero.
+      prow←rows prime                        ⍝ row containing prime.
+      star←2=zeros×prow                      ⍝ star in row containing prime.
+      $[~1∊star;prime step5{                 ⍝ no star in row, next step :5,
+        costs ⍵ prime                        ⍝ adjusted zeros matrix,
+        }zeros+2×prime;                      ⍝ new primed zero (3).
+        cnext←covers+prow-2×cols star        ⍝ adjusted covers.
+        znext←zeros⌈3×prime                  ⍝ primed zero.
+        ∇ costs znext cnext                  ⍝ adjusted zeros and covers
+       ]]
+  }
+
+  step3←{costs zeros←⍵                       ⍝ 3: cover cols with starred zeros.
+    stars←zeros=2                            ⍝ starred zeros.
+    covers←2×cols stars                      ⍝ covered cols.
+    $[~0∊covers;stars;                       ⍝ all cols covered: solution.
+      step4 costs zeros covers               ⍝ next step: 4.
+     ]
+  }
+
+  step2←{                                    ⍝ 2: mark independent zeros.
+    stars←{                                  ⍝ independent zeros.
+      $[~1∊⍵;⍺;                              ⍝ no more zeros: done.
+        next←<\<⍀⍵                           ⍝ more independent zeros.
+        mask←(rows next)∨cols next           ⍝ mask of dependent rows and cols.
+        (⍺∨next)∇ ⍵>mask                     ⍝ ⍺-accumulated star matrix.
+       ]
+    }                                       
+    zeros←{⍵+0 stars ⍵}⍵=0                   ⍝ 1=>zero, 2=>independent zero.
+    step3 ⍵ zeros                            ⍝ next step: 3.
+  }
+
+  step1←{step2↑(↓⍵)-⌊/⍵}                     ⍝ 1: reduce rows by minimum value.
+  step0←{step1(⌽⌈\⌽⍴⍵)↑⍵}                    ⍝ 0: at least as many rows as cols.
+
+  (⍴⍵)↑step0 ⍵                               ⍝ start with step 0.
+}
+
 ⍝ From http://dfns.dyalog.com/n_alists.htm
 
 gperm ← { (⊂⍵)⍳¨⍺[⍵] }                       ⍝ ⍵-permutation of vertices of graph ⍺.
@@ -92,6 +160,80 @@ dfspan ← {                                   ⍝ Depth-first spanning tree: gr
   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
 }
 
+dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
+  $[(1=≡,⍵)∨0∊⍴⍵;⎕FMT ⍵;                     ⍝ simple or empty: char matrix
+    ⍺←1 ⋄ top←'─'∘⍪⍣⍺                        ⍝ top '─' bar if ⍺
+    $[1≥⍴⍴⍵;{                                ⍝ vector or scalar:
+        bars←2{⍪(⌊/≢¨⍺ ⍵)/'│'}/⍵,0           ⍝ inter-item '│' separators
+        join←{↑,/(⌈/≢¨⍵)↑¨⍵}                 ⍝ equalised rows cell-join
+        0 ¯1↓join top¨join¨↓⍉↑⍵ bars         ⍝ join with top and separators
+      }1 ∇¨⍵;                                ⍝ vector: formatted items
+      subs←⍺ ∇¨⍵                             ⍝ higher rank: formatted items
+      rs cs←+/¨1⊂↑⍴¨subs                     ⍝ numbers of rows and cols
+      dims←(mrs←⌈/rs)∘.,mcs←⌈/⍪⍉cs           ⍝ max dimensions per row & col
+      join←{↑⍺{⍺,⍶,⍵}/⍵}                     ⍝ ⍺-join of vector ⍵
+      rows←(mrs/¨'│')join¨↓dims↑¨subs        ⍝ complete rows with '│'-separated items
+      hzs←'┼'join mcs/¨'─'                   ⍝ inter-row horizontal '─┼─' separators
+      cells←{⍺⍪hzs⍪⍵}/rows                   ⍝ joined rows: array of 2D planes
+      gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                   ⍝ increasing cell gaps for higher ranks
+      cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                   ⍝ vertical cell join with ⍺⍺ gap
+      top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
+   ]]
+}
+
+show ← {↑(⍕¨⍳⍴⍵),¨' → '∘,¨⍕¨⍵}
+  
+scc ← {                                     ⍝ Strongly connected components.
+                                            ⍝ (Tarjan)
+    T←(3/⊂0⊣¨G←⍵),1 ⍬                       ⍝ state tuple T :: C L X x S
+    C L X x S←⍳⍴T                           ⍝ access names for items of tuple T
+
+    ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                 ⍝ ⍹ at ⍺ in field ⍶ of ⍵
+    put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                 ⍝ ⍹ at ⍺ in field ⍶ of ⍵
+    Lx←L put x                              ⍝ ⍺ at x in lowlink vec :: T ← ⍺ ∇ T
+    Xx←X put x                              ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
+    x1←1+@x⊢                                ⍝ successor of index x  :: T ←   ∇ T
+    push←,¨@S                               ⍝ ⍺ pushed onto stack   :: T ← ⍺ ∇ T
+  
+    ⍺←0 ⋄ trace←{⍵⊣⎕←0 dsp ⍺,⍵}⍣(⍺≢0)       ⍝ ⍺: optional tracing   :: T ←   ∇ T  
+
+    comp←{v←⍺                               ⍝ strongly connected component
+        pops←1++/∧\v≠stk←S⊃⍵                ⍝ number of connected comps on stack
+        C∆←(1+⌈/C⊃⍵)⊣@(pops↑stk)⊢C⊃⍵        ⍝ extended strongly connected comps
+        (pops↓stk)C∆⊣@S C⊢⍵                 ⍝ reduced stack; extended comps
+    }                                       ⍝ :: T ← v ∇ T
+
+    conn←{v←⍺                               ⍝ connection of vertex v
+        T0←v trace ⍵                        ⍝ optional tracing
+        ⍝ testPrint T0
+        T1←x1 v push v Lx v Xx T0           ⍝ successor state for x S L and X
+        ⍝ testPrint T1 
+        T2←↑{w←⍺                            ⍝ edge v → w
+          min_L←{(⍺ w⊃⍵)⌊@(⊂L v)⊢⍵}       ⍝ L[v] ⌊← ⍺[w]
+          $[0=X w⊃⍵;L min_L w conn ⍵;        ⍝ w not connected: depth-first trav
+            X min_L⍣(w∊S⊃⍵)⊢⍵               ⍝ low-link if w on stack
+           ]
+        }/(⌽v⊃G),⊂T1                        ⍝ for each edge from vertex v
+        ⎕←8 6
+        root←(L v⊃T2)=X v⊃T2                ⍝ is a root vertex?
+        v comp⍣root⊢T2                      ⍝ new component if root
+    }                                       ⍝ :: T ← v ∇ T
+
+    loop←{                                  ⍝ for each vertex in graph G
+        vert←{⍺ conn⍣(0=X ⍺⊃⍵)⊢⍵}           ⍝ connection of unvisited vertex ⍺
+        ⊃vert/(⌽⍳⍴G),⊂⍵                     ⍝   for each vertex in G
+    }                                       ⍝ :: T ← ∇ T
+
+    (∪⍳⊢)C⊃loop T                           ⍝ for each vertex
+
+    ⍝ T :: C L X x S                        ⍝ state tuple
+    ⍝ C :: [x]                              ⍝ connected components vector
+    ⍝ L :: [x]                              ⍝ low-link vector
+    ⍝ X :: [x]                              ⍝ indices vector
+    ⍝ x ::  #                               ⍝ index of vertex in graph G
+    ⍝ S :: [x]                              ⍝ stack of vertices
+}
+  
 ⍝ From http://dfns.dyalog.com/c_stdists.htm
 
 stdists ← {                                  ⍝ Spanning-tree path lengths.

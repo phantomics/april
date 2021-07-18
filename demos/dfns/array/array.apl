@@ -256,7 +256,6 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
       cells←{⍺⍪hzs⍪⍵}/rows                   ⍝ joined rows: array of 2D planes
       gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                   ⍝ increasing cell gaps for higher ranks
       cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                   ⍝ vertical cell join with ⍺⍺ gap
-      ⍝ top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells
       top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
    ]]
 }
@@ -280,16 +279,45 @@ foldl ← { ↑⍺⍺⍨/(⌽⍵),⊂⍺ }                     ⍝ Fold (reduce)
 
 ⍝ From http://dfns.dyalog.com/c_in.htm
 
-in ← {                         ⍝ Locations of item ⍺ in array ⍵.
-  D←|≡item←⍺              ⍝ (depth of) sought item
-  ⍬{                      ⍝ ⍺ is pick-path
-    $[item≡⍵;,⊂⍺;          ⍝ match: path
-      D≥|≡⍵;⍬;             ⍝ give up
-      paths←⍺∘,∘⊂¨⍳⍴⍵     ⍝ extended paths
-      ⊃,/,paths ∇¨⍵       ⍝ paths in subarrays of ⍵
+in ← {                                       ⍝ Locations of item ⍺ in array ⍵.
+  D←|≡item←⍺                                 ⍝ (depth of) sought item
+  ⍬{                                         ⍝ ⍺ is pick-path
+    $[item≡⍵;,⊂⍺;                            ⍝ match: path
+      D≥|≡⍵;⍬;                               ⍝ give up
+      paths←⍺∘,∘⊂¨⍳⍴⍵                        ⍝ extended paths
+      ⊃,/,paths ∇¨⍵                          ⍝ paths in subarrays of ⍵
      ]
-  }⍵                      ⍝ ⍵ is searched-in array
+  }⍵                                         ⍝ ⍵ is searched-in array
 }
+
+⍝ From http://dfns.dyalog.com/c_list.htm
+
+list ← { ↑{⍺ ⍵}/⍵,'∘' }                      ⍝ List from vector ⍵, with '∘' as null.
+
+⍝ From http://dfns.dyalog.com/c_ltrav.htm
+
+ltrav ← {                                    ⍝ List traversal.
+  $['∘'≡head tail←⍵;⍺;                       ⍝ head and tail of list, else accumulator
+    (⍺ ⍺⍺ head)∇ tail                        ⍝ accumulated result with tail.
+   ]
+}
+
+⍝ From http://dfns.dyalog.com/s_list.htm
+
+listLength ← 0∘({⍺+1} ltrav)
+
+vectFromList ← ⍬∘({⍺,⊂⍵} ltrav)
+
+revl ← '∘'∘({⍺ ⍵}⍨ ltrav)
+
+⍝ listRmDups ← {                               ⍝ remove adjacent duplicates.
+⍝   ⍺←'∘'                                      ⍝ null accumulator.
+⍝   (a(b tail))←⍵                              ⍝ first two items.
+⍝   $[b≡'∘'; revl a ⍺;                         ⍝ b null: list expired.
+⍝     a≡b;⍺ ∇ b tail;                          ⍝ two items match: drop first one.
+⍝     a ⍺ ∇ b tail                             ⍝ accumulate first, continue.
+⍝    ]
+⍝ }
 
 ⍝ From http://dfns.dyalog.com/n_nlines.htm
 
@@ -317,6 +345,14 @@ pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
 ⍝ From http://dfns.dyalog.com/c_pred.htm
 
 pred ← { ↑⍺⍺/¨(⍺/⍳⍴⍺)⊆⍵ }                    ⍝ Partitioned reduction.
+
+⍝ From http://dfns.dyalog.com/c_rows.htm
+
+rows ← {                                     ⍝ Operand function applied to argument rows.
+  $[1<|≡⍵;∇¨⍵;                               ⍝ nested: item-wise application
+    ⍺⍺⍤1⊢⍵                                   ⍝ simple: vector-wise application
+   ]
+}
 
 ⍝ From http://dfns.dyalog.com/c_mscan.htm
 

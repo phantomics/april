@@ -472,6 +472,8 @@
 	    (is "3∊3 4 5" 1)
   	    (is "2 5 7∊1 2 3 4 5" #*110)
 	    (is "'IS' 'IT' ∊ 'THIS' 'IS' 'A' 'TEST'" #*10)
+            (is "1∊3 3⍴⍳9" 1)
+            (is "(1⍴1)∊3 3⍴⍳9" #(1))
 	    (is "∊(⊂⍬),⊂,3" #(3))))
   (⍷ (has :title "Find")
      (dyadic #'find-array)
@@ -1156,6 +1158,7 @@
   	     (is "3 4 5⍴¨3" #(#(3 3 3) #(3 3 3 3) #(3 3 3 3 3)))
   	     (is "1 ¯1⌽¨⊂⍳5" #(#(2 3 4 5 1) #(5 1 2 3 4)))
 	     (is "3+¨3 3⍴⍳9" #2A((4 5 6) (7 8 9) (10 11 12)))
+             (is "1 2 3+¨1⍴3" #(4 5 6))
 	     (is "⊃⍪/,/(⊂2 2⍴2 3 1 4){⍺+⍵××/⍴⍺}¨3 3⍴⍳9" #2A((6 7 10 11 14 15) (5 8 9 12 13 16)
 							    (18 19 22 23 26 27) (17 20 21 24 25 28)
 							    (30 31 34 35 38 39) (29 32 33 36 37 40)))
@@ -1322,7 +1325,10 @@
 					    left-fn-dyadic left-op left-axes)
 		(if right-fn-dyadic `(operate-until ,right-fn-dyadic ,(or left-fn-monadic left) ,left-fn-dyadic)
 		    `(operate-to-power (lambda () ,right)
-                                       ,(generate-function-retriever left-op left-axes)))))
+                                       ;; ,(generate-function-retriever left-op left-axes)
+                                       ,(generate-function-retriever2 left-op left-fn-monadic
+                                                                      left-fn-dyadic left-axes)
+                                       ))))
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
   	    (is "{2+⍵}⍣3⊢9" 15)
   	    (is "2{⍺×2+⍵}⍣3⊢9" 100)
@@ -1352,7 +1358,9 @@
   	    (is "{⍵×2}@{⍵>3}⍳9" #(1 2 3 8 10 12 14 16 18))
   	    (is "fn←{⍺+⍵×12} ⋄ test←{0=3|⍵} ⋄ 4 fn@test ⍳12" #(1 2 40 4 5 76 7 8 112 10 11 148))
 	    (is "∪∘1@5⊢(2 3) (3) (2 4) (1 5) (3)" #(#(2 3) 3 #(2 4) #(1 5) #(3 1)))
-            (is "(9+3 4⍴⍳12)⊣@3 2 3⊢4 4⍴⍳16" #2A((1 2 3 4) (14 15 16 17) (18 19 20 21) (13 14 15 16)))))
+            (is "(9+3 4⍴⍳12)⊣@3 2 3⊢4 4⍴⍳16" #2A((1 2 3 4) (14 15 16 17) (18 19 20 21) (13 14 15 16)))
+            (is "{1 (3 {(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵} 4) ⍵} (0 0 0) (0 0 0) (0 0 0) 1 ⍬"
+                #(#(0 0 0) #(0 0 0) #(1 0 0) 1 #()))))
   (⌺ (has :title "Stencil")
      (pivotal (with-derived-operands (right left-fn-dyadic)
 		`(operate-stenciling ,right ,left-fn-dyadic)))
@@ -1521,8 +1529,13 @@
   (for "Sub-coordinates of nested arrays." "(3 4⍴⍳9)[(1 2)(3 1)]" #(2 9))
   (for "Choose indexing of nested array sub-coordinates."
        "(3 4⍴⍳9)[2 2⍴⊂(2 3)]" #2A((7 7) (7 7)))
+  (for "Reach indexing of components within sub-vectors."
+       "(6⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[(2 1)(1 2)]" #(#0A"FEB" 1))
   (for "Reach indexing of components within sub-arrays."
        "(2 3⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[((2 3)1)((1 1)2)]" #(#0A"JUN" 1))
+  (for "Reach indexing assignment."
+       "toasn←(6⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6)) ⋄ toasn[(2 1)(1 2)]←45 67 ⋄ toasn"
+       #(#("JAN" 45) #(67 2) #("MAR" 3) #("APR" 4) #("MAY" 5) #("JUN" 6)))
   (for "Creation of empty array by passing empty vectors as indices." "(⍳3)[⍬]" #())
   (for "As above with multiple dimensions." "(⍴(5 5 5⍴1)[;⍬;2 3]),⍴(3 3⍴1)[⍬;]" #(5 0 2 0 3))
   (for "Assignment by function." "a←3 2 1 ⋄ a+←5 ⋄ a" #(8 7 6))

@@ -1432,6 +1432,7 @@
 
 (defun choose (input indices &key (set) (set-by) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
+  ;; (print (list :in input indices))
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
 	 ;; contents removed from 1-size arrays in the indices
 	 (indices (loop :for i :in indices :collect ;; (if (not (and (arrayp i) (= 1 (size i))))
@@ -1466,8 +1467,10 @@
 			     ;; or a vector, return the output, otherwise reach indexing is
 			     ;; being performed so turn on its flag and return nil
 			     (loop :for i :below (size index1) :while (not reach-indexing)
-				:do (let ((ss (rmi-from-subscript-vector
-					       input (disclose (row-major-aref index1 i)))))
+				:do (let ((ss (if (or (not (vectorp (row-major-aref index1 i)))
+                                                      (= (rank input) (length (row-major-aref index1 i))))
+                                                  (rmi-from-subscript-vector
+					           input (row-major-aref index1 i)))))
 				      (if ss (setf (aref output i) ss)
 					  (setq reach-indexing t))))
 			     (if (not reach-indexing) output))))
@@ -1524,16 +1527,27 @@
 				    (if output (setf (row-major-aref output i) result)
 					(setf (row-major-aref input i) result))
 				    (if pindices (setf (aref pindices i) 1)))
-				  (if (vectorp i) ;; this clause can only be reached when reach indexing
+				  (if (or (vectorp i) ;; this clause can only be reached when reach indexing
+                                          ;; (= 0 (rank i))
+                                          )
 				      ;; the set-by function is called on each pair of input
 				      ;; and replacement values
-				      (progn (setf (varef (or output input) i)
-						   (funcall set-by (varef input i)
-							    (or (and (arrayp set) (row-major-aref set o))
-								set)))
-					     (if pindices (setf (aref pindices
-								      (rmi-from-subscript-vector input i))
-								1)))))))
+                                      (if (= (length i) (rank input))
+				          (progn (setf (varef (or output input) i)
+						       (funcall set-by (varef input i)
+							        (or (and (arrayp set) (row-major-aref set o))
+								    set)))
+					         (if pindices (setf (aref pindices
+								          (rmi-from-subscript-vector input i))
+								    1)))
+                                          (let ((subinput (disclose (varef input (disclose (aref i 0))))))
+                                            (choose subinput (rest (array-to-list i))
+                                                    :set (if (not (vectorp set))
+                                                             set (varef set (disclose (aref i 0))))
+                                                    :modify-input t)
+                                            ;; (print (list :sub subinput set (rest (array-to-list i))))
+                                            (setf (varef input (disclose (aref i 0)))
+                                                  subinput)))))))
 		  (if set-by-function ;; TODO: enable multithreading or not based on set-by function type
 		      (dotimes (i (size input)) ;; xdo
 			(setf (row-major-aref output i)
@@ -2114,7 +2128,7 @@
 	  (let ((remaining w) (rmi 0) (valid t))
 	    (loop :for cix :below wrank :for wf :across win-factors
 	       :for oindex :in oindices :for if :across in-factors :for idim :across idims
-	       :for melem :across movement :for wdim :across window-dims ;; :while valid
+	       :for melem :across movement :for wdim :across window-dims
 	       :do (multiple-value-bind (index remainder) (floor remaining wf)
 		     (let ((this-index (+ index (- (* melem oindex)
 						   (floor (- wdim (if (evenp wdim) 1 0)) 2)))))

@@ -232,6 +232,12 @@
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
+(defmacro if-aref (symbol index)
+  "This is used to build strand assignments where a value is assigned to multiple variables if scalar."
+  `(if (not (arrayp ,symbol))
+       ,symbol (if (< ,index (length ,symbol))
+                   (aref ,symbol ,index))))
+
 (defmacro apl-assign (symbol value)
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
   (if (or (not (listp symbol))
@@ -916,6 +922,39 @@ It remains here as a standard against which to compare methods for composing APL
 		   (if (< 1 (length exps))
 		       (cons 'progn exps) (first exps)))))))
 
+(defun generate-function-retriever2 (operand function-monadic function-dyadic axes)
+  "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
+  (let ((is-dyadic (gensym)) (is-inverse (gensym)))
+    (if (or (symbolp operand) (characterp operand))
+	(let* ((dyinv-forms (resolve-function :dyadic-inverse operand axes))
+	       (left-fn-monadic
+		`(λω (apl-call ,operand ,(resolve-function :monadic operand axes) omega)))
+	       (left-fn-dyadic
+		`(λωα (apl-call ,operand ,(resolve-function :dyadic operand axes) omega alpha)))
+	       (left-fn-monadic-inverse
+		`(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
+	       (left-fn-dyadic-inverse
+		`(λωα (apl-call ,operand ,(or (getf dyinv-forms :plain)) omega alpha))))
+	  `(lambda (,is-dyadic ,is-inverse)
+	     (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
+		 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
+	(or (match operand ((list 'function (list 'inws (guard symbol (symbolp symbol))))
+			    (let ((inverse-operand
+				   `(function (inws ,(intern (concatenate
+							      'string "𝕚∇" (string symbol)))))))
+			      `(lambda (,is-dyadic ,is-inverse)
+				 (declare (ignore ,is-dyadic))
+				 (if ,is-inverse ,inverse-operand ,operand)))))
+            (match function-monadic ((list 'inws (guard symbol (symbolp symbol)))
+                                     `(lambda (,is-dyadic ,is-inverse)
+				        (declare (ignore ,is-dyadic))
+				        (if ,is-inverse nil ,function-monadic))))
+	    (let ((inverted (invert-function operand)))
+	      `(lambda (,is-dyadic ,is-inverse)
+		 (declare (ignore ,is-dyadic))
+                 ,function-monadic ,function-dyadic
+		 (if ,is-inverse ,inverted ,operand)))))))
+                 
 (defun generate-function-retriever (operand axes)
   "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
   (let ((is-dyadic (gensym)) (is-inverse (gensym)))
