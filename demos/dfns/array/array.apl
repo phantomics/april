@@ -310,14 +310,14 @@ vectFromList ← ⍬∘({⍺,⊂⍵} ltrav)
 
 revl ← '∘'∘({⍺ ⍵}⍨ ltrav)
 
-⍝ listRmDups ← {                               ⍝ remove adjacent duplicates.
-⍝   ⍺←'∘'                                      ⍝ null accumulator.
-⍝   (a(b tail))←⍵                              ⍝ first two items.
-⍝   $[b≡'∘'; revl a ⍺;                         ⍝ b null: list expired.
-⍝     a≡b;⍺ ∇ b tail;                          ⍝ two items match: drop first one.
-⍝     a ⍺ ∇ b tail                             ⍝ accumulate first, continue.
-⍝    ]
-⍝ }
+listRmDups ← {                               ⍝ remove adjacent duplicates.
+  ⍺←'∘'                                      ⍝ null accumulator.
+  (a(b tail))←⍵                              ⍝ first two items.
+  $[b≡'∘'; revl a ⍺;                         ⍝ b null: list expired.
+    a≡b;⍺ ∇ b tail;                          ⍝ two items match: drop first one.
+    a ⍺ ∇ b tail                             ⍝ accumulate first, continue.
+   ]
+}
 
 ⍝ From http://dfns.dyalog.com/n_nlines.htm
 
@@ -348,7 +348,7 @@ pred ← { ↑⍺⍺/¨(⍺/⍳⍴⍺)⊆⍵ }                    ⍝ Partitione
 
 ⍝ From http://dfns.dyalog.com/c_rows.htm
 
-rows ← {                                     ⍝ Operand function applied to argument rows.
+Rows ← {                                     ⍝ Operand function applied to argument rows.
   $[1<|≡⍵;∇¨⍵;                               ⍝ nested: item-wise application
     ⍺⍺⍤1⊢⍵                                   ⍝ simple: vector-wise application
    ]

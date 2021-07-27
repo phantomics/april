@@ -232,12 +232,6 @@
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
-(defmacro if-aref (symbol index)
-  "This is used to build strand assignments where a value is assigned to multiple variables if scalar."
-  `(if (not (arrayp ,symbol))
-       ,symbol (if (< ,index (length ,symbol))
-                   (aref ,symbol ,index))))
-
 (defmacro apl-assign (symbol value)
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
   (if (or (not (listp symbol))
@@ -252,29 +246,27 @@
 	    (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
 		`(setf ,symbol ,set-to))))
       (let ((assign-forms) (values (gensym "A"))
-	    (symbols (if (not (eql 'avector (first symbol)))
-			 symbol (rest symbol))))
-	(labels ((build-aref (symbol path)
-		   (if (not path) symbol (build-aref `(aref ,symbol ,(first path)) (rest path))))
-		 (process-symbols (sym-list &optional path)
-		   (loop :for sym :in sym-list :for sx :from 0
-		      :do (let ((path-to (cons sx path)))
-			    (if (and (listp sym) (not (eql 'inws (first sym))))
-				(process-symbols sym path-to)
-				(let ((set-to `(disclose (if (or (not (arrayp ,values)) (= 1 (size ,values)))
-							     ,values ,(build-aref values (reverse path-to))))))
-				  (setf assign-forms (cons (if (eql '⍺ sym) `(or ⍺ (setf ⍺ ,set-to))
-							       (if (eql '⍵ sym)
-								   `(error "The [⍵ right argument] cannot ~a"
-									   "have a default assignment.")
-								   `(setf ,sym ,set-to)))
-							   assign-forms))))))))
-	  (process-symbols symbols)
-	  `(let ((,values ,value))
-	     (if (and (arrayp ,values)
-		      (/= 1 (size ,values)) (/= ,(1- (length symbol)) (length ,values)))
-		 (error "Mismatched number of symbols and values for strand assignment."))
-	     ,@assign-forms ,values)))))
+            (symbols (if (not (eql 'avector (first symbol)))
+        		 symbol (rest symbol))))
+        (labels ((build-aref (symbol path)
+        	   (if (not path) symbol (build-aref `(aref ,symbol ,(first path)) (rest path))))
+        	 (process-symbols (sym-list values &optional path)
+                   (let ((this-val (gensym)))
+                     `(let ((,this-val ,values))
+        	        ,@(loop :for sym :in sym-list :for sx :from 0
+        	             :collect (let ((path-to (cons sx path)))
+        		                (if (and (listp sym) (not (eql 'inws (first sym))))
+        			            (process-symbols sym `(if (not (vectorp ,this-val))
+                                                                      ,this-val (aref ,this-val ,sx)))
+        			            (if (eql '⍺ sym)
+                                                `(or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
+                                                                   ,this-val (aref ,this-val sx))))
+        			                (if (eql '⍵ sym) `(error "The [⍵ right argument] cannot ~a"
+        					                         "have a default assignment.")
+        				            `(setf ,sym (if (not (vectorp ,this-val))
+                                                                    ,this-val (aref ,this-val ,sx))))))))
+                        ,this-val))))
+          (process-symbols symbols value)))))
 
 (defmacro apl-output (form &key (print-to) (output-printed)
 			     (print-assignment) (print-precision) (with-newline))

@@ -839,7 +839,7 @@
 		       (and (= orank arank)
 			    (loop :for da :in adims :for do :in odims :always (= da do)))))
 	      (error "Mismatched left and right arguments to [¨ each].")
-	      (let* ((output-dims (dims (if (or oscalar (and ouvec (arrayp alpha)))
+	      (let* ((output-dims (dims (if (or oscalar (and ouvec (arrayp alpha) (not ascalar)))
                                             alpha omega)))
 		     (output (if (or (arrayp alpha) (arrayp omega))
                                  (make-array output-dims))))
@@ -1019,6 +1019,7 @@
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
   (lambda (omega &optional alpha)
     (declare (ignorable alpha))
+    ;; (print (list :oa left right omega alpha))
     (if (and left (not (functionp left)))
     	(setq left-fn-d nil left-fn-m nil))
     (if (and (or left-fn-d left-fn-m)
@@ -1085,7 +1086,8 @@
 	;; if the right argument is an array of rank > 1, assign the left operand values or apply the
 	;; left operand function as per choose or reach indexing
 	(nth-value
-	 1 (choose omega (if (not right-fn)
+	 1 (choose omega
+                   (if (not right-fn)
 			     (append (list (apl-call - (scalar-function -) right index-origin))
 				     (loop :for i :below (1- (rank omega)) :collect nil)))
 		   :set (if (not (or left-fn-m left-fn-d)) left)

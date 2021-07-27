@@ -718,9 +718,20 @@
 		  (= 0 (rank input)))
 	      (not (arrayp degrees)))
          (if (> 0 degrees)
-             (make-array (abs degrees) :element-type (type-of input)
-                         :initial-element (apl-array-prototype input))
-	     (make-array degrees :element-type (type-of input) :initial-element (disclose input))))
+             (if (not (arrayp input))
+                 (make-array (abs degrees) :element-type (type-of input)
+                             :initial-element (apl-array-prototype input))
+                 (let ((output (make-array (abs degrees) :element-type (element-type input)))
+                       (initial-element (apl-array-prototype input)))
+                   (loop :for i :below (size output) :do (setf (row-major-aref output i)
+                                                               (copy-array initial-element)))
+                   output))
+	     (if (not (arrayp input))
+                 (make-array degrees :element-type (type-of input) :initial-element (disclose input))
+                 (let ((output (make-array degrees :element-type (element-type input))))
+                   (loop :for i :below (size output) :do (setf (row-major-aref output i)
+                                                               (copy-array (disclose input))))
+                   output))))
 	((and compress-mode (not (is-unitary input))
 	      (and (arrayp degrees)
                    (< 1 (size degrees))
@@ -1432,7 +1443,6 @@
 
 (defun choose (input indices &key (set) (set-by) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
-  ;; (print (list :in input indices))
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
 	 ;; contents removed from 1-size arrays in the indices
 	 (indices (loop :for i :in indices :collect ;; (if (not (and (arrayp i) (= 1 (size i))))
@@ -1540,14 +1550,15 @@
 					         (if pindices (setf (aref pindices
 								          (rmi-from-subscript-vector input i))
 								    1)))
-                                          (let ((subinput (disclose (varef input (disclose (aref i 0))))))
-                                            (choose subinput (rest (array-to-list i))
-                                                    :set (if (not (vectorp set))
-                                                             set (varef set (disclose (aref i 0))))
-                                                    :modify-input t)
-                                            ;; (print (list :sub subinput set (rest (array-to-list i))))
+                                          (let* ((subinput (disclose (varef input (disclose (aref i 0)))))
+                                                 (changed
+                                                  (nth-value
+                                                   1 (choose subinput (rest (array-to-list i))
+                                                             :set (if (not (vectorp set))
+                                                                      set (varef set (disclose (aref i 0))))
+                                                             :set-by set-by :modify-input t))))
                                             (setf (varef input (disclose (aref i 0)))
-                                                  subinput)))))))
+                                                  (or changed subinput))))))))
 		  (if set-by-function ;; TODO: enable multithreading or not based on set-by function type
 		      (dotimes (i (size input)) ;; xdo
 			(setf (row-major-aref output i)

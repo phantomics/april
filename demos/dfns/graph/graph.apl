@@ -160,6 +160,8 @@ dfspan ← {                                   ⍝ Depth-first spanning tree: gr
   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
 }
 
+⍝ From http://dfns.dyalog.com/c_dsp.htm
+  
 dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
   $[(1=≡,⍵)∨0∊⍴⍵;⎕FMT ⍵;                     ⍝ simple or empty: char matrix
     ⍺←1 ⋄ top←'─'∘⍪⍣⍺                        ⍝ top '─' bar if ⍺
@@ -181,57 +183,64 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
    ]]
 }
 
+⍝ From http://dfns.dyalog.com/s_scc.htm
+
 show ← {↑(⍕¨⍳⍴⍵),¨' → '∘,¨⍕¨⍵}
+
+pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
+  {$[1≥⍴⍵;↑,↓⍵;↑⍪/⍵,∘∇¨⍵∘~¨⍵]}⍳⍵             ⍝ short vector: done, else items prefix sub-perms of remainder.
+}     
+
+⍝ From http://dfns.dyalog.com/c_scc.htm
+
+scc ← { ⎕IO←0                                ⍝ Strongly connected components.
+                                             ⍝ (Tarjan)
+  T←(3/⊂0⊣¨G←⍵),1 ⍬                          ⍝ state tuple T :: C L X x S
+  C L X x S←⍳⍴T                              ⍝ access names for items of tuple T
+
+  ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                    ⍝ ⍹ at ⍺ in field ⍶ of ⍵
+  put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                       ⍝ ⍹ at ⍺ in field ⍶ of ⍵
+  Lx←L put x                                 ⍝ ⍺ at x in lowlink vec :: T ← ⍺ ∇ T
+  Xx←X put x                                 ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
+  x1←{1+@x⊢⍵}                                ⍝ successor of index x  :: T ←   ∇ T
+  push←,¨@S                                  ⍝ ⍺ pushed onto stack   :: T ← ⍺ ∇ T
   
-scc ← {                                     ⍝ Strongly connected components.
-                                            ⍝ (Tarjan)
-    T←(3/⊂0⊣¨G←⍵),1 ⍬                       ⍝ state tuple T :: C L X x S
-    C L X x S←⍳⍴T                           ⍝ access names for items of tuple T
+  ⍺←0 ⋄ trace←{⍵⊣⎕←0 dsp ⍺,⍵}⍣(⍺≢0)          ⍝ ⍺: optional tracing   :: T ←   ∇ T  
 
-    ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                 ⍝ ⍹ at ⍺ in field ⍶ of ⍵
-    put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                 ⍝ ⍹ at ⍺ in field ⍶ of ⍵
-    Lx←L put x                              ⍝ ⍺ at x in lowlink vec :: T ← ⍺ ∇ T
-    Xx←X put x                              ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
-    x1←1+@x⊢                                ⍝ successor of index x  :: T ←   ∇ T
-    push←,¨@S                               ⍝ ⍺ pushed onto stack   :: T ← ⍺ ∇ T
+  comp←{ v←⍺                                 ⍝ strongly connected component
+    pops←1++/∧\v≠stk←S⊃⍵                     ⍝ number of connected comps on stack
+    C∆←((1+⌈/C⊃⍵))@(pops↑stk)⊢C⊃⍵            ⍝ extended strongly connected comps
+    ((pops↓stk)C∆)@S C⊢⍵                     ⍝ reduced stack; extended comps
+  }                                          ⍝ :: T ← v ∇ T
+
+  conn←{⍵+⍺}
   
-    ⍺←0 ⋄ trace←{⍵⊣⎕←0 dsp ⍺,⍵}⍣(⍺≢0)       ⍝ ⍺: optional tracing   :: T ←   ∇ T  
+  conn←{ v←⍺                                 ⍝ connection of vertex v
+    T0←v trace ⍵                             ⍝ optional tracing
+    T1←x1 v push v Lx v Xx T0                ⍝ successor state for x S L and X
+    T2←↑{w←⍺                                 ⍝ edge v → w
+      min_L←{(⍺ w⊃⍵)⌊@(⊂L v)⊢⍵}              ⍝ L[v] ⌊← ⍺[w]
+      $[0=X w⊃⍵;L min_L w conn ⍵;            ⍝ w not connected: depth-first trav
+        X min_L⍣(w∊S⊃⍵)⊢⍵                    ⍝ low-link if w on stack
+       ]
+    }/(⌽v⊃G),⊂T1                             ⍝ for each edge from vertex v
+    root←(L v⊃T2)=X v⊃T2                     ⍝ is a root vertex?
+    v comp⍣root⊢T2                           ⍝ new component if root
+  }                                          ⍝ :: T ← v ∇ T
 
-    comp←{v←⍺                               ⍝ strongly connected component
-        pops←1++/∧\v≠stk←S⊃⍵                ⍝ number of connected comps on stack
-        C∆←(1+⌈/C⊃⍵)⊣@(pops↑stk)⊢C⊃⍵        ⍝ extended strongly connected comps
-        (pops↓stk)C∆⊣@S C⊢⍵                 ⍝ reduced stack; extended comps
-    }                                       ⍝ :: T ← v ∇ T
+  loop←{                                     ⍝ for each vertex in graph G
+    vert←{⍺ conn⍣(0=X ⍺⊃⍵)⊢⍵}                ⍝ connection of unvisited vertex ⍺
+    ⊃vert/(⌽⍳⍴G),⊂⍵                          ⍝   for each vertex in G
+  }                                          ⍝ :: T ← ∇ T
 
-    conn←{v←⍺                               ⍝ connection of vertex v
-        T0←v trace ⍵                        ⍝ optional tracing
-        ⍝ testPrint T0
-        T1←x1 v push v Lx v Xx T0           ⍝ successor state for x S L and X
-        ⍝ testPrint T1 
-        T2←↑{w←⍺                            ⍝ edge v → w
-          min_L←{(⍺ w⊃⍵)⌊@(⊂L v)⊢⍵}       ⍝ L[v] ⌊← ⍺[w]
-          $[0=X w⊃⍵;L min_L w conn ⍵;        ⍝ w not connected: depth-first trav
-            X min_L⍣(w∊S⊃⍵)⊢⍵               ⍝ low-link if w on stack
-           ]
-        }/(⌽v⊃G),⊂T1                        ⍝ for each edge from vertex v
-        ⎕←8 6
-        root←(L v⊃T2)=X v⊃T2                ⍝ is a root vertex?
-        v comp⍣root⊢T2                      ⍝ new component if root
-    }                                       ⍝ :: T ← v ∇ T
+  (∪⍳⊢)C⊃loop T                              ⍝ for each vertex
 
-    loop←{                                  ⍝ for each vertex in graph G
-        vert←{⍺ conn⍣(0=X ⍺⊃⍵)⊢⍵}           ⍝ connection of unvisited vertex ⍺
-        ⊃vert/(⌽⍳⍴G),⊂⍵                     ⍝   for each vertex in G
-    }                                       ⍝ :: T ← ∇ T
-
-    (∪⍳⊢)C⊃loop T                           ⍝ for each vertex
-
-    ⍝ T :: C L X x S                        ⍝ state tuple
-    ⍝ C :: [x]                              ⍝ connected components vector
-    ⍝ L :: [x]                              ⍝ low-link vector
-    ⍝ X :: [x]                              ⍝ indices vector
-    ⍝ x ::  #                               ⍝ index of vertex in graph G
-    ⍝ S :: [x]                              ⍝ stack of vertices
+  ⍝ T :: C L X x S                           ⍝ state tuple
+  ⍝ C :: [x]                                 ⍝ connected components vector
+  ⍝ L :: [x]                                 ⍝ low-link vector
+  ⍝ X :: [x]                                 ⍝ indices vector
+  ⍝ x ::  #                                  ⍝ index of vertex in graph G
+  ⍝ S :: [x]                                 ⍝ stack of vertices
 }
   
 ⍝ From http://dfns.dyalog.com/c_stdists.htm

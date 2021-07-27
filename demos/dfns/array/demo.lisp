@@ -70,6 +70,13 @@
                                                                "│ │ABC│ ↓1 2 3 4│ ⌽↓0│ │88 99│ │"
                                                                "│ └#──┘ └~──────┘ └└~┘ └~────┘ │"
                                                                "└∊─────────────────────────────┘"))
+         (is "↓display (⊂'ab'),¨1⍴⊂⊂,'c'" #("┌→────────────┐"
+                                            "│ ┌→────────┐ │"
+                                            "│ │     ┌→┐ │ │"
+                                            "│ │ a b │c│ │ │"
+                                            "│ │ - - └#┘ │ │"
+                                            "│ └∊────────┘ │"
+                                            "└∊────────────┘"))
          (is "↓displays 1 'a' 'abc' (2 3⍴⍳6)" #("┌→─4────────────────┐"
                                                 "│     ┌→─3┐ ┌→─2 3┐ │"
                                                 "│ 1 a │abc│ ↓1 2 3│ │"
@@ -118,9 +125,9 @@
          (is "'o'in ⍪'hello' 'world'" #(#(#*11 5) #(#(2 1) 2)))
          (is "0 in (1 1⍴⊂)⍣4⊢0" #(#(#*11 #*11 #*11 #*11)))
          (is "list 'hello'" #(#\h #(#\e #(#\l #(#\l #(#\o #\RING_OPERATOR))))))
-         (uis "length list ⎕A" 26)
+         (is "listLength list ⎕A" 26)
          (is "vectFromList list 'hello'" "hello")
-         ;; (is "vectFromList listRmDups list'Mississippi'" "Misisipi")
+         (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
 	 (is "nlines 2 3 4⍴⍳24" 7)
 	 (is "nlines 2 2 2 2⍴2" 12)
 	 (is "nlines 2 0 4⍴2" 1)
@@ -138,15 +145,15 @@
 	 (is "{⍵⍳⍵∘.{⍺⊃¨⊂⍵}⍵}↓pmat 3" #2A((1 2 3 4 5 6) (2 1 4 3 6 5)
 					  (3 5 1 6 2 4) (4 6 2 5 1 3)
 					  (5 3 6 1 4 2) (6 4 5 2 3 1)))
-         (is "{'<',⍵,'>'} rows 'ten' 'a' 'penny'" #("<ten>" "<a>" "<penny>"))
-         (is "{⍴⍵~' '} rows letterMatrices" #(#2A((3) (3) (5)) #2A((4) (4) (3)) #2A((5) (5) (4))))
-         (is "{+/⍵≠' '} rows letterMatrices" #(#(3 3 5) #(4 4 3) #(5 5 4)))
+         (is "{'<',⍵,'>'} Rows 'ten' 'a' 'penny'" #("<ten>" "<a>" "<penny>"))
          (provision "letterMatrices ← ⊂[2 3]3 3 5⍴↑'one' 'two' 'three' 'four' 'five' 'six' 'seven' 'eight' 'nine'")
-         (is "{⍵[⍋⍵]} rows letterMatrices"
+         (is "{⍴⍵~' '} Rows letterMatrices" #(#2A((3) (3) (5)) #2A((4) (4) (3)) #2A((5) (5) (4))))
+         (is "{+/⍵≠' '} Rows letterMatrices" #(#(3 3 5) #(4 4 3) #(5 5 4)))
+         (is "{⍵[⍋⍵]} Rows letterMatrices"
              #(#2A((#\  #\  #\e #\n #\o) (#\  #\  #\o #\t #\w) (#\e #\e #\h #\r #\t))
                #2A((#\  #\f #\o #\r #\u) (#\  #\e #\f #\i #\v) (#\  #\  #\i #\s #\x))
                #2A((#\e #\e #\n #\s #\v) (#\e #\g #\h #\i #\t) (#\  #\e #\i #\n #\n))))
-         (is "{+/⍵÷⍴⍵} rows 3 4 5⍴⍳60" #2A((3 8 13 18) (23 28 33 38) (43 48 53 58)))
+         (is "{+/⍵÷⍴⍵} Rows 3 4 5⍴⍳60" #2A((3 8 13 18) (23 28 33 38) (43 48 53 58)))
 	 (is "mscan ⍳10" #(1 -1 2 -2 3 -3 4 -4 5 -5))
 	 (is "dscan ⍳10" #(1 1/2 3/2 3/8 15/8 5/16 35/16 35/128 315/128 63/256))
 	 (is "+ascan⍳10" #(1 3 6 10 15 21 28 36 45 55))
@@ -154,7 +161,6 @@
 	 (is "{⍺,'-',⍵} ascan ↑('one' 'two' 'three')('un' 'deux' 'trois')('yan' 'tan' 'tethera')"
 	     #2A(("one" "one-two" "one-two-three") ("un" "un-deux" "un-deux-trois")
 		 ("yan" "yan-tan" "yan-tan-tethera")))
-         (is "")
 	 (is "2 1 2 2 1 select (1 2 3 4 5)(10 20 30 40 50)" #(10 2 30 40 5))
 	 (is "{(⎕IO+⍵=' ')select ⍵ '.'} ↑'now is' 'the time'"
 	     #2A((#\n #\o #\w #\. #\i #\s #\. #\.) (#\t #\h #\e #\. #\t #\i #\m #\e)))
