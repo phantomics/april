@@ -833,10 +833,11 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro f-lex (symbol-sets &body body)
   (destructuring-bind (ref-symbols symbols) symbol-sets
+    (declare (ignore ref-symbols))
     (let ((val (gensym)))
-      `(let* ,(append (loop :for sym :in ref-symbols :collect `(,(intern (concatenate 'string "𝕏𝔸" (string sym))
-                                                                         (package-name (symbol-package sym)))
-                                                                 (lambda (,val) (setf ,sym ,val))))
+      `(let* ,(append ;; (loop :for sym :in ref-symbols :collect `(,(intern (concatenate 'string "𝕏𝔸" (string sym))
+                      ;;                                                    (package-name (symbol-package sym)))
+                      ;;                                            (lambda (,val) (setf ,sym ,val))))
                       ;; create external assignment "𝕏𝔸" functions
                       (loop :for sym :in symbols :collect `(,sym (if (boundp ',sym) (symbol-value ',sym)))))
          ,@body))))
