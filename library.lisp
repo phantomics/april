@@ -368,7 +368,6 @@
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
   (lambda (omega alpha)
-    ;; (print (list :om omega alpha))
     (labels ((pick-point (point input)
 	       (if (is-unitary point)
 		   (let ((point (disclose point)))
@@ -1019,7 +1018,6 @@
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
   (lambda (omega &optional alpha)
     (declare (ignorable alpha))
-    ;; (print (list :oa left right omega alpha))
     (if (and left (not (functionp left)))
     	(setq left-fn-d nil left-fn-m nil))
     (if (and (or left-fn-d left-fn-m)

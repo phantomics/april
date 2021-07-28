@@ -831,17 +831,28 @@ It remains here as a standard against which to compare methods for composing APL
 		       (apply-props form properties)
 		       form))))))
 
-(defmacro f-lex (symbols &body body)
-  `(let ,(loop :for sym :in symbols :collect `(,sym (if (boundp ',sym) (symbol-value ',sym))))
-     ,@body))
+(defmacro f-lex (symbol-sets &body body)
+  (destructuring-bind (ref-symbols symbols) symbol-sets
+    (let ((val (gensym)))
+      `(let* ,(append (loop :for sym :in ref-symbols :collect `(,(intern (concatenate 'string "𝕏𝔸" (string sym))
+                                                                         (package-name (symbol-package sym)))
+                                                                 (lambda (,val) (setf ,sym ,val))))
+                      ;; create external assignment "𝕏𝔸" functions
+                      (loop :for sym :in symbols :collect `(,sym (if (boundp ',sym) (symbol-value ',sym)))))
+         ,@body))))
 
-(defun output-function (form &optional arguments assigned-symbols arg-symbols)
+(defun output-function (form &optional arguments assigned-symbols arg-symbols to-reference)
   "Express an APL inline function like {⍵+5}."
   (let ((assigned-symbols (loop :for sym :in assigned-symbols
 			     :when (not (member (string-upcase sym)
 						'("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
 						:test #'string=))
 			     :collect `(inws ,sym)))
+        (to-reference (loop :for sym :in to-reference
+			 :when (not (member (string-upcase sym)
+					    '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
+					    :test #'string=))
+			:collect `(inws ,sym)))
 	(arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
 		 ;; the latter case wraps a user-defined operator
@@ -854,7 +865,7 @@ It remains here as a standard against which to compare methods for composing APL
 		  (with (:sys-vars ,@(loop :for (key value) :on *system-variables* :by #'cddr
 					:collect `(inws ,value))))
 		,@(if (not assigned-symbols)
-		      form `((f-lex ,assigned-symbols ,@form)))))))
+		      form `((f-lex (,to-reference ,assigned-symbols) ,@form)))))))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."
