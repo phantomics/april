@@ -1199,6 +1199,7 @@
      (tests (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' 'Pear' 'Pear'
     quantities ← 12 3 2 6 8 16 7 3 ⋄ fruit {⍺ ⍵}⌸ quantities"
     	        #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" #(16))))
+            (is "{⊂⍵}⌸ quantities" #(#(1) #(2 8) #(3) #(4) #(5) #(6) #(7)))
   	    (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
   		#2A((2) (2) (1) (1))))))
 

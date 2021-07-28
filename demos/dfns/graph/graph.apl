@@ -193,7 +193,7 @@ pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
 
 ⍝ From http://dfns.dyalog.com/c_scc.htm
 
-scc ← { ⎕IO←0                                ⍝ Strongly connected components.
+scc ← {                                      ⍝ Strongly connected components.
                                              ⍝ (Tarjan)
   T←(3/⊂0⊣¨G←⍵),1 ⍬                          ⍝ state tuple T :: C L X x S
   C L X x S←⍳⍴T                              ⍝ access names for items of tuple T
@@ -241,6 +241,18 @@ scc ← { ⎕IO←0                                ⍝ Strongly connected compon
   ⍝ X :: [x]                                 ⍝ indices vector
   ⍝ x ::  #                                  ⍝ index of vertex in graph G
   ⍝ S :: [x]                                 ⍝ stack of vertices
+}
+
+⍝ From http://dfns.dyalog.com/s_scc.htm
+  
+cond ← {                                     ⍝ Condensation of graph ⍵.
+  c←scc ⍵                                    ⍝ strongly connected components
+  v←{⊂⍵}⌸c                                   ⍝ component-grouped vertex indices
+  e←c{⊂⍵}⌸⍵                                  ⍝   ..      ..      edges
+  x←∪¨(∊¨e)~¨v                               ⍝ out-of-component edges
+  m←↓∨/¨x∘.∊v                                ⍝ masks of remote vertices
+  g←m/¨⊂⍳⍴v                                  ⍝ condensed DAG
+  g v                                        ⍝ ... and contracted vertices
 }
   
 ⍝ From http://dfns.dyalog.com/c_stdists.htm
