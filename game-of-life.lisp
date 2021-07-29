@@ -39,13 +39,13 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
   (defun life (&optional new-width new-height starting-field)
     "Create or update a playfield for Conway's Game of Life."
     (setq life-array (if (or new-width (not life-array))
-			 (progn (setq life-generation -1)
-				(if starting-field (april-c "{⍺↑⍵}" starting-field
-							    (vector new-height new-width))
-				    (april-c (with (:state :index-origin 0))
-					     "{?2⍴⍨|⍺ ⍵}" (or new-width default-dimension)
-					     (or new-height new-width default-dimension))))
-			 (april-c "{⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}" life-array)))
+                         (progn (setq life-generation -1)
+                                (if starting-field (april-c "{⍺↑⍵}" starting-field
+                                                            (vector new-height new-width))
+                                    (april-c (with (:state :index-origin 0))
+                                             "{?2⍴⍨|⍺ ⍵}" (or new-width default-dimension)
+                                             (or new-height new-width default-dimension))))
+                         (april-c "{⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}" life-array)))
     (incf life-generation)
     (april-c (with (:state :index-origin 0)) "{⎕←' ⍬_║▐▀'[(0,(1+⊢/⍴⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)
     (list :generation life-generation)))

@@ -8,5 +8,5 @@
   :serial t
   :depends-on ("april" "lisp-binary")
   :components ((:file "package")
-	       (:file "setup")
+               (:file "setup")
                (:file "demo")))

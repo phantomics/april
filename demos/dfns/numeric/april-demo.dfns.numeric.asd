@@ -8,5 +8,5 @@
   :serial t
   :depends-on ("april")
   :components ((:file "package")
-	       (:file "setup")
+               (:file "setup")
                (:file "demo")))

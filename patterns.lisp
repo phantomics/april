@@ -11,8 +11,8 @@
      (assign-element plus plus-props process-function '(:glyph +)))
   (if (and iota slash plus)
       (let ((arg (gensym)) (var (gensym)))
-	(values `(lambda (,arg) (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var))
-		'(:type (:function :implicit :sum-until-pattern))))
+        (values `(lambda (,arg) (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var))
+                '(:type (:function :implicit :sum-until-pattern))))
       (values nil nil tokens)))
 
 (composer-pattern get-last-pattern (comma comma-props rotate rotate-props disclose disclose-props value)
@@ -23,10 +23,10 @@
      (assign-element value value-props process-value)) ;; doesn't work if a left arg is present
   (if (and comma rotate disclose (not value))
       (let ((input (gensym)))
-	(values `(lambda (,input)
-		   (if (not (arrayp ,input))
-   		       ,input (row-major-aref ,input (1- (array-total-size ,input)))))
-		'(:type (:function :implicit :get-last-pattern))))
+        (values `(lambda (,input)
+                   (if (not (arrayp ,input))
+                       ,input (row-major-aref ,input (1- (array-total-size ,input)))))
+                '(:type (:function :implicit :get-last-pattern))))
       (values nil nil tokens)))
 
 (composer-pattern rank-pattern (shape1 shape1-props shape2 shape2-props value)
@@ -35,13 +35,13 @@
      (assign-element value value-props process-value)) ;; doesn't work if a left arg is present
   (if (and shape1 shape2 (not value))
       (let ((input (gensym)))
-	(values `(lambda (,input) (vector (rank ,input)))
-		'(:type (:function :implicit :rank-pattern))))
+        (values `(lambda (,input) (vector (rank ,input)))
+                '(:type (:function :implicit :rank-pattern))))
       (values nil nil tokens)))
 
 (defvar *composer-optimized-opening-patterns-common*)
 
 (setq *composer-optimized-opening-patterns-common*
       '((:name :sum-until-pattern :function sum-until-pattern)
-	(:name :get-last-pattern :function get-last-pattern)
-	(:name :rank-pattern :function rank-pattern)))
+        (:name :get-last-pattern :function get-last-pattern)
+        (:name :rank-pattern :function rank-pattern)))

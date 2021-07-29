@@ -7,6 +7,6 @@
   :license "Apache-2.0"
   :serial t
   :depends-on ("cl-ppcre" "alexandria" "array-operations"
-			  "parse-number" "symbol-munger" "lparallel")
+                          "parse-number" "symbol-munger" "lparallel")
   :components ((:file "package")
                (:file "aplesque")))
