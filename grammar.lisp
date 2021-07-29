@@ -13,6 +13,7 @@
 (defun process-value (this-item properties process idiom space)
   ;; TODO: add a passthrough value mode for symbols that are being assigned!
   ;; this is the only way to get them assignable after the first time
+  ;; (print (list :prpr properties))
   (cond ((and (listp this-item)
 	      (not (member (first this-item) '(:fn :op :axes))))
 	 ;; if the item is a closure, evaluate it and return the result
@@ -124,26 +125,28 @@
 								      :lexvar-symbols)))
 						       :fn-assigned-symbols (getf (getf properties :special)
 										  :fn-assigned-symbols)
-                                                       :scoped-from-above newly-scoped)))
+                                                       ;; :scoped-from-above newly-scoped
+                                                       )))
 			        (to-hoist (loop :for symbol :in assigned-symbols
 					     :collect symbol))
-                                (to-reference (append (loop :for n :in newly-scoped
-                                                         :when (boundp (intern (string n) space)) :collect n)
-                                                      (loop :for a :in (getf (getf properties :special)
-								             :scoped-from-above)
-                                                         :when (not (boundp (intern (string a) space)))
-                                                         :collect a))))
+                                ;; (to-reference (append (loop :for n :in newly-scoped
+                                ;;                          :when (boundp (intern (string n) space)) :collect n)
+                                ;;                       (loop :for a :in (getf (getf properties :special)
+				;; 				             :scoped-from-above)
+                                ;;                          :when (not (boundp (intern (string a) space)))
+                                ;;                          :collect a)))
+                                )
                            ;; (print (list :sym (getf (getf properties :special)
 			   ;;      		   :lexvar-symbols)
                            ;;              to-hoist newly-scoped
                            ;;              (getf properties :special)
-                           ;;              :to-ref to-reference))
+                           ;;              :to-ref newly-scoped))
 			   ;; TODO: fn-assigned-symbols should not be nil but should send the properties
 			   ;; to the next level down!
 			   (values (output-function (mapcar (lambda (f) (funcall process f sub-props))
 							    fn)
 						    polyadic-args to-hoist arg-symbols
-                                                    to-reference)
+                                                    newly-scoped)
 				   (list :type '(:function :closure)
 					 :obligate-dyadic obligate-dyadic))))))
 		  (t (values nil nil))))
@@ -359,6 +362,7 @@
     ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
     ((assign-axes axes process)
      (setq prior-items items)
+     ;; (print (list :props preceding-properties))
      (assign-element function-form function-props process-function (first (last preceding-properties)))
      (if (and (not function-form)
 	      (listp (first items))
@@ -526,6 +530,12 @@
 				                ,@(if function-axes `((list ,@(first function-axes)))))))
                        ;; (funcall (inws ,(intern (concatenate 'string "𝕏𝔸" (string symbol))))
                        ;;          ,assigned)
+                       ;; (print (list :eoeo (boundp (quote (inws ,symbol)))))
+                       ;; (if (boundp (quote (inws ,symbol)))
+                       ;;     (print (setf (symbol-value (quote (inws ,symbol))) ,assigned)))
+                       (if (fboundp (quote (inws ,(intern (concatenate 'string "𝕏𝔸" (string symbol))))))
+                           (funcall (function (inws ,(intern (concatenate 'string "𝕏𝔸" (string symbol)))))
+                                    ,assigned))
                        (setq (inws ,symbol) ,assigned)
                        ;; (print (list :ss (inws ,symbol) ,assigned))
                        )
@@ -580,6 +590,7 @@
     (asop asop-props axes symbol symbol-props symbols symbols-props symbols-list preceding-type)
     ;; match a value assignment like a←1 2 3, part of an array expression
     ((setq preceding-type (getf (first preceding-properties) :type))
+     ;; (print (list :va preceding-properties))
      (if (and (eq :array (first preceding-type))
 	      (not (member :value-assignment (getf special-props :omit))))
 	 (assign-element asop asop-props process-function '(:glyph ←)))
@@ -610,14 +621,20 @@
 		  ;; collect each symbol to the left of ←, keeping them in (inws) forms if needed
       		  (loop :while symbols-present
       		     :do (multiple-value-bind (symbol-out symbol-props)
-      			     (process-value item '(:symbol-overriding t) process idiom space)
+      			     (process-value item `(:symbol-overriding t
+                                                   :special ,(getf (first (last preceding-properties))
+                                                                   :special))
+                                            process idiom space)
 			   (if (listp symbol-out)
 			       (setq symbol-out (get-symbol-list symbol-out))
 			       (if (symbolp symbol-out)
 				   (progn (if (not (member symbol-out symbols-list))
 					      (setq symbols-list (cons symbol-out symbols-list)))
 					  (if (not (member symbol-out *idiom-native-symbols*))
-					      (setq symbol-out (list 'inws symbol-out))))))
+                                              (if t; (member :top-level (getf (first (last preceding-properties))
+                                                    ;;                       :special))
+					          (setq symbol-out (list 'inws symbol-out))
+                                                  (setq symbol-out (list 'inwsl symbol-out)))))))
       			   (if (and symbol-out (or (symbolp symbol-out)
 						   (and symbol-out (listp symbol-out))))
       			       (setq items rest-items
@@ -673,11 +690,17 @@
 			   ;; enclose the symbol in (inws) so the (with-april-workspace) macro
 			   ;; will correctly intern it, unless it's one of the system variables
 			   `(apl-assign ,(if (not (and (listp symbols)
-						       (not (eql 'inws (first symbols)))))
+						       (not (or (eql 'inws (first symbols))
+                                                                ;; (eql 'inwsl (first symbols))
+                                                                ))))
 					     symbols (if (= 1 (length symbols))
 							 (first symbols)
 							 (cons 'avector symbols)))
-					,precedent)))))
+					,precedent
+                                        ;; ,(if (member :top-level (getf (first (last preceding-properties))
+                                        ;;                               :special))
+                                        ;;      :top-level)
+                                        )))))
        '(:type (:array :assigned))
        items)))
 

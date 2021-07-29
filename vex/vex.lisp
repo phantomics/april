@@ -549,6 +549,7 @@
 							 "-WORKSPACE-" (string-upcase ,ws-name))))
 			  `(if (not (find-package ,,ws-fullname))
 			       (progn (make-package ,,ws-fullname)
+			              (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
 			    	      (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
 			    			      (intern "*BRANCHES*" ,,ws-fullname)
 						      ,@(loop :for (key val)

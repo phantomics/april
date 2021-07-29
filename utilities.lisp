@@ -48,14 +48,18 @@
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
     "Macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
-    (let ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name))))
+    (let* ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name)))
+           (lex-space-name (concatenate 'string space-name "-LEX")))
       (labels ((replace-symbols (form)
 		 (loop :for item :in form :for ix :from 0
 		    :do (if (listp item)
 			    (if (and (second item) (not (third item))
 				     (symbolp (second item)) (eql 'inws (first item)))
 				(setf (nth ix form) (intern (string (second item)) space-name))
-				(replace-symbols item))
+                                (if (and (second item) (not (third item))
+				         (symbolp (second item)) (eql 'inwsl (first item)))
+                                    (setf (nth ix form) (intern (string (second item)) lex-space-name))
+				    (replace-symbols item)))
 			    (if (and (symbolp item)
 				     (string= "+WORKSPACE-NAME+" (string-upcase item)))
 				(setf (nth ix form) (intern (string-upcase name)
@@ -71,6 +75,11 @@
 			   (declare (ignore character))
 			   (list 'inws (read stream t nil t))))
 
+;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
+(set-macro-character #\𝕃 (lambda (stream character)
+			   (declare (ignore character))
+			   (list 'inwsl (read stream t nil t))))
+
 ;; printer extension to use the 𝕊 reader macro
 (set-pprint-dispatch '(cons (member inws))
 		     #'(lambda (s list)
@@ -78,6 +87,12 @@
 			     (funcall (formatter "𝕊~W") s (second list))
 			     (pprint-fill s list))))
 
+;; printer extension to use the 𝕃 reader macro
+(set-pprint-dispatch '(cons (member inwsl))
+		     #'(lambda (s list)
+			 (if (and (symbolp (second list)) (not (third list)))
+			     (funcall (formatter "𝕃~W") s (second list))
+			     (pprint-fill s list))))
 (defun load-demos ()
   "Load the April demo packages."
   (loop :for package-symbol :in *demo-packages* :do (asdf:load-system package-symbol)))
@@ -232,11 +247,12 @@
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
-(defmacro apl-assign (symbol value)
+(defmacro apl-assign (symbol value);; &optional is-toplevel)
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
   (if (or (not (listp symbol))
 	  (eql 'inws (first symbol)))
-      (let ((set-to (if (not (or (symbolp value)
+      (let ((assign-val (gensym))
+            (set-to (if (not (or (symbolp value)
 				 (and (listp value)
 				      (eql 'inws (first value)))))
 			value `(duplicate ,value))))
@@ -244,27 +260,44 @@
 	;; present; ⍵-assignment is an error. This is handled below for strand assignments.
 	(if (eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to))
 	    (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
-		`(setf ,symbol ,set-to))))
-      (let ((assign-forms) (values (gensym "A"))
+		`(progn ;; ,@(if is-toplevel
+                        ;;       (let ((core-symbol (if (not (listp symbol))
+                        ;;                              symbol (second symbol))))
+                        ;;         `((setf (symbol-function
+                        ;;                  (quote ,(intern (concatenate
+                        ;;                                   'string "𝕏𝔸" (string symbol))
+                        ;;                                  (package-name (symbol-package symbol)))))
+                        ;;                 (lambda (,assign-val)
+                        ;;                   (setf ,symbol ,assign-val))))))
+                        (setf ,symbol ,set-to)))))
+      (let ((values (gensym "A"))
             (symbols (if (not (eql 'avector (first symbol)))
         		 symbol (rest symbol))))
-        (labels ((build-aref (symbol path)
-        	   (if (not path) symbol (build-aref `(aref ,symbol ,(first path)) (rest path))))
-        	 (process-symbols (sym-list values &optional path)
-                   (let ((this-val (gensym)))
+        (labels ((process-symbols (sym-list values &optional path)
+                   (let ((this-val (gensym)) (assign-val (gensym)))
                      `(let ((,this-val ,values))
         	        ,@(loop :for sym :in sym-list :for sx :from 0
-        	             :collect (let ((path-to (cons sx path)))
-        		                (if (and (listp sym) (not (eql 'inws (first sym))))
-        			            (process-symbols sym `(if (not (vectorp ,this-val))
-                                                                      ,this-val (aref ,this-val ,sx)))
-        			            (if (eql '⍺ sym)
-                                                `(or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
-                                                                   ,this-val (aref ,this-val sx))))
-        			                (if (eql '⍵ sym) `(error "The [⍵ right argument] cannot ~a"
-        					                         "have a default assignment.")
-        				            `(setf ,sym (if (not (vectorp ,this-val))
-                                                                    ,this-val (aref ,this-val ,sx))))))))
+        	             :append (let ((path-to (cons sx path)))
+        		               (if (and (listp sym) (not (eql 'inws (first sym))))
+        			           (list (process-symbols sym `(if (not (vectorp ,this-val))
+                                                                           ,this-val (aref ,this-val ,sx))))
+        			           (if (eql '⍺ sym)
+                                               `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
+                                                                   ,this-val (aref ,this-val sx)))))
+        			               (if (eql '⍵ sym) `(error "The [⍵ right argument] cannot ~a"
+        					                        "have a default assignment.")
+        				           `(;; ,@(if is-toplevel
+                                                     ;;       `((setf (symbol-function
+                                                     ;;                (quote ,(intern
+                                                     ;;                         (concatenate
+                                                     ;;                          'string "𝕏𝔸" (string sym))
+                                                     ;;                         (package-name 𝕃
+                                                     ;;                          (symbol-package sym)))))
+                                                     ;;               (lambda
+                                                     ;;                   (,assign-val)
+                                                     ;;                 (setf ,sym ,assign-val)))))
+                                                       (setf ,sym (if (not (vectorp ,this-val))
+                                                                      ,this-val (aref ,this-val ,sx)))))))))
                         ,this-val))))
           (process-symbols symbols value)))))
 
@@ -839,7 +872,7 @@ It remains here as a standard against which to compare methods for composing APL
                       ;;                                                    (package-name (symbol-package sym)))
                       ;;                                            (lambda (,val) (setf ,sym ,val))))
                       ;; create external assignment "𝕏𝔸" functions
-                      (loop :for sym :in symbols :collect `(,sym (if (boundp ',sym) (symbol-value ',sym)))))
+               (loop :for sym :in symbols :collect `(,sym (if (boundp ',sym) (symbol-value ',sym)))))
          ,@body))))
 
 (defun output-function (form &optional arguments assigned-symbols arg-symbols to-reference)
@@ -848,13 +881,16 @@ It remains here as a standard against which to compare methods for composing APL
 			     :when (not (member (string-upcase sym)
 						'("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
 						:test #'string=))
-			     :collect `(inws ,sym)))
-        (to-reference (loop :for sym :in to-reference
-			 :when (not (member (string-upcase sym)
-					    '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
-					    :test #'string=))
-			:collect `(inws ,sym)))
+			     ;; :collect `(inwsl ,sym)
+                             :collect `(inws ,sym)
+                               ))
+        ;; (to-reference (loop :for sym :in to-reference
+	;; 		 :when (not (member (string-upcase sym)
+	;; 				    '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
+	;; 				    :test #'string=))
+	;; 		:collect `(inws ,sym)))
 	(arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+    ;; (print (list :asn assigned-symbols to-reference))
     (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
 		 ;; the latter case wraps a user-defined operator
 		 #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
