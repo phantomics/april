@@ -662,7 +662,7 @@
         (value-placeholder (gensym)))
     (labels ((val-wssym (s)
                (or (symbolp s)
-                   (and (listp s) (eql 'inws (first s))
+                   (and (listp s) (member (first s) '(inws inwsd))
                         (symbolp (second s)))))
              (sfun-aliased (symbol)
                (let ((alias-entry (get-workspace-alias space symbol)))

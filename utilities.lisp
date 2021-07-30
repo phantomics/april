@@ -836,7 +836,8 @@ It remains here as a standard against which to compare methods for composing APL
              ;; if it isn't one of the designated idiom-native symbols
              (if (or (not (symbolp item))
                      (member item *idiom-native-symbols*))
-                 item (if (member item lexical-symbols)
+                 item (if (or (member item lexical-symbols)
+                              (not (boundp (intern (string item) space))))
                           ;; if a symbol does not represent a lexical variable within the given scope,
                           ;; it must be a dynamic variable so wrap it with 𝔻
                           `(inws ,item) `(inwsd ,item))))
@@ -849,8 +850,7 @@ It remains here as a standard against which to compare methods for composing APL
                    (enclose-symbol item)))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
-                   (if (or (eql 'avector (first form))
-                           (eql 'inws (first form)))
+                   (if (member (first form) '(avector inws inwsd))
                        form (if (not (or (numberp (first form))
                                          (listp (first form))
                                          (stringp (first form))
@@ -913,12 +913,9 @@ It remains here as a standard against which to compare methods for composing APL
                              :when (not (member (string-upcase sym)
                                                 '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
                                                 :test #'string=))
-                             ;; :collect `(inwsl ,sym)
-                             :collect `(inws ,sym)
-                               ))
+                             :collect `(inws ,sym)))
         (to-reference (loop :for sym :in to-reference :collect `(inwsd ,sym)))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
-    ;; (print (list :asn assigned-symbols to-reference))
     (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                  ;; the latter case wraps a user-defined operator
                  #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)

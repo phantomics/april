@@ -119,7 +119,7 @@
                                 (sub-props (list :special
                                                  (list :lexvar-symbols
                                                        (remove-duplicates
-                                                        (append assigned-symbols
+                                                        (append assigned-symbols polyadic-args
                                                                 (getf (getf properties :special)
                                                                       :lexvar-symbols)))
                                                        :fn-assigned-symbols (getf (getf properties :special)
@@ -285,7 +285,9 @@
       (if (member :top-level (getf (first (last preceding-properties)) :special))
           (setf (getf (second special-props) :top-level) t))
       (setf (getf (second special-props) :fn-assigned-symbols)
-            (getf (getf properties :special) :fn-assigned-symbols))
+            (getf (getf properties :special) :fn-assigned-symbols)
+            (getf (second special-props) :lexvar-symbols)
+            (getf (getf properties :special) :lexvar-symbols))
       (labels ((axes-enclose (item axes)
                  (if (not axes) item (enclose-axes item axes))))
         (progn (if (and (listp item) (eql :axes (first item)))
@@ -544,7 +546,7 @@
                                       ,(funcall (lambda (form)
                                                   (if (not (or (symbolp sel-item)
                                                                (and (listp sel-item)
-                                                                    (eql 'inws (first sel-item))
+                                                                    (member (first sel-item) '(inws inwsd))
                                                                     (symbolp (second sel-item)))))
                                                       ;; the assigned value is returned at the end so
                                                       ;; things like a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
@@ -580,7 +582,9 @@
                                                                                 (setq symbols-list
                                                                                       (cons i symbols-list)))
                                                                             i)
-                                                                     (if (and (listp i) (eql 'inws (first i)))
+                                                                     (if (and (listp i)
+                                                                              (member (first i)
+                                                                                      '(inws inwsd)))
                                                                          (progn (setq symbols-list
                                                                                       (cons (second i)
                                                                                             symbols-list))
@@ -592,9 +596,9 @@
                   ;; collect each symbol to the left of ←, keeping them in (inws) forms if needed
                   (loop :while symbols-present
                      :do (multiple-value-bind (symbol-out symbol-props)
-                             (process-value item `(:symbol-overriding t
-                                                                      :special ,(getf (first (last preceding-properties))
-                                                                                      :special))
+                             (process-value item `(:symbol-overriding
+                                                   t :special ,(getf (first (last preceding-properties))
+                                                                     :special))
                                             process idiom space)
                            (if (listp symbol-out)
                                (setq symbol-out (get-symbol-list symbol-out))
@@ -602,10 +606,7 @@
                                    (progn (if (not (member symbol-out symbols-list))
                                               (setq symbols-list (cons symbol-out symbols-list)))
                                           (if (not (member symbol-out *idiom-native-symbols*))
-                                              (if t; (member :top-level (getf (first (last preceding-properties))
-                                                  ;;                       :special))
-                                                  (setq symbol-out (list 'inws symbol-out))
-                                                  (setq symbol-out (list 'inwsl symbol-out)))))))
+                                              (setq symbol-out (list 'inws symbol-out))))))
                            (if (and symbol-out (or (symbolp symbol-out)
                                                    (and symbol-out (listp symbol-out))))
                                (setq items rest-items
@@ -616,7 +617,7 @@
                            (listp (first symbols)))
                       (setq symbols (first symbols)))
                   (setq symbol (if (symbolp (first symbols))
-                                   (if (eql 'inws (first symbols))
+                                   (if (member (first symbols) '(inws inwsd))
                                        symbols (first symbols))
                                    (if (listp (first symbols))
                                        (caar symbols))))))))
@@ -661,7 +662,8 @@
                            ;; enclose the symbol in (inws) so the (with-april-workspace) macro
                            ;; will correctly intern it, unless it's one of the system variables
                            `(apl-assign ,(if (not (and (listp symbols)
-                                                       (not (or (eql 'inws (first symbols))))))
+                                                       (not (or (eql 'inws (first symbols))
+                                                                (eql 'inwsd (first symbols))))))
                                              symbols (if (= 1 (length symbols))
                                                          (first symbols)
                                                          (cons 'avector symbols)))

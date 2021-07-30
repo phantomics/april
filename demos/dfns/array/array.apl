@@ -302,6 +302,7 @@ from ← {                                     ⍝ Select (1↓⍴⍵)-cells fro
   ⍝ ~(≢⍺)≡≢⍴⍵:⎕SIGNAL 4                      ⍝ check index length.
   indx←⍺-⎕IO ⋄ ⎕IO←0                         ⍝ easier in origin 0.
   axes←+\0,¯1↓{⊃⍴⍴⍵}¨⍺                       ⍝ cumulative selection axes.
+  testPrint axes
   ↑{                                         ⍝ selection using simple index.
     indx axis←⍺                              ⍝ index and axis for selection.
     $[indx≡,⊂⍬;⍵;                            ⍝ skip: select all items.
