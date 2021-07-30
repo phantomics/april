@@ -829,14 +829,16 @@ It remains here as a standard against which to compare methods for composing APL
                            output)))
         (loop :for item :in types :when (equalp (element-type array) (second item)) :return (first item)))))
 
-(defun output-value (space form &optional properties)
+(defun output-value (space form &optional properties lexicon)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
   (labels ((enclose-symbol (item)
              ;; enclose the symbol in an (inws) form for interning in the workspace
              ;; if it isn't one of the designated idiom-native symbols
              (if (or (not (symbolp item))
                      (member item *idiom-native-symbols*))
-                 item `(inws ,item)))
+                 item
+                 (if (member item lexicon)
+                     `(inws ,item) `(inwsd ,item))))
            (apply-props (item form-props)
              (let ((form-props (if (not (listp (first form-props)))
                                    form-props (first form-props))))

@@ -322,7 +322,7 @@
         (if value-elements
             (values (axes-enclose (output-value space (if (< 1 (length value-elements))
                                                           value-elements (first value-elements))
-                                                value-props)
+                                                value-props (getf (getf properties :special) :lexvar-symbols))
                                   axes)
                     '(:type (:array :explicit))
                     items)
