@@ -327,7 +327,46 @@ X ← {                                        ⍝ Exact cover: Knuth's Algorith
    ]
 }
 
+⍝ From http://dfns.dyalog.com/s_X.htm
 
+sudokuMatrix ← {                             ⍝ Matrix for ⍵ ⍵-Sudoku puzzle.
+  z←,[⍳6],[6+⍳4]⍳10⍴⌊⍵*÷2                    ⍝ cell coordinate properties.
+  row←↓1 1 0 0 1 1 1 1 1 1/↑z                ⍝ each row must contain each number.
+  col←↓0 0 1 1 1 1 1 1 1 1/↑z                ⍝   .. col  ..  ..  ..  ..  ..  ..
+  box←↓1 0 1 0 1 1 1 1 1 1/↑z                ⍝   .. box  ..  ..  ..  ..  ..  ..
+  all←↓1 1 1 1 0 0 1 1 1 1/↑z                ⍝ each cell must contain a number.
+  same←≡/∘(1 0 0 0 1 0 0 0∘⊂)                ⍝ matching pairs.
+  same¨row,col,box,all                       ⍝ constraints matrix for ⍵ ⍵-puzzle.
+}
+
+sudokuX ← { ⎕IO←1                            ⍝ Exact cover Sudoku solver.
+  n n←⍴⍵                                     ⍝ n×n puzzle.
+  ⍺←sudokuMatrix n                           ⍝ generic ⍵×⍵ constraint matrix.
+  r←∊(⍵≠0)>(⊂⍳n)∊¨⍵                          ⍝ already placed rows.
+  m←(~r)⌿⍺                                   ⍝ reduced matrix.
+  f←X m                                      ⍝ exact cover.
+  z←(~r)\f                                   ⍝ merge of placements.
+  n n⍴z/(⍴z)⍴⍳n                              ⍝ solution matrix.
+}
+
+queensX ← {                                  ⍝ Exact cover N-Queens.
+  m←⍳3/⍵                                     ⍝ cell coordinate properties.
+  ⍝ r←=/¨1 0 1∘/¨m                           ⍝ each rank must contain one queen.
+  r←=/¨{1 0 1/⍵}¨m                           ⍝ each rank must contain one queen.
+  ⍝ f←=/¨0 1 1∘/¨m                           ⍝  ..  file  ..     ..      ..
+  f←=/¨{0 1 1/⍵}¨m                           ⍝  ..  file  ..     ..      ..
+  
+  dm←-/¨⍳2/⍵                                 ⍝ diagonals.
+  du←{⍵[⍋⍵]}∪,dm                             ⍝ unique diagnonals.
+  x←dm∘.=du                                  ⍝ left diagonals.
+  y←(⊖dm)∘.=du                               ⍝ right diagonals.
+  
+  m←,[⍳2]x,y,r,f                             ⍝ constraints matrix.
+  d←~(⍳1↓⍴m)∊⍳2×⍴du                          ⍝ mask of required cols.
+  ⍵ ⍵⍴d X m                                  ⍝ exact cover - matrix of queens.
+}
+  
+  
 ⍝⍝ Weighted graph processing
 
 wcost←{                                      ⍝ Cost vector for path ⍵ through weighted graph ⍺.

@@ -42,8 +42,8 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
   glue←{$[0=⍴⍵;⍵;↑⍺{⍺,⍶,⍵}/⍵]}               ⍝ ⍵ interspersed with ⍺s.
 
   aligned←{                                  ⍝ Alignment and centring.
-    rows cols←sepr⍴¨⍵                        ⍝ subarray dimensions.
-    sizes←(⌈/rows)∘.,⌈⌿cols                  ⍝ aligned subarray sizes.
+    Rows cols←sepr⍴¨⍵                        ⍝ subarray dimensions.
+    sizes←(⌈/Rows)∘.,⌈⌿cols                  ⍝ aligned subarray sizes.
     $[ctd=0;sizes↑¨⍵;                        ⍝ top-left alignment.
       v h←sepr⌈0.5×↑(⍴¨⍵)-sizes              ⍝ vertical and horizontal rotation.
       v⊖¨h⌽¨sizes↑¨⍵                         ⍝ centred aligned subarrays.
@@ -98,8 +98,8 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     $[dec≤0=⍴⍴⍵;⍺/¨'│─';                     ⍝ no decoration or scalar.
       cols←(×¯1↑⍴⍵)⊃'⊖→'                     ⍝ zero or more cols.
       rsig←(××/¯1↓⍴⍵)⊃'⌽↓'                   ⍝ zero or more rows.
-      rows←(¯1+3⌊⍴⍴⍵)⊃'│'rsig'⍒'             ⍝ high rank decorator overrides.
-      rows cols                              ⍝ shape decorators.
+      Rows←(¯1+3⌊⍴⍴⍵)⊃'│'rsig'⍒'             ⍝ high rank decorator overrides.
+      Rows cols                              ⍝ shape decorators.
      ]
   }
 
@@ -237,6 +237,25 @@ displayr ← { ⎕IO←0                           ⍝ Boxed display of array
   }⍵
 }
 
+⍝ From http://dfns.dyalog.com/c_dist.htm
+
+dist ← {                                     ⍝ Levenshtein distance.
+  a←(n+1)⍴(⍴⍺)+n←⍴⍵                          ⍝ first row of matrix
+  f←⍵{⌊\⍵⌊(⊃⍵),(¯1↓⍵)-1+⍺=⍶}                 ⍝ iteration step
+  z←⊃f/(⌽⍺),⊂a                               ⍝ last row of matrix
+  ⊃⌽z
+}
+
+⍝ From http://dfns.dyalog.com/s_dist.htm
+
+lcase ← {                                    ⍝ Lower-casification,
+  lc←'abcdefghijklmnopqrstuvwxyzåäöàæéñøü'   ⍝ (lower case alphabet)
+  uc←'ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖÀÆÉÑØÜ'   ⍝ (upper case alphabet)
+  (⍴⍵)⍴(lc,,⍵)[(uc,,⍵)⍳⍵]                    ⍝ ... of simple array.
+}
+
+fuzzy ← {({⍵⍳⌊/⍵}(lcase ⍺)∘dist∘lcase¨⍵)⊃⍵}
+
 ⍝ From http://dfns.dyalog.com/n_dsp.htm
 
 dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
@@ -251,9 +270,9 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
       rs cs←+/¨1⊂↑⍴¨subs                     ⍝ numbers of rows and cols
       dims←(mrs←⌈/rs)∘.,mcs←⌈/⍪⍉cs           ⍝ max dimensions per row & col
       join←{↑⍺{⍺,⍶,⍵}/⍵}                     ⍝ ⍺-join of vector ⍵
-      rows←(mrs/¨'│')join¨↓dims↑¨subs        ⍝ complete rows with '│'-separated items
+      Rows←(mrs/¨'│')join¨↓dims↑¨subs        ⍝ complete rows with '│'-separated items
       hzs←'┼'join mcs/¨'─'                   ⍝ inter-row horizontal '─┼─' separators
-      cells←{⍺⍪hzs⍪⍵}/rows                   ⍝ joined rows: array of 2D planes
+      cells←{⍺⍪hzs⍪⍵}/Rows                   ⍝ joined rows: array of 2D planes
       gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                   ⍝ increasing cell gaps for higher ranks
       cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                   ⍝ vertical cell join with ⍺⍺ gap
       top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
@@ -276,6 +295,23 @@ enlist ← {                                   ⍝ List ⍺-leaves of nested arr
 ⍝ From http://dfns.dyalog.com/n_foldl.htm
 
 foldl ← { ↑⍺⍺⍨/(⌽⍵),⊂⍺ }                     ⍝ Fold (reduce) from the left.
+
+⍝ From http://dfns.dyalog.com/c_from.htm
+
+from ← {                                     ⍝ Select (1↓⍴⍵)-cells from array ⍵.
+  ⍝ ~(≢⍺)≡≢⍴⍵:⎕SIGNAL 4                      ⍝ check index length.
+  indx←⍺-⎕IO ⋄ ⎕IO←0                         ⍝ easier in origin 0.
+  axes←+\0,¯1↓{⊃⍴⍴⍵}¨⍺                       ⍝ cumulative selection axes.
+  ↑{                                         ⍝ selection using simple index.
+    indx axis←⍺                              ⍝ index and axis for selection.
+    $[indx≡,⊂⍬;⍵;                            ⍝ skip: select all items.
+      vec←⊂[(⍳⍴⍴⍵)~axis]⍵                    ⍝ vector along given axis.
+      sel←↑indx⊃¨⊂vec                        ⍝ selection from vector.
+      pos←axis+⍳⍴⍴indx                       ⍝ selection axis positions.
+      (pos,(⍳⍴⍴sel)~pos)⍉sel                 ⍝ simple selection.
+     ]
+  }/⌽(⊂⍵),↓⍉↑indx axes                       ⍝ select along leading axes.
+}
 
 ⍝ From http://dfns.dyalog.com/c_in.htm
 
@@ -348,7 +384,7 @@ pred ← { ↑⍺⍺/¨(⍺/⍳⍴⍺)⊆⍵ }                    ⍝ Partitione
 
 ⍝ From http://dfns.dyalog.com/c_rows.htm
 
-Rows ← {                                     ⍝ Operand function applied to argument rows.
+rows ← {                                     ⍝ Operand function applied to argument rows.
   $[1<|≡⍵;∇¨⍵;                               ⍝ nested: item-wise application
     ⍺⍺⍤1⊢⍵                                   ⍝ simple: vector-wise application
    ]
