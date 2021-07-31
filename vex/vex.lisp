@@ -63,11 +63,12 @@
 (defmethod of-functions ((idiom idiom) key type)
   "Retrive one of the idiom's functions."
   (let ((function-set (idiom-functions idiom)))
-    (if type (gethash key (getf function-set type))
+    ;; copy the array so that if a part is changed downstream, the original copy will remain the same
+    (if type (copy-tree (gethash key (getf function-set type)))
         (let ((output))
           (loop :for (set-key value) :on function-set :by #'cddr :while (not output)
              :do (if (gethash key value)
-                     (setf output (gethash key value))))
+                     (setf output (copy-list (gethash key value)))))
           output))))
 
 (defgeneric of-operators (idiom key type))
@@ -78,7 +79,7 @@
         (let ((output))
           (loop :for (set-key value) :on operator-set :by #'cddr :while (not output)
              :do (if (gethash key value)
-                     (setf output (gethash key value))))
+                     (setf output (copy-array (gethash key value)))))
           output))))
 
 (defgeneric of-lexicon (idiom lexicon glyph))

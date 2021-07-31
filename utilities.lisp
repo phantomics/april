@@ -55,13 +55,11 @@
                     :do (if (listp item)
                             (if (and (second item) (not (third item))
                                      (symbolp (second item)) (member (first item) '(inws inwsd)))
-                                (setf (nth ix form) (intern (string (second item))
-                                                            (if (and inside-function
-                                                                     (not (eql 'inwsd (first item)))
-                                                                     (not (char= #\*
-                                                                                 (aref (string (second item))
-                                                                                       0))))
-                                                                lex-space-name space-name)))
+                                (setf (nth ix form)
+                                      (intern (string (second item))
+                                              (if (and inside-function (not (eql 'inwsd (first item)))
+                                                       (not (char= #\* (aref (string (second item)) 0))))
+                                                  lex-space-name space-name)))
                                 ;; don't lex-intern functions like #'𝕊|fn|
                                 (replace-symbols item (and (not (eql 'function (first item)))
                                                            (or inside-function
@@ -231,7 +229,8 @@
   "Generate a function that will populate array elements with an empty array prototype." 
   (if (and (= 0 (size input))
            (get-workspace-item-meta metadata-symbol input :eaprototype))
-      (lambda () (copy-nested-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
+      (lambda ()
+        (copy-nested-array (get-workspace-item-meta metadata-symbol input :eaprototype)))))
 
 (defun make-prototype-of (array)
   "Make a prototype version of an array; all values in the array will be blank spaces for character arrays or zeroes for other types of arrays."

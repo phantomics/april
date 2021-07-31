@@ -383,6 +383,7 @@
          ;; for boolean arrays, check whether the output will directly hold the array contents
          (output (if (not (and oscalar (or ascalar (not alpha))))
                      (make-array output-dims :element-type output-type))))
+    ;;  (if (= 0 (size output)) (set ;;;))
     (flet ((promote-or-not (item)
              ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
              (declare (dynamic-extent item))
@@ -492,7 +493,7 @@
                      new-layer)
             uniform possible-depth)))
 
-(defun section (input dimensions &key (inverse nil) (populator nil))
+(defun section (input dimensions &key (inverse) (populator))
   "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
   (if (= 0 (rank input))
       (if inverse (make-array 0)
@@ -1448,9 +1449,7 @@
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices
-         (indices (loop :for i :in indices :collect ;; (if (not (and (arrayp i) (= 1 (size i))))
-                     ;; i (row-major-aref i 0))
-                     i))
+         (indices (loop :for i :in indices :collect i))
          (index1 (first indices)) (naxes (< 1 (length indices)))
          (odims (if naxes (loop :for i :in indices :for d :in idims :for s :from 0
                              :append (let ((len (or (and (null i) (list d))
@@ -1591,7 +1590,7 @@
                                                  (rest (array-to-list i))))))))
                        output))))))
 
-(defun mix-arrays (axis input)
+(defun mix-arrays (axis input &key (populator))
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
   (if (or (not (arrayp input))
           (and (= 1 (array-total-size input))
@@ -1611,11 +1610,16 @@
                  (idims-holder (make-array max-rank :element-type 'fixnum :initial-element 0))
                  (odims-holder (make-array orank :element-type 'fixnum :fill-pointer 0))
                  (ofactors (make-array orank :element-type 'fixnum :initial-element 1)))
-
             (dotimes (ix isize)
               (let* ((i (aref input-vector ix))
                      (this-size (size i)) (this-rank (rank i)))
-                (incf total-size this-size)
+                (if (= 0 this-size)
+                    (if populator (let ((prototype (funcall populator i)))
+                                    ;; measure the array prototype if one of the elements
+                                    ;; is an empty array with a prototype
+                                    (if (arrayp prototype)
+                                        (incf total-size (setq this-size (size prototype))))))
+                    (incf total-size this-size))
                 (if (= 0 ix) (setf (aref each-interval 0) this-size)
                     (setf (aref each-interval ix) (+ this-size (aref each-interval (1- ix)))))
                 ;; find types and maximum dimensions for input sub-arrays
@@ -1677,6 +1681,11 @@
                           input-rank-delta (- max-rank this-rank)
                           input-element (aref input-vector input-index))
 
+                    (if (= 0 (size input-element))
+                        ;; find the prototype of an empty array if present
+                        (if populator (let ((prototype (funcall populator input-element)))
+                                        (if prototype (setq input-element (vector prototype))))))
+
                     ;; calculate row-major offset for outer array dimensions
                     (loop :for r :from 0 :to (- irank 2)
                        :for ifactor :in ifactors :for ofactor :across ofactors
@@ -1686,7 +1695,7 @@
 
                     (incf out-index (* remaining (aref ofactors (1- irank))))
                     (setq remaining this-index)
-
+                    
                     (if (not (arrayp input-element))
                         (setf (row-major-aref output out-index) input-element)
                         (progn

@@ -333,6 +333,14 @@
                 (integerp (first axes)))
             (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
+(defun mix-array (index-origin metadata-symbol)
+  (lambda (omega &optional axes)
+    (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
+                    (rank omega))
+                omega :populator (lambda (item)
+                                   (let ((populator (build-populator metadata-symbol item)))
+                                     (if populator (funcall populator)))))))
+
 (defun section-array (index-origin metadata-symbol &optional inverse)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
   (lambda (omega alpha &optional axes)
