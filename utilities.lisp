@@ -7,10 +7,10 @@
 
 (define-symbol-macro this-idiom *april-idiom*)
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
-(define-symbol-macro *first-axis* (if (not axes) 0 (- (first axes) index-origin)))
+(define-symbol-macro *first-axis* (if (not axes) 0 (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *last-axis* (if axes (- (first axes) index-origin)
                                      (max 0 (1- (rank omega)))))
-(define-symbol-macro *first-axis-or-nil* (if axes (- (first axes) index-origin)))
+(define-symbol-macro *first-axis-or-nil* (if axes (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
 (defvar *function-identities* nil)

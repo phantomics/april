@@ -309,7 +309,7 @@
 (defun catenate-arrays (index-origin)
   "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
   (lambda (omega alpha &optional axes)
-    (let ((axis *first-axis-or-nil*))
+    (let ((axis (disclose-atom *first-axis-or-nil*)))
       (if (and (floatp axis)
                (< double-float-epsilon (nth-value 1 (floor axis))))
           ;; laminate in the case of a fractional axis argument
@@ -853,7 +853,7 @@
                               (if output (setf (row-major-aref output 0)
                                                (funcall function-dyadic (disclose-any omega)
                                                         (disclose-any alpha)))
-                                  (setf output (funcall function-dyadic omega alpha)))
+                                  (setf output (enclose (funcall function-dyadic omega alpha))))
                               (dotimes (i (size (if (or oscalar ouvec) alpha omega))) ;; xdo
                                 (if output
                                     (setf (row-major-aref output i)

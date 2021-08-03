@@ -182,6 +182,25 @@
          (is "listLength list ⎕A" 26)
          (is "vectFromList list 'hello'" "hello")
          (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
+         (is "↓'<<*>>' showmatch '<<>> <<aa>>'" #("<<>> <<aa>>"
+                                                  "¯    ¯     "))
+         (is "↓'<<*>>' showmatch 2 2 24⍴'<<aa>>  <<>>  <<bbb>> '" #("<<aa>>  <<>>  <<bbb>> <<"
+                                                                    "¯       ¯     ¯         "
+                                                                    "aa>>  <<>>  <<bbb>> <<aa"
+                                                                    "      ¯     ¯           "
+                                                                    ">>  <<>>  <<bbb>> <<aa>>"
+                                                                    "    ¯     ¯       ¯     "
+                                                                    "  <<>>  <<bbb>> <<aa>>  "
+                                                                    "  ¯     ¯       ¯       "))
+         (is "↓'a*b*d' showmatch 'aaaabbbccd'" #("aaaabbbccd"
+                                                 "¯¯¯¯      "))
+         (is "↓'a*a' showmatch 'abracadabra'" #("abracadabra"
+                                                "¯  ¯ ¯ ¯   "))
+         (is "↓'12*56*9' showmatch ⎕D" #("0123456789"
+                                         " ¯        "))
+         (is "(2⍴¨¨'12*56*9' '*') showmatch 2⍴¨⎕D" #2A(("00" "11" "22" "33" "44" "55" "66" "77" "88" "99")
+                                                        (#\  #\MACRON #\  #\  #\  #\  #\  #\  #\  #\ )))
+         (is "'ban*and' match 'band'" #(0 0 0 0))
          (is "nlines 2 3 4⍴⍳24" 7)
          (is "nlines 2 2 2 2⍴2" 12)
          (is "nlines 2 0 4⍴2" 1)

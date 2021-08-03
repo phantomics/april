@@ -797,7 +797,7 @@
                    ;; if the input is a unitary value, just expand or replicate with that value
                    (let ((value (if (not (arrayp input)) input (row-major-aref input 0))))
                      ;; TODO: create a variant the iterates over the output
-                     (dotimes (degree (length degrees))
+                     (ydotimes output (degree (length degrees))
                        (let ((this-degree (aref degrees degree)))
                          (ydotimes output (ix this-degree)
                            (setf (row-major-aref output (+ ix (if (= 0 degree)

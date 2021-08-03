@@ -213,6 +213,13 @@ to ← { ⎕IO←0                                 ⍝ Sequence ⍺ .. ⍵
   from+step×⍳0⌈1+⌊(⍵-from)÷step+step=0       ⍝ ⍺ thru ⍵ inclusive.
 }
 
+⍝ From http://dfns.dyalog.com/s_to.htm
+  
+xTo ← {                                      ⍝ Sequence ⍺ .. ⍵
+  from step←⊂¨1 ¯1×-\2↑⍺,⍺+×⍵-⍺              ⍝ step default is +/- 1.
+  size←0⌈1+⌊⊃(⍵-from)÷step+step=0            ⍝ shape of result
+  from+step×(⍳size)-⎕IO                      ⍝ ⍺ thru ⍵ inclusive.
+}
   
 ⍝⍝ Real number processing
 

@@ -292,10 +292,6 @@ enlist ← {                                   ⍝ List ⍺-leaves of nested arr
    ]
 }
 
-⍝ From http://dfns.dyalog.com/n_foldl.htm
-
-foldl ← { ↑⍺⍺⍨/(⌽⍵),⊂⍺ }                     ⍝ Fold (reduce) from the left.
-
 ⍝ From http://dfns.dyalog.com/c_from.htm
 
 from ← {                                     ⍝ Select (1↓⍴⍵)-cells from array ⍵.
@@ -312,6 +308,10 @@ from ← {                                     ⍝ Select (1↓⍴⍵)-cells fro
      ]
   }/⌽(⊂⍵),↓⍉↑indx axes                       ⍝ select along leading axes.
 }
+
+⍝ From http://dfns.dyalog.com/n_foldl.htm
+
+foldl ← { ↑⍺⍺⍨/(⌽⍵),⊂⍺ }                     ⍝ Fold (reduce) from the left.
 
 ⍝ From http://dfns.dyalog.com/c_in.htm
 
@@ -354,6 +354,31 @@ listRmDups ← {                               ⍝ remove adjacent duplicates.
     a ⍺ ∇ b tail                             ⍝ accumulate first, continue.
    ]
 }
+
+⍝ From http://dfns.dyalog.com/c_match.htm
+
+match ← {                                    ⍝ Wildcard match.
+  p x←{⍵'*'}⍣(1=≡,⍺),⍺                       ⍝ pattern and wildcard.
+  v←1↓¨{(x≡¨⍵)⊂⍵}x,p                         ⍝ wildcard-separated segments.
+  h←↑v⍷¨⊂⍵                                   ⍝ hits, one row (leading sub-array) per segment.
+  r←0,¯1↓,↑⍴¨v                               ⍝ hit-segment rotations.
+  sl←{                                       ⍝ array shifted left.
+    a←¯1↓⍴⍵                                  ⍝ leading axes.
+    x←⌈/⍺                                    ⍝ maximum shift.
+    p←⍵,(a,x)⍴0                              ⍝ 0-padded on right.
+    s←⍉a⍴⍺                                   ⍝ sub-array of vector rotations.
+    (-(0×a),x)↓s⌽p                           ⍝ shifted array.
+  }                                          ⍝ :: r ∇ a → a
+  m←⌽∨\⌽r sl h                               ⍝ shifted mask 1 .. 1 0 .. 0
+  ↑⊃¨{                                       ⍝ filtered hits.
+    (lh lm)(und rm)←⍺ ⍵                      ⍝ left and right hits and masks.
+    (lh∧rm)lm                                ⍝ right-masked left hits.
+  }/↓⍉↑⊂⍤¯1¨h m                              ⍝ hits and masks.
+}
+
+⍝ From http://dfns.dyalog.com/s_match.htm
+
+showmatch ← {,[⍳⍴⍴⍵]⍵,[¯0.5+⍴⍴⍵](' ¯'[⎕IO+⍺ match ⍵])}
 
 ⍝ From http://dfns.dyalog.com/n_nlines.htm
 
