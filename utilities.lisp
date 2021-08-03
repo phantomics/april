@@ -1024,12 +1024,16 @@ It remains here as a standard against which to compare methods for composing APL
              (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
                  (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
         (or (match operand ((list 'function (list 'inws (guard symbol (symbolp symbol))))
-                            (let ((inverse-operand
-                                   `(function (inws ,(intern (concatenate
-                                                              'string "𝕚∇" (string symbol)))))))
+                            (let ((inverse-operand `(function (inws ,(intern (format nil "𝕚∇~a" symbol))))))
                               `(lambda (,is-dyadic ,is-inverse)
                                  (declare (ignore ,is-dyadic))
-                                 (if ,is-inverse ,inverse-operand ,operand)))))
+                                 (if ,is-inverse ,inverse-operand ,operand))))
+                   ;; handle (wrap-fn-ref) for locally-scoped functions
+                   ((list 'wrap-fn-ref (list 'inws (guard symbol (symbolp symbol))))
+                    (let ((inverse-operand `(inws ,(intern (format nil "𝕚∇~a" symbol)))))
+                      `(lambda (,is-dyadic ,is-inverse)
+                         (declare (ignore ,is-dyadic))
+                         (if ,is-inverse ,inverse-operand ,(second operand))))))
             (match function-monadic ((list 'inws (guard symbol (symbolp symbol)))
                                      `(lambda (,is-dyadic ,is-inverse)
                                         (declare (ignore ,is-dyadic))

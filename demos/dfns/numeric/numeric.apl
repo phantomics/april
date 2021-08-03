@@ -1,7 +1,7 @@
 ⍝⍝ Ported from http://dfns.dyalog.com/n_contents.htm into April APL
 
 
-⍝⍝ Natural number processing
+⍝⍝ Whole number processing
 
 ⍝ From http://dfns.dyalog.com/c_adic.htm
 
@@ -106,8 +106,6 @@ lcm ← { ⍺×⍵÷⍺ gcd ⍵ }                        ⍝ Least common multip
 
 ⍝ From http://dfns.dyalog.com/c_k6174.htm
 
-kdeco←(4/10)∘⊤⍣¯1 ⍝ TODO: figure out why this is needed
-
 k6174 ← {                                    ⍝ Kaprekar's operation.
   enco←(4/10)∘⊤                              ⍝ 4-digit encode.
   deco←enco⍣¯1                               ⍝   and decode.
@@ -115,7 +113,7 @@ k6174 ← {                                    ⍝ Kaprekar's operation.
     ⍬{                                       ⍝ starting with null sequence.
       $[⍵=⊃⌽⍺;⍺;                             ⍝ repeated items: done.
         v←{⍵[⍒⍵]}enco ⍵                      ⍝ digits in descending order.
-        (⍺,⍵)∇(kdeco v)-kdeco⌽v              ⍝ smaller to larger difference.
+        (⍺,⍵)∇(deco v)-deco⌽v                ⍝ smaller to larger difference.
        ]
      }⍵                                      ⍝ :: [#] ∇ # → [#]
    ]

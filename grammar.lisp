@@ -676,7 +676,9 @@
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (if asop (values (let* ((inverted (if (listp precedent) (invert-function precedent)))
-                          (inverted-symbol (if inverted (intern (concatenate 'string "𝕚∇" (string symbol))))))
+                          (inverted-symbol (if inverted (intern (concatenate 'string "𝕚∇" (string symbol)))))
+                          (at-top-level (member :top-level (getf (first (last preceding-properties))
+                                                                 :special))))
                      ;; dummy function initialization is carried out here as well as in the idiom's
                      ;; :lexer-postprocess method in order to catch assignments of composed functions like
                      ;; g←(3∘×); these are not recognized by :lexer-postprocess since it should not be aware
@@ -704,12 +706,12 @@
                                  (progn (set-workspace-alias space symbol precedent)
                                         (format nil "~a aliases ~a" symbol precedent))))
                          (progn (set-workspace-alias space symbol nil)
-                                `(setf ,(if (member :top-level (getf (first (last preceding-properties))
-                                                                     :special))
-                                            `(symbol-function (quote (inws ,symbol)))
+                                `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                                             `(inws ,symbol))
                                        ,precedent
-                                       ,@(if inverted `((symbol-function (quote (inws ,inverted-symbol)))
+                                       ,@(if inverted `(,(if at-top-level
+                                                             `(symbol-function (quote (inws ,inverted-symbol)))
+                                                             `(inws ,inverted-symbol))
                                                         ,inverted))))))
                    '(:type (:function :assigned)) items)))
 

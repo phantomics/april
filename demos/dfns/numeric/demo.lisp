@@ -39,7 +39,7 @@
          (is "fibonacci¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
          ;; fibs:
          (is "⌊sulFib¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
-         (is "{+/{⍵!⌽⍵}(⍳⍵)-⎕io}¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
+         (is "{+/{⍵!⌽⍵}(⍳⍵)-⎕IO}¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
          (is "⍬∘⍴∘⊃∘(⊢∘⌽∘(+\\)/)∘(,∘(⊂0 1))∘⍳¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
          (is "⌊(0.5×1+1 ¯1×5*0.5)∘{(-⌿⍺∘.*⍵)÷-/⍺} ⍳10" #(1 1 2 3 5 8 13 21 34 55))
          (is "{1∧+∘÷/0,⍵/1}¨⍳10" #(1 1 2 3 5 8 13 21 34 55))
@@ -119,7 +119,20 @@
          (is "'I'('II' 'III') +roman ('IV' 'V')'VI'" #(#("V" "VI") #("VIII" "IX")))
          (is "⊢roman 'IIIIIIIIIIIIII'" "XIV")
          (is "⊢roman'IVXCM'" "DCCCLXXXIV")
-         (is "{1999 2000 2001}roman''" #("MCMXCIX" "MM" "MMI"))
+         (is "↓⍕∘.×⍨∘{⍳⍵}roman 'X'"
+             #(" I     II     III    IV      V     VI      VII     VIII    IX     X   "
+               " II    IV     VI     VIII    X     XII     XIV     XVI     XVIII  XX  "
+               " III   VI     IX     XII     XV    XVIII   XXI     XXIV    XXVII  XXX "
+               " IV    VIII   XII    XVI     XX    XXIV    XXVIII  XXXII   XXXVI  XL  "
+               " V     X      XV     XX      XXV   XXX     XXXV    XL      XLV    L   "
+               " VI    XII    XVIII  XXIV    XXX   XXXVI   XLII    XLVIII  LIV    LX  "
+               " VII   XIV    XXI    XXVIII  XXXV  XLII    XLIX    LVI     LXIII  LXX "
+               " VIII  XVI    XXIV   XXXII   XL    XLVIII  LVI     LXIV    LXXII  LXXX"
+               " IX    XVIII  XXVII  XXXVI   XLV   LIV     LXIII   LXXII   LXXXI  XC  "
+               " X     XX     XXX    XL      L     LX      LXX     LXXX    XC     C   "))
+         (is "{1999 2000 2001} roman''" #("MCMXCIX" "MM" "MMI"))
+         (is "{1 0 ¯1} roman''" #("I" "" "MCMXCIX"))
+         (is "{3999+0 1} roman''" #("MMMCMXCIX" "M"))
          (is "⍬ sieve 2 to 100" #(2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97))
          (is "{(~v∊v∘.×v)/v←1↓⍳⍵} 100"
              #(2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71 73 79 83 89 97))
