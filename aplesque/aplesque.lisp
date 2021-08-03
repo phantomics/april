@@ -62,10 +62,20 @@
            (dotimes ,clause ,@body)
            (pdotimes ,(append clause (list nil free-threads)) ,@body)))))
 
+;; (defun duplicate (object)
+;;   "Return a copy of the argument if it is an array, otherwise pass the argument back."
+;;   (if (not (arrayp object))
+;;       object (copy-array object)))
+
 (defun duplicate (object)
   "Return a copy of the argument if it is an array, otherwise pass the argument back."
   (if (not (arrayp object))
-      object (copy-array object)))
+      object (if (array-displacement object)
+                 (multiple-value-bind (displaced-to index-offset)
+                     (array-displacement object)
+                   (make-array (dims object) :displaced-index-offset index-offset
+                               :element-type (element-type object) :displaced-to (copy-array displaced-to)))
+                 (copy-array object))))
 
 (defun get-dimensional-factors (dimensions)
   "Get the set of dimensional factors corresponding to a set of array dimensions."
@@ -365,7 +375,7 @@
       (if (and finally (functionp finally)) (funcall finally))
       (values proceeding count))))
 
-(defun apply-scalar (function omega &optional alpha axes is-boolean is-non-scalar-function)
+(defun apply-scalar (function omega &optional alpha axes is-boolean is-non-scalar-function meta-table)
   "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
   (let* ((orank (rank omega)) (arank (rank alpha))
          (axes (if axes (enclose-atom axes)))
@@ -395,8 +405,8 @@
           ;; if the function is being applied monadically, map it over the array
           ;; or recurse if an array is found inside
           (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
-                                                       (apply-scalar function oscalar alpha
-                                                                     axes is-boolean is-non-scalar-function)
+                                                       (apply-scalar function oscalar alpha axes is-boolean
+                                                                     is-non-scalar-function meta-table)
                                                        (funcall function oscalar))))
               (xdotimes output (i (size omega))
                 (setf (row-major-aref output i) (apply-scalar function (row-major-aref omega i)))))
@@ -404,8 +414,8 @@
               ;; if both arguments are scalar or 1-element, return the output of the function on both,
               ;; remembering to promote the output to the highest rank of the input, either 0 or 1 if not scalar
               (setq output (promote-or-not (if (or (arrayp oscalar) (arrayp ascalar))
-                                               (apply-scalar function oscalar ascalar
-                                                             axes is-boolean is-non-scalar-function)
+                                               (apply-scalar function oscalar ascalar axes is-boolean
+                                                             is-non-scalar-function meta-table)
                                                (funcall function oscalar ascalar))))
               (if (and is-non-scalar-function (or oempty aempty))
                   (setq output (funcall function (disclose omega) (disclose alpha)))
@@ -419,7 +429,7 @@
                             (setf (row-major-aref output i)
                                   (apply-scalar function (or oscalar (disclose (row-major-aref omega i)))
                                                 (or ascalar (disclose (row-major-aref alpha i)))
-                                                nil is-boolean is-non-scalar-function))))
+                                                nil is-boolean is-non-scalar-function meta-table))))
                       ;; if axes are given, go across the higher-ranked function and call the function on its
                       ;; elements along with the appropriate elements of the lower-ranked function
                       (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
@@ -1162,7 +1172,7 @@
          (oscalar (if (= 0 (rank omega)) (disclose omega)))
          (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
          (output (make-array (append adims odims))))
-    (xdotimes output (i (size output))
+    (dotimes (i (size output)) ;; xdo
       (setf (row-major-aref output i)
             (funcall function (or oscalar (disclose (row-major-aref omega (mod i osize))))
                      (or ascalar (disclose (row-major-aref alpha (floor i osize)))))))
@@ -1175,7 +1185,7 @@
          (interval (reduce #'* (dims original)))
          (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
                                  (butlast (dims input) (rank original))))))
-    (xdotimes output (i (size output))
+    (dotimes (i (size output)) ;; xdo
       (let ((input-index (* i (if left-original 1 interval))))
         (setf (row-major-aref output i)
               (nest (funcall function (disclose (row-major-aref input input-index))
@@ -1228,13 +1238,11 @@
   (lambda (item1 item2)
     (if (numberp item1)
         (or (characterp item2)
-            (if (= item1 item2)
-                :equal (funcall compare-by item1 item2)))
+            (if (= item1 item2) :equal (funcall compare-by item1 item2)))
         (if (characterp item1)
             (if (characterp item2)
                 (if (char= item1 item2)
-                    :equal (funcall compare-by (char-code item1)
-                                    (char-code item2))))))))
+                    :equal (funcall compare-by (char-code item1) (char-code item2))))))))
 
 (defun vector-grade (compare-by vector1 vector2 &optional index)
   "Compare two vectors by the values of each element, giving priority to elements proportional to their position in the array, as when comparing words by the alphabetical order of the letters."
@@ -1609,7 +1617,8 @@
                  (ifactor-matrix (make-array (list isize (max 0 (1- max-rank))) :element-type 'fixnum))
                  (idims-holder (make-array max-rank :element-type 'fixnum :initial-element 0))
                  (odims-holder (make-array orank :element-type 'fixnum :fill-pointer 0))
-                 (ofactors (make-array orank :element-type 'fixnum :initial-element 1)))
+                 (ofactors (make-array orank :element-type 'fixnum :initial-element 1))
+                 (array-prototypes)) ;; prototypes are assigned to this variable if they exist
             (dotimes (ix isize)
               (let* ((i (aref input-vector ix))
                      (this-size (size i)) (this-rank (rank i)))
@@ -1618,7 +1627,12 @@
                                     ;; measure the array prototype if one of the elements
                                     ;; is an empty array with a prototype
                                     (if (arrayp prototype)
-                                        (incf total-size (setq this-size (size prototype))))))
+                                        (progn (if (not array-prototypes)
+                                                   (setq array-prototypes (make-array (size input))))
+                                               ;; create vector to hold prototypes if none exists
+                                               (incf total-size (setq this-size
+                                                                      (size (setf (aref array-prototypes ix)
+                                                                                  prototype))))))))
                     (incf total-size this-size))
                 (if (= 0 ix) (setf (aref each-interval 0) this-size)
                     (setf (aref each-interval ix) (+ this-size (aref each-interval (1- ix)))))
@@ -1635,7 +1649,7 @@
                    :do (setf (row-major-aref ifactor-matrix (+ r (* ix (1- max-rank))))
                              (* (if (= i 0) 1 (row-major-aref ifactor-matrix (+ 1 r (* ix (1- max-rank)))))
                                 (aref idims-holder (- max-rank 1 i)))))))
-
+            
             ;; populate the vector of output dimensions according to the axis
             (let ((axis-index 0)
                   (outer (dims input)))
@@ -1683,8 +1697,7 @@
 
                     (if (= 0 (size input-element))
                         ;; find the prototype of an empty array if present
-                        (if populator (let ((prototype (funcall populator input-element)))
-                                        (if prototype (setq input-element (vector prototype))))))
+                        (if array-prototypes (setq input-element (vector (aref array-prototypes i)))))
 
                     ;; calculate row-major offset for outer array dimensions
                     (loop :for r :from 0 :to (- irank 2)

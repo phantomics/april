@@ -338,7 +338,6 @@
     ;; match a function like × or {⍵+10}, marking the beginning of a functional expression
     ((assign-axes axes process)
      (setq prior-items items)
-     ;; (print (list :props preceding-properties))
      (assign-element function-form function-props process-function (first (last preceding-properties)))
      (if (and (not function-form)
               (listp (first items))
@@ -563,7 +562,6 @@
     (asop asop-props axes symbol symbol-props symbols symbols-props symbols-list preceding-type)
     ;; match a value assignment like a←1 2 3, part of an array expression
     ((setq preceding-type (getf (first preceding-properties) :type))
-     ;; (print (list :va preceding-properties))
      (if (and (eq :array (first preceding-type))
               (not (member :value-assignment (getf special-props :omit))))
          (assign-element asop asop-props process-function '(:glyph ←)))

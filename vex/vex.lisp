@@ -678,8 +678,10 @@
                                         outstr)
                        (if (= 2 (length content))
                            (aref content 0)
-                           (make-array (1- (length content)) :element-type 'character
-                                       :displaced-to content))))))
+                           (if (= 1 (length content))
+                               (make-array 0 :element-type 'character)
+                               (make-array (1- (length content)) :element-type 'character
+                                           :displaced-to content)))))))
              (=vex-closure (boundary-chars &optional transform-by
                                            &key (disallow-linebreaks) (symbol-collector) (if-confirmed))
                (let* ((balance 1)

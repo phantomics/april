@@ -185,19 +185,18 @@
                       (make-array (length omega-dims)
                                   :initial-contents omega-dims :element-type (list 'integer 0 max-dim)))))))
 
-(defun reshape-array (metadata-symbol)
+(defun reshape-array ()
   "Wrap (aplesque:reshape-to-fit) so that dyadic [⍴ shape] can be implemented with the use of empty-array prototypes."
   (lambda (omega alpha)
     (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
                                             (list alpha))
-                                  :populator (build-populator metadata-symbol omega))))
+                                  :populator (build-populator omega))))
       (if (and (= 0 (size output)) (arrayp omega)
                (arrayp (row-major-aref omega 0)))
-          (set-workspace-item-meta metadata-symbol output
-                                   :eaprototype
-                                   (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
-                                                               (row-major-aref omega 0)))))
-      output)))
+          (array-setting-meta output :empty-array-prototype
+                              (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
+                                                          (row-major-aref omega 0))))
+          output))))
 
 (defun at-index (omega alpha axes index-origin &optional to-set)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
@@ -333,15 +332,15 @@
                 (integerp (first axes)))
             (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
-(defun mix-array (index-origin metadata-symbol)
+(defun mix-array (index-origin)
   (lambda (omega &optional axes)
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
                 omega :populator (lambda (item)
-                                   (let ((populator (build-populator metadata-symbol item)))
+                                   (let ((populator (build-populator item)))
                                      (if populator (funcall populator)))))))
 
-(defun section-array (index-origin metadata-symbol &optional inverse)
+(defun section-array (index-origin &optional inverse)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
   (lambda (omega alpha &optional axes)
     (let* ((alpha-index alpha)
@@ -362,16 +361,15 @@
                                                             (aref alpha ix)))))
                                        dims)
                                 alpha)
-                            :inverse inverse :populator (build-populator metadata-symbol omega))))
+                            :inverse inverse :populator (build-populator omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
       (if (and (= 0 (size output)) (not inverse)
                (arrayp omega) (arrayp (row-major-aref omega 0)))
-          (set-workspace-item-meta metadata-symbol output
-                                   :eaprototype
-                                   (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
-                                                               (row-major-aref omega 0)))))
-      output)))
+          (array-setting-meta output :empty-array-prototype
+                              (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
+                                                          (row-major-aref omega 0))))
+          output))))
 
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
@@ -385,8 +383,9 @@
                          (if (vectorp point)
                              (apply #'aref input (loop :for p :across point :collect (- p index-origin)))
                              (error "Coordinates for ⊃ must be expressed by scalars or vectors."))))
-                   ;; if there are more elements of the left argument left to go, recurse on the element designated
-                   ;; by the first element of the left argument and the remaining elements of the point
+                   ;; if there are more elements of the left argument left to go,
+                   ;; recurse on the element designated by the first element of the
+                   ;; left argument and the remaining elements of the point
                    (pick-point (if (< 2 (length point))
                                    (make-array (1- (length point))
                                                :initial-contents (loop :for i :from 1 :to (1- (length point))
@@ -396,17 +395,16 @@
       ;; TODO: swap out the vector-based point for an array-based point
       (pick-point alpha omega))))
 
-(defun expand-array (degrees input axis metadata-symbol &key (compress-mode))
+(defun expand-array (degrees input axis &key (compress-mode))
   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
   (let ((output (expand degrees input axis :compress-mode compress-mode
-                        :populator (build-populator metadata-symbol input))))
+                        :populator (build-populator input))))
     (if (and (= 0 (size output)) (arrayp input) (not (= 0 (size input)))
              (arrayp (row-major-aref input 0)))
-        (set-workspace-item-meta metadata-symbol output
-                                 :eaprototype
-                                 (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
-                                                             (row-major-aref input 0)))))
-    output))
+        (array-setting-meta output :empty-array-prototype
+                            (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
+                                                        (row-major-aref input 0))))
+        output)))
 
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."
