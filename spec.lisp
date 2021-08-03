@@ -1616,7 +1616,11 @@
        "(⊢⌽⍨¯1+⍳∘≢)5 5⍴⍳25" #2A((1 2 3 4 5) (7 8 9 10 6) (13 14 15 11 12) (19 20 16 17 18) (25 21 22 23 24)))
   (for "Recursive function." "refn←{A←⍵-1 ⋄ $[A≥0;A,refn A;0]} ⋄ refn 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
+  (for "Lateral operator defined and used within a funciton."
+       "lop←{8 ⍺⍺ 5×2+⍵} ⋄ {× lop ⍵} 5" 280)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
+  (for "Pivotal operator defined and used within a function."
+       "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ {2-pop≤⊢⍵} 3" -1)
   (for "Lateral recursive operator definition with reference to composed function."
        "rlop←{$[⍵<2000;⍵,∇ 3 ⍺⍺ 2×2+⊃⍵;⍵]} ⋄ × rlop 5" #(5 42 264 1596 9588))
   (for "Lateral recursive operator definition with self-reference."
