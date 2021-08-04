@@ -194,8 +194,7 @@
       (if (and (= 0 (size output)) (arrayp omega)
                (arrayp (row-major-aref omega 0)))
           (array-setting-meta output :empty-array-prototype
-                              (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
-                                                          (row-major-aref omega 0))))
+                              (make-prototype-of (row-major-aref omega 0)))
           output))))
 
 (defun at-index (omega alpha axes index-origin &optional to-set)
@@ -365,10 +364,10 @@
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
       (if (and (= 0 (size output)) (not inverse)
-               (arrayp omega) (arrayp (row-major-aref omega 0)))
+               (arrayp omega) (if (< 0 (size omega))
+                                  (arrayp (row-major-aref omega 0))))
           (array-setting-meta output :empty-array-prototype
-                              (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
-                                                          (row-major-aref omega 0))))
+                              (make-prototype-of (row-major-aref omega 0)))
           output))))
 
 (defun pick (index-origin)

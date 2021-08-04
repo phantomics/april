@@ -213,10 +213,10 @@
                                   :do (setf (getf (aref metadata-holder 0) key) value))
                                array)
         (let ((output)
-              (meta-array (make-array (1+ (size array)) :element-type (element-type array))))
+              (meta-array (make-array (1+ (size array)) :element-type t)))
           (setf (aref meta-array 0) data
                 output (make-array (dims array) :displaced-to meta-array
-                                   :displaced-index-offset 1 :element-type (element-type array)))
+                                   :displaced-index-offset 1 :element-type t))
           output))))
 
 ;; (defun set-workspace-item-meta (table item &rest data)

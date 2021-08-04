@@ -514,7 +514,7 @@
             (if (< 0 (size output))
                 (setf (row-major-aref output (if (< 0 (aref dimensions 0))
                                                  0 (1- (abs (aref dimensions 0)))))
-                      input))
+                      (disclose input)))
             (if (arrayp prototype)
                 (loop :for i :from 1 :to (1- (size output))
                    :do (setf (row-major-aref output i) (copy-nested-array prototype))))
@@ -526,8 +526,9 @@
                               (loop :for i :from (length dimensions) :to (1- (rank input))
                                  :collect (nth i (dims input))))
                       :element-type (if (and (< 0 (size input)) (arrayp (row-major-aref input 0)))
-                                        (element-type (aref (row-major-aref input 0)))
-                                        (assign-element-type (row-major-aref input 0))))
+                                        (element-type (row-major-aref input 0))
+                                        (if (= 0 (size input)) (element-type input)
+                                            (assign-element-type (row-major-aref input 0)))))
           (let* ((isize (size input)) (irank (rank input)) (itype (element-type input))
                  (rdiff (- irank (length dimensions)))
                  (idims (make-array irank :element-type (if (= 0 isize) t (list 'integer 0 isize))
@@ -552,7 +553,6 @@
                                            :initial-element (if (and (not populator)
                                                                      (not (arrayp fill-element)))
                                                                 fill-element))))
-
                   ;; generate dimensional factors vectors for input and output
                   (loop :for dx :below irank
                      :do (let ((d (aref idims (- irank 1 dx))))
