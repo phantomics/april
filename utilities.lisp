@@ -282,7 +282,12 @@
       (let* ((assign-val (gensym))
              (is-symbol-value (or (symbolp value)
                                   (and (listp value)
-                                       (eql 'inws (first value)))))
+                                       (or (member (first value) '(inws inwsd))
+                                           ;; remember to duplicate an assigned symbol as well
+                                           (and (eql 'apl-assign (first value))
+                                                (or (symbolp (second value))
+                                                    (and (listp (second value))
+                                                         (member (second value) '(inws inwsd)))))))))
              (set-to (if (not is-symbol-value) value `(duplicate ,value))))
         ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
         ;; present; ⍵-assignment is an error. This is handled below for strand assignments.

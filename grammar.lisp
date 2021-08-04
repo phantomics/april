@@ -412,12 +412,13 @@
                                                           :fn-assigned-symbols)))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values (list 'apl-compose :op (if (member symbol-referenced
-                                                   (getf (getf properties :special) :fn-assigned-symbols))
-                                           ;; wrap the symbol correctly depending on whether
-                                           ;; it's lexically or dynamically bound
-                                           (list 'inws symbol-referenced)
-                                           (list 'inwsd symbol-referenced))
+        (values (list 'apl-compose :op ;; (if (member symbol-referenced
+                                       ;;             (getf (getf properties :special) :fn-assigned-symbols))
+                                       ;;     ;; wrap the symbol correctly depending on whether
+                                       ;;     ;; it's lexically or dynamically bound
+                                       ;;     (list 'inws symbol-referenced)
+                                       ;;     (list 'inwsd symbol-referenced))
+                      (list 'inws symbol-referenced)
                       (if (listp operand-form)
                           operand-form
                           (if (characterp operand-form)
@@ -992,11 +993,13 @@
                                                        operator
                                                        ;; wrap the symbol correctly depending on whether
                                                        ;; it's lexically or dynamically bound
-                                                       (if (member operator
-                                                                   (getf (getf properties :special)
-                                                                         :fn-assigned-symbols))
-                                                           (list 'inws operator)
-                                                           (list 'inwsd operator))))
+                                                       ;; (if (member operator
+                                                       ;;             (getf (getf properties :special)
+                                                       ;;                   :fn-assigned-symbols))
+                                                       ;;     (list 'inws operator)
+                                                       ;;     (list 'inwsd operator))
+                                                       (list 'inws operator)
+                                                       ))
                                   ,(if (characterp left-operand)
                                        `(lambda (,omega &optional ,alpha)
                                           (if ,alpha
