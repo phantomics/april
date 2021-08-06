@@ -134,47 +134,7 @@
                       (loop :for (key value) :on *system-variables* :by #'cddr
                          :collect (list (intern (string-upcase key) *package-name-string*)
                                         (or (getf state key) `(inws ,value))))))
-            :lexer-postprocess
-            (lambda (tokens idiom space)
-              ;; currently, this function is used to initialize function and variable references
-              ;; in the workspace before compilation is performed so that recursive
-              ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
-              (match tokens
-                ((list (guard fn-form (and (listp fn-form)
-                                           (eq :fn (first fn-form))
-                                           (listp (second fn-form))))
-                       '(:fn #\←) (guard symbol (and (symbolp symbol)
-                                                     (not (member symbol '(⍺⍺ ⍵⍵))))))
-                 (if (is-workspace-value symbol)
-                     (makunbound (intern (string symbol) space)))
-                 (if (not (fboundp (intern (string symbol) space)))
-                     (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)))
-                ((list (guard op-form (and (listp op-form)
-                                           (eq :op (first op-form))
-                                           (listp (second op-form))))
-                       '(:fn #\←) (guard symbol (or (and (symbolp symbol)
-                                                         (not (member symbol '(⍺⍺ ⍵⍵)))))))
-                 (let ((fn-symbol (intern (string symbol) space))
-                       (symbol (intern (concatenate 'string
-                                                    (if (eq :lateral (getf (second op-form) :valence))
-                                                        "𝕆𝕃∇" "𝕆ℙ∇")
-                                                    (string symbol))
-                                       space)))
-                   ;; if the symbol is already bound as a regular function, unbind it
-                   (if (fboundp fn-symbol) (fmakunbound fn-symbol))
-                   (if (not (fboundp symbol))
-                       (setf (symbol-function symbol) #'dummy-nargument-function)))))
-              (labels ((processor (&optional valence)
-                         (lambda (token list index)
-                           (if (eql '∇∇ token)
-                               (setf (nth index list) (list :op valence '∇∇))
-                               (if (and (listp token) (listp (second token))
-                                        (third token))
-                                   (assign-self-refs-among-tokens
-                                    (third token)
-                                    (processor (getf (second token) :valence))))))))
-                (assign-self-refs-among-tokens tokens (processor)))
-              tokens)
+            :lexer-postprocess #'lexer-postprocess
             :postprocess-compiled
             (lambda (state &rest inline-arguments)
               (lambda (form)

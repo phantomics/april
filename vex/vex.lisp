@@ -759,25 +759,26 @@
                        (parse lines (=vex-string idiom nil meta))
                      (process-lines remaining (append output (if out (list out)))
                                     meta))))
-             (handle-axes (symbol-collector)
+             (handle-axes () ;; (symbol-collector)
                (lambda (input-string)
                  (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
                                             input-string))
                         (each-axis-code (loop :for axis :in each-axis :collect
                                              (let ((output (process-lines axis)))
-                                               (funcall symbol-collector (second output))
+                                               ;; (funcall symbol-collector (second output))
                                                (first output)))))
                    (cons :axes each-axis-code))))
              (handle-function (input-string)
+               ;; TODO: this is APL-specific, move to spec
                (destructuring-bind (content meta) (process-lines input-string)
-                 (let* ((is-operator (intersection '("⍶" "⍹" "⍺⍺" "⍵⍵") (getf meta :symbols)
-                                                   :test (lambda (a b) (string= a (string b)))))
-                        (is-operator-pivotal (or (member "⍹" is-operator :test #'string=)
-                                                 (member "⍵⍵" is-operator :test #'string=))))
-                   (if (and is-operator (not (getf meta :valence)))
-                       (setf (getf meta :valence) (if is-operator-pivotal :pivotal :lateral)))
-                   (list (if is-operator :op :fn)
-                         meta content)))))
+                 ;; (let* ((is-operator (intersection '("⍶" "⍹" "⍺⍺" "⍵⍵") (getf meta :symbols)
+                 ;;                                   :test (lambda (a b) (string= a (string b)))))
+                 ;;        (is-operator-pivotal (or (member "⍹" is-operator :test #'string=)
+                 ;;                                 (member "⍵⍵" is-operator :test #'string=))))
+                 ;;   (if (and is-operator (not (getf meta :valence)))
+                 ;;       (setf (getf meta :valence) (if is-operator-pivotal :pivotal :lateral)))
+                 ;; (if is-operator :op :fn)
+                 (list :fn (cons :meta meta) content))))
 
       (let ((olnchar) (symbols) (is-function-closure))
         ;; the olnchar variable is needed to handle characters that may be functional or part
@@ -800,11 +801,13 @@
           (=destructure (_ item _ break rest)
               (=list (%any (?blank-character))
                      (%or (=vex-closure "()" nil :disallow-linebreaks "{}"
-                                        :symbol-collector
-                                        (lambda (meta) (setf symbols (append symbols (getf meta :symbols)))))
+                                        ;; :symbol-collector
+                                        ;; (lambda (meta) (setf symbols (append symbols (getf meta :symbols))))
+                                        )
                           (=vex-closure "[]" (handle-axes
-                                              (lambda (meta) (setf symbols
-                                                                   (append symbols (getf meta :symbols))))))
+                                              ;; (lambda (meta) (setf symbols
+                                              ;;                      (append symbols (getf meta :symbols))))
+                                              ))
                           (=vex-closure "{}" #'handle-function
                                         :if-confirmed (lambda () (setq is-function-closure t)))
                           (=vex-errant-closing-character ")]}([{")
@@ -856,26 +859,27 @@
                      (%any (?blank-character))
                      (=subseq (%any (?newline-character)))
                      (=subseq (%any (?satisfies 'characterp))))
-            (if (or symbols (member :symbols special-precedent))
-                (progn (setf (getf special-precedent :symbols)
-                             (append symbols (getf special-precedent :symbols)))
-                       ;; don't collect internal symbols within a set of axes; this
-                       ;; prevents problems with cases like refn←{A←⍵-1 ⋄ $[A≥0;A,refn A;0]} ⋄ refn 5
-                       (if is-function-closure
-                           (setf (getf special-precedent :internal-symbols)
-                                 (intersection symbols (getf special-precedent :symbols))))))
+            ;; (if (or symbols (member :symbols special-precedent))
+            ;;     (progn ;; (setf (getf special-precedent :symbols)
+            ;;            ;;       (append symbols (getf special-precedent :symbols)))
+            ;;            ;; don't collect internal symbols within a set of axes; this
+            ;;            ;; prevents problems with cases like refn←{A←⍵-1 ⋄ $[A≥0;A,refn A;0]} ⋄ refn 5
+            ;;            ;; (if is-function-closure
+            ;;            ;;     (setf (getf special-precedent :internal-symbols)
+            ;;            ;;           (intersection symbols (getf special-precedent :symbols))))
+            ;;            ))
             (if (and (not output) (stringp item) (< 0 (length item))
                      (funcall (of-utilities idiom :match-newline-character)
                               (aref item 0)))
                 ;; if the string is passed back (minus any leading whitespace) because the string began with
                 ;; a line break, parse again omitting the line break character
                 (parse (subseq item 1) (=vex-string idiom nil special-precedent))
-                (if (and (= 0 (length break))
-                         (< 0 (length rest)))
+                (if (and (= 0 (length break)) (< 0 (length rest)))
                     (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
                                                        (if item (list item)))
                                              (append (if olnchar (list :overloaded-num-char olnchar))
-                                                     (list :symbols (getf special-precedent :symbols)))))
+                                                     (list :symbols nil);;  (getf special-precedent :symbols))
+                                                     )))
                     (list (if (or (not item)
                                   (and (typep item 'sequence)
                                        (= 0 (length item)) (not string-found)))
@@ -1026,9 +1030,9 @@ These are examples of the output of the three macro-builders above.
                (if (= 0 (length lines))
                    output (destructuring-bind (out remaining meta)
                               (parse lines (=vex-string idiom))
-                            (let ((out (funcall (or (of-utilities idiom :lexer-postprocess)
-                                                    (lambda (a b c) a))
-                                                out idiom space)))
+                            (let ((out (identity (funcall (or (of-utilities idiom :lexer-postprocess)
+                                                              (lambda (a b c) (declare (ignore b c)) a))
+                                                          out idiom space))))
                               (process-lines remaining
                                              (if (null out)
                                                  output (append output

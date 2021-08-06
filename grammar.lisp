@@ -102,7 +102,7 @@
                                                (eq :axes (caar (last initial-expr))))
                                           (mapcar #'caar (cdar (last initial-expr)))))
                           (assigned-symbols (get-assigned-symbols fn space))
-                          (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (second this-item) :symbols)))
+                          (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :symbols)))
                           (is-inline-operator (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇))))
                      (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
                          (error "A defined operator may not include both [⍶ left value] and~a"
@@ -207,7 +207,7 @@
                    (not (getf properties :glyph)))
               (let* ((fn (first (last this-item)))
                      (assigned-symbols (get-assigned-symbols fn space))
-                     (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (second this-item) :symbols)))
+                     (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :symbols)))
                      (is-inline (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      (is-dyadic (member '⍺ arg-symbols))
                      (is-pivotal (intersection arg-symbols '(⍹ ⍵⍵)))
@@ -412,12 +412,19 @@
                                                           :fn-assigned-symbols)))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values (list 'apl-compose :op ;; (if (member symbol-referenced
-                                       ;;             (getf (getf properties :special) :fn-assigned-symbols))
-                                       ;;     ;; wrap the symbol correctly depending on whether
-                                       ;;     ;; it's lexically or dynamically bound
-                                       ;;     (list 'inws symbol-referenced)
-                                       ;;     (list 'inwsd symbol-referenced))
+        (values (list 'apl-compose :op ;; (if (not (boundp (intern (string symbol-referenced)
+                                       ;;                          space)))
+                                       ;;     (list 'inwsd symbol-referenced)
+                                       ;;     (if (or (member symbol-referenced
+                                       ;;                     (getf (getf properties :special)
+                                       ;;                           :fn-assigned-symbols))
+                                       ;;             (member symbol-referenced
+                                       ;;                     (getf (getf properties :special)
+                                       ;;                           :lexvar-symbols)))
+                                       ;;         ;; wrap the symbol correctly depending on whether
+                                       ;;         ;; it's lexically or dynamically bound
+                                       ;;         (list 'inws symbol-referenced)
+                                       ;;         (list 'inwsd symbol-referenced)))
                       (list 'inws symbol-referenced)
                       (if (listp operand-form)
                           operand-form
@@ -733,6 +740,9 @@
                         (makunbound (intern (string symbol) space)))
                     (setf (symbol-function (intern (string operator-symbol) space))
                           #'dummy-nargument-function)
+                    (push operator-symbol (getf (getf (first (last preceding-properties)) :special)
+                                                :fn-assigned-symbols))
+                    ;; (print (list :mm (getf (first (last preceding-properties)) :special)))
                     (values (if (characterp precedent)
                                 (if (or (resolve-operator :lateral precedent)
                                         (resolve-operator :pivotal precedent))
@@ -993,11 +1003,18 @@
                                                        operator
                                                        ;; wrap the symbol correctly depending on whether
                                                        ;; it's lexically or dynamically bound
-                                                       ;; (if (member operator
-                                                       ;;             (getf (getf properties :special)
-                                                       ;;                   :fn-assigned-symbols))
-                                                       ;;     (list 'inws operator)
-                                                       ;;     (list 'inwsd operator))
+                                                       ;; (if (not (boundp (intern (string operator) space)))
+                                                       ;;     (list 'inwsd operator)
+                                                       ;;     (if (or (member operator
+                                                       ;;                     (getf (getf properties :special)
+                                                       ;;                           :fn-assigned-symbols))
+                                                       ;;             (member operator
+                                                       ;;                     (getf (getf properties :special)
+                                                       ;;                           :lexvar-symbols)))
+                                                       ;;         ;; wrap the symbol correctly depending on whether
+                                                       ;;         ;; it's lexically or dynamically bound
+                                                       ;;         (list 'inws operator)
+                                                       ;;         (list 'inwsd operator)))
                                                        (list 'inws operator)
                                                        ))
                                   ,(if (characterp left-operand)
@@ -1099,6 +1116,7 @@
                          ;; as a self-reference by lambdas invoked through the (alambda) macro
                          (fn-content (if (not (eql '∇ fn-content))
                                          fn-content '#'∇self)))
+                    ;; (print (list :fff fn-element fn-content))
                     (values `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list value))
                                        ,@(if function-axes `((list ,@(first function-axes)))))
                             '(:type (:array :evaluated)) items))))
