@@ -1058,55 +1058,55 @@ It remains here as a standard against which to compare methods for composing APL
 ;;              (assign-self-refs-among-tokens token function)
 ;;              (funcall function token tokens tx))))
 
-(defun lexer-postprocess2 (tokens idiom space &optional closure-meta)
-  ;; currently, this function is used to initialize function and variable references
-  ;; in the workspace before compilation is performed so that recursive
-  ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
-  (labels ((assigner (tokens function)
-             "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
-             (loop :for token :in tokens :for tx :from 0
-                :do (if (and (listp token) (not (member (first token) '(:fn :op))))
-                        ;; recursively descend into lists, but not functions contained within a function
-                        (assigner token function)
-                        (funcall function token tokens tx))))
-           (processor (&optional valence)
-             (lambda (token list index)
-               (if (eql '∇∇ token)
-                   (setf (nth index list) (list :op valence '∇∇))
-                   (if (and (listp token) (listp (second token)) (third token))
-                       (assigner (third token)
-                                 (processor (getf (second token) :valence))))))))
-    (match tokens
-      ((list (guard fn-form (and (listp fn-form)
-                                 (eq :fn (first fn-form))
-                                 (listp (second fn-form))))
-             '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
-       (if (is-workspace-value symbol)
-           (makunbound (intern (string symbol) space)))
-       (if (not (fboundp (intern (string symbol) space)))
-           (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)))
-      ((list (guard op-form (and (listp op-form)
-                                 (eq :op (first op-form))
-                                 (listp (second op-form))))
-             '(:fn #\←) (guard symbol (or (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵)))))))
-       (let ((fn-symbol (intern (string symbol) space))
-             (op-meta (second op-form))
-             (symbol (intern (concatenate 'string (if (eq :lateral (getf (second op-form) :valence))
-                                                      "𝕆𝕃∇" "𝕆ℙ∇")
-                                          (string symbol))
-                             space)))
-         (print (list :op (getf op-meta :valence)))
-         ;; if the symbol is already bound as a regular function, unbind it
-         (if (fboundp fn-symbol) (fmakunbound fn-symbol))
-         (if (not (fboundp symbol))
-             (setf (symbol-function symbol) #'dummy-nargument-function))
+;; (defun lexer-postprocess2 (tokens idiom space &optional closure-meta)
+;;   ;; currently, this function is used to initialize function and variable references
+;;   ;; in the workspace before compilation is performed so that recursive
+;;   ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
+;;   (labels ((assigner (tokens function)
+;;              "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
+;;              (loop :for token :in tokens :for tx :from 0
+;;                 :do (if (and (listp token) (not (member (first token) '(:fn :op))))
+;;                         ;; recursively descend into lists, but not functions contained within a function
+;;                         (assigner token function)
+;;                         (funcall function token tokens tx))))
+;;            (processor (&optional valence)
+;;              (lambda (token list index)
+;;                (if (eql '∇∇ token)
+;;                    (setf (nth index list) (list :op valence '∇∇))
+;;                    (if (and (listp token) (listp (second token)) (third token))
+;;                        (assigner (third token)
+;;                                  (processor (getf (second token) :valence))))))))
+;;     (match tokens
+;;       ((list (guard fn-form (and (listp fn-form)
+;;                                  (eq :fn (first fn-form))
+;;                                  (listp (second fn-form))))
+;;              '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
+;;        (if (is-workspace-value symbol)
+;;            (makunbound (intern (string symbol) space)))
+;;        (if (not (fboundp (intern (string symbol) space)))
+;;            (setf (symbol-function (intern (string symbol) space)) #'dummy-nargument-function)))
+;;       ((list (guard op-form (and (listp op-form)
+;;                                  (eq :op (first op-form))
+;;                                  (listp (second op-form))))
+;;              '(:fn #\←) (guard symbol (or (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵)))))))
+;;        (let ((fn-symbol (intern (string symbol) space))
+;;              (op-meta (second op-form))
+;;              (symbol (intern (concatenate 'string (if (eq :lateral (getf (second op-form) :valence))
+;;                                                       "𝕆𝕃∇" "𝕆ℙ∇")
+;;                                           (string symbol))
+;;                              space)))
+;;          (print (list :op (getf op-meta :valence)))
+;;          ;; if the symbol is already bound as a regular function, unbind it
+;;          (if (fboundp fn-symbol) (fmakunbound fn-symbol))
+;;          (if (not (fboundp symbol))
+;;              (setf (symbol-function symbol) #'dummy-nargument-function))
          
-         ))
-      ;; ((guard list (listp list)))
-      ((guard symbol (eql symbol '∇∇))))
-    (assigner tokens (processor))
-    ;; (print (list :tok tokens))
-    tokens))
+;;          ))
+;;       ;; ((guard list (listp list)))
+;;       ((guard symbol (eql symbol '∇∇))))
+;;     (assigner tokens (processor))
+;;     ;; (print (list :tok tokens))
+;;     tokens))
 
 ;; (defun lexer-postprocess (tokens idiom space &optional closure-meta)
 ;;   ;; currently, this function is used to initialize function and variable references
@@ -1217,7 +1217,9 @@ It remains here as a standard against which to compare methods for composing APL
                                     (loop :for setter :in (getf (rest fn-meta) :valence-setters)
                                        :do (funcall setter valence)))
                                 (setf (getf (rest fn-meta) :valence-setters) nil)))
-         (if closure-meta (push symbol (getf closure-meta :fn-syms))
+         (if closure-meta (if is-operator (push symbol (getf closure-meta
+                                                             (if (eq :lateral valence) :lop-syms :pop-syms)))
+                              (push symbol (getf closure-meta :fn-syms)))
              (progn (if (is-workspace-value symbol)
                         (makunbound (intern (string symbol) space)))
                     (if (string= "rlop" (string symbol))
