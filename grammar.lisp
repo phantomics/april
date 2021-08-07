@@ -412,19 +412,9 @@
                                                           :fn-assigned-symbols)))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values (list 'apl-compose :op ;; (if (not (boundp (intern (string symbol-referenced)
-                                       ;;                          space)))
-                                       ;;     (list 'inwsd symbol-referenced)
-                                       ;;     (if (or (member symbol-referenced
-                                       ;;                     (getf (getf properties :special)
-                                       ;;                           :fn-assigned-symbols))
-                                       ;;             (member symbol-referenced
-                                       ;;                     (getf (getf properties :special)
-                                       ;;                           :lexvar-symbols)))
-                                       ;;         ;; wrap the symbol correctly depending on whether
-                                       ;;         ;; it's lexically or dynamically bound
-                                       ;;         (list 'inws symbol-referenced)
-                                       ;;         (list 'inwsd symbol-referenced)))
+        (values (list 'apl-compose :op ;; (list (if (fboundp (intern (string symbol-referenced) space))
+                                       ;;           'inwsd 'inws)
+                                       ;;       symbol-referenced)
                       (list 'inws symbol-referenced)
                       (if (listp operand-form)
                           operand-form
