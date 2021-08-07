@@ -924,6 +924,7 @@
            :do (multiple-value-bind (new-processed new-props remaining)
                    (funcall (symbol-function (getf pattern :function))
                             tokens space idiom (lambda (item &optional sub-props)
+                                                 ;; (print (list :subp sub-props item))
                                                  (composer idiom space item nil sub-props))
                             precedent properties pre-props)
                  ;; (print (list :pattern (getf pattern :name) precedent tokens properties))

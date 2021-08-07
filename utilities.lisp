@@ -151,6 +151,11 @@
   (declare (ignorable rest))
   first)
 
+(defun dummy-operator (first &rest rest)
+  "Placeholder function to be assigned to newly initialized operator symbols."
+  (declare (ignorable rest))
+  first)
+
 ;; keep legacy april-p macro in place and usable in place of april-f
 (defmacro april-p (&rest args)
   (cons 'april-f args))
@@ -184,14 +189,20 @@
 
 (defmacro is-workspace-function (item)
   "Checks if a variable is present in the current workspace as a function."
-  `(fboundp (intern (string ,item) space)))
+  `(and (fboundp (intern (string ,item) space))
+        (not (listp (symbol-value (intern (string ,item) space))))))
 
 (defmacro is-workspace-operator (item)
   "Checks if a variable is present in the current workspace as a function."
-  `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
-                        space))
-       (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
-                        space))))
+  `(and (fboundp (intern (string ,item) space))
+        (listp (symbol-value (intern (string ,item) space)))))
+
+;; (defmacro is-workspace-operator (item)
+;;   "Checks if a variable is present in the current workspace as a function."
+;;   `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
+;;                         space))
+;;        (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
+;;                         space))))
 
 (defun get-array-meta (array &rest keys)
   "Gets one or more metadata of an array using the displacement reference technique."
@@ -1208,10 +1219,11 @@ It remains here as a standard against which to compare methods for composing APL
                                          '(⍶ ⍹ ⍺⍺ ⍵⍵)))
               (valence (if is-operator (if (intersection is-operator '(⍹ ⍵⍵))
                                            :pivotal :lateral)))
-              (int-symbol (if is-operator
-                              (intern (concatenate 'string (if (eq valence :lateral) "𝕆𝕃∇" "𝕆ℙ∇")
-                                                   (string symbol))
-                                      space))))
+              ;; (int-symbol (if is-operator
+              ;;                 (intern (concatenate 'string (if (eq valence :lateral) "𝕆𝕃∇" "𝕆ℙ∇")
+              ;;                                      (string symbol))
+              ;;                         space)))
+              )
          (if is-operator (progn (setf (getf (rest fn-meta) :valence) valence)
                                 (if (getf (rest fn-meta) :valence-setters)
                                     (loop :for setter :in (getf (rest fn-meta) :valence-setters)
@@ -1222,10 +1234,14 @@ It remains here as a standard against which to compare methods for composing APL
                               (push symbol (getf closure-meta :fn-syms)))
              (progn (if (is-workspace-value symbol)
                         (makunbound (intern (string symbol) space)))
-                    (if (string= "rlop" (string symbol))
-                        (print (list :in int-symbol symbol is-operator valence fn-meta)))
-                    (if int-symbol (if (not (fboundp int-symbol))
-                                       (setf (symbol-function int-symbol) #'dummy-nargument-function))
+                    (if (string= "lop" (string symbol))
+                        (print (list :in symbol is-operator valence fn-meta)))
+                    (if ;; int-symbol (if (not (fboundp int-symbol))
+                        ;;                (setf (symbol-function int-symbol) #'dummy-nargument-function))
+                        is-operator (progn (if (not (fboundp (intern (string symbol) space)))
+                                               (setf (symbol-function (intern (string symbol) space))
+                                                     #'dummy-operator))
+                                           (set (intern (string symbol) space) fn-meta))
                         (if (not (fboundp (intern (string symbol) space)))
                             (setf (symbol-function (intern (string symbol) space))
                                   #'dummy-nargument-function)))))

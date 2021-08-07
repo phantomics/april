@@ -10,6 +10,15 @@
         `(:lexvar-symbols ,(getf (getf (first (last preceding-properties)) :special)
                                  :lexvar-symbols))))
 
+(define-symbol-macro include-closure-meta
+    (if (getf (getf properties :special) :closure-meta)
+        `(:closure-meta ,(getf (getf properties :special) :closure-meta))))
+
+(define-symbol-macro include-closure-meta-last
+    (if (getf (getf (first (last preceding-properties)) :special) :closure-meta)
+        `(:closure-meta ,(getf (getf (first (last preceding-properties)) :special)
+                               :closure-meta))))
+
 (defun process-value (this-item properties process idiom space)
   ;; TODO: add a passthrough value mode for symbols that are being assigned!
   ;; this is the only way to get them assignable after the first time
@@ -18,6 +27,7 @@
          ;; if the item is a closure, evaluate it and return the result
          (let ((sub-props (list :special
                                 (list :lexvar-symbols (getf (getf properties :special) :lexvar-symbols)
+                                      :closure-meta (getf (getf properties :special) :closure-meta)
                                       :fn-assigned-symbols (getf (getf properties :special)
                                                                  :fn-assigned-symbols)))))
            (multiple-value-bind (output out-properties)
@@ -103,7 +113,9 @@
                                           (mapcar #'caar (cdar (last initial-expr)))))
                           (assigned-symbols (get-assigned-symbols fn space))
                           (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :symbols)))
+                          (this-closure-meta (second this-item))
                           (is-inline-operator (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇))))
+                     (print (list :cm this-closure-meta this-item))
                      (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
                          (error "A defined operator may not include both [⍶ left value] and~a"
                                 " [⍺⍺ left function] operands."))
@@ -122,12 +134,15 @@
                                                         (append assigned-symbols polyadic-args
                                                                 (getf (getf properties :special)
                                                                       :lexvar-symbols)))
+                                                       :closure-meta this-closure-meta
                                                        :fn-assigned-symbols (getf (getf properties :special)
                                                                                   :fn-assigned-symbols))))
                                 (to-hoist (loop :for symbol :in assigned-symbols :collect symbol)))
                            ;; TODO: fn-assigned-symbols should not be nil but should send the properties
                            ;; to the next level down!
-                           (values (output-function (mapcar (lambda (f) (funcall process f sub-props)) fn)
+                           (values (output-function (mapcar (lambda (f)
+                                                              (print (list :f f sub-props))
+                                                              (funcall process f sub-props)) fn)
                                                     polyadic-args to-hoist arg-symbols
                                                     newly-scoped)
                                    (list :type '(:function :closure)
@@ -140,6 +155,7 @@
                                      (list :lexvar-symbols
                                            (remove-duplicates
                                             (getf (getf properties :special) :lexvar-symbols))
+                                           :closure-meta (getf (getf properties :special) :closure-meta)
                                            :fn-assigned-symbols (getf (getf properties :special)
                                                                       :fn-assigned-symbols)
                                            :from-outside-functional-expression t))))
@@ -158,6 +174,7 @@
           (cond ((or (is-workspace-function this-item)
                      (get-workspace-alias space this-item))
                  ;; process workspace-aliased lexical functions, as when f←+ has been set
+                 (print (list :isw this-item))
                  (values (if (not (get-workspace-alias space this-item))
                              this-item (get-workspace-alias space this-item))
                          (list :type '(:function :referenced))))
@@ -208,10 +225,12 @@
               (let* ((fn (first (last this-item)))
                      (assigned-symbols (get-assigned-symbols fn space))
                      (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :symbols)))
+                     (this-closure-meta (second this-item))
                      (is-inline (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      (is-dyadic (member '⍺ arg-symbols))
                      (is-pivotal (intersection arg-symbols '(⍹ ⍵⍵)))
                      (valence (getf properties :valence)))
+                (print (list :cm2 this-closure-meta))
                 (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
                     (error "A defined operator may not include both [⍶ left value] and~a"
                            " [⍺⍺ left function] operands."))
@@ -221,16 +240,19 @@
                 (if is-inline (if (or (not valence)
                                       (and is-pivotal (eq :pivotal valence))
                                       (and (not is-pivotal) (eq :lateral valence)))
-                                  (let* ((newly-scoped (loop :for sym :in assigned-symbols
-                                                          :when (not (member sym (getf (getf properties :special)
-                                                                                       :lexvar-symbols)))
-                                                          :collect sym))
+                                  (let* ((newly-scoped
+                                          (loop :for sym :in assigned-symbols
+                                             :when (not (member sym (getf (getf properties :special)
+                                                                          :lexvar-symbols)))
+                                             :collect sym))
                                          (sub-props (list :special
                                                           (list :lexvar-symbols
                                                                 (remove-duplicates
                                                                  (append assigned-symbols
                                                                          (getf (getf properties :special)
                                                                                :lexvar-symbols)))
+                                                                :closure-meta
+                                                                this-closure-meta
                                                                 :fn-assigned-symbols
                                                                 (getf (getf properties :special)
                                                                       :fn-assigned-symbols)
@@ -259,18 +281,24 @@
           ;; and the appropriate variable name should be verified in the workspace
           (let* ((symbol-string (string this-item))
                  (type-to-find (getf properties :valence))
-                 (lop-string (if (eq :lateral (getf properties :valence))
-                                 (concatenate 'string "𝕆𝕃∇" symbol-string)))
-                 (pop-string (if (eq :pivotal (getf properties :valence))
-                                 (concatenate 'string "𝕆ℙ∇" symbol-string)))
-                 (bound-op (if (and lop-string (fboundp (intern lop-string space)))
-                               (intern lop-string)
-                               (if (and pop-string (fboundp (intern pop-string space)))
-                                   (intern pop-string)))))
+                 ;; (lop-string (if (eq :lateral (getf properties :valence))
+                 ;;                 (concatenate 'string "𝕆𝕃∇" symbol-string)))
+                 ;; (pop-string (if (eq :pivotal (getf properties :valence))
+                 ;;                 (concatenate 'string "𝕆ℙ∇" symbol-string)))
+                 (bound-op ;; (if (and lop-string (fboundp (intern lop-string space)))
+                           ;;     (intern lop-string)
+                           ;;     (if (and pop-string (fboundp (intern pop-string space)))
+                           ;;         (intern pop-string)))
+                   (if (fboundp (intern symbol-string space)) this-item)
+                   )
+                 (op-meta (if bound-op (symbol-value (intern symbol-string space))))
+                 )
             (if bound-op
                 (values bound-op (list :type (list :operator (or (getf properties :valence)
-                                                                 (if (fboundp (intern pop-string space))
-                                                                     :pivotal :lateral)))))
+                                                                 ;; (if (fboundp (intern pop-string space))
+                                                                 ;;     :pivotal :lateral)
+                                                                 (getf (rest op-meta) :valence)
+                                                                 ))))
                 (values nil nil)))
           (values nil nil))))
 
@@ -287,7 +315,9 @@
       (setf (getf (second special-props) :fn-assigned-symbols)
             (getf (getf properties :special) :fn-assigned-symbols)
             (getf (second special-props) :lexvar-symbols)
-            (getf (getf properties :special) :lexvar-symbols))
+            (getf (getf properties :special) :lexvar-symbols)
+            (getf (second special-props) :closure-meta)
+            (getf (getf properties :special) :closure-meta))
       (labels ((axes-enclose (item axes)
                  (if (not axes) item (enclose-axes item axes))))
         (progn (if (and (listp item) (eql :axes (first item)))
@@ -355,6 +385,7 @@
                          (let* ((sub-properties
                                  ;; create special properties for next level down
                                  `(:special (,@include-lexvar-symbols
+                                             ,@include-closure-meta-last
                                              :fn-assigned-symbols
                                              ,(getf (getf (first (last preceding-properties)) :special)
                                                     :fn-assigned-symbols))))
@@ -390,27 +421,36 @@
                     items)))))
 
 (labels ((verify-lateral-operator-symbol (symbol space)
-           (if (symbolp symbol) (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
-                                  (if (fboundp (intern (string symbol) space)) symbol)))))
+           (if (and symbol (symbolp symbol)
+                    (fboundp (intern (string symbol) space))
+                    (eq :lateral (getf (rest (symbol-value (intern (string symbol) space))) :valence)))
+               symbol)))
   (composer-pattern composer-pattern-lateral-composition
       (operator-axes operator-form operator-props operand-axes operand-form
                      operand-props symbol-referenced)
       ;; match a lateral function composition like +/, marking the beginning of a functional expression
       ((assign-axes operator-axes process)
+       (print (list :eoeo precedent items item))
        (setq symbol-referenced (verify-lateral-operator-symbol item space))
        (assign-element operator-form operator-props process-operator '(:valence :lateral))
        (if operator-form (progn (assign-axes operand-axes process)
+                                (print (list :iit items))
                                 (assign-subprocessed
                                  operand-form operand-props
                                  `(:special (:omit (:value-assignment :function-assignment
                                                                       :operation :operator-assignment
                                                                       :train-composition)
                                                    ,@include-lexvar-symbols
+                                                   ,@include-closure-meta-last
                                                    :fn-assigned-symbols
                                                    ,(getf (getf (first (last preceding-properties))
                                                                 :special)
-                                                          :fn-assigned-symbols)))))))
-    (if symbol-referenced
+                                                          :fn-assigned-symbols))))
+                                (print (list :ooo operator-form))))
+       (print (list :opf operator-form (getf (first (last preceding-properties))
+                                             :special)
+                    operator-props symbol-referenced operand-form operand-props)))
+    (if (print symbol-referenced)
         ;; call the operator constructor on the output of the operand constructor which integrates axes
         (values (list 'apl-compose :op ;; (if (not (boundp (intern (string symbol-referenced)
                                        ;;                          space)))
@@ -425,7 +465,10 @@
                                        ;;         ;; it's lexically or dynamically bound
                                        ;;         (list 'inws symbol-referenced)
                                        ;;         (list 'inwsd symbol-referenced)))
-                      (list 'inws symbol-referenced)
+                      (if (boundp (intern (string symbol-referenced) space))
+                          (list 'inwsd symbol-referenced)
+                          (list 'inws symbol-referenced))
+                      ;; (list 'inws symbol-referenced)
                       (if (listp operand-form)
                           operand-form
                           (if (characterp operand-form)
@@ -479,6 +522,7 @@
 (composer-pattern composer-pattern-unitary-operation (operator-axes operator-form operator-props)
     ;; match a unitary operator like $
     ((let ((sub-props (list :special (list :lexvar-symbols (getf (getf properties :special) :lexvar-symbols)
+                                           :closure-meta (getf (getf properties :special) :closure-meta)
                                            :fn-assigned-symbols (getf (getf properties :special)
                                                                       :fn-assigned-symbols)))))
        (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
@@ -507,7 +551,8 @@
      (if asop (assign-axes function-axes process))
      (if asop (assign-subprocessed fn-element fnel-specs
                                    `(:special (:omit (:value-assignment :function-assignment)
-                                                     ,@include-lexvar-symbols))))
+                                                     ,@include-lexvar-symbols
+                                                     ,@include-closure-meta-last))))
      (if fn-element (assign-axes symbol-axes process))
      (if fn-element (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (if (and fn-element symbol)
@@ -734,8 +779,9 @@
      (if (eq :operator (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (let ((operator-symbol (intern (concatenate 'string (if (member :pivotal preceding-type) "𝕆ℙ∇" "𝕆𝕃∇")
-                                              (string symbol))))
+  (let ((operator-symbol ;; (intern (concatenate 'string (if (member :pivotal preceding-type) "𝕆ℙ∇" "𝕆𝕃∇")
+                         ;;                      (string symbol)))
+          symbol)
         (in-limited-scope (member symbol (getf (getf (first (last preceding-properties)) :special)
                                                :lexvar-symbols))))
     (if asop (progn ;; (if (member :top-level (getf (first (last preceding-properties)) :special))
@@ -746,11 +792,12 @@
                     ;;                       #'dummy-nargument-function)))
                     ;;      (push symbol (getf (getf (first (last preceding-properties)) :special)
                     ;;                         :fn-assigned-symbols)))
-                    ;; (print (list :otl symbol operator-symbol (getf (first (last preceding-properties)) :special)))
-                    (push operator-symbol (getf (getf (first (last preceding-properties)) :special)
-                                                :fn-assigned-symbols))
-                    (push operator-symbol (getf (getf (first (last preceding-properties)) :special)
-                                                :lexvar-symbols))
+               ;; (print (list :otl symbol operator-symbol in-limited-scope
+               ;;              (getf (first (last preceding-properties)) :special)))
+                    ;; (push operator-symbol (getf (getf (first (last preceding-properties)) :special)
+                    ;;                             :fn-assigned-symbols))
+                    ;; (push operator-symbol (getf (getf (first (last preceding-properties)) :special)
+                    ;;                             :lexvar-symbols))
                     (if (not in-limited-scope)
                         (progn (if (is-workspace-value symbol)
                                    (makunbound (intern (string symbol) space)))
@@ -824,13 +871,15 @@
          (progn (assign-subprocessed center center-props
                                      `(:special (:omit (:value-assignment :function-assignment
                                                                           :train-composition)
-                                                       ,@include-lexvar-symbols)))
+                                                       ,@include-lexvar-symbols
+                                                       ,@include-closure-meta-last)))
                 (setq is-center-function (eq :function (first (getf center-props :type))))
                 (if is-center-function
                     (assign-subprocessed left left-props
                                          `(:special (:omit (:value-assignment
                                                             :function-assignment :branch :operator-assignment
                                                             :value-assignment-by-selection :operation)
+                                                           ,@include-closure-meta-last
                                                            ,@include-lexvar-symbols)))))))
   (if is-center-function
       (if (not left)
@@ -903,6 +952,8 @@
                                 (:lexvar-symbols ,(getf (getf properties :special) :lexvar-symbols)
                                                  :fn-assigned-symbols ,(getf (getf properties :special)
                                                                              :fn-assigned-symbols)
+                                                 :closure-meta ,(getf (getf properties :special)
+                                                                      :closure-meta)
                                                  :scoped-from-above
                                                  ,(getf (getf properties :special) :scoped-from-above))))
      (if operator (progn (assign-axes left-operand-axes process)
@@ -920,6 +971,7 @@
                                      left-operand left-operand-props
                                      `(:special (:omit (:value-assignment :function-assignment :operation)
                                                        ,@include-lexvar-symbols
+                                                       ,@include-closure-meta-last
                                                        :fn-assigned-symbols ,(getf (getf properties :special)
                                                                                    :fn-assigned-symbols))))
                                     ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
@@ -930,6 +982,7 @@
                                                      (:value-assignment :function-assignment :operation)
                                                      :lexvar-symbols ,(getf (getf properties :special)
                                                                             :lexvar-symbols)
+                                                     ,@include-closure-meta
                                                      :fn-assigned-symbols ,(getf (getf properties :special)
                                                                                  :fn-assigned-symbols))))))))))
   (if operator
@@ -967,6 +1020,7 @@
                                 :special (:lexvar-symbols ,(getf (getf properties :special) :lexvar-symbols)
                                                           :fn-assigned-symbols ,(getf (getf properties :special)
                                                                                       :fn-assigned-symbols)
+                                                          ,@include-closure-meta
                                                           :scoped-from-above
                                                           ,(getf (getf properties :special) :scoped-from-above))))
      (if operator (progn (assign-axes left-operand-axes process)
@@ -986,6 +1040,7 @@
                                      `(:special
                                        (:omit (:value-assignment :function-assignment
                                                                  :operation :train-composition)
+                                              ,@include-closure-meta
                                               :lexvar-symbols ,(getf (getf properties :special)
                                                                      :lexvar-symbols)
                                               :fn-assigned-symbols ,(getf (getf properties :special)
@@ -1070,6 +1125,7 @@
                                                                              :lateral-inline-composition
                                                                              :train-composition :operation)
                                                        ,@include-lexvar-symbols
+                                                       ,@include-closure-meta-last
                                                        :fn-assigned-symbols
                                                        ,(getf (getf (first (last preceding-properties))
                                                                     :special)
@@ -1089,6 +1145,7 @@
                                                                       :lateral-inline-composition
                                                                       :operation :operator-assignment)
                                                    ,@include-lexvar-symbols
+                                                   ,@include-closure-meta-last
                                                    :valence :lateral
                                                    :fn-assigned-symbols
                                                    ,(getf (getf (first (last preceding-properties)) :special)
