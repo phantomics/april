@@ -1030,6 +1030,7 @@ These are examples of the output of the three macro-builders above.
                (if (= 0 (length lines))
                    output (destructuring-bind (out remaining meta)
                               (parse lines (=vex-string idiom))
+                            ;; (print (list :oooo out))
                             (let ((out (identity (funcall (or (of-utilities idiom :lexer-postprocess)
                                                               (lambda (a b c) (declare (ignore b c)) a))
                                                           out idiom space))))
