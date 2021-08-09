@@ -10,10 +10,10 @@
  "April graph demo"
  (with :space graph-demo-space
        :description "Implements graph processing functions from Dyalog's dfns.")
- (:tests (provision "costs ← ↑(72 99 88)(23 30 35)(51 59 84)")
-         (is "assign costs" #2A((1 0 0) (0 0 1) (0 1 0)))
-         (is "assign -costs" #2A((0 1 0) (1 0 0) (0 0 1)))
-         (is "+/+/×∘assign⍨costs" 166)
+ (:tests (provision "costs1 ← ↑(72 99 88)(23 30 35)(51 59 84)")
+         (is "assign costs1" #2A((1 0 0) (0 0 1) (0 1 0)))
+         (is "assign -costs1" #2A((0 1 0) (1 0 0) (0 0 1)))
+         (is "+/+/×∘assign⍨costs1" 166)
          (provision "costs2 ← ↑(7 38 23 27 11 3 34 34 47 20)(26 42 2 3 27 34 1 20 4 21)(35 30 47 43 27 5 33 21 36 46)(39 14 3 37 17 32 38 50 19 13)(50 37 38 33 4 32 45 14 22 39)(24 12 14 18 9 25 45 46 4 46)")
          (is "assign costs2" #2A((1 0 0 0 0 0 0 0 0 0) (0 0 0 0 0 0 1 0 0 0) (0 0 0 0 0 1 0 0 0 0)
                                  (0 0 1 0 0 0 0 0 0 0) (0 0 0 0 1 0 0 0 0 0) (0 0 0 0 0 0 0 0 1 0)))

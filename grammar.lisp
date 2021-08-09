@@ -131,7 +131,6 @@
                          (error "A defined operator may not include both [⍹ right value] and~⍺"
                                 " [⍵⍵ right function] operands."))
                      ;; if this is an inline operator, pass just that keyword back
-                     ;; (print (list :scf (get-external-scope-symbols :var-syms (rest this-closure-meta))))
                      (if is-inline-operator :is-inline-operator
                          (let ((sub-props (list :special
                                                 (list :lexvar-symbols
@@ -143,7 +142,9 @@
                                                       :fn-assigned-symbols (getf (getf properties :special)
                                                                                  :fn-assigned-symbols)))))
                            (setf (getf (rest this-closure-meta) :var-syms)
-                                 (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
+                                 (append polyadic-args (getf (rest this-closure-meta) :var-syms))
+                                 (getf (getf (rest this-closure-meta) :env) :var-syms)
+                                 (append polyadic-args (getf (getf (rest this-closure-meta) :env) :var-syms)))
                            ;; TODO: fn-assigned-symbols should not be nil but should send the properties
                            ;; to the next level down!
                            (values (output-function (mapcar (lambda (f) (funcall process f sub-props)) fn)
@@ -308,44 +309,51 @@
             (getf (getf properties :special) :closure-meta))
       (labels ((axes-enclose (item axes)
                  (if (not axes) item (enclose-axes item axes))))
-        (progn (if (and (listp item) (eql :axes (first item)))
-                   (setq axes (list (loop :for axis :in (rest item)
-                                       :collect (funcall process axis special-props)))
-                         items rest-items))
-               (if (and axes (not items))
-                   (error "Encountered axes with no function, operator or value to the left."))
-               (loop :while (not stopped)
-                  :do (or (if (and (listp item) (eq :axes (first item)))
-                              ;; if axes are encountered, process the axes and the preceding
-                              ;; value as a new value
-                              (multiple-value-bind (output properties remaining)
-                                  (funcall process items special-props)
-                                (if (eq :array (first (getf properties :type)))
-                                    (setq items remaining
-                                          value-elements (cons output value-elements)
-                                          value-props (cons properties value-props)
-                                          stopped t))))
-                          (if (and (listp item) (not (member (first item) '(:op :fn :axes))))
-                              ;; if a closure is encountered, recurse to process it
-                              (multiple-value-bind (output properties remaining)
-                                  (funcall process item special-props)
-                                (if (eq :array (first (getf properties :type)))
-                                    (setq items rest-items
-                                          value-elements (cons output value-elements)
-                                          value-props (cons properties value-props)))))
-                          (multiple-value-bind (value-out value-properties)
-                              (process-value item properties process idiom space)
-                            (if value-out (setq items rest-items
-                                                value-elements (cons value-out value-elements)
-                                                value-props (cons value-properties value-props))))
-                          (setq stopped t))))
+        (if (and (listp item) (eql :axes (first item)))
+            (setq axes (list (loop :for axis :in (rest item)
+                                :collect (funcall process axis special-props)))
+                  items rest-items))
+        (if (and axes (not items))
+            (error "Encountered axes with no function, operator or value to the left."))
+        (loop :while (not stopped)
+           :do (or (if (and (listp item) (eq :axes (first item)))
+                       ;; if axes are encountered, process the axes and the preceding
+                       ;; value as a new value
+                       (multiple-value-bind (output properties remaining)
+                           (funcall process items special-props)
+                         (if (eq :array (first (getf properties :type)))
+                             (setq items remaining
+                                   value-elements (cons output value-elements)
+                                   value-props (cons properties value-props)
+                                   stopped t))))
+                   (if (and (listp item) (not (member (first item) '(:op :fn :axes))))
+                       ;; if a closure is encountered, recurse to process it
+                       (multiple-value-bind (output properties remaining)
+                           (funcall process item special-props)
+                         (if (eq :array (first (getf properties :type)))
+                             (setq items rest-items
+                                   value-elements (cons output value-elements)
+                                   value-props (cons properties value-props)))))
+                   (multiple-value-bind (value-out value-properties)
+                       (process-value item properties process idiom space)
+                     (if value-out (setq items rest-items
+                                         value-elements (cons value-out value-elements)
+                                         value-props (cons value-properties value-props))))
+                   (setq stopped t)))
+        ;; (print (list :ee (getf (rest (getf (getf properties :special) :closure-meta))
+        ;;                        :var-syms)))
         (if value-elements
             (values (axes-enclose (output-value space (if (< 1 (length value-elements))
                                                           value-elements (first value-elements))
                                                 value-props
                                                 ;; (getf (getf properties :special) :lexvar-symbols)
-                                                (getf (rest (getf (getf properties :special) :closure-meta))
-                                                       :var-syms)
+                                                (identity (append (getf (getf (rest (getf (getf properties :special)
+                                                                                :closure-meta))
+                                                                    :env)
+                                                              :var-syms)
+                                                        (getf (rest (getf (getf properties :special)
+                                                                                :closure-meta))
+                                                              :var-syms)))
                                                 )
                                   axes)
                     '(:type (:array :explicit))
@@ -515,6 +523,7 @@
                                            :closure-meta (getf (getf properties :special) :closure-meta)
                                            :fn-assigned-symbols (getf (getf properties :special)
                                                                       :fn-assigned-symbols)))))
+       ;; (print (list :ooo (getf (getf properties :special) :closure-meta)))
        (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
      (assign-element operator-form operator-props process-operator '(:valence :unitary)))
   (let ((operator (and (member :operator (getf operator-props :type))
@@ -1061,6 +1070,7 @@
      (assign-element operator operator-props process-operator
                      `(:valence :pivotal
                                 :special (:lexvar-symbols ,(getf (getf properties :special) :lexvar-symbols)
+                                                          ,@include-closure-meta
                                                           :fn-assigned-symbols ,(getf (getf properties :special)
                                                                                       :fn-assigned-symbols))))
      (if operator (progn (assign-axes left-operand-axes process)
@@ -1091,6 +1101,7 @@
                                                                  :operation :train-composition)
                                               :lexvar-symbols ,(getf (getf properties :special)
                                                                      :lexvar-symbols)
+                                              ,@include-closure-meta
                                               :fn-assigned-symbols ,(getf (getf properties :special)
                                                                           :fn-assigned-symbols)))))))))
   (if (and operator left-operand)
