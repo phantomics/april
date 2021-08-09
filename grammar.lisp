@@ -451,13 +451,15 @@
        )
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values (list 'apl-compose :op ;; (list (if (progn
-                                       ;;             ;; (print (list :pr env-lops symbol-plain))
-                                       ;;             (identity (and (fboundp (intern (string symbol-referenced) space))
-                                       ;;                  (not (member symbol-plain env-lops)))))
-                                       ;;           'inwsd 'inws)
-                                       ;;        symbol-referenced)
-                      (list 'inws symbol-referenced)
+        (values (list 'apl-compose :op (list (if (progn
+                                                   ;; (print (list :pr env-lops symbol-plain
+                                                   ;;              (getf (getf (first (last preceding-properties))
+                                                   ;;                          :special) :closure-meta)))
+                                                   (and (fboundp (intern (string symbol-referenced) space))
+                                                        (not (member symbol-plain env-lops))))
+                                                 'inwsd 'inws)
+                                              symbol-referenced)
+                      ;; (list 'inws symbol-referenced)
                       (if (listp operand-form)
                           operand-form
                           (if (characterp operand-form)
@@ -1023,10 +1025,11 @@
 
 (composer-pattern pivotal-composition
     (operator operator-props left-operand-axes left-operand left-operand-props left-value
-              left-value-props prior-items right-operand-axes preceding-type)
+              left-value-props prior-items right-operand-axes preceding-type env-pops symbol-plain)
     ;; Match a pivotal function composition like ×.+, part of a functional expression.
     ;; It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
+     (setq symbol-plain item)
      (assign-element operator operator-props process-operator
                      `(:valence :pivotal
                                 :special (:lexvar-symbols ,(getf (getf properties :special) :lexvar-symbols)
@@ -1035,7 +1038,16 @@
                                                           :scoped-from-above
                                                           ,(getf (getf properties :special) :scoped-from-above))))
      (if operator (progn (assign-axes left-operand-axes process)
-                         (setq prior-items items)
+                         (setq prior-items items
+                               env-pops (append (getf (rest (getf (getf (first (last preceding-properties))
+                                                                        :special) :closure-meta))
+                                                      :pop-syms)
+                                                (getf (getf (rest (getf
+                                                                   (getf (first
+                                                                          (last preceding-properties))
+                                                                         :special) :closure-meta))
+                                                            :env)
+                                                      :pop-syms)))
                          (assign-element left-operand left-operand-props process-function)
                          ;; if the next function is symbolic, assign it uncomposed;
                          ;; this is needed for things like ∊∘.+⍨10 2 to work correctly
@@ -1081,22 +1093,11 @@
                     `(apl-compose :op ,(if (eq :operator-self-reference operator)
                                            '∇oself (if (listp operator)
                                                        operator
-                                                       ;; wrap the symbol correctly depending on whether
-                                                       ;; it's lexically or dynamically bound
-                                                       ;; (if (not (boundp (intern (string operator) space)))
-                                                       ;;     (list 'inwsd operator)
-                                                       ;;     (if (or (member operator
-                                                       ;;                     (getf (getf properties :special)
-                                                       ;;                           :fn-assigned-symbols))
-                                                       ;;             (member operator
-                                                       ;;                     (getf (getf properties :special)
-                                                       ;;                           :lexvar-symbols)))
-                                                       ;;         ;; wrap the symbol correctly depending on whether
-                                                       ;;         ;; it's lexically or dynamically bound
-                                                       ;;         (list 'inws operator)
-                                                       ;;         (list 'inwsd operator)))
-                                                       (list 'inws operator)
-                                                       ))
+                                                       (list (if (and (fboundp (intern (string operator)
+                                                                                       space))
+                                                                      (not (member symbol-plain env-pops)))
+                                                                 'inwsd 'inws)
+                                                             operator)))
                                   ,(if (characterp left-operand)
                                        `(lambda (,omega &optional ,alpha)
                                           (if ,alpha
@@ -1135,6 +1136,7 @@
                                                                              :lateral-inline-composition
                                                                              :train-composition :operation)
                                                        ,@include-lexvar-symbols
+                                                       ,@include-closure-meta-last
                                                        :fn-assigned-symbols
                                                        ,(getf (getf (first (last preceding-properties))
                                                                     :special)
@@ -1154,6 +1156,7 @@
                                                                       :lateral-inline-composition
                                                                       :operation :operator-assignment)
                                                    ,@include-lexvar-symbols
+                                                   ,@include-closure-meta-last
                                                    :valence :lateral
                                                    :fn-assigned-symbols
                                                    ,(getf (getf (first (last preceding-properties)) :special)
