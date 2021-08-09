@@ -22,6 +22,7 @@
 (defun process-value (this-item properties process idiom space)
   ;; TODO: add a passthrough value mode for symbols that are being assigned!
   ;; this is the only way to get them assignable after the first time
+  ;; (print (list :prop properties))
   (cond ((and (listp this-item)
               (not (member (first this-item) '(:fn :op :axes))))
          ;; if the item is a closure, evaluate it and return the result
@@ -63,6 +64,13 @@
                   (getf properties :symbol-overriding)
                   (not (is-workspace-function this-item)))
               (not (member this-item (getf (getf properties :special) :fn-assigned-symbols)))
+              ;; (not (member this-item (append '(⍺⍺ ⍵⍵)
+              ;;                                (getf (rest (getf (getf properties :special) :closure-meta))
+              ;;                                      :lop-syms)
+              ;;                                (getf (rest (getf (getf properties :special) :closure-meta))
+              ;;                                      :pop-syms)
+              ;;                                (getf (rest (getf (getf properties :special) :closure-meta))
+              ;;                                      :fn-syms))))
               ;; make sure the symbol doesn't reference a lexicallly-defined function
               (or (not (is-workspace-operator this-item))
                   (getf properties :symbol-overriding))
@@ -125,25 +133,21 @@
                      ;; if this is an inline operator, pass just that keyword back
                      ;; (print (list :scf (get-external-scope-symbols :var-syms (rest this-closure-meta))))
                      (if is-inline-operator :is-inline-operator
-                         (let* ((newly-scoped (loop :for sym :in assigned-symbols
-                                                 :when (not (member sym (getf (getf properties :special)
-                                                                              :lexvar-symbols)))
-                                                 :collect sym))
-                                (sub-props (list :special
-                                                 (list :lexvar-symbols
-                                                       (remove-duplicates
-                                                        (append assigned-symbols polyadic-args
-                                                                (getf (getf properties :special)
-                                                                      :lexvar-symbols)))
-                                                       :closure-meta this-closure-meta
-                                                       :fn-assigned-symbols (getf (getf properties :special)
-                                                                                  :fn-assigned-symbols))))
-                                (to-hoist (loop :for symbol :in assigned-symbols :collect symbol)))
+                         (let ((sub-props (list :special
+                                                (list :lexvar-symbols
+                                                      (remove-duplicates
+                                                       (append assigned-symbols polyadic-args
+                                                               (getf (getf properties :special)
+                                                                     :lexvar-symbols)))
+                                                      :closure-meta this-closure-meta
+                                                      :fn-assigned-symbols (getf (getf properties :special)
+                                                                                 :fn-assigned-symbols)))))
+                           ;; (setf (getf (rest this-closure-meta) :var-syms)
+                           ;;       (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
                            ;; TODO: fn-assigned-symbols should not be nil but should send the properties
                            ;; to the next level down!
                            (values (output-function (mapcar (lambda (f) (funcall process f sub-props)) fn)
-                                                    polyadic-args to-hoist arg-symbols
-                                                    newly-scoped (rest this-closure-meta))
+                                                    polyadic-args (rest this-closure-meta))
                                    (list :type '(:function :closure)
                                          :obligate-dyadic obligate-dyadic))))))
                   (t (values nil nil))))
@@ -237,11 +241,7 @@
                 (if is-inline (if (or (not valence)
                                       (and is-pivotal (eq :pivotal valence))
                                       (and (not is-pivotal) (eq :lateral valence)))
-                                  (let* ((newly-scoped (loop :for sym :in assigned-symbols
-                                                          :when (not (member sym (getf (getf properties :special)
-                                                                                       :lexvar-symbols)))
-                                                          :collect sym))
-                                         (sub-props (list :special
+                                  (let* ((sub-props (list :special
                                                           (list :lexvar-symbols
                                                                 (remove-duplicates
                                                                  (append assigned-symbols
@@ -250,15 +250,10 @@
                                                                 :fn-assigned-symbols
                                                                 (getf (getf properties :special)
                                                                       :fn-assigned-symbols)
-                                                                :closure-meta this-closure-meta
-                                                                :scoped-from-above newly-scoped))))
-                                    ;; (print (list :eo this-closure-meta))
-                                    ;; (print (list :sco (get-external-scope-symbols :var-syms
-                                    ;;                                              (rest this-closure-meta))))
-                                    (values (output-function
+                                                                :closure-meta this-closure-meta))))
+                                     (values (output-function
                                              (mapcar (lambda (f) (funcall process f sub-props)) fn)
-                                             nil assigned-symbols arg-symbols newly-scoped
-                                             (rest this-closure-meta))
+                                             nil (rest this-closure-meta))
                                             (list :type (remove
                                                          nil (list :operator :closure
                                                                    (if is-pivotal :pivotal :lateral)
@@ -347,7 +342,11 @@
         (if value-elements
             (values (axes-enclose (output-value space (if (< 1 (length value-elements))
                                                           value-elements (first value-elements))
-                                                value-props (getf (getf properties :special) :lexvar-symbols))
+                                                value-props
+                                                (getf (getf properties :special) :lexvar-symbols)
+                                                ;; (getf (rest (getf (getf properties :special) :closure-meta))
+                                                ;;       :var-syms)
+                                                )
                                   axes)
                     '(:type (:array :explicit))
                     items)
@@ -738,14 +737,45 @@
                                 (if (not (fboundp (intern (string symbol) space)))
                                     (setf (symbol-function (intern (string symbol) space))
                                           #'dummy-nargument-function)))
-                         (push symbol (getf (getf (first (last preceding-properties)) :special)
-                                            :fn-assigned-symbols)))
+                         (progn (push symbol (getf (getf (first (last preceding-properties)) :special)
+                                                   :fn-assigned-symbols))
+                                ;; (if (getf (getf (first (last preceding-properties)) :special)
+                                ;;           :closure-meta)
+                                ;;     (push symbol (getf (rest (getf (getf (first (last preceding-properties)) :special)
+                                ;;                                    :closure-meta))
+                                ;;                        :fn-syms)))
+                                ))
+                     ;; (print (list :aa (getf (getf (first (last preceding-properties)) :special)
+                     ;;                        :closure-meta)))
                      (if inverted (progn (if (is-workspace-value inverted-symbol)
                                              (makunbound (intern (string inverted-symbol) space)))
                                          ;; TODO: should dummy function initialization for inverted
                                          ;; functions still take place at this stage?
                                          (setf (symbol-function (intern (string inverted-symbol) space))
                                                #'dummy-nargument-function)))
+                     ;; (if (and (or (and (listp precedent)
+                     ;;                   (eql 'apl-compose (first precedent)))
+                     ;;              ;; (and (symbolp precedent)
+                     ;;              ;;     (member precedent '(⍺⍺ ⍵w)))
+                     ;;              )
+                     ;;          (member symbol (getf (rest (getf (getf (first (last preceding-properties)) :special)
+                     ;;                                           :closure-meta))
+                     ;;                               :var-syms)))
+                     ;;     (progn (setf (getf (rest (getf (getf (first (last preceding-properties))
+                     ;;                                          :special)
+                     ;;                                    :closure-meta))
+                     ;;                        :var-syms)
+                     ;;                  (remove symbol (getf (rest (getf (getf (first (last preceding-properties))
+                     ;;                                                         :special)
+                     ;;                                                   :closure-meta))
+                     ;;                                       :var-syms)))
+                     ;;            (push symbol (getf (rest (getf (getf (first (last preceding-properties))
+                     ;;                                                 :special)
+                     ;;                                           :closure-meta))
+                     ;;                               :fn-syms))))
+                     ;; (print (list :pr symbol precedent
+                     ;;              (rest (getf (getf (first (last preceding-properties)) :special)
+                     ;;                          :closure-meta))))
                      (if (characterp precedent)
                          ;; account for the ⍺←⊢ case
                          (if (and (eql '⍺ symbol) (char= #\⊢ precedent))
@@ -967,9 +997,7 @@
                                                  :fn-assigned-symbols ,(getf (getf properties :special)
                                                                              :fn-assigned-symbols)
                                                  :closure-meta ,(getf (getf properties :special)
-                                                                      :closure-meta)
-                                                 :scoped-from-above
-                                                 ,(getf (getf properties :special) :scoped-from-above))))
+                                                                      :closure-meta))))
      (if operator (progn (assign-axes left-operand-axes process)
                          (setq prior-items items)
                          (assign-element left-operand left-operand-props process-function)
@@ -1034,9 +1062,7 @@
                      `(:valence :pivotal
                                 :special (:lexvar-symbols ,(getf (getf properties :special) :lexvar-symbols)
                                                           :fn-assigned-symbols ,(getf (getf properties :special)
-                                                                                      :fn-assigned-symbols)
-                                                          :scoped-from-above
-                                                          ,(getf (getf properties :special) :scoped-from-above))))
+                                                                                      :fn-assigned-symbols))))
      (if operator (progn (assign-axes left-operand-axes process)
                          (setq prior-items items
                                env-pops (append (getf (rest (getf (getf (first (last preceding-properties))
@@ -1140,11 +1166,7 @@
                                                        :fn-assigned-symbols
                                                        ,(getf (getf (first (last preceding-properties))
                                                                     :special)
-                                                              :fn-assigned-symbols)
-                                                       :scoped-from-above
-                                                       ,(getf (getf (first (last preceding-properties))
-                                                                    :special)
-                                                              :scoped-from-above))))
+                                                              :fn-assigned-symbols))))
                 (setq is-function (eq :function (first (getf function-props :type)))
                       prior-items items)
                 (if is-function (assign-subprocessed

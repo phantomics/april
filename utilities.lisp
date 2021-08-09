@@ -937,13 +937,9 @@ It remains here as a standard against which to compare methods for composing APL
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 
-(defun output-function (form &optional arguments assigned-symbols arg-symbols to-reference closure-meta)
+(defun output-function (form &optional arguments closure-meta)
   "Express an APL inline function like {⍵+5}."
-  (let ((assigned-symbols (loop :for sym :in assigned-symbols
-                             :when (not (member (string-upcase sym)
-                                                '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
-                                                :test #'string=))
-                             :collect `(inws ,sym)))
+  (let ((arg-symbols (getf closure-meta :arg-syms))
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms) :collect `(inws ,sym)))
         (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
                          :append `((inws ,sym) (inws ,(intern (format nil "𝕚∇~a" sym))))))
@@ -963,7 +959,6 @@ It remains here as a standard against which to compare methods for composing APL
                              (loop :for sym :in (getf closure-meta :pop-syms)
                                 :when (not (member sym (getf (getf closure-meta :env) :pop-syms)))
                                 :collect `(inwsd ,(intern (format nil "𝕆ℙ∇~a" sym))))))
-        (to-reference (loop :for sym :in to-reference :collect `(inwsd ,sym)))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                  ;; the latter case wraps a user-defined operator
@@ -975,9 +970,7 @@ It remains here as a standard against which to compare methods for composing APL
              `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
                   (with (:sys-vars ,@(loop :for (key value) :on *system-variables* :by #'cddr
                                         :collect `(inws ,value))))
-                ;; ,@(if (not assigned-symbols)
-                ;;       form `((f-lex (,to-reference ,assigned-symbols) ,@form)))
-                ,@(if (not assigned-symbols)
+                ,@(if (not (or context-vars context-fns context-ops assigned-vars assigned-fns assigned-ops))
                       form `((f-lex ,(list (append context-vars context-fns context-ops)
                                            (append assigned-vars assigned-fns assigned-ops))
                                ,@form)))
