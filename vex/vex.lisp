@@ -926,7 +926,7 @@
                             tokens space idiom (lambda (item &optional sub-props)
                                                  (composer idiom space item nil sub-props))
                             precedent properties pre-props)
-                 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
+                  ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
                  (if new-processed (setq processed new-processed properties new-props tokens remaining))))
         (if special-params (setf (getf properties :special) special-params))
         (if processed (composer idiom space tokens processed properties pre-props)

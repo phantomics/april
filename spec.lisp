@@ -1629,6 +1629,8 @@
   (for "Locally-scoped function used with pivotal operator within if-statement."
        "(⍳3){ g←{⍵×⍺-2} ⋄ b←{⍺×⍵÷3} ⋄ h←{12×$[~2|⍺;⍺ (b . g) ⍵;⍺ g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(-24 -36 -48) 0 #(48 60 72)))
+  (for "Function containing multiple nested locally-scoped functions."
+       "{ aa←{⍵+5} ⋄ bb←{ cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵ } ⋄ 9 bb ⍵ } 100" #(9 105))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
