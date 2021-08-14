@@ -62,11 +62,6 @@
            (dotimes ,clause ,@body)
            (pdotimes ,(append clause (list nil free-threads)) ,@body)))))
 
-;; (defun duplicate (object)
-;;   "Return a copy of the argument if it is an array, otherwise pass the argument back."
-;;   (if (not (arrayp object))
-;;       object (copy-array object)))
-
 (defun duplicate (object)
   "Return a copy of the argument if it is an array, otherwise pass the argument back."
   (if (not (arrayp object))

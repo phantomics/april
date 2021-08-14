@@ -309,8 +309,9 @@
   "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
   (lambda (omega alpha &optional axes)
     (let ((axis (disclose-atom *first-axis-or-nil*)))
-      (if (and (floatp axis)
-               (< double-float-epsilon (nth-value 1 (floor axis))))
+      (if (or (typep axis 'ratio)
+              (and (floatp axis)
+                   (< double-float-epsilon (nth-value 1 (floor axis)))))
           ;; laminate in the case of a fractional axis argument
           (laminate alpha omega (ceiling axis))
           ;; simply stack the arrays if there is no axis argument or it's an integer
@@ -762,13 +763,13 @@
         output)
       (error "Area of array to be reassigned does not match shape of values to be assigned.")))
 
-(defun match-lexical-function-identity (glyph)
-  "Find the identity value of a lexical function based on its character."
-  (second (assoc glyph `((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1)
-                         (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
-                         (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⊤ 0) (#\∪ ,(vector)) (#\⌽ 0) (#\⊖ 0)
-                         (#\⌈ ,most-negative-long-float) (#\⌊ ,most-positive-long-float))
-                 :test #'char=)))
+;; (defun match-lexical-function-identity (glyph)
+;;   "Find the identity value of a lexical function based on its character."
+;;   (second (assoc glyph `((#\+ 0) (#\- 0) (#\× 1) (#\÷ 1) (#\⋆ 1) (#\* 1) (#\! 1)
+;;                          (#\< 0) (#\≤ 1) (#\= 1) (#\≥ 1) (#\> 0) (#\≠ 0) (#\| 0)
+;;                          (#\^ 1) (#\∧ 1) (#\∨ 0) (#\⊤ 0) (#\∪ ,(vector)) (#\⌽ 0) (#\⊖ 0)
+;;                          (#\⌈ ,most-negative-long-float) (#\⌊ ,most-positive-long-float))
+;;                  :test #'char=)))
 
 (defun operate-reducing (function function-glyph axis &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
@@ -776,7 +777,9 @@
     (if (not (arrayp omega))
         omega (if (= 0 (size omega))
                   (or (and (= 1 (rank omega))
-                           (match-lexical-function-identity (aref function-glyph 0)))
+                           (or (let ((identity (getf (funcall function :get-metadata nil) :id)))
+                                 (if (functionp identity) (funcall identity) identity))
+                               (error "The operand of [/ reduce] has no identity value.")))
                       (make-array (loop :for i below (1- (rank omega)) :collect 0)))
                   (reduce-array omega function axis last-axis alpha)))))
 
@@ -904,11 +907,9 @@
             (= 0 (size alpha)))
         (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
             (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
-            (if (= 1 (length left-glyph))
-                ;; inner product with empty vector gives the identity of the left operand
-                (or (match-lexical-function-identity (aref left-glyph 0))
-                    (error "Left operand given to [. inner product] has no identity."))
-                (error "Left operand given to [. inner product] has no identity; not a primitive function.")))
+            (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
+                  (if (functionp identity) (funcall identity) identity))
+                (error "Left operand given to [. inner product] has no identity.")))
         (array-inner-product omega alpha right left
                              (not (of-lexicon this-idiom :scalar-functions (aref right-glyph 0)))))))
 
