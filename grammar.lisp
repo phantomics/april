@@ -173,6 +173,9 @@
           (values nil nil))))
 
 (defun process-operator (this-item properties process idiom space)
+  ;; (if (and (symbolp this-item)
+  ;;          (string= "depth" (string this-item)))
+  ;;     (print (list :cc this-item properties)))
   (if (listp this-item)
       (if (and (eq :op (first this-item))
                (not (listp (first (last this-item))))
@@ -239,13 +242,32 @@
           ;; and the appropriate variable name should be verified in the workspace
           (let* ((symbol-string (string this-item))
                  (type-to-find (getf properties :valence))
+                 (closure-meta (rest (getf (getf properties :special) :closure-meta)))
                  (lop-string (if (eq :lateral (getf properties :valence))
-                                 (concatenate 'string "𝕆𝕃∇" symbol-string)))
+                                 ;; (concatenate 'string "𝕆𝕃∇" symbol-string)
+                                 symbol-string))
                  (pop-string (if (eq :pivotal (getf properties :valence))
-                                 (concatenate 'string "𝕆ℙ∇" symbol-string)))
-                 (bound-op (if (and lop-string (fboundp (intern lop-string space)))
+                                 ;; (concatenate 'string "𝕆ℙ∇" symbol-string)
+                                 symbol-string))
+                 ;; (abc (if (and (symbolp this-item)
+                 ;;               (string= "depth" (string this-item)))
+                 ;;          (print (list :ll lop-string pop-string
+                 ;;                       this-item
+                 ;;                       (of-meta-hierarchy closure-meta :pop-syms)))))
+                 (bound-op (if (and lop-string
+                                    (or (and (fboundp (intern lop-string space))
+                                             (boundp (intern lop-string space))
+                                             (eq :lateral (getf (rest (symbol-value (intern lop-string space)))
+                                                                :valence)))
+                                        (member this-item (of-meta-hierarchy closure-meta :lop-syms))))
                                (intern lop-string)
-                               (if (and pop-string (fboundp (intern pop-string space)))
+                               (if (and pop-string
+                                        (or (and (fboundp (intern pop-string space))
+                                                 (boundp (intern pop-string space))
+                                                 (eq :pivotal
+                                                     (getf (rest (symbol-value (intern pop-string space)))
+                                                           :valence)))
+                                            (member this-item (of-meta-hierarchy closure-meta :pop-syms))))
                                    (intern pop-string)))))
             (if bound-op
                 (values bound-op (list :type (list :operator (or (getf properties :valence)
@@ -369,8 +391,15 @@
                     items)))))
 
 (labels ((verify-lateral-operator-symbol (symbol space)
-           (if (symbolp symbol) (let ((symbol (intern (concatenate 'string "𝕆𝕃∇" (string symbol)))))
-                                  (if (fboundp (intern (string symbol) space)) symbol)))))
+           (if (symbolp symbol) (let ((symbol (intern ;; (concatenate 'string "𝕆𝕃∇" (string symbol))
+                                                      (string symbol)
+                                                      )))
+                                  (if (and (fboundp (intern (string symbol) space))
+                                           (boundp (intern (string symbol) space))
+                                           (eq :lateral (getf (rest (symbol-value (intern (string symbol)
+                                                                                          space)))
+                                                              :valence)))
+                                      symbol)))))
   (composer-pattern composer-pattern-lateral-composition
       (operator-axes operator-form operator-props operand-axes operand-form
                      operand-props symbol-plain symbol-referenced env-lops)
@@ -760,19 +789,25 @@
      (if (eq :operator (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (let ((operator-symbol (intern (concatenate 'string (if (member :pivotal preceding-type) "𝕆ℙ∇" "𝕆𝕃∇")
-                                              (string symbol)))))
+  (let ((operator-symbol (intern ;; (concatenate 'string (if (member :pivotal preceding-type) "𝕆ℙ∇" "𝕆𝕃∇")
+                                 ;;              (string symbol))
+                          (string symbol)))
+        (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
     (if asop (progn (if (is-workspace-value symbol)
                         (makunbound (intern (string symbol) space)))
                     (setf (symbol-function (intern (string operator-symbol) space))
                           #'dummy-nargument-function)
+                    ;; (print (list :aaa at-top-level precedent
+                    ;;              (getf (first (last preceding-properties)) :special)))
                     (values (if (characterp precedent)
                                 (if (or (resolve-operator :lateral precedent)
                                         (resolve-operator :pivotal precedent))
                                     (progn (set-workspace-alias space symbol precedent)
                                            (format nil "~a aliases ~a" symbol precedent)))
                                 (progn (set-workspace-alias space symbol nil)
-                                       `(setf (symbol-function (quote (inws ,operator-symbol)))
+                                       `(setf ;; (symbol-function (quote (inws ,operator-symbol)))
+                                              ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
+                                                   `(inws ,symbol))
                                               ,precedent)))
                             '(:type (:operator :assigned)) items)))))
 
@@ -961,9 +996,12 @@
     ;; It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
      (setq symbol-plain item)
+     ;; (if (and (integerp precedent) (= 1 precedent))
+     ;;     (print (list :abc item precedent (rest (getf (getf properties :special) :closure-meta)))))
      (assign-element operator operator-props process-operator
                      `(:valence :pivotal
                                 :special (,@include-closure-meta)))
+     ;; (if (and (integerp precedent) (= 1 precedent)) (print (list :op operator)))
      (if operator (progn (assign-axes left-operand-axes process)
                          (setq prior-items items
                                env-pops

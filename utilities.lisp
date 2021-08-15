@@ -204,21 +204,33 @@
                    (if (getf meta-form :parent)
                        (of-meta-hierarchy (rest (getf meta-form :parent)) key t)))))
 
-(defmacro is-workspace-value (item)
-  "Checks if a variable is present in the current workspace as a value."
-  `(and (boundp (intern (string ,item) space))
-        (not (fboundp (intern (string ,item) space)))))
+;; (defmacro is-workspace-value (item)
+;;   "Checks if a variable is present in the current workspace as a value."
+;;   `(and (boundp (intern (string ,item) space))
+;;         (not (fboundp (intern (string ,item) space)))))
 
 (defmacro is-workspace-function (item)
   "Checks if a variable is present in the current workspace as a function."
   `(fboundp (intern (string ,item) space)))
 
+(defmacro is-workspace-function (item)
+  "Checks if a variable is present in the current workspace as a function."
+  `(and (fboundp (intern (string ,item) space))
+        (or (not (boundp (intern (string ,item) space)))
+            (not (getf (rest (symbol-value (intern (string ,item) space))) :valence)))))
+
+;; (defmacro is-workspace-operator (item)
+;;   "Checks if a variable is present in the current workspace as an operator."
+;;   `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
+;;                         space))
+;;        (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
+;;                         space))))
+
 (defmacro is-workspace-operator (item)
   "Checks if a variable is present in the current workspace as an operator."
-  `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
-                        space))
-       (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
-                        space))))
+  `(and (fboundp (intern (string ,item) space))
+        (boundp (intern (string ,item) space))
+        (getf (rest (symbol-value (intern (string ,item) space))) :valence)))
 
 (defun get-array-meta (array &rest keys)
   "Gets one or more metadata of an array using the displacement reference technique."
@@ -826,8 +838,12 @@ It remains here as a standard against which to compare methods for composing APL
   "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
   (declare (ignore symbol))
   (let ((expanded (macroexpand body)))
-    (if (or (not (listp (first expanded)))
-            (not (eql 'olambda (caar expanded))))
+    (if (or (and (not (listp (first expanded)))
+                 (or (not (symbolp (first expanded)))
+                     (eql '∇oself (first expanded))
+                     (fboundp (first expanded))))
+            (and (listp (first expanded))
+                 (not (eql 'olambda (caar expanded)))))
         expanded (cons 'funcall expanded))))
 
 (defmacro apl-if (&rest each-clause)
@@ -979,9 +995,11 @@ It remains here as a standard against which to compare methods for composing APL
         (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
                          :append `((inws ,sym) (inws ,(intern (format nil "𝕚∇~a" sym))))))
         (assigned-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                 :collect `(inws ,(intern (format nil "𝕆𝕃∇~a" sym))))
+                                 :collect `(inws ,(intern ;; (format nil "𝕆𝕃∇~a" sym)
+                                                          (string sym))))
                               (loop :for sym :in (getf closure-meta :pop-syms)
-                                 :collect `(inws ,(intern (format nil "𝕆ℙ∇~a" sym))))))
+                                 :collect `(inws ,(intern ;; (format nil "𝕆ℙ∇~a" sym)
+                                                          (string sym))))))
         (context-vars (loop :for sym :in (getf closure-meta :var-syms)
                          :when (and (not (member sym arguments))
                                     (not (member sym (of-meta-hierarchy (rest (getf closure-meta :parent))
@@ -994,11 +1012,13 @@ It remains here as a standard against which to compare methods for composing APL
         (context-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
                                 :when (not (member sym (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                           :lop-syms)))
-                                :collect `(inwsd ,(intern (format nil "𝕆𝕃∇~a" sym))))
+                                :collect `(inwsd ,(intern ;; (format nil "𝕆𝕃∇~a" sym)
+                                                          (string sym))))
                              (loop :for sym :in (getf closure-meta :pop-syms)
                                 :when (not (member sym (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                           :pop-syms)))
-                                :collect `(inwsd ,(intern (format nil "𝕆ℙ∇~a" sym))))))
+                                :collect `(inwsd ,(intern ;; (format nil "𝕆ℙ∇~a" sym)
+                                                          (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                  ;; the latter case wraps a user-defined operator
@@ -1191,9 +1211,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                      '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                           (valence (if is-operator (if (intersection is-operator '(⍹ ⍵⍵))
                                                        :pivotal :lateral)))
-                          (int-symbol (if is-operator (intern (concatenate 'string (if (eq valence :lateral)
-                                                                                       "𝕆𝕃∇" "𝕆ℙ∇")
-                                                                           (string symbol))
+                          (int-symbol (if is-operator (intern ;; (concatenate 'string (if (eq valence :lateral)
+                                                              ;;                          "𝕆𝕃∇" "𝕆ℙ∇")
+                                                              ;;              (string symbol))
+                                                              (string symbol)
                                                               space))))
                      (if is-operator (progn (setf (getf (rest fn-meta) :valence) valence)
                                             (if (getf (rest fn-meta) :valence-setters)
