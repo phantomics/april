@@ -196,7 +196,6 @@
             `(λω (funcall ,body omega ,(cons 'list axes)))
             body))))
 
-
 (defun of-meta-hierarchy (meta-form key &optional is-recursing)
   "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
   (funcall (if is-recursing #'identity #'remove-duplicates)
@@ -204,27 +203,16 @@
                    (if (getf meta-form :parent)
                        (of-meta-hierarchy (rest (getf meta-form :parent)) key t)))))
 
-;; (defmacro is-workspace-value (item)
-;;   "Checks if a variable is present in the current workspace as a value."
-;;   `(and (boundp (intern (string ,item) space))
-;;         (not (fboundp (intern (string ,item) space)))))
-
-(defmacro is-workspace-function (item)
-  "Checks if a variable is present in the current workspace as a function."
-  `(fboundp (intern (string ,item) space)))
+(defmacro is-workspace-value (item)
+  "Checks if a variable is present in the current workspace as a value."
+  `(and (boundp (intern (string ,item) space))
+        (not (fboundp (intern (string ,item) space)))))
 
 (defmacro is-workspace-function (item)
   "Checks if a variable is present in the current workspace as a function."
   `(and (fboundp (intern (string ,item) space))
         (or (not (boundp (intern (string ,item) space)))
             (not (getf (rest (symbol-value (intern (string ,item) space))) :valence)))))
-
-;; (defmacro is-workspace-operator (item)
-;;   "Checks if a variable is present in the current workspace as an operator."
-;;   `(or (fboundp (intern (concatenate 'string "𝕆𝕃∇" (string ,item))
-;;                         space))
-;;        (fboundp (intern (concatenate 'string "𝕆ℙ∇" (string ,item))
-;;                         space))))
 
 (defmacro is-workspace-operator (item)
   "Checks if a variable is present in the current workspace as an operator."
@@ -258,7 +246,7 @@
                                    :displaced-index-offset 1 :element-type t))
           output))))
 
-(defun generate-aliasing-function (fn-monadic fn-dyadic &optional axes)
+(defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic."
   (flet ((wrap-curried-axes (form)
            (if (not axes) form `(λχ ,form ,@axes))))
@@ -274,6 +262,40 @@
              (apply (if (= 2 (length ,args)) ,(wrap-curried-axes fn-dyadic)
                         ,(wrap-curried-axes fn-monadic))
                     ,args))))))
+
+(defun generate-ambivalent-reference-function (fn-monadic fn-dyadic &optional axes)
+  "Generate a function aliasing a lexical function which may be monadic or dyadic."
+  (flet ((wrap-curried-axes (form)
+           (if (not axes) form `(λχ ,form ,@axes))))
+    (let ((args (gensym))
+          (m-meta (if (member (first fn-monadic) '(scalar-function function-meta))
+                      (cddr fn-monadic)))
+          (d-meta (if (member (first fn-dyadic) '(scalar-function function-meta))
+                      (cddr fn-dyadic))))
+      `(lambda (&rest ,args)
+         (if (eq :get-metadata (first ,args))
+             (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
+                 ,(if d-meta (cons 'list d-meta)))
+             (apply (if (= 2 (length ,args)) ,(wrap-curried-axes fn-dyadic)
+                        ,(wrap-curried-axes fn-monadic))
+                    ,args))))))
+
+;; (defun generate-aliasing-function (fn-monadic fn-dyadic &optional axes)
+;;   "Generate a function aliasing a lexical function which may be monadic or dyadic."
+;;   (flet ((wrap-curried-axes (form)
+;;            (if (not axes) form `(λχ ,form ,@axes))))
+;;     (let ((args (gensym))
+;;           (m-meta (if (member (first fn-monadic) '(scalar-function function-meta))
+;;                       (cddr fn-monadic)))
+;;           (d-meta (if (member (first fn-dyadic) '(scalar-function function-meta))
+;;                       (cddr fn-dyadic))))
+;;       `(lambda (&rest ,args)
+;;          (if (eq :get-metadata (first ,args))
+;;              (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
+;;                  ,(if d-meta (cons 'list d-meta)))
+;;              (apply (if (= 2 (length ,args)) ,(wrap-curried-axes fn-dyadic)
+;;                         ,(wrap-curried-axes fn-monadic))
+;;                     ,args))))))
 
 (defun get-workspace-alias (space symbol)
   "Find an existing alias of a lexical function in a workspace."
@@ -353,11 +375,13 @@
                                                                            ,this-val (aref ,this-val ,sx))))
                                            (if (eql '⍺ sym)
                                                `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
-                                                                   ,this-val (aref ,this-val sx)))))
+                                                                   (disclose ,this-val)
+                                                                   (aref ,this-val sx)))))
                                                (if (eql '⍵ sym) `(error "The [⍵ right argument] cannot ~a"
                                                                         "have a default assignment.")
                                                    `((setf ,sym (if (not (vectorp ,this-val))
-                                                                    ,this-val (aref ,this-val ,sx)))))))))
+                                                                    (disclose ,this-val)
+                                                                    (aref ,this-val ,sx)))))))))
                         ,this-val))))
           (process-symbols symbols value)))))
 
@@ -594,7 +618,10 @@
                                                     (if (eql 'function (first ,first-op))
                                                         ,first-op (if (eql 'wrap-fn-ref (first ,first-op))
                                                                       (second ,first-op)))
-                                                    (if (eql '⍺⍺ ,first-op) ,first-op))))
+                                                    (if ;; (and ,first-op (symbolp ,first-op))
+                                                     ;; (eql '⍺⍺ ,first-op)
+                                                     (member ,first-op '(⍺⍺ op-left))
+                                                        ,first-op))))
                                           (left-fn-dyadic-inverse
                                            `(if (resolve-function :dyadic-inverse ,first-op)
                                                 `(λωα (apl-call ,(or-functional-character ,first-op :fn)
@@ -1153,39 +1180,39 @@ It remains here as a standard against which to compare methods for composing APL
                  ,function-monadic ,function-dyadic
                  (if ,is-inverse ,inverted ,operand)))))))
 
-(defun get-external-scope-symbols (key meta)
-  (if (and (getf meta :parent)
-           (getf (rest (getf meta :parent)) key))
-      (append (loop :for sym :in (getf (rest (getf meta :parent)) key) :collect sym)
-              (get-external-scope-symbols key (getf (rest (getf meta :parent)) :parent)))))
-
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
+  "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; currently, this function is used to initialize function and variable references
   ;; in the workspace before compilation is performed so that recursive
   ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
   (symbol-macrolet ((closure-meta (rest closure-meta-form)))
     (match tokens
       ((list (guard axes-form (and (listp axes-form) (eq :axes (first axes-form))))
-             (guard fn-form (and (listp fn-form) (eq :fn (first fn-form))
-                                 (characterp (second fn-form))))
+             (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
              '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
        ;; handle function currying with axes, like ax←,[1.5]
-       (if closure-meta (push symbol (getf closure-meta :fn-syms))
-           (progn (if (is-workspace-value symbol)
-                      (makunbound (intern (string symbol) space)))
-                  (setf (symbol-function (intern (string symbol) space))
-                        #'dummy-nargument-function)))
-       (let ((each-axis (rest axes-form)))
-         ;; if the symbol is already bound as a regular function, unbind it
-         (list (cons :axes (loop :for item :in each-axis
-                              :collect (lexer-postprocess item idiom space closure-meta-form)))
-               fn-form '(:fn #\←) symbol)))
-      ((list (guard fn-form (and (listp fn-form)
-                                 ;; (eq :fn (first fn-form))
-                                 (member (first fn-form) '(:fn :op))
-                                 ))
+       (if (eq :op (first fn-form))
+           (let ((valence (second fn-form)))
+             (if closure-meta (if (not (member symbol (getf closure-meta
+                                                            (if (eq :lateral valence)
+                                                                :lop-syms :pop-syms))))
+                                  (push symbol (getf closure-meta (if (eq :lateral valence)
+                                                                      :lop-syms :pop-syms))))
+                 (progn (if (is-workspace-value symbol)
+                            (makunbound (intern (string symbol) space)))))
+             (list axes-form fn-form '(:fn #\←) symbol))
+           (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
+                      (progn (if (is-workspace-value symbol)
+                                 (makunbound (intern (string symbol) space)))
+                             (setf (symbol-function (intern (string symbol) space))
+                                   #'dummy-nargument-function)))
+                  (let ((each-axis (rest axes-form)))
+                    ;; if the symbol is already bound as a regular function, unbind it
+                    (list (cons :axes (loop :for item :in each-axis
+                                         :collect (lexer-postprocess item idiom space closure-meta-form)))
+                          fn-form '(:fn #\←) symbol)))))
+      ((list (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
              '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
-       ;; (print (list :ff fn-form))
        ;; handle function assignments like fn←{⍵+5} or aliasing like fn←+
        (if (characterp (second fn-form))
            (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
@@ -1211,11 +1238,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                      '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                           (valence (if is-operator (if (intersection is-operator '(⍹ ⍵⍵))
                                                        :pivotal :lateral)))
-                          (int-symbol (if is-operator (intern ;; (concatenate 'string (if (eq valence :lateral)
-                                                              ;;                          "𝕆𝕃∇" "𝕆ℙ∇")
-                                                              ;;              (string symbol))
-                                                              (string symbol)
-                                                              space))))
+                          (int-symbol (if is-operator (intern (string symbol) space))))
                      (if is-operator (progn (setf (getf (rest fn-meta) :valence) valence)
                                             (if (getf (rest fn-meta) :valence-setters)
                                                 (loop :for setter :in (getf (rest fn-meta) :valence-setters)

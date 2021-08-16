@@ -1123,14 +1123,9 @@
                         (if window-reversed (loop :for ix :below window :do (process-item ix))
                             (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
                       (setf (row-major-aref output i) value))))
-              (if (or (and (= 1 (size input)) ;; TODO: can this be simplified?
-                           (= 1 (rank input))
-                           ;; if the input is a 1-dimensional array and the output is an enclosed
-                           ;; array, don't disclose the output
-                           (not (and (= 0 (rank output))
-                                     (not (arrayp (aref output))))))
-                      (not (and (= 0 (rank output))
-                                (= 0 (rank (aref output))))))
+              (if (not (and (arrayp output)
+                            (= 0 (rank output))
+                            (not (arrayp (aref output)))))
                   output (disclose output)))))
 
 (defun array-inner-product (alpha omega function1 function2 &optional function1-nonscalar)

@@ -771,7 +771,7 @@
 ;;                          (#\⌈ ,most-negative-long-float) (#\⌊ ,most-positive-long-float))
 ;;                  :test #'char=)))
 
-(defun operate-reducing (function function-glyph axis &optional last-axis)
+(defun operate-reducing (function axis &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))

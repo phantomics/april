@@ -17,6 +17,10 @@
 (defun process-value (this-item properties process idiom space)
   ;; TODO: add a passthrough value mode for symbols that are being assigned!
   ;; this is the only way to get them assignable after the first time
+  ;; (if (and (listp this-item)
+  ;;          (numberp (second this-item))
+  ;;          (= -1 (second this-item)))
+  ;;     (print (list :ti this-item)))
   (cond ((and (listp this-item)
               (not (member (first this-item) '(:fn :op :axes))))
          ;; if the item is a closure, evaluate it and return the result
@@ -145,14 +149,9 @@
               (values nil nil)))
       (if (and (symbolp this-item)
                (not (getf properties :glyph)))
-          (cond ((or (is-workspace-function this-item)
-                     ;; (get-workspace-alias space this-item)
-                     )
+          (cond ((is-workspace-function this-item)
                  ;; process workspace-aliased lexical functions, as when f←+ has been set
-                 (values ;; (if (not (get-workspace-alias space this-item))
-                         ;;     this-item (get-workspace-alias space this-item))
-                         this-item
-                         (list :type '(:function :referenced))))
+                 (values this-item (list :type '(:function :referenced))))
                 ((eql this-item '∇)
                  (values this-item (list :type '(:function :self-reference))))
                 ((member this-item '(⍵⍵ ⍺⍺))
@@ -173,9 +172,6 @@
           (values nil nil))))
 
 (defun process-operator (this-item properties process idiom space)
-  ;; (if (and (symbolp this-item)
-  ;;          (string= "depth" (string this-item)))
-  ;;     (print (list :cc this-item properties)))
   (if (listp this-item)
       (if (and (eq :op (first this-item))
                (not (listp (first (last this-item))))
@@ -390,15 +386,59 @@
                           :axes (or axes (getf function-props :axes)))
                     items)))))
 
-(labels ((verify-lateral-operator-symbol (symbol space)
-           (if (symbolp symbol) (let ((symbol (intern ;; (concatenate 'string "𝕆𝕃∇" (string symbol))
-                                                      (string symbol)
-                                                      )))
-                                  (if (and (fboundp (intern (string symbol) space))
-                                           (boundp (intern (string symbol) space))
-                                           (eq :lateral (getf (rest (symbol-value (intern (string symbol)
-                                                                                          space)))
-                                                              :valence)))
+
+(composer-pattern composer-pattern-operator-alias (operator-axes operator-form operator-props
+                                                                 asop asop-props symbol symbol-props)
+    ;; match a lexical operator alias like key←⌸
+    ((let ((sub-props (list :special (list :closure-meta (getf (getf properties :special) :closure-meta)))))
+       (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
+     (assign-element operator-form operator-props process-operator)
+     (if operator-form (assign-element asop asop-props process-function '(:glyph ←)))
+     (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
+  (let* ((type (getf operator-props :type))
+         (operator-type (second type))
+         (operator (and (member :operator type) operator-form))
+         (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
+    (if (and symbol operator-form (member operator-type '(:lateral :pivotal))
+             (resolve-operator operator-type operator))
+        (values `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
+                            `(inws ,symbol))
+                       (lambda ,(if (eq :lateral operator-type)
+                                    (if operator-axes '(op-left) '(op-left &optional op-axes))
+                                    (if (eq :pivotal operator-type) '(left-op right-op &optional c d)))
+                         ,@(if (and (not operator-axes)
+                                    (eq :lateral operator-type))
+                               '((declare (ignorable op-axes)))
+                               (if (eq :pivotal operator-type) '((declare (ignorable c d)))))
+                         ,(if operator-axes
+                             (funcall (apply (resolve-operator operator-type operator-form)
+                                              (if (eq :lateral operator-type)
+                                                  (if t '(op-left op-axes))
+                                                  (list 'a 'b 'c 'd)))
+                                       (first operator-axes))
+                             `(if op-axes
+                                  ,(funcall (apply (resolve-operator operator-type operator-form)
+                                                   (if (eq :lateral operator-type)
+                                                       '(op-left op-axes)
+                                                       (list 'a 'b 'c 'd)))
+                                            '((first op-axes)))
+                                  ,(funcall (apply (resolve-operator operator-type operator-form)
+                                                   (if (eq :lateral operator-type)
+                                                       '(op-left op-axes)
+                                                       (list 'a 'b 'c 'd)))
+                                            (if operator-axes (first operator-axes))))))
+                       )
+                '(:type (:operator :aliased))
+                items))))
+
+(labels ((verify-lateral-operator-symbol (symbol space closure-meta)
+           (if (symbolp symbol) (let ((symbol (intern (string symbol))))
+                                  (if (or (member symbol (of-meta-hierarchy closure-meta :lop-syms))
+                                          (and (fboundp (intern (string symbol) space))
+                                               (boundp (intern (string symbol) space))
+                                               (eq :lateral (getf (rest (symbol-value (intern (string symbol)
+                                                                                              space)))
+                                                                  :valence))))
                                       symbol)))))
   (composer-pattern composer-pattern-lateral-composition
       (operator-axes operator-form operator-props operand-axes operand-form
@@ -406,8 +446,12 @@
       ;; match a lateral function composition like +/, marking the beginning of a functional expression
       ((assign-axes operator-axes process)
        (setq symbol-plain item
-             symbol-referenced (verify-lateral-operator-symbol symbol-plain space))
-       (assign-element operator-form operator-props process-operator '(:valence :lateral))
+             symbol-referenced (verify-lateral-operator-symbol
+                                symbol-plain space (rest (getf (getf properties :special) :closure-meta))))
+       (assign-element operator-form operator-props process-operator
+                       `(:valence :lateral :special (,@include-closure-meta)))
+       ;; (if symbol-referenced (progn (print (list :ssym symbol-referenced operator-form operator-props))
+       ;;                               (error "stop")))
        (if operator-form (progn (assign-axes operand-axes process)
                                 (setq env-lops
                                       (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
@@ -420,21 +464,21 @@
                                                    ,@include-closure-meta-last))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values (list 'apl-compose :op (list (if (progn
-                                                   (and (fboundp (intern (string symbol-referenced) space))
-                                                        (not (member symbol-plain env-lops))))
-                                                 'inwsd 'inws)
-                                              symbol-referenced)
-                      (if (listp operand-form)
-                          operand-form
-                          (if (characterp operand-form)
-                              (let ((omega (gensym)) (alpha (gensym)))
-                                `(lambda (,omega &optional ,alpha)
-                                   (if ,alpha (apl-call :fn ,(resolve-function :dyadic operand-form)
-                                                        ,omega ,alpha)
-                                       (apl-call :fn ,(resolve-function :monadic operand-form)
-                                                 ,omega))))
-                              operand-form)))
+        (values `(apl-compose :op ,(list (if (and (fboundp (intern (string symbol-referenced) space))
+                                                  (not (member symbol-plain env-lops)))
+                                             'inwsd 'inws)
+                                         symbol-referenced)
+                              ,(if (listp operand-form)
+                                   operand-form
+                                   (if (characterp operand-form)
+                                       (let ((omega (gensym)) (alpha (gensym)))
+                                         `(lambda (,omega &optional ,alpha)
+                                            (if ,alpha (apl-call :fn ,(resolve-function :dyadic operand-form)
+                                                                 ,omega ,alpha)
+                                                (apl-call :fn ,(resolve-function :monadic operand-form)
+                                                          ,omega))))
+                                       operand-form))
+                      ,@(if operator-axes `((list ,@(first operator-axes)))))
                 '(:type (:function :operator-composed :lateral))
                 items)
         (let ((operator (and (member :operator (getf operator-props :type))
@@ -494,6 +538,7 @@
 (setq *composer-opening-patterns*
       '((:name :value :function composer-pattern-value)
         (:name :function :function composer-pattern-function)
+        (:name :operator-alias :function composer-pattern-operator-alias)
         (:name :lateral-composition :function composer-pattern-lateral-composition)
         (:name :unitary-operator :function composer-pattern-unitary-operation)))
 
@@ -771,7 +816,7 @@
                                           ,(if (not fn-monadic)
                                                fn-dyadic (if (not fn-dyadic)
                                                              fn-monadic
-                                                             (generate-aliasing-function
+                                                             (generate-ambivalent-reference-function
                                                               fn-monadic fn-dyadic
                                                               (getf (first preceding-properties) :axes))))))))
                          `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
@@ -789,27 +834,18 @@
      (if (eq :operator (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (let ((operator-symbol (intern ;; (concatenate 'string (if (member :pivotal preceding-type) "𝕆ℙ∇" "𝕆𝕃∇")
-                                 ;;              (string symbol))
-                          (string symbol)))
+  (let ((operator-symbol (intern (string symbol)))
         (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
-    (if asop (progn (if (is-workspace-value symbol)
-                        (makunbound (intern (string symbol) space)))
-                    (setf (symbol-function (intern (string operator-symbol) space))
-                          #'dummy-nargument-function)
-                    ;; (print (list :aaa at-top-level precedent
-                    ;;              (getf (first (last preceding-properties)) :special)))
-                    (values (if (characterp precedent)
-                                (if (or (resolve-operator :lateral precedent)
-                                        (resolve-operator :pivotal precedent))
-                                    (progn (set-workspace-alias space symbol precedent)
-                                           (format nil "~a aliases ~a" symbol precedent)))
-                                (progn (set-workspace-alias space symbol nil)
-                                       `(setf ;; (symbol-function (quote (inws ,operator-symbol)))
-                                              ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
-                                                   `(inws ,symbol))
-                                              ,precedent)))
-                            '(:type (:operator :assigned)) items)))))
+    (if asop (values (if (characterp precedent)
+                         (if (or (resolve-operator :lateral precedent)
+                                 (resolve-operator :pivotal precedent))
+                             (progn (set-workspace-alias space symbol precedent)
+                                    (format nil "~a aliases ~a" symbol precedent)))
+                         (progn (set-workspace-alias space symbol nil)
+                                `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
+                                            `(inws ,symbol))
+                                       ,precedent)))
+                     '(:type (:operator :assigned)) items))))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
     ;; "Match a branch-to statement like →1 or a branch point statement like 1→⎕."
@@ -996,12 +1032,9 @@
     ;; It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
      (setq symbol-plain item)
-     ;; (if (and (integerp precedent) (= 1 precedent))
-     ;;     (print (list :abc item precedent (rest (getf (getf properties :special) :closure-meta)))))
      (assign-element operator operator-props process-operator
                      `(:valence :pivotal
                                 :special (,@include-closure-meta)))
-     ;; (if (and (integerp precedent) (= 1 precedent)) (print (list :op operator)))
      (if operator (progn (assign-axes left-operand-axes process)
                          (setq prior-items items
                                env-pops

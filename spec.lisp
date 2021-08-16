@@ -1092,9 +1092,9 @@
         (:demo-profile :title "Lateral Operator Demos"
                        :description "Lateral operators take a single operand function to their left, hence the name 'lateral.' The combination of operator and function yields another function which may be applied to one or two arguments depending on the operator."))
   (/ (has :title "Reduce")
-     (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
+     (lateral (with-derived-operands (axes left-fn-dyadic)
                 (let ((axes (if axes `(- ,(first axes) index-origin))))
-                  `(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph)) ,axes t))))
+                  `(operate-reducing ,left-fn-dyadic ,axes t))))
      (tests (is "+/1 2 3 4 5" 15)
             (is "⊢/⍳5" 5)
             (is "×/5" 5)
@@ -1123,9 +1123,9 @@
                 #2A((6 9 12 15 10 14 18) (24 18 12 6 25 20 15) (15 18 21 24 22 26 30)))
             (is "⊃,/(⊂'abc') 'def' 'ghi'" #("abc" #\d #\e #\f #\g #\h #\i))))
   (⌿ (has :title "Reduce First")
-     (lateral (with-derived-operands (axes left-glyph left-fn-dyadic)
+     (lateral (with-derived-operands (axes left-fn-dyadic)
                 (let ((axes (if axes `(- ,(first axes) index-origin))))
-                  `(operate-reducing ,left-fn-dyadic (string (quote ,left-glyph)) ,axes))))
+                  `(operate-reducing ,left-fn-dyadic ,axes))))
      (tests (is "+⌿3 4⍴⍳12" #(15 18 21 24))
             (is "-⌿3 4⍴⍳12" #(5 6 7 8))
             (is "{⍺×⍵+3}⌿3 4⍴⍳12" #(63 162 303 492))
@@ -1162,9 +1162,9 @@
              (is "1 ¯1⌽¨⊂⍳5" #(#(2 3 4 5 1) #(5 1 2 3 4)))
              (is "3+¨3 3⍴⍳9" #2A((4 5 6) (7 8 9) (10 11 12)))
              (is "1 2 3+¨1⍴3" #(4 5 6))
-             (is "⊃⍪/,/(⊂2 2⍴2 3 1 4){⍺+⍵××/⍴⍺}¨3 3⍴⍳9" #2A((6 7 10 11 14 15) (5 8 9 12 13 16)
-                                                            (18 19 22 23 26 27) (17 20 21 24 25 28)
-                                                            (30 31 34 35 38 39) (29 32 33 36 37 40)))
+             (is "⊃⍪/,/(⊂2 2⍴2 3 1 4){⍺+⍵××/⍴⍺}¨3 3⍴⍳9"
+                 #2A((6 7 10 11 14 15) (5 8 9 12 13 16) (18 19 22 23 26 27) (17 20 21 24 25 28)
+                     (30 31 34 35 38 39) (29 32 33 36 37 40)))
              (is "(⍳3)⌽[1]¨⊂2 3 4⍴⍳9" #(#3A(((4 5 6 7) (8 9 1 2) (3 4 5 6)) ((1 2 3 4) (5 6 7 8) (9 1 2 3)))
                                         #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 6 7) (8 9 1 2) (3 4 5 6)))
                                         #3A(((4 5 6 7) (8 9 1 2) (3 4 5 6)) ((1 2 3 4) (5 6 7 8) (9 1 2 3)))))
@@ -1190,7 +1190,8 @@
              (is "(⊂'ab'),¨1⍴⊂⊂,'c'" #(#(#\a #\b "c")))))
   (⍨ (has :title "Commute")
      (lateral (with-derived-operands (axes left-fn-dyadic)
-                ;; Generate a function applying a function to arguments in reverse order, or duplicating a single argument.
+                ;; generate a function applying a function to arguments in reverse order,
+                ;; or duplicating a single argument.
                 `(lambda (omega &optional alpha)
                    (funcall ,left-fn-dyadic (or alpha omega) omega))))
      (tests (is "5-⍨10" 5)
@@ -1639,6 +1640,10 @@
        "(2{⍵+⍶}7),3{⍶+⍵}5" #(9 8))
   (for "Defined lateral operator with value passed as operand positioned in vector."
        "3{1 2 ⍶ 4 5×⍵}9" #(9 18 27 36 45))
+  (for "Lateral operator with variable operand defined and used within function."
+       "(⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)6⊣¨⍺} 5" #(33 33 33))
+  (for "More complex lateral operator use within function."
+       "{ ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22" 1)
   (for "Compose operator composition within defined lateral operator."
        "÷{⍺⍺∘⌽⍵}⍳9" #(1/9 1/8 1/7 1/6 1/5 1/4 1/3 1/2 1))
   (for "Lexically scoped function defined and used within defined lateral operator."
@@ -1662,6 +1667,10 @@
        #(#(-24 -36 -48) 0 #(48 60 72)))
   (for "Function containing multiple nested locally-scoped functions."
        "{ aa←{⍵+5} ⋄ bb←{ cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵ } ⋄ 9 bb ⍵ } 100" #(9 105))
+  (for "Aliasing of [/ reduce] operator.""{o←/ ⋄ p←/[1] ⋄ (+p ⍵),(+o[1] ⍵),+o ⍵} 3 3⍴⍳9"
+       #(12 15 18 12 15 18 6 15 24))
+  (for "Aliasing of [⍨ commute] operator." "{o←⍨ ⋄ +o ⍵} 35" 70)
+  ;; (for "Aliasing of ")
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
