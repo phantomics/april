@@ -680,7 +680,7 @@
       (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
           (of-functions this-idiom reference mode))
       (if (symbolp reference)
-          (if (or (fboundp reference))
+          (if (fboundp reference)
               `(function ,reference)
               (if (eql '∇ reference)
                   '#'∇self (if (eql '∇∇ reference)

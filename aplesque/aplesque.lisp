@@ -1123,6 +1123,7 @@
                         (if window-reversed (loop :for ix :below window :do (process-item ix))
                             (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
                       (setf (row-major-aref output i) value))))
+              ;; (print (list :out output))
               (if (not (and (arrayp output)
                             (= 0 (rank output))
                             (not (arrayp (aref output)))))
