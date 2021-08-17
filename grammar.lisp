@@ -1065,6 +1065,7 @@
       ;; get left axes from the left operand and right axes from the precedent's properties so the
       ;; functions can be properly curried if they have axes specified
       (let* ((right-operand (insym precedent))
+             (right-operand-props (first preceding-properties))
              (right-operand-axes (getf (first preceding-properties) :axes))
              (left-operand (insym left-operand))
              (assigned-right-operand
@@ -1082,8 +1083,8 @@
              (omega (gensym)) (alpha (gensym)))
         ;; single character values are passed within a (:char) form so they aren't interpreted as
         ;; functional glyphs by the (resolve-function) calls
-        (if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
-            (setq left-operand (list :char left-operand)))
+        ;; (if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
+        ;;     (setq left-operand (list :char left-operand)))
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
                     `(apl-compose :op ,(if (eq :operator-self-reference operator)
@@ -1110,17 +1111,61 @@
                                               (apl-call :fn ,(resolve-function :monadic right-operand)
                                                         ,omega)))
                                        right-operand))
-                    (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
-                                             (funcall (funcall (resolve-operator :pivotal operator)
-                                                               ;; TODO: taking (first) of axes
-                                                               ;; eliminates possible future functions
-                                                               ;; that take more than one axis argument
-                                                               (or assigned-left-operand left-operand)
-                                                               (first left-operand-axes)
-                                                               (or assigned-right-operand right-operand)
-                                                               (first right-operand-axes))
-                                                      right-operand left-operand))))
-                '(:type (:function :operator-composed :pivotal)) items))))
+                    (if (member operator '(#\. #\∘ #\⍥ #\@ #\⌺ #\⍤ #\⍣) :test #'char=)
+                        (let ((left (if (eql '∇ left-operand)
+                                        '#'∇self
+                                        (if (or (listp left-operand)
+                                                (symbolp left-operand))
+                                            left-operand (if (and (characterp left-operand)
+                                                                  (not (member :array (getf left-operand-props
+                                                                                            :type))))
+                                                             ;; `(amb-ref ,(intern (string left-operand))
+                                                             ;;           ,(resolve-function
+                                                             ;;             :monadic left-operand)
+                                                             ;;           ,(resolve-function
+                                                             ;;             :dyadic left-operand)
+                                                             ;;           ,@(if left-operand-axes
+                                                             ;;                 (list left-operand-axes)))
+                                                             `(as-operand ,(intern (string left-operand))
+                                                                          ,@(if left-operand-axes
+                                                                                (list left-operand-axes)))
+                                                             left-operand
+                                                             ))))
+                              (right (if (eql '∇ right-operand)
+                                         '#'∇self
+                                         (if (or (listp right-operand)
+                                                 (symbolp right-operand))
+                                             right-operand (if (and (characterp right-operand)
+                                                                    (not (member :array
+                                                                                 (getf right-operand-props
+                                                                                       :type))))
+                                                               ;; `(amb-ref ,(intern (string right-operand))
+                                                               ;;           ,(resolve-function
+                                                               ;;             :monadic right-operand)
+                                                               ;;           ,(resolve-function
+                                                               ;;             :dyadic right-operand)
+                                                               ;;           ,@(if right-operand-axes
+                                                               ;;                 (list right-operand-axes))
+                                                               ;;           )
+                                                               `(as-operand ,(intern (string right-operand))
+                                                                            ,@(if right-operand-axes
+                                                                                  (list right-operand-axes)))
+                                                               right-operand
+                                                               )))))
+                          (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
+                                                   (funcall (resolve-operator :pivotal operator) right left))))
+                        (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
+                                                 (funcall (funcall (resolve-operator :pivotal operator)
+                                                                   ;; TODO: taking (first) of axes
+                                                                   ;; eliminates possible future functions
+                                                                   ;; that take more than one axis argument
+                                                                   (or assigned-left-operand left-operand)
+                                                                   (first left-operand-axes)
+                                                                   (or assigned-right-operand right-operand)
+                                                                   (first right-operand-axes))
+                                                          right-operand left-operand)))))
+                '(:type (:function :operator-composed :pivotal))
+                items))))
 
 (composer-pattern operation
     ;; Match an operation on values like 1+1 2 3, ⍳9 or +/⍳5; these operations are the basis of APL.

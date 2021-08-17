@@ -957,7 +957,7 @@
                                             key))))
         (mix-arrays 1 (apply #'vector item-sets))))))
 
-(defun operate-producing-inner (right left right-glyph left-glyph)
+(defun operate-producing-inner (right left)
   (lambda (alpha omega)
     (if (or (= 0 (size omega))
             (= 0 (size alpha)))
@@ -966,26 +966,42 @@
             (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
                   (if (functionp identity) (funcall identity) identity))
                 (error "Left operand given to [. inner product] has no identity.")))
-        (array-inner-product omega alpha right left
-                             (not (of-lexicon this-idiom :scalar-functions (aref right-glyph 0)))))))
+        (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
+	                   (error (c) nil))))
+          (array-inner-product omega alpha right left (not is-scalar))))))
 
-(defun operate-composed (right right-fn-monadic right-fn-dyadic
-                         left left-fn-monadic left-fn-dyadic is-confirmed-monadic)
+(defun operate-composed (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
-  (let ((fn-right (or right-fn-monadic right-fn-dyadic))
-        (fn-left (or left-fn-monadic left-fn-dyadic)))
+  (let ((fn-right (and (functionp right) right))
+        (fn-left (and (functionp left) left)))
     (lambda (omega &optional alpha)
       (if (and fn-right fn-left)
-          (let ((processed (funcall right-fn-monadic omega)))
-            (if is-confirmed-monadic (funcall left-fn-monadic processed)
-                (if alpha (funcall left-fn-dyadic processed alpha)
-                    (funcall left-fn-monadic processed))))
+          (let ((processed (funcall fn-right omega)))
+            ;;(if is-confirmed-monadic (funcall fn-left processed)
+            (if alpha (funcall fn-left processed alpha)
+                (funcall fn-left processed))) ;;)
           (if alpha (error "This function does not take a left argument.")
-              (funcall (or right-fn-dyadic left-fn-dyadic)
-                       (if (not fn-right) right omega)
-                       (if (not fn-left) left omega)))))))
+              (funcall (or fn-right fn-left)
+                       (if fn-right omega right)
+                       (if fn-left omega left)))))))
 
-(defun operate-at-rank (rank function-monadic function-dyadic)
+;; (defun operate-composed (right right-fn-monadic right-fn-dyadic
+;;                          left left-fn-monadic left-fn-dyadic is-confirmed-monadic)
+;;   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
+;;   (let ((fn-right (or right-fn-monadic right-fn-dyadic))
+;;         (fn-left (or left-fn-monadic left-fn-dyadic)))
+;;     (lambda (omega &optional alpha)
+;;       (if (and fn-right fn-left)
+;;           (let ((processed (funcall right-fn-monadic omega)))
+;;             (if is-confirmed-monadic (funcall left-fn-monadic processed)
+;;                 (if alpha (funcall left-fn-dyadic processed alpha)
+;;                     (funcall left-fn-monadic processed))))
+;;           (if alpha (error "This function does not take a left argument.")
+;;               (funcall (or right-fn-dyadic left-fn-dyadic)
+;;                        (if (not fn-right) right omega)
+;;                        (if (not fn-left) left omega)))))))
+
+(defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
     (let* ((odims (dims omega)) (adims (dims alpha))
@@ -1028,7 +1044,7 @@
         (if alpha (progn (if adivs (generate-divs adivs alpha adiv-dims adiv-size))
                          (if (not (or odivs adivs))
                              ;; if alpha and omega are scalar, just call the function on them
-                             (funcall function-dyadic omega alpha)
+                             (funcall function omega alpha)
                              (let ((output (make-array (dims (or odivs adivs)))))
                                (dotimes (i (size output)) ;; xdo
                                  (let ((this-odiv (if (not odivs)
@@ -1038,126 +1054,219 @@
                                                       alpha (if (= 0 (rank adivs))
                                                                 (aref adivs) (row-major-aref adivs i)))))
                                    (setf (row-major-aref output i)
-                                         (disclose (funcall function-dyadic this-odiv this-adiv)))))
+                                         (disclose (funcall function this-odiv this-adiv)))))
                                (mix-arrays (max (rank odivs) (rank adivs))
                                            output))))
             (if (not odivs) ;; as above for an omega value alone
-                (funcall function-monadic omega)
+                (funcall function omega)
                 (let ((output (make-array (dims odivs))))
                   (dotimes (i (size output)) ;; xdo
-                    (setf (row-major-aref output i) (funcall function-monadic (row-major-aref odivs i))))
+                    (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
                   (mix-arrays (rank output) output))))))))
 
-(defun operate-atop (right-fn-monadic right-fn-dyadic left-fn-monadic)
+(defun operate-atop (right-fn left-fn)
   "Generate a function applying two functions to a value in succession. Used to implement [⍤ atop]."
   (lambda (omega &optional alpha)
-    (if alpha (funcall left-fn-monadic (funcall right-fn-dyadic omega alpha))
-        (funcall left-fn-monadic (funcall right-fn-monadic omega)))))
+    (if alpha (funcall left-fn (funcall right-fn omega alpha))
+        (funcall left-fn (funcall right-fn omega)))))
 
-(defun operate-to-power (get-power function-retriever)
+(defun operate-to-power (condition get-power function-retriever)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
-    (let* ((arg omega) (power (funcall get-power))
-           (function (funcall function-retriever alpha (> 0 power))))
-      (dotimes (index (abs power))
-        (setq arg (if alpha (funcall function arg alpha)
-                      (funcall function arg))))
-      arg)))
+    (if condition (let* ((arg omega) (prior-arg omega)
+                         ;; (power (funcall get-power))
+                         (function (funcall function-retriever nil nil)))
+                    (loop :for index :from 0 :while (or (= 0 index)
+                                                        (= 0 (funcall condition prior-arg arg)))
+                       :do (setq prior-arg arg
+                                 arg (if alpha (funcall function arg alpha)
+                                         (funcall function arg))))
+                    arg)
+        (let* ((arg omega) (power (funcall get-power))
+               (function (funcall function-retriever alpha (> 0 power))))
+          (dotimes (index (abs power))
+            (setq arg (if alpha (funcall function arg alpha)
+                          (funcall function arg))))
+          arg))))
 
-(defun operate-until (op-right op-left-monadic op-left-dyadic)
-  "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
-  (lambda (omega &optional alpha)
-    (declare (ignorable alpha))
-    (let ((arg omega) (prior-arg omega))
-      (loop :for index :from 0 :while (or (= 0 index)
-                                          (= 0 (funcall op-right prior-arg arg)))
-         :do (setq prior-arg arg
-                   arg (if alpha (funcall op-left-dyadic arg alpha)
-                           (funcall op-left-monadic arg))))
-      arg)))
+;; (defun operate-until (op-right op-left)
+;;   "Generate a function applying a function to a value and successively to the results of prior iterations until a condition is net. Used to implement [⍣ power]."
+;;   (lambda (omega &optional alpha)
+;;     (declare (ignorable alpha))
+;;     (let ((arg omega) (prior-arg omega))
+;;       (loop :for index :from 0 :while (or (= 0 index)
+;;                                           (= 0 (funcall op-right prior-arg arg)))
+;;          :do (setq prior-arg arg
+;;                    arg (if alpha (funcall op-left arg alpha)
+;;                            (funcall op-left arg))))
+;;       arg)))
 
-(defun operate-at (left right left-fn-m left-fn-d right-fn index-origin)
+;; (defun operate-at (left right left-fn-m left-fn-d right-fn index-origin)
+;;   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
+;;   (lambda (omega &optional alpha)
+;;     (declare (ignorable alpha))
+;;     (if (and left (not (functionp left)))
+;;         (setq left-fn-d nil left-fn-m nil))
+;;     (if (and (or left-fn-d left-fn-m)
+;;              (or right-fn (or (vectorp right) (not (arrayp right)))))
+;;         ;; if the right operand is a function, collect the right argument's matching elements
+;;         ;; into a vector, apply the left operand function to it and assign its elements to their
+;;         ;; proper places in the copied right argument array and return it
+;;         (if right-fn
+;;             (let ((true-indices (make-array (size omega) :initial-element 0))
+;;                   (omega-copy (copy-array omega :element-type t))
+;;                   (sv-length 0))
+;;               (dotimes (i (size omega)) ;; xdo
+;;                 (if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
+;;                         (and (arrayp right)
+;;                              (not (loop :for r :below (size right) :never (= (row-major-aref right r)
+;;                                                                              (+ i index-origin))))))
+;;                     (incf (row-major-aref true-indices i))
+;;                     (if (and (integerp right) (= i (- right index-origin)))
+;;                         (incf (row-major-aref true-indices i)))))
+;;               (let ((tvix 0)
+;;                     (true-vector (make-array (loop :for i :across true-indices :summing i)
+;;                                              :element-type (element-type omega))))
+;;                 (dotimes (i (size omega))
+;;                   (if (/= 0 (row-major-aref true-indices i))
+;;                       (progn (setf (row-major-aref true-vector tvix)
+;;                                    (row-major-aref omega i))
+;;                              (incf (row-major-aref true-indices i) tvix)
+;;                              (incf tvix))))
+;;                 (let ((to-assign (if alpha (funcall left-fn-d true-vector alpha)
+;;                                      (funcall left-fn-m true-vector))))
+;;                   (dotimes (i (size omega)) ;; xdo 
+;;                     (if (/= 0 (row-major-aref true-indices i))
+;;                         (setf (row-major-aref omega-copy i)
+;;                               (if (= 1 (length true-vector))
+;;                                   ;; if there is only one true element the to-assign value is
+;;                                   ;; the value to be assigned, not a vector of values to assign
+;;                                   (disclose to-assign)
+;;                                   (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
+;;                   omega-copy)))
+;;             (let* ((sv-length 0)
+;;                    (omega-copy (copy-array omega :element-type t))
+;;                    (indices-adjusted (if (not (arrayp right)) (- right index-origin)
+;;                                          (apply-scalar (lambda (a) (- a index-origin)) right)))
+;;                    (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
+;;                                                 (cons indices-adjusted
+;;                                                       (loop :for i :below (1- (rank omega)) :collect nil)))))
+;;                    (out-sub-array (if alpha (funcall left-fn-d mod-array alpha)
+;;                                       (funcall left-fn-m mod-array)))
+;;                    (omega-msc (if (not (arrayp right)) ;; size of major cell in omega
+;;                                   1 (first (get-dimensional-factors (dims omega)))))
+;;                    (osa-msc (if (not (arrayp right)) ;; ... and in processed output
+;;                                 1 (first (get-dimensional-factors (dims out-sub-array))))))
+;;               (dotimes (i (size out-sub-array))
+;;                 (multiple-value-bind (major-cell remainder) (floor i osa-msc)
+;;                   (let ((omega-index (+ remainder
+;;                                         (* omega-msc (if (not (arrayp indices-adjusted))
+;;                                                          (if (vectorp omega) indices-adjusted major-cell)
+;;                                                          (aref indices-adjusted major-cell))))))
+;;                     (setf (row-major-aref omega-copy omega-index)
+;;                           (if (and (vectorp omega) (not (arrayp indices-adjusted)))
+;;                               (disclose out-sub-array)
+;;                               (row-major-aref out-sub-array i))))))
+;;               omega-copy))
+;;         ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
+;;         ;; left operand function as per choose or reach indexing
+;;         (nth-value
+;;          1 (choose omega
+;;                    (if (not right-fn)
+;;                        (append (list (apl-call - (scalar-function -) right index-origin))
+;;                                (loop :for i :below (1- (rank omega)) :collect nil)))
+;;                    :set (if (not (or left-fn-m left-fn-d)) left)
+;;                    :set-by (if (or left-fn-m left-fn-d right-fn)
+;;                                (lambda (old &optional new)
+;;                                  (declare (ignorable new))
+;;                                  (if (and right-fn (= 0 (funcall right-fn old)))
+;;                                      old (if (not (or left-fn-m left-fn-d))
+;;                                              new (if alpha (funcall left-fn-d old alpha)
+;;                                                      (funcall left-fn-m old)))))))))))
+
+(defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
-  (lambda (omega &optional alpha)
-    (declare (ignorable alpha))
-    (if (and left (not (functionp left)))
-        (setq left-fn-d nil left-fn-m nil))
-    (if (and (or left-fn-d left-fn-m)
-             (or right-fn (or (vectorp right) (not (arrayp right)))))
-        ;; if the right operand is a function, collect the right argument's matching elements
-        ;; into a vector, apply the left operand function to it and assign its elements to their
-        ;; proper places in the copied right argument array and return it
-        (if right-fn
-            (let ((true-indices (make-array (size omega) :initial-element 0))
-                  (omega-copy (copy-array omega :element-type t))
-                  (sv-length 0))
-              (dotimes (i (size omega)) ;; xdo
-                (if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
-                        (and (arrayp right)
-                             (not (loop :for r :below (size right) :never (= (row-major-aref right r)
-                                                                             (+ i index-origin))))))
-                    (incf (row-major-aref true-indices i))
-                    (if (and (integerp right) (= i (- right index-origin)))
-                        (incf (row-major-aref true-indices i)))))
-              (let ((tvix 0)
-                    (true-vector (make-array (loop :for i :across true-indices :summing i)
-                                             :element-type (element-type omega))))
-                (dotimes (i (size omega))
-                  (if (/= 0 (row-major-aref true-indices i))
-                      (progn (setf (row-major-aref true-vector tvix)
-                                   (row-major-aref omega i))
-                             (incf (row-major-aref true-indices i) tvix)
-                             (incf tvix))))
-                (let ((to-assign (if alpha (funcall left-fn-d true-vector alpha)
-                                     (funcall left-fn-m true-vector))))
-                  (dotimes (i (size omega)) ;; xdo 
+  (let ((left-fn (if (functionp left) left))
+        (right-fn (if (functionp right) right)))
+    (lambda (omega &optional alpha)
+      (declare (ignorable alpha))
+      ;; (if (and left (not (functionp left)))
+      ;;     (setq left-fn-d nil left-fn-m nil))
+      (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
+          ;; if the right operand is a function, collect the right argument's matching elements
+          ;; into a vector, apply the left operand function to it and assign its elements to their
+          ;; proper places in the copied right argument array and return it
+          (if right-fn
+              (let ((true-indices (make-array (size omega) :initial-element 0))
+                    (omega-copy (copy-array omega :element-type t))
+                    (sv-length 0))
+                (dotimes (i (size omega)) ;; xdo
+                  (if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
+                          (and (arrayp right)
+                               (not (loop :for r :below (size right) :never (= (row-major-aref right r)
+                                                                               (+ i index-origin))))))
+                      (incf (row-major-aref true-indices i))
+                      (if (and (integerp right) (= i (- right index-origin)))
+                          (incf (row-major-aref true-indices i)))))
+                (let ((tvix 0)
+                      (true-vector (make-array (loop :for i :across true-indices :summing i)
+                                               :element-type (element-type omega))))
+                  (dotimes (i (size omega))
                     (if (/= 0 (row-major-aref true-indices i))
-                        (setf (row-major-aref omega-copy i)
-                              (if (= 1 (length true-vector))
-                                  ;; if there is only one true element the to-assign value is
-                                  ;; the value to be assigned, not a vector of values to assign
-                                  (disclose to-assign)
-                                  (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
-                  omega-copy)))
-            (let* ((sv-length 0)
-                   (omega-copy (copy-array omega :element-type t))
-                   (indices-adjusted (if (not (arrayp right)) (- right index-origin)
-                                         (apply-scalar (lambda (a) (- a index-origin)) right)))
-                   (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
-                                                (cons indices-adjusted
-                                                      (loop :for i :below (1- (rank omega)) :collect nil)))))
-                   (out-sub-array (if alpha (funcall left-fn-d mod-array alpha)
-                                      (funcall left-fn-m mod-array)))
-                   (omega-msc (if (not (arrayp right)) ;; size of major cell in omega
-                                  1 (first (get-dimensional-factors (dims omega)))))
-                   (osa-msc (if (not (arrayp right)) ;; ... and in processed output
-                                1 (first (get-dimensional-factors (dims out-sub-array))))))
-              (dotimes (i (size out-sub-array))
-                (multiple-value-bind (major-cell remainder) (floor i osa-msc)
-                  (let ((omega-index (+ remainder
-                                        (* omega-msc (if (not (arrayp indices-adjusted))
-                                                         (if (vectorp omega) indices-adjusted major-cell)
-                                                         (aref indices-adjusted major-cell))))))
-                    (setf (row-major-aref omega-copy omega-index)
-                          (if (and (vectorp omega) (not (arrayp indices-adjusted)))
-                              (disclose out-sub-array)
-                              (row-major-aref out-sub-array i))))))
-              omega-copy))
-        ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
-        ;; left operand function as per choose or reach indexing
-        (nth-value
-         1 (choose omega
-                   (if (not right-fn)
-                       (append (list (apl-call - (scalar-function -) right index-origin))
-                               (loop :for i :below (1- (rank omega)) :collect nil)))
-                   :set (if (not (or left-fn-m left-fn-d)) left)
-                   :set-by (if (or left-fn-m left-fn-d right-fn)
-                               (lambda (old &optional new)
-                                 (declare (ignorable new))
-                                 (if (and right-fn (= 0 (funcall right-fn old)))
-                                     old (if (not (or left-fn-m left-fn-d))
-                                             new (if alpha (funcall left-fn-d old alpha)
-                                                     (funcall left-fn-m old)))))))))))
+                        (progn (setf (row-major-aref true-vector tvix)
+                                     (row-major-aref omega i))
+                               (incf (row-major-aref true-indices i) tvix)
+                               (incf tvix))))
+                  (let ((to-assign (if alpha (funcall left-fn true-vector alpha)
+                                       (funcall left-fn true-vector))))
+                    (dotimes (i (size omega)) ;; xdo 
+                      (if (/= 0 (row-major-aref true-indices i))
+                          (setf (row-major-aref omega-copy i)
+                                (if (= 1 (length true-vector))
+                                    ;; if there is only one true element the to-assign value is
+                                    ;; the value to be assigned, not a vector of values to assign
+                                    (disclose to-assign)
+                                    (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
+                    omega-copy)))
+              (let* ((sv-length 0)
+                     (omega-copy (copy-array omega :element-type t))
+                     (indices-adjusted (if (not (arrayp right)) (- right index-origin)
+                                           (apply-scalar (lambda (a) (- a index-origin)) right)))
+                     (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
+                                                  (cons indices-adjusted
+                                                        (loop :for i :below (1- (rank omega)) :collect nil)))))
+                     (out-sub-array (if alpha (funcall left-fn mod-array alpha)
+                                        (funcall left-fn mod-array)))
+                     (omega-msc (if (not (arrayp right)) ;; size of major cell in omega
+                                    1 (first (get-dimensional-factors (dims omega)))))
+                     (osa-msc (if (not (arrayp right)) ;; ... and in processed output
+                                  1 (first (get-dimensional-factors (dims out-sub-array))))))
+                (dotimes (i (size out-sub-array))
+                  (multiple-value-bind (major-cell remainder) (floor i osa-msc)
+                    (let ((omega-index (+ remainder
+                                          (* omega-msc (if (not (arrayp indices-adjusted))
+                                                           (if (vectorp omega) indices-adjusted major-cell)
+                                                           (aref indices-adjusted major-cell))))))
+                      (setf (row-major-aref omega-copy omega-index)
+                            (if (and (vectorp omega) (not (arrayp indices-adjusted)))
+                                (disclose out-sub-array)
+                                (row-major-aref out-sub-array i))))))
+                omega-copy))
+          ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
+          ;; left operand function as per choose or reach indexing
+          (nth-value
+           1 (choose omega
+                     (if (not right-fn)
+                         (append (list (apl-call - (scalar-function -) right index-origin))
+                                 (loop :for i :below (1- (rank omega)) :collect nil)))
+                     :set (if (not left-fn) left)
+                     :set-by (if (or left-fn right-fn)
+                                 (lambda (old &optional new)
+                                   (declare (ignorable new))
+                                   (if (and right-fn (= 0 (funcall right-fn old)))
+                                       old (if (not left-fn)
+                                               new (if alpha (funcall left-fn old alpha)
+                                                       (funcall left-fn old))))))))))))
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
