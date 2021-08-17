@@ -504,12 +504,6 @@
                                                                               :monadic operand-form)
                                                                         ,omega))))
                                                      operand-form)))
-                              ;; (cons 'apl-compose (cons (intern (string-upcase operator)
-                              ;;                                  *package-name-string*)
-                              ;;                          (funcall (funcall (resolve-operator :lateral operator)
-                              ;;                                            (or assigned-operand operand-form)
-                              ;;                                            (first operand-axes))
-                              ;;                                   (first operator-axes)))) ; {o←⍨ ⋄ +o ⍵} 35
                               (let ((operand (if (eql '∇ operand-form)
                                                  '#'∇self
                                                  (if (or (listp operand-form)
