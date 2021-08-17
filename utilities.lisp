@@ -619,9 +619,7 @@
                                                     (if (eql 'function (first ,first-op))
                                                         ,first-op (if (eql 'wrap-fn-ref (first ,first-op))
                                                                       (second ,first-op)))
-                                                    (if ;; (and ,first-op (symbolp ,first-op))
-                                                     ;; (eql '⍺⍺ ,first-op)
-                                                     (member ,first-op '(⍺⍺ op-left))
+                                                    (if (member ,first-op '(⍺⍺ op-left))
                                                         ,first-op))))
                                           (left-fn-dyadic-inverse
                                            `(if (resolve-function :dyadic-inverse ,first-op)
@@ -650,7 +648,8 @@
                                           (right-fn-dyadic
                                            `(if (resolve-function :dyadic ,second-op ,second-axes)
                                                 `(λωα (apl-call ,(or-functional-character ,second-op :fn)
-                                                                ,(resolve-function :dyadic ,second-op ,second-axes)
+                                                                ,(resolve-function :dyadic ,second-op
+                                                                                   ,second-axes)
                                                                 omega alpha))
                                                 (if (listp ,second-op)
                                                     (if (eql 'function (first ,second-op))
