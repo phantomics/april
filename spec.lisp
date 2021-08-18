@@ -1084,7 +1084,7 @@
             (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
             (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
-     (symbolic :outer-product-designator)))
+     (symbolic :outer-product-designator2)))
 
  ;; APL's character-represented operators, which take one or two functions or arrays as input
  ;; and generate a function
@@ -1219,7 +1219,8 @@
                ;;       `(operate-producing-inner ,right-fn-dyadic ,left-fn-dyadic)))
                (lambda (right left)
                  (if (and (listp left)
-                          (symbolp (second left)) (eql '∘ (second left)))
+                          (symbolp (second left))
+                          (string= "∘" (string (second left))))
                      `(lambda (o a) (array-outer-product o a ,right))
                      `(operate-producing-inner ,right ,left))))
       (tests (is "3+.×5" 15)

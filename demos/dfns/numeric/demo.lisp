@@ -6,6 +6,8 @@
 (april-load (with (:space numeric-demo-space))
             (asdf:system-relative-pathname (intern (package-name *package*) "KEYWORD") "numeric.apl"))
 
+;; (print (april (with (:compile-only) (:space numeric-demo-space)) "⌊10000×polar⍉↑ ¯1 0 1∘.,1 0 ¯1"))
+
 (specify-demo
  "April numeric demo"
  (with :space numeric-demo-space
