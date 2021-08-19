@@ -1801,7 +1801,7 @@
   (for "Inversion of nested compound functions." "(3 +∘(2∘-)⍣1⊢5),3 +∘(2∘-)⍣¯1⊢5" #(0 0))
   (for "Celsius-Fahrenheit conversion."              "⌊(32∘+)∘(×∘1.8)⍣ 1⊢100" 212)
   (for "Inversion of Celsius-Fahrenheit conversion." "⌊(32∘+)∘(×∘1.8)⍣¯1⊢212" 100)
-  ;; (for "Inverse composed function." "(3(+∘÷∘-)⍣1⊢5),3(+∘÷∘-)⍣¯1⊢5" #(14/5 -1/2))
+  (for "Inverse composed function." "(3(+∘÷∘-)⍣1⊢5),3(+∘÷∘-)⍣¯1⊢5" #(14/5 -1/2))
   ;; (for "Inversion of scanning addition." "+\\⍣¯1⊢+\\⍳5" #(1 2 3 4 5))
   ;; (for "Inversion of composed addition applied over each." "(+∘5)¨⍣¯1⊢-\\⍳5" #(-4 -6 -3 -7 -2))
   ;; (for "Inversion of composed division applied over each." "(÷∘5)¨⍣¯1⊢+\\⍳5" #(5 15 30 50 75))
@@ -1813,10 +1813,10 @@
   ;; (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
   ;; (for "More complex outer product inversion."
   ;;      "((∘.×)∘4 5 6)⍣¯1⊢((∘.×)∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
-  ;; (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #("" "a" "b" "ab"))
-  ;; (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
-  ;;      #("" "a" "b" "ab" "c" "ac" "bc" "abc"))
-  ;; (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
+  (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #("" "a" "b" "ab"))
+  (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
+       #("" "a" "b" "ab" "c" "ac" "bc" "abc"))
+  (for "Inversion of variable-referenced function." "g←(3∘×) ⋄ g⍣¯1⊢24" 8)
   ;; (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   ;; (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
   ;; (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)

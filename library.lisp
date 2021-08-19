@@ -791,39 +791,44 @@
 (defun operate-scanning (function axis index-origin &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega)
-    (if (not (arrayp omega))
-        omega (let* ((odims (dims omega))
-                     (axis (or (and (first axis) (- (first axis) index-origin))
-                               (if (not last-axis) 0 (1- (rank omega)))))
-                     (rlen (nth axis odims))
-                     (increment (reduce #'* (nthcdr (1+ axis) odims)))
-                     (output (make-array odims)))
-                (dotimes (i (size output)) ;; xdo
-                  (declare (optimize (safety 1)))
-                  (let ((value)(vector-index (mod (floor i increment) rlen)))
-                    (if inverse
-                        (let ((original (disclose (row-major-aref
-                                                   omega (+ (mod i increment)
-                                                            (* increment vector-index)
-                                                            (* increment rlen
-                                                               (floor i (* increment rlen))))))))
-                          (setq value (if (= 0 vector-index)
-                                          original
-                                          (funcall function original
-                                                   (disclose
-                                                    (row-major-aref
-                                                     omega (+ (mod i increment)
-                                                              (* increment (1- vector-index))
-                                                              (* increment rlen
-                                                                 (floor i (* increment rlen))))))))))
-                        (loop :for ix :from vector-index :downto 0
-                           :do (let ((original (row-major-aref
-                                                omega (+ (mod i increment) (* ix increment)
-                                                         (* increment rlen (floor i (* increment rlen)))))))
-                                 (setq value (if (not value) (disclose original)
-                                                 (funcall function value (disclose original)))))))
-                    (setf (row-major-aref output i) value)))
-                output))))
+    (if (eq :get-metadata omega)
+        (list :inverse
+              (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
+                (operate-scanning inverse-function axis index-origin last-axis inverse)))
+        (if (not (arrayp omega))
+            omega (let* ((odims (dims omega))
+                         (axis (or (and (first axis) (- (first axis) index-origin))
+                                   (if (not last-axis) 0 (1- (rank omega)))))
+                         (rlen (nth axis odims))
+                         (increment (reduce #'* (nthcdr (1+ axis) odims)))
+                         (output (make-array odims)))
+                    (dotimes (i (size output)) ;; xdo
+                      (declare (optimize (safety 1)))
+                      (let ((value) (vector-index (mod (floor i increment) rlen)))
+                        (if inverse
+                            (let ((original (disclose (row-major-aref
+                                                       omega (+ (mod i increment)
+                                                                (* increment vector-index)
+                                                                (* increment rlen
+                                                                   (floor i (* increment rlen))))))))
+                              (setq value (if (= 0 vector-index)
+                                              original
+                                              (funcall function original
+                                                       (disclose
+                                                        (row-major-aref
+                                                         omega (+ (mod i increment)
+                                                                  (* increment (1- vector-index))
+                                                                  (* increment rlen
+                                                                     (floor i (* increment rlen))))))))))
+                            (loop :for ix :from vector-index :downto 0
+                               :do (let ((original (row-major-aref
+                                                    omega (+ (mod i increment) (* ix increment)
+                                                             (* increment rlen
+                                                                (floor i (* increment rlen)))))))
+                                     (setq value (if (not value) (disclose original)
+                                                     (funcall function value (disclose original)))))))
+                        (setf (row-major-aref output i) value)))
+                    output)))))
 
 ;; (defun operate-each (function-monadic function-dyadic)
 ;;   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
@@ -985,36 +990,70 @@
                            ;; (print (list :om omega alpha))
                            (if (and ;; (getf meta-right :composition)
                                 ;; (getf meta-left :composition)
-                                (not alpha)
+                                ;; (not alpha)
                                 fn-right fn-left)
                                (setq temp fn-right
                                      fn-right fn-left
                                      fn-left temp))
-                           (let* ((meta-right (if fn-right (apply fn-right :get-metadata
-                                                                  (if (not fn-left) (list nil)))))
+                           (let* ((o-fn-right fn-right)
+                                  (meta-right (if fn-right (apply fn-right :get-metadata
+                                                                  (if (or alpha (not fn-left))
+                                                                      (list nil)))))
                                   (meta-left (if fn-left (apply fn-left :get-metadata
                                                                 (if (or alpha (not fn-right))
                                                                     (list nil)))))
                                   (fn-right (if fn-right (or (getf meta-right
-                                                                   (if (not fn-left) :inverse :inverse-right))
+                                                                   (if (or alpha (not fn-left))
+                                                                       :inverse :inverse-right))
                                                              (getf meta-right :inverse))))
                                   (fn-left (if fn-left (if (and alpha fn-right)
                                                            fn-left
                                                            (or (getf meta-left :inverse-right)
                                                                (getf meta-left :inverse))))))
                              ;; (print (list :ff fn-right fn-left omega alpha
-                             ;;              ;; (funcall fn-left omega alpha)
-                             ;;              ;; (funcall fn-right omega alpha)
-                             ;;              ))
+                             ;;              (funcall (getf (funcall o-fn-right :get-metadata nil) :inverse)
+                             ;;                       omega alpha)
+                             ;;               (funcall fn-left omega alpha)
+                             ;;               (funcall fn-right omega alpha)
+                             ;;               ))
                              (if (and fn-right fn-left)
-                                 (let ((processed (funcall fn-right omega)))
-                                   ;; (print (list :pro processed))
-                                   (if alpha (funcall fn-left processed alpha)
-                                       (funcall fn-left processed)))
+                                 (let ((processed (if alpha (funcall fn-right omega alpha)
+                                                      (funcall fn-right omega))))
+                                   (funcall fn-left processed))
                                  (if alpha (error "This function does not take a left argument.")
                                      (funcall (or fn-right fn-left)
                                               (if fn-right omega right)
-                                              (if fn-left omega left)))))))
+                                              (if fn-left omega left)))))
+                           ;; (let* ((o-fn-right fn-right)
+                           ;;        (meta-right (if fn-right (apply fn-right :get-metadata
+                           ;;                                        (if (not fn-left) (list nil)))))
+                           ;;        (meta-left (if fn-left (apply fn-left :get-metadata
+                           ;;                                      (if (or alpha (not fn-right))
+                           ;;                                          (list nil)))))
+                           ;;        (fn-right (if fn-right (or (getf meta-right
+                           ;;                                         (if (not fn-left) :inverse :inverse-right))
+                           ;;                                   (getf meta-right :inverse))))
+                           ;;        (fn-left (if fn-left (if (and alpha fn-right)
+                           ;;                                 fn-left
+                           ;;                                 (or (getf meta-left :inverse-right)
+                           ;;                                     (getf meta-left :inverse))))))
+                           ;;   (print (list :ff fn-right fn-left omega alpha
+                           ;;                ;; (funcall (getf (funcall o-fn-right :get-metadata nil) :inverse)
+                           ;;                ;;          omega alpha)
+                           ;;                 ;; (funcall fn-left omega alpha)
+                           ;;                 ;; (funcall fn-right omega alpha)
+                           ;;                 ))
+                           ;;   (if (and fn-right fn-left)
+                           ;;       (let ((processed (funcall fn-right omega)))
+                           ;;         ;; (print (list :pro processed))
+                           ;;         (if alpha (funcall fn-left processed alpha)
+                           ;;             (funcall fn-left processed)))
+                           ;;       (if alpha (error "This function does not take a left argument.")
+                           ;;           (funcall (or fn-right fn-left)
+                           ;;                    (if fn-right omega right)
+                           ;;                    (if fn-left omega left)))))
+
+                           ))
           (if (and fn-right fn-left)
               (let ((processed (funcall fn-right omega)))
                 (if alpha (funcall fn-left processed alpha)
