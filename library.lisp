@@ -5,6 +5,10 @@
 
 "This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing."
 
+(defun binary-not (bit)
+  "Flip a binary value. Used to implement [~ not]."
+  (case bit (0 1) (1 0) (t (error "Domain error: arguments to ~~ must be 1 or 0."))))
+
 (defun deal (index-origin)
   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
   (lambda (omega alpha)
@@ -973,17 +977,52 @@
 (defun operate-composed (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
   (let ((fn-right (and (functionp right) right))
-        (fn-left (and (functionp left) left)))
+        (fn-left (and (functionp left) left))
+        (temp))
     (lambda (omega &optional alpha)
-      (if (and fn-right fn-left)
-          (let ((processed (funcall fn-right omega)))
-            ;;(if is-confirmed-monadic (funcall fn-left processed)
-            (if alpha (funcall fn-left processed alpha)
-                (funcall fn-left processed))) ;;)
-          (if alpha (error "This function does not take a left argument.")
-              (funcall (or fn-right fn-left)
-                       (if fn-right omega right)
-                       (if fn-left omega left)))))))
+      (if (eq :get-metadata omega)
+          (list :inverse (lambda (omega &optional alpha)
+                           ;; (print (list :om omega alpha))
+                           (if (and ;; (getf meta-right :composition)
+                                ;; (getf meta-left :composition)
+                                (not alpha)
+                                fn-right fn-left)
+                               (setq temp fn-right
+                                     fn-right fn-left
+                                     fn-left temp))
+                           (let* ((meta-right (if fn-right (apply fn-right :get-metadata
+                                                                  (if (not fn-left) (list nil)))))
+                                  (meta-left (if fn-left (apply fn-left :get-metadata
+                                                                (if (or alpha (not fn-right))
+                                                                    (list nil)))))
+                                  (fn-right (if fn-right (or (getf meta-right
+                                                                   (if (not fn-left) :inverse :inverse-right))
+                                                             (getf meta-right :inverse))))
+                                  (fn-left (if fn-left (if (and alpha fn-right)
+                                                           fn-left
+                                                           (or (getf meta-left :inverse-right)
+                                                               (getf meta-left :inverse))))))
+                             ;; (print (list :ff fn-right fn-left omega alpha
+                             ;;              ;; (funcall fn-left omega alpha)
+                             ;;              ;; (funcall fn-right omega alpha)
+                             ;;              ))
+                             (if (and fn-right fn-left)
+                                 (let ((processed (funcall fn-right omega)))
+                                   ;; (print (list :pro processed))
+                                   (if alpha (funcall fn-left processed alpha)
+                                       (funcall fn-left processed)))
+                                 (if alpha (error "This function does not take a left argument.")
+                                     (funcall (or fn-right fn-left)
+                                              (if fn-right omega right)
+                                              (if fn-left omega left)))))))
+          (if (and fn-right fn-left)
+              (let ((processed (funcall fn-right omega)))
+                (if alpha (funcall fn-left processed alpha)
+                    (funcall fn-left processed)))
+              (if alpha (error "This function does not take a left argument.")
+                  (funcall (or fn-right fn-left)
+                           (if fn-right omega right)
+                           (if fn-left omega left))))))))
 
 ;; (defun operate-composed (right right-fn-monadic right-fn-dyadic
 ;;                          left left-fn-monadic left-fn-dyadic is-confirmed-monadic)
@@ -1070,26 +1109,22 @@
     (if alpha (funcall left-fn (funcall right-fn omega alpha))
         (funcall left-fn (funcall right-fn omega)))))
 
-(defun operate-to-power (fetch-determinant function-retriever)
+(defun operate-to-power (fetch-determinant function) ;function-retriever)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
     (let ((determinant (funcall fetch-determinant)))
-      ;; (print (List :dd determinant))
       (if (functionp determinant)
-          (let* ((arg omega) (prior-arg omega)
-                 ;; (power (funcall get-power))
-                 (function (funcall function-retriever nil nil)))
+          (let ((arg omega) (prior-arg omega))
             (loop :for index :from 0 :while (or (= 0 index)
                                                 (= 0 (funcall determinant prior-arg arg)))
                :do (setq prior-arg arg
                          arg (if alpha (funcall function arg alpha)
                                  (funcall function arg))))
             arg)
-          (let* ((arg omega)
-                 ;; (eo (print (list :arg arg)))
-                 ;; (power (funcall get-power))
-                 (function (funcall function-retriever alpha (> 0 determinant))))
-            ;; (print (list :al arg alpha))
+          (let ((arg omega)
+                (function (if (<= 0 determinant)
+                              function (if alpha (getf (funcall function :get-metadata nil) :inverse)
+                                           (getf (funcall function :get-metadata) :inverse)))))
             (dotimes (index (abs determinant))
               (setq arg (if alpha (funcall function arg alpha)
                             (funcall function arg))))

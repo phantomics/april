@@ -322,6 +322,7 @@
                                                            (mapcar #'character (getf (rest (second spec))
                                                                                      :aliases))))
                                         (fn-params (third spec))
+                                        (fn-props (cdddr spec))
                                         (fn-params-inverse (if (string= "INVERSE"
                                                                         (string-upcase
                                                                          (first (fourth spec))))
@@ -329,7 +330,7 @@
                                     (loop :for char :in glyph-chars
                                        :append (let ((this-lex (funcall (second lexicon-processor)
                                                                         :functions char fn-params
-                                                                        fn-params-inverse)))
+                                                                        fn-params-inverse fn-props)))
                                                  (build-lexicon)
                                                  `(,@(if (getf (getf (rest this-lex) :functions) :monadic)
                                                          `((gethash ,char (getf fn-specs :monadic))
