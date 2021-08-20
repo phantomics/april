@@ -792,9 +792,8 @@
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega)
     (if (eq :get-metadata omega)
-        (list :inverse
-              (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
-                (operate-scanning inverse-function axis index-origin last-axis inverse)))
+        (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
+                         (operate-scanning inverse-function axis index-origin last-axis t)))
         (if (not (arrayp omega))
             omega (let* ((odims (dims omega))
                          (axis (or (and (first axis) (- (first axis) index-origin))
@@ -938,6 +937,17 @@
                                 (funcall operand (row-major-aref omega i))))))
                 output)))))))
 
+(defun operate-commuting (operand)
+  (lambda (omega &optional alpha)
+    (if (eq :get-metadata omega)
+        (list :inverse (lambda (omega &optional alpha)
+                         (if (not alpha)
+                             (let* ((operand-meta (funcall operand :get-metadata nil))
+                                    (inverse-commuted (getf operand-meta :inverse-commuted)))
+                               (if inverse-commuted (funcall inverse-commuted omega)
+                                   (error "This commuted function cannot be inverted."))))))
+        (funcall operand (or alpha omega) omega))))
+
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   (lambda (omega &optional alpha)
@@ -965,6 +975,17 @@
                                                           :initial-contents (reverse items)))
                                             key))))
         (mix-arrays 1 (apply #'vector item-sets))))))
+
+(defun operate-producing-outer (operand)
+  (lambda (omega alpha)
+    (if (eq :get-metadata omega)
+        (list :inverse (lambda (omega alpha)
+                               (print (list :om1 omega alpha))
+                               (inverse-outer-product omega operand alpha))
+              :inverse-right (lambda (omega alpha)
+                         (print (list :om omega alpha))
+                         (inverse-outer-product omega operand nil alpha)))
+        (array-outer-product omega alpha operand))))
 
 (defun operate-producing-inner (right left)
   (lambda (alpha omega)

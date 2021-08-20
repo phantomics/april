@@ -1592,9 +1592,7 @@ It remains here as a standard against which to compare methods for composing APL
                                       omega ,@(if (eq :dyadic type) (list 'alpha))))))
                (if (getf metadata :inverse-commuted)
                    (setf (getf metadata :inverse-commuted)
-                         `(,(if (eq :dyadic type) 'λωα 'λω)
-                            (apl-call ,glyph ,(getf metadata :inverse-commuted)
-                                      omega ,@(if (eq :dyadic type) (list 'alpha))))))
+                         `(λω (apl-call ,glyph ,(getf metadata :inverse-commuted) omega))))
                ;; (:DY (FN-META ARRAY-UNION :ID #'VECTOR) (:ID #'VECTOR))
                ;; (print (list :dy form metadata))
                (list type (if (not metadata) form
