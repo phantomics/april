@@ -15,12 +15,6 @@
                                :closure-meta))))
 
 (defun process-value (this-item properties process idiom space)
-  ;; TODO: add a passthrough value mode for symbols that are being assigned!
-  ;; this is the only way to get them assignable after the first time
-  ;; (if (and (listp this-item)
-  ;;          (numberp (second this-item))
-  ;;          (= -1 (second this-item)))
-  ;;     (print (list :ti this-item)))
   (cond ((and (listp this-item)
               (not (member (first this-item) '(:fn :op :axes))))
          ;; if the item is a closure, evaluate it and return the result
@@ -240,16 +234,9 @@
                  (type-to-find (getf properties :valence))
                  (closure-meta (rest (getf (getf properties :special) :closure-meta)))
                  (lop-string (if (eq :lateral (getf properties :valence))
-                                 ;; (concatenate 'string "𝕆𝕃∇" symbol-string)
                                  symbol-string))
                  (pop-string (if (eq :pivotal (getf properties :valence))
-                                 ;; (concatenate 'string "𝕆ℙ∇" symbol-string)
                                  symbol-string))
-                 ;; (abc (if (and (symbolp this-item)
-                 ;;               (string= "depth" (string this-item)))
-                 ;;          (print (list :ll lop-string pop-string
-                 ;;                       this-item
-                 ;;                       (of-meta-hierarchy closure-meta :pop-syms)))))
                  (bound-op (if (and lop-string
                                     (or (and (fboundp (intern lop-string space))
                                              (boundp (intern lop-string space))
@@ -405,22 +392,21 @@
                             `(inws ,symbol))
                        (lambda ,(if (eq :lateral operator-type)
                                     (if operator-axes '(operand) '(operand &optional axes))
-                                    (if (eq :pivotal operator-type) '(left-op right-op &optional c d)))
+                                    (if (eq :pivotal operator-type) '(right left)))
                          ,@(if (and (not operator-axes)
                                     (eq :lateral operator-type))
                                '((declare (ignorable axes)))
-                               (if (eq :pivotal operator-type) '((declare (ignorable c d)))))
+                               (if (eq :pivotal operator-type) '((declare (ignorable right left)))))
                          ,(if operator-axes
                               (apply (resolve-operator operator-type operator-form)
                                      (if (eq :lateral operator-type)
                                          (list 'operand (if (listp (first operator-axes))
                                                             (cons 'list (first operator-axes))
                                                             `(list ,(first operator-axes))))
-                                         (list 'a 'b 'c 'd)))
+                                         (list 'right 'left)))
                               (apply (resolve-operator operator-type operator-form)
                                      (if (eq :lateral operator-type)
-                                         '(operand axes)
-                                         (list 'a 'b 'c 'd))))))
+                                         '(operand axes) '(right left))))))
                 '(:type (:operator :aliased))
                 items))))
 
@@ -443,8 +429,6 @@
                                 symbol-plain space (rest (getf (getf properties :special) :closure-meta))))
        (assign-element operator-form operator-props process-operator
                        `(:valence :lateral :special (,@include-closure-meta)))
-       ;; (if symbol-referenced (progn (print (list :ssym symbol-referenced operator-form operator-props))
-       ;;                               (error "stop")))
        (if operator-form (progn (assign-axes operand-axes process)
                                 (setq env-lops
                                       (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
@@ -716,9 +700,7 @@
                                    `(setq output-stream ,(intern symbol-string package-string))
                                    (error "Invalid assignment to ⎕OST.")))
                              (error "Invalid assignment to ⎕OST."))))
-                    (t ;; (if (symbolp symbol)
-                       ;;     (set-workspace-alias space symbol nil))
-                       (let ((osymbol (if (symbolp symbol)
+                    (t (let ((osymbol (if (symbolp symbol)
                                           symbol (if (and (listp symbol)
                                                           (member (first symbol) '(inws inwsd)))
                                                      (second symbol)))))
@@ -841,15 +823,10 @@
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (let ((operator-symbol (intern (string symbol)))
         (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
-    (if asop (values (if (characterp precedent)
-                         (if (or (resolve-operator :lateral precedent)
-                                 (resolve-operator :pivotal precedent))
-                             (progn (set-workspace-alias space symbol precedent)
-                                    (format nil "~a aliases ~a" symbol precedent)))
-                         (progn (set-workspace-alias space symbol nil)
-                                `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
-                                            `(inws ,symbol))
-                                       ,precedent)))
+    (if asop (values (progn ;; (set-workspace-alias space symbol nil)
+                            `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
+                                        `(inws ,symbol))
+                                   ,precedent))
                      '(:type (:operator :assigned)) items))))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
@@ -1083,8 +1060,6 @@
              (omega (gensym)) (alpha (gensym)))
         ;; single character values are passed within a (:char) form so they aren't interpreted as
         ;; functional glyphs by the (resolve-function) calls
-        ;; (if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
-        ;;     (setq left-operand (list :char left-operand)))
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
                     `(apl-compose :op ,(if (eq :operator-self-reference operator)
@@ -1111,59 +1086,31 @@
                                               (apl-call :fn ,(resolve-function :monadic right-operand)
                                                         ,omega)))
                                        right-operand))
-                    (if (member operator '(#\. #\∘ #\⍥ #\@ #\⌺ #\⍤ #\⍣) :test #'char=)
-                        (let ((left (if (eql '∇ left-operand)
-                                        '#'∇self
-                                        (if (or (listp left-operand)
-                                                (symbolp left-operand))
-                                            left-operand (if (and (characterp left-operand)
-                                                                  (not (member :array (getf left-operand-props
-                                                                                            :type))))
-                                                             ;; `(amb-ref ,(intern (string left-operand))
-                                                             ;;           ,(resolve-function
-                                                             ;;             :monadic left-operand)
-                                                             ;;           ,(resolve-function
-                                                             ;;             :dyadic left-operand)
-                                                             ;;           ,@(if left-operand-axes
-                                                             ;;                 (list left-operand-axes)))
-                                                             `(as-operand ,(intern (string left-operand))
-                                                                          ,@(if left-operand-axes
-                                                                                (list left-operand-axes)))
-                                                             left-operand
-                                                             ))))
-                              (right (if (eql '∇ right-operand)
-                                         '#'∇self
-                                         (if (or (listp right-operand)
-                                                 (symbolp right-operand))
-                                             right-operand (if (and (characterp right-operand)
-                                                                    (not (member :array
-                                                                                 (getf right-operand-props
-                                                                                       :type))))
-                                                               ;; `(amb-ref ,(intern (string right-operand))
-                                                               ;;           ,(resolve-function
-                                                               ;;             :monadic right-operand)
-                                                               ;;           ,(resolve-function
-                                                               ;;             :dyadic right-operand)
-                                                               ;;           ,@(if right-operand-axes
-                                                               ;;                 (list right-operand-axes))
-                                                               ;;           )
-                                                               `(as-operand ,(intern (string right-operand))
-                                                                            ,@(if right-operand-axes
-                                                                                  (list right-operand-axes)))
-                                                               right-operand
-                                                               )))))
-                          (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
-                                                   (funcall (resolve-operator :pivotal operator) right left))))
-                        (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
-                                                 (funcall (funcall (resolve-operator :pivotal operator)
-                                                                   ;; TODO: taking (first) of axes
-                                                                   ;; eliminates possible future functions
-                                                                   ;; that take more than one axis argument
-                                                                   (or assigned-left-operand left-operand)
-                                                                   (first left-operand-axes)
-                                                                   (or assigned-right-operand right-operand)
-                                                                   (first right-operand-axes))
-                                                          right-operand left-operand)))))
+                    (let ((left (if (eql '∇ left-operand)
+                                    '#'∇self
+                                    (if (or (listp left-operand)
+                                            (symbolp left-operand))
+                                        left-operand (if (and (characterp left-operand)
+                                                              (not (member :array (getf left-operand-props
+                                                                                        :type))))
+                                                         `(as-operand ,(intern (string left-operand))
+                                                                      ,@(if left-operand-axes
+                                                                            (list left-operand-axes)))
+                                                         left-operand))))
+                          (right (if (eql '∇ right-operand)
+                                     '#'∇self
+                                     (if (or (listp right-operand)
+                                             (symbolp right-operand))
+                                         right-operand (if (and (characterp right-operand)
+                                                                (not (member :array
+                                                                             (getf right-operand-props
+                                                                                   :type))))
+                                                           `(as-operand ,(intern (string right-operand))
+                                                                        ,@(if right-operand-axes
+                                                                              (list right-operand-axes)))
+                                                           right-operand)))))
+                      (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
+                                               (funcall (resolve-operator :pivotal operator) right left)))))
                 '(:type (:function :operator-composed :pivotal))
                 items))))
 

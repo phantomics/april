@@ -29,10 +29,10 @@ These are system variables exclusive to April, not found in any other variant of
 
 The values of these symbols are fixed and cannot be changed.
 
-|Symbol|Name             |Description|
-|------|-----------------|-----------|
-|`⎕A`  |Alphabet Vector  |String of capital letter characters of the English Roman alphabet.|
-|`⎕D`  |Digit Vector     |String of numeric characters from 0 to 9.|
+|Symbol|Name           |Description|
+|------|---------------|-----------|
+|`⎕A`  |Alphabet Vector|String of capital letter characters of the English Roman alphabet.|
+|`⎕D`  |Digit Vector   |String of numeric characters from 0 to 9.|
 
 ### System Functions
 

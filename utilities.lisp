@@ -292,42 +292,6 @@
                         ,(wrap-curried-axes fn-monadic))
                     ,args))))))
 
-;; (defun generate-aliasing-function (fn-monadic fn-dyadic &optional axes)
-;;   "Generate a function aliasing a lexical function which may be monadic or dyadic."
-;;   (flet ((wrap-curried-axes (form)
-;;            (if (not axes) form `(λχ ,form ,@axes))))
-;;     (let ((args (gensym))
-;;           (m-meta (if (member (first fn-monadic) '(scalar-function function-meta))
-;;                       (cddr fn-monadic)))
-;;           (d-meta (if (member (first fn-dyadic) '(scalar-function function-meta))
-;;                       (cddr fn-dyadic))))
-;;       `(lambda (&rest ,args)
-;;          (if (eq :get-metadata (first ,args))
-;;              (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
-;;                  ,(if d-meta (cons 'list d-meta)))
-;;              (apply (if (= 2 (length ,args)) ,(wrap-curried-axes fn-dyadic)
-;;                         ,(wrap-curried-axes fn-monadic))
-;;                     ,args))))))
-
-(defun get-workspace-alias (space symbol)
-  "Find an existing alias of a lexical function in a workspace."
-  (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
-        (ws-symbol (intern (string symbol) space)))
-    (if (boundp aliases-symbol) (gethash ws-symbol (symbol-value aliases-symbol)))))
-
-(defun set-workspace-alias (space symbol glyph)
-  "Set an alias for a lexical function in a workspace, as when compiling f←+."
-  (let ((aliases-symbol (intern "*LEXICAL-FUNCTION-ALIASES*" space))
-        (ws-symbol (intern (string symbol) space)))
-    (if (not (boundp aliases-symbol))
-        (setf (symbol-value aliases-symbol) (make-hash-table :test #'eq)))
-    (let ((ws-aliases (symbol-value aliases-symbol)))
-      (if (or (and (null glyph)
-                   (gethash ws-symbol ws-aliases))
-              (resolve-function :monadic glyph)
-              (resolve-function :dyadic glyph))
-          (setf (gethash ws-symbol ws-aliases) glyph)))))
-
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
   (if (= 0 (size array))
@@ -588,101 +552,6 @@
                                               (listp item) (eql 'achoose (first item)))
                                          (list 'disclose item)
                                          item)))
-
-;; (defmacro with-derived-operands (operand-specs &rest body)
-;;   "Derive references to data to be passed to an operator so they can be used by the macro implementing the operator."
-;;   (let* ((first-op (gensym)) (first-axes (gensym)) (second-op (gensym)) (second-axes (gensym))
-;;          (ignorables) (to-ignore))
-;;     (loop :for symbol :in '(right left)
-;;        :do (if (not (member symbol operand-specs)) (setq to-ignore (cons symbol to-ignore))))
-;;     `(lambda (,first-op ,first-axes &optional ,second-op ,second-axes)
-;;        (declare (ignorable ,second-op ,second-axes))
-;;        (let (,@(loop :for symbol :in operand-specs
-;;                   :when (and (not (member symbol '(right left axes)))
-;;                              (or (symbolp symbol) (characterp symbol)))
-;;                   :collect (list symbol (case symbol
-;;                                           (left-op first-op)
-;;                                           (left-axes first-axes)
-;;                                           ;; (left-glyph (setq ignorables (cons 'left-glyph ignorables))
-;;                                           ;;             `(or-functional-character ,first-op :fn))
-;;                                           (left-fn-monadic
-;;                                            `(if (resolve-function :monadic ,first-op ,first-axes)
-;;                                                 `(λω (apl-call ,(or-functional-character ,first-op :fn)
-;;                                                                ,(resolve-function :monadic ,first-op ,first-axes)
-;;                                                                omega))
-;;                                                 (if (listp ,first-op)
-;;                                                     (if (eql 'function (first ,first-op))
-;;                                                         ,first-op (if (eql 'wrap-fn-ref (first ,first-op))
-;;                                                                       (second ,first-op)))
-;;                                                     (if (eql '⍺⍺ ,first-op) ,first-op))))
-;;                                           (left-fn-monadic-inverse
-;;                                            `(if (resolve-function :monadic-inverse ,first-op ,first-axes)
-;;                                                 `(λω (apl-call ,(or-functional-character ,first-op :fn)
-;;                                                                ,(resolve-function :monadic-inverse
-;;                                                                                   ,first-op ,first-axes)
-;;                                                                omega))))
-;;                                           (left-fn-dyadic
-;;                                            `(if (resolve-function :dyadic ,first-op ,first-axes)
-;;                                                 `(λωα (apl-call ,(or-functional-character ,first-op :fn)
-;;                                                                 ,(resolve-function :dyadic ,first-op ,first-axes)
-;;                                                                 omega alpha))
-;;                                                 (if (listp ,first-op)
-;;                                                     (if (eql 'function (first ,first-op))
-;;                                                         ,first-op (if (eql 'wrap-fn-ref (first ,first-op))
-;;                                                                       (second ,first-op)))
-;;                                                     (if (member ,first-op '(⍺⍺ op-left))
-;;                                                         ,first-op))))
-;;                                           (left-fn-dyadic-inverse
-;;                                            `(if (resolve-function :dyadic-inverse ,first-op)
-;;                                                 `(λωα (apl-call ,(or-functional-character ,first-op :fn)
-;;                                                                 ,(getf
-;;                                                                   (resolve-function :dyadic-inverse
-;;                                                                                     ,first-op)
-;;                                                                   :plain)
-;;                                                                 omega alpha))))
-;;                                           (left-fn-symbolic `(resolve-function :symbolic ,first-op ,first-axes))
-;;                                           (right-op second-op)
-;;                                           (right-axes second-axes)
-;;                                           ;; (right-glyph (setq ignorables (cons 'right-glyph ignorables))
-;;                                           ;;              `(or-functional-character ,second-op :fn))
-;;                                           (right-fn-monadic
-;;                                            `(if (resolve-function :monadic ,second-op ,second-axes)
-;;                                                 `(λω (apl-call ,(or-functional-character ,second-op :fn)
-;;                                                                ,(resolve-function :monadic
-;;                                                                                   ,second-op ,second-axes)
-;;                                                                omega))
-;;                                                 (if (listp ,second-op)
-;;                                                     (if (eql 'function (first ,second-op))
-;;                                                         ,second-op (if (eql 'wrap-fn-ref (first ,second-op))
-;;                                                                        (second ,second-op)))
-;;                                                     (if (eql '⍵⍵ ,second-op) ,second-op))))
-;;                                           (right-fn-dyadic
-;;                                            `(if (resolve-function :dyadic ,second-op ,second-axes)
-;;                                                 `(λωα (apl-call ,(or-functional-character ,second-op :fn)
-;;                                                                 ,(resolve-function :dyadic ,second-op
-;;                                                                                    ,second-axes)
-;;                                                                 omega alpha))
-;;                                                 (if (listp ,second-op)
-;;                                                     (if (eql 'function (first ,second-op))
-;;                                                         ,second-op (if (eql 'wrap-fn-ref (first ,second-op))
-;;                                                                        (second ,second-op)))
-;;                                                     (if (eql '⍵⍵ ,second-op) ,second-op))))
-;;                                           (right-fn-symbolic `(resolve-function :symbolic
-;;                                                                                 ,second-op ,second-axes))))))
-;;          ,@(if ignorables `((declare (ignorable ,@ignorables))))
-;;          (lambda (,@(if (member 'axes operand-specs)
-;;                         (list 'axes)
-;;                         (list 'right 'left)))
-;;            (declare ,@(if (member 'axes operand-specs) `((ignorable axes))
-;;                           `((ignore ,@to-ignore))))
-;;            ;; if bare character values were passed in wrapped in (:char) forms,
-;;            ;; they are removed from those forms here
-;;            ,@(if (not (member 'axes operand-specs))
-;;                  `((if (and (listp right) (eq :char (first right)))
-;;                        (setq right (second right)))
-;;                    (if (and (listp left) (eq :char (first left)))
-;;                        (setq left (second left)))))
-;;            ,@body)))))
 
 (defun resolve-function (mode reference &optional axes)
   "Retrieve the function corresponding to a given character or symbol in a given mode (monadic or dyadic)."
@@ -1072,29 +941,6 @@ It remains here as a standard against which to compare methods for composing APL
                       form `((f-lex ,(list (append context-vars context-fns context-ops)
                                            (append assigned-vars assigned-fns assigned-ops))
                                ,@form)))))))
-
-(defun output-function2 (form &optional arguments assigned-symbols arg-symbols to-reference closure-meta)
-  "Express an APL inline function like {⍵+5}."
-  (declare (ignore closure-meta))
-  (let ((assigned-symbols (loop :for sym :in assigned-symbols
-                             :when (not (member (string-upcase sym)
-                                                '("*INDEX-ORIGIN*" "*COMPARISON-TOLERANCE*")
-                                                :test #'string=))
-                             :collect `(inws ,sym)))
-        (to-reference (loop :for sym :in to-reference :collect `(inwsd ,sym)))
-        (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
-    (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
-                 ;; the latter case wraps a user-defined operator
-                 #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                       &optional ,(if (member '⍹ arg-symbols) '⍹ '⍵⍵))
-                                              (declare (ignorable ,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                                  ,(if (member '⍹ arg-symbols) '⍹ '⍵⍵)))
-                                              ,form)))
-             `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
-                  (with (:sys-vars ,@(loop :for (key value) :on *system-variables* :by #'cddr
-                                        :collect `(inws ,value))))
-                ,@(if (not assigned-symbols)
-                      form `((f-lex (,to-reference ,assigned-symbols) ,@form)))))))
 
 (defun build-variable-declarations (input-vars space)
   "Create the set of variable declarations that begins April's compiled code."
@@ -1593,48 +1439,13 @@ It remains here as a standard against which to compare methods for composing APL
                (if (getf metadata :inverse-commuted)
                    (setf (getf metadata :inverse-commuted)
                          `(λω (apl-call ,glyph ,(getf metadata :inverse-commuted) omega))))
-               ;; (:DY (FN-META ARRAY-UNION :ID #'VECTOR) (:ID #'VECTOR))
-               ;; (print (list :dy form metadata))
                (list type (if (not metadata) form
                               (if (and (listp form) (eql 'scalar-function (first form)))
                                   (append form metadata)
-                                  `(fn-meta ,form ,@metadata))))
-               )))
+                                  `(fn-meta ,form ,@metadata)))))))
       (cond ((eq :symbolic function-type)
              `(,glyph :lexicons (:functions :symbolic-functions)
                       :functions (:symbolic ,(first spec-body))))
-            ;; ((keywordp (first spec-body))
-            ;;  ;; if this is a simple scalar declaration passing through another function
-            ;;  `(,glyph :lexicons (:functions :scalar-functions :monadic-functions :scalar-monadic-functions
-            ;;                                 ,@(if (not (eq :monadic function-type))
-            ;;                                       '(:dyadic-functions :scalar-dyadic-functions))
-            ;;                                 ,@(if (and inverse-function-type
-            ;;                                            (not (eq :dyadic inverse-function-type)))
-            ;;                                       '(:inverse-monadic-functions
-            ;;                                         :scalar-inverse-monadic-functions))
-            ;;                                 ,@(if (or (eq :dyadic inverse-function-type)
-            ;;                                           (eq :ambivalent inverse-function-type))
-            ;;                                       '(:inverse-dyadic-functions
-            ;;                                         :scalar-inverse-dyadic-functions)))
-            ;;           :functions ,(append (if (or (eq :ambivalent function-type)
-            ;;                                       (eq :monadic function-type))
-            ;;                                   (list :monadic `(scalar-function ,(second spec-body))))
-            ;;                               (if (or (eq :ambivalent function-type)
-            ;;                                       (eq :dyadic function-type))
-            ;;                                   (list :dyadic `(scalar-function ,(first (last spec-body)))))
-            ;;                               (if (or (eq :ambivalent inverse-function-type)
-            ;;                                       (eq :monadic inverse-function-type))
-            ;;                                   (list :monadic-inverse
-            ;;                                         `(scalar-function ,(first inverse-spec-body))))
-            ;;                               (if (or (eq :ambivalent inverse-function-type)
-            ;;                                       (eq :dyadic inverse-function-type))
-            ;;                                   (list :dyadic-inverse
-            ;;                                         (funcall (lambda (spec)
-            ;;                                                    (loop :for (key val) :on spec :by #'cddr
-            ;;                                                       :append (list key `(scalar-function ,val))))
-            ;;                                                  (if (eq :dyadic inverse-function-type)
-            ;;                                                      inverse-spec-body (rest inverse-spec-body)))))
-            ;;                               )))
             (t `(,glyph :lexicons ,(cond ((eq :functions type)
                                           `(:functions ,@(if (eq :ambivalent function-type)
                                                              '(:monadic-functions :dyadic-functions)
