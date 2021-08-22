@@ -603,7 +603,6 @@ If you want to store functions or variables with names that are read literally r
 Error: Invalid characters present in symbol aBC-deF passed to :STORE-FUN.
 ```
 
-
 ### (:compile-only) parameter
 
 If you just want to compile the code you enter into April without running it, use this option. For example:
@@ -617,6 +616,20 @@ If you just want to compile the code you enter into April without running it, us
                       (PRINT-PRECISION 𝕊*PRINT-PRECISION*))
       (APL-OUTPUT (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
                   :PRINT-PRECISION PRINT-PRECISION))))
+```
+
+### (:print-tokens) parameter
+
+April compiles code in two stages: first, the lexer converts the string of characters into lists of tokens, then the compiler takes those tokens and uses them to generate Common Lisp code based on grammar elements and patterns. You can see the implementation of April's grammar in [the grammar source file](./grammar.lisp).
+
+If you'd like to see the lists of tokens the lexer generates for a given APL expression, you can see them by passing the `(:print-tokens)` parameter.
+
+```lisp
+* (april (with (:print-tokens)) "(⍳4)+⍤1⊢3 4⍴⍳9")
+(9 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA) (:FN #\APL_FUNCTIONAL_SYMBOL_RHO) 4 3
+ (:FN #\RIGHT_TACK) 1 (:OP :PIVOTAL #\APL_FUNCTIONAL_SYMBOL_JOT_DIAERESIS)
+ (:FN #\+) (4 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA)))
+#2A((2 4 6 8) (6 8 10 12) (10 3 5 7))
 ```
 
 ## Clearing Workspaces: The (april-clear-workspace) Macro

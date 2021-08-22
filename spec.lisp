@@ -111,6 +111,7 @@
                    :do (setq last-index index))))
             ;; macro to process lexical specs of functions and operators
             :process-lexicon #'april-function-glyph-processor
+            :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
             :format-number #'parse-apl-number-string
             :format-value #'format-value
@@ -1564,6 +1565,11 @@
        "{gg←1 ⋄ {gg←⍵}¨⍳⍵ ⋄ gg} 5" 1)
   (for "Index of variable with value assigned inside its own index."
        "y[⍋y←1 8 4 2]" #(1 2 4 8))
+  (for "Alias of [× multiply], [⍴ shape] and [⍳ index] functions."
+       "⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6" #2A((5 10 5 5 10 15) (10 5 10 20 25 30)))
+  (for "Alias of [enclose ⊂] function with curried axes."
+       "{ea←⊂[2] ⋄ ea ⍵} 2 3 4⍴⍳9" #2A((#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3))
+                                       (#(4 8 3) #(5 9 4) #(6 1 5) #(7 2 6))))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))
   (for "Composed pivotal operation-derived function expression."

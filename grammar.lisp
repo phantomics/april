@@ -373,7 +373,6 @@
                           :axes (or axes (getf function-props :axes)))
                     items)))))
 
-
 (composer-pattern composer-pattern-operator-alias (operator-axes operator-form operator-props
                                                                  asop asop-props symbol symbol-props)
     ;; match a lexical operator alias like key←⌸
@@ -665,7 +664,6 @@
                                        symbols (first symbols))
                                    (if (listp (first symbols))
                                        (caar symbols))))))))
-  
   (if symbols
       ;; ensure symbol(s) are not bound to function values in the workspace, and
       ;; define them as dynamic variables if they're unbound there;
@@ -745,10 +743,8 @@
      (if (eq :function (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (if asop (values (let* ((inverted (if (listp precedent) (invert-function precedent)))
-                          (inverted-symbol (if inverted (intern (concatenate 'string "𝕚∇" (string symbol)))))
-                          (at-top-level (member :top-level (getf (first (last preceding-properties))
-                                                                 :special))))
+  (if asop (values (let ((at-top-level (member :top-level (getf (first (last preceding-properties))
+                                                                :special))))
                      ;; dummy function initialization is carried out here as well as in the idiom's
                      ;; :lexer-postprocess method in order to catch assignments of composed functions like
                      ;; g←(3∘×); these are not recognized by :lexer-postprocess since it should not be aware
@@ -759,12 +755,6 @@
                                 (if (not (fboundp (intern (string symbol) space)))
                                     (setf (symbol-function (intern (string symbol) space))
                                           #'dummy-nargument-function))))
-                     (if inverted (progn (if (is-workspace-value inverted-symbol)
-                                             (makunbound (intern (string inverted-symbol) space)))
-                                         ;; TODO: should dummy function initialization for inverted
-                                         ;; functions still take place at this stage?
-                                         (setf (symbol-function (intern (string inverted-symbol) space))
-                                               #'dummy-nargument-function)))
                      (if (and (listp precedent)
                               (eql 'apl-compose (first precedent))
                               (member symbol (getf (rest (getf (getf (first (last preceding-properties))
@@ -803,16 +793,13 @@
                                           ,(if (not fn-monadic)
                                                fn-dyadic (if (not fn-dyadic)
                                                              fn-monadic
-                                                             (generate-ambivalent-reference-function
-                                                              fn-monadic fn-dyadic
-                                                              (getf (first preceding-properties) :axes))))))))
+                                                             `(amb-ref ,(intern (string precedent))
+                                                                       ,fn-monadic ,fn-dyadic
+                                                                       ,(getf (first preceding-properties)
+                                                                              :axes))))))))
                          `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                                      `(inws ,symbol))
-                                ,precedent
-                                ,@(if inverted `(,(if at-top-level
-                                                      `(symbol-function (quote (inws ,inverted-symbol)))
-                                                      `(inws ,inverted-symbol))
-                                                  ,inverted)))))
+                                ,precedent)))
                    '(:type (:function :assigned)) items)))
 
 (composer-pattern operator-assignment (asop asop-props symbol symbol-props preceding-type)
@@ -823,10 +810,9 @@
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (let ((operator-symbol (intern (string symbol)))
         (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
-    (if asop (values (progn ;; (set-workspace-alias space symbol nil)
-                            `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
-                                        `(inws ,symbol))
-                                   ,precedent))
+    (if asop (values `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
+                                 `(inws ,symbol))
+                            ,precedent)
                      '(:type (:operator :assigned)) items))))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
