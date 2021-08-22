@@ -1473,8 +1473,7 @@ It remains here as a standard against which to compare methods for composing APL
       (values lexicons (print ;;(list ;; `(proclaim '(special ,@symbol-set))
                         ;; (loop :for (sym val) :on assignment-forms :by #'cddr
                         ;;    :collect `(setf ,sym ,val))
-                        (list (cons 'setf assignment-forms))
-                        )))))
+                        (cons 'setf assignment-forms))))))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec fn-props)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
