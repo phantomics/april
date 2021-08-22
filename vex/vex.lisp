@@ -416,7 +416,7 @@
       `(progn ,@(if (not extension)
                     `((proclaim '(special ,idiom-symbol))
                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
-              ;; ,assignment-form
+              ,assignment-form
               (setf (idiom-system ,idiom-symbol)
                     (append (idiom-system ,idiom-symbol)
                             ,(cons 'list (of-subspec system)))
