@@ -573,7 +573,7 @@
      (if selection-form (setf items (rest items))))
   (if (and selection-form (listp selection-form) (eql 'apl-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
-          (generate-selection-form selection-form space)
+          (generate-selection-form selection-form)
         (if sel-form
             ;; generate an array whose each cell is its row-major index, perform the subtractive function
             ;; on it and then use assign-selected to assign new values to the cells at the remaining

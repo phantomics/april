@@ -1591,6 +1591,7 @@
 
 (defun mix-arrays (axis input &key (populator))
   "Combine an array of nested arrays into a higher-rank array, removing a layer of nesting."
+  (print (list :ax axis input))
   (if (or (not (arrayp input))
           (and (= 1 (array-total-size input))
                (not (arrayp (row-major-aref input 0)))))
@@ -1610,6 +1611,7 @@
                  (odims-holder (make-array orank :element-type 'fixnum :fill-pointer 0))
                  (ofactors (make-array orank :element-type 'fixnum :initial-element 1))
                  (array-prototypes)) ;; prototypes are assigned to this variable if they exist
+            (print (list :oo out-dims-vector orank))
             (dotimes (ix isize)
               (let* ((i (aref input-vector ix))
                      (this-size (size i)) (this-rank (rank i)))

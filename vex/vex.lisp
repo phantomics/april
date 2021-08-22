@@ -399,7 +399,8 @@
                                       :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
                                                 ;; (string= "OPERATORS" (string-upcase (first subspec)))
                                                 )
-                                      :collect subspec))))
+                                   :collect subspec))))
+        (print :assignment-form-causing-bug)
         (multiple-value-bind (ilist aform)
             (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
                      (list (cons (first (second all-specs))
@@ -415,7 +416,7 @@
       `(progn ,@(if (not extension)
                     `((proclaim '(special ,idiom-symbol))
                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
-              ,assignment-form
+              ;; ,assignment-form
               (setf (idiom-system ,idiom-symbol)
                     (append (idiom-system ,idiom-symbol)
                             ,(cons 'list (of-subspec system)))

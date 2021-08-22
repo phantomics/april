@@ -62,7 +62,7 @@
                                  1 (realpart alpha))
                              (if (= 0 (imagpart alpha))
                                  1 (imagpart alpha)))))
-        (- omega (* alpha (complex-floor (/ omega alpha)))))
+        (- omega (* ainput (complex-floor (/ omega ainput)))))
       (mod omega alpha)))
 
 (defun apl-gcd (omega alpha)
@@ -348,8 +348,7 @@
 (defun section-array (index-origin &optional inverse)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
   (lambda (omega alpha &optional axes)
-    (let* ((alpha-index alpha)
-           (alpha (if (arrayp alpha)
+    (let* ((alpha (if (arrayp alpha)
                       alpha (vector alpha)))
            (output (section omega
                             (if axes (let ((dims (make-array
@@ -526,7 +525,6 @@
                                                     :initial-element alpha)))))
                  (odims (dims omega)) (adims (dims alpha))
                  (osize (size omega)) (asize (size alpha))
-                 (last-adim (first (last adims)))
                  (out-coords (loop :for i :below (+ (- (rank alpha) (count 1 adims))
                                                     (- (rank omega) (count 1 odims))) :collect 0))
                  (out-dims (append (loop :for dim :in adims :when t :collect dim)
@@ -562,7 +560,6 @@
          (alpha (if (arrayp alpha) alpha (enclose-atom alpha)))
          (odims (dims omega)) (adims (dims alpha))
          (osize (size omega)) (asize (size alpha))
-         (out-coords (loop :for i :below (max 1 (+ (1- (rank alpha)) (1- (rank omega)))) :collect 0))
          (out-dims (append (butlast adims 1) (rest odims)))
          (output (if out-dims (make-array out-dims)))
          (ovector (first odims))
@@ -589,15 +586,14 @@
                              :do (setf (row-major-aref afactors i) (* (row-major-aref alpha (1+ i))
                                                                       (row-major-aref afactors (1+ i))))))
                         (xdotimes output (i (size output))
-                          (multiple-value-bind (a o) (floor i olvector)
-                            (let ((result 0))
-                              (loop :for index :below av2
-                                 :do (incf result (* (row-major-aref omega (mod (+ (mod i out-section)
-                                                                                   (* out-section index))
-                                                                                (size omega)))
-                                                     (row-major-aref afactors
-                                                                     (+ index (* av2 (floor i out-section)))))))
-                              (setf (row-major-aref output i) result)))))
+                          (let ((result 0))
+                            (loop :for index :below av2
+                                  :do (incf result (* (row-major-aref omega (mod (+ (mod i out-section)
+                                                                                    (* out-section index))
+                                                                                 (size omega)))
+                                                      (row-major-aref afactors
+                                                                      (+ index (* av2 (floor i out-section)))))))
+                            (setf (row-major-aref output i) result))))
         (let ((result 0) (factor 1))
           (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
              :do (incf result (* factor (row-major-aref omega (min i (1- ovector)))))
@@ -667,7 +663,7 @@
     (funcall (if (not is-scalar) #'identity (lambda (o) (make-array nil :initial-element o)))
              output)))
 
-(defun generate-selection-form (form space)
+(defun generate-selection-form (form)
   "Generate a selection form for use with selective-assignment, i.e. (3↑x)←5."
   (let ((value-symbol) (set-form) (choose-unpicked)
         (value-placeholder (gensym)))
@@ -828,8 +824,8 @@
 (defun operate-each (operand axes)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (declare (ignore axes))
-  (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
-                       i (make-array nil :initial-element i))))
+  ;; (flet ((wrap (i) (if (not (and (arrayp i) (< 0 (rank i))))
+  ;;                      i (make-array nil :initial-element i))))
     (lambda (omega &optional alpha)
       (let* ((oscalar (if (= 0 (rank omega)) omega))
              (ascalar (if (= 0 (rank alpha)) alpha))
@@ -845,10 +841,11 @@
                  (if (or (not (arrayp item))
                          (= 0 (rank item)))
                      item (row-major-aref item 0)))
-               (this-enclose (item)
-                 (if (and (vectorp item)
-                          (= 1 (size item)))
-                     item (enclose item))))
+               ;; (this-enclose (item)
+               ;;   (if (and (vectorp item)
+               ;;            (= 1 (size item)))
+               ;;       item (enclose item)))
+               )
           (if (not (or oscalar ascalar ouvec auvec (not alpha)
                        (and (= orank arank)
                             (loop :for da :in adims :for do :in odims :always (= da do)))))
@@ -877,7 +874,7 @@
                         (dotimes (i (size omega)) ;; xdo
                           (setf (row-major-aref output i)
                                 (funcall operand (row-major-aref omega i))))))
-                output)))))))
+                output))))))
 
 (defun operate-commuting (operand)
   (lambda (omega &optional alpha)
@@ -990,7 +987,7 @@
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
     (let* ((odims (dims omega)) (adims (dims alpha))
-           (osize (size omega)) (asize (size alpha))
+           ;; (osize (size omega)) (asize (size alpha))
            (orank (rank omega)) (arank (rank alpha))
            (rank (if (not (arrayp rank))
                      (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
