@@ -1127,6 +1127,13 @@
                 (if (and (not function-axes) (member :axes function-props))
                     (setq function-axes (getf function-props :axes))))))
   (if is-function (let* ((fn-sym (or-functional-character fn-element :fn))
+                         (fn-meta (if (characterp fn-element)
+                                      (handler-case (funcall (symbol-function
+                                                              (intern (format nil "APRIL-LEX-FN-~a"
+                                                                              fn-element)))
+                                                             :get-metadata)
+	                                (error (c) nil))))
+                         (is-dyadic (resolve-function :dyadic (insym fn-element)))
                          (fn-content (if (or (functionp fn-element)
                                              (and (symbolp fn-element)
                                                   (member fn-element '(⍺⍺ ⍵⍵ ∇ ∇∇)))
@@ -1139,15 +1146,31 @@
                                                            :fn-syms)))
                                              (and (listp fn-element)
                                                   (eql 'function (first fn-element))))
-                                         fn-element (or (resolve-function (if value :dyadic :monadic)
-                                                                          (insym fn-element))
-                                                        (resolve-function :symbolic fn-element)
-                                                        fn-element)))
+                                         fn-element
+                                         ;; (or (resolve-function (if value :dyadic :monadic)
+                                         ;;                       (insym fn-element))
+                                         ;;     (resolve-function :symbolic fn-element)
+                                         ;;     fn-element)
+
+                                         (if (characterp fn-element)
+                                             (if (resolve-function (if value :dyadic :monadic)
+                                                                   (insym fn-element))
+                                                 (append (list 'apl-fn (intern (string fn-element)
+                                                                               (package-name *package*)))
+                                                         (getf fn-meta :implicit-args)))
+                                             (or (resolve-function (if value :dyadic :monadic)
+                                                                   (insym fn-element))
+                                                 (resolve-function :symbolic fn-element)
+                                                 fn-element))
+                                         ))
                          ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
                          ;; as a self-reference by lambdas invoked through the (alambda) macro
                          (fn-content (if (not (eql '∇ fn-content))
                                          fn-content '#'∇self)))
-                    (values `(apl-call ,fn-sym ,fn-content ,precedent ,@(if value (list value))
+                    ;; (print (list :ff fn-element fn-content fn-meta))
+                    (values `(apl-call ,fn-sym ,fn-content ,precedent
+                                       ,@(if value (list value)
+                                             (if (and function-axes is-dyadic) (list nil)))
                                        ,@(if function-axes `((list ,@(first function-axes)))))
                             '(:type (:array :evaluated)) items))))
 

@@ -589,11 +589,6 @@
                                                              ix (1+ ix)))
             output))))
 
-(defmacro ac-wrap (type glyph form)
-  "Wrap a function form in a function that calls it via (apl-call). Used for specification of inverse scalar functions."
-  (list (if (eq :m type) 'λω 'λωα)
-        `(apl-call ,glyph ,form omega ,@(if (eq :d type) (list 'alpha)))))
-
 (defmacro apl-call (symbol function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
   (declare (ignore symbol))
@@ -680,6 +675,29 @@
                          (if (and scalar-fn (is-boolean function))
                              '(nil t))))))))
 
+#|
+This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.
+It remains here as a standard against which to compare methods for composing APL functions.
+
+(defmacro apl-call (symbol function &rest arguments)
+(declare (ignore symbol))
+`(,(if (and (listp function)
+(eql 'scalar-function (first function)))
+'apply-scalar 'funcall)
+,function  ,@arguments))
+|#
+
+(defmacro ac-wrap (type glyph form)
+  "Wrap a function form in a function that calls it via (apl-call). Used for specification of inverse scalar functions."
+  (list (if (eq :m type) 'λω 'λωα)
+        `(apl-call ,glyph ,form omega ,@(if (eq :d type) (list 'alpha)))))
+
+(defmacro apl-fn (glyph &rest initial-args)
+  "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
+  (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) (package-name *package*))))
+    (if initial-args (cons symbol initial-args)
+        (list 'function symbol))))
+
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
   (cond ((eql 'setf (first form))
@@ -712,18 +730,6 @@
                         (if ,prototype (array-setting-meta ,result :empty-array-prototype ,prototype)
                             ,result))
                       ,result)))))))
-
-#|
-This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.
-It remains here as a standard against which to compare methods for composing APL functions.
-
-(defmacro apl-call (symbol function &rest arguments)
-(declare (ignore symbol))
-`(,(if (and (listp function)
-(eql 'scalar-function (first function)))
-'apply-scalar 'funcall)
-,function  ,@arguments))
-|#
 
 (defmacro apl-compose (symbol &rest body)
   "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
@@ -1398,26 +1404,15 @@ It remains here as a standard against which to compare methods for composing APL
                         :operators nil :operators-lateral nil :operators-pivotal nil
                         :operators-unitary nil)))
     (flet ((wrap-meta (glyph type form metadata)
-             ;; (if (and (getf metadata :inverse)
-             ;;          (not (member (first (getf metadata :inverse)) '(λωα λω))))
-             ;;     (setf (getf metadata :inverse)
-             ;;           `(,(if (eq :dyadic type) 'λωαχ 'λωχ)
-             ;;             (apl-call ,(intern (string glyph)) ,(getf metadata :inverse)
-             ;;                       omega ,@(if (eq :dyadic type) (list 'alpha))))))
-             ;; (if (and (getf metadata :inverse-right)
-             ;;          (not (member (first (getf metadata :inverse-right)) '(λωα λω))))
-             ;;     (setf (getf metadata :inverse-right)
-             ;;           `(,(if (eq :dyadic type) 'λωαχ 'λωχ)
-             ;;             (apl-call ,glyph ,(getf metadata :inverse-right)
-             ;;                       omega ,@(if (eq :dyadic type) (list 'alpha))))))
-             ;; (if (and (getf metadata :inverse-commuted)
-             ;;          (not (eql 'λωχ (first (getf metadata :inverse-commuted)))))
-             ;;     (setf (getf metadata :inverse-commuted)
-             ;;           `(λωχ (apl-call ,glyph ,(getf metadata :inverse-commuted) omega))))
              (if (not metadata) form
                  (if (and (listp form) (eql 'scalar-function (first form)))
                      (append form metadata)
-                     `(fn-meta ,form ,@metadata)))))
+                     `(fn-meta ,form ,@metadata))))
+           (wrap-implicit (implicit-args form)
+             `(lambda ,(cons (first implicit-args) (cons '&optional (rest implicit-args)))
+                (if (eql :get-metadata ,(first implicit-args))
+                    (list :implicit-args (quote ,implicit-args))
+                    ,form))))
       (loop :for each-spec :in spec-sets
             :do (loop :for spec :in (reverse (cddr each-spec))
                       :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
@@ -1426,8 +1421,8 @@ It remains here as a standard against which to compare methods for composing APL
                                    (glyph-char (aref (string glyph-sym) 0))
                                    (item-type (intern (string (first implementation))))
                                    (spec-meta (rest (assoc 'meta rest)))
-                                   (both-metadata (rest (assoc 'both spec-meta)))
-                                   (implicit-args (getf both-metadata :implicit-args))
+                                   (primary-metadata (rest (assoc 'primary spec-meta)))
+                                   (implicit-args (getf primary-metadata :implicit-args))
                                    (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
                                                               (if (eql 'operators spec-type) "OP" "FN")
                                                               glyph-sym))))
@@ -1438,24 +1433,27 @@ It remains here as a standard against which to compare methods for composing APL
                                  (push glyph-char (getf lexicons :functions-monadic))
                                  (push (funcall
                                         (if (not implicit-args)
-                                            #'identity (lambda (form) `(lambda ,implicit-args ,form)))
+                                            #'identity ; ;(lambda (form) `(lambda ,implicit-args ,form))
+                                            (lambda (form) (wrap-implicit implicit-args form)))
                                         (wrap-meta glyph-sym :monadic (second implementation)
-                                                   (append both-metadata (rest (assoc 'monadic spec-meta)))))
+                                                   (append primary-metadata (rest (assoc 'monadic spec-meta)))))
                                        assignment-forms))
                                 (dyadic (push glyph-char (getf lexicons :functions))
                                  (push glyph-char (getf lexicons :functions-dyadic))
                                  (push (funcall
                                         (if (not implicit-args)
-                                            #'identity (lambda (form) `(lambda ,implicit-args ,form)))
+                                            #'identity ;; (lambda (form) `(lambda ,implicit-args ,form))
+                                            (lambda (form) (wrap-implicit implicit-args form)))
                                         (wrap-meta glyph-sym :dyadic (second implementation)
-                                                   (append both-metadata (rest (assoc 'dyadic spec-meta)))))
+                                                   (append primary-metadata (rest (assoc 'dyadic spec-meta)))))
                                        assignment-forms))
                                 (ambivalent (push glyph-char (getf lexicons :functions))
                                  (push glyph-char (getf lexicons :functions-monadic))
                                  (push glyph-char (getf lexicons :functions-dyadic))
                                  (push (funcall
                                         (if (not implicit-args)
-                                            #'identity (lambda (form) `(lambda ,implicit-args ,form)))
+                                            #'identity ;; (lambda (form) `(lambda ,implicit-args ,form))
+                                            (lambda (form) (wrap-implicit implicit-args form)))
                                         `(amb-ref ,glyph-sym ,(wrap-meta
                                                                glyph-sym :monadic (second implementation)
                                                                (rest (assoc 'monadic spec-meta)))
