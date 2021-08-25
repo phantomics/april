@@ -703,6 +703,7 @@
                                  ;; assigning to a [⌷ at index] form is an just an alternate version
                                  ;; of assigning to axes, like x[1;3]←5
                                  (let ((form-copy (copy-list fn-form)))
+                                   (print (list :fff fn-form))
                                    (setf (second form-copy)
                                          (append (second form-copy) (list value-placeholder))
                                          (third form) form-copy
@@ -782,7 +783,9 @@
 
 (defun operate-scanning (function axis index-origin &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
-  (lambda (omega)
+  (lambda (omega &optional unused)
+    ;; second argument for cases where a nil argument is passed in place of a right argument
+    (declare (ignore unused))
     (if (eq :get-metadata omega)
         (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
                          (operate-scanning inverse-function axis index-origin last-axis t)))
@@ -1173,7 +1176,8 @@
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-  (lambda (omega)
+  (lambda (omega &optional unused)
+    (declare (ignore unused)) ;; unused argument for same purpose as with (operate-scanning)
     (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
                                    :collect (if (= i 0) index nil))))
       (if (not (or (and (< 2 (rank right-value))

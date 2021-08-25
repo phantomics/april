@@ -1608,7 +1608,8 @@
                  (ifactor-matrix (make-array (list isize (max 0 (1- max-rank))) :element-type 'fixnum))
                  (idims-holder (make-array max-rank :element-type 'fixnum :initial-element 0))
                  (odims-holder (make-array orank :element-type 'fixnum :fill-pointer 0))
-                 (ofactors (make-array orank :element-type 'fixnum :initial-element 1))
+                 (ofactors (make-array orank ;; :element-type 'fixnum
+                                             :initial-element 1))
                  (array-prototypes)) ;; prototypes are assigned to this variable if they exist
             (dotimes (ix isize)
               (let* ((i (aref input-vector ix))
@@ -1661,16 +1662,17 @@
             (setq output (make-array (loop :for d :across odims-holder :collect d)
                                      :element-type (or type t) :initial-element
                                      (if (eql 'character type) #\ (coerce 0 (or type t)))))
-
+            
             ;; rotate output array dimensional factors according to axis
             ;; algorithm: rotate last (vector length - x) elements y times
             ;; x = axis, y = output rank - axis
             (if (/= axis irank)
                 (if (= 0 axis) (rotate ofactors (- irank axis))
                     (let ((to-rotate (make-array (- orank axis) :displaced-to ofactors
-                                                 :element-type 'fixnum :displaced-index-offset axis)))
+                                                                ;; :element-type 'fixnum
+                                                                :displaced-index-offset axis)))
                       (rotate to-rotate (- irank axis)))))
-
+            
             ;; TODO: write case for sub-7-bit output where every element of the output is iterated over
             (ydotimes output (i total-size)
               (if (= 0 max-rank)

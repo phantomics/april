@@ -487,18 +487,33 @@
                                                                               :monadic operand-form)
                                                                         ,omega))))
                                                      operand-form)))
-                              (let ((operand (if (eql '∇ operand-form)
-                                                 '#'∇self
-                                                 (if (or (listp operand-form)
-                                                         (symbolp operand-form))
-                                                     operand-form (if (characterp operand-form)
-                                                                      `(amb-ref ,(intern (string operand-form))
-                                                                                ,(resolve-function
-                                                                                  :monadic operand-form)
-                                                                                ,(resolve-function
-                                                                                  :dyadic operand-form)
-                                                                                ,@(if operand-axes
-                                                                                      (list operand-axes))))))))
+                              (let* ((operand (if (eql '∇ operand-form)
+                                                  '#'∇self
+                                                      (if (or (listp operand-form)
+                                                              (symbolp operand-form))
+                                                          operand-form (if (characterp operand-form)
+                                                                           `(amb-ref ,(intern (string operand-form))
+                                                                                     ,(resolve-function
+                                                                                       :monadic operand-form)
+                                                                                     ,(resolve-function
+                                                                                       :dyadic operand-form)
+                                                                                     ,@(if operand-axes
+                                                                                           (list operand-axes)))))))
+                                     (operand-meta
+                                       (if (characterp operand-form)
+                                           (handler-case (funcall (symbol-function
+                                                                   (intern (format nil "APRIL-LEX-FN-~a"
+                                                                                   operand-form)))
+                                                                  :get-metadata)
+	                                     (error (c) nil))))
+                                     (operand (if (and (characterp operand-form)
+                                                       (or (resolve-function :monadic (insym operand-form))
+                                                           (resolve-function :dyadic (insym operand-form))))
+                                                  (append (list 'apl-fn (intern (string operand-form)
+                                                                                (package-name *package*)))
+                                                          (getf operand-meta :implicit-args)
+                                                          (if operand-axes (list :axes operand-axes)))
+                                                  operand)))
                                 (cons 'apl-compose
                                       (cons (intern (string-upcase operator) *package-name-string*)
                                             (funcall (resolve-operator :lateral operator)
@@ -1165,12 +1180,14 @@
                                          ))
                          ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
                          ;; as a self-reference by lambdas invoked through the (alambda) macro
-                         (fn-content (if (not (eql '∇ fn-content))
-                                         fn-content '#'∇self)))
+                         (fn-content (if (eql '∇ fn-content)
+                                         '#'∇self (if (not (and function-axes (getf fn-meta :scalar-dyadic)))
+                                                      fn-content `(scalar-function ,fn-content)))))
                     ;; (print (list :ff fn-element fn-content fn-meta))
                     (values `(apl-call ,fn-sym ,fn-content ,precedent
-                                       ,@(if value (list value)
-                                             (if (and function-axes is-dyadic) (list nil)))
+                                       ;; ,@(if value (list value)
+                                       ;;       (if (and function-axes is-dyadic) (list nil)))
+                                       ,value
                                        ,@(if function-axes `((list ,@(first function-axes)))))
                             '(:type (:array :evaluated)) items))))
 
