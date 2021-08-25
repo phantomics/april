@@ -702,13 +702,9 @@
                                      (atin-aliased fn-symbol))
                                  ;; assigning to a [⌷ at index] form is an just an alternate version
                                  ;; of assigning to axes, like x[1;3]←5
-                                 (let ((form-copy (copy-list fn-form)))
-                                   (print (list :fff fn-form))
-                                   (setf (second form-copy)
-                                         (append (second form-copy) (list value-placeholder))
-                                         (third form) form-copy
-                                         set-form (fourth form))
-                                   form)
+                                 (progn (setf (third form) (append (third form) (list value-placeholder))
+                                              set-form (fourth form))
+                                        form)
                                  ;; set the :modify-input parameter so the array is changed in place
                                  (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
                                                 (sfun-aliased fn-symbol))

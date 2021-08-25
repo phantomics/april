@@ -709,7 +709,7 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
-  (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) (package-name *package*))))
+  (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*)))
     (if initial-args
         (if (member :axes initial-args)
             (let* ((ax-index)
@@ -1445,8 +1445,9 @@ It remains here as a standard against which to compare methods for composing APL
                                                             ,@(if (eq :dyadic type) `((second ,args)))))))
                               (append form metadata))
                      `(fn-meta ,form ,@metadata))))
-           (wrap-implicit (implicit-args form)
-             `(lambda ,(cons (first implicit-args) (cons '&optional (rest implicit-args)))
+           (wrap-implicit (implicit-args optional-implicit-args form)
+             `(lambda ,(cons (first implicit-args) (cons '&optional (append (rest implicit-args)
+                                                                     optional-implicit-args)))
                 (if (eq :get-metadata ,(first implicit-args))
                     (list :implicit-args (quote ,implicit-args))
                     ,form))))
@@ -1460,6 +1461,7 @@ It remains here as a standard against which to compare methods for composing APL
                                    (spec-meta (rest (assoc 'meta rest)))
                                    (primary-metadata (rest (assoc 'primary spec-meta)))
                                    (implicit-args (getf primary-metadata :implicit-args))
+                                   (optional-implicit-args (getf primary-metadata :optional-implicit-args))
                                    (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
                                                               (if (eql 'operators spec-type) "OP" "FN")
                                                               glyph-sym)))
@@ -1473,7 +1475,8 @@ It remains here as a standard against which to compare methods for composing APL
                                              (funcall
                                               (if (not implicit-args)
                                                   #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args form)))
+                                                               (wrap-implicit implicit-args
+                                                                              optional-implicit-args form)))
                                               (wrap-meta glyph-sym :monadic (second implementation)
                                                          (rest (assoc 'monadic spec-meta)) t)))
                                        assignment-forms))
@@ -1483,7 +1486,8 @@ It remains here as a standard against which to compare methods for composing APL
                                              (funcall
                                               (if (not implicit-args)
                                                   #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args form)))
+                                                               (wrap-implicit implicit-args
+                                                                              optional-implicit-args form)))
                                               (wrap-meta glyph-sym :dyadic (second implementation)
                                                          (rest (assoc 'dyadic spec-meta)) t)))
                                        assignment-forms))
@@ -1494,7 +1498,8 @@ It remains here as a standard against which to compare methods for composing APL
                                              (funcall
                                               (if (not implicit-args)
                                                   #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args form)))
+                                                               (wrap-implicit implicit-args
+                                                                              optional-implicit-args form)))
                                               `(amb-ref ,glyph-sym
                                                         ,(wrap-meta
                                                           glyph-sym :monadic (second implementation)
@@ -1636,8 +1641,8 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro specify-demo (title params &rest sections)
   (let ((params (rest params)))
-    `(progn (defun ,(intern "RUN-TESTS" (package-name *package*)) ()
-              (format t "~a ｢~a｣" ,title ,(package-name *package*))
+    `(progn (defun ,(intern "RUN-TESTS" *package-name-string*) ()
+              (format t "~a ｢~a｣" ,title ,*package-name-string*)
               (princ #\Newline)
               ,@(if (getf params :description)
                     `((princ ,(getf params :description))
