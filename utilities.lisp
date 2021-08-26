@@ -139,10 +139,12 @@
        #'∇self)))
 
 (defmacro olambda (params &body body)
+  "Generate a lambda with a self-reference for use with APL's ∇∇ symbol for self-reference in a defined operator."
   `(labels ((∇oself ,params ,@body))
      #'∇oself))
 
 (defmacro fn-meta (function &rest meta)
+  "Wrap a function in another function so that it may carry metadata."
   (let ((args (gensym)))
     `(lambda (&rest ,args)
        (if (eq :get-metadata (first ,args))
@@ -1421,7 +1423,6 @@ It remains here as a standard against which to compare methods for composing APL
                                                                 (if (eql 'operators spec-type) "OP" "FN")
                                                                 glyph-sym)))
                                      (assigned-form))
-                                ;; (print (list :sp spec-meta))
                                 (push fn-symbol symbol-set)
                                 (if (getf props :aliases)
                                     (loop :for alias :in (getf props :aliases)
@@ -1453,7 +1454,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                 (wrap-meta glyph-sym :dyadic (second implementation)
                                                            (rest (assoc 'dyadic spec-meta)) t)))
                                          assignment-forms))
-                                  (ambivalent (incf fn-count)
+                                  (ambivalent (incf fn-count 2)
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
                                    (push (setq assigned-form
                                                (funcall
@@ -1499,7 +1500,6 @@ It remains here as a standard against which to compare methods for composing APL
                                                            'symbol-value 'symbol-function)
                                                       (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
                                                     assignment-forms)))))))
-        ;; (print (list :ll lexicons))
         (values lexicons (print (list `(proclaim '(special ,@symbol-set))
                                       (cons 'setf assignment-forms)))
                 (list :fn-count fn-count :op-count op-count))))))

@@ -110,7 +110,6 @@
                                         :displaced-index-offset (if last-index (1+ last-index) 0))
                    :do (setq last-index index))))
             ;; macro to process lexical specs of functions and operators
-            ;; :process-lexicon #'april-function-glyph-processor
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
             :format-number #'parse-apl-number-string
