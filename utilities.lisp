@@ -153,6 +153,11 @@
                        function `(function ,function))
                   ,args)))))
 
+(defmacro inv-fn (function &optional is-dyadic)
+  (let ((inverse (gensym)))
+    `(let ((,inverse (getf (funcall ,function :get-metadata ,@(if is-dyadic (list nil))) :inverse)))
+       (or ,inverse (error "Cannot invert function ~a." (quote ,function))))))
+
 (defmacro achoose (item indices &rest rest-params)
   "Wrapper for the choose function."
   (let ((indices-evaluated (gensym)))
@@ -267,14 +272,14 @@
              (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
                  ,(if d-meta (cons 'list d-meta)))
              (if (= 2 (length ,args))
-                 (if (null (second ,args)) (apl-call ,fn-glyph ,(wrap-curried-axes fn-monadic) (first ,args))
-                     (apl-call ,fn-glyph ,(wrap-curried-axes fn-dyadic) (first ,args) (second ,args)))
+                 (if (null (second ,args)) (a-call ,(wrap-curried-axes fn-monadic) (first ,args))
+                     (a-call ,(wrap-curried-axes fn-dyadic) (first ,args) (second ,args)))
                  (if (= 3 (length ,args))
                      (if (null (second ,args))
                          (let ((,reduced-args (cons (first ,args) (cddr ,args))))
                            (apply ,(wrap-curried-axes fn-monadic) ,reduced-args))
                          (apply ,(wrap-curried-axes fn-dyadic) ,args))
-                     (apl-call ,fn-glyph ,(wrap-curried-axes fn-monadic) (first ,args)))))))))
+                     (a-call ,(wrap-curried-axes fn-monadic) (first ,args)))))))))
 
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
@@ -303,7 +308,7 @@
   "Indent a code string produced by (print-and-run) as appropriate for April's test output."
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
-(defmacro apl-assign (symbol value);; &optional is-toplevel)
+(defmacro a-set (symbol value);; &optional is-toplevel)
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
   (if (or (not (listp symbol))
           (eql 'inws (first symbol)))
@@ -311,7 +316,7 @@
                                   (and (listp value)
                                        (or (member (first value) '(inws inwsd))
                                            ;; remember to duplicate an assigned symbol as well
-                                           (and (eql 'apl-assign (first value))
+                                           (and (eql 'a-set (first value))
                                                 (or (symbolp (second value))
                                                     (and (listp (second value))
                                                          (member (second value) '(inws inwsd)))))))))
@@ -343,7 +348,7 @@
                         ,this-val))))
           (process-symbols symbols value)))))
 
-(defmacro apl-output (form &key (print-to) (output-printed)
+(defmacro a-out (form &key (print-to) (output-printed)
                              (print-assignment) (print-precision) (with-newline))
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym))
@@ -358,7 +363,7 @@
                                      `(concatenate 'string "∇" ,function-name-value))
                                 ;; if a bare function name is to be output, prefix it with ∇
                                 (and (listp form)
-                                     (eql 'apl-assign (first form))
+                                     (eql 'a-set (first form))
                                      (not print-assignment)
                                      "")
                                 `(matrix-print ,result :append #\Newline
@@ -543,7 +548,7 @@
                     (macro-function (first reference))
                     (not (member (first reference)
                                  ;; TODO: this will cause a problem if a function is passed and assigned
-                                 '(avector apl-call apl-if apl-output apl-assign))))))
+                                 '(avector a-call apl-if a-out a-set))))))
       reference))
 
 (defun extract-axes (process tokens &optional axes)
@@ -577,9 +582,8 @@
                                                              ix (1+ ix)))
             output))))
 
-(defmacro apl-call (symbol function &rest arguments)
+(defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
-  (declare (ignore symbol))
   (let ((arg (gensym "A")))
     (flet ((is-scalar (form) (and (listp form) (eql 'scalar-function (first form))))
            (is-boolean (form) (and (listp form) (listp (second form))
@@ -664,21 +668,20 @@
                              '(nil t))))))))
 
 #|
-This is a minimalistic implementation of (apl-call) that doesn't perform any function composition.
+This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
 It remains here as a standard against which to compare methods for composing APL functions.
 
-(defmacro apl-call (symbol function &rest arguments)
-(declare (ignore symbol))
-`(,(if (and (listp function)
-(eql 'scalar-function (first function)))
-'apply-scalar 'funcall)
-,function  ,@arguments))
+(defmacro a-call (function &rest arguments)
+  `(,(if (and (listp function)
+              (eql 'scalar-function (first function)))
+         'apply-scalar 'funcall)
+    ,function  ,@arguments))
 |#
 
 (defmacro ac-wrap (type glyph form)
-  "Wrap a function form in a function that calls it via (apl-call). Used for specification of inverse scalar functions."
+  "Wrap a function form in a function that calls it via (a-call). Used for specification of inverse scalar functions."
   (list (if (eq :m type) 'λω 'λωα)
-        `(apl-call ,glyph ,form omega ,@(if (eq :d type) (list 'alpha)))))
+        `(a-call ,form omega ,@(if (eq :d type) (list 'alpha)))))
 
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
@@ -694,10 +697,10 @@ It remains here as a standard against which to compare methods for composing APL
                    ;;                         :collect (cons 'list ax))))
                    (axes (cons 'list (caar (nthcdr (1+ ax-index) initial-args)))))
               `(lambda (omega &optional alpha)
-                 (if alpha (apl-call ,glyph (apl-fn ,glyph ,@non-axis-args) omega alpha
+                 (if alpha (a-call (apl-fn ,glyph ,@non-axis-args) omega alpha
                                      ,axes)
-                     (apl-call ,glyph (apl-fn ,glyph ,@non-axis-args) omega nil
-                               ,axes))))
+                     (a-call (apl-fn ,glyph ,@non-axis-args) omega nil
+                             ,axes))))
             (cons symbol initial-args))
         (list 'function symbol))))
 
@@ -745,7 +748,7 @@ It remains here as a standard against which to compare methods for composing APL
                             ,result))
                       ,result)))))))
 
-(defmacro apl-compose (symbol &rest body)
+(defmacro a-comp (symbol &rest body)
   "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
   (declare (ignore symbol))
   (let ((expanded (macroexpand body)))
@@ -773,7 +776,7 @@ It remains here as a standard against which to compare methods for composing APL
       (build-clauses each-clause))))
 
 (defmacro scalar-function (function &rest meta)
-  "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (apl-call)."
+  "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
   (let ((args (gensym)))
     `(lambda (&rest ,args)
        (if (eq :get-metadata (first ,args))
@@ -791,7 +794,7 @@ It remains here as a standard against which to compare methods for composing APL
                (not (third value))))))
 
 (defmacro or-functional-character (reference symbol)
-  "Return a symbol representing a functional character or, if the passed value is not a character, an arbitrary fallback symbol. Used to derive the initial symbol argument for (apl-call)."
+  "Return a symbol representing a functional character or, if the passed value is not a character, an arbitrary fallback symbol. Used to derive the initial symbol argument for (a-call)."
   `(if (not (characterp ,reference))
        ,symbol (intern (string-upcase ,reference) ,*package-name-string*)))
 
@@ -1208,6 +1211,90 @@ It remains here as a standard against which to compare methods for composing APL
     ;; TODO: write tests to ensure variable hoisting is done properly?
     (if is-nested token-list (remove-duplicates (rest token-list)))))
 
+(defun invert-function (form &optional to-wrap)
+  "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
+  (match form
+    ;; ((list (guard first (member first '(λω λωα))) second)
+    ;;  invert a λω or λωα macro lambda expression
+    ;;  (list first (invert-function second)))
+    ;; ((list* 'alambda args options
+    ;;         (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
+    ;;         first-form rest-forms)
+    ;;  invert an arbitrary lambda
+    ;;  (if rest-forms `(lambda ,args ,declare-form
+    ;;                          (error "This function has more than one statement and thus cannot be inverted."))
+    ;;      `(alambda ,args ,options ,declare-form ,(invert-function first-form))))
+    ;; ((list* 'alambda args options first-form rest-forms)
+    ;;  invert an arbitrary lambda
+    ;;  (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
+    ;;                          (error "This function has more than one statement and thus cannot be inverted."))
+    ;;      `(alambda ,args ,options ,(invert-function first-form))))
+    ;; ((list* 'a-call2 function-form arg1 arg2-rest)
+    ;;  (let ((function-symbol '∇))
+    ;;    (destructuring-bind (&optional arg2 &rest rest) arg2-rest
+    ;;      ;; invert an apl-call expression - WIP
+    ;;      (let* ((function-char (aref (string function-symbol) 0))
+    ;;             (dyinv-forms (resolve-function :dyadic-inverse function-char))
+    ;;             (to-invert (or (member arg1 '(⍵ ⍺ omega alpha))
+    ;;                            (and (listp arg1) (eql 'apl-call (first arg1)))))
+    ;;             (arg1-var (if to-invert arg1))
+    ;;             (arg2-var (if (or (member arg2 '(⍵ ⍺ omega alpha))
+    ;;                               (and (listp arg2) (eql 'apl-call (first arg2))))
+    ;;                           arg2))
+    ;;             (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
+    ;;                                  (and (listp arg2) (eql 'apl-call (first arg2))))))
+    ;;             (to-wrap (or to-wrap #'identity)))
+    ;;        (flet ((wrapper (item)
+    ;;                 `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
+    ;;                                                  (invert-function function-form)
+    ;;                                                  (if arg2 (or (if to-invert (getf dyinv-forms :plain)
+    ;;                                                                   (or (getf dyinv-forms :right-composed)
+    ;;                                                                       (getf dyinv-forms :plain)))
+    ;;                                                               `(λωα (declare (ignore omega alpha))
+    ;;                                                                     (error "No dyadic inverse for ~a."
+    ;;                                                                            ,function-char)))
+    ;;                                                      (or (resolve-function :monadic-inverse function-char)
+    ;;                                                          `(λω (declare (ignore omega))
+    ;;                                                               (error "No monadic inverse for ~a."
+    ;;                                                                      ,function-char)))))
+    ;;                            ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
+    ;;                                                   #'identity #'reverse)
+    ;;                                               (append (list (if (or (listp arg1)
+    ;;                                                                     (and arg1-var (not arg2-var)))
+    ;;                                                                 (funcall to-wrap item) arg1))
+    ;;                                                       (if (and (not (member arg2 '(⍵ ⍺)))
+    ;;                                                                (and arg2-var (not arg1-var)))
+    ;;                                                           (list (funcall to-wrap item))
+    ;;                                                           (if arg2 (list arg2)))))
+    ;;                                      rest))))
+    ;;          (if last-layer (wrapper (or arg1-var arg2-var))
+    ;;              (invert-function (or arg1-var arg2-var) #'wrapper)))))))
+    ((list* 'a-call function-form arg1 arg2-rest)
+     (let ((function-symbol '∇))
+       (destructuring-bind (&optional arg2 &rest rest) arg2-rest
+         ;; invert an apl-call expression - WIP
+         (let* ((function-identity (if (eql 'apl-fn (first function-form))
+                                       (symbol-function (intern (format nil "APRIL-LEX-FN-~a"
+                                                                        (second function-form))
+                                                                *package-name-string*))))
+                (function-meta (if function-identity (apply function-identity :get-metadata
+                                                            (if arg2 (list nil))))))
+           `(a-call (inv-fn ,function-form)
+                    ,@(append (funcall (if (or (not arg2)
+                                               (getf function-meta :inverse-right))
+                                           #'identity #'reverse)
+                                       (list arg1 arg2)
+                                       ;; (append (list (if (or (listp arg1)
+                                       ;;                       (and arg1 (not arg2)))
+                                       ;;                   (funcall to-wrap item) arg1))
+                                       ;;         (if (and (not (member arg2 '(⍵ ⍺)))
+                                       ;;                  (and arg2-var (not arg1-var)))
+                                       ;;             (list (funcall to-wrap item))
+                                       ;;             (if arg2 (list arg2))))
+                                       )
+                              rest))))))
+    ))
+
 ;; (defun invert-function (form &optional to-wrap)
 ;;   "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
 ;;   (match form
@@ -1386,12 +1473,12 @@ It remains here as a standard against which to compare methods for composing APL
              (if (not metadata) form
                  (if (and (listp form) (eql 'scalar-function (first form)))
                      (funcall (if (not (and is-not-ambivalent (eql 'scalar-function (first form))))
-                                  ;; enclose non-ambivalent scalar functions in an (apl-call)
+                                  ;; enclose non-ambivalent scalar functions in an (a-call)
                                   ;; wrapper so they are correctly applied over arrays
                                   #'identity (lambda (fn-form)
                                                `(lambda (&rest ,args)
-                                                  (apl-call ,glyph ,fn-form (first ,args)
-                                                            ,@(if (eq :dyadic type) `((second ,args)))))))
+                                                  (a-call ,fn-form (first ,args)
+                                                          ,@(if (eq :dyadic type) `((second ,args)))))))
                               (append form metadata))
                      `(fn-meta ,form ,@metadata))))
            (wrap-implicit (implicit-args optional-implicit-args form)

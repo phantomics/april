@@ -690,44 +690,47 @@
              ;;          (characterp alias-entry)
              ;;          (char= #\⊃ alias-entry))))
              (process-form (f)
-               (match f ((list* 'apl-call fn-symbol fn-form first-arg rest)
+               (match f ((list* 'a-call fn-form first-arg rest)
                          ;; recursively descend through the expression in search of an expression containing
                          ;; the variable and one of the four functions usable for selective assignment
-                         (if (and (listp first-arg) (eql 'apl-call (first first-arg)))
-                             (let ((processed (process-form first-arg)))
-                               ;; only build the recursive expression if a valid expression
-                               ;; was successfully found inside
-                               (if processed `(apl-call ,fn-symbol ,fn-form ,processed ,@rest)))
-                             (if (or (eql fn-symbol '⌷)
-                                     (atin-aliased fn-symbol))
-                                 ;; assigning to a [⌷ at index] form is an just an alternate version
-                                 ;; of assigning to axes, like x[1;3]←5
-                                 (progn (setf (third form) (append (third form) (list value-placeholder))
-                                              set-form (fourth form))
-                                        form)
-                                 ;; set the :modify-input parameter so the array is changed in place
-                                 (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
-                                                (sfun-aliased fn-symbol))
-                                            (if (val-wssym first-arg)
-                                                (setq value-symbol first-arg)
-                                                (if (and (eql 'achoose (first first-arg))
-                                                         (val-wssym (second first-arg)))
-                                                    (if (or (eql '⊃ fn-symbol)
-                                                            (disc-aliased fn-symbol))
-                                                        (setq value-symbol first-arg
-                                                              set-form
-                                                              (append first-arg
-                                                                      (list :set value-placeholder
-                                                                            :modify-input t)))
-                                                        (setq value-symbol (second first-arg)
-                                                              choose-unpicked t)))))
-                                        (if value-symbol
-                                            `(apl-call ,fn-symbol ,fn-form
+                         (let ((fn-symbol (second fn-form)))
+                           ;; TODO: check functions by metadata rather than symbol, allowing
+                           ;; for aliased symbols
+                           (if (and (listp first-arg) (eql 'a-call (first first-arg)))
+                               (let ((processed (process-form first-arg)))
+                                 ;; only build the recursive expression if a valid expression
+                                 ;; was successfully found inside
+                                 (if processed `(a-call ,fn-form ,processed ,@rest)))
+                               (if (or (eql fn-symbol '⌷)
+                                       (atin-aliased fn-symbol))
+                                   ;; assigning to a [⌷ at index] form is an just an alternate version
+                                   ;; of assigning to axes, like x[1;3]←5
+                                   (progn (setf (second form) (append (second form) (list value-placeholder))
+                                                set-form (third form))
+                                          form)
+                                   ;; set the :modify-input parameter so the array is changed in place
+                                   (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
+                                                  (sfun-aliased fn-symbol))
+                                              (if (val-wssym first-arg)
+                                                  (setq value-symbol first-arg)
+                                                  (if (and (eql 'achoose (first first-arg))
+                                                           (val-wssym (second first-arg)))
+                                                      (if (or (eql '⊃ fn-symbol)
+                                                              (disc-aliased fn-symbol))
+                                                          (setq value-symbol first-arg
+                                                                set-form
+                                                                (append first-arg
+                                                                        (list :set value-placeholder
+                                                                              :modify-input t)))
+                                                          (setq value-symbol (second first-arg)
+                                                                choose-unpicked t)))))
+                                          (if value-symbol
+                                              `(a-call ,fn-form
                                                        ,(if (not choose-unpicked)
                                                             value-placeholder
                                                             (append (list 'achoose value-placeholder)
                                                                     (cddr first-arg)))
-                                                       ,@rest)))))))))
+                                                       ,@rest))))))))))
       (let ((form-out (process-form form)))
         (values form-out value-symbol value-placeholder set-form)))))
 
@@ -1159,7 +1162,7 @@
           (nth-value
            1 (choose omega
                      (if (not right-fn)
-                         (append (list (apl-call - (scalar-function -) right index-origin))
+                         (append (list (a-call (scalar-function -) right index-origin))
                                  (loop :for i :below (1- (rank omega)) :collect nil)))
                      :set (if (not left-fn) left)
                      :set-by (if (or left-fn right-fn)

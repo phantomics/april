@@ -364,7 +364,7 @@
                             function-form `(function (inws ,function-form)))
                         (let ((call-form (if (listp function-form)
                                              function-form `(function ,(insym function-form)))))
-                          `(apl-call :nafn ,call-form ,@(first axes))))
+                          `(a-call ,call-form ,@(first axes))))
                     (list :type (if (member :operator (getf function-props :type))
                                     (list :operator :inline-operator
                                           (if (member :pivotal (getf function-props :type))
@@ -443,13 +443,13 @@
                                                    ,@include-closure-meta-last))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
-        (values `(apl-compose :op ,(list (if (and (fboundp (intern (string symbol-referenced) space))
-                                                  (not (member symbol-plain env-lops)))
-                                             'inwsd 'inws)
-                                         symbol-referenced)
-                              ,(if (not (characterp operand-form))
-                                   operand-form (build-call-form operand-form operand-axes))
-                              ,@(if operator-axes `((list ,@(first operator-axes)))))
+        (values `(a-comp :op ,(list (if (and (fboundp (intern (string symbol-referenced) space))
+                                             (not (member symbol-plain env-lops)))
+                                        'inwsd 'inws)
+                                    symbol-referenced)
+                         ,(if (not (characterp operand-form))
+                              operand-form (build-call-form operand-form operand-axes))
+                         ,@(if operator-axes `((list ,@(first operator-axes)))))
                 '(:type (:function :operator-composed :lateral))
                 items)
         (let ((operator (and (member :operator (getf operator-props :type))
@@ -465,20 +465,20 @@
                                     (list 'wrap-fn-ref operand-form))))
           (if operator
               (if (eq :operator-self-reference operator-form)
-                  (values `(apl-compose :op ∇oself ,operand-form)
+                  (values `(a-comp :op ∇oself ,operand-form)
                           '(:type (:function :operator-composed :lateral))
                           items)
                   (values (if (listp operator-form)
-                              `(apl-compose :op ,operator-form
-                                            ,(if (not (characterp operand-form))
-                                                 operand-form (build-call-form operand-form operand-axes)))
+                              `(a-comp :op ,operator-form
+                                       ,(if (not (characterp operand-form))
+                                            operand-form (build-call-form operand-form operand-axes)))
                               (let ((operand (if (eql '∇ operand-form)
                                                  '#'∇self
                                                  (if (and (characterp operand-form)
                                                           (of-lexicons idiom operand-form :functions))
                                                      (build-call-form operand-form operand-axes)
                                                      operand-form))))
-                                (cons 'apl-compose
+                                (cons 'a-comp
                                       (cons (intern (string-upcase operator) *package-name-string*)
                                             (funcall (symbol-function
                                                       (intern (format nil "APRIL-LEX-OP-~a" operator-form)
@@ -536,13 +536,13 @@
                             fn-element (build-call-form fn-element)))
             (fn-sym (or-functional-character fn-element :fn)))
         (values (if (not symbol-axes)
-                    `(let ((,assigned (apl-call ,fn-sym ,fn-content ,precedent ,qsym
-                                                ,@(if function-axes `((list ,@(first function-axes)))))))
+                    `(let ((,assigned (a-call ,fn-content ,precedent ,qsym
+                                              ,@(if function-axes `((list ,@(first function-axes)))))))
                        (if (boundp (quote ,(intern (string symbol) space)))
                            (setf (symbol-value (quote ,(intern (string symbol) space))) ,assigned))
                        (setq (inws ,symbol) ,assigned))
                     (enclose-axes `(inws, symbol) symbol-axes :set precedent
-                                  :set-by `(lambda (item item2) (apl-call ,fn-sym ,fn-content item item2))))
+                                  :set-by `(lambda (item item2) (a-call ,fn-content item item2))))
                 '(:type (:array :assigned :by-result-assignment-operator))
                 items))))
 
@@ -556,7 +556,7 @@
            (assign-subprocessed selection-form sform-specs
                                 '(:special (:omit (:value-assignment :function-assignment))))))
      (if selection-form (setf items (rest items))))
-  (if (and selection-form (listp selection-form) (eql 'apl-call (first selection-form)))
+  (if (and selection-form (listp selection-form) (eql 'a-call (first selection-form)))
       (multiple-value-bind (sel-form sel-item placeholder set-form)
           (generate-selection-form selection-form)
         (if sel-form
@@ -579,7 +579,7 @@
                                                                     (symbolp (second sel-item)))))
                                                       ;; the assigned value is returned at the end so
                                                       ;; things like a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
-                                                      form `(progn (apl-assign ,sel-item ,form)
+                                                      form `(progn (a-set ,sel-item ,form)
                                                                    ,prec)))
                                                 (or set-form `(assign-selected ,sel-item ,indices ,prec)))))
                         (let ((output (gensym)))
@@ -665,13 +665,13 @@
                               (set (intern (string symbol) space) nil))))
               (cond ((eql 'to-output symbol)
                      ;; a special case to handle ⎕← quad output
-                     `(apl-output ,precedent :print-precision print-precision
-                                  :print-to output-stream :print-assignment t :with-newline t))
+                     `(a-out ,precedent :print-precision print-precision
+                                        :print-to output-stream :print-assignment t :with-newline t))
                     ((eql 'output-stream symbol)
                      ;; a special case to handle ⎕ost← setting the output stream; the provided string
                      ;; is interned in the current working package
                      (if (stringp precedent)
-                         ;; setq is used instead of apl-assign because output-stream is a lexical variable
+                         ;; setq is used instead of a-set because output-stream is a lexical variable
                          `(setq output-stream ,(intern precedent (package-name *package*)))
                          (if (listp precedent)
                              (destructuring-bind (vector-symbol package-string symbol-string) precedent
@@ -712,13 +712,13 @@
                        (if axes (enclose-axes symbol axes :set precedent)
                            ;; enclose the symbol in (inws) so the (with-april-workspace) macro
                            ;; will correctly intern it, unless it's one of the system variables
-                           `(apl-assign ,(if (not (and (listp symbols)
-                                                       (not (or (eql 'inws (first symbols))
-                                                                (eql 'inwsd (first symbols))))))
-                                             symbols (if (= 1 (length symbols))
-                                                         (first symbols)
-                                                         (cons 'avector symbols)))
-                                        ,precedent)))))
+                           `(a-set ,(if (not (and (listp symbols)
+                                                  (not (or (eql 'inws (first symbols))
+                                                           (eql 'inwsd (first symbols))))))
+                                        symbols (if (= 1 (length symbols))
+                                                    (first symbols)
+                                                    (cons 'avector symbols)))
+                                   ,precedent)))))
        '(:type (:array :assigned))
        items)))
 
@@ -741,7 +741,7 @@
                                     (setf (symbol-function (intern (string symbol) space))
                                           #'dummy-nargument-function))))
                      (if (and (listp precedent)
-                              (eql 'apl-compose (first precedent))
+                              (eql 'a-comp (first precedent))
                               (member symbol (getf (rest (getf (getf (first (last preceding-properties))
                                                                      :special)
                                                                :closure-meta))
@@ -871,12 +871,8 @@
                                       right (if (of-lexicons idiom right :functions-dyadic)
                                                 (build-call-form right)))))
             (values `(lambda (,omega &optional ,alpha)
-                       (if ,alpha (apl-call ,(or-functional-character left :fn)
-                                            ,left-fn-monadic (apl-call ,(or-functional-character right :fn)
-                                                                       ,right-fn-dyadic ,omega ,alpha))
-                           (apl-call ,(or-functional-character left :fn)
-                                     ,left-fn-monadic (apl-call ,(or-functional-character right :fn)
-                                                                ,right-fn-monadic ,omega))))
+                       (if ,alpha (a-call ,left-fn-monadic (a-call ,right-fn-dyadic ,omega ,alpha))
+                           (a-call ,left-fn-monadic (a-call ,right-fn-monadic ,omega))))
                     (list :type (list :function :train-atop-composition))))
           ;; if there's a left function, match a fork composition like (-,÷)5
           (destructuring-bind (right omega alpha center)
@@ -919,18 +915,12 @@
                                               left (resolve-function left)))))
                   ;; TODO: can trains' generated code be more compact?
                   (values `(lambda (,omega &optional ,alpha)
-                             (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
-                                                  (apl-call ,(or-functional-character right :fn)
-                                                            ,right-fn-dyadic ,omega ,alpha)
-                                                  ,(if (not left-fn-dyadic)
-                                                       left `(apl-call ,(or-functional-character left :fn)
-                                                                       ,left-fn-dyadic ,omega ,alpha)))
-                                 (apl-call ,(or-functional-character center :fn) ,center
-                                           (apl-call ,(or-functional-character right :fn)
-                                                     ,right-fn-monadic ,omega)
-                                           ,(if (not left-fn-monadic)
-                                                left `(apl-call ,(or-functional-character left :fn)
-                                                                ,left-fn-monadic ,omega)))))
+                             (if ,alpha (a-call ,center (a-call ,right-fn-dyadic ,omega ,alpha)
+                                                ,(if (not left-fn-dyadic)
+                                                     left `(a-call ,left-fn-dyadic ,omega ,alpha)))
+                                 (a-call ,center (a-call ,right-fn-monadic ,omega)
+                                         ,(if (not left-fn-monadic)
+                                              left `(a-call ,left-fn-monadic ,omega)))))
                           (list :type (list :function :train-fork-composition))
                           items)))))))
 
@@ -974,14 +964,13 @@
             ;; the * will be read as the [* exponential] function
             (omega (gensym)) (alpha (gensym)))
         (values (if (and (listp operator) (member :lateral (getf operator-props :type)))
-                    `(apl-call :fn (apl-compose :op ,operator
-                                                ,(if (and (characterp left-operand)
-                                                          (not is-operand-character))
-                                                     (build-call-form left-operand)
-                                                     ;; handle ∇ function self-reference
-                                                     (if (and (symbolp left-operand) (eql '∇ left-operand))
-                                                         '#'∇self left-operand)))
-                               ,precedent ,@(if left-value (list left-value))))
+                    `(a-call (a-comp :op ,operator ,(if (and (characterp left-operand)
+                                                             (not is-operand-character))
+                                                        (build-call-form left-operand)
+                                                        ;; handle ∇ function self-reference
+                                                        (if (and (symbolp left-operand) (eql '∇ left-operand))
+                                                            '#'∇self left-operand)))
+                             ,precedent ,@(if left-value (list left-value))))
                 '(:type (:array :evaluated)) items))))
 
 (composer-pattern pivotal-composition
@@ -1038,20 +1027,20 @@
         ;; TODO: make sure single-character values like '*' passed as operands don't get read as functions
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
-                    `(apl-compose :op ,(if (eq :operator-self-reference operator)
-                                           '∇oself (if (listp operator)
-                                                       operator
-                                                       (list (if (and (fboundp (intern (string operator)
-                                                                                       space))
-                                                                      (not (member symbol-plain env-pops)))
-                                                                 'inwsd 'inws)
-                                                             operator)))
-                                  ,(if (not (and (characterp left-operand)
-                                                 (of-lexicons idiom left-operand :functions)))
-                                       left-operand (build-call-form left-operand))
-                                  ,(if (not (and (characterp right-operand)
-                                                 (of-lexicons idiom right-operand :functions)))
-                                       right-operand (build-call-form right-operand)))
+                    `(a-comp :op ,(if (eq :operator-self-reference operator)
+                                      '∇oself (if (listp operator)
+                                                  operator
+                                                  (list (if (and (fboundp (intern (string operator)
+                                                                                  space))
+                                                                 (not (member symbol-plain env-pops)))
+                                                            'inwsd 'inws)
+                                                        operator)))
+                             ,(if (not (and (characterp left-operand)
+                                            (of-lexicons idiom left-operand :functions)))
+                                  left-operand (build-call-form left-operand))
+                             ,(if (not (and (characterp right-operand)
+                                            (of-lexicons idiom right-operand :functions)))
+                                  right-operand (build-call-form right-operand)))
                     (let ((left (if (eql '∇ left-operand)
                                     '#'∇self
                                     (if (not (and (characterp left-operand)
@@ -1064,11 +1053,11 @@
                                                    (not (member :array (getf right-operand-props :type)))
                                                    (of-lexicons idiom right-operand :functions)))
                                          right-operand (build-call-form right-operand right-operand-axes)))))
-                      (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
-                                               (funcall (symbol-function
-                                                         (intern (format nil "APRIL-LEX-OP-~a" operator)
-                                                                 *package-name-string*))
-                                                        right left)))))
+                      (cons 'a-comp (cons (intern (string-upcase operator) *package-name-string*)
+                                          (funcall (symbol-function
+                                                    (intern (format nil "APRIL-LEX-OP-~a" operator)
+                                                            *package-name-string*))
+                                                   right left)))))
                 '(:type (:function :operator-composed :pivotal))
                 items))))
 
@@ -1120,8 +1109,8 @@
                                                                (build-call-form fn-element nil function-axes))
                                                            (or (of-lexicons idiom fn-element :functions)
                                                                fn-element))))))
-                    (values `(apl-call ,fn-sym ,fn-content ,precedent ,value
-                                       ,@(if function-axes `((list ,@(first function-axes)))))
+                    (values `(a-call ,fn-content ,precedent ,value
+                                     ,@(if function-axes `((list ,@(first function-axes)))))
                             '(:type (:array :evaluated)) items))))
 
 (defvar *composer-following-patterns*)
