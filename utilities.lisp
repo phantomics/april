@@ -1374,6 +1374,7 @@ It remains here as a standard against which to compare methods for composing APL
 ;;                (invert-function (or arg1-var arg2-var) #'wrapper))))))))
 
 (defun process-fnspecs (spec-sets)
+  "Process a set of function and operator specs, generating lists of their referring characters, recording counts of functions and operators and building their assignment forms."
   (let ((assignment-forms) (symbol-set)
         (fn-count 0) (op-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
