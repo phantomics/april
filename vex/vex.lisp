@@ -266,62 +266,6 @@
     (let* ((symbol-string (string-upcase symbol))
            (idiom-symbol (intern (format nil "*~a-IDIOM*" symbol-string)
                                  (symbol-package symbol)))
-           (lexicon-processor (getf (of-subspec utilities) :process-lexicon))
-           (function-specs
-            (loop :for subspec :in subspecs :when (string= "FUNCTIONS" (string-upcase (first subspec)))
-               :append (loop :for spec :in (cddr subspec)
-                          :append (let ((glyph-chars (cons (character (first spec))
-                                                           (mapcar #'character (getf (rest (second spec))
-                                                                                     :aliases))))
-                                        (fn-params (third spec))
-                                        (fn-props (cdddr spec))
-                                        (fn-params-inverse (if (string= "INVERSE"
-                                                                        (string-upcase
-                                                                         (first (fourth spec))))
-                                                               (second (fourth spec)))))
-                                    (loop :for char :in glyph-chars
-                                       :append (let ((this-lex (funcall (second lexicon-processor)
-                                                                        :functions char fn-params
-                                                                        fn-params-inverse fn-props)))
-                                                 `(,@(if (getf (getf (rest this-lex) :functions) :monadic)
-                                                         `((gethash ,char (getf fn-specs :monadic))
-                                                           ',(getf (getf (rest this-lex) :functions) :monadic)))
-                                                     ,@(if (getf (getf (rest this-lex) :functions) :dyadic)
-                                                           `((gethash ,char (getf fn-specs :dyadic))
-                                                             ',(getf (getf (rest this-lex) :functions)
-                                                                     :dyadic)))
-                                                     ,@(if (getf (getf (rest this-lex) :functions) :symbolic)
-                                                           `((gethash ,char (getf fn-specs :symbolic))
-                                                             ',(getf (getf (rest this-lex) :functions)
-                                                                     :symbolic)))
-                                                     ,@(if (getf (getf (rest this-lex) :functions)
-                                                                 :monadic-inverse)
-                                                           `((gethash ,char (getf fn-specs :monadic-inverse))
-                                                             ',(getf (getf (rest this-lex) :functions)
-                                                                     :monadic-inverse)))
-                                                     ,@(if (getf (getf (rest this-lex) :functions)
-                                                                 :dyadic-inverse)
-                                                           `((gethash ,char (getf fn-specs :dyadic-inverse))
-                                                             ',(getf (getf (rest this-lex) :functions)
-                                                                     :dyadic-inverse))))))))))
-           (operator-specs
-            (loop :for subspec :in subspecs :when (string= "OPERATORS" (string-upcase (first subspec)))
-               :append (loop :for spec :in (cddr subspec)
-                          :append (let ((glyph-chars (cons (character (first spec))
-                                                           (mapcar #'character (getf (rest (second spec))
-                                                                                     :aliases)))))
-                                    (loop :for char :in glyph-chars
-                                       :append (let* ((this-lex (funcall (second lexicon-processor)
-                                                                         :operators char (third spec)))
-                                                      (lexicons (getf (rest this-lex) :lexicons))
-                                                      (this-key (cond ((member :lateral-operators lexicons)
-                                                                       :lateral)
-                                                                      ((member :pivotal-operators lexicons)
-                                                                       :pivotal)
-                                                                      ((member :unitary-operators lexicons)
-                                                                       :unitary))))
-                                                 `((gethash ,char (getf op-specs ,this-key))
-                                                   ,(getf (rest this-lex) :operators))))))))
            (demo-forms (build-profile symbol subspecs :demo (rest (assoc :demo (of-subspec profiles)))))
            (test-forms (build-profile symbol subspecs :test (rest (assoc :test (of-subspec profiles)))))
            (timed-forms (build-profile symbol subspecs :time (rest (assoc :time (of-subspec profiles)))))
@@ -342,233 +286,236 @@
            (inline-sym (concatenate 'string symbol-string "-C"))
            (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
            (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym))
-           (ws-name (gensym)) (ws-fullname (gensym))
-           (idiom-list) (assignment-form) (extra)
-           )
-      (let ((all-specs (reverse (loop :for subspec :in subspecs
-                                      :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                                (string= "OPERATORS" (string-upcase (first subspec)))
-                                                )
-                                   :collect subspec))))
-        ;; (print :assignment-form-causing-bug)
-        (multiple-value-bind (ilist aform)
-            (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
-                     all-specs)
-          (setq idiom-list ilist assignment-form aform)))
-      `(progn ,@(if (not extension)
-                    `((proclaim '(special ,idiom-symbol))
-                      (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
-              ,@assignment-form
-              (setf (idiom-system ,idiom-symbol)
-                    (append (idiom-system ,idiom-symbol)
-                            ,(cons 'list (of-subspec system)))
-                    (idiom-utilities ,idiom-symbol)
-                    (append (idiom-utilities ,idiom-symbol)
-                            ,(cons 'list (of-subspec utilities)))
-                    (idiom-symbols ,idiom-symbol)
-                    (append (idiom-symbols ,idiom-symbol)
-                            ,(list 'quote (of-subspec symbols)))
-                    (idiom-lexicons ,idiom-symbol)
-                    (quote ,idiom-list))
-              (setf ,@pattern-settings)
-              ,@(if (not extension)
-                    `((defmacro ,(intern symbol-string (symbol-package symbol))
-                          (,options &optional ,input-string)
-                        ;; this macro is the point of contact between users and the language, used to
-                        ;; evaluate expressions and control properties of the language instance
-                        (cond ((and ,options (listp ,options)
-                                    (string= "TEST" (string-upcase (first ,options))))
-                               ;; the (test) setting is used to run tests
-                               `(progn (setq prove:*enable-colors* nil)
-                                       (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
-                                                 (count-symbol-in-spec 'prove:is ',atest-forms)))
-                                       (,',(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
-                                                   (symbol-package symbol))
-                                           ,,(getf (of-subspec utilities) :test-parameters)
-                                           ,@',test-forms ,@',atest-forms (finalize))
-                                       (setq prove:*enable-colors* t)))
-                              ((and ,options (listp ,options)
-                                    (string= "TIME-TESTS" (string-upcase (first ,options))))
-                               `(progn (time (progn ,@',timed-forms))
-                                       ,(format nil "Timed evaluation of ~d tests." (length ',timed-forms))))
-                              ((and ,options (listp ,options)
-                                    (string= "DEMO" (string-upcase (first ,options))))
-                               ;; the (demo) setting is used to print demos of the language
-                               `(progn ,@',demo-forms "Demos complete!"))
-                              (t (if (or (and ,input-string (or (stringp ,input-string)
-                                                                (listp ,input-string)))
-                                         (and (not ,input-string)
-                                              (stringp ,options)))
-                                     (vex-program ,idiom-symbol
-                                                  (if ,input-string
-                                                      (if (or (string= "WITH" (string (first ,options)))
-                                                              (string= "SET" (string (first ,options))))
-                                                          (rest ,options)
-                                                          (error "Incorrect option syntax.")))
-                                                  (if ,input-string ,input-string ,options))
-                                     ;; this clause results in compilation at runtime of an
-                                     ;; evaluated string value
-                                     `(eval (vex-program
-                                             ,',idiom-symbol
-                                             ,(if ,input-string
-                                                  (if (or (string= "WITH" (string (first ,options)))
-                                                          (string= "SET" (string (first ,options))))
-                                                      `(quote ,(rest ,options))
-                                                      (error "Incorrect option syntax.")))
-                                             ,(if ,input-string ,input-string ,options)))))))
-                      (defmacro ,(intern printout-sym (symbol-package symbol))
-                          (&rest ,options)
-                        ;; an alternate evaluation macro that prints formatted evaluation results
-                        ;; as well as returning them
-                        (cons ',(intern symbol-string (symbol-package symbol))
-                              (append (if (second ,options)
-                                          (list (cons (caar ,options)
-                                                      (merge-options `((:state :print t))
-                                                                     (cdar ,options))))
-                                          `((with (:state :print t))))
-                                      (last ,options))))
-                      (defmacro ,(intern inline-sym (symbol-package symbol))
-                          (,options &rest ,args)
-                        ;; an alternate evaluation macro that calls a function on arguments passed inline;
-                        ;; makes for more compact invocations of the language
-                        ;; TODO: can this be made to work with code passed in string-referencing variables?
-                        (let ((,args (if (stringp ,options)
-                                         ,args (rest ,args)))
-                              (,input-string (if (listp ,options)
-                                                 (first ,args))))
-                          (apply #'vex-program ,idiom-symbol
-                                 (if ,input-string
-                                     (if (or (string= "WITH" (string (first ,options)))
-                                             (string= "SET" (string (first ,options))))
-                                         (rest ,options)
-                                         (error "Incorrect option syntax.")))
-                                 (if ,input-string ,input-string ,options)
-                                 ,args)))
-                      (defmacro ,(intern (concatenate 'string symbol-string "-LOAD")
-                                         (symbol-package symbol))
-                          (,options &optional ,input-path)
-                        ;; an evaluation macro that loads code from a file,
-                        ;; evaluating the path expression
-                        `(progn ,(let ((,pathname (if ,input-path (eval ,input-path)
-                                                      (eval ,options))))
-                                   (if (pathnamep ,pathname)
+           (ws-name (gensym)) (ws-fullname (gensym)))
+      (multiple-value-bind (idiom-list assignment-form idiom-data)
+          (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
+                   (reverse (loop :for subspec :in subspecs
+                                  :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
+                                            (string= "OPERATORS" (string-upcase (first subspec))))
+                                    :collect subspec)))
+        `(progn ,@(if (not extension)
+                      `((proclaim '(special ,idiom-symbol))
+                        (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
+                ,@assignment-form
+                (setf (idiom-system ,idiom-symbol)
+                      (append (idiom-system ,idiom-symbol)
+                              ,(cons 'list (of-subspec system)))
+                      (idiom-utilities ,idiom-symbol)
+                      (append (idiom-utilities ,idiom-symbol)
+                              ,(cons 'list (of-subspec utilities)))
+                      (idiom-symbols ,idiom-symbol)
+                      (append (idiom-symbols ,idiom-symbol)
+                              ,(list 'quote (of-subspec symbols)))
+                      (idiom-lexicons ,idiom-symbol)
+                      (quote ,idiom-list))
+                (setf ,@pattern-settings)
+                ,@(if (not extension)
+                      `((defmacro ,(intern symbol-string (symbol-package symbol))
+                            (,options &optional ,input-string)
+                          ;; this macro is the point of contact between users and the language, used to
+                          ;; evaluate expressions and control properties of the language instance
+                          (cond ((and ,options (listp ,options)
+                                      (string= "TEST" (string-upcase (first ,options))))
+                                 ;; the (test) setting is used to run tests
+                                 `(progn (setq prove:*enable-colors* nil)
+                                         (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
+                                                   (count-symbol-in-spec 'prove:is ',atest-forms)))
+                                         (,',(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
+                                                     (symbol-package symbol))
+                                          ,,(getf (of-subspec utilities) :test-parameters)
+                                          ,@',test-forms ,@',atest-forms (finalize))
+                                         (setq prove:*enable-colors* t)))
+                                ((and ,options (listp ,options)
+                                      (string= "TIME-TESTS" (string-upcase (first ,options))))
+                                 `(progn (time (progn ,@',timed-forms))
+                                         ,(format nil "Timed evaluation of ~d tests." (length ',timed-forms))))
+                                ((and ,options (listp ,options)
+                                      (string= "DEMO" (string-upcase (first ,options))))
+                                 ;; the (demo) setting is used to print demos of the language
+                                 `(progn ,@',demo-forms "Demos complete!"))
+                                (t (if (or (and ,input-string (or (stringp ,input-string)
+                                                                  (listp ,input-string)))
+                                           (and (not ,input-string)
+                                                (stringp ,options)))
                                        (vex-program ,idiom-symbol
-                                                    (if ,input-path
+                                                    (if ,input-string
                                                         (if (or (string= "WITH" (string (first ,options)))
                                                                 (string= "SET" (string (first ,options))))
                                                             (rest ,options)
                                                             (error "Incorrect option syntax.")))
-                                                    ,pathname)
-                                       (error "Argument to be loaded was not a pathname.")))))
-                      (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
-                                         (symbol-package symbol))
-                          (,options &rest ,body)
-                        ;; this macro creates a context enclosure within which evaluations have a default
-                        ;; context; use this to evaluate many times with the same (with) expression
-                        (labels ((,process (,form)
-                                   (loop :for ,item :in ,form
-                                      :collect (if (and (listp ,item)
-                                                        (or (eql ',(intern symbol-string (symbol-package symbol))
-                                                                 (first ,item))
-                                                            (eql ',(intern (concatenate 'string symbol-string
-                                                                                        "-LOAD")
-                                                                           (symbol-package symbol))
-                                                                 (first ,item))
-                                                            (eql ',(intern printout-sym (symbol-package symbol))
-                                                                 (first ,item))))
-                                                   (list (first ,item)
-                                                         (if (third ,item)
-                                                             (cons (caadr ,item)
-                                                                   (merge-options (cdadr ,item)
-                                                                                  ,options))
-                                                             (cons 'with ,options))
-                                                         (first (last ,item)))
-                                                   (if (listp ,item)
-                                                       (,process ,item)
-                                                       ,item)))))
-                          (cons 'progn (,process ,body))))
-                      (defmacro ,(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
-                                         (symbol-package symbol))
-                          (,ws-name)
-                        ;; this macro creates a context enclosure within which evaluations have a default
-                        ;; context; use this to evaluate many times with the same (with) expression
-                        (let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
-                                                         "-WORKSPACE-" (string-upcase ,ws-name))))
-                          `(if (not (find-package ,,ws-fullname))
-                               (progn (make-package ,,ws-fullname)
-                                      (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
-                                      (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
-                                                      (intern "*BRANCHES*" ,,ws-fullname)
-                                                      ,@(loop :for (key val)
-                                                           :on ,(getf (of-subspec system) :variables) :by #'cddr
-                                                           :collect `(intern ,(string-upcase val)
-                                                                             ,,ws-fullname))))
-                                      (set (intern "*SYSTEM*" ,,ws-fullname) ,',(cons 'list (of-subspec system)))
-                                      ;; TODO: following is APL-specific, move into spec
-                                      (set (intern "*BRANCHES*" ,,ws-fullname) nil)
-                                      ,@(loop :for (key val)
-                                           :on ,(getf (of-subspec system) :variables) :by #'cddr
-                                           :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
-                                                          ,(getf ',(second (getf (of-subspec system) :workspace-defaults))
-                                                                 key)))
-                                      (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
-                               (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))
-                      (defmacro ,(intern (concatenate 'string symbol-string "-CLEAR-WORKSPACE")
-                                         (symbol-package symbol))
-                          (,ws-name)
-                        ;; this macro creates a context enclosure within which evaluations have a default
-                        ;; context; use this to evaluate many times with the same (with) expression
-                        (let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
-                                                         "-WORKSPACE-" (string-upcase ,ws-name))))
-                          `(if (find-package ,,ws-fullname)
-                               (progn (delete-package ,,ws-fullname)
-                                      (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
-                                                  (symbol-package symbol))
-                                          ,,ws-name)
-                                      ,(format nil "The workspace ｢~a｣ has been cleared." ,ws-name))
-                               (progn (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
-                                                  (symbol-package symbol))
-                                          ,,ws-name)
-                                      ,(format nil "No workspace called ｢~a｣ was found to clear; ~a"
-                                               ,ws-name "the workspace has been created..")))))))
-              ;; print a summary of the idiom as it was specified or extended
-              (let ((items 0)
-                    (set-index 0)
-                    (output "")
-                    (sets (list (list "basic grammar element"
-                                      ,(if (not (assoc :elements (of-subspec grammar)))
-                                           0 (* 1/2 (length (cadadr (assoc :elements (of-subspec grammar)))))))
-                                (list "opening grammar pattern"
-                                      (+ ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
-                                                                                     (of-subspec grammar))))
-                                              :collect `(length ,pset))))
-                                (list "following grammar pattern"
-                                      (+ ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
-                                                                                     (of-subspec grammar))))
-                                              :collect `(length ,pset))))
-                                (list "lexical function" ,(* 1/2 (length function-specs)))
-                                (list "lexical operator" ,(* 1/2 (length operator-specs)))
-                                (list "utility function" ,(* 1/2 (length (of-subspec utilities))))
-                                (list "unit test" ,(+ (loop :for exp :in test-forms
-                                                         :counting (eql 'is (first exp)))
-                                                      (count-symbol-in-spec 'prove:is atest-forms))))))
-                (loop :for set-values :in sets
-                   :do (destructuring-bind (set-name set) set-values
-                         (setq output (if (= 0 set) output
-                                          (format nil "~a~a~a ~a~a"
-                                                  output (if (and (< 0 items)
-                                                                  (or (= set-index (1- (length sets)))
-                                                                      (= 0 (loop :for sx :from (1+ set-index)
-                                                                              :to (1- (length sets))
-                                                                              :summing (second (nth sx sets))))))
-                                                             " and " (if (< 0 items) ", " ""))
-                                                  set set-name (if (< 1 set) "s" "")))
-                               set-index (1+ set-index)
-                               items (+ set items))))
-                (princ (format nil "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
-                               ,(string-upcase symbol)
-                               output)))
-              ,(format nil "Idiom ~a complete." (if extension "extension" "specification"))))))
+                                                    (if ,input-string ,input-string ,options))
+                                       ;; this clause results in compilation at runtime of an
+                                       ;; evaluated string value
+                                       `(eval (vex-program
+                                               ,',idiom-symbol
+                                               ,(if ,input-string
+                                                    (if (or (string= "WITH" (string (first ,options)))
+                                                            (string= "SET" (string (first ,options))))
+                                                        `(quote ,(rest ,options))
+                                                        (error "Incorrect option syntax.")))
+                                               ,(if ,input-string ,input-string ,options)))))))
+                        (defmacro ,(intern printout-sym (symbol-package symbol))
+                            (&rest ,options)
+                          ;; an alternate evaluation macro that prints formatted evaluation results
+                          ;; as well as returning them
+                          (cons ',(intern symbol-string (symbol-package symbol))
+                                (append (if (second ,options)
+                                            (list (cons (caar ,options)
+                                                        (merge-options `((:state :print t))
+                                                                       (cdar ,options))))
+                                            `((with (:state :print t))))
+                                        (last ,options))))
+                        (defmacro ,(intern inline-sym (symbol-package symbol))
+                            (,options &rest ,args)
+                          ;; an alternate evaluation macro that calls a function on arguments passed inline;
+                          ;; makes for more compact invocations of the language
+                          ;; TODO: can this be made to work with code passed in string-referencing variables?
+                          (let ((,args (if (stringp ,options)
+                                           ,args (rest ,args)))
+                                (,input-string (if (listp ,options)
+                                                   (first ,args))))
+                            (apply #'vex-program ,idiom-symbol
+                                   (if ,input-string
+                                       (if (or (string= "WITH" (string (first ,options)))
+                                               (string= "SET" (string (first ,options))))
+                                           (rest ,options)
+                                           (error "Incorrect option syntax.")))
+                                   (if ,input-string ,input-string ,options)
+                                   ,args)))
+                        (defmacro ,(intern (concatenate 'string symbol-string "-LOAD")
+                                           (symbol-package symbol))
+                            (,options &optional ,input-path)
+                          ;; an evaluation macro that loads code from a file,
+                          ;; evaluating the path expression
+                          `(progn ,(let ((,pathname (if ,input-path (eval ,input-path)
+                                                        (eval ,options))))
+                                     (if (pathnamep ,pathname)
+                                         (vex-program ,idiom-symbol
+                                                      (if ,input-path
+                                                          (if (or (string= "WITH" (string (first ,options)))
+                                                                  (string= "SET" (string (first ,options))))
+                                                              (rest ,options)
+                                                              (error "Incorrect option syntax.")))
+                                                      ,pathname)
+                                         (error "Argument to be loaded was not a pathname.")))))
+                        (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
+                                           (symbol-package symbol))
+                            (,options &rest ,body)
+                          ;; this macro creates a context enclosure within which evaluations have a default
+                          ;; context; use this to evaluate many times with the same (with) expression
+                          (labels ((,process (,form)
+                                     (loop :for ,item :in ,form
+                                           :collect (if (and (listp ,item)
+                                                             (or (eql ',(intern symbol-string
+                                                                                (symbol-package symbol))
+                                                                      (first ,item))
+                                                                 (eql ',(intern (concatenate 'string
+                                                                                             symbol-string
+                                                                                             "-LOAD")
+                                                                                (symbol-package symbol))
+                                                                      (first ,item))
+                                                                 (eql ',(intern printout-sym
+                                                                                (symbol-package symbol))
+                                                                      (first ,item))))
+                                                        (list (first ,item)
+                                                              (if (third ,item)
+                                                                  (cons (caadr ,item)
+                                                                        (merge-options (cdadr ,item)
+                                                                                       ,options))
+                                                                  (cons 'with ,options))
+                                                              (first (last ,item)))
+                                                        (if (listp ,item)
+                                                            (,process ,item)
+                                                            ,item)))))
+                            (cons 'progn (,process ,body))))
+                        (defmacro ,(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+                                           (symbol-package symbol))
+                            (,ws-name)
+                          ;; this macro creates a context enclosure within which evaluations have a default
+                          ;; context; use this to evaluate many times with the same (with) expression
+                          (let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
+                                                           "-WORKSPACE-" (string-upcase ,ws-name))))
+                            `(if (not (find-package ,,ws-fullname))
+                                 (progn (make-package ,,ws-fullname)
+                                        (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
+                                        (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
+                                                        (intern "*BRANCHES*" ,,ws-fullname)
+                                                        ,@(loop :for (key val)
+                                                                  :on ,(getf (of-subspec system) :variables)
+                                                                :by #'cddr
+                                                                :collect `(intern ,(string-upcase val)
+                                                                                  ,,ws-fullname))))
+                                        (set (intern "*SYSTEM*" ,,ws-fullname)
+                                             ,',(cons 'list (of-subspec system)))
+                                        ;; TODO: following is APL-specific, move into spec
+                                        (set (intern "*BRANCHES*" ,,ws-fullname) nil)
+                                        ,@(loop :for (key val)
+                                                  :on ,(getf (of-subspec system) :variables) :by #'cddr
+                                                :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
+                                                               ,(getf ',(second (getf (of-subspec system)
+                                                                                      :workspace-defaults))
+                                                                      key)))
+                                        (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
+                                 (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))))
+                        (defmacro ,(intern (concatenate 'string symbol-string "-CLEAR-WORKSPACE")
+                                           (symbol-package symbol))
+                            (,ws-name)
+                          ;; this macro creates a context enclosure within which evaluations have a default
+                          ;; context; use this to evaluate many times with the same (with) expression
+                          (let ((,ws-fullname (concatenate 'string ,(string-upcase symbol)
+                                                           "-WORKSPACE-" (string-upcase ,ws-name))))
+                            `(if (find-package ,,ws-fullname)
+                                 (progn (delete-package ,,ws-fullname)
+                                        (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+                                                    (symbol-package symbol))
+                                         ,,ws-name)
+                                        ,(format nil "The workspace ｢~a｣ has been cleared." ,ws-name))
+                                 (progn (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
+                                                    (symbol-package symbol))
+                                         ,,ws-name)
+                                        ,(format nil "No workspace called ｢~a｣ was found to clear; ~a"
+                                                 ,ws-name "the workspace has been created..")))))))
+                ;; print a summary of the idiom as it was specified or extended
+                (let ((items 0)
+                      (set-index 0)
+                      (output "")
+                      (sets (list (list "basic grammar element"
+                                        ,(if (not (assoc :elements (of-subspec grammar)))
+                                             0 (* 1/2 (length (cadadr (assoc :elements
+                                                                             (of-subspec grammar)))))))
+                                  (list "opening grammar pattern"
+                                        (+ ,@(loop :for pset :in (reverse (rest (assoc :opening-patterns
+                                                                                       (of-subspec grammar))))
+                                                   :collect `(length ,pset))))
+                                  (list "following grammar pattern"
+                                        (+ ,@(loop :for pset :in (reverse (rest (assoc :following-patterns
+                                                                                       (of-subspec grammar))))
+                                                   :collect `(length ,pset))))
+                                  (list "lexical function" ,(getf idiom-data :fn-count))
+                                  (list "lexical operator" ,(getf idiom-data :op-count))
+                                  (list "utility function" ,(* 1/2 (length (of-subspec utilities))))
+                                  (list "unit test" ,(+ (loop :for exp :in test-forms
+                                                              :counting (eql 'is (first exp)))
+                                                        (count-symbol-in-spec 'prove:is atest-forms))))))
+                  (loop :for set-values :in sets
+                        :do (destructuring-bind (set-name set) set-values
+                              (setq output
+                                    (if (= 0 set) output
+                                        (format nil "~a~a~a ~a~a"
+                                                output (if (and (< 0 items)
+                                                                (or (= set-index (1- (length sets)))
+                                                                    (= 0 (loop :for sx :from (1+ set-index)
+                                                                                 :to (1- (length sets))
+                                                                               :summing (second
+                                                                                         (nth sx sets))))))
+                                                           " and " (if (< 0 items) ", " ""))
+                                                set set-name (if (< 1 set) "s" "")))
+                                    set-index (1+ set-index)
+                                    items (+ set items))))
+                  (princ (format nil "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
+                                 ,(string-upcase symbol)
+                                 output)))
+                ,(format nil "Idiom ~a complete." (if extension "extension" "specification")))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
   "Extract a list of function/operator glyphs from part of a Vex language specification."

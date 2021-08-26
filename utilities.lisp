@@ -533,7 +533,7 @@
                                          (list 'disclose item)
                                          item)))
 
-(defun resolve-function-2 (reference)
+(defun resolve-function (reference)
   "Return a function form if it's valid as a function within compiled April code."
   (if (and (listp reference)
            (or (eql 'lambda (first reference))
@@ -1374,7 +1374,8 @@ It remains here as a standard against which to compare methods for composing APL
 ;;                (invert-function (or arg1-var arg2-var) #'wrapper))))))))
 
 (defun process-fnspecs (spec-sets)
-  (let ((assignment-forms) (symbol-set) (args (gensym))
+  (let ((assignment-forms) (symbol-set)
+        (fn-count 0) (op-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
                         :operators nil :operators-lateral nil :operators-pivotal nil
                         :operators-unitary nil)))
@@ -1396,12 +1397,14 @@ It remains here as a standard against which to compare methods for composing APL
                 (if (eq :get-metadata ,(first implicit-args))
                     (list :implicit-args (quote ,implicit-args))
                     ,form))))
-      (macrolet ((push-aliases (&rest lexicons)
-                   `(if (getf props :aliases)
-                        (loop :for alias :in (getf props :aliases)
-                              :do (let ((a-char (aref (string alias) 0)))
-                                    ,@(loop :for lexicon :in lexicons
-                                            :collect `(push a-char (getf lexicons ,lexicon))))))))
+      (macrolet ((push-char-and-aliases (&rest lexicons)
+                   `(progn ,@(loop :for lexicon :in lexicons
+                                   :collect `(push glyph-char (getf lexicons ,lexicon)))
+                           (if (getf props :aliases)
+                               (loop :for alias :in (getf props :aliases)
+                                     :do (let ((a-char (aref (string alias) 0)))
+                                           ,@(loop :for lexicon :in lexicons
+                                                   :collect `(push a-char (getf lexicons ,lexicon)))))))))
         (loop :for each-spec :in spec-sets
               :do (loop :for spec :in (reverse (cddr each-spec))
                         :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
@@ -1427,9 +1430,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                                       alias))))
                                                 (push alias-symbol symbol-set))))
                                 (case item-type
-                                  (monadic (push glyph-char (getf lexicons :functions))
-                                   (push glyph-char (getf lexicons :functions-monadic))
-                                   (push-aliases :functions :functions-monadic)
+                                  (monadic (incf fn-count)
+                                   (push-char-and-aliases :functions :functions-monadic)
                                    (push (setq assigned-form
                                                (funcall
                                                 (if (not implicit-args)
@@ -1439,9 +1441,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                 (wrap-meta glyph-sym :monadic (second implementation)
                                                            (rest (assoc 'monadic spec-meta)) t)))
                                          assignment-forms))
-                                  (dyadic (push glyph-char (getf lexicons :functions))
-                                   (push glyph-char (getf lexicons :functions-dyadic))
-                                   (push-aliases :functions :functions-dyadic)
+                                  (dyadic (incf fn-count)
+                                   (push-char-and-aliases :functions :functions-dyadic)
                                    (push (setq assigned-form
                                                (funcall
                                                 (if (not implicit-args)
@@ -1451,10 +1452,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                 (wrap-meta glyph-sym :dyadic (second implementation)
                                                            (rest (assoc 'dyadic spec-meta)) t)))
                                          assignment-forms))
-                                  (ambivalent (push glyph-char (getf lexicons :functions))
-                                   (push glyph-char (getf lexicons :functions-monadic))
-                                   (push glyph-char (getf lexicons :functions-dyadic))
-                                   (push-aliases :functions :functions-monadic :functions-dyadic)
+                                  (ambivalent (incf fn-count)
+                                   (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
                                    (push (setq assigned-form
                                                (funcall
                                                 (if (not implicit-args)
@@ -1468,8 +1467,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                           ,(wrap-meta glyph-sym :dyadic (third implementation)
                                                                       (rest (assoc 'dyadic spec-meta))))))
                                          assignment-forms))
-                                  (symbolic (push glyph-char (getf lexicons :functions))
-                                   (push glyph-char (getf lexicons :functions-symbolic))
+                                  (symbolic (incf fn-count)
+                                   (push-char-and-aliases :functions :functions-symbolic)
                                    (if (getf props :aliases)
                                        (loop :for alias :in (getf props :aliases)
                                              :do (let ((a-char (aref (string alias) 0)))
@@ -1477,19 +1476,15 @@ It remains here as a standard against which to compare methods for composing APL
                                                    (push a-char (getf lexicons :functions-symbolic)))))
                                    (push (setq assigned-form (second implementation))
                                          assignment-forms))
-                                  (lateral (push glyph-char (getf lexicons :operators))
-                                   (push glyph-char (getf lexicons :operators-lateral))
-                                   (push-aliases :operators :operators-lateral)
+                                  (lateral (incf op-count)
+                                   (push-char-and-aliases :operators :operators-lateral)
                                    (push (second implementation) assignment-forms))
-                                  (pivotal (push glyph-char (getf lexicons :operators))
-                                   (push glyph-char (getf lexicons :operators-pivotal))
-                                   (push-aliases :operators :operators-pivotal)
+                                  (pivotal (incf op-count)
+                                   (push-char-and-aliases :operators :operators-pivotal)
                                    (push (second implementation) assignment-forms))
-                                  (unitary (push glyph-char (getf lexicons :operators))
-                                   (push glyph-char (getf lexicons :operators-unitary))
-                                   (push-aliases :operators :operators-unitary)
-                                   (push (second implementation) assignment-forms))
-                                  )
+                                  (unitary (incf op-count)
+                                   (push-char-and-aliases :operators :operators-unitary)
+                                   (push (second implementation) assignment-forms)))
                                 (push `(,(if (and (eql 'functions spec-type)
                                                   (eql 'symbolic item-type))
                                              'symbol-value 'symbol-function)
@@ -1502,99 +1497,11 @@ It remains here as a standard against which to compare methods for composing APL
                                                                 (eql 'symbolic item-type))
                                                            'symbol-value 'symbol-function)
                                                       (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
-                                                    assignment-forms)))
-                                ))))
-        ;; (push `(proclaim '(special ,@symbol-set)) assignment-forms)
-        ;; (print (list :es lexicons assignment-forms))
-        (print (list :ll lexicons))
-        (values lexicons (print ;;(list ;; `(proclaim '(special ,@symbol-set))
-                          ;; (loop :for (sym val) :on assignment-forms :by #'cddr
-                          ;;    :collect `(setf ,sym ,val))
-                          (list `(proclaim '(special ,@symbol-set))
-                                (cons 'setf assignment-forms))))))))
-
-(defun april-function-glyph-processor (type glyph spec &optional inverse-spec fn-props)
-  "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
-  (let ((type (intern (string-upcase type) "KEYWORD"))
-        (function-type (intern (string-upcase (first spec)) "KEYWORD"))
-        (spec-body (rest spec))
-        (inverse-spec-body (rest inverse-spec))
-        (inverse-function-type (if inverse-spec (intern (string-upcase (first inverse-spec)) "KEYWORD"))))
-    (flet ((wrap-meta (type form meta)
-             (let ((metadata (rest (assoc (intern (string type))
-                                          (rest (assoc 'meta fn-props))))))
-               (list type (if (not metadata) form
-                              (if (and (listp form) (eql 'scalar-function (first form)))
-                                  (append form metadata)
-                                  `(fn-meta ,form ,@metadata)))))))
-      (cond ((eq :symbolic function-type)
-             `(,glyph :lexicons (:functions :symbolic-functions)
-                      :functions (:symbolic ,(first spec-body))))
-            (t `(,glyph :lexicons ,(cond ((eq :functions type)
-                                          `(:functions ,@(if (eq :ambivalent function-type)
-                                                             '(:monadic-functions :dyadic-functions)
-                                                             (list (intern (string-upcase
-                                                                            (concatenate 'string
-                                                                                         (string function-type)
-                                                                                         "-" (string type)))
-                                                                           "KEYWORD")))
-                                                       ,@(if (eq :ambivalent inverse-function-type)
-                                                             '(:inverse-monadic-functions
-                                                               :inverse-dyadic-functions)
-                                                             (list (intern (string-upcase
-                                                                            (concatenate
-                                                                             'string
-                                                                             (string inverse-function-type)
-                                                                             "-" (string type)))
-                                                                           "KEYWORD")))
-                                                       ,@(if (and (or (eq :ambivalent function-type)
-                                                                      (eq :monadic function-type))
-                                                                  (eql 'scalar-function (caar spec-body)))
-                                                             '(:scalar-functions :scalar-monadic-functions))
-                                                       ,@(if (or (and (eq :dyadic function-type)
-                                                                      (eql 'scalar-function (caar spec-body)))
-                                                                 (and (eq :ambivalent function-type)
-                                                                      (eql 'scalar-function (caadr spec-body))))
-                                                             '(:scalar-functions :scalar-dyadic-functions))
-                                                       ,@(if (and (or (eq :ambivalent inverse-function-type)
-                                                                      (eq :monadic inverse-function-type))
-                                                                  (eql 'scalar-function
-                                                                       (caar inverse-spec-body)))
-                                                             '(:inverse-scalar-functions
-                                                               :inverse-scalar-monadic-functions))
-                                                       ,@(if (or (and (eq :dyadic inverse-function-type)
-                                                                      (listp (car inverse-spec-body))
-                                                                      (eql 'scalar-function
-                                                                           (caar inverse-spec-body)))
-                                                                 (and (eq :ambivalent function-type)
-                                                                      (listp (cadr inverse-spec-body))
-                                                                      (eql 'scalar-function
-                                                                           (caadr inverse-spec-body))))
-                                                             '(:inverse-scalar-functions
-                                                               :inverse-scalar-dyadic-functions))))
-                                         ((eq :operators type)
-                                          `(:operators ,(if (eq :lateral function-type)
-                                                            :lateral-operators
-                                                            (if (eq :pivotal function-type)
-                                                                :pivotal-operators :unitary-operators)))))
-                        ,@(cond ((eq :functions type)
-                                 `(:functions ,(append (if (or (eq :ambivalent function-type)
-                                                               (eq :monadic function-type))
-                                                           (wrap-meta :monadic (first spec-body) fn-props))
-                                                       (if (eq :ambivalent function-type)
-                                                           (wrap-meta :dyadic (second spec-body) fn-props)
-                                                           (if (eq :dyadic function-type)
-                                                               (wrap-meta :dyadic (first spec-body) fn-props)))
-                                                       (if (or (eq :ambivalent inverse-function-type)
-                                                               (eq :monadic inverse-function-type))
-                                                           (list :monadic-inverse
-                                                                 (first inverse-spec-body)))
-                                                       (if (eq :ambivalent inverse-function-type)
-                                                           (list :dyadic-inverse (rest inverse-spec-body))
-                                                           (if (eq :dyadic inverse-function-type)
-                                                               (list :dyadic-inverse inverse-spec-body))))))
-                                ((eq :operators type)
-                                 `(:operators ,(first spec-body))))))))))
+                                                    assignment-forms)))))))
+        ;; (print (list :ll lexicons))
+        (values lexicons (print (list `(proclaim '(special ,@symbol-set))
+                                      (cons 'setf assignment-forms)))
+                (list :fn-count fn-count :op-count op-count))))))
 
 (defmacro specify-demo (title params &rest sections)
   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
@@ -1626,9 +1533,8 @@ It remains here as a standard against which to compare methods for composing APL
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
-  (:import-from :april #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function)
-  (:export #:extend-vex-idiom #:april-function-glyph-processor #:scalar-function
-           #:λω #:λωα #:λωχ #:λωαχ))
+  (:import-from :april #:extend-vex-idiom #:process-fnspecs #:scalar-function)
+  (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ))
 
 ;; a secondary package containing tools for specifying April demo packages
 (defpackage #:april.demo-definition-tools
