@@ -271,22 +271,8 @@
                      (if (null (second ,args))
                          (let ((,reduced-args (cons (first ,args) (cddr ,args))))
                            (apply ,(wrap-curried-axes fn-monadic) ,reduced-args))
-                         ;; (apl-call ,fn-glyph ,(wrap-curried-axes fn-dyadic)
-                         ;;           (first ,args) (second ,args) ;;(third ,args)
-                         ;;           ,@(if is-scalar-dyadic (list `(third ,args))))
-                         (apply ,(wrap-curried-axes fn-dyadic) ,args)
-                         )
+                         (apply ,(wrap-curried-axes fn-dyadic) ,args))
                      (apl-call ,fn-glyph ,(wrap-curried-axes fn-monadic) (first ,args)))))))))
-
-(defmacro as-operand (glyph &optional axes)
-  (let ((glyph-string (string glyph)))
-    (if (/= 1 (length glyph-string))
-        glyph (let ((glyph-char (aref glyph-string 0)))
-                (let ((monadic-ref (resolve-function :monadic glyph-char))
-                      (dyadic-ref (resolve-function :dyadic glyph-char)))
-                  (if (or monadic-ref dyadic-ref)
-                      `(amb-ref ,glyph ,monadic-ref ,dyadic-ref ,@(if axes (list axes)))
-                      (resolve-function :symbolic glyph-char)))))))
 
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
@@ -547,31 +533,16 @@
                                          (list 'disclose item)
                                          item)))
 
-(defun resolve-function (mode reference &optional axes)
-  "Retrieve the function corresponding to a given character or symbol in a given mode (monadic or dyadic)."
-  (if (characterp reference)
-      (if axes `(λχ ,(of-functions this-idiom reference mode) ,axes)
-          (of-functions this-idiom reference mode))
-      (if (symbolp reference)
-          (if (fboundp reference)
-              `(function ,reference)
-              (if (eql '∇ reference)
-                  '#'∇self (if (eql '∇∇ reference)
-                               '#'∇∇oself (if (member reference '(⍺⍺ ⍵⍵))
-                                              reference))))
-          ;; TODO: can the logic determining if something is not a function be improved?
-          (if (and (listp reference)
-                   (or (eql 'lambda (first reference))
-                       (and (symbolp (first reference))
-                            (macro-function (first reference))
-                            (not (member (first reference)
-                                         ;; TODO: this will cause a problem if a function is passed and assigned
-                                         '(avector apl-call apl-if apl-output apl-assign))))))
-              reference))))
-
-(defmacro resolve-operator (mode reference)
-  "Retrieve an operator's composing function."
-  `(of-operators this-idiom ,reference ,mode))
+(defun resolve-function-2 (reference)
+  "Return a function form if it's valid as a function within compiled April code."
+  (if (and (listp reference)
+           (or (eql 'lambda (first reference))
+               (and (symbolp (first reference))
+                    (macro-function (first reference))
+                    (not (member (first reference)
+                                 ;; TODO: this will cause a problem if a function is passed and assigned
+                                 '(avector apl-call apl-if apl-output apl-assign))))))
+      reference))
 
 (defun extract-axes (process tokens &optional axes)
   "Given a list of tokens starting with axis specifications, build the code for the axis specifications to be applied to the subsequent function or value."
@@ -727,6 +698,17 @@ It remains here as a standard against which to compare methods for composing APL
                                ,axes))))
             (cons symbol initial-args))
         (list 'function symbol))))
+
+(defun build-call-form (glyph-char &optional axes axes-present)
+  (let ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                                 *package-name-string*))
+                                        :get-metadata)
+	           (error (c) nil))))
+    (funcall (if (not (and axes-present (getf fn-meta :scalar-dyadic)))
+                 #'identity (lambda (form) `(scalar-function ,form)))
+             (append (list 'apl-fn (intern (string glyph-char) *package-name-string*))
+                     (getf fn-meta :implicit-args)
+                     (if axes (list :axes axes))))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
@@ -1014,43 +996,6 @@ It remains here as a standard against which to compare methods for composing APL
                    (if (< 1 (length exps))
                        (cons 'progn exps) (first exps)))))))
 
-(defun generate-function-retriever (operand function-monadic function-dyadic axes)
-  "This function is used at compile time to generate the functon invoked by the [⍣ power] operator at runtime to fetch a regular or inverse function depending on the right operand passed to it."
-  (let ((is-dyadic (gensym)) (is-inverse (gensym)))
-    (if (or (symbolp operand) (characterp operand))
-        (let* ((dyinv-forms (resolve-function :dyadic-inverse operand axes))
-               (left-fn-monadic
-                `(λω (apl-call ,operand ,(resolve-function :monadic operand axes) omega)))
-               (left-fn-dyadic
-                `(λωα (apl-call ,operand ,(resolve-function :dyadic operand axes) omega alpha)))
-               (left-fn-monadic-inverse
-                `(λω (apl-call ,operand ,(resolve-function :monadic-inverse operand axes) omega)))
-               (left-fn-dyadic-inverse
-                `(λωα (apl-call ,operand ,(or (getf dyinv-forms :plain)) omega alpha))))
-          `(lambda (,is-dyadic ,is-inverse)
-             (if (not ,is-inverse) (if ,is-dyadic ,left-fn-dyadic ,left-fn-monadic)
-                 (if ,is-dyadic ,left-fn-dyadic-inverse ,left-fn-monadic-inverse))))
-        (or (match operand ((list 'function (list 'inws (guard symbol (symbolp symbol))))
-                            (let ((inverse-operand `(function (inws ,(intern (format nil "𝕚∇~a" symbol))))))
-                              `(lambda (,is-dyadic ,is-inverse)
-                                 (declare (ignore ,is-dyadic))
-                                 (if ,is-inverse ,inverse-operand ,operand))))
-                   ;; handle (wrap-fn-ref) for locally-scoped functions
-                   ((list 'wrap-fn-ref (list 'inws (guard symbol (symbolp symbol))))
-                    (let ((inverse-operand `(inws ,(intern (format nil "𝕚∇~a" symbol)))))
-                      `(lambda (,is-dyadic ,is-inverse)
-                         (declare (ignore ,is-dyadic))
-                         (if ,is-inverse ,inverse-operand ,(second operand))))))
-            (match function-monadic ((list 'inws (guard symbol (symbolp symbol)))
-                                     `(lambda (,is-dyadic ,is-inverse)
-                                        (declare (ignore ,is-dyadic))
-                                        (if ,is-inverse nil ,function-monadic))))
-            (let ((inverted (invert-function operand)))
-              `(lambda (,is-dyadic ,is-inverse)
-                 (declare (ignore ,is-dyadic))
-                 ,function-monadic ,function-dyadic
-                 (if ,is-inverse ,inverted ,operand)))))))
-
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; currently, this function is used to initialize function and variable references
@@ -1261,172 +1206,172 @@ It remains here as a standard against which to compare methods for composing APL
     ;; TODO: write tests to ensure variable hoisting is done properly?
     (if is-nested token-list (remove-duplicates (rest token-list)))))
 
-(defun invert-function (form &optional to-wrap)
-  "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
-  (match form
-    ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
-     ;; invert a [⍣ power] operation - all that needs be done is negate the right operand
-     (let ((inverse-degree `(lambda () (- ,(third degree)))))
-       ;; the degree is manifested by a function,
-       ;; so a function generating the inverse of that degree is built
-       `(apl-compose ⍣ operate-to-power ,inverse-degree ,@rest)))
-    ((list* 'apl-compose '∘ 'operate-composed
-            (list 'apl-compose '\. 'lambda '(o a)
-                  (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
-                                                                    (eql 'apl-call (caadr opfn))))))
-            _ _ rest)
-     ;; invert a right-composition of an [∘. outer product] operation
-     `(apl-compose ∘ operate-composed :inverted-op nil
-                     (λωα (inverse-outer-product omega (λωα ,(invert-function (second opfn)))
-                                                 nil alpha))
-                     ,@rest))
-    ((list* 'apl-compose '∘ 'operate-composed op1 nil nil
-            (list 'apl-compose '\. 'lambda '(o a)
-                  (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
-                                                                    (eql 'apl-call (caadr opfn))))))
-            _ _ rest)
-     ;; invert a left-composition of an [∘. outer product] operation
-     `(apl-compose ∘ operate-composed ,op1 nil nil :inverted-op nil
-                     (λωα (inverse-outer-product alpha (λωα ,(invert-function (second opfn)))
-                                                 omega))
-                     ,@rest))
-    ((list* 'apl-compose '∘ 'operate-composed (guard op1 (not (characterp op1)))
-            nil nil op2-sym _ _ remaining)
-     ;; invert a [∘ compose] operation with a value on the left
-     (let ((dyinv-forms (resolve-function :dyadic-inverse op2-sym)))
-       `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym nil
-                       (λωα (apl-call ,op2-sym ,(getf dyinv-forms :right-composed) omega alpha))
-                       ,@remaining)))
-    ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
-            nil nil remaining)
-     ;; invert a [∘ compose] operation with a value on the right
-     (let ((dyinv-forms (resolve-function :dyadic-inverse op1-sym)))
-       `(apl-compose ∘ operate-composed ,op1-sym nil
-                       (λωα (apl-call ,op1-sym ,(getf dyinv-forms :plain) omega alpha))
-                       ,op2 nil nil ,@remaining)))
-    ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
-            left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
-     ;; invert a [∘ compose] operation with two function operands
-     (let ((left-clause
-            (if (or (eq :fn left-fn-sym)
-                    (not (symbolp left-fn-sym)))
-                (list left-fn-sym (invert-function left-fn-form-monadic)
-                      (invert-function left-fn-form-dyadic))
-                (let ((fn-glyph (aref (string left-fn-sym) 0)))
-                  (list left-fn-sym
-                        (if (resolve-function :monadic-inverse fn-glyph)
-                            `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-                                           omega)))
-                        (if (resolve-function :dyadic-inverse fn-glyph)
-                            `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-                                            omega alpha)))))))
-           (right-clause
-            (if (or (eq :fn right-fn-sym)
-                    (not (symbolp right-fn-sym)))
-                (list right-fn-sym (invert-function right-fn-form-monadic)
-                      (invert-function right-fn-form-dyadic))
-                (let ((fn-glyph (aref (string right-fn-sym) 0)))
-                  (list right-fn-sym
-                        (if (resolve-function :monadic-inverse fn-glyph)
-                            `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
-                                           omega)))
-                        (if (resolve-function :dyadic-inverse fn-glyph)
-                            `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
-                                            omega alpha))))))))
-       (if (and (listp (first right-clause))
-                (listp (first left-clause)))
-           `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
-           `(lambda (omega &optional alpha)
-              (if (not alpha)
-                  (funcall (apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
-                           omega)
-                  (apl-call ,(if (listp (first right-clause))
-                                 :fn (first right-clause))
-                            ,(if (listp (first right-clause))
-                                 (third (second (second right-clause)))
-                                 (resolve-function :monadic-inverse (first right-clause)))
-                            ,(if (listp (first left-clause))
-                                 (third (third (second (third left-clause))))
-                                 `(apl-call ,(if (listp (first left-clause))
-                                                 :fn (first left-clause))
-                                            ,(getf (resolve-function :dyadic-inverse (first left-clause))
-                                                   :plain)
-                                            omega alpha))))))))
-    ((list* 'apl-compose '\\ 'operate-scanning operand remaining)
-     ;; invert a [\ scan] operation
-     `(apl-compose \\ operate-scanning ,(invert-function operand) ,@remaining t))
-    ((list 'apl-compose '\¨ 'operate-each op-monadic op-dyadic)
-     ;; invert an [¨ each] operation
-     `(apl-compose \¨ operate-each ,(invert-function op-monadic)
-                   ,(invert-function op-dyadic)))
-    ((list 'apl-compose '⍨ 'lambda args funcall-form)
-     ;; invert a [⍨ commute] operation
-     (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
-                                     _)
-                              (let* ((fn-glyph (second (second sub-lambda)))
-                                     (dyinv-forms (resolve-function
-                                                   :dyadic-inverse (aref (string fn-glyph) 0))))
-                                `(apl-compose ⍨ lambda ,args
-                                                (funcall (λω (apl-call ,fn-glyph
-                                                                       ,(getf dyinv-forms :commuted)
-                                                                       omega alpha))
-                                                         omega)))))
-         ;; (error "Composition with ⍨ not invertable.")
-         ))
-    ((list (guard first (member first '(λω λωα))) second)
-     ;; invert a λω or λωα macro lambda expression
-     (list first (invert-function second)))
-    ((list* 'alambda args options
-            (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
-            first-form rest-forms)
-     ;; invert an arbitrary lambda
-     (if rest-forms `(lambda ,args ,declare-form
-                             (error "This function has more than one statement and thus cannot be inverted."))
-         `(alambda ,args ,options ,declare-form ,(invert-function first-form))))
-    ((list* 'alambda args options first-form rest-forms)
-     ;; invert an arbitrary lambda
-     (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
-                             (error "This function has more than one statement and thus cannot be inverted."))
-         `(alambda ,args ,options ,(invert-function first-form))))
-    ((list* 'apl-call function-symbol function-form arg1 arg2-rest)
-     (destructuring-bind (&optional arg2 &rest rest) arg2-rest
-       ;; invert an apl-call expression - WIP
-       (let* ((function-char (aref (string function-symbol) 0))
-              (dyinv-forms (resolve-function :dyadic-inverse function-char))
-              (to-invert (or (member arg1 '(⍵ ⍺ omega alpha))
-                             (and (listp arg1) (eql 'apl-call (first arg1)))))
-              (arg1-var (if to-invert arg1))
-              (arg2-var (if (or (member arg2 '(⍵ ⍺ omega alpha))
-                                (and (listp arg2) (eql 'apl-call (first arg2))))
-                            arg2))
-              (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
-                                   (and (listp arg2) (eql 'apl-call (first arg2))))))
-              (to-wrap (or to-wrap #'identity)))
-         (flet ((wrapper (item)
-                  `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
-                                                   (invert-function function-form)
-                                                   (if arg2 (or (if to-invert (getf dyinv-forms :plain)
-                                                                    (or (getf dyinv-forms :right-composed)
-                                                                        (getf dyinv-forms :plain)))
-                                                                `(λωα (declare (ignore omega alpha))
-                                                                      (error "No dyadic inverse for ~a."
-                                                                             ,function-char)))
-                                                       (or (resolve-function :monadic-inverse function-char)
-                                                           `(λω (declare (ignore omega))
-                                                                (error "No monadic inverse for ~a."
-                                                                       ,function-char)))))
-                             ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
-                                                    #'identity #'reverse)
-                                                (append (list (if (or (listp arg1)
-                                                                      (and arg1-var (not arg2-var)))
-                                                                  (funcall to-wrap item) arg1))
-                                                        (if (and (not (member arg2 '(⍵ ⍺)))
-                                                                 (and arg2-var (not arg1-var)))
-                                                            (list (funcall to-wrap item))
-                                                            (if arg2 (list arg2)))))
-                                       rest))))
-           (if last-layer (wrapper (or arg1-var arg2-var))
-               (invert-function (or arg1-var arg2-var) #'wrapper))))))))
+;; (defun invert-function (form &optional to-wrap)
+;;   "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
+;;   (match form
+;;     ((list* 'apl-compose '⍣ 'operate-to-power degree rest)
+;;      ;; invert a [⍣ power] operation - all that needs be done is negate the right operand
+;;      (let ((inverse-degree `(lambda () (- ,(third degree)))))
+;;        ;; the degree is manifested by a function,
+;;        ;; so a function generating the inverse of that degree is built
+;;        `(apl-compose ⍣ operate-to-power ,inverse-degree ,@rest)))
+;;     ((list* 'apl-compose '∘ 'operate-composed
+;;             (list 'apl-compose '\. 'lambda '(o a)
+;;                   (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
+;;                                                                     (eql 'apl-call (caadr opfn))))))
+;;             _ _ rest)
+;;      ;; invert a right-composition of an [∘. outer product] operation
+;;      `(apl-compose ∘ operate-composed :inverted-op nil
+;;                      (λωα (inverse-outer-product omega (λωα ,(invert-function (second opfn)))
+;;                                                  nil alpha))
+;;                      ,@rest))
+;;     ((list* 'apl-compose '∘ 'operate-composed op1 nil nil
+;;             (list 'apl-compose '\. 'lambda '(o a)
+;;                   (list 'array-outer-product 'o 'a (guard opfn (and (eql 'λωα (first opfn))
+;;                                                                     (eql 'apl-call (caadr opfn))))))
+;;             _ _ rest)
+;;      ;; invert a left-composition of an [∘. outer product] operation
+;;      `(apl-compose ∘ operate-composed ,op1 nil nil :inverted-op nil
+;;                      (λωα (inverse-outer-product alpha (λωα ,(invert-function (second opfn)))
+;;                                                  omega))
+;;                      ,@rest))
+;;     ((list* 'apl-compose '∘ 'operate-composed (guard op1 (not (characterp op1)))
+;;             nil nil op2-sym _ _ remaining)
+;;      ;; invert a [∘ compose] operation with a value on the left
+;;      (let ((dyinv-forms (resolve-function :dyadic-inverse op2-sym)))
+;;        `(apl-compose ∘ operate-composed ,op1 nil nil ,op2-sym nil
+;;                        (λωα (apl-call ,op2-sym ,(getf dyinv-forms :right-composed) omega alpha))
+;;                        ,@remaining)))
+;;     ((list* 'apl-compose '∘ 'operate-composed op1-sym _ _ (guard op2 (not (characterp op2)))
+;;             nil nil remaining)
+;;      ;; invert a [∘ compose] operation with a value on the right
+;;      (let ((dyinv-forms (resolve-function :dyadic-inverse op1-sym)))
+;;        `(apl-compose ∘ operate-composed ,op1-sym nil
+;;                        (λωα (apl-call ,op1-sym ,(getf dyinv-forms :plain) omega alpha))
+;;                        ,op2 nil nil ,@remaining)))
+;;     ((list* 'apl-compose '∘ 'operate-composed right-fn-sym right-fn-form-monadic right-fn-form-dyadic
+;;             left-fn-sym left-fn-form-monadic left-fn-form-dyadic remaining)
+;;      ;; invert a [∘ compose] operation with two function operands
+;;      (let ((left-clause
+;;             (if (or (eq :fn left-fn-sym)
+;;                     (not (symbolp left-fn-sym)))
+;;                 (list left-fn-sym (invert-function left-fn-form-monadic)
+;;                       (invert-function left-fn-form-dyadic))
+;;                 (let ((fn-glyph (aref (string left-fn-sym) 0)))
+;;                   (list left-fn-sym
+;;                         (if (resolve-function :monadic-inverse fn-glyph)
+;;                             `(λω (apl-call ,left-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+;;                                            omega)))
+;;                         (if (resolve-function :dyadic-inverse fn-glyph)
+;;                             `(λωα (apl-call ,left-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+;;                                             omega alpha)))))))
+;;            (right-clause
+;;             (if (or (eq :fn right-fn-sym)
+;;                     (not (symbolp right-fn-sym)))
+;;                 (list right-fn-sym (invert-function right-fn-form-monadic)
+;;                       (invert-function right-fn-form-dyadic))
+;;                 (let ((fn-glyph (aref (string right-fn-sym) 0)))
+;;                   (list right-fn-sym
+;;                         (if (resolve-function :monadic-inverse fn-glyph)
+;;                             `(λω (apl-call ,right-fn-sym ,(resolve-function :monadic-inverse fn-glyph)
+;;                                            omega)))
+;;                         (if (resolve-function :dyadic-inverse fn-glyph)
+;;                             `(λωα (apl-call ,right-fn-sym ,(resolve-function :dyadic-inverse fn-glyph)
+;;                                             omega alpha))))))))
+;;        (if (and (listp (first right-clause))
+;;                 (listp (first left-clause)))
+;;            `(apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
+;;            `(lambda (omega &optional alpha)
+;;               (if (not alpha)
+;;                   (funcall (apl-compose ∘ operate-composed ,@left-clause ,@right-clause ,@remaining)
+;;                            omega)
+;;                   (apl-call ,(if (listp (first right-clause))
+;;                                  :fn (first right-clause))
+;;                             ,(if (listp (first right-clause))
+;;                                  (third (second (second right-clause)))
+;;                                  (resolve-function :monadic-inverse (first right-clause)))
+;;                             ,(if (listp (first left-clause))
+;;                                  (third (third (second (third left-clause))))
+;;                                  `(apl-call ,(if (listp (first left-clause))
+;;                                                  :fn (first left-clause))
+;;                                             ,(getf (resolve-function :dyadic-inverse (first left-clause))
+;;                                                    :plain)
+;;                                             omega alpha))))))))
+;;     ((list* 'apl-compose '\\ 'operate-scanning operand remaining)
+;;      ;; invert a [\ scan] operation
+;;      `(apl-compose \\ operate-scanning ,(invert-function operand) ,@remaining t))
+;;     ((list 'apl-compose '\¨ 'operate-each op-monadic op-dyadic)
+;;      ;; invert an [¨ each] operation
+;;      `(apl-compose \¨ operate-each ,(invert-function op-monadic)
+;;                    ,(invert-function op-dyadic)))
+;;     ((list 'apl-compose '⍨ 'lambda args funcall-form)
+;;      ;; invert a [⍨ commute] operation
+;;      (or (match funcall-form ((list* 'funcall (guard sub-lambda (eql 'λωα (first sub-lambda)))
+;;                                      _)
+;;                               (let* ((fn-glyph (second (second sub-lambda)))
+;;                                      (dyinv-forms (resolve-function
+;;                                                    :dyadic-inverse (aref (string fn-glyph) 0))))
+;;                                 `(apl-compose ⍨ lambda ,args
+;;                                                 (funcall (λω (apl-call ,fn-glyph
+;;                                                                        ,(getf dyinv-forms :commuted)
+;;                                                                        omega alpha))
+;;                                                          omega)))))
+;;          ;; (error "Composition with ⍨ not invertable.")
+;;          ))
+;;     ((list (guard first (member first '(λω λωα))) second)
+;;      ;; invert a λω or λωα macro lambda expression
+;;      (list first (invert-function second)))
+;;     ((list* 'alambda args options
+;;             (guard declare-form (and (listp declare-form) (eql 'declare (first declare-form))))
+;;             first-form rest-forms)
+;;      ;; invert an arbitrary lambda
+;;      (if rest-forms `(lambda ,args ,declare-form
+;;                              (error "This function has more than one statement and thus cannot be inverted."))
+;;          `(alambda ,args ,options ,declare-form ,(invert-function first-form))))
+;;     ((list* 'alambda args options first-form rest-forms)
+;;      ;; invert an arbitrary lambda
+;;      (if rest-forms `(lambda ,args (declare (ignore ⍵ ⍺))
+;;                              (error "This function has more than one statement and thus cannot be inverted."))
+;;          `(alambda ,args ,options ,(invert-function first-form))))
+;;     ((list* 'apl-call function-symbol function-form arg1 arg2-rest)
+;;      (destructuring-bind (&optional arg2 &rest rest) arg2-rest
+;;        ;; invert an apl-call expression - WIP
+;;        (let* ((function-char (aref (string function-symbol) 0))
+;;               (dyinv-forms (resolve-function :dyadic-inverse function-char))
+;;               (to-invert (or (member arg1 '(⍵ ⍺ omega alpha))
+;;                              (and (listp arg1) (eql 'apl-call (first arg1)))))
+;;               (arg1-var (if to-invert arg1))
+;;               (arg2-var (if (or (member arg2 '(⍵ ⍺ omega alpha))
+;;                                 (and (listp arg2) (eql 'apl-call (first arg2))))
+;;                             arg2))
+;;               (last-layer (not (or (and (listp arg1) (eql 'apl-call (first arg1)))
+;;                                    (and (listp arg2) (eql 'apl-call (first arg2))))))
+;;               (to-wrap (or to-wrap #'identity)))
+;;          (flet ((wrapper (item)
+;;                   `(apl-call ,function-symbol ,(if (eq :fn function-symbol)
+;;                                                    (invert-function function-form)
+;;                                                    (if arg2 (or (if to-invert (getf dyinv-forms :plain)
+;;                                                                     (or (getf dyinv-forms :right-composed)
+;;                                                                         (getf dyinv-forms :plain)))
+;;                                                                 `(λωα (declare (ignore omega alpha))
+;;                                                                       (error "No dyadic inverse for ~a."
+;;                                                                              ,function-char)))
+;;                                                        (or (resolve-function :monadic-inverse function-char)
+;;                                                            `(λω (declare (ignore omega))
+;;                                                                 (error "No monadic inverse for ~a."
+;;                                                                        ,function-char)))))
+;;                              ,@(append (funcall (if (or to-invert (getf dyinv-forms :right-composed))
+;;                                                     #'identity #'reverse)
+;;                                                 (append (list (if (or (listp arg1)
+;;                                                                       (and arg1-var (not arg2-var)))
+;;                                                                   (funcall to-wrap item) arg1))
+;;                                                         (if (and (not (member arg2 '(⍵ ⍺)))
+;;                                                                  (and arg2-var (not arg1-var)))
+;;                                                             (list (funcall to-wrap item))
+;;                                                             (if arg2 (list arg2)))))
+;;                                        rest))))
+;;            (if last-layer (wrapper (or arg1-var arg2-var))
+;;                (invert-function (or arg1-var arg2-var) #'wrapper))))))))
 
 (defun process-fnspecs (spec-sets)
   (let ((assignment-forms) (symbol-set) (args (gensym))
@@ -1451,96 +1396,122 @@ It remains here as a standard against which to compare methods for composing APL
                 (if (eq :get-metadata ,(first implicit-args))
                     (list :implicit-args (quote ,implicit-args))
                     ,form))))
-      (loop :for each-spec :in spec-sets
-            :do (loop :for spec :in (reverse (cddr each-spec))
-                      :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
-                            (let* ((spec-type (intern (string (first each-spec))))
-                                   (props (rest props))
-                                   (glyph-char (aref (string glyph-sym) 0))
-                                   (item-type (intern (string (first implementation))))
-                                   (spec-meta (rest (assoc 'meta rest)))
-                                   (primary-metadata (rest (assoc 'primary spec-meta)))
-                                   (implicit-args (getf primary-metadata :implicit-args))
-                                   (optional-implicit-args (getf primary-metadata :optional-implicit-args))
-                                   (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
-                                                              (if (eql 'operators spec-type) "OP" "FN")
-                                                              glyph-sym)))
-                                   (assigned-form))
-                              ;; (print (list :sp spec-meta))
-                              (push fn-symbol symbol-set)
-                              (case item-type
-                                (monadic (push glyph-char (getf lexicons :functions))
-                                 (push glyph-char (getf lexicons :functions-monadic))
-                                 (push (setq assigned-form
-                                             (funcall
-                                              (if (not implicit-args)
-                                                  #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args
-                                                                              optional-implicit-args form)))
-                                              (wrap-meta glyph-sym :monadic (second implementation)
-                                                         (rest (assoc 'monadic spec-meta)) t)))
-                                       assignment-forms))
-                                (dyadic (push glyph-char (getf lexicons :functions))
-                                 (push glyph-char (getf lexicons :functions-dyadic))
-                                 (push (setq assigned-form
-                                             (funcall
-                                              (if (not implicit-args)
-                                                  #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args
-                                                                              optional-implicit-args form)))
-                                              (wrap-meta glyph-sym :dyadic (second implementation)
-                                                         (rest (assoc 'dyadic spec-meta)) t)))
-                                       assignment-forms))
-                                (ambivalent (push glyph-char (getf lexicons :functions))
-                                 (push glyph-char (getf lexicons :functions-monadic))
-                                 (push glyph-char (getf lexicons :functions-dyadic))
-                                 (push (setq assigned-form
-                                             (funcall
-                                              (if (not implicit-args)
-                                                  #'identity (lambda (form)
-                                                               (wrap-implicit implicit-args
-                                                                              optional-implicit-args form)))
-                                              `(amb-ref ,glyph-sym
-                                                        ,(wrap-meta
-                                                          glyph-sym :monadic (second implementation)
-                                                          (rest (assoc 'monadic spec-meta)))
-                                                        ,(wrap-meta glyph-sym :dyadic (third implementation)
-                                                                    (rest (assoc 'dyadic spec-meta))))))
-                                       assignment-forms))
-                                (symbolic (push glyph-char (getf lexicons :functions))
-                                 (push glyph-char (getf lexicons :functions-symbolic))
-                                 (push (setq assigned-form (second implementation))
-                                       assignment-forms))
-                                ;; (lateral (push glyph-char (getf lexicons :operators))
-                                ;;  (push glyph-char (getf lexicons :operators-lateral))
-                                ;;  (push (second implementation) assignment-forms))
-                                ;; (pivotal (push glyph-char (getf lexicons :operators))
-                                ;;  (push glyph-char (getf lexicons :operators-pivotal))
-                                ;;  (push (second implementation) assignment-forms))
-                                ;; (unitary (push glyph-char (getf lexicons :operators))
-                                ;;  (push glyph-char (getf lexicons :operators-unitary))
-                                ;;  (push (second implementation) assignment-forms))
-                                )
-                              (push `(,(if (and (eql 'functions spec-type)
-                                                (eql 'symbolic item-type))
-                                           'symbol-value 'symbol-function)
-                                      (quote ,fn-symbol))
-                                    assignment-forms)
-                              (if (getf props :aliases)
-                                  (loop :for alias :in (getf props :aliases)
-                                        :do (push assigned-form assignment-forms)
-                                            (push `(,(if (and (eql 'functions spec-type)
-                                                              (eql 'symbolic item-type))
-                                                         'symbol-value 'symbol-function)
-                                                    (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
-                                                  assignment-forms)))
-                              ))))
-      ;; (push `(proclaim '(special ,@symbol-set)) assignment-forms)
-      ;; (print (list :es lexicons assignment-forms))
-      (values lexicons (print ;;(list ;; `(proclaim '(special ,@symbol-set))
-                        ;; (loop :for (sym val) :on assignment-forms :by #'cddr
-                        ;;    :collect `(setf ,sym ,val))
-                        (cons 'setf assignment-forms))))))
+      (macrolet ((push-aliases (&rest lexicons)
+                   `(if (getf props :aliases)
+                        (loop :for alias :in (getf props :aliases)
+                              :do (let ((a-char (aref (string alias) 0)))
+                                    ,@(loop :for lexicon :in lexicons
+                                            :collect `(push a-char (getf lexicons ,lexicon))))))))
+        (loop :for each-spec :in spec-sets
+              :do (loop :for spec :in (reverse (cddr each-spec))
+                        :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
+                              (let* ((spec-type (intern (string (first each-spec))))
+                                     (props (rest props))
+                                     (glyph-char (aref (string glyph-sym) 0))
+                                     (item-type (intern (string (first implementation))))
+                                     (spec-meta (rest (assoc 'meta rest)))
+                                     (primary-metadata (rest (assoc 'primary spec-meta)))
+                                     (implicit-args (getf primary-metadata :implicit-args))
+                                     (optional-implicit-args (getf primary-metadata :optional-implicit-args))
+                                     (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
+                                                                (if (eql 'operators spec-type) "OP" "FN")
+                                                                glyph-sym)))
+                                     (assigned-form))
+                                ;; (print (list :sp spec-meta))
+                                (push fn-symbol symbol-set)
+                                (if (getf props :aliases)
+                                    (loop :for alias :in (getf props :aliases)
+                                          :do (let ((alias-symbol
+                                                      (intern (format nil "APRIL-LEX-~a-~a"
+                                                                      (if (eql 'operators spec-type) "OP" "FN")
+                                                                      alias))))
+                                                (push alias-symbol symbol-set))))
+                                (case item-type
+                                  (monadic (push glyph-char (getf lexicons :functions))
+                                   (push glyph-char (getf lexicons :functions-monadic))
+                                   (push-aliases :functions :functions-monadic)
+                                   (push (setq assigned-form
+                                               (funcall
+                                                (if (not implicit-args)
+                                                    #'identity (lambda (form)
+                                                                 (wrap-implicit implicit-args
+                                                                                optional-implicit-args form)))
+                                                (wrap-meta glyph-sym :monadic (second implementation)
+                                                           (rest (assoc 'monadic spec-meta)) t)))
+                                         assignment-forms))
+                                  (dyadic (push glyph-char (getf lexicons :functions))
+                                   (push glyph-char (getf lexicons :functions-dyadic))
+                                   (push-aliases :functions :functions-dyadic)
+                                   (push (setq assigned-form
+                                               (funcall
+                                                (if (not implicit-args)
+                                                    #'identity (lambda (form)
+                                                                 (wrap-implicit implicit-args
+                                                                                optional-implicit-args form)))
+                                                (wrap-meta glyph-sym :dyadic (second implementation)
+                                                           (rest (assoc 'dyadic spec-meta)) t)))
+                                         assignment-forms))
+                                  (ambivalent (push glyph-char (getf lexicons :functions))
+                                   (push glyph-char (getf lexicons :functions-monadic))
+                                   (push glyph-char (getf lexicons :functions-dyadic))
+                                   (push-aliases :functions :functions-monadic :functions-dyadic)
+                                   (push (setq assigned-form
+                                               (funcall
+                                                (if (not implicit-args)
+                                                    #'identity (lambda (form)
+                                                                 (wrap-implicit implicit-args
+                                                                                optional-implicit-args form)))
+                                                `(amb-ref ,glyph-sym
+                                                          ,(wrap-meta
+                                                            glyph-sym :monadic (second implementation)
+                                                            (rest (assoc 'monadic spec-meta)))
+                                                          ,(wrap-meta glyph-sym :dyadic (third implementation)
+                                                                      (rest (assoc 'dyadic spec-meta))))))
+                                         assignment-forms))
+                                  (symbolic (push glyph-char (getf lexicons :functions))
+                                   (push glyph-char (getf lexicons :functions-symbolic))
+                                   (if (getf props :aliases)
+                                       (loop :for alias :in (getf props :aliases)
+                                             :do (let ((a-char (aref (string alias) 0)))
+                                                   (push a-char (getf lexicons :functions))
+                                                   (push a-char (getf lexicons :functions-symbolic)))))
+                                   (push (setq assigned-form (second implementation))
+                                         assignment-forms))
+                                  (lateral (push glyph-char (getf lexicons :operators))
+                                   (push glyph-char (getf lexicons :operators-lateral))
+                                   (push-aliases :operators :operators-lateral)
+                                   (push (second implementation) assignment-forms))
+                                  (pivotal (push glyph-char (getf lexicons :operators))
+                                   (push glyph-char (getf lexicons :operators-pivotal))
+                                   (push-aliases :operators :operators-pivotal)
+                                   (push (second implementation) assignment-forms))
+                                  (unitary (push glyph-char (getf lexicons :operators))
+                                   (push glyph-char (getf lexicons :operators-unitary))
+                                   (push-aliases :operators :operators-unitary)
+                                   (push (second implementation) assignment-forms))
+                                  )
+                                (push `(,(if (and (eql 'functions spec-type)
+                                                  (eql 'symbolic item-type))
+                                             'symbol-value 'symbol-function)
+                                        (quote ,fn-symbol))
+                                      assignment-forms)
+                                (if (getf props :aliases)
+                                    (loop :for alias :in (getf props :aliases)
+                                          :do (push assigned-form assignment-forms)
+                                              (push `(,(if (and (eql 'functions spec-type)
+                                                                (eql 'symbolic item-type))
+                                                           'symbol-value 'symbol-function)
+                                                      (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
+                                                    assignment-forms)))
+                                ))))
+        ;; (push `(proclaim '(special ,@symbol-set)) assignment-forms)
+        ;; (print (list :es lexicons assignment-forms))
+        (print (list :ll lexicons))
+        (values lexicons (print ;;(list ;; `(proclaim '(special ,@symbol-set))
+                          ;; (loop :for (sym val) :on assignment-forms :by #'cddr
+                          ;;    :collect `(setf ,sym ,val))
+                          (list `(proclaim '(special ,@symbol-set))
+                                (cons 'setf assignment-forms))))))))
 
 (defun april-function-glyph-processor (type glyph spec &optional inverse-spec fn-props)
   "Convert a Vex function specification for April into a set of lexicon elements, forms and functions that will make up part of the April idiom object used to compile the language."
@@ -1552,20 +1523,6 @@ It remains here as a standard against which to compare methods for composing APL
     (flet ((wrap-meta (type form meta)
              (let ((metadata (rest (assoc (intern (string type))
                                           (rest (assoc 'meta fn-props))))))
-               ;; (if (getf metadata :inverse)
-               ;;     (setf (getf metadata :inverse)
-               ;;           `(,(if (eq :dyadic type) 'λωαχ 'λωχ)
-               ;;              (apl-call ,(intern (string glyph))
-               ;;                        ,(getf metadata :inverse)
-               ;;                        omega ,@(if (eq :dyadic type) (list 'alpha))))))
-               ;; (if (getf metadata :inverse-right)
-               ;;     (setf (getf metadata :inverse-right)
-               ;;           `(,(if (eq :dyadic type) 'λωαχ 'λωχ)
-               ;;              (apl-call ,glyph ,(getf metadata :inverse-right)
-               ;;                        omega ,@(if (eq :dyadic type) (list 'alpha))))))
-               ;; (if (getf metadata :inverse-commuted)
-               ;;     (setf (getf metadata :inverse-commuted)
-               ;;           `(λωχ (apl-call ,glyph ,(getf metadata :inverse-commuted) omega))))
                (list type (if (not metadata) form
                               (if (and (listp form) (eql 'scalar-function (first form)))
                                   (append form metadata)
@@ -1640,9 +1597,10 @@ It remains here as a standard against which to compare methods for composing APL
                                  `(:operators ,(first spec-body))))))))))
 
 (defmacro specify-demo (title params &rest sections)
+  "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
   (let ((params (rest params)))
-    `(progn (defun ,(intern "RUN-TESTS" *package-name-string*) ()
-              (format t "~a ｢~a｣" ,title ,*package-name-string*)
+    `(progn (defun ,(intern "RUN-TESTS" (package-name *package*)) ()
+              (format t "~a ｢~a｣" ,title ,(package-name *package*))
               (princ #\Newline)
               ,@(if (getf params :description)
                     `((princ ,(getf params :description))

@@ -21,15 +21,6 @@
    (lexicons :accessor idiom-lexicons
              :initform nil
              :initarg :lexicons)
-   (functions :accessor idiom-functions
-              :initform nil
-              :initarg :functions)
-   (operators :accessor idiom-operators
-              :initform nil
-              :initarg :operators)
-   (grammar-elements :accessor idiom-grammar-elements
-                     :initform nil
-                     :initarg :grammar-elements)
    (composer-opening-patterns :accessor idiom-composer-opening-patterns
                               :initform nil
                               :initarg :composer-opening-patterns)
@@ -59,33 +50,10 @@
   "Retrieve one of the idiom's utilities used for parsing and language processing."
   (getf (idiom-utilities idiom) utility))
 
-(defgeneric of-functions (idiom key type))
-(defmethod of-functions ((idiom idiom) key type)
-  "Retrive one of the idiom's functions."
-  (let ((function-set (idiom-functions idiom)))
-    ;; copy the array so that if a part is changed downstream, the original copy will remain the same
-    (if type (copy-tree (gethash key (getf function-set type)))
-        (let ((output))
-          (loop :for (set-key value) :on function-set :by #'cddr :while (not output)
-             :do (if (gethash key value)
-                     (setf output (copy-list (gethash key value)))))
-          output))))
-
-(defgeneric of-operators (idiom key type))
-(defmethod of-operators ((idiom idiom) key type)
-  "Retrive one of the idiom's operators."
-  (let ((operator-set (idiom-operators idiom)))
-    (if type (gethash key (getf operator-set type))
-        (let ((output))
-          (loop :for (set-key value) :on operator-set :by #'cddr :while (not output)
-             :do (if (gethash key value)
-                     (setf output (copy-array (gethash key value)))))
-          output))))
-
-(defgeneric of-lexicon (idiom lexicon glyph))
-(defmethod of-lexicon ((idiom idiom) lexicon glyph)
+(defgeneric of-lexicons (idiom glyph &rest lexicons))
+(defmethod of-lexicons ((idiom idiom) glyph &rest lexicons)
   "Check whether a character belongs to a given Vex lexicon."
-  (member glyph (getf (idiom-lexicons idiom) lexicon)))
+  (loop :for lexicon :in lexicons :always (member glyph (getf (idiom-lexicons idiom) lexicon))))
 
 (defmacro boolean-op (operation)
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
@@ -240,15 +208,6 @@
   "Wraps the idiom-spec macro for an extension of a Vex idiom."
   `(vex-idiom-spec ,symbol t ,@subspecs))
 
-(defun merge-lexicons (source &optional target)
-  "Combine two Vex symbol lexicons."
-  (if (not source)
-      target (merge-lexicons (cddr source)
-                             (progn (setf (getf target (first source))
-                                          (append (getf target (first source))
-                                                  (second source)))
-                                    target))))
-
 (defun merge-options (source target)
   "Merge options from multiple Vex specifiction sections into a single set."
   (let ((output (loop :for section :in target
@@ -303,17 +262,10 @@
   "Process the specification for a vector language and build functions that generate the code tree."
   (macrolet ((of-subspec (symbol-string)
                `(rest (assoc ',symbol-string subspecs :test (lambda (x y) (string= (string-upcase x)
-                                                                                   (string-upcase y))))))
-             (build-lexicon () `(loop :for lexicon :in (getf (rest this-lex) :lexicons)
-                                   :do (if (not (getf lexicon-data lexicon))
-                                           (setf (getf lexicon-data lexicon) nil))
-                                     (if (not (member char (getf lexicon-data lexicon)))
-                                         (setf (getf lexicon-data lexicon)
-                                               (cons char (getf lexicon-data lexicon)))))))
+                                                                                   (string-upcase y)))))))
     (let* ((symbol-string (string-upcase symbol))
            (idiom-symbol (intern (format nil "*~a-IDIOM*" symbol-string)
                                  (symbol-package symbol)))
-           (lexicon-data)
            (lexicon-processor (getf (of-subspec utilities) :process-lexicon))
            (function-specs
             (loop :for subspec :in subspecs :when (string= "FUNCTIONS" (string-upcase (first subspec)))
@@ -331,7 +283,6 @@
                                        :append (let ((this-lex (funcall (second lexicon-processor)
                                                                         :functions char fn-params
                                                                         fn-params-inverse fn-props)))
-                                                 (build-lexicon)
                                                  `(,@(if (getf (getf (rest this-lex) :functions) :monadic)
                                                          `((gethash ,char (getf fn-specs :monadic))
                                                            ',(getf (getf (rest this-lex) :functions) :monadic)))
@@ -369,7 +320,6 @@
                                                                        :pivotal)
                                                                       ((member :unitary-operators lexicons)
                                                                        :unitary))))
-                                                 (build-lexicon)
                                                  `((gethash ,char (getf op-specs ,this-key))
                                                    ,(getf (rest this-lex) :operators))))))))
            (demo-forms (build-profile symbol subspecs :demo (rest (assoc :demo (of-subspec profiles)))))
@@ -397,28 +347,18 @@
            )
       (let ((all-specs (reverse (loop :for subspec :in subspecs
                                       :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                                ;; (string= "OPERATORS" (string-upcase (first subspec)))
+                                                (string= "OPERATORS" (string-upcase (first subspec)))
                                                 )
                                    :collect subspec))))
-        (print :assignment-form-causing-bug)
+        ;; (print :assignment-form-causing-bug)
         (multiple-value-bind (ilist aform)
             (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
-                     ;; (list (cons (first (second all-specs))
-                     ;;              ;; (rest (second all-specs))
-                     ;;              (nthcdr 12 (second all-specs))
-                     ;;              ;; (nthcdr 13 (second all-specs))
-                     ;;              )
-                     ;;  ;; (second all-specs)
-                     ;;  ;; (cons (first (first (last all-specs)))
-                     ;;     ;;   (rest (first (last all-specs))))
-                     ;;  )
-                     all-specs
-                     )
+                     all-specs)
           (setq idiom-list ilist assignment-form aform)))
       `(progn ,@(if (not extension)
                     `((proclaim '(special ,idiom-symbol))
                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
-              ,assignment-form
+              ,@assignment-form
               (setf (idiom-system ,idiom-symbol)
                     (append (idiom-system ,idiom-symbol)
                             ,(cons 'list (of-subspec system)))
@@ -429,25 +369,7 @@
                     (append (idiom-symbols ,idiom-symbol)
                             ,(list 'quote (of-subspec symbols)))
                     (idiom-lexicons ,idiom-symbol)
-                    (merge-lexicons (idiom-lexicons ,idiom-symbol)
-                                    (quote ,lexicon-data))
-                    (idiom-functions ,idiom-symbol)
-                    (let ((fn-specs ,(if extension `(idiom-functions ,idiom-symbol)
-                                         `(list :monadic (make-hash-table) :dyadic (make-hash-table)
-                                                :symbolic (make-hash-table)
-                                                :monadic-inverse (make-hash-table)
-                                                :dyadic-inverse (make-hash-table)))))
-                      (setf ,@function-specs)
-                      fn-specs)
-                    (idiom-operators ,idiom-symbol)
-                    (let ((op-specs ,(if extension `(idiom-operators ,idiom-symbol)
-                                         `(list :lateral (make-hash-table) :pivotal (make-hash-table)
-                                                :unitary (make-hash-table)))))
-                      (setf ,@operator-specs)
-                      op-specs))
-              ,@(if (assoc :elements (of-subspec grammar))
-                    `((setf (idiom-grammar-elements ,idiom-symbol)
-                            ,(second (assoc :elements (of-subspec grammar))))))
+                    (quote ,idiom-list))
               (setf ,@pattern-settings)
               ,@(if (not extension)
                     `((defmacro ,(intern symbol-string (symbol-package symbol))
@@ -811,8 +733,8 @@
                                    (setq olnchar nil))
                                (incf ix 1)
                                (and (not (< 2 ix))
-                                    (or (of-lexicon idiom :functions char)
-                                        (of-lexicon idiom :operators char)))))))
+                                    (or (of-lexicons idiom char :functions)
+                                        (of-lexicons idiom char :operators)))))))
           (=destructure (_ item _ break rest)
               (=list (%any (?blank-character))
                      (%or (=vex-closure "()" nil :disallow-linebreaks "{}")
@@ -825,14 +747,15 @@
                                       (lambda (string)
                                         (let ((char (character string)))
                                           (if (not olnchar)
-                                              (append (list (if (of-lexicon idiom :operators char)
-                                                                :op (if (of-lexicon idiom :functions char)
+                                              (append (list (if (of-lexicons idiom char :operators)
+                                                                :op (if ;; (of-lexicon idiom :functions char)
+                                                                        (of-lexicons idiom char :functions)
                                                                         :fn)))
-                                                      (if (of-lexicon idiom :operators char)
-                                                          (list (if (of-lexicon idiom :pivotal-operators char)
+                                                      (if (of-lexicons idiom char :operators)
+                                                          (list (if (of-lexicons idiom char :operators-pivotal)
                                                                     :pivotal
-                                                                    (if (of-lexicon idiom
-                                                                                    :lateral-operators char)
+                                                                    (if (of-lexicons idiom char
+                                                                                     :operators-lateral)
                                                                         :lateral :unitary))))
                                                       (list char))))))
                           (=transform (%and (?test (#'numeric-string-p)

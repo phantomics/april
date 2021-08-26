@@ -1051,7 +1051,7 @@
     (if alpha (funcall left-fn (funcall right-fn omega alpha))
         (funcall left-fn (funcall right-fn omega)))))
 
-(defun operate-to-power (fetch-determinant function) ;function-retriever)
+(defun operate-to-power (fetch-determinant function)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
     (if (eq omega :get-metadata)

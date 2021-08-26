@@ -82,20 +82,20 @@
               ;; if marked as an operator, check whether the character is one entered as both
               ;; a function and an operator; such functions must be dyadic
               (and (eq :op (first this-item))
-                   (or (of-lexicon idiom :dyadic-functions (third this-item))
-                       (of-lexicon idiom :symbolic-functions (third this-item)))))
+                   (or (of-lexicons idiom (third this-item) :functions-dyadic)
+                       (of-lexicons idiom (third this-item) :functions-symbolic))))
           (let ((fn (first (last this-item)))
                 (obligate-dyadic (and (eq :op (first this-item))
-                                      (of-lexicon idiom :dyadic-functions (third this-item))))
+                                      (of-lexicons idiom (third this-item) :functions-dyadic)))
                 (overloaded-operator (and (eq :op (first this-item))
-                                          (or (of-lexicon idiom :dyadic-functions (third this-item))
-                                              (of-lexicon idiom :symbolic-functions (third this-item))))))
+                                          (or (of-lexicons idiom (third this-item) :functions-dyadic)
+                                              (of-lexicons idiom (third this-item) :functions-symbolic)))))
             (cond ((and (characterp fn)
                         (or (not (getf properties :glyph))
                             (and (char= fn (aref (string (getf properties :glyph)) 0)))))
                    (values fn (list :type (append '(:function :glyph)
                                                   (if overloaded-operator '(:overloaded-operator))
-                                                  (if (of-lexicon idiom :symbolic-functions (third this-item))
+                                                  (if (of-lexicons idiom (third this-item) :functions-symbolic)
                                                       '(:symbolic-function))))))
                   ((and (listp fn)
                         (not (getf properties :glyph)))
@@ -358,7 +358,7 @@
         ;; unless the operator is being assigned a name
         (values nil nil prior-items)
         (if (and function-form is-function)
-            (values (if (or (not axes) (of-lexicon idiom :functions function-form))
+            (values (if (or (not axes) (of-lexicons idiom function-form :functions))
                         ;; if axes are present, this is an n-argument function
                         (if (not (and (symbolp function-form) (is-workspace-function function-form)))
                             function-form `(function (inws ,function-form)))
@@ -386,7 +386,8 @@
          (operator (and (member :operator type) operator-form))
          (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
     (if (and symbol operator-form (member operator-type '(:lateral :pivotal))
-             (resolve-operator operator-type operator))
+             (of-lexicons idiom operator (intern (format nil "OPERATORS-~a" operator-type)
+                                                 "KEYWORD")))
         (values `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                             `(inws ,symbol))
                        (lambda ,(if (eq :lateral operator-type)
@@ -397,13 +398,15 @@
                                '((declare (ignorable axes)))
                                (if (eq :pivotal operator-type) '((declare (ignorable right left)))))
                          ,(if operator-axes
-                              (apply (resolve-operator operator-type operator-form)
+                              (apply (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator-form)
+                                                              *package-name-string*))
                                      (if (eq :lateral operator-type)
                                          (list 'operand (if (listp (first operator-axes))
                                                             (cons 'list (first operator-axes))
                                                             `(list ,(first operator-axes))))
                                          (list 'right 'left)))
-                              (apply (resolve-operator operator-type operator-form)
+                              (apply (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator-form)
+                                                              *package-name-string*))
                                      (if (eq :lateral operator-type)
                                          '(operand axes) '(right left))))))
                 '(:type (:operator :aliased))
@@ -444,17 +447,9 @@
                                                   (not (member symbol-plain env-lops)))
                                              'inwsd 'inws)
                                          symbol-referenced)
-                              ,(if (listp operand-form)
-                                   operand-form
-                                   (if (characterp operand-form)
-                                       (let ((omega (gensym)) (alpha (gensym)))
-                                         `(lambda (,omega &optional ,alpha)
-                                            (if ,alpha (apl-call :fn ,(resolve-function :dyadic operand-form)
-                                                                 ,omega ,alpha)
-                                                (apl-call :fn ,(resolve-function :monadic operand-form)
-                                                          ,omega))))
-                                       operand-form))
-                      ,@(if operator-axes `((list ,@(first operator-axes)))))
+                              ,(if (not (characterp operand-form))
+                                   operand-form (build-call-form operand-form operand-axes))
+                              ,@(if operator-axes `((list ,@(first operator-axes)))))
                 '(:type (:function :operator-composed :lateral))
                 items)
         (let ((operator (and (member :operator (getf operator-props :type))
@@ -464,9 +459,9 @@
               (assigned-operand (if (and (listp operand-form)
                                          (eql 'inws (first operand-form))
                                          (member (second operand-form)
-                                                 (of-meta-hierarchy (rest (getf (getf properties :special)
-                                                                                :closure-meta))
-                                                                    :fn-syms)))
+                                                 (of-meta-hierarchy
+                                                  (rest (getf (getf properties :special) :closure-meta))
+                                                  :fn-syms)))
                                     (list 'wrap-fn-ref operand-form))))
           (if operator
               (if (eq :operator-self-reference operator-form)
@@ -475,48 +470,19 @@
                           items)
                   (values (if (listp operator-form)
                               `(apl-compose :op ,operator-form
-                                            ,(if (listp operand-form)
-                                                 operand-form
-                                                 (if (characterp operand-form)
-                                                     (let ((omega (gensym)) (alpha (gensym)))
-                                                       `(lambda (,omega &optional ,alpha)
-                                                          (if ,alpha (apl-call :fn ,(resolve-function
-                                                                                     :dyadic operand-form)
-                                                                               ,omega ,alpha)
-                                                              (apl-call :fn ,(resolve-function
-                                                                              :monadic operand-form)
-                                                                        ,omega))))
-                                                     operand-form)))
-                              (let* ((operand (if (eql '∇ operand-form)
-                                                  '#'∇self
-                                                      (if (or (listp operand-form)
-                                                              (symbolp operand-form))
-                                                          operand-form (if (characterp operand-form)
-                                                                           `(amb-ref ,(intern (string operand-form))
-                                                                                     ,(resolve-function
-                                                                                       :monadic operand-form)
-                                                                                     ,(resolve-function
-                                                                                       :dyadic operand-form)
-                                                                                     ,@(if operand-axes
-                                                                                           (list operand-axes)))))))
-                                     (operand-meta
-                                       (if (characterp operand-form)
-                                           (handler-case (funcall (symbol-function
-                                                                   (intern (format nil "APRIL-LEX-FN-~a"
-                                                                                   operand-form)))
-                                                                  :get-metadata)
-	                                     (error (c) nil))))
-                                     (operand (if (and (characterp operand-form)
-                                                       (or (resolve-function :monadic (insym operand-form))
-                                                           (resolve-function :dyadic (insym operand-form))))
-                                                  (append (list 'apl-fn (intern (string operand-form)
-                                                                                (package-name *package*)))
-                                                          (getf operand-meta :implicit-args)
-                                                          (if operand-axes (list :axes operand-axes)))
-                                                  operand)))
+                                            ,(if (not (characterp operand-form))
+                                                 operand-form (build-call-form operand-form operand-axes)))
+                              (let ((operand (if (eql '∇ operand-form)
+                                                 '#'∇self
+                                                 (if (and (characterp operand-form)
+                                                          (of-lexicons idiom operand-form :functions))
+                                                     (build-call-form operand-form operand-axes)
+                                                     operand-form))))
                                 (cons 'apl-compose
                                       (cons (intern (string-upcase operator) *package-name-string*)
-                                            (funcall (resolve-operator :lateral operator)
+                                            (funcall (symbol-function
+                                                      (intern (format nil "APRIL-LEX-OP-~a" operator-form)
+                                                              *package-name-string*))
                                                      operand (if (listp (first operator-axes))
                                                                  (cons 'list (first operator-axes))
                                                                  (list (first operator-axes))))))))
@@ -531,8 +497,10 @@
   (let ((operator (and (member :operator (getf operator-props :type))
                        (member :unitary (getf operator-props :type))
                        operator-form)))
-    (if (resolve-operator :unitary operator)
-        (values (funcall (resolve-operator :unitary operator) space (first operator-axes))
+    (if (of-lexicons idiom operator :operators-unitary)
+        (values (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
+                                                  *package-name-string*))
+                         space (first operator-axes))
                 '(:type (:array :evaluated))
                 items))))
 
@@ -563,7 +531,9 @@
                                                  :var-syms))
                       `(inws ,symbol) (intern (string symbol) space)))
             ;; find the value either among the lexical variables or the dynamic variables
-            (fn-content (resolve-function :dyadic fn-element))
+            (fn-content (if (not (and (characterp fn-element)
+                                      (of-lexicons idiom fn-element :functions)))
+                            fn-element (build-call-form fn-element)))
             (fn-sym (or-functional-character fn-element :fn)))
         (values (if (not symbol-axes)
                     `(let ((,assigned (apl-call ,fn-sym ,fn-content ,precedent ,qsym
@@ -800,18 +770,11 @@
                          ;; account for the ⍺←⊢ case
                          (if (and (eql '⍺ symbol) (char= #\⊢ precedent))
                              `(or ⍺ (setf ⍺ :absent))
-                             (let ((fn-monadic (resolve-function :monadic precedent))
-                                   (fn-dyadic (resolve-function :dyadic precedent)))
-                               (if (or fn-monadic fn-dyadic)
-                                   `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
-                                               `(inws ,symbol))
-                                          ,(if (not fn-monadic)
-                                               fn-dyadic (if (not fn-dyadic)
-                                                             fn-monadic
-                                                             `(amb-ref ,(intern (string precedent))
-                                                                       ,fn-monadic ,fn-dyadic
-                                                                       ,(getf (first preceding-properties)
-                                                                              :axes))))))))
+                             (if (of-lexicons idiom precedent :functions)
+                                 `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
+                                             `(inws ,symbol))
+                                        ,(build-call-form precedent (getf (first preceding-properties)
+                                                                          :axes)))))
                          `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                                      `(inws ,symbol))
                                 ,precedent)))
@@ -898,14 +861,15 @@
       (if (not left)
           ;; if there's no left function, match an atop composition like 'mississippi'(⍸∊)'sp'
           (let* ((omega (gensym)) (alpha (gensym)) (right precedent)
-                 (left-fn-monadic (if (listp center)
-                                      center (resolve-function
-                                              :monadic (if (not (symbolp center))
-                                                           center (intern (string center) space)))))
-                 (right-fn-monadic (if (and (listp right) (eql 'function (first right)))
-                                       right (resolve-function :monadic right)))
-                 (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
-                                      right (resolve-function :dyadic right))))
+                 (left-fn-monadic (if (not (and (characterp center)
+                                                (of-lexicons idiom center :functions)))
+                                      center (build-call-form center)))
+                 (right-fn-monadic (if (not (characterp right))
+                                       right (if (of-lexicons idiom right :functions-monadic)
+                                                 (build-call-form right))))
+                 (right-fn-dyadic (if (not (characterp right))
+                                      right (if (of-lexicons idiom right :functions-dyadic)
+                                                (build-call-form right)))))
             (values `(lambda (,omega &optional ,alpha)
                        (if ,alpha (apl-call ,(or-functional-character left :fn)
                                             ,left-fn-monadic (apl-call ,(or-functional-character right :fn)
@@ -918,8 +882,11 @@
           (destructuring-bind (right omega alpha center)
               (list precedent (gensym) (gensym)
                     (if (listp center)
-                        center (resolve-function :dyadic (if (not (symbolp center))
-                                                             center (intern (string center) space)))))
+                        center (if (characterp center)
+                                   (if (of-lexicons idiom center :functions-dyadic)
+                                       (build-call-form center))
+                                   (if (and (listp center) (eql 'function (first center)))
+                                       center (resolve-function-2 center)))))
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
             ;; functions are also valid as preceding functions, as with (1+-∘÷)
@@ -930,14 +897,27 @@
                                      (member :operator-composed (getf (first preceding-properties) :type)))
                                 (member :train-fork-composition (getf (first preceding-properties) :type))))
                 ;; functions are resolved here, failure to resolve indicates a value in the train
-                (let ((right-fn-monadic (if (and (listp right) (eql 'function (first right)))
-                                            right (resolve-function :monadic right)))
-                      (right-fn-dyadic (if (and (listp right) (eql 'function (first right)))
-                                           right (resolve-function :dyadic right)))
-                      (left-fn-monadic (if (and (listp left) (eql 'function (first left)))
-                                           left (resolve-function :monadic left)))
-                      (left-fn-dyadic (if (and (listp left) (eql 'function (first left)))
-                                          left (resolve-function :dyadic left))))
+                (let ((right-fn-monadic (if (characterp right)
+                                            (if (of-lexicons idiom right :functions-monadic)
+                                                (build-call-form right))
+                                            (if (and (listp right) (eql 'function (first right)))
+                                                right (resolve-function-2 right))))
+                      (right-fn-dyadic (if (characterp right)
+                                           (if (of-lexicons idiom right :functions-dyadic)
+                                               (build-call-form right))
+                                           (if (and (listp right) (eql 'function (first right)))
+                                               right (resolve-function-2 right))))
+                      (left-fn-monadic (if (characterp left)
+                                           (if (of-lexicons idiom left :functions-monadic)
+                                               (build-call-form left))
+                                           (if (and (listp left) (eql 'function (first left)))
+                                               left (resolve-function-2 left))))
+                      (left-fn-dyadic (if (characterp left)
+                                          (if (of-lexicons idiom left :functions-dyadic)
+                                              (build-call-form left))
+                                          (if (and (listp left) (eql 'function (first left)))
+                                              left (resolve-function-2 left)))))
+                  ;; TODO: can trains' generated code be more compact?
                   (values `(lambda (,omega &optional ,alpha)
                              (if ,alpha (apl-call ,(or-functional-character center :fn) ,center
                                                   (apl-call ,(or-functional-character right :fn)
@@ -988,23 +968,19 @@
       ;; get left axes from the left operand and right axes from the precedent's properties so the
       ;; functions can be properly curried if they have axes specified
       (let ((left-operand (insym left-operand))
+            (is-operand-character (and (characterp left-operand)
+                                       (member :array (getf left-operand-props :type))))
+            ;; need to check whether the operand is a character, else in '*' {⍶,⍵} ' b c d'
+            ;; the * will be read as the [* exponential] function
             (omega (gensym)) (alpha (gensym)))
-        ;; single character values are passed within a (:char) form so they aren't interpreted as
-        ;; functional glyphs by the (resolve-function) calls
-        (if (and (characterp left-operand) (member :array (getf left-operand-props :type)))
-            (setq left-operand (list :char left-operand)))
         (values (if (and (listp operator) (member :lateral (getf operator-props :type)))
-                    `(apl-call :fn (apl-compose
-                                    :op ,operator
-                                    ,(if (characterp left-operand)
-                                         `(lambda (,omega &optional ,alpha)
-                                            (if ,alpha (apl-call :fn ,(resolve-function :dyadic left-operand)
-                                                                 ,omega ,alpha)
-                                                (apl-call :fn ,(resolve-function :monadic left-operand)
-                                                          ,omega)))
-                                         ;; handle ∇ function self-reference
-                                         (if (and (symbolp left-operand) (eql '∇ left-operand))
-                                             '#'∇self left-operand)))
+                    `(apl-call :fn (apl-compose :op ,operator
+                                                ,(if (and (characterp left-operand)
+                                                          (not is-operand-character))
+                                                     (build-call-form left-operand)
+                                                     ;; handle ∇ function self-reference
+                                                     (if (and (symbolp left-operand) (eql '∇ left-operand))
+                                                         '#'∇self left-operand)))
                                ,precedent ,@(if left-value (list left-value))))
                 '(:type (:array :evaluated)) items))))
 
@@ -1059,8 +1035,7 @@
                                                   :fn-syms)))
                   (list 'wrap-fn-ref left-operand)))
              (omega (gensym)) (alpha (gensym)))
-        ;; single character values are passed within a (:char) form so they aren't interpreted as
-        ;; functional glyphs by the (resolve-function) calls
+        ;; TODO: make sure single-character values like '*' passed as operands don't get read as functions
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
                     `(apl-compose :op ,(if (eq :operator-self-reference operator)
@@ -1071,47 +1046,29 @@
                                                                       (not (member symbol-plain env-pops)))
                                                                  'inwsd 'inws)
                                                              operator)))
-                                  ,(if (characterp left-operand)
-                                       `(lambda (,omega &optional ,alpha)
-                                          (if ,alpha
-                                              (apl-call :fn ,(resolve-function :dyadic left-operand)
-                                                        ,omega ,alpha)
-                                              (apl-call :fn ,(resolve-function :monadic left-operand)
-                                                        ,omega)))
-                                       left-operand)
-                                  ,(if (characterp right-operand)
-                                       `(lambda (,omega &optional ,alpha)
-                                          (if ,alpha
-                                              (apl-call :fn ,(resolve-function :dyadic right-operand)
-                                                        ,omega ,alpha)
-                                              (apl-call :fn ,(resolve-function :monadic right-operand)
-                                                        ,omega)))
-                                       right-operand))
+                                  ,(if (not (and (characterp left-operand)
+                                                 (of-lexicons idiom left-operand :functions)))
+                                       left-operand (build-call-form left-operand))
+                                  ,(if (not (and (characterp right-operand)
+                                                 (of-lexicons idiom right-operand :functions)))
+                                       right-operand (build-call-form right-operand)))
                     (let ((left (if (eql '∇ left-operand)
                                     '#'∇self
-                                    (if (or (listp left-operand)
-                                            (symbolp left-operand))
-                                        left-operand (if (and (characterp left-operand)
-                                                              (not (member :array (getf left-operand-props
-                                                                                        :type))))
-                                                         `(as-operand ,(intern (string left-operand))
-                                                                      ,@(if left-operand-axes
-                                                                            (list left-operand-axes)))
-                                                         left-operand))))
+                                    (if (not (and (characterp left-operand)
+                                                  (not (member :array (getf left-operand-props :type)))
+                                                  (of-lexicons idiom left-operand :functions)))
+                                        left-operand (build-call-form left-operand left-operand-axes))))
                           (right (if (eql '∇ right-operand)
                                      '#'∇self
-                                     (if (or (listp right-operand)
-                                             (symbolp right-operand))
-                                         right-operand (if (and (characterp right-operand)
-                                                                (not (member :array
-                                                                             (getf right-operand-props
-                                                                                   :type))))
-                                                           `(as-operand ,(intern (string right-operand))
-                                                                        ,@(if right-operand-axes
-                                                                              (list right-operand-axes)))
-                                                           right-operand)))))
+                                     (if (not (and (characterp right-operand)
+                                                   (not (member :array (getf right-operand-props :type)))
+                                                   (of-lexicons idiom right-operand :functions)))
+                                         right-operand (build-call-form right-operand right-operand-axes)))))
                       (cons 'apl-compose (cons (intern (string-upcase operator) *package-name-string*)
-                                               (funcall (resolve-operator :pivotal operator) right left)))))
+                                               (funcall (symbol-function
+                                                         (intern (format nil "APRIL-LEX-OP-~a" operator)
+                                                                 *package-name-string*))
+                                                        right left)))))
                 '(:type (:function :operator-composed :pivotal))
                 items))))
 
@@ -1141,53 +1098,29 @@
                     (setq items prior-items value nil))
                 (if (and (not function-axes) (member :axes function-props))
                     (setq function-axes (getf function-props :axes))))))
-  (if is-function (let* ((fn-sym (or-functional-character fn-element :fn))
-                         (fn-meta (if (characterp fn-element)
-                                      (handler-case (funcall (symbol-function
-                                                              (intern (format nil "APRIL-LEX-FN-~a"
-                                                                              fn-element)))
-                                                             :get-metadata)
-	                                (error (c) nil))))
-                         (is-dyadic (resolve-function :dyadic (insym fn-element)))
-                         (fn-content (if (or (functionp fn-element)
-                                             (and (symbolp fn-element)
-                                                  (member fn-element '(⍺⍺ ⍵⍵ ∇ ∇∇)))
-                                             (and (listp fn-element)
-                                                  (eql 'inws (first fn-element))
-                                                  (member (second fn-element)
-                                                          (of-meta-hierarchy
-                                                           (rest (getf (getf properties :special)
-                                                                       :closure-meta))
-                                                           :fn-syms)))
-                                             (and (listp fn-element)
-                                                  (eql 'function (first fn-element))))
-                                         fn-element
-                                         ;; (or (resolve-function (if value :dyadic :monadic)
-                                         ;;                       (insym fn-element))
-                                         ;;     (resolve-function :symbolic fn-element)
-                                         ;;     fn-element)
-
-                                         (if (characterp fn-element)
-                                             (if (resolve-function (if value :dyadic :monadic)
-                                                                   (insym fn-element))
-                                                 (append (list 'apl-fn (intern (string fn-element)
-                                                                               (package-name *package*)))
-                                                         (getf fn-meta :implicit-args)))
-                                             (or (resolve-function (if value :dyadic :monadic)
-                                                                   (insym fn-element))
-                                                 (resolve-function :symbolic fn-element)
-                                                 fn-element))
-                                         ))
-                         ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
-                         ;; as a self-reference by lambdas invoked through the (alambda) macro
-                         (fn-content (if (eql '∇ fn-content)
-                                         '#'∇self (if (not (and function-axes (getf fn-meta :scalar-dyadic)))
-                                                      fn-content `(scalar-function ,fn-content)))))
-                    ;; (print (list :ff fn-element fn-content fn-meta))
-                    (values `(apl-call ,fn-sym ,fn-content ,precedent
-                                       ;; ,@(if value (list value)
-                                       ;;       (if (and function-axes is-dyadic) (list nil)))
-                                       ,value
+  (if is-function (let ((fn-sym (or-functional-character fn-element :fn))
+                        ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
+                        ;; as a self-reference by lambdas invoked through the (alambda) macro
+                        (fn-content (if (and (symbolp fn-element) (eql '∇ fn-element))
+                                        '#'∇self
+                                        (if (or (functionp fn-element)
+                                                (and (symbolp fn-element)
+                                                     (member fn-element '(⍺⍺ ⍵⍵ ∇ ∇∇)))
+                                                (and (listp fn-element)
+                                                     (eql 'inws (first fn-element))
+                                                     (member (second fn-element)
+                                                             (of-meta-hierarchy
+                                                              (rest (getf (getf properties :special)
+                                                                          :closure-meta))
+                                                              :fn-syms)))
+                                                (and (listp fn-element)
+                                                     (eql 'function (first fn-element))))
+                                            fn-element (if (characterp fn-element)
+                                                           (if (of-lexicons idiom fn-element :functions)
+                                                               (build-call-form fn-element nil function-axes))
+                                                           (or (of-lexicons idiom fn-element :functions)
+                                                               fn-element))))))
+                    (values `(apl-call ,fn-sym ,fn-content ,precedent ,value
                                        ,@(if function-axes `((list ,@(first function-axes)))))
                             '(:type (:array :evaluated)) items))))
 

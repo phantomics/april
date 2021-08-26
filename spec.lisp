@@ -1655,6 +1655,8 @@
   (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
   (for "Lateral operator within a defined function." "fn←{÷ {⍺⍺ ⍵} 1+⍵} ⋄ - fn 2" -1/3)
   (for "Inline pivotal operator in parentheses with internal ⋄ breaks." "3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4" 3/4)
+  (for "Inline lateral operator used with single-character function-referring operand."
+       "'*' {⍶,⍵} ' b c d'" "* b c d")
   (for "Operator composition of function within defined operator."
        "filter←{(⍺⍺¨⍵)/⍵} ⋄ {2|⍵} filter ⍳20" #(1 3 5 7 9 11 13 15 17 19))
   (for "Defined lateral operator with value passed as operand."
