@@ -105,7 +105,7 @@
                           (fn (if (not polyadic-args)
                                   fn (cons (butlast (first fn) 1)
                                            (rest fn))))
-                          (initial-expr (first (last (first (last this-item)))))
+                          ;; (initial-expr (first (last (first (last this-item)))))
                           (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :arg-syms)))
                           (this-closure-meta (second this-item))
                           (is-inline-operator (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇))))
@@ -166,6 +166,7 @@
           (values nil nil))))
 
 (defun process-operator (this-item properties process idiom space)
+  (declare (ignore idiom))
   (if (listp this-item)
       (if (and (eq :op (first this-item))
                (not (listp (first (last this-item))))
@@ -231,7 +232,7 @@
           ;; if the operator is represented by a symbol, it is a user-defined operator
           ;; and the appropriate variable name should be verified in the workspace
           (let* ((symbol-string (string this-item))
-                 (type-to-find (getf properties :valence))
+                 ;; (type-to-find (getf properties :valence))
                  (closure-meta (rest (getf (getf properties :special) :closure-meta)))
                  (lop-string (if (eq :lateral (getf properties :valence))
                                  symbol-string))
@@ -292,7 +293,7 @@
                                    stopped t))))
                    (if (and (listp item) (not (member (first item) '(:op :fn :axes))))
                        ;; if a closure is encountered, recurse to process it
-                       (multiple-value-bind (output properties remaining)
+                       (multiple-value-bind (output properties)
                            (funcall process item special-props)
                          (if (eq :array (first (getf properties :type)))
                              (setq items rest-items
@@ -456,13 +457,14 @@
                              (member :lateral (getf operator-props :type))
                              operator-form))
               ;; if the operand is a locally-assigned function, derive its symbol
-              (assigned-operand (if (and (listp operand-form)
-                                         (eql 'inws (first operand-form))
-                                         (member (second operand-form)
-                                                 (of-meta-hierarchy
-                                                  (rest (getf (getf properties :special) :closure-meta))
-                                                  :fn-syms)))
-                                    (list 'wrap-fn-ref operand-form))))
+              ;; (assigned-operand (if (and (listp operand-form)
+              ;;                            (eql 'inws (first operand-form))
+              ;;                            (member (second operand-form)
+              ;;                                    (of-meta-hierarchy
+              ;;                                     (rest (getf (getf properties :special) :closure-meta))
+              ;;                                     :fn-syms)))
+              ;;                       (list 'wrap-fn-ref operand-form)))
+	      )
           (if operator
               (if (eq :operator-self-reference operator-form)
                   (values `(a-comp :op ∇oself ,operand-form)
@@ -533,8 +535,7 @@
             ;; find the value either among the lexical variables or the dynamic variables
             (fn-content (if (not (and (characterp fn-element)
                                       (of-lexicons idiom fn-element :functions)))
-                            fn-element (build-call-form fn-element)))
-            (fn-sym (or-functional-character fn-element :fn)))
+                            fn-element (build-call-form fn-element))))
         (values (if (not symbol-axes)
                     `(let ((,assigned (a-call ,fn-content ,precedent ,qsym
                                               ,@(if function-axes `((list ,@(first function-axes)))))))
@@ -589,7 +590,7 @@
                     '(:type (:array :assigned)) items)))))
 
 (composer-pattern value-assignment-standard
-    (asop asop-props axes symbol symbol-props symbols symbols-props symbols-list preceding-type)
+    (asop asop-props axes symbol symbols symbols-props symbols-list preceding-type)
     ;; match a value assignment like a←1 2 3, part of an array expression
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (and (eq :array (first preceding-type))
@@ -786,12 +787,11 @@
      (if (eq :operator (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (let ((operator-symbol (intern (string symbol)))
-        (at-top-level (member :top-level (getf (first (last preceding-properties)) :special))))
-    (if asop (values `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
-                                 `(inws ,symbol))
-                            ,precedent)
-                     '(:type (:operator :assigned)) items))))
+  (if asop (values `(setf ,(if (member :top-level (getf (first (last preceding-properties)) :special))
+			       `(symbol-function (quote (inws ,symbol)))
+			       `(inws ,symbol))
+			  ,precedent)
+		   '(:type (:operator :assigned)) items)))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
     ;; "Match a branch-to statement like →1 or a branch point statement like 1→⎕."
@@ -881,8 +881,9 @@
                         center (if (characterp center)
                                    (if (of-lexicons idiom center :functions-dyadic)
                                        (build-call-form center))
-                                   (if (and (listp center) (eql 'function (first center)))
-                                       center (resolve-function center)))))
+                                   ;; (if (and (listp center) (eql 'function (first center)))
+                                   ;;     center (resolve-function center))
+				   (resolve-function center))))
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
             ;; functions are also valid as preceding functions, as with (1+-∘÷)
@@ -926,7 +927,7 @@
 
 (composer-pattern lateral-inline-composition
     (operator operator-props left-operand-axes left-operand left-operand-props left-value
-              left-value-props prior-items right-operand-axes preceding-type)
+              left-value-props prior-items preceding-type)
     ;; Match an inline lateral operator composition like +{⍺⍺ ⍵}5.
     ((setq preceding-type (getf (first preceding-properties) :type))
      (assign-element operator operator-props process-operator
@@ -958,11 +959,10 @@
       ;; get left axes from the left operand and right axes from the precedent's properties so the
       ;; functions can be properly curried if they have axes specified
       (let ((left-operand (insym left-operand))
-            (is-operand-character (and (characterp left-operand)
-                                       (member :array (getf left-operand-props :type))))
             ;; need to check whether the operand is a character, else in '*' {⍶,⍵} ' b c d'
             ;; the * will be read as the [* exponential] function
-            (omega (gensym)) (alpha (gensym)))
+            (is-operand-character (and (characterp left-operand)
+                                       (member :array (getf left-operand-props :type)))))
         (values (if (and (listp operator) (member :lateral (getf operator-props :type)))
                     `(a-call (a-comp :op ,operator ,(if (and (characterp left-operand)
                                                              (not is-operand-character))
@@ -974,8 +974,7 @@
                 '(:type (:array :evaluated)) items))))
 
 (composer-pattern pivotal-composition
-    (operator operator-props left-operand-axes left-operand left-operand-props left-value
-              left-value-props prior-items right-operand-axes preceding-type env-pops symbol-plain)
+    (operator operator-props left-operand-axes left-operand left-operand-props prior-items preceding-type env-pops symbol-plain)
     ;; Match a pivotal function composition like ×.+, part of a functional expression.
     ;; It may come after either a function or an array, since some operators take array operands.
     ((setq preceding-type (getf (first preceding-properties) :type))
@@ -1011,19 +1010,20 @@
              (right-operand-props (first preceding-properties))
              (right-operand-axes (getf (first preceding-properties) :axes))
              (left-operand (insym left-operand))
-             (assigned-right-operand
-              (if (and (listp right-operand) (eql 'inws (first right-operand))
-                       (member (second right-operand)
-                               (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
-                                                  :fn-syms)))
-                  (list 'wrap-fn-ref right-operand)))
-             (assigned-left-operand
-              (if (and (listp left-operand) (eql 'inws (first left-operand))
-                       (member (second left-operand)
-                               (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
-                                                  :fn-syms)))
-                  (list 'wrap-fn-ref left-operand)))
-             (omega (gensym)) (alpha (gensym)))
+             ;; (assigned-right-operand
+             ;;  (if (and (listp right-operand) (eql 'inws (first right-operand))
+             ;;           (member (second right-operand)
+             ;;                   (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
+             ;;                                      :fn-syms)))
+             ;;      (list 'wrap-fn-ref right-operand)))
+             ;; (assigned-left-operand
+             ;;  (if (and (listp left-operand) (eql 'inws (first left-operand))
+             ;;           (member (second left-operand)
+             ;;                   (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
+             ;;                                      :fn-syms)))
+             ;;      (list 'wrap-fn-ref left-operand)))
+             ;; (omega (gensym)) (alpha (gensym))
+	     )
         ;; TODO: make sure single-character values like '*' passed as operands don't get read as functions
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
@@ -1087,10 +1087,10 @@
                     (setq items prior-items value nil))
                 (if (and (not function-axes) (member :axes function-props))
                     (setq function-axes (getf function-props :axes))))))
-  (if is-function (let ((fn-sym (or-functional-character fn-element :fn))
-                        ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
-                        ;; as a self-reference by lambdas invoked through the (alambda) macro
-                        (fn-content (if (and (symbolp fn-element) (eql '∇ fn-element))
+  (if is-function (let ((fn-content (if (and (symbolp fn-element) (eql '∇ fn-element))
+					;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
+					;; as a self-reference by lambdas invoked through the (alambda) macro
+                        
                                         '#'∇self
                                         (if (or (functionp fn-element)
                                                 (and (symbolp fn-element)

@@ -17,7 +17,7 @@
                 '(:type (:function :implicit :sum-until-pattern))))
       (values nil nil tokens)))
 
-(composer-pattern get-last-pattern (comma comma-props rotate rotate-props disclose disclose-props value)
+(composer-pattern get-last-pattern (comma comma-props rotate rotate-props disclose disclose-props value value-props)
     ((assign-element comma comma-props process-function '(:glyph \,))
      (assign-element rotate rotate-props process-function '(:glyph ⌽))
      (if (not rotate) (assign-element rotate rotate-props process-function '(:glyph ⊖)))
@@ -31,7 +31,7 @@
                 '(:type (:function :implicit :get-last-pattern))))
       (values nil nil tokens)))
 
-(composer-pattern rank-pattern (shape1 shape1-props shape2 shape2-props value)
+(composer-pattern rank-pattern (shape1 shape1-props shape2 shape2-props value value-props)
     ((assign-element shape1 shape1-props process-function '(:glyph ⍴))
      (assign-element shape2 shape2-props process-function '(:glyph ⍴))
      (assign-element value value-props process-value)) ;; doesn't work if a left arg is present

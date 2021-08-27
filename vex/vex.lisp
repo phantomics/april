@@ -810,14 +810,16 @@
         (function (gensym)) (prec-spec (gensym)) (form-out (gensym)) (process (gensym))
         (form-properties (gensym)) (remaining (gensym))
         (args-list (list tokens-sym space-sym idiom-sym process-sym '&optional precedent-sym properties-sym
-                         preceding-properties-sym items-sym item-sym rest-items-sym)))
+                         preceding-properties-sym)))
     `(progn (defmacro ,(first macro-names) (,name ,var-names ,assignment-clauses &body ,generation)
               `(defun ,,name ,',args-list
-                 (declare (ignorable ,',precedent-sym ,',properties-sym ,',preceding-properties-sym))
+                 (declare (ignorable ,',space-sym ,',precedent-sym ,',properties-sym ,',preceding-properties-sym))
                  (symbol-macrolet ((,',item-sym (first ,',items-sym)) (,',rest-items-sym (rest ,',items-sym)))
+		   (declare (ignorable ,',item-sym ,',rest-items-sym))
                    (let* ((,',items-sym ,',tokens-sym)
                           (,',special-props-sym (getf (first ,',preceding-properties-sym) :special))
                           ,@(mapcar #'list ,var-names))
+		     (declare (ignorable ,',items-sym))
                      ,@,assignment-clauses
                      (if (not (member ,(intern (string-upcase ,name) "KEYWORD")
                                       (getf ,',special-props-sym :omit)))

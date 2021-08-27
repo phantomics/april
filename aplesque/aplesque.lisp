@@ -56,6 +56,7 @@
     `(let* ((,asym ,object)
             (,eltype (element-type ,asym))
             (,free-threads (get-free-threads)))
+       (declare (ignore ,eltype))
        (if (or (not lparallel:*kernel*)
                (= 0 ,free-threads)
                (sub-7-bit-integer-elements-p ,asym))
@@ -524,7 +525,7 @@
                                         (element-type (row-major-aref input 0))
                                         (if (= 0 (size input)) (element-type input)
                                             (assign-element-type (row-major-aref input 0)))))
-          (let* ((isize (size input)) (irank (rank input)) (itype (element-type input))
+          (let* ((isize (size input)) (irank (rank input))
                  (rdiff (- irank (length dimensions)))
                  (idims (make-array irank :element-type (if (= 0 isize) t (list 'integer 0 isize))
                                     :initial-contents (dims input))))
@@ -609,7 +610,6 @@
          (dims1 (dims a1)) (dims2 (dims a2))
          (max-rank (max rank1 rank2)) (uneven (/= rank1 rank2))
          (lower-rank (if uneven (if (< rank1 rank2) 0 1)))
-         (offset (if (and uneven (< rank1 rank2)) 1 (nth axis (dims a1))))
          (output-type (type-in-common (if (arrayp a1) (element-type a1) (assign-element-type a1))
                                       (if (arrayp a2) (element-type a2) (assign-element-type a2))))
          (ax1-len (if (and uneven (= 0 lower-rank)) 1 (or (nth axis dims1) 1)))
@@ -810,9 +810,11 @@
                                          (row-major-aref
                                           input (+ element-index (* oseg idiv-size)
                                                    (* section-size (if (not positive-indices)
-                                                                       dx (loop :for p :across positive-indices
-                                                                             :for px :from 0 :when (= p dx)
-                                                                             :return px)))))))))))
+                                                                       dx (or (loop :for p :across positive-indices
+										 :for px :from 0 :when (= p dx)
+										 :return px)
+									      1)))
+						   ))))))))
                        (ydotimes output (i (size input))
                          (let* ((iseg (floor i idiv-size))
                                 ;; input segment index
@@ -852,7 +854,6 @@
         (error "Size of partitions exceeds size of input array on axis ~w." axis))
 
     (let* ((input-offset 0) (intervals (reverse intervals))
-           (icoords (loop :for i :below (rank input) :collect 0))
            (last-indim (first (last (dims input))))
            (section-size (reduce #'* (loop :for d :in (dims input) :for dx :from 0
                                         :when (> dx axis) :collect d)))
@@ -916,7 +917,6 @@
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
-               (icoords (loop :for i :below (rank input) :collect 0))
                (section-size (reduce #'* (loop :for d :in (dims input) :for dx :from 0
                                             :when (> dx axis) :collect d)))
                (ofactors (get-dimensional-factors out-dims))
@@ -1597,7 +1597,7 @@
       input
       (if (= 0 (rank input))
           (aref input)
-          (let* ((each-type) (type) (output)
+          (let* ((type) (output)
                  (isize (size input)) (irank (rank input)) (total-size 0)
                  (input-vector (make-array (size input) :displaced-to input :element-type (element-type input)))
                  (each-interval (make-array (size input) :element-type 'fixnum))
@@ -1730,7 +1730,7 @@
           input (make-array nil :initial-element input))
       (let* ((irank (rank input)) (idims (dims input)) (last-dim)
              (axis (if axis axis (1- irank))) (axis-dim (nth axis idims))
-             (ocoords (loop :for i :below (1- irank) :collect 0))
+             ;; (ocoords (loop :for i :below (1- irank) :collect 0))
              (odims (loop :for dim :in idims :for dx :from 0 :when (not (= dx axis)) :collect dim))
              (input-factors (make-array irank :element-type 'fixnum))
              (output-factors (make-array (1- irank) :element-type 'fixnum))
@@ -1751,7 +1751,7 @@
           ;; containing output array is small
           (symbol-macrolet ((output-element (row-major-aref output o)))
             (dotimes (i (size (row-major-aref output o)))
-              (let ((iindex 0) (remaining o) (odix 0))
+              (let ((iindex 0) (remaining o))
                 (loop :for ofactor :across output-factors :for ix :from 0
                    :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                          (if (= ix axis)
@@ -1955,7 +1955,6 @@
                       (reverse (iota irank))))
          (odims (remove nil odims))
          ;; remove indices not being used for diagonal section from diagonal list
-         (diagonals (loop :for d :in diagonals :when (< 2 (length d)) :collect (rest d)))
          ;; the idims-reduced are a set of the original dimensions without dimensions being elided
          ;; for diagonal section, used to get the initial output array used for diagonal section
          (odims (or odims (reverse idims)))
@@ -1970,13 +1969,13 @@
     (if (or (not alpha) (= irank (length positions)))
         ;; handle regular permutation cases
         (xdotimes output (i (size output))
-          (let* ((index 0) (remaining i) (oindex 0))
+          (let* ((remaining i) (oindex 0))
             (loop :for ix :in indices :for od :across od-factors :for s :across s-factors
                :collect (multiple-value-bind (index remainder) (floor remaining od)
                           (incf oindex (* index s))
                           (setq remaining remainder)))
-            (multiple-value-bind (index remainder) (floor oindex (size omega))
-              (setf (row-major-aref output i) (row-major-aref omega oindex)))))
+            ;; (multiple-value-bind (index remainder) (floor oindex (size omega))
+	    (setf (row-major-aref output i) (row-major-aref omega oindex))))
         ;; handle diagonal array traversals
         (xdotimes output (i (size output))
           (let ((remaining i) (iindex 0))
@@ -2123,8 +2122,8 @@
          (out-factors (make-array wrank :element-type 'fixnum))
          (win-factors (make-array wrank :element-type 'fixnum))
          (output (make-array output-dims))
-         (ref-coords (loop :for d :below wrank :collect 0))
-         (acoords (loop :for d :below wrank :collect 0))
+         ;; (ref-coords (loop :for d :below wrank :collect 0))
+         ;; (acoords (loop :for d :below wrank :collect 0))
          (last-dim))
     
     ;; generate dimensional factors vector for window dimensions
