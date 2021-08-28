@@ -284,7 +284,7 @@
            (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
            (printout-sym (concatenate 'string symbol-string "-F"))
            (inline-sym (concatenate 'string symbol-string "-C"))
-           (elem (gensym)) (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
+           (options (gensym)) (input-string (gensym)) (body (gensym)) (args (gensym))
            (input-path (gensym)) (process (gensym)) (form (gensym)) (item (gensym)) (pathname (gensym))
            (ws-name (gensym)) (ws-fullname (gensym)))
       (multiple-value-bind (idiom-list assignment-form idiom-data)
@@ -575,8 +575,8 @@
                                (make-array 0 :element-type 'character)
                                (make-array (1- (length content)) :element-type 'character
                                            :displaced-to content)))))))
-             (=vex-closure (boundary-chars &optional transform-by
-                                           &key (disallow-linebreaks) (symbol-collector) (if-confirmed))
+             (=vex-closure (boundary-chars &key (transform-by) (disallow-linebreaks)
+					   (symbol-collector) (if-confirmed))
                (let* ((balance 1)
                       (char-index 0)
                       ;; disallow linebreak overriding opening and closing characters
@@ -623,6 +623,7 @@
                                             (lambda (string-content)
                                               (destructuring-bind (parsed remaining meta)
                                                   (parse string-content (=vex-string idiom))
+						(declare (ignore remaining))
                                                 (if symbol-collector (funcall symbol-collector meta))
                                                 parsed))))
                             (%any (?eq (aref boundary-chars 1))))
@@ -634,7 +635,7 @@
              (=vex-errant-closing-character (boundary-chars)
                (let ((errant-char) (matching-char)
                      (chars-count (/ (length boundary-chars) 2)))
-                 (=destructure (_ rest)
+                 (=destructure (_ _)
                      (=list (?satisfies (lambda (char)
                                           (loop :for i :across boundary-chars
                                              :for x :from 0 :to chars-count :when (char= char i)
@@ -684,9 +685,9 @@
                                         (of-lexicons idiom char :operators)))))))
           (=destructure (_ item _ break rest)
               (=list (%any (?blank-character))
-                     (%or (=vex-closure "()" nil :disallow-linebreaks "{}")
-                          (=vex-closure "[]" (handle-axes))
-                          (=vex-closure "{}" #'handle-function
+                     (%or (=vex-closure "()" :transform-by nil :disallow-linebreaks "{}")
+                          (=vex-closure "[]" :transform-by (handle-axes))
+                          (=vex-closure "{}" :transform-by #'handle-function
                                         :if-confirmed (lambda () (setq is-function-closure t)))
                           (=vex-errant-closing-character ")]}([{")
                           (=string #\' #\")
@@ -807,7 +808,7 @@
   (let ((name (gensym)) (var-names (gensym))
         (assignment-clauses (gensym)) (generation (gensym)) (out-form (gensym)) (out-props (gensym))
         (axis (gensym)) (subax (gensym)) (symbol (gensym)) (symbol-form (gensym)) (symbol-props (gensym))
-        (function (gensym)) (prec-spec (gensym)) (form-out (gensym)) (process (gensym))
+        (function (gensym)) (form-out (gensym)) (process (gensym))
         (form-properties (gensym)) (remaining (gensym))
         (args-list (list tokens-sym space-sym idiom-sym process-sym '&optional precedent-sym properties-sym
                          preceding-properties-sym)))
@@ -902,6 +903,7 @@ These are examples of the output of the three macro-builders above.
                (if (= 0 (length lines))
                    output (destructuring-bind (out remaining meta)
                               (parse lines (=vex-string idiom))
+			    (declare (ignore meta))
                             (let ((out (funcall (if print-tokens #'print #'identity)
                                                 (funcall (or (of-utilities idiom :lexer-postprocess)
                                                              (lambda (a b c) (declare (ignore b c)) a))

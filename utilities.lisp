@@ -252,13 +252,11 @@
                                    :displaced-index-offset 1 :element-type t))
           output))))
 
-(defmacro amb-ref (fn-glyph fn-monadic fn-dyadic &optional axes)
+(defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (flet ((wrap-curried-axes (form)
            (if (not axes) form `(λχ ,form ,@axes))))
     (let ((args (gensym)) (reduced-args (gensym))
-          (is-scalar-dyadic (eql 'scalar-function (first fn-dyadic)))
-          (fn-glyph (or fn-glyph :fn))
           (m-meta (if (member (first fn-monadic) '(scalar-function fn-meta))
                       (append (if (eql 'scalar-function (first fn-dyadic))
                                   '(:scalar-dyadic t))
@@ -329,7 +327,7 @@
       (let (;; (values (gensym "A"))
             (symbols (if (not (eql 'avector (first symbol)))
                          symbol (rest symbol))))
-        (labels ((process-symbols (sym-list values &optional path)
+        (labels ((process-symbols (sym-list values)
                    (let ((this-val (gensym)))
                      `(let ((,this-val ,values))
                         ,@(loop :for sym :in sym-list :for sx :from 0
@@ -765,7 +763,7 @@ It remains here as a standard against which to compare methods for composing APL
     ,function  ,@arguments))
 |#
 
-(defmacro ac-wrap (type glyph form)
+(defmacro ac-wrap (type form)
   "Wrap a function form in a function that calls it via (a-call). Used for specification of inverse scalar functions."
   (list (if (eq :m type) 'λω 'λωα)
         `(a-call ,form omega ,@(if (eq :d type) (list 'alpha)))))
@@ -795,7 +793,7 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
                                                                  *package-name-string*))
                                         :get-metadata)
-	           (error (c) nil))))
+	           (error () nil))))
     (funcall (if (not (and axes-present (getf fn-meta :scalar-dyadic)))
                  #'identity (lambda (form) `(scalar-function ,form)))
              (append (list 'apl-fn (intern (string glyph-char) *package-name-string*))
@@ -1557,7 +1555,7 @@ It remains here as a standard against which to compare methods for composing APL
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
                         :operators nil :operators-lateral nil :operators-pivotal nil
                         :operators-unitary nil)))
-    (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
+    (flet ((wrap-meta (type form metadata &optional is-not-ambivalent)
              (if (not metadata) form
                  (if (and (listp form) (eql 'scalar-function (first form)))
                      (funcall (if (not (and is-not-ambivalent (eql 'scalar-function (first form))))
@@ -1615,7 +1613,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                     #'identity (lambda (form)
                                                                  (wrap-implicit implicit-args
                                                                                 optional-implicit-args form)))
-                                                (wrap-meta glyph-sym :monadic (second implementation)
+                                                (wrap-meta :monadic (second implementation)
                                                            (rest (assoc 'monadic spec-meta)) t)))
                                          assignment-forms))
                                   (dyadic (incf fn-count)
@@ -1626,7 +1624,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                     #'identity (lambda (form)
                                                                  (wrap-implicit implicit-args
                                                                                 optional-implicit-args form)))
-                                                (wrap-meta glyph-sym :dyadic (second implementation)
+                                                (wrap-meta :dyadic (second implementation)
                                                            (rest (assoc 'dyadic spec-meta)) t)))
                                          assignment-forms))
                                   (ambivalent (incf fn-count 2)
@@ -1637,11 +1635,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                     #'identity (lambda (form)
                                                                  (wrap-implicit implicit-args
                                                                                 optional-implicit-args form)))
-                                                `(amb-ref ,glyph-sym
-                                                          ,(wrap-meta
-                                                            glyph-sym :monadic (second implementation)
+                                                `(amb-ref ,(wrap-meta
+                                                            :monadic (second implementation)
                                                             (rest (assoc 'monadic spec-meta)))
-                                                          ,(wrap-meta glyph-sym :dyadic (third implementation)
+                                                          ,(wrap-meta :dyadic (third implementation)
                                                                       (rest (assoc 'dyadic spec-meta))))))
                                          assignment-forms))
                                   (symbolic (incf fn-count)
@@ -1675,8 +1672,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                            'symbol-value 'symbol-function)
                                                       (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
                                                     assignment-forms)))))))
-        (values lexicons (print (list `(proclaim '(special ,@symbol-set))
-                                      (cons 'setf assignment-forms)))
+        (values lexicons (list `(proclaim '(special ,@symbol-set))
+			       (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count))))))
 
 (defmacro specify-demo (title params &rest sections)

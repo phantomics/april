@@ -881,8 +881,6 @@
                         center (if (characterp center)
                                    (if (of-lexicons idiom center :functions-dyadic)
                                        (build-call-form center))
-                                   ;; (if (and (listp center) (eql 'function (first center)))
-                                   ;;     center (resolve-function center))
 				   (resolve-function center))))
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
