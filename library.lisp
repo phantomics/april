@@ -201,30 +201,56 @@
                               (make-prototype-of (row-major-aref omega 0)))
           output))))
 
-(defun at-index (omega alpha axes index-origin &optional to-set)
+(defun at-index (index-origin axes &optional to-set)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
-  (if (not (arrayp omega))
-      (if (and (numberp alpha)
-               (= index-origin alpha))
-          omega (error "Invalid index."))
-      (multiple-value-bind (assignment-output assigned-array)
-          (choose omega (let ((coords (funcall (if (arrayp alpha) #'array-to-list #'list)
-                                               (apply-scalar #'- alpha index-origin)))
-                              ;; the inefficient array-to-list is used here in case of nested
-                              ;; alpha arguments like (⊂1 2 3)⌷...
-                              (axis (if axes (if (vectorp (first axes))
-                                                 (loop :for item :across (first axes)
-                                                    :collect (- item index-origin))
-                                                 (if (integerp (first axes))
-                                                     (list (- (first axes) index-origin)))))))
-                          (if (not axis)
-                              ;; pad coordinates with nil elements in the case of an elided reference
-                              (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
-                              (loop :for dim :below (rank omega)
-                                 :collect (if (member dim axis) (first coords))
-                                 :when (member dim axis) :do (setq coords (rest coords)))))
-                  :set to-set)
-        (or assigned-array assignment-output))))
+  (lambda (omega alpha)
+    (if (not (arrayp omega))
+	(if (and (numberp alpha)
+		 (= index-origin alpha))
+	    omega (error "Invalid index."))
+	(multiple-value-bind (assignment-output assigned-array)
+	    (choose omega (let ((coords (funcall (if (arrayp alpha) #'array-to-list #'list)
+						 (apply-scalar #'- alpha index-origin)))
+				;; the inefficient array-to-list is used here in case of nested
+				;; alpha arguments like (⊂1 2 3)⌷...
+				(axis (if axes (if (vectorp (first axes))
+						   (loop :for item :across (first axes)
+						      :collect (- item index-origin))
+						   (if (integerp (first axes))
+						       (list (- (first axes) index-origin)))))))
+			    (if (not axis)
+				;; pad coordinates with nil elements in the case of an elided reference
+				(append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
+				(loop :for dim :below (rank omega)
+				   :collect (if (member dim axis) (first coords))
+				   :when (member dim axis) :do (setq coords (rest coords)))))
+		    :set to-set)
+	  (or assigned-array assignment-output)))))
+
+;; (defun at-index (omega alpha axes index-origin &optional to-set)
+;;   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
+;;   (if (not (arrayp omega))
+;;       (if (and (numberp alpha)
+;;                (= index-origin alpha))
+;;           omega (error "Invalid index."))
+;;       (multiple-value-bind (assignment-output assigned-array)
+;;           (choose omega (let ((coords (funcall (if (arrayp alpha) #'array-to-list #'list)
+;;                                                (apply-scalar #'- alpha index-origin)))
+;;                               ;; the inefficient array-to-list is used here in case of nested
+;;                               ;; alpha arguments like (⊂1 2 3)⌷...
+;;                               (axis (if axes (if (vectorp (first axes))
+;;                                                  (loop :for item :across (first axes)
+;;                                                     :collect (- item index-origin))
+;;                                                  (if (integerp (first axes))
+;;                                                      (list (- (first axes) index-origin)))))))
+;;                           (if (not axis)
+;;                               ;; pad coordinates with nil elements in the case of an elided reference
+;;                               (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
+;;                               (loop :for dim :below (rank omega)
+;;                                  :collect (if (member dim axis) (first coords))
+;;                                  :when (member dim axis) :do (setq coords (rest coords)))))
+;;                   :set to-set)
+;;         (or assigned-array assignment-output))))
 
 (defun find-depth (omega)
   "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
@@ -304,14 +330,14 @@
                               :element-type (element-type omega)
                               :displaced-to (copy-nested-array omega))))))
 
-(defun ravel-array (index-origin)
+(defun ravel-array (index-origin axes)
   "Wrapper for aplesque [, ravel] function incorporating index origin from current workspace."
-  (lambda (omega &optional axes)
+  (lambda (omega)
     (ravel index-origin omega axes)))
 
-(defun catenate-arrays (index-origin)
+(defun catenate-arrays (index-origin axes)
   "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
-  (lambda (omega alpha &optional axes)
+  (lambda (omega alpha)
     (let ((axis (disclose-atom *first-axis-or-nil*)))
       (if (or (typep axis 'ratio)
               (and (floatp axis)
@@ -322,9 +348,9 @@
           (catenate alpha omega (or (if axis (floor axis))
                                     (max 0 (1- (max (rank alpha) (rank omega))))))))))
 
-(defun catenate-on-first (index-origin)
+(defun catenate-on-first (index-origin axes)
   "Wrapper for [⍪ catenate first]; distinct from (catenate-arrays) because it does not provide the laminate functionality."
-  (lambda (omega alpha &optional axes)
+  (lambda (omega alpha)
     (if (and (vectorp alpha) (vectorp omega))
         (if (and *first-axis-or-nil* (< 0 *first-axis-or-nil*))
             (error (concatenate 'string "Specified axis is greater than 1, vectors"
@@ -336,18 +362,21 @@
                 (integerp (first axes)))
             (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
-(defun mix-array (index-origin)
+(defun mix-array (index-origin axes)
   "Wrapper for (aplesque:mix) used for [↑ mix]."
-  (lambda (omega &optional axes)
+  (lambda (omega) ; &optional axes)
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
                 omega :populator (lambda (item)
                                    (let ((populator (build-populator item)))
                                      (if populator (funcall populator)))))))
 
-(defun section-array (index-origin &optional inverse)
+(defun wrap-split-array (index-origin axes)
+  (lambda (omega) (split-array omega *last-axis*)))
+
+(defun section-array (index-origin &optional inverse axes)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
-  (lambda (omega alpha &optional axes)
+  (lambda (omega alpha) ; &optional axes)
     (let* ((alpha (if (arrayp alpha)
                       alpha (vector alpha)))
            (output (section omega
@@ -375,6 +404,19 @@
                               (make-prototype-of (row-major-aref omega 0)))
           output))))
 
+(defun enclose-array (index-origin axes)
+  (lambda (omega &optional alpha)
+    (if alpha (partitioned-enclose alpha omega *last-axis*)
+	(if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
+					      (if (arrayp (first axes))
+						  (first axes)
+						  (vector (first axes)))))
+	    (enclose omega)))))
+
+(defun partition-array-wrap (index-origin axes)
+  (lambda (omega alpha)
+    (partition-array alpha omega *last-axis*)))
+
 (defun pick (index-origin)
   "Fetch an array element, within successively nested arrays for each element of the left argument."
   (lambda (omega alpha)
@@ -398,17 +440,6 @@
                                (disclose (pick-point (aref point 0) input))))))
       ;; TODO: swap out the vector-based point for an array-based point
       (pick-point alpha omega))))
-
-(defun expand-array (degrees input axis &key (compress-mode))
-  "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
-  (let ((output (expand degrees input axis :compress-mode compress-mode
-                        :populator (build-populator input))))
-    (if (and (= 0 (size output)) (arrayp input) (not (= 0 (size input)))
-             (arrayp (row-major-aref input 0)))
-        (array-setting-meta output :empty-array-prototype
-                            (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
-                                                        (row-major-aref input 0))))
-        output)))
 
 (defun array-intersection (omega alpha)
   "Return a vector of values common to two arrays. Used to implement [∩ intersection]."
@@ -477,6 +508,13 @@
                               uniques))))
     output))
 
+(defun rotate-array (first-axis index-origin axes)
+  (lambda (omega &optional alpha)
+    (if first-axis (if alpha (turn omega *first-axis* alpha)
+		       (turn omega *first-axis*))
+	(if alpha (turn omega *last-axis* alpha)
+	    (turn omega *last-axis*)))))
+
 (defun permute-array (index-origin)
   "Wraps (aops:permute) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
   (lambda (omega &optional alpha)
@@ -490,6 +528,33 @@
                                               :do (setf (aref alpha ax) (- a index-origin))))
                                        (error "Left argument to ⍉ must be a scalar or vector."))))
                      (permute-axes omega alpha)))))
+
+;; (defun expand-array (degrees input axis &key (compress-mode))
+;;   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
+;;   (let ((output (expand degrees input axis :compress-mode compress-mode
+;;                         :populator (build-populator input))))
+;;     (if (and (= 0 (size output)) (arrayp input) (not (= 0 (size input)))
+;;              (arrayp (row-major-aref input 0)))
+;;         (array-setting-meta output :empty-array-prototype
+;;                             (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
+;;                                                         (row-major-aref input 0))))
+;;         output)))
+
+(defun expand-array (first-axis compress-mode index-origin axes)
+  "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
+  (lambda (omega alpha)
+    ;; (print (list :ax axes))
+    (let* ((axis (if (first axes) (- (first axes) index-origin)
+		     (if first-axis *first-axis* *last-axis*)))
+	   (output (expand alpha omega axis :compress-mode compress-mode
+			   :populator (build-populator omega))))
+      ;; (print (list :oo alpha omega output))
+      (if (and (= 0 (size output)) (arrayp omega) (not (= 0 (size omega)))
+	       (arrayp (row-major-aref omega 0)))
+	  (array-setting-meta output :empty-array-prototype
+			      (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
+							  (row-major-aref omega 0))))
+	  output))))
 
 (defun matrix-inverse (omega)
   "Invert a matrix. Used to implement monadic [⌹ matrix inverse]."

@@ -798,7 +798,11 @@ It remains here as a standard against which to compare methods for composing APL
                  #'identity (lambda (form) `(scalar-function ,form)))
              (append (list 'apl-fn (intern (string glyph-char) *package-name-string*))
                      (getf fn-meta :implicit-args)
-                     (if axes (list :axes axes))))))
+		     (if (and axes-present (getf fn-meta :axes))
+			 (list ;; (getf fn-meta :axes)
+			       (cons 'list (first axes-present))))
+                     (if axes (list :axes axes))
+		     ))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
@@ -1567,12 +1571,17 @@ It remains here as a standard against which to compare methods for composing APL
                                                           ,@(if (eq :dyadic type) `((second ,args)))))))
                               (append form metadata))
                      `(fn-meta ,form ,@metadata))))
-           (wrap-implicit (implicit-args optional-implicit-args form)
-             `(lambda ,(cons (first implicit-args) (cons '&optional (append (rest implicit-args)
-                                                                     optional-implicit-args)))
-                (if (eq :get-metadata ,(first implicit-args))
-                    (list :implicit-args (quote ,implicit-args))
-                    ,form))))
+           (wrap-implicit (implicit-args optional-implicit-args primary-meta form)
+	     (let ((axis-arg (getf primary-meta :axes)))
+	       (if (not (or implicit-args optional-implicit-args axis-arg))
+		   form `(lambda ,(cons (first implicit-args)
+					(cons '&optional (append (rest implicit-args)
+								 (if axis-arg (list axis-arg))
+								 optional-implicit-args)))
+			   (if (eq :get-metadata ,(first implicit-args))
+			       ;; (list :implicit-args (quote ,implicit-args))
+			       (quote ,primary-meta)
+			       ,form))))))
       (macrolet ((push-char-and-aliases (&rest lexicons)
                    `(progn ,@(loop :for lexicon :in lexicons
                                    :collect `(push glyph-char (getf lexicons ,lexicon)))
@@ -1591,6 +1600,7 @@ It remains here as a standard against which to compare methods for composing APL
                                      (spec-meta (rest (assoc 'meta rest)))
                                      (primary-metadata (rest (assoc 'primary spec-meta)))
                                      (implicit-args (getf primary-metadata :implicit-args))
+				     (has-axes (getf primary-metadata :axes))
                                      (optional-implicit-args (getf primary-metadata :optional-implicit-args))
                                      (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
                                                                 (if (eql 'operators spec-type) "OP" "FN")
@@ -1609,10 +1619,10 @@ It remains here as a standard against which to compare methods for composing APL
                                    (push-char-and-aliases :functions :functions-monadic)
                                    (push (setq assigned-form
                                                (funcall
-                                                (if (not implicit-args)
-                                                    #'identity (lambda (form)
-                                                                 (wrap-implicit implicit-args
-                                                                                optional-implicit-args form)))
+                                                (lambda (form)
+						  (wrap-implicit implicit-args
+								 optional-implicit-args
+								 primary-metadata form))
                                                 (wrap-meta :monadic (second implementation)
                                                            (rest (assoc 'monadic spec-meta)) t)))
                                          assignment-forms))
@@ -1620,10 +1630,10 @@ It remains here as a standard against which to compare methods for composing APL
                                    (push-char-and-aliases :functions :functions-dyadic)
                                    (push (setq assigned-form
                                                (funcall
-                                                (if (not implicit-args)
-                                                    #'identity (lambda (form)
-                                                                 (wrap-implicit implicit-args
-                                                                                optional-implicit-args form)))
+						(lambda (form)
+						  (wrap-implicit implicit-args
+								 optional-implicit-args
+								 primary-metadata form))
                                                 (wrap-meta :dyadic (second implementation)
                                                            (rest (assoc 'dyadic spec-meta)) t)))
                                          assignment-forms))
@@ -1631,10 +1641,10 @@ It remains here as a standard against which to compare methods for composing APL
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
                                    (push (setq assigned-form
                                                (funcall
-                                                (if (not implicit-args)
-                                                    #'identity (lambda (form)
-                                                                 (wrap-implicit implicit-args
-                                                                                optional-implicit-args form)))
+                                                (lambda (form)
+						  (wrap-implicit implicit-args
+								 optional-implicit-args
+								 primary-metadata form))
                                                 `(amb-ref ,(wrap-meta
                                                             :monadic (second implementation)
                                                             (rest (assoc 'monadic spec-meta)))
@@ -1672,8 +1682,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                            'symbol-value 'symbol-function)
                                                       (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
                                                     assignment-forms)))))))
-        (values lexicons (list `(proclaim '(special ,@symbol-set))
-			       (cons 'setf assignment-forms))
+        (values lexicons (print (list `(proclaim '(special ,@symbol-set))
+				      (cons 'setf assignment-forms)))
                 (list :fn-count fn-count :op-count op-count))))))
 
 (defmacro specify-demo (title params &rest sections)

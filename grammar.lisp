@@ -1107,8 +1107,10 @@
                                                                (build-call-form fn-element nil function-axes))
                                                            (or (of-lexicons idiom fn-element :functions)
                                                                fn-element))))))
-                    (values `(a-call ,fn-content ,precedent ,value
-                                     ,@(if function-axes `((list ,@(first function-axes)))))
+                    (values `(a-call ,fn-content ,precedent ;; ,value
+				     ,@(if value (list value))
+                                     ;; ,@(if function-axes `((list ,@(first function-axes))))
+				     )
                             '(:type (:array :evaluated)) items))))
 
 (defvar *composer-following-patterns*)
