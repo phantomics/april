@@ -449,7 +449,7 @@
                                         'inwsd 'inws)
                                     symbol-referenced)
                          ,(if (not (characterp operand-form))
-                              operand-form (build-call-form operand-form operand-axes))
+                              operand-form (build-call-form operand-form nil operand-axes))
                          ,@(if operator-axes `((list ,@(first operator-axes)))))
                 '(:type (:function :operator-composed :lateral))
                 items)
@@ -473,12 +473,12 @@
                   (values (if (listp operator-form)
                               `(a-comp :op ,operator-form
                                        ,(if (not (characterp operand-form))
-                                            operand-form (build-call-form operand-form operand-axes)))
+                                            operand-form (build-call-form operand-form nil operand-axes)))
                               (let ((operand (if (eql '∇ operand-form)
                                                  '#'∇self
                                                  (if (and (characterp operand-form)
                                                           (of-lexicons idiom operand-form :functions))
-                                                     (build-call-form operand-form operand-axes)
+                                                     (build-call-form operand-form nil operand-axes)
                                                      operand-form))))
                                 (cons 'a-comp
                                       (cons (intern (string-upcase operator) *package-name-string*)
@@ -1044,20 +1044,20 @@
                                     (if (not (and (characterp left-operand)
                                                   (not (member :array (getf left-operand-props :type)))
                                                   (of-lexicons idiom left-operand :functions)))
-                                        left-operand (build-call-form left-operand left-operand-axes))))
+                                        left-operand (build-call-form left-operand nil left-operand-axes))))
                           (right (if (eql '∇ right-operand)
                                      '#'∇self
                                      (if (not (and (characterp right-operand)
                                                    (not (member :array (getf right-operand-props :type)))
                                                    (of-lexicons idiom right-operand :functions)))
-                                         right-operand (build-call-form right-operand right-operand-axes)))))
+                                         right-operand (build-call-form right-operand nil right-operand-axes)))))
                       (cons 'a-comp (cons (intern (string-upcase operator) *package-name-string*)
                                           (funcall (symbol-function
                                                     (intern (format nil "APRIL-LEX-OP-~a" operator)
                                                             *package-name-string*))
                                                    right left)))))
                 '(:type (:function :operator-composed :pivotal))
-                items))))
+                items)))) ;; (⍳3)⌽[1]¨⊂2 3 4⍴⍳9
 
 (composer-pattern operation
     ;; Match an operation on values like 1+1 2 3, ⍳9 or +/⍳5; these operations are the basis of APL.
