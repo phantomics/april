@@ -798,7 +798,8 @@ It remains here as a standard against which to compare methods for composing APL
                  #'identity (lambda (form) `(scalar-function ,form)))
              (append (list 'apl-fn (intern (string glyph-char) *package-name-string*))
                      (getf fn-meta :implicit-args)
-		     (if (and axes-present (getf fn-meta :axes))
+		     (if (and axes-present (or (getf fn-meta :axes)
+					       (getf fn-meta :scalar-dyadic)))
 			 (list ;; (getf fn-meta :axes)
 			       (cons 'list (first axes-present))))
                      (if axes (list :axes axes))
@@ -864,6 +865,16 @@ It remains here as a standard against which to compare methods for composing APL
                                    (third clauses))
                                (make-array nil)))))))
       (build-clauses each-clause))))
+
+;; (defmacro scalar-function (function &rest meta)
+;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
+;;   (let ((args (gensym)))
+;;     `(lambda (&rest ,args)
+;;        (if (eq :get-metadata (first ,args))
+;;            ,(append '(list :scalar t) meta)
+;;            (apply ,(if (not (symbolp function))
+;;                        function `(function ,function))
+;;                   ,args)))))
 
 (defmacro scalar-function (function &rest meta)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."

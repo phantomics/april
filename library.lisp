@@ -767,7 +767,10 @@
                                        (atin-aliased fn-symbol))
                                    ;; assigning to a [⌷ at index] form is an just an alternate version
                                    ;; of assigning to axes, like x[1;3]←5
-                                   (progn (setf (second form) (append (second form) (list value-placeholder))
+                                   (progn (setf (second form) (append (second form)
+								      (if (= 3 (length (second form)))
+									  (list nil))
+								      (list value-placeholder))
                                                 set-form (third form))
                                           form)
                                    ;; set the :modify-input parameter so the array is changed in place

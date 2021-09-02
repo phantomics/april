@@ -774,8 +774,9 @@
                              (if (of-lexicons idiom precedent :functions)
                                  `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
                                              `(inws ,symbol))
-                                        ,(build-call-form precedent (getf (first preceding-properties)
-                                                                          :axes)))))
+                                        ,(build-call-form precedent nil
+							  (getf (first preceding-properties)
+								:axes)))))
                          `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                                      `(inws ,symbol))
                                 ,precedent)))
@@ -1057,7 +1058,7 @@
                                                             *package-name-string*))
                                                    right left)))))
                 '(:type (:function :operator-composed :pivotal))
-                items)))) ;; (⍳3)⌽[1]¨⊂2 3 4⍴⍳9
+                items))))
 
 (composer-pattern operation
     ;; Match an operation on values like 1+1 2 3, ⍳9 or +/⍳5; these operations are the basis of APL.
