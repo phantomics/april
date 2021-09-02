@@ -227,31 +227,6 @@
 		    :set to-set)
 	  (or assigned-array assignment-output)))))
 
-;; (defun at-index (omega alpha axes index-origin &optional to-set)
-;;   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
-;;   (if (not (arrayp omega))
-;;       (if (and (numberp alpha)
-;;                (= index-origin alpha))
-;;           omega (error "Invalid index."))
-;;       (multiple-value-bind (assignment-output assigned-array)
-;;           (choose omega (let ((coords (funcall (if (arrayp alpha) #'array-to-list #'list)
-;;                                                (apply-scalar #'- alpha index-origin)))
-;;                               ;; the inefficient array-to-list is used here in case of nested
-;;                               ;; alpha arguments like (⊂1 2 3)⌷...
-;;                               (axis (if axes (if (vectorp (first axes))
-;;                                                  (loop :for item :across (first axes)
-;;                                                     :collect (- item index-origin))
-;;                                                  (if (integerp (first axes))
-;;                                                      (list (- (first axes) index-origin)))))))
-;;                           (if (not axis)
-;;                               ;; pad coordinates with nil elements in the case of an elided reference
-;;                               (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
-;;                               (loop :for dim :below (rank omega)
-;;                                  :collect (if (member dim axis) (first coords))
-;;                                  :when (member dim axis) :do (setq coords (rest coords)))))
-;;                   :set to-set)
-;;         (or assigned-array assignment-output))))
-
 (defun find-depth (omega)
   "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
   (if (not (arrayp omega))
@@ -529,26 +504,13 @@
                                        (error "Left argument to ⍉ must be a scalar or vector."))))
                      (permute-axes omega alpha)))))
 
-;; (defun expand-array (degrees input axis &key (compress-mode))
-;;   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
-;;   (let ((output (expand degrees input axis :compress-mode compress-mode
-;;                         :populator (build-populator input))))
-;;     (if (and (= 0 (size output)) (arrayp input) (not (= 0 (size input)))
-;;              (arrayp (row-major-aref input 0)))
-;;         (array-setting-meta output :empty-array-prototype
-;;                             (make-prototype-of (funcall (if (= 0 (rank input)) #'identity #'aref)
-;;                                                         (row-major-aref input 0))))
-;;         output)))
-
 (defun expand-array (first-axis compress-mode index-origin axes)
   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
   (lambda (omega alpha)
-    ;; (print (list :ax axes))
     (let* ((axis (if (first axes) (- (first axes) index-origin)
 		     (if first-axis *first-axis* *last-axis*)))
 	   (output (expand alpha omega axis :compress-mode compress-mode
 			   :populator (build-populator omega))))
-      ;; (print (list :oo alpha omega output))
       (if (and (= 0 (size output)) (arrayp omega) (not (= 0 (size omega)))
 	       (arrayp (row-major-aref omega 0)))
 	  (array-setting-meta output :empty-array-prototype
@@ -847,9 +809,8 @@
 
 (defun operate-scanning (function axis index-origin &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
-  (lambda (omega &optional unused)
+  (lambda (omega)
     ;; second argument for cases where a nil argument is passed in place of a right argument
-    (declare (ignore unused))
     (if (eq :get-metadata omega)
         (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
                          (operate-scanning inverse-function axis index-origin last-axis t)))
@@ -1224,8 +1185,7 @@
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-  (lambda (omega &optional unused)
-    (declare (ignore unused)) ;; unused argument for same purpose as with (operate-scanning)
+  (lambda (omega)
     (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
                                    :collect (if (= i 0) index nil))))
       (if (not (or (and (< 2 (rank right-value))

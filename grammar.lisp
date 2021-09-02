@@ -455,16 +455,7 @@
                 items)
         (let ((operator (and (member :operator (getf operator-props :type))
                              (member :lateral (getf operator-props :type))
-                             operator-form))
-              ;; if the operand is a locally-assigned function, derive its symbol
-              ;; (assigned-operand (if (and (listp operand-form)
-              ;;                            (eql 'inws (first operand-form))
-              ;;                            (member (second operand-form)
-              ;;                                    (of-meta-hierarchy
-              ;;                                     (rest (getf (getf properties :special) :closure-meta))
-              ;;                                     :fn-syms)))
-              ;;                       (list 'wrap-fn-ref operand-form)))
-	      )
+                             operator-form)))
           (if operator
               (if (eq :operator-self-reference operator-form)
                   (values `(a-comp :op ∇oself ,operand-form)
@@ -1008,21 +999,7 @@
       (let* ((right-operand (insym precedent))
              (right-operand-props (first preceding-properties))
              (right-operand-axes (getf (first preceding-properties) :axes))
-             (left-operand (insym left-operand))
-             ;; (assigned-right-operand
-             ;;  (if (and (listp right-operand) (eql 'inws (first right-operand))
-             ;;           (member (second right-operand)
-             ;;                   (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
-             ;;                                      :fn-syms)))
-             ;;      (list 'wrap-fn-ref right-operand)))
-             ;; (assigned-left-operand
-             ;;  (if (and (listp left-operand) (eql 'inws (first left-operand))
-             ;;           (member (second left-operand)
-             ;;                   (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
-             ;;                                      :fn-syms)))
-             ;;      (list 'wrap-fn-ref left-operand)))
-             ;; (omega (gensym)) (alpha (gensym))
-	     )
+             (left-operand (insym left-operand)))
         ;; TODO: make sure single-character values like '*' passed as operands don't get read as functions
         (values (if (or (symbolp operator) (and (listp operator)
                                                 (member :pivotal (getf operator-props :type))))
@@ -1108,10 +1085,7 @@
                                                                (build-call-form fn-element nil function-axes))
                                                            (or (of-lexicons idiom fn-element :functions)
                                                                fn-element))))))
-                    (values `(a-call ,fn-content ,precedent ;; ,value
-				     ,@(if value (list value))
-                                     ;; ,@(if function-axes `((list ,@(first function-axes))))
-				     )
+                    (values `(a-call ,fn-content ,precedent ,@(if value (list value)))
                             '(:type (:array :evaluated)) items))))
 
 (defvar *composer-following-patterns*)
