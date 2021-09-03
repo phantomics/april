@@ -1467,9 +1467,9 @@
   (for "Monadic operation upon nested vectors." "-(1 2 3)(4 5 6)" #(#(-1 -2 -3) #(-4 -5 -6)))
   (for "Dyadic operation upon nested vectors."
        "((1 2 3)(4 5 6))×(7 8 9)(10 11 12)" #(#(7 16 27) #(40 55 72)))
-  ;; (for "Scalar operation with axes on arrays of differing ranks over zero."
-  ;;      "1 2 3+[1]3 4⍴⍳9" #2A((2 3 4 5) (7 8 9 10) (12 4 5 6)))
-  ;; (for "As above on the second axis." "1 2 3 4+[2]3 4⍴⍳9" #2A((2 4 6 8) (6 8 10 12) (10 3 5 7)))
+  (for "Scalar operation with axes on arrays of differing ranks over zero."
+       "1 2 3+[1]3 4⍴⍳9" #2A((2 3 4 5) (7 8 9 10) (12 4 5 6)))
+  (for "As above on the second axis." "1 2 3 4+[2]3 4⍴⍳9" #2A((2 4 6 8) (6 8 10 12) (10 3 5 7)))
   (for "Arithmetic with scalar and high-rank unitary array." "3+1 1 1 1⍴4" #4A((((7)))))
   (for "Boolean operation with vector of left arguments and enclosed vector on the right."
        "3 4=⊂3 4 5" #(#(1 0 0) #(0 1 0)))
