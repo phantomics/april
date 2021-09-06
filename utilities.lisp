@@ -257,14 +257,10 @@
   (flet ((wrap-curried-axes (form)
            (if (not axes) form `(λχ ,form ,@axes))))
     (let ((args (gensym)) (reduced-args (gensym))
-          (m-meta (if (member (first fn-monadic) '(scalar-function fn-meta))
-                      (append (if (eql 'scalar-function (first fn-dyadic))
-                                  '(:scalar-dyadic t))
-                              (cddr fn-monadic))))
-          (d-meta (if (eql 'scalar-function (first fn-dyadic))
-                      (append '(:scalar-dyadic t) (cddr fn-dyadic))
-                      (if (eql 'fn-meta (first fn-dyadic))
-                          (cddr fn-dyadic)))))
+          (m-meta (if (eql 'fn-meta (first fn-monadic))
+                      (cddr fn-monadic)))
+          (d-meta (if (member (first fn-dyadic) '(fn-meta scalar-function))
+                      (cddr fn-dyadic))))
       `(lambda (&rest ,args)
          (if (eq :get-metadata (first ,args))
              (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
@@ -752,7 +748,7 @@
                          (if (and scalar-fn (is-boolean function))
                              '(nil t))))))))
 
-#|
+#| ⍴+.×⌿?2 30 30⍴1e10
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
 It remains here as a standard against which to compare methods for composing APL functions.
 
@@ -771,89 +767,55 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
   (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*)))
-    (if initial-args
-        (if t ; (member :axes initial-args)
-            ;; (let* ((ax-index)
-            ;;        (non-axis-args
-            ;;          (loop :for arg :in initial-args :for ix :from 0
-            ;;                :when (eq :axes arg) :do (setq ax-index ix)
-            ;;                  :while (not ax-index) :collect arg))
-            ;;        ;; (axes (cons 'list (loop :for ax :in (first (nthcdr (1+ ax-index) initial-args))
-            ;;        ;;                         :collect (cons 'list ax))))
-            ;;        (axes (cons 'list (caar (nthcdr (1+ ax-index) initial-args)))))
-            ;;   `(lambda (omega &optional alpha)
-            ;;      (if alpha (a-call (apl-fn ,glyph ,@non-axis-args) omega alpha
-            ;;                          ,axes)
-            ;;          (a-call (apl-fn ,glyph ,@non-axis-args) omega nil
-            ;;                  ,axes))))
-            (cons symbol initial-args))
+    (if initial-args (cons symbol initial-args)
         (list 'function symbol))))
 
 (defmacro apl-fn-s (glyph &rest initial-args)
   "Wrap a glyph referencing a scalar lexical function, with axes handled appropriately and defaulting to the (apl-fn) handling of ."
   (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*))
 	(args (gensym))
-	;; (function (if (or (not (listp function))
-	;; 		  (not (eql 'apl-fn (first function)))
-	;; 		  (>= 2 (length function)))
-	;; 	      function (list (first function) (second function))))
-	(axes (first initial-args)))
-      (if axes
-	  `(lambda (&rest ,args)
-	     ;; (print (list :ax (quote ,axes) (quote ,function)))
-	     (if (eq :get-metadata (first ,args))
-		 ,(append '(list :scalar t)) ;; meta)
-		 (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
-			       (first ,args) (second ,args)
-			       ,@(if axes (list axes)))))
-	  (list 'apl-fn symbol))))
+	(axes (if (listp (first initial-args))
+		  (first initial-args))))
+    (if axes `(lambda (&rest ,args)
+		(if (eq :get-metadata (first ,args))
+		    ,(append '(list :scalar t))
+		    (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
+				  (first ,args) (second ,args)
+				  ,@(if axes (list axes)))))
+	(cons 'apl-fn (cons glyph initial-args)))))
 
-(defmacro scalar-function (function &rest meta)
-  "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
-  (let ((args (gensym))
-	(function (if (or (not (listp function))
-			  (not (eql 'apl-fn (first function)))
-			  (>= 2 (length function)))
-		      function (list (first function) (second function))))
-	(axes (and (listp function) (eql 'apl-fn (first function))
-		   (third function))))
-    `(lambda (&rest ,args)
-       ;; (print (list :ax (quote ,axes) (quote ,function)))
-       (if (eq :get-metadata (first ,args))
-           ,(append '(list :scalar t) meta)
-           (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-			 (first ,args) (second ,args)
-			 ,@(if axes (list axes)))))))
+;; (defmacro scalar-function (function &rest meta)
+;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
+;;   (let ((args (gensym))
+;; 	(function (if (or (not (listp function))
+;; 			  (not (eql 'apl-fn (first function)))
+;; 			  (>= 2 (length function)))
+;; 		      function (list (first function) (second function))))
+;; 	(axes (and (listp function) (eql 'apl-fn (first function))
+;; 		   (third function))))
+;;     `(lambda (&rest ,args)
+;;        ;; (print (list :ax (quote ,axes) (quote ,function)))
+;;        (if (eq :get-metadata (first ,args))
+;;            ,(append '(list :scalar t) meta)
+;;            (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
+;; 			 (first ,args) (second ,args)
+;; 			 ,@(if axes (list axes)))))))
 
-(defun build-call-form (glyph-char &optional axes axes-present)
+(defun build-call-form (glyph-char &optional args axes)
   (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
 								  *package-name-string*))
 					 :get-metadata)
 		    (error () nil)))
-	 (is-scalar (and axes-present (getf fn-meta :scalar-dyadic))))
+	 (is-scalar (of-lexicons *april-idiom* glyph-char
+				 (if (eq :dyadic args) :functions-scalar-dyadic
+				     :functions-scalar-monadic))))
     (append (list (if is-scalar 'apl-fn-s 'apl-fn)
 		  (intern (string glyph-char) *package-name-string*))
 	    (getf fn-meta :implicit-args)
-	    (if (and axes-present (or (getf fn-meta :axes)
-				      (getf fn-meta :scalar-dyadic)))
-		(list (if is-scalar `(- ,(caar axes-present) index-origin)
-			  (cons 'list (first axes-present)))))
-	    (if axes (list :axes axes)))))
-
-;; (defun build-call-form (glyph-char &optional axes axes-present)
-;;   (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
-;; 								  *package-name-string*))
-;; 					 :get-metadata)
-;; 		    (error () nil)))
-;; 	 (is-scalar (and axes-present (getf fn-meta :scalar-dyadic))))
-;;     (funcall (if (not is-scalar) #'identity (lambda (form) `(scalar-function ,form)))
-;;              (append (list 'apl-fn (intern (string glyph-char) *package-name-string*))
-;;                      (getf fn-meta :implicit-args)
-;; 		     (if (and axes-present (or (getf fn-meta :axes)
-;; 					       (getf fn-meta :scalar-dyadic)))
-;; 			 (list (if is-scalar `(- ,(caar axes-present) index-origin)
-;; 				   (cons 'list (first axes-present)))))
-;;                      (if axes (list :axes axes))))))
+	    (if (and axes (or (getf fn-meta :axes)
+			      (eq :dyadic args)))
+		(list (if is-scalar `(- ,(caar axes) index-origin)
+			  (cons 'list (first axes))))))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
@@ -926,22 +888,22 @@ It remains here as a standard against which to compare methods for composing APL
 ;;                        function `(function ,function))
 ;;                   ,args)))))
 
-(defmacro scalar-function (function &rest meta)
-  "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
-  (let ((args (gensym))
-	(function (if (or (not (listp function))
-			  (not (eql 'apl-fn (first function)))
-			  (>= 2 (length function)))
-		      function (list (first function) (second function))))
-	(axes (and (listp function) (eql 'apl-fn (first function))
-		   (third function))))
-    `(lambda (&rest ,args)
-       ;; (print (list :ax (quote ,axes) (quote ,function)))
-       (if (eq :get-metadata (first ,args))
-           ,(append '(list :scalar t) meta)
-           (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-			 (first ,args) (second ,args)
-			 ,@(if axes (list axes)))))))
+;; (defmacro scalar-function (function &rest meta)
+;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
+;;   (let ((args (gensym))
+;; 	(function (if (or (not (listp function))
+;; 			  (not (eql 'apl-fn (first function)))
+;; 			  (>= 2 (length function)))
+;; 		      function (list (first function) (second function))))
+;; 	(axes (and (listp function) (eql 'apl-fn (first function))
+;; 		   (third function))))
+;;     `(lambda (&rest ,args)
+;;        ;; (print (list :ax (quote ,axes) (quote ,function)))
+;;        (if (eq :get-metadata (first ,args))
+;;            ,(append '(list :scalar t) meta)
+;;            (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
+;; 			 (first ,args) (second ,args)
+;; 			 ,@(if axes (list axes)))))))
 
 (defun validate-arg-unitary (value)
   "Verify that a form like (vector 5) represents a unitary value."
@@ -1625,6 +1587,7 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((assignment-forms) (symbol-set)
         (fn-count 0) (op-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
+			:functions-scalar-monadic nil :functions-scalar-dyadic nil
                         :operators nil :operators-lateral nil :operators-pivotal nil
                         :operators-unitary nil)))
     (flet ((wrap-meta (type form metadata &optional is-not-ambivalent)
@@ -1674,6 +1637,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                                 (if (eql 'operators spec-type) "OP" "FN")
                                                                 glyph-sym)))
                                      (assigned-form))
+				(print (list :impl implementation))
                                 (push fn-symbol symbol-set)
                                 (if (getf props :aliases)
                                     (loop :for alias :in (getf props :aliases)
@@ -1685,6 +1649,8 @@ It remains here as a standard against which to compare methods for composing APL
                                 (case item-type
                                   (monadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-monadic)
+				   (if (eql 'scalar-function (caadr implementation))
+				       (push-char-and-aliases :functions-scalar-monadic))
                                    (push (setq assigned-form
                                                (funcall
                                                 (lambda (form)
@@ -1696,6 +1662,8 @@ It remains here as a standard against which to compare methods for composing APL
                                          assignment-forms))
                                   (dyadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-dyadic)
+				   (if (eql 'scalar-function (caadr implementation))
+				       (push-char-and-aliases :functions-scalar-dyadic))
                                    (push (setq assigned-form
                                                (funcall
 						(lambda (form)
@@ -1707,6 +1675,10 @@ It remains here as a standard against which to compare methods for composing APL
                                          assignment-forms))
                                   (ambivalent (incf fn-count 2)
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
+				   (if (eql 'scalar-function (caadr implementation))
+				       (push-char-and-aliases :functions-scalar-monadic))
+				   (if (eql 'scalar-function (caaddr implementation))
+				       (push-char-and-aliases :functions-scalar-dyadic))
                                    (push (setq assigned-form
                                                (funcall
                                                 (lambda (form)

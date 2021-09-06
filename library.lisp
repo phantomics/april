@@ -1172,7 +1172,7 @@
           (nth-value
            1 (choose omega
                      (if (not right-fn)
-                         (append (list (a-call (scalar-function -) right index-origin))
+                         (append (list (apply-scalar #'- right index-origin))
                                  (loop :for i :below (1- (rank omega)) :collect nil)))
                      :set (if (not left-fn) left)
                      :set-by (if (or left-fn right-fn)
