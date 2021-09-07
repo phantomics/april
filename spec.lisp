@@ -44,15 +44,21 @@
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal :lexical-operators-unitary :general-tests
+                  :lexical-operators-pivotal ;; :lexical-operators-unitary
+                  :lexical-statements
+                  :general-tests
                   :system-variable-function-tests :function-inversion-tests :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal :lexical-operators-unitary :general-tests)
+                  :lexical-operators-pivotal ;; :lexical-operators-unitary
+                  :lexical-statements
+                  :general-tests)
            (:demo :general-tests :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal :lexical-operators-unitary :system-variable-function-tests
+                  :lexical-operators-pivotal ;; :lexical-operators-unitary
+                  :lexical-statements
+                  :system-variable-function-tests
                   :function-inversion-tests :printed-format-tests))
 
  ;; utilities for compiling the language
@@ -709,7 +715,7 @@
             (is "1 1↓2 3 4⍴⍳9" #3A(((8 9 1 2) (3 4 5 6))))))
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      (ambivalent (enclose-array index-origin axes)
-		 (enclose-array index-origin axes))
+                 (enclose-array index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin)))
      (tests (is "⊂2" 2)
             (is "(⊂2)=2" 1)
@@ -817,7 +823,7 @@
             (is "'APRIL' 'MAY'∪'MAY' 'JUNE'" #("APRIL" "MAY" "JUNE"))))
   (⌽ (has :titles ("Reverse" "Rotate"))
      (ambivalent (rotate-array nil index-origin axes)
-		 (rotate-array nil index-origin axes))
+                 (rotate-array nil index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse #'identity)
            (dyadic :id 0 :inverse (λωαχ (turn omega *last-axis* (apply-scalar #'- alpha)))))
@@ -830,7 +836,7 @@
             (is "(2 2⍴1 2 3 4)⌽2 2 5⍴⍳9" #3A(((2 3 4 5 1) (8 9 1 6 7)) ((5 6 2 3 4) (2 7 8 9 1))))))
   (⊖ (has :titles ("Reverse First" "Rotate First"))
      (ambivalent (rotate-array t index-origin axes)
-		 (rotate-array t index-origin axes))
+                 (rotate-array t index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse #'identity)
            (dyadic :id 0 :inverse (λωαχ (turn omega *first-axis* (apply-scalar #'- alpha)))))
@@ -1121,7 +1127,9 @@
             (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
             (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
-     (symbolic :outer-product-designator2)))
+     (symbolic :outer-product-designator2))
+  (\: (has :title "Guard Indicator")
+      (symbolic :guard-indicator)))
 
  ;; APL's character-represented operators, which take one or two functions or arrays as input
  ;; and generate a function
@@ -1354,7 +1362,7 @@
             (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
             (is "↓⍣2⊢2 2⍴⍳4" #0A#(#(1 2) #(3 4)))
             ;; (is "⌊1_000_000_000×2○⍣=1" 739085133)
-	    ))
+            ))
   (@ (has :title "At")
      (pivotal (lambda (right left) `(operate-at ,right ,left index-origin)))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
@@ -1434,15 +1442,28 @@
                     (((0 1 2) (0 1 2) (0 0 0)) ((1 2 3) (1 2 3) (0 0 0)) ((2 3 4) (2 3 4) (0 0 0))
                      ((3 4 5) (3 4 5) (0 0 0)) ((4 5 0) (4 5 0) (0 0 0))))))))
 
- (operators
-  (with (:name :lexical-operators-unitary)
-        (:tests-profile :title "Unitary Operator Tests")
-        (:demo-profile :title "Unitary Operator Demos"
-                       :description "Unitary operators take no operands and return a niladic function that returns a value; the use of unitary operators is to manifest syntax structures wherein depending on the outcome of some expressions, other expressions may or may not be evaluated, as with the [$ if] operator."))
+ ;; (operators
+ ;;  (with (:name :lexical-operators-unitary)
+ ;;        (:tests-profile :title "Unitary Operator Tests")
+ ;;        (:demo-profile :title "Unitary Operator Demos"
+ ;;                       :description "Unitary operators take no operands and return a niladic function that returns a value; the use of unitary operators is to manifest syntax structures wherein depending on the outcome of some expressions, other expressions may or may not be evaluated, as with the [$ if] operator."))
+ ;;  ($ (has :title "If")
+ ;;     (unitary (lambda (axes) (cons 'apl-if axes)))
+ ;;     (tests (is "$[1;2;3]" 2)
+ ;;            (is "$[0;2;3]" 3)
+ ;;            (is "x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x" 15)
+ ;;            (is "3+$[5>6;1;7>8;2;3]" 6)
+ ;;            (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
+ ;;            (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
+ ;;            (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11)))))
+ 
+ (statements
+  (with (:name :lexical-statements)
+        (:tests-profile :title "Statement Tests")
+        (:demo-profile :title "Statements Demos"
+                       :description "Statement description goes here."))
   ($ (has :title "If")
-     (unitary (lambda (workspace axes)
-                (declare (ignore workspace))
-                (cons 'apl-if axes)))
+     (unitary (lambda (axes) (cons 'apl-if axes)))
      (tests (is "$[1;2;3]" 2)
             (is "$[0;2;3]" 3)
             (is "x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x" 15)

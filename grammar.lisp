@@ -16,7 +16,7 @@
 
 (defun process-value (this-item properties process idiom space)
   (cond ((and (listp this-item)
-              (not (member (first this-item) '(:fn :op :axes))))
+              (not (member (first this-item) '(:fn :op :st :axes))))
          ;; if the item is a closure, evaluate it and return the result
          (let ((sub-props (list :special
                                 (list :closure-meta (getf (getf properties :special) :closure-meta)))))
@@ -260,6 +260,22 @@
                 (values nil nil)))
           (values nil nil))))
 
+(defun process-statement (this-item properties process idiom space)
+  (declare (ignore idiom))
+  (if (and (listp this-item) (eq :st (first this-item)))
+      ;; process a statement token, allowing specification of the valence,
+      ;; either :lateral or :pivotal
+      (destructuring-bind (st-type st-symbol) (rest this-item)
+        (let ((valid-by-valence (or (not (getf properties :valence))
+                                    (eq st-type (getf properties :valence)))))
+          (cond ((and valid-by-valence (getf properties :glyph))
+                 (if (char= st-symbol (aref (string (getf properties :glyph)) 0))
+                     (values st-symbol (list :type (list :statement st-type)))
+                     (values nil nil)))
+                (valid-by-valence (values st-symbol (list :type (list :statement st-type))))
+                (t (values nil nil)))))
+      (values nil nil)))
+
 ;; the value-matcher is the most idiosyncratic of patterns, and thus it is
 ;; specified explicitly without the use of the (composer-pattern) macro
 (defun composer-pattern-value (tokens space idiom process &optional precedent properties preceding-properties)
@@ -291,7 +307,7 @@
                                    value-elements (cons output value-elements)
                                    value-props (cons properties value-props)
                                    stopped t))))
-                   (if (and (listp item) (not (member (first item) '(:op :fn :axes))))
+                   (if (and (listp item) (not (member (first item) '(:op :fn :st :axes))))
                        ;; if a closure is encountered, recurse to process it
                        (multiple-value-bind (output properties)
                            (funcall process item special-props)
@@ -482,18 +498,33 @@
                           '(:type (:function :operator-composed :lateral))
                           items)))))))
 
-(composer-pattern composer-pattern-unitary-operation (operator-axes operator-form operator-props)
+;; (composer-pattern composer-pattern-unitary-operation (operator-axes operator-form operator-props)
+;;     ;; match a unitary operator like $
+;;     ((let ((sub-props (list :special (list :closure-meta (getf (getf properties :special) :closure-meta)))))
+;;        (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
+;;      (assign-element operator-form operator-props process-operator '(:valence :unitary)))
+;;   (let ((operator (and (member :operator (getf operator-props :type))
+;;                        (member :unitary (getf operator-props :type))
+;;                        operator-form)))
+;;     (if (of-lexicons idiom operator :operators-unitary)
+;;         (values (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
+;;                                                   *package-name-string*))
+;;                          (first operator-axes))
+;;                 '(:type (:array :evaluated))
+;;                 items))))
+
+(composer-pattern composer-pattern-unitary-operation (statement-axes statement-form statement-props)
     ;; match a unitary operator like $
     ((let ((sub-props (list :special (list :closure-meta (getf (getf properties :special) :closure-meta)))))
-       (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
-     (assign-element operator-form operator-props process-operator '(:valence :unitary)))
-  (let ((operator (and (member :operator (getf operator-props :type))
-                       (member :unitary (getf operator-props :type))
-                       operator-form)))
-    (if (of-lexicons idiom operator :operators-unitary)
-        (values (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
+       (assign-axes statement-axes (lambda (i) (funcall process i sub-props))))
+     (assign-element statement-form statement-props process-statement '(:valence :unitary)))
+  (let ((statement (and (member :statement (getf statement-props :type))
+                        (member :unitary (getf statement-props :type))
+                        statement-form)))
+    (if (of-lexicons idiom statement :statements)
+        (values (funcall (symbol-function (intern (format nil "APRIL-LEX-ST-~a" statement)
                                                   *package-name-string*))
-                         space (first operator-axes))
+                         (first statement-axes))
                 '(:type (:array :evaluated))
                 items))))
 
@@ -543,7 +574,7 @@
     ;; "Match a selective value assignment like (3↑x)←5."
     ((assign-element asop asop-props process-function '(:glyph ←))
      (if (and asop (and (listp (first items))
-                        (not (member (caar items) '(:fn :op :axes)))))
+                        (not (member (caar items) '(:fn :op :st :axes)))))
          (let ((items (first items)))
            (assign-subprocessed selection-form sform-specs
                                 '(:special (:omit (:value-assignment :function-assignment))))))
@@ -766,8 +797,8 @@
                                  `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
                                              `(inws ,symbol))
                                         ,(build-call-form precedent nil
-							  (getf (first preceding-properties)
-								:axes)))))
+                                                          (getf (first preceding-properties)
+                                                                :axes)))))
                          `(setf ,(if at-top-level `(symbol-function (quote (inws ,symbol)))
                                      `(inws ,symbol))
                                 ,precedent)))
@@ -780,10 +811,10 @@
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
   (if asop (values `(setf ,(if (member :top-level (getf (first (last preceding-properties)) :special))
-			       `(symbol-function (quote (inws ,symbol)))
-			       `(inws ,symbol))
-			  ,precedent)
-		   '(:type (:operator :assigned)) items)))
+                               `(symbol-function (quote (inws ,symbol)))
+                               `(inws ,symbol))
+                          ,precedent)
+                   '(:type (:operator :assigned)) items)))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
     ;; "Match a branch-to statement like →1 or a branch point statement like 1→⎕."
@@ -873,7 +904,7 @@
                         center (if (characterp center)
                                    (if (of-lexicons idiom center :functions-dyadic)
                                        (build-call-form center :dyadic))
-				   (resolve-function center))))
+                                   (resolve-function center))))
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
             ;; functions are also valid as preceding functions, as with (1+-∘÷)
@@ -1064,8 +1095,8 @@
                 (if (and (not function-axes) (member :axes function-props))
                     (setq function-axes (getf function-props :axes))))))
   (if is-function (let ((fn-content (if (and (symbolp fn-element) (eql '∇ fn-element))
-					;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
-					;; as a self-reference by lambdas invoked through the (alambda) macro
+                                        ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
+                                        ;; as a self-reference by lambdas invoked through the (alambda) macro
                         
                                         '#'∇self
                                         (if (or (functionp fn-element)
@@ -1083,9 +1114,9 @@
                                             fn-element (if (characterp fn-element)
                                                            (if (of-lexicons idiom fn-element :functions)
                                                                (build-call-form fn-element ;; nil
-										(if value :dyadic
-										    :monadic)
-										function-axes))
+                                                                                (if value :dyadic
+                                                                                    :monadic)
+                                                                                function-axes))
                                                            (or (of-lexicons idiom fn-element :functions)
                                                                fn-element))))))
                     (values `(a-call ,fn-content ,precedent ,@(if value (list value)))

@@ -811,10 +811,10 @@
                                           input (+ element-index (* oseg idiv-size)
                                                    (* section-size (if (not positive-indices)
                                                                        dx (or (loop :for p :across positive-indices
-										 :for px :from 0 :when (= p dx)
-										 :return px)
-									      1)))
-						   ))))))))
+                                                                                 :for px :from 0 :when (= p dx)
+                                                                                 :return px)
+                                                                              1)))
+                                                   ))))))))
                        (ydotimes output (i (size input))
                          (let* ((iseg (floor i idiv-size))
                                 ;; input segment index
@@ -1975,7 +1975,7 @@
                           (incf oindex (* index s))
                           (setq remaining remainder)))
             ;; (multiple-value-bind (index remainder) (floor oindex (size omega))
-	    (setf (row-major-aref output i) (row-major-aref omega oindex))))
+            (setf (row-major-aref output i) (row-major-aref omega oindex))))
         ;; handle diagonal array traversals
         (xdotimes output (i (size output))
           (let ((remaining i) (iindex 0))
