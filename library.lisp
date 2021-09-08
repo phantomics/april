@@ -400,7 +400,9 @@
                    (let ((point (disclose point)))
                      ;; if this is the last level of nesting specified, fetch the element
                      (if (not (arrayp point))
-                         (aref input (- point index-origin))
+                         (if (not (arrayp input))
+                             (if (= 0 point) input (error "Coordinates for a scalar can only be 0."))
+                             (aref input (- point index-origin)))
                          (if (vectorp point)
                              (apply #'aref input (loop :for p :across point :collect (- p index-origin)))
                              (error "Coordinates for ⊃ must be expressed by scalars or vectors."))))

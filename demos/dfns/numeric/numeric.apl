@@ -429,3 +429,5 @@ xpower ← {                                   ⍝ Fast multi-digit power using 
   xt←{(0,⍺)xtimes 0,⍵} ⋄ b←⌽2⊥⍣¯1+10⊥⍵       ⍝ boolean showing which powers needed
   ↑,/xt/b/{xt⍨⍵}\(⊂,10⊥⍣¯1+⍺)⍴⍨⍴b
 }
+
+⍝ {⎕IO←0 ⋄ (1 0J1) {(⊣/⍺)∇⍣(×m)⊢⎕←(+⌿⍵),[m-0.5]⍺×[⍳m←≢⍴⍺]-⌿⍵} ⍵} 2 2⍴2 0 0 0

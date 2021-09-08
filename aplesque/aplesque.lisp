@@ -372,6 +372,7 @@
       (values proceeding count))))
 
 (defun apply-scalar (function omega &optional alpha axes is-boolean is-non-scalar-function meta-table)
+  ;; (if axes (print (list :ff function omega alpha axes)))
   "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
   (let* ((orank (rank omega)) (arank (rank alpha))
          (axes (if axes (enclose-atom axes)))
