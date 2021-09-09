@@ -7,63 +7,63 @@
 
 assign ← {                                   ⍝ Hungarian method cost assignment.
 
-    step0←{step1(⌽⌈\⌽⍴⍵)↑⍵}                 ⍝ 0: at least as many rows as cols.
+  step0←{step1(⌽⌈\⌽⍴⍵)↑⍵}                    ⍝ 0: at least as many rows as cols.
 
-    step1←{step2↑(↓⍵)-⌊/⍵}                  ⍝ 1: reduce rows by minimum value.
+  step1←{step2↑(↓⍵)-⌊/⍵}                     ⍝ 1: reduce rows by minimum value.
 
-    step2←{                                 ⍝ 2: mark independent zeros.
-        stars←{                             ⍝ independent zeros.
-            ~1∊⍵:⍺                          ⍝ no more zeros: done.
-            next←<\<⍀⍵                      ⍝ more independent zeros.
-            mask←(rows next)∨cols next      ⍝ mask of dependent rows and cols.
-            (⍺∨next)∇ ⍵>mask                ⍝ ⍺-accumulated star matrix.
-        }                                   ⍝
-        zeros←{⍵+0 stars ⍵}⍵=0              ⍝ 1=>zero, 2=>independent zero.
-        step3 ⍵ zeros                       ⍝ next step: 3.
-    }
+  step2←{                                    ⍝ 2: mark independent zeros.
+    stars←{                                  ⍝ independent zeros.
+      ~1∊⍵:⍺                                 ⍝ no more zeros: done.
+      next←<\<⍀⍵                             ⍝ more independent zeros.
+      mask←(rows next)∨cols next             ⍝ mask of dependent rows and cols.
+      (⍺∨next)∇ ⍵>mask                       ⍝ ⍺-accumulated star matrix.
+    }                                        ⍝
+    zeros←{⍵+0 stars ⍵}⍵=0                   ⍝ 1=>zero, 2=>independent zero.
+    step3 ⍵ zeros                            ⍝ next step: 3.
+  }
 
-    step3←{costs zeros←⍵                    ⍝ 3: cover cols with starred zeros.
-        stars←zeros=2                       ⍝ starred zeros.
-        covers←2×cols stars                 ⍝ covered cols.
-        ~0∊covers:stars                     ⍝ all cols covered: solution.
-        step4 costs zeros covers            ⍝ next step: 4.
-    }
+  step3←{costs zeros←⍵                       ⍝ 3: cover cols with starred zeros.
+    stars←zeros=2                            ⍝ starred zeros.
+    covers←2×cols stars                      ⍝ covered cols.
+    ~0∊covers:stars                          ⍝ all cols covered: solution.
+    step4 costs zeros covers                 ⍝ next step: 4.
+  }
 
-    step4←{costs zeros covers←⍵             ⍝ 4: adjust covering lines.
-        mask←covers=0                       ⍝ mask of uncovered elements.
-        open←1=mask×zeros                   ⍝ uncovered zeros.
-        ~1∊open:(⌊/(,mask)/,costs)step6 ⍵   ⍝ no uncovered zeros, next step :6.
-        prime←first open                    ⍝ choose first uncovered zero.
-        prow←rows prime                     ⍝ row containing prime.
-        star←2=zeros×prow                   ⍝ star in row containing prime.
-        ~1∊star:prime step5{                ⍝ no star in row, next step :5,
-            costs ⍵ prime                   ⍝ adjusted zeros matrix,
-        }zeros+2×prime                      ⍝ new primed zero (3).
-        cnext←covers+prow-2×cols star       ⍝ adjusted covers.
-        znext←zeros⌈3×prime                 ⍝ primed zero.
-        ∇ costs znext cnext                 ⍝ adjusted zeros and covers
-    }
+  step4←{costs zeros covers←⍵                ⍝ 4: adjust covering lines.
+    mask←covers=0                            ⍝ mask of uncovered elements.
+    open←1=mask×zeros                        ⍝ uncovered zeros.
+    ~1∊open:(⌊/(,mask)/,costs)step6 ⍵        ⍝ no uncovered zeros, next step :6.
+    prime←first open                         ⍝ choose first uncovered zero.
+    prow←rows prime                          ⍝ row containing prime.
+    star←2=zeros×prow                        ⍝ star in row containing prime.
+    ~1∊star:prime step5{                     ⍝ no star in row, next step :5,
+      costs ⍵ prime                          ⍝ adjusted zeros matrix,
+    }zeros+2×prime                           ⍝ new primed zero (3).
+    cnext←covers+prow-2×cols star            ⍝ adjusted covers.
+    znext←zeros⌈3×prime                      ⍝ primed zero.
+    ∇ costs znext cnext                      ⍝ adjusted zeros and covers
+  }
 
-    step5←{costs zeros prime←⍵              ⍝ 5: exchange starred zeros.
-        star←(cols prime)∧zeros=2           ⍝ next star.
-        ~1∊star:step3 ⍺{                    ⍝ no stars: next step :3.
-            {costs ⍵}{⍵-2×⍵=3}⍵-⍺∧⍵>1       ⍝ unstarred stars; starred primes.
-        }zeros                              ⍝ adjusted zero markers.
-        pnext←(rows star)∧zeros=3           ⍝ next prime.
-        (⍺∨pnext∨star)∇ costs zeros pnext   ⍝ ⍺-accumulated prime-star-··· path.
-    }
+  step5←{costs zeros prime←⍵                 ⍝ 5: exchange starred zeros.
+    star←(cols prime)∧zeros=2                ⍝ next star.
+    ~1∊star:step3 ⍺{                         ⍝ no stars: next step :3.
+      {costs ⍵}{⍵-2×⍵=3}⍵-⍺∧⍵>1              ⍝ unstarred stars; starred primes.
+    }zeros                                   ⍝ adjusted zero markers.
+    pnext←(rows star)∧zeros=3                ⍝ next prime.
+    (⍺∨pnext∨star)∇ costs zeros pnext        ⍝ ⍺-accumulated prime-star-··· path.
+  }
 
-    step6←{costs zeros covers←⍵             ⍝ 6: adjust cost matrix.
-        cnext←costs+⍺×¯1 1+.×0 3∘.=covers   ⍝ add and subtract minimum value.
-        znext←zeros+(×costs)-×cnext         ⍝ amended zeros marker.
-        step4 cnext znext covers            ⍝ next step: 4.
-    }
+  step6←{costs zeros covers←⍵                ⍝ 6: adjust cost matrix.
+    cnext←costs+⍺×¯1 1+.×0 3∘.=covers        ⍝ add and subtract minimum value.
+    znext←zeros+(×costs)-×cnext              ⍝ amended zeros marker.
+    step4 cnext znext covers                 ⍝ next step: 4.
+  }
 
-    rows←{(⍴⍵)⍴(⊃⌽⍴⍵)/∨/⍵}                  ⍝ row propagation.
-    cols←{(⍴⍵)⍴∨⌿⍵}                         ⍝ column propagation.
-    first←{(⍴⍵)⍴<\,⍵}                       ⍝ first 1 in bool matrix.
+  rows←{(⍴⍵)⍴(⊃⌽⍴⍵)/∨/⍵}                     ⍝ row propagation.
+  cols←{(⍴⍵)⍴∨⌿⍵}                            ⍝ column propagation.
+  first←{(⍴⍵)⍴<\,⍵}                          ⍝ first 1 in bool matrix.
 
-    (⍴⍵)↑step0 ⍵                            ⍝ start with step 0.
+  (⍴⍵)↑step0 ⍵                               ⍝ start with step 0.
 }
   
 ⍝ From http://dfns.dyalog.com/n_alists.htm
