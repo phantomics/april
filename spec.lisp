@@ -1470,7 +1470,9 @@
             (is "3+$[5>6;1;7>8;2;3]" 6)
             (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
             (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
-            (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11)))))
+            (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
+  (⍢ (has :title "Variant")
+     (unitary (lambda (axes) (cons 'function-variant axes)))))
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set

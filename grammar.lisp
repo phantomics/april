@@ -152,7 +152,8 @@
                  (values this-item (list :type '(:function :operand-function-reference))))
                 ((member this-item (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                                       :fn-syms))
-                 (values (list 'inws this-item)
+                 (values (if (eql '⍺ this-item)
+                             this-item (list 'inws this-item))
                          (list :type '(:function :lexical-function))))
                 ((member (intern (string-upcase this-item) *package-name-string*)
                          (rest (assoc :function (idiom-symbols idiom))))
@@ -790,9 +791,10 @@
                                                                    :closure-meta))
                                                        :fn-syms)))))
                      (if (characterp precedent)
-                         ;; account for the ⍺←⊢ case
-                         (if (and (eql '⍺ symbol) (char= #\⊢ precedent))
-                             `(or ⍺ (setf ⍺ :absent))
+                         ;; account for the ⍺←function case
+                         (if (eql '⍺ symbol)
+                             `(a-set ⍺ ,(build-call-form precedent nil
+                                                         (getf (first preceding-properties) :axes)))
                              (if (of-lexicons idiom precedent :functions)
                                  `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
                                              `(inws ,symbol))
