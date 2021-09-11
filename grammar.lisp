@@ -297,31 +297,35 @@
                   items rest-items))
         (if (and axes (not items))
             (error "Encountered axes with no function, operator or value to the left."))
-        (loop :while (not stopped)
-           :do (or (if (and (listp item) (eq :axes (first item)))
-                       ;; if axes are encountered, process the axes and the preceding
-                       ;; value as a new value
-                       (multiple-value-bind (output properties remaining)
-                           (funcall process items special-props)
-                         (if (eq :array (first (getf properties :type)))
-                             (setq items remaining
-                                   value-elements (cons output value-elements)
-                                   value-props (cons properties value-props)
-                                   stopped t))))
-                   (if (and (listp item) (not (member (first item) '(:op :fn :st :axes))))
-                       ;; if a closure is encountered, recurse to process it
-                       (multiple-value-bind (output properties)
-                           (funcall process item special-props)
-                         (if (eq :array (first (getf properties :type)))
-                             (setq items rest-items
-                                   value-elements (cons output value-elements)
-                                   value-props (cons properties value-props)))))
-                   (multiple-value-bind (value-out value-properties)
-                       (process-value item properties process idiom space)
-                     (if value-out (setq items rest-items
-                                         value-elements (cons value-out value-elements)
-                                         value-props (cons value-properties value-props))))
-                   (setq stopped t)))
+        (loop :while (not stopped) ;; :for index :from 0
+              :do (or (if (and (listp item) (eq :axes (first item)))
+                          ;; if axes are encountered, process the axes and the preceding
+                          ;; value as a new value
+                          (multiple-value-bind (output properties remaining)
+                              (funcall process items special-props)
+                            (if (eq :array (first (getf properties :type)))
+                                (setq items remaining
+                                      value-elements (cons output value-elements)
+                                      value-props (cons properties value-props)
+                                      stopped t))))
+                      (if (and (listp item) (not (member (first item) '(:op :fn :st :axes))))
+                          ;; if a closure is encountered, recurse to process it
+                          (multiple-value-bind (output properties)
+                              (funcall process item special-props)
+                            (if (eq :array (first (getf properties :type)))
+                                (setq items rest-items
+                                      value-elements (cons output value-elements)
+                                      value-props (cons properties value-props)))))
+                      ;; (if (and (eql '⍺ item) (= 0 index) (not precedent)
+                      ;;          (member '⍺ (getf (rest (getf (getf properties :special)
+                      ;;                                       :closure-meta)) :fn-syms)))
+                      ;;     '⍺)
+                      (multiple-value-bind (value-out value-properties)
+                          (process-value item properties process idiom space)
+                        (if value-out (setq items rest-items
+                                            value-elements (cons value-out value-elements)
+                                            value-props (cons value-properties value-props))))
+                      (setq stopped t)))
         (if value-elements
             (values (axes-enclose (output-value space (if (< 1 (length value-elements))
                                                           value-elements (first value-elements))

@@ -32,8 +32,6 @@ acc ← { ⊃⍺⍺{(⊂⍺ ⍺⍺⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1�
 
 disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested array.
 
-  ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
-
   box←{                                      ⍝ Recursive boxing of nested array.
     isor ⍵:⎕FMT⊂⍵                            ⍝ ⎕or: '∇name'.
     1=≡,⍵:dec open ⎕FMT dec open ⍵           ⍝ simple array: format.
@@ -124,12 +122,15 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     Rows cols                                ⍝ shape decorators.
   }
 
+  ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
+
   matr←{↑,↓⍵}                                ⍝ matrix from non-scalar array.
   sepr←{+/¨1⊂↑⍵}                             ⍝ vec-of-mats from mat-of-vecs.
   ⍝ open←{16::(1⌈⍴⍵)⍴⊂'[ref]' ⋄ (⍺⌈⍴⍵)⍴⍵}    ⍝ stretched to expose nulls.
   open←{(⍺⌈⍴⍵)⍴⍵}                            ⍝ stretched to expose nulls.
   isor←{1 ⍬≡(≡⍵)(⍴⍵)}                        ⍝ is ⎕or of object?
-  glue←{$[0=⍴⍵;⍵;↑⍺{⍺,⍶,⍵}/⍵]}               ⍝ ⍵ interspersed with ⍺s.
+  ⍝ glue←{$[0=⍴⍵;⍵;↑⍺{⍺,⍶,⍵}/⍵]}               ⍝ ⍵ interspersed with ⍺s.
+  glue←{0=⍴⍵ : ⍵ ⋄ ↑⍺{⍺,⍶,⍵}/⍵}              ⍝ ⍵ interspersed with ⍺s.
 
   isor ⍵:⎕FMT⊂⍵                              ⍝ simple ⎕OR: done.
   1=≡,⍵:⎕FMT ⍵                               ⍝ simple array: done.

@@ -6,7 +6,6 @@
 ⍝ From http://dfns.dyalog.com/c_adic.htm
 
 adic ← { ⎕IO←0                               ⍝ Bijective base-⍺ numeration.
-
   b←⍬⍴⍴a←,⍺                                  ⍝ base and alphabet
 
   1=⍴⍴⍵:b⊥1+a⍳⍵                              ⍝ vector: decode digs → number
@@ -40,7 +39,7 @@ bsearch ← {                                  ⍝ Binary search: least n in ran
 ⍝ From http://dfns.dyalog.com/c_cfract.htm
   
 cfract ← {                                   ⍝ Continued fraction approximation of real ⍵.
-  ⍺←⎕CT ⋄ ⎕CT←⍺                              ⍝ default comparison tolerance.
+  ⍝ ⍺←⎕CT ⋄ ⎕CT←⍺                              ⍝ default comparison tolerance.
   ,↑{                                        ⍝ cf from rational ⍺÷⍵:
     ⍵=1:⍺                                    ⍝ whole number: finished.
     n r←0 ⍵⊤⍺                                ⍝ next term and remainder.
@@ -168,8 +167,6 @@ roman ← {                                    ⍝ Roman numeral arithmetic.
   fmts(⌊nums ⍺)⍺⍺ ⌊nums ⍵                    ⍝ dyadic operand function.
 }
 
-⍝ From http://dfns.dyalog.com/c_stamps.htm
-
 ⍝ From http://dfns.dyalog.com/n_path.htm
 
 path ← {                                     ⍝ Shortest path from/to ⍵ in graph ⍺.
@@ -187,6 +184,8 @@ path ← {                                     ⍝ Shortest path from/to ⍵ in 
   }¯2+(⍳⍴⍺)∊fm                               ⍝ null spanning tree
 }
 
+⍝ From http://dfns.dyalog.com/c_stamps.htm
+  
 stamps ← {                                   ⍝ Postage stamps to the value of ⍵.
   ⍺←1 5 6 10 26 39 43                        ⍝ Default UK stamp denominations.
   graph←⍺{⍵∘∩¨⍵+⊂⍺}⍳⍵+|⌊/⍺                   ⍝ values: 0 ·· ⍵.
@@ -255,7 +254,7 @@ det ← { ⎕IO←0                                ⍝ Determinant of square mat
   (⍺×⍵[i;j]×¯1*i+j)∇ ⍵[k~i;k~j]-⍵[k~i;j]∘.×⍵[i;k~j]÷⍵[i;j]
 }
 
-⍝ From http://dfns.dyalog.com/c_kcell.htm
+⍝ ⍝ From http://dfns.dyalog.com/c_kcell.htm
 
 kcell ← {                                    ⍝ Relationship between point and k-cell.
   ⍺←(≢⍵)/2 1⍴0 1                             ⍝ Default is unit k-cell.
@@ -274,7 +273,7 @@ kball ← {                                    ⍝ Relationship between point an
   ×↑-/(⍉p-[⎕IO]c)r+.*¨2                      ⍝ Perform signum difference.
 }
 
-⍝ From http://dfns.dyalog.com/c_ksphere.htm
+⍝ ⍝ From http://dfns.dyalog.com/c_ksphere.htm
 
 ksphere ← {                                  ⍝ Surface area of k-sphere.
   n←⍺+1                                      ⍝ dimension of enclosed k-ball.
@@ -412,6 +411,7 @@ poly ← { 2 1∘.○(○2÷⍵)×(⍳⍵)-⍳1 }
 ⍝ From http://dfns.dyalog.com/c_xtimes.htm
 
 xtimes ← { ⎕IO←0                             ⍝ Fast multi-digit product using FFT.
+  m←0  
   xroots    ← {×\1,1↓(⍵÷2)⍴¯1*2÷⍵}
   cube      ← {⍵⍴⍨2⍴⍨⌊2⍟⍴⍵}
   extend    ← {(2*⌈2⍟¯1+(⍴⍺)+⍴⍵)↑¨⍺ ⍵}
