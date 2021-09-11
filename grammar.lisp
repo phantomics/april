@@ -15,6 +15,7 @@
                                :closure-meta))))
 
 (defun process-value (this-item properties process idiom space)
+  "Process a value token."
   (cond ((and (listp this-item)
               (not (member (first this-item) '(:fn :op :st :axes))))
          ;; if the item is a closure, evaluate it and return the result
@@ -76,6 +77,7 @@
         (t (values nil nil))))
 
 (defun process-function (this-item properties process idiom space)
+  "Process a function token."
   (if (listp this-item)
       ;; process a function specification starting with :fn
       (if (or (eq :fn (first this-item))
@@ -167,6 +169,7 @@
           (values nil nil))))
 
 (defun process-operator (this-item properties process idiom space)
+  "Process an operator token."
   (declare (ignore idiom))
   (if (listp this-item)
       (if (and (eq :op (first this-item))
@@ -262,10 +265,9 @@
           (values nil nil))))
 
 (defun process-statement (this-item properties process idiom space)
+  "Process a statement token, allowing specification of the valence, either :lateral or :pivotal."
   (declare (ignore idiom))
   (if (and (listp this-item) (eq :st (first this-item)))
-      ;; process a statement token, allowing specification of the valence,
-      ;; either :lateral or :pivotal
       (destructuring-bind (st-type st-symbol) (rest this-item)
         (let ((valid-by-valence (or (not (getf properties :valence))
                                     (eq st-type (getf properties :valence)))))
@@ -503,22 +505,7 @@
                           '(:type (:function :operator-composed :lateral))
                           items)))))))
 
-;; (composer-pattern composer-pattern-unitary-operation (operator-axes operator-form operator-props)
-;;     ;; match a unitary operator like $
-;;     ((let ((sub-props (list :special (list :closure-meta (getf (getf properties :special) :closure-meta)))))
-;;        (assign-axes operator-axes (lambda (i) (funcall process i sub-props))))
-;;      (assign-element operator-form operator-props process-operator '(:valence :unitary)))
-;;   (let ((operator (and (member :operator (getf operator-props :type))
-;;                        (member :unitary (getf operator-props :type))
-;;                        operator-form)))
-;;     (if (of-lexicons idiom operator :operators-unitary)
-;;         (values (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
-;;                                                   *package-name-string*))
-;;                          (first operator-axes))
-;;                 '(:type (:array :evaluated))
-;;                 items))))
-
-(composer-pattern composer-pattern-unitary-operation (statement-axes statement-form statement-props)
+(composer-pattern composer-pattern-unitary-statement (statement-axes statement-form statement-props)
     ;; match a unitary operator like $
     ((let ((sub-props (list :special (list :closure-meta (getf (getf properties :special) :closure-meta)))))
        (assign-axes statement-axes (lambda (i) (funcall process i sub-props))))
@@ -540,7 +527,7 @@
         (:name :function :function composer-pattern-function)
         (:name :operator-alias :function composer-pattern-operator-alias)
         (:name :lateral-composition :function composer-pattern-lateral-composition)
-        (:name :unitary-operator :function composer-pattern-unitary-operation)))
+        (:name :unitary-operator :function composer-pattern-unitary-statement)))
 
 (composer-pattern value-assignment-by-function-result
     (asop asop-props fn-element fnel-specs function-axes symbol symbol-props symbol-axes)
