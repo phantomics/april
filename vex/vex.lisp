@@ -563,6 +563,8 @@
                    (setq string-found t)
                    ;; the string-found variable is set to true
                    ;; TODO: is there a better way to do this?
+                   (if (not (char= delimiter (aref content (1- (length content)))))
+                       (error "Syntax error: unbalanced quotes."))
                    (if escape-indices (let* ((offset 0)
                                              (outstr (make-array (list (- (length content)
                                                                           1 (length escape-indices)))
@@ -629,7 +631,7 @@
                                                 (declare (ignore remaining))
                                                 (if symbol-collector (funcall symbol-collector meta))
                                                 parsed))))
-                            (%any (?eq (aref boundary-chars 1))))
+                            (?eq (aref boundary-chars 1)))
                    (if (= 0 balance)
                        (progn (if if-confirmed (funcall if-confirmed))
                               enclosed)
@@ -853,25 +855,26 @@
                  (setq ,,symbol-form ,',out-form ,,symbol-props ,',out-props ,',items-sym ,',remaining))))))
 
 #|
+
 These are examples of the output of the three macro-builders above.
 
 (defmacro assign-axes (symbol process item items rest-items)
-(let ((axis (gensym)))
-`(if (and (listp ,item) (eql :axes (first ,item)))
-(setq ,symbol (list (loop :for ,axis :in (rest ,item) :collect (funcall ,process ,axis)))
-,items ,rest-items))))
+  (let ((axis (gensym)))
+    `(if (and (listp ,item) (eql :axes (first ,item)))
+         (setq ,symbol (list (loop :for ,axis :in (rest ,item) :collect (funcall ,process ,axis)))
+               ,items ,rest-items))))
 
 (defmacro assign-element (symbol-form symbol-props function process properties space item items rest-items)
-(let ((form-out (gensym)) (form-properties (gensym)))
-`(multiple-value-bind (,form-out ,form-properties)
-(,function ,item ,properties ,process idiom ,space)
-(if ,form-out (setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,rest-items)))))
+  (let ((form-out (gensym)) (form-properties (gensym)))
+    `(multiple-value-bind (,form-out ,form-properties)
+         (,function ,item ,properties ,process idiom ,space)
+       (if ,form-out (setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,rest-items)))))
 
 (defmacro assign-subprocessed (symbol-form symbol-props process properties item items rest-items)
-(let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
-`(multiple-value-bind (,form-out ,form-properties ,remaining)
-(funcall ,process ,items ,properties)
-(setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,remaining))))
+  (let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
+    `(multiple-value-bind (,form-out ,form-properties ,remaining)
+         (funcall ,process ,items ,properties)
+       (setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,remaining))))
 
 |#
 
