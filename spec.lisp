@@ -2262,13 +2262,13 @@ This is an example showing how the April idiom can be extended with Vex's extend
 A not-very-useful scalar function that adds 3 to its argument(s) is specified here.
 
 (extend-vex-idiom
-april
-(utilities :process-lexicon #'april-function-glyph-processor)
-(functions
-(with (:name :extra-functions))
-(⍛ (has :title "Add3")
-(ambivalent (scalar-function (λω (+ 3 omega)))
-(scalar-function (lambda (alpha omega) (+ 3 alpha omega))))
-(tests (is "⍛77" 80)
-(is "8⍛7" 18)))))
+ april
+ (utilities :process-lexicon #'april-function-glyph-processor)
+ (functions
+  (with (:name :extra-functions))
+  (⍛ (has :title "Add3")
+     (ambivalent (scalar-function (λω (+ 3 omega)))
+                 (scalar-function (lambda (alpha omega) (+ 3 alpha omega))))
+     (tests (is "⍛77" 80)
+            (is "8⍛7" 18)))))
 |#
