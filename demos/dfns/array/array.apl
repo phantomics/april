@@ -32,6 +32,8 @@ acc ← { ⊃⍺⍺{(⊂⍺ ⍺⍺⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1�
 
 disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested array.
 
+  ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
+
   box←{                                      ⍝ Recursive boxing of nested array.
     isor ⍵:⎕FMT⊂⍵                            ⍝ ⎕or: '∇name'.
     1=≡,⍵:dec open ⎕FMT dec open ⍵           ⍝ simple array: format.
@@ -122,14 +124,11 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     Rows cols                                ⍝ shape decorators.
   }
 
-  ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
-
   matr←{↑,↓⍵}                                ⍝ matrix from non-scalar array.
   sepr←{+/¨1⊂↑⍵}                             ⍝ vec-of-mats from mat-of-vecs.
   ⍝ open←{16::(1⌈⍴⍵)⍴⊂'[ref]' ⋄ (⍺⌈⍴⍵)⍴⍵}    ⍝ stretched to expose nulls.
   open←{(⍺⌈⍴⍵)⍴⍵}                            ⍝ stretched to expose nulls.
   isor←{1 ⍬≡(≡⍵)(⍴⍵)}                        ⍝ is ⎕or of object?
-  ⍝ glue←{$[0=⍴⍵;⍵;↑⍺{⍺,⍶,⍵}/⍵]}               ⍝ ⍵ interspersed with ⍺s.
   glue←{0=⍴⍵ : ⍵ ⋄ ↑⍺{⍺,⍶,⍵}/⍵}              ⍝ ⍵ interspersed with ⍺s.
 
   isor ⍵:⎕FMT⊂⍵                              ⍝ simple ⎕OR: done.
@@ -375,7 +374,7 @@ nlines ← {                                   ⍝ Number of display lines for s
 
 ⍝ From http://dfns.dyalog.com/s_perv.htm
 
-perv ← { ⍝ ⍺←⊢                                  ⍝ Scalar pervasion
+perv ← { ⍺←⊢                                 ⍝ Scalar pervasion
   1=≡⍺ ⍵ ⍵:⍺ ⍺⍺ ⍵                            ⍝ (⍺ and) ⍵ depth 0: operand fn application
            ⍺ ∇¨⍵                             ⍝ (⍺ or) ⍵ deeper: recursive traversal.
 }
@@ -397,6 +396,25 @@ pred ← { ↑⍺⍺/¨(⍺/⍳⍴⍺)⊆⍵ }                    ⍝ Partitione
 rows ← {                                     ⍝ Operand function applied to argument rows.
   1<|≡⍵:∇¨⍵                                  ⍝ nested: item-wise application
   ⍺⍺⍤1⊢⍵                                     ⍝ simple: vector-wise application
+}
+
+⍝ From http://dfns.dyalog.com/c_sam.htm
+
+sam ← {                                      ⍝ Select and modify.
+  ⍺←⊢                                        ⍝ id function for missing ⍺.
+  array←⍵                                    ⍝ 'name' array argument.
+  (⍺ ⍺⍺ array)←⍵⍵ ⍺ ⍺⍺ array                 ⍝ modify selected part of array.
+  array                                      ⍝ return updated value.
+}
+
+⍝ From http://dfns.dyalog.com/c_saw.htm
+
+saw ← {                                      ⍝ Function operand applied Simple-Array-Wise.
+  ⍺←⊢                                        ⍝ default left arg.
+  2≥|≡⍺ ⍵ ⍵:⍺ ⍺⍺ ⍵                           ⍝ Both simple: apply operand.
+  1≥|≡⍵:⍺ ∇¨⊂⍵                               ⍝ ⍵ simple: traverse ⍺.
+  2≥|≡⍺ 1:⍺∘∇¨⍵                              ⍝ ⍺ simple: traverse ⍵.
+  ⍺ ∇¨⍵                                      ⍝ Both nested: traverse both.
 }
 
 ⍝ From http://dfns.dyalog.com/c_mscan.htm
@@ -441,4 +459,17 @@ subvec←{ ⎕IO←1                               ⍝ Is ⍺ a subvector of ⍵
   0∊⍴⍺:1                                     ⍝ null ⍺: success.
   0∊⍴⍵:0                                     ⍝ null ⍵: failure.
   (1↓⍺)∇(⍵⍳1↑⍺)↓⍵                            ⍝ otherwise, check remaining items.
+}
+
+⍝ From http://dfns.dyalog.com/c_subs.htm
+
+subs ← {                                     ⍝ Vector substitution.
+  fs ts←≢¨fm to←⍺                            ⍝ old and new vectors and sizes
+  1≡≡⍺:to@(fm∘=)⍵                            ⍝ special case: simple scalar subs
+  0=⍴⍴⍵:⊃(⍵≡fm)⌽⍵(⊂to)                       ⍝ special case: scalar argt
+  lead←fs↑1                                  ⍝ leading mask
+  (fm⍷⍵){                                    ⍝ hits mask
+    ~1∊⍺:⍵                                   ⍝ early out if no match
+    ts↓↑,/{to,fs↓⍵}¨(lead,⍺)⊂fm,⍵            ⍝ cut and pasted new for old
+  }⍤1⊢⍵                                      ⍝ apply to vectors
 }

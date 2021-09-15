@@ -1445,7 +1445,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key (set) (set-by) (modify-input))
+(defun choose (input indices &key (set) (set-by) (reference) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices
@@ -1578,8 +1578,16 @@
                                               (row-major-aref input i))))
                                   output))
               (values set output))
-            ;; if a single index is specified, from the output, just retrieve its value
-            (if (not output) (enclose (duplicate (row-major-aref input (row-major-aref rmindices 0))))
+            ;; if a single index is specified, from the output, just retrieve its value;
+            ;; the reference mode is currently used for selective assignments like (3↑x)←5 and passes
+            ;; back a displaced 0-rank array as the enclosed value
+            (if (not output) (if reference (let ((index (row-major-aref rmindices 0)))
+                                             (if (not (arrayp (row-major-aref input index)))
+                                                 (row-major-aref input index)
+                                                 (make-array nil :element-type (element-type input)
+                                                                 :displaced-to input
+                                                                 :displaced-index-offset index)))
+                                 (enclose (duplicate (row-major-aref input (row-major-aref rmindices 0)))))
                 (progn (xdotimes output (o (length rmindices))
                          (let ((i (aref rmindices o)))
                            (setf (row-major-aref output o)

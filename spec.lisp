@@ -44,16 +44,12 @@
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal ;; :lexical-operators-unitary
-                  :lexical-statements
-                  :general-tests
+                  :lexical-operators-pivotal :lexical-statements :general-tests
                   :system-variable-function-tests :function-inversion-tests :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal ;; :lexical-operators-unitary
-                  :lexical-statements
-                  :general-tests)
+                  :lexical-operators-pivotal :lexical-statements :general-tests)
            (:demo :general-tests :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal ;; :lexical-operators-unitary
@@ -445,7 +441,8 @@
                                      (#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))))))
   (⌷ (has :title "Index")
      (dyadic (at-index index-origin axes to-set))
-     (meta (primary :axes axes :implicit-args (index-origin) :optional-implicit-args (to-set)))
+     (meta (primary :axes axes :implicit-args (index-origin) :optional-implicit-args (to-set))
+           (dyadic :selective-assignment-compatible t))
      (tests (is "1⌷3" 3)
             (is "3⌷2 4 6 8 10" 6)
             (is "3⌷⍳9" 3)
@@ -595,7 +592,8 @@
      (ambivalent (mix-array index-origin axes)
                  (section-array index-origin nil axes))
      (meta (primary :axes axes :implicit-args (index-origin))
-           (monadic :inverse (λωχ (split-array omega *last-axis*))))
+           (monadic :inverse (λωχ (split-array omega *last-axis*)))
+           (dyadic :selective-assignment-compatible t))
      (tests (is "↑2" 2)
             (is "↑'a'" #\a)
             (is "⍴1↑⍳3" #*1)
@@ -684,7 +682,8 @@
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse (λωχ (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                                                   (rank omega))
-                                              omega))))
+                                              omega)))
+           (dyadic :selective-assignment-compatible t))
      (tests (is "↓5" 5)
             (is "↓'b'" #\b)
             (is "↓⍳5" #0A#(1 2 3 4 5))
@@ -781,7 +780,8 @@
      (ambivalent #'get-first-or-disclose (pick index-origin))
      (meta (primary :implicit-args (index-origin))
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
-                                      (enclose omega)))))
+                                      (enclose omega))))
+           (dyadic :selective-assignment-compatible t))
      (tests (is "⊃3" 3)
             (is "⊃⍳4" 1)
             (is "⊃⊂⍳4" #(1 2 3 4))
@@ -856,7 +856,8 @@
      (ambivalent (permute-array index-origin) (permute-array index-origin))
      (meta (primary :implicit-args (index-origin))
            (monadic :inverse (permute-array index-origin))
-           (dyadic :inverse (permute-array index-origin)))
+           (dyadic :inverse (permute-array index-origin)
+                   :selective-assignment-compatible t))
      (tests (is "⍉2" 2)
             (is "⍉2 3 4⍴⍳9" #3A(((1 4) (5 8) (9 3)) ((2 5) (6 9) (1 4))
                                 ((3 6) (7 1) (2 5)) ((4 7) (8 2) (3 6))))
@@ -894,7 +895,8 @@
                                       ;; TODO: this inverse functionality is probably not complete
                                       (expand-array alpha omega *last-axis* :compress-mode t)
                                       (error "Inverse [/ replicate] can only accept~a"
-                                             " a scalar right argument.")))))
+                                             " a scalar right argument.")))
+                   :selective-assignment-compatible t))
      (tests (is "3/1" #*111)
             (is "(1⍴2)/8" #(8 8))
             (is "5/3" #(3 3 3 3 3))
@@ -1577,25 +1579,49 @@
        "x←3 3⍴⍳9 ⋄ (2 3⌷x)←33 ⋄ x" #2A((1 2 3) (4 5 33) (7 8 9)))
   (for "Assignment of array element referenced by [⌷ index] function to different type."
        "x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x" #2A((1 #\a 3) (4 5 6) (7 8 9)))
-  (for "Selective assignment of vector portion to value by take function."
+  (for "Selective assignment of vector portion to value by [↑ take] function."
        "x←⍳8 ⋄ (3↑x)←20 ⋄ x" #(20 20 20 4 5 6 7 8))
-  (for "Selective assignment of vector portion to sub-vector by take function."
+  (for "Selective assignment of vector portion to sub-vector by [↑ take] function."
        "x←⍳8 ⋄ (3↑x)←20 21 22 ⋄ x" #(20 21 22 4 5 6 7 8))
-  (for "Selective assignment of matrix portion to value by drop function."
+  (for "Selective assignment of matrix portion to value by [↓ drop] function."
        "x←4 5⍴⍳20 ⋄ (2 3↓x)←0 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 0 0) (16 17 18 0 0)))
-  (for "Selective assignment of matrix portion to sub-matrix by drop function."
+  (for "Selective assignment of matrix portion to sub-matrix by [↓ drop] function."
        "x←4 5⍴⍳20 ⋄ (2 3↓x)←2 2⍴-⍳4 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 -1 -2) (16 17 18 -3 -4)))
-  (for "Selective assignment of matrix element by pick function."
+  (for "Selective assignment of matrix element by [⊃ pick] function."
        "x←3 4⍴⍳12 ⋄ ((⊂2 3)⊃x)←50 ⋄ x" #2A((1 2 3 4) (5 6 50 8) (9 10 11 12)))
-  (for "Selective assignment of array elements by compress function."
+  (for "Selective assignment of array elements by [/ compress] function."
        "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
                                            (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))
-  (for "Selective assignment of elements within nested array by take function."
-       "x←3⍴⊂⍳4 ⋄ (1↑x[1])←99 ⋄ x" #(99 #(1 2 3 4) #(1 2 3 4)))
-  (for "Selective assignment of elements within nested array by pick function."
-       "x←3⍴⊂⍳4 ⋄ (1↑⊃x[1])←99 ⋄ x" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
+  (for "Selective assignment of elements within nested array by [↑ take] function."
+       "{na←3⍴⊂⍳4 ⋄ (1↑na[1])←⍵ ⋄ na} 99" #(99 #(1 2 3 4) #(1 2 3 4)))
+  (for "Selective assignment of elements within nested array by [⊃ pick] function."
+       "{na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
+  (for "Selective assignment of matrix elements by [⍉ transpose] function."
+       "{mt←3 3⍴⍳9 ⋄ (1 1⍉mt)←⍵ ⋄ ⋄ mt} 0" #2A((0 2 3) (4 0 6) (7 8 0)))
+  (for "Selective assignment of matrix elements raveled by [↑ take] function."
+       "{mt←3 4⍴⍳12 ⋄ (5↑,mt)←⍵ ⋄ mt} 0" #2A((0 0 0 0) (0 6 7 8) (9 10 11 12)))
+  (for "Selective assignment of nested character vector elements enlisted by [/ compress] function."
+       "{names←'Kent' 'Allen' 'Ryan' ⋄ (('e'=∊names)/∊names)←⍵ ⋄ names} '*'"
+       #(#(#\K #\* #\n #\t) #(#\A #\l #\l #\* #\n) #(#\R #\y #\a #\n)))
+  (for "Selective assignment of string elements within string applied by [/ compress] function."
+       "{A←'STELLAR' ⋄ ((A∊'AEIOU')/A)←⍵ ⋄ A} '*'" #(#\S #\T #\* #\L #\L #\* #\R))
   (for "Multiple assignment with selective assignment in midstream."
        "a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b" #(#(1 2 30 4 5) 30))
+  (for "Selective assignment with [¨ each]-composed [↑ take] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'"
+       #(#(#\* #\* #\N #\D #\O #\M) #(#\* #\* #\A #\N #\C #\E)))
+  (for "Selective assignment with [¨ each]-composed [/ compress] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ ((A='A')/¨A)←⍵ ⋄ A} '*'"
+       #(#(#\R #\* #\N #\D #\O #\M) #(#\C #\H #\* #\N #\C #\E)))
+  (for "Selective assignment with [¨ each]-composed [⊃ pick] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ ((A∊¨⊂'ND')/¨A)←⍵ ⋄ A} '*'"
+       #(#(#\R #\A #\* #\* #\O #\M) #(#\C #\H #\A #\* #\C #\E)))
+  (for "Selective assignment with bracket indexing of array to be assigned to."
+       "{A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ A} '*'"
+       #2A((#(#\R #\A #\N #\D #\* #\*) #(#\C #\H #\A #\N #\C #\E) #(#\R #\A #\N #\D #\* #\*))
+           (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))
+           (#(#\R #\A #\N #\D #\* #\*) #(#\C #\H #\A #\N #\C #\E) #(#\R #\A #\N #\D #\* #\*))
+           (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))))
   (for "Print the result of a function applied to assignment." "⎕←⍴x←1 2 3 ⋄ x" #(1 2 3))
   (for "Assignment of dynamic variable within function."
        "aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5" 8)
@@ -1606,7 +1632,7 @@
   (for "Alias of [× multiply], [⍴ shape] and [⍳ index] functions."
        "⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6" #2A((5 10 5 5 10 15) (10 5 10 20 25 30)))
   (for "Alias of [enclose ⊂] function with curried axes."
-       "{ea←⊂[2] ⋄ ea ⍵} 2 3 4⍴⍳9" #2A((#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3))
+       "{ea←⊂[2] ⋄ ea ⍵} 2 3 4⍴⍳9" #2A((#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3)) ; x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x
                                        (#(4 8 3) #(5 9 4) #(6 1 5) #(7 2 6))))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))
@@ -1686,7 +1712,7 @@
   (for "Locally-scoped function used with lateral operator within if-statement."
        "(⍳3){ g←{5+⍵} ⋄ b←-∘5 ⋄ h←{12×$[~2|⍺;b¨⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(84 96 108) #(-24 -12 0) #(108 120 132)))
-  (for "Locally-scoped function used with function-overloadedlateral operator within if-statement."
+  (for "Locally-scoped function used with function-overloaded lateral operator within if-statement."
        "(⍳3){ g←{5+⍵} ⋄ b←-∘× ⋄ h←{12×$[~2|⍺;b/⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(84 96 108) 24 #(108 120 132)))
   (for "Locally-scoped function used with pivotal operator within if-statement."
@@ -1703,6 +1729,15 @@
   (for "Aliasing of [⍨ commute] operator." "{c←⍨ ⋄ +c ⍵} 35" 70)
   (for "Aliasing of [⌸ key] operator."
        "{k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'" #2A((2) (2) (1) (1)))
+  (for "Aliasing of [. inner product] operator." "{ip←. ⋄ ⍵ +ip× 4 5 6} 1 2 3" 32)
+  (for "Aliasing of [∘ compose] operator." "{c←∘ ⋄ ⍴ c ⍴ ⍵} ⍳9" #*1)
+  (for "Aliasing of [⍤ rank] operator." "{r←⍤ ⋄ ⍵+r 1⊢3 3⍴⍳9} ⍳3" #2A((2 4 6) (5 7 9) (8 10 12)))
+  (for "Aliasing of [⍥ over] operator." "8 10 12 {o←⍥ ⋄ (⍺×⍵)÷o(+/)⍺} 16 32 64" 608/15)
+  (for "Aliasing of [⍣ power] operator." "{p←⍣ ⋄ ⍳ p ¯1⊢⍵} ⍳9" 9)
+  (for "Aliasing of [@ at] operator." "{a←@ ⋄ 22 33 a 3 5⊢⍵} ⍳9" #(1 2 22 4 33 6 7 8 9))
+  (for "Aliasing of [⌺ stencil] operator." "{s←⌺ ⋄ ⊢∘⊂ s 2⊢⍵} ⍳8"
+       #(#(1 2) #(2 3) #(3 4) #(4 5) #(5 6) #(6 7) #(7 8)))
+  (for "Conditional aliasing of pivotal operator." "0 1 {o←⍤ ⋄ {o←⍥⋄1}⍣⍺⊢0 ⋄ 1 +o- ⍵}¨2" #(-1 -3))
   (for "Glider 1." "(3 3⍴⍳9)∊1 2 3 4 8" #2A((1 1 1) (1 0 0) (0 1 0)))
   (for "Glider 2." "3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9" #2A((0 1 0) (0 0 1) (1 1 1))))
 
@@ -2199,8 +2234,8 @@ c   2.56  3
    (progn (princ (format nil "λ Multi-line function with comment at end.~%"))
           
           (is (print-and-run (april "fun←{
- 5+⍵
- ⍝ comment
+  5+⍵
+  ⍝ comment
 }
 fun 3")) 8))
    (progn (princ (format nil "λ Compact function calls.~%"))

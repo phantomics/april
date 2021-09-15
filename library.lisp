@@ -680,121 +680,84 @@
                                         (print-apl-number-string number segments
                                                                  print-precision print-precision rps)))))))
 
-(defun generate-index-array (array)
+(defun generate-index-array (array &optional scalar-assigned ext-index)
   "Given an array, generate an array of the same shape whose each cell contains its row-major index."
-  (let* ((is-scalar (= 0 (rank array)))
-         (array (if is-scalar (aref array) array))
-         (output (make-array (dims array) :element-type (list 'integer 0 (size array)))))
-    (xdotimes output (i (size array)) (setf (row-major-aref output i) i))
-    (funcall (if (not is-scalar) #'identity (lambda (o) (make-array nil :initial-element o)))
-             output)))
+  (let* ((index (or ext-index -1))
+         (is-scalar (= 0 (rank array)))
+         (array (if (and is-scalar (not scalar-assigned))
+                    (aref array) array))
+         (output (make-array (dims array) :element-type (if (eq t (element-type array))
+                                                            t (list 'integer 0 (size array))))))
+    ;; TODO: can this be parallelized?
+    (dotimes (i (size array))
+      (if (or scalar-assigned (not (arrayp (row-major-aref array i))))
+          (setf (row-major-aref output i) (incf index))
+          (multiple-value-bind (out-array out-index)
+              (generate-index-array (row-major-aref array i) scalar-assigned index)
+            (setf (row-major-aref output i) out-array
+                  index out-index))))
+    (values (funcall (if (or scalar-assigned (not is-scalar))
+                         #'identity (lambda (o) (make-array nil :initial-element o)))
+                     output)
+            (+ index (if ext-index 0 1)))))
 
-(defun generate-selection-form (form)
-  "Generate a selection form for use with selective-assignment, i.e. (3↑x)←5."
-  (let ((value-symbol) (set-form) (choose-unpicked)
-        (value-placeholder (gensym)))
-    (labels ((val-wssym (s)
-               (or (symbolp s)
-                   (and (listp s) (member (first s) '(inws inwsd))
-                        (symbolp (second s)))))
-             (sfun-aliased (symbol) (declare (ignore symbol)) nil)
-             (atin-aliased (symbol) (declare (ignore symbol)) nil)
-             (disc-aliased (symbol) (declare (ignore symbol)) nil)
-             ;; (sfun-aliased (symbol)
-             ;;   (let ((alias-entry (get-workspace-alias space symbol)))
-             ;;     (and (symbolp symbol)
-             ;;          (characterp alias-entry)
-             ;;          (member alias-entry '(#\↑ #\↓ #\/ #\⊃) :test #'char=))))
-             ;; (atin-aliased (symbol)
-             ;;   (let ((alias-entry (get-workspace-alias space symbol)))
-             ;;     (and (symbolp symbol)
-             ;;          (characterp alias-entry)
-             ;;          (char= #\⌷ alias-entry))))
-             ;; (disc-aliased (symbol)
-             ;;   (let ((alias-entry (get-workspace-alias space symbol)))
-             ;;     (and (symbolp symbol)
-             ;;          (characterp alias-entry)
-             ;;          (char= #\⊃ alias-entry))))
-             (process-form (f)
-               (match f ((list* 'a-call fn-form first-arg rest)
-                         ;; recursively descend through the expression in search of an expression containing
-                         ;; the variable and one of the four functions usable for selective assignment
-                         (let ((fn-symbol (second fn-form)))
-                           ;; TODO: check functions by metadata rather than symbol, allowing
-                           ;; for aliased symbols
-                           (if (and (listp first-arg) (eql 'a-call (first first-arg)))
-                               (let ((processed (process-form first-arg)))
-                                 ;; only build the recursive expression if a valid expression
-                                 ;; was successfully found inside
-                                 (if processed `(a-call ,fn-form ,processed ,@rest)))
-                               (if (or (eql fn-symbol '⌷)
-                                       (atin-aliased fn-symbol))
-                                   ;; assigning to a [⌷ at index] form is an just an alternate version
-                                   ;; of assigning to axes, like x[1;3]←5
-                                   (progn (setf (second form) (append (second form)
-                                                                      (if (= 3 (length (second form)))
-                                                                          (list nil))
-                                                                      (list value-placeholder))
-                                                set-form (third form))
-                                          form)
-                                   ;; set the :modify-input parameter so the array is changed in place
-                                   (progn (if (or (member fn-symbol '(↑ ↓ / ⊃))
-                                                  (sfun-aliased fn-symbol))
-                                              (if (val-wssym first-arg)
-                                                  (setq value-symbol first-arg)
-                                                  (if (and (eql 'achoose (first first-arg))
-                                                           (val-wssym (second first-arg)))
-                                                      (if (or (eql '⊃ fn-symbol)
-                                                              (disc-aliased fn-symbol))
-                                                          (setq value-symbol first-arg
-                                                                set-form
-                                                                (append first-arg
-                                                                        (list :set value-placeholder
-                                                                              :modify-input t)))
-                                                          (setq value-symbol (second first-arg)
-                                                                choose-unpicked t)))))
-                                          (if value-symbol
-                                              `(a-call ,fn-form
-                                                       ,(if (not choose-unpicked)
-                                                            value-placeholder
-                                                            (append (list 'achoose value-placeholder)
-                                                                    (cddr first-arg)))
-                                                       ,@rest))))))))))
-      (let ((form-out (process-form form)))
-        (values form-out value-symbol value-placeholder set-form)))))
+(defun assign-by-selection (prime-function function value omega &key (axes))
+  (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
+    (if (getf function-meta :selective-assignment-compatible)
+        (let* ((omega (duplicate-t omega))
+               (assign-array (if (not axes) omega (choose omega axes :reference t)))
+               ;; assign reference is used to determine the shape of the area to be assigned,
+               ;; which informs the proper method for generating the index array
+               (assign-reference (disclose-atom (funcall function assign-array))))
+          (multiple-value-bind (index-array assignment-size)
+              (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
+                                                      (not (< 1 (size (disclose-atom assign-reference))))
+                                                      (not (arrayp value))))
+            (let* ((target-index-array (enclose-atom (funcall function index-array)))
+                   (elem-vector (make-array (list assignment-size) :initial-element nil)))
+              (vectorize-assigned target-index-array value elem-vector)
+              (assign-by-vector assign-array index-array elem-vector)
+              omega)))
+        (error "This function cannot be used for selective assignment."))))
 
-(defun assign-selected (array indices values)
-  "Assign array values selected using one of the functions [↑ take], [↓ drop], [\ expand] or [⊃ pick]."
-  (if (or (= 0 (rank values))
-          (and (= (rank indices) (rank values))
-               (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
-      ;; if the data to be assigned is not a scalar value, a new array must be created to ensure
-      ;; that the output array will be compatible with all assigned and original values
-      (let* ((to-copy-input (not (and (= 0 (rank values))
-                                      (or (eq t (element-type array))
-                                          (and (listp (type-of array))
-                                               (or (eql 'simple-vector (first (type-of array)))
-                                                   (and (eql 'simple-array (first (type-of array)))
-                                                        (typep values (second (type-of array))))))))))
-             (output (if (not to-copy-input)
-                         array (make-array (dims array) :element-type (if (/= 0 (rank values))
-                                                                          t (assign-element-type values)))))
-             (assigned-indices (if to-copy-input (make-array (size array) :element-type '(unsigned-byte 8)
-                                                             :initial-element 0))))
-        ;; TODO: is assigning bits slow?
-        ;; iterate through the items to be assigned and, if an empty array has been initialized for
-        ;; the output, store the indices that have been assigned to new data
-        (ydotimes output (i (size indices))
-          (setf (row-major-aref output (row-major-aref indices i))
-                (if (= 0 (rank values)) values (row-major-aref values i)))
-          (if to-copy-input (setf (aref assigned-indices (row-major-aref indices i)) 1)))
-        ;; if the original array was assigned to just return it, or if a new array was created
-        ;; iterate through the old array and copy the non-assigned data to the output
-        (if to-copy-input (xdotimes output (i (size array))
-                            (if (= 0 (aref assigned-indices i))
-                                (setf (row-major-aref output i) (row-major-aref array i)))))
-        output)
-      (error "Area of array to be reassigned does not match shape of values to be assigned.")))
+(defun vectorize-assigned (indices values vector)
+  (if (and (arrayp values)
+           (not (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
+      (error "Area of array to be reassigned does not match shape of values to be assigned.")
+      (dotimes (i (size indices))
+        (if (not (arrayp (row-major-aref indices i)))
+            (setf (row-major-aref vector (row-major-aref indices i))
+                  (if (not (arrayp values))
+                      values (if (not (arrayp (row-major-aref values i)))
+                                 (row-major-aref values i)
+                                 (error "Incompatible values to assign; nested array present where scalar ~a"
+                                        "value expected."))))
+            (vectorize-assigned (row-major-aref indices i)
+                                (if (arrayp values) (row-major-aref values i)
+                                    values)
+                                vector)))))
+
+(defun assign-by-vector (array indices vector)
+  (dotimes (i (size array))
+    (if (not (arrayp (row-major-aref array i)))
+        (if (aref vector (row-major-aref indices i))
+            (setf (row-major-aref array i)
+                  (aref vector (row-major-aref indices i))))
+        (if (not (arrayp (row-major-aref indices i)))
+            (setf (row-major-aref array i)
+                  (aref vector (row-major-aref indices i)))
+            (assign-by-vector2 (row-major-aref array i)
+                               (row-major-aref indices i)
+                               vector)))))
+
+(defun duplicate-t (array)
+  (let ((output (make-array (dims array))))
+    (dotimes (i (size array))
+      (setf (row-major-aref output i)
+            (if (not (arrayp (row-major-aref array i)))
+                (row-major-aref array i)
+                (duplicate-t (row-major-aref array i)))))
+    output))
 
 (defun operate-reducing (function axis index-origin &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."

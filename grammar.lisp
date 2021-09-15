@@ -416,7 +416,7 @@
                             `(inws ,symbol))
                        (lambda ,(if (eq :lateral operator-type)
                                     (if operator-axes '(operand) '(operand &optional axes))
-                                    (if (eq :pivotal operator-type) '(right left)))
+                                    (if (eq :pivotal operator-type) '(left right)))
                          ,@(if (and (not operator-axes)
                                     (eq :lateral operator-type))
                                '((declare (ignorable axes)))
@@ -562,46 +562,47 @@
                 items))))
 
 (composer-pattern value-assignment-by-selection
-    (asop asop-props selection-form sform-specs)
-    ;; "Match a selective value assignment like (3↑x)←5."
+    (asop asop-props selection-axes val-sym selection-form sform-specs)
+    ;; match a selective value assignment like (3↑x)←5
     ((assign-element asop asop-props process-function '(:glyph ←))
      (if (and asop (and (listp (first items))
                         (not (member (caar items) '(:fn :op :st :axes)))))
          (let ((items (first items)))
+           (assign-axes selection-axes process)
+           (if (symbolp item) (setq val-sym item))
            (assign-subprocessed selection-form sform-specs
                                 '(:special (:omit (:value-assignment :function-assignment))))))
      (if selection-form (setf items (rest items))))
   (if (and selection-form (listp selection-form) (eql 'a-call (first selection-form)))
-      (multiple-value-bind (sel-form sel-item placeholder set-form)
-          (generate-selection-form selection-form)
-        (if sel-form
-            ;; generate an array whose each cell is its row-major index, perform the subtractive function
-            ;; on it and then use assign-selected to assign new values to the cells at the remaining
-            ;; indices of the original array
-            (values (if sel-item (let ((item (gensym)) (indices (gensym)) (prec (gensym)))
-                                   `(let* ((,item ,sel-item)
-                                           (,placeholder (generate-index-array ,item))
-                                           (,prec ,precedent)
-                                           (,indices (enclose-atom ,sel-form))
-                                           ,@(if set-form `((,placeholder
-                                                             (make-array nil :initial-element
-                                                                         (assign-selected (disclose ,item)
-                                                                                          ,indices ,prec))))))
-                                      ,(funcall (lambda (form)
-                                                  (if (not (or (symbolp sel-item)
-                                                               (and (listp sel-item)
-                                                                    (member (first sel-item) '(inws inwsd))
-                                                                    (symbolp (second sel-item)))))
-                                                      ;; the assigned value is returned at the end so
-                                                      ;; things like a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b work
-                                                      form `(progn (a-set ,sel-item ,form)
-                                                                   ,prec)))
-                                                (or set-form `(assign-selected ,sel-item ,indices ,prec)))))
-                        (let ((output (gensym)))
-                          `(let* ((,placeholder ,precedent)
-                                  (,output ,sel-form))
-                             (if ,output (setf ,set-form ,output)))))
-                    '(:type (:array :assigned)) items)))))
+      (let ((val-sym-form (list (if (boundp (intern (string val-sym) space))
+                                    'inwsd 'inws)
+                                val-sym))
+            (prime-function (second selection-form))
+            (item (gensym)))
+        (labels ((set-assn-sym (form)
+                   (if (and (listp (third form))
+                            (member (first (third form)) '(inws inwsd)))
+                       (setf (third form) item)
+                       (if (and (listp (third form))
+                                (eql 'a-call (first (third form))))
+                           (set-assn-sym (third form))))))
+          (set-assn-sym selection-form)
+          (values `(progn (a-set ,val-sym-form
+                                 (assign-by-selection
+                                  ,(if (eql 'apl-fn (first prime-function))
+                                       ;; TODO: make this work with an aliased ¨ operator
+                                       prime-function (if (eql 'a-comp (first prime-function))
+                                                          (if (eql '|¨| (second prime-function))
+                                                              (fourth prime-function)
+                                                              (error "Invalid operator-composed expression ~a"
+                                                                     "used for selective assignment."))))
+                                  (lambda (,item) ,selection-form)
+                                  ,precedent ,val-sym-form :axes
+                                  (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
+                                          (list ,@(first selection-axes)))))
+                          ,precedent)
+                  '(:type (:array :assigned))
+                  items)))))
 
 (composer-pattern value-assignment-standard
     (asop asop-props axes symbol symbols symbols-props symbols-list preceding-type)
