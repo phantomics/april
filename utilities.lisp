@@ -843,8 +843,7 @@ It remains here as a standard against which to compare methods for composing APL
     (labels ((build-clauses (clauses)
                `(let ((,condition (disclose-atom ,(first clauses))))
                   (if (not (is-unitary ,condition))
-                      (progn (print (list :cond ,condition))
-                             (error "Predicates within an [$ if] statement must be unitary or scalar."))
+                      (error "Predicates within an [$ if] statement must be unitary or scalar.")
                       (if (/= 0 (disclose-atom ,condition))
                           ,(second clauses)
                           ,(if (third clauses)
@@ -864,7 +863,6 @@ It remains here as a standard against which to compare methods for composing APL
         (axes (and (listp function) (eql 'apl-fn (first function))
                    (third function))))
     `(lambda (&rest ,args)
-       ;; (print (list :ax (quote ,axes) (quote ,function)))
        (if (eq :get-metadata (first ,args))
            ,(append '(list :scalar t) meta)
            (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
@@ -1114,7 +1112,6 @@ It remains here as a standard against which to compare methods for composing APL
   ;; currently, this function is used to initialize function and variable references
   ;; in the workspace before compilation is performed so that recursive
   ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
-  ;; (print (list :tok tokens))
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
@@ -1578,8 +1575,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                            'symbol-value 'symbol-function)
                                                       (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
                                                     assignment-forms)))))))
-        (values lexicons (print (list `(proclaim '(special ,@symbol-set))
-                                      (cons 'setf assignment-forms)))
+        (values lexicons (list `(proclaim '(special ,@symbol-set))
+                               (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count))))))
 
 (defmacro specify-demo (title params &rest sections)
