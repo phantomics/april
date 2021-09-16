@@ -52,9 +52,7 @@
                   :lexical-operators-pivotal :lexical-statements :general-tests)
            (:demo :general-tests :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal ;; :lexical-operators-unitary
-                  :lexical-statements
-                  :system-variable-function-tests
+                  :lexical-operators-pivotal :lexical-statements :system-variable-function-tests
                   :function-inversion-tests :printed-format-tests))
 
  ;; utilities for compiling the language
@@ -440,8 +438,8 @@
             (is "2 2⍴0⍴3⍴⊂2 3⍴5" #2A((#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))
                                      (#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))))))
   (⌷ (has :title "Index")
-     (dyadic (at-index index-origin axes to-set))
-     (meta (primary :axes axes :implicit-args (index-origin) :optional-implicit-args (to-set))
+     (dyadic (at-index index-origin axes));; ref-enclosed))
+     (meta (primary :axes axes :implicit-args (index-origin)) ;; :optional-implicit-args (ref-enclosed))
            (dyadic :selective-assignment-compatible t))
      (tests (is "1⌷3" 3)
             (is "3⌷2 4 6 8 10" 6)
@@ -893,7 +891,8 @@
      (meta (primary :axes axes :implicit-args (index-origin))
            (dyadic :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
-                                      (expand-array alpha omega *last-axis* :compress-mode t)
+                                      (funcall (expand-array nil t index-origin *last-axis*)
+                                               omega alpha)
                                       (error "Inverse [/ replicate] can only accept~a"
                                              " a scalar right argument.")))
                    :selective-assignment-compatible t))
@@ -933,7 +932,8 @@
      (meta (primary :axes axes :implicit-args (index-origin))
            (dyadic :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
-                                      (expand-array alpha omega *first-axis* :compress-mode t)
+                                      (funcall (expand-array nil t index-origin *first-axis*)
+                                               omega alpha)
                                       (error "Inverse [/ replicate] can only accept~a"
                                              " a scalar right argument.")))))
      (tests (is "3⌿2" #(2 2 2))
@@ -1363,8 +1363,8 @@
             (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14)
             (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
             (is "↓⍣2⊢2 2⍴⍳4" #0A#(#(1 2) #(3 4)))
-            ;; (is "⌊1_000_000_000×2○⍣=1" 739085133)
-            ))
+            (is "⌊1_000_000_000×2○⍣=1" 739085133)
+            (is "⌊100000×{⍵{2.0÷⍨⍵+⍺÷⍵}⍣≡⍵}123456789" 1111111106)))
   (@ (has :title "At")
      (pivotal (lambda (right left) `(operate-at ,right ,left index-origin)))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
@@ -1410,9 +1410,11 @@
                     (((5 6) (9 10)) ((6 7) (10 11)) ((7 8) (11 12)))
                     (((9 10) (13 14)) ((10 11) (14 15)) ((11 12) (15 16)))))
             (is "⊢⌺(2 2⍴3 3 2 1)⊢4 4⍴⍳16"
-                #4A((((0 0 0) (0 1 2) (0 5 6)) ((0 0 0) (1 2 3) (5 6 7)) ((0 0 0) (2 3 4) (6 7 8))
-                     ((0 0 0) (3 4 0) (7 8 0))) (((0 5 6) (0 9 10) (0 13 14)) ((5 6 7) (9 10 11) (13 14 15))
-                     ((6 7 8) (10 11 12) (14 15 16)) ((7 8 0) (11 12 0) (15 16 0)))))
+                #4A((((0 0 0) (0 1 2) (0 5 6)) ((0 0 0) (1 2 3) (5 6 7))
+                                               ((0 0 0) (2 3 4) (6 7 8)) ((0 0 0) (3 4 0) (7 8 0)))
+                    (((0 5 6) (0 9 10) (0 13 14)) ((5 6 7) (9 10 11) (13 14 15))
+                                                  ((6 7 8) (10 11 12) (14 15 16))
+                                                  ((7 8 0) (11 12 0) (15 16 0)))))
             (is "{⊂⍺ ⍵}⌺3 3⊢3 3⍴⍳9"
                 #2A((#(#(1 1) #2A((0 0 0) (0 1 2) (0 4 5))) #(#(1 0) #2A((0 0 0) (1 2 3) (4 5 6)))
                       #(#(1 -1) #2A((0 0 0) (2 3 0) (5 6 0))))
@@ -1458,7 +1460,7 @@
             (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
             (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
             (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
-  (⍢ (has :title "Variant")
+  (⍢ (has :title "Variant") ;; todo: implement this as a symbol since its use is implicit?
      (unitary (lambda (axes) (cons 'function-variant axes)))))
 
  ;; tests for general language functions not associated with a particular function or operator

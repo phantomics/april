@@ -10,7 +10,7 @@
      (assign-element slash slash-props process-operator '(:glyph /))
      (assign-element plus plus-props process-function '(:glyph +)))
   (if (and iota slash plus)
-      (let ((arg (gensym)) (var (gensym)) (unused (gensym)))
+      (let ((arg (gensym)) (var (gensym)))
         (values `(lambda (,arg) (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var))
                 '(:type (:function :implicit :sum-until-pattern))))
       (values nil nil tokens)))
@@ -34,7 +34,7 @@
      (assign-element shape2 shape2-props process-function '(:glyph ⍴))
      (assign-element value value-props process-value)) ;; doesn't work if a left arg is present
   (if (and shape1 shape2 (not value))
-      (let ((input (gensym)) (unused (gensym)))
+      (let ((input (gensym)))
         (values `(lambda (,input) (vector (rank ,input)))
                 '(:type (:function :implicit :rank-pattern))))
       (values nil nil tokens)))

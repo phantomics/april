@@ -665,7 +665,8 @@
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
-  (let ((arg-list (gensym "A")))
+  (let ((arg (gensym "A"))
+        (arg-list (gensym "A")))
     (flet ((is-scalar (form) (and (listp form) (eql 'scalar-function (first form))))
            (is-boolean (form) (and (listp form) (listp (second form))
                                    (eql 'boolean-op (caadr form))))
@@ -736,8 +737,30 @@
         (funcall (lambda (form) (if (not scalar-fn)
                                     form (list 'value-meta-process form)))
                  ;; wrap (apply-scalar) forms in the (value-meta-process) macro
-                 `(let ((,arg-list (list ,@(rest fn-body))))
-                    (apply ,(first fn-body) ,arg-list)))))))
+                 `(let ((,arg-list (list ,@(rest fn-body)
+                                         ,@(if (and (listp (first fn-body))
+                                                    (eql 'apl-fn-s (caar fn-body))
+                                                    (third (first fn-body))
+                                                    (listp (third (first fn-body)))
+                                                    (eql 'apply-scalar (first (third (first fn-body)))))
+                                               (list (third (first fn-body)))))))
+                    (apply
+                     ,@(if (or (and (second arguments)
+                                   (listp (first fn-body)) (eql 'apl-fn-s (caar fn-body))
+                                   (of-lexicons *april-idiom* (character (cadar fn-body))
+                                                :functions-scalar-dyadic))
+                              (and (listp (first fn-body)) (eql 'apl-fn-s (caar fn-body))
+                                   (of-lexicons *april-idiom* (character (cadar fn-body))
+                                                :functions-scalar-monadic)))
+                          (list '#'apply-scalar))
+                     ,(first fn-body)
+                     ,arg-list)))))))
+
+;; (defun join-fns (form)
+;;   (destructuring-bind (call function &rest args) form
+;;     (if (and (eql 'a-call call)
+;;              (listp function) (eql 'apl-fn-s (first function)))
+;;         )))
 
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
@@ -1386,13 +1409,7 @@ It remains here as a standard against which to compare methods for composing APL
                 (function-identity (if (eql 'apl-fn (first function-form))
                                        (symbol-function (intern (format nil "APRIL-LEX-FN-~a"
                                                                         (second function-form))
-                                                                *package-name-string*))))
-                (function-meta (if function-identity (or (handler-case (apply function-identity :get-metadata
-                                                                              (if arg2 (list nil)))
-                                                           (error () nil))
-                                                         (handler-case (funcall function-identity
-                                                                                :get-metadata)
-                                                           (error () nil))))))
+                                                                *package-name-string*)))))
            (if (not arg2) (if (and (listp arg1) (eql 'a-call (first arg1)))
                               (invert-function arg1 (lambda (form)
                                                       `(a-call (inv-fn ,function-form)
@@ -1483,7 +1500,6 @@ It remains here as a standard against which to compare methods for composing APL
                                      (spec-meta (rest (assoc 'meta rest)))
                                      (primary-metadata (rest (assoc 'primary spec-meta)))
                                      (implicit-args (getf primary-metadata :implicit-args))
-                                     (has-axes (getf primary-metadata :axes))
                                      (optional-implicit-args (getf primary-metadata :optional-implicit-args))
                                      (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
                                                                 (if (eql 'statements spec-type)

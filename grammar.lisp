@@ -266,7 +266,7 @@
 
 (defun process-statement (this-item properties process idiom space)
   "Process a statement token, allowing specification of the valence, either :lateral or :pivotal."
-  (declare (ignore idiom))
+  (declare (ignore idiom process space))
   (if (and (listp this-item) (eq :st (first this-item)))
       (destructuring-bind (st-type st-symbol) (rest this-item)
         (let ((valid-by-valence (or (not (getf properties :valence))
@@ -589,7 +589,8 @@
           (set-assn-sym selection-form)
           (values `(progn (a-set ,val-sym-form
                                  (assign-by-selection
-                                  ,(if (eql 'apl-fn (first prime-function))
+                                  ,(if (or (symbolp prime-function)
+                                           (eql 'apl-fn (first prime-function)))
                                        ;; TODO: make this work with an aliased ¨ operator
                                        prime-function (if (eql 'a-comp (first prime-function))
                                                           (if (eql '|¨| (second prime-function))
