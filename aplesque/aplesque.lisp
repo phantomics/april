@@ -372,82 +372,86 @@
       (values proceeding count))))
 
 (defun apply-scalar (function omega &optional alpha axes is-boolean is-non-scalar-function meta-table)
-  ;; (if axes (print (list :ff function omega alpha axes)))
   "Apply a scalar function over an array or arrays as appropriate for the shape of the argument(s)."
-  (let* ((orank (rank omega)) (arank (rank alpha))
-         (axes (if axes (enclose-atom axes)))
-         (oscalar (if (is-unitary omega) (get-first-or-disclose omega)))
-         (ascalar (if (is-unitary alpha) (get-first-or-disclose alpha)))
-         (oempty (if (and oscalar (= 0 (size oscalar))) oscalar
-                     (if (= 0 (size omega)) omega)))
-         (aempty (if (and ascalar (= 0 (size ascalar))) ascalar
-                     (if (= 0 (size alpha)) alpha)))
-         (output-dims (dims (if axes (if (> arank orank) alpha omega)
-                                (if oscalar alpha omega))))
-         (output-type (if (or (not is-boolean) (not (= orank arank))
-                              (not (and oscalar ascalar)))
-                          t 'bit))
-         ;; for boolean arrays, check whether the output will directly hold the array contents
-         (output (if (not (and oscalar (or ascalar (not alpha))))
-                     (make-array output-dims :element-type output-type))))
-    ;;  (if (= 0 (size output)) (set ;;;))
-    (flet ((promote-or-not (item)
-             ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
-             (declare (dynamic-extent item))
-             (if (not (or (arrayp omega) (arrayp alpha)))
-                 item (let ((output (make-array (loop :for i :below (max orank arank) :collect 1))))
-                        (setf (row-major-aref output  0) item)
-                        output))))
-      (if (not alpha)
-          ;; if the function is being applied monadically, map it over the array
-          ;; or recurse if an array is found inside
-          (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
-                                                       (apply-scalar function oscalar alpha axes is-boolean
-                                                                     is-non-scalar-function meta-table)
-                                                       (funcall function oscalar))))
-              (xdotimes output (i (size omega))
-                (setf (row-major-aref output i) (apply-scalar function (row-major-aref omega i)))))
-          (if (and oscalar ascalar)
-              ;; if both arguments are scalar or 1-element, return the output of the function on both,
-              ;; remembering to promote the output to the highest rank of the input, either 0 or 1 if not scalar
-              (setq output (promote-or-not (if (or (arrayp oscalar) (arrayp ascalar))
-                                               (apply-scalar function oscalar ascalar axes is-boolean
-                                                             is-non-scalar-function meta-table)
-                                               (funcall function oscalar ascalar))))
-              (if (and is-non-scalar-function (or oempty aempty))
-                  (setq output (funcall function (disclose omega) (disclose alpha)))
-                  (if (or oscalar ascalar
-                          (and (= orank arank)
-                               (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
-                      ;; map the function over identically-shaped arrays
-                      (if (and is-non-scalar-function (or oscalar ascalar))
-                          (setq output (funcall function omega alpha))
-                          (xdotimes output (i (size output))
-                            (setf (row-major-aref output i)
-                                  (apply-scalar function (or oscalar (disclose (row-major-aref omega i)))
-                                                (or ascalar (disclose (row-major-aref alpha i)))
-                                                nil is-boolean is-non-scalar-function meta-table))))
-                      ;; if axes are given, go across the higher-ranked function and call the function on its
-                      ;; elements along with the appropriate elements of the lower-ranked function
-                      (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
-                                   (if (> orank arank) (list alpha omega) (list omega alpha t))
-                                 (if (loop :for a :across axes :for ax :from 0
-                                        :always (and (< a (rank highrank))
-                                                     (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
-                                     (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
-                                       (across highrank (lambda (elem coords)
-                                                          (loop :for a :across axes :for ax :from 0
-                                                             :do (setf (nth ax lrc) (nth a coords)))
-                                                          (setf (apply #'aref output coords)
-                                                                (nest (if omega-lower
-                                                                          (funcall function elem
-                                                                                   (apply #'aref lowrank lrc))
-                                                                          (funcall function
-                                                                                   (apply #'aref lowrank lrc)
-                                                                                   elem)))))))
-                                     (error "Incompatible dimensions or axes.")))
-                          (error "Mismatched array sizes for scalar operation."))))))
-      output)))
+  (if (and (not (arrayp omega)) (not (arrayp alpha)))
+      (apply function omega (if alpha (list alpha)))
+      (let* ((orank (rank omega)) (arank (rank alpha))
+             (axes (if axes (enclose-atom axes)))
+             (oscalar (if (is-unitary omega) (get-first-or-disclose omega)))
+             (ascalar (if (is-unitary alpha) (get-first-or-disclose alpha)))
+             (oempty (if (and oscalar (= 0 (size oscalar))) oscalar
+                         (if (= 0 (size omega)) omega)))
+             (aempty (if (and ascalar (= 0 (size ascalar))) ascalar
+                         (if (= 0 (size alpha)) alpha)))
+             (output-dims (dims (if axes (if (> arank orank) alpha omega)
+                                    (if oscalar alpha omega))))
+             (output-type (if (or (not is-boolean) (not (= orank arank))
+                                  (not (and oscalar ascalar)))
+                              t 'bit))
+             ;; for boolean arrays, check whether the output will directly hold the array contents
+             (output (if (not (and oscalar (or ascalar (not alpha))))
+                         (make-array output-dims :element-type output-type))))
+        ;;  (if (= 0 (size output)) (set ;;;))
+        (flet ((promote-or-not (item)
+                 ;; function for wrapping output in a vector or 0-rank array if the input was thusly formatted
+                 (declare (dynamic-extent item))
+                 (if (not (or (arrayp omega) (arrayp alpha)))
+                     item (let ((output (make-array (loop :for i :below (max orank arank) :collect 1))))
+                            (setf (row-major-aref output  0) item)
+                            output))))
+          (if (not alpha)
+              ;; if the function is being applied monadically, map it over the array
+              ;; or recurse if an array is found inside
+              (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
+                                                           (apply-scalar function oscalar alpha axes is-boolean
+                                                                         is-non-scalar-function meta-table)
+                                                           (funcall function oscalar))))
+                  (xdotimes output (i (size omega))
+                    (setf (row-major-aref output i) (apply-scalar function (row-major-aref omega i)))))
+              (if (and oscalar ascalar)
+                  ;; if both arguments are scalar or 1-element, return the output of the
+                  ;; function on both, remembering to promote the output to the highest rank
+                  ;; of the input, either 0 or 1 if not scalar
+                  (setq output (promote-or-not (if (or (arrayp oscalar) (arrayp ascalar))
+                                                   (apply-scalar function oscalar ascalar axes is-boolean
+                                                                 is-non-scalar-function meta-table)
+                                                   (funcall function oscalar ascalar))))
+                  (if (and is-non-scalar-function (or oempty aempty))
+                      (setq output (funcall function (disclose omega) (disclose alpha)))
+                      (if (or oscalar ascalar
+                              (and (= orank arank)
+                                   (loop :for da :in (dims alpha) :for do :in (dims omega) :always (= da do))))
+                          ;; map the function over identically-shaped arrays
+                          (if (and is-non-scalar-function (or oscalar ascalar))
+                              (setq output (funcall function omega alpha))
+                              (xdotimes output (i (size output))
+                                (setf (row-major-aref output i)
+                                      (apply-scalar function (or oscalar (disclose (row-major-aref omega i)))
+                                                    (or ascalar (disclose (row-major-aref alpha i)))
+                                                    nil is-boolean is-non-scalar-function meta-table))))
+                          ;; if axes are given, go across the higher-ranked function and call the function on its
+                          ;; elements along with the appropriate elements of the lower-ranked function
+                          (if axes (destructuring-bind (lowrank highrank &optional omega-lower)
+                                       (if (> orank arank) (list alpha omega) (list omega alpha t))
+                                     (if (loop :for a :across axes :for ax :from 0
+                                               :always (and (< a (rank highrank))
+                                                            (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
+                                         (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
+                                           (across highrank (lambda (elem coords)
+                                                              (loop :for a :across axes :for ax :from 0
+                                                                    :do (setf (nth ax lrc) (nth a coords)))
+                                                              (setf (apply #'aref output coords)
+                                                                    (nest (if omega-lower
+                                                                              (funcall function elem
+                                                                                       (apply #'aref
+                                                                                              lowrank lrc))
+                                                                              (funcall function
+                                                                                       (apply #'aref
+                                                                                              lowrank lrc)
+                                                                                       elem)))))))
+                                         (error "Incompatible dimensions or axes.")))
+                              (error "Mismatched array sizes for scalar operation."))))))
+          output))))
 
 (defun array-compare (item1 item2)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."

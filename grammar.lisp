@@ -866,10 +866,15 @@
      (if (eq :function (first preceding-type))
          (progn (assign-subprocessed center center-props
                                      `(:special (:omit (:value-assignment :function-assignment
-                                                                          :train-composition)
+                                                        :train-composition)
                                                        ,@include-closure-meta-last)))
-                (setq is-center-function (eq :function (first (getf center-props :type))))
-                (if is-center-function
+                (setq is-center-function (and center (eq :function (first (getf center-props :type)))
+                                              (or (not (characterp center))
+                                                  (not (char= #\← center)))))
+                (if (and is-center-function (or (not (listp item))
+                                                (not (eq :fn (first item)))
+                                                (not (characterp (second item)))
+                                                (not (char= #\← (second item)))))
                     (assign-subprocessed left left-props
                                          `(:special (:omit (:value-assignment
                                                             :function-assignment :branch :operator-assignment
@@ -903,9 +908,14 @@
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
             ;; functions are also valid as preceding functions, as with (1+-∘÷)
+            ;; (print (list :ll preceding-properties (getf (first preceding-properties) :type)
+            ;;              (not (null (member :function (getf (first preceding-properties) :type))))))
+            ;; (if (member :function (getf (first preceding-properties) :type))
+            ;;     (print (list :prpr preceding-properties center right)))
             (if (and center (or (and (= 2 (length preceding-properties))
-                                     (getf (getf (second preceding-properties) :special)
-                                           :from-outside-functional-expression))
+                                     (or (getf (getf (second preceding-properties) :special)
+                                               :from-outside-functional-expression)
+                                         (member :function (getf (first preceding-properties) :type))))
                                 (and (member :function (getf (first preceding-properties) :type))
                                      (member :operator-composed (getf (first preceding-properties) :type)))
                                 (member :train-fork-composition (getf (first preceding-properties) :type))))
@@ -955,19 +965,31 @@
                                               (if (and (listp left) (eql 'function (first left)))
                                                   left (resolve-function left))))))
                   ;; TODO: can trains' generated code be more compact?
-                  ;; (print (list :rr right left center right-fn-monadic right-fn-dyadic left-fn-monadic left-fn-dyadic
-                  ;;              (of-meta-hierarchy (rest (getf (getf properties :special)
-                  ;;                                             :closure-meta))
-                  ;;                                 :fn-syms)))
-                  (values `(lambda (,omega &optional ,alpha)
-                             (if ,alpha (a-call ,center (a-call ,right-fn-dyadic ,omega ,alpha)
-                                                ,(if (not left-fn-dyadic)
-                                                     left `(a-call ,left-fn-dyadic ,omega ,alpha)))
-                                 (a-call ,center (a-call ,right-fn-monadic ,omega)
-                                         ,(if (not left-fn-monadic)
-                                              left `(a-call ,left-fn-monadic ,omega)))))
-                          (list :type (list :function :train-fork-composition))
-                          items)))))))
+                  (let* ((right-call-d `(a-call ,right-fn-dyadic ,omega ,alpha))
+                         (right-call-m `(a-call ,right-fn-monadic ,omega))
+                         (lcm-fun (second (getf (getf left-props :call-refs) :monadic)))
+                         (lcd-fun (second (getf (getf left-props :call-refs) :dyadic)))
+                         (call-form `(lambda (,omega &optional ,alpha)
+                                       555
+                                       (if ,alpha
+                                           (a-call ,center ,right-call-d
+                                                   ,(if (getf left-props :call-refs)
+                                                        `(a-call ,lcd-fun ,omega ,alpha)
+                                                        (if (not left-fn-dyadic)
+                                                            left `(a-call ,left-fn-dyadic ,omega ,alpha))))
+                                           (a-call ,center ,right-call-m
+                                                   ,(if (getf left-props :call-refs)
+                                                        `(a-call ,lcm-fun ,omega ,alpha)
+                                                        (if (not left-fn-monadic)
+                                                            left `(a-call ,left-fn-monadic ,omega))))))))
+                    (values (if (getf left-props :call-refs)
+                                (progn (setf (second (getf (getf left-props :call-refs) :monadic)) call-form
+                                             (second (getf (getf left-props :call-refs) :dyadic)) call-form)
+                                       left)
+                                call-form)
+                            (list :type (list :function :train-fork-composition)
+                                  :call-refs (list :monadic right-call-m :dyadic right-call-d))
+                            items))))))))
 
 (composer-pattern lateral-inline-composition
     (operator operator-props left-operand-axes left-operand left-operand-props left-value
