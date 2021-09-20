@@ -145,7 +145,7 @@
 
 [.] Inner/Outer Product
 
-[∘] Compose
+[∘] Beside
 
 [⍤] Rank / Atop
 
@@ -156,6 +156,11 @@
 [@] At
 
 [⌺] Stencil
+```
 
+
+### Statements
+
+```
 [$] If
 ```

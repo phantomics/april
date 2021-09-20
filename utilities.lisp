@@ -40,6 +40,7 @@
                              :comparison-tolerance *comparison-tolerance* :division-method *division-method*))
 
 (defun make-threading-kernel-if-absent ()
+  "Create a kernel for multithreaded executuion via lparallel if none is present."
   (if (not lparallel:*kernel*)
       (setq lparallel:*kernel* (setq *april-parallel-kernel*
                                      (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
@@ -154,6 +155,7 @@
                   ,args)))))
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
+  "Wrap a function to be inverted; returns an error if the function has no inverse form."
   (let ((metadata (gensym)) (inverse (gensym)))
     `(let* ((,metadata (funcall ,function :get-metadata ,@(if is-dyadic (list nil))))
             (,inverse (if (listp ,metadata) (getf ,metadata ,(or inverse-type :inverse)))))
@@ -686,8 +688,10 @@
                       ,arg-list))))))
 
 (defun join-fns (form &optional wrap)
+  "Compose multiple successive scalar functions into a larger scalar function. Used to expand (a-call)."
   (if (and (listp form) (eql 'a-call (first form)))
-      (destructuring-bind (call function &rest args) form
+      (destructuring-bind (_ function &rest args) form
+        (declare (ignore _))
         (if (and (listp function) (eql 'apl-fn-s (first function)))
             (if (or (and (numberp (first args)) (listp (second args))
                          (eql 'a-call (first (second args)))
@@ -733,20 +737,6 @@
                                                                                 (second args) :arg)))))
                             `(apply-scalar ,(subst arg-symbol :arg wrapped) ,argument))))))))))
 
-;; (if (eql 'lambda (first fform))
-;;     (cons (butlast (first fform) 1)
-;;           (subst 'arg `(funcall ,function
-;;                                 ,(if (numberp (first args))
-;;                                      (first args) 'arg)
-;;                                 ,(if (numberp (second args))
-;;                                      (second args) 'arg))
-;;                  (third fform)))
-;;     `(lambda (arg) (funcall ,(funcall (or wrap #'identity) fform)
-;;                             ,(if (numberp (first args))
-;;                                  (first args) 'arg)
-;;                             ,(if (numberp (second args))
-;;                                  (second args) 'arg))))
-
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
 It remains here as a standard against which to compare methods for composing APL functions.
@@ -785,6 +775,7 @@ It remains here as a standard against which to compare methods for composing APL
         (cons 'apl-fn (cons glyph initial-args)))))
 
 (defun build-call-form (glyph-char &optional args axes)
+  "Format a function to be called within generated APL code."
   (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
                                                                   *package-name-string*))
                                          :get-metadata)
@@ -847,6 +838,7 @@ It remains here as a standard against which to compare methods for composing APL
         expanded (cons 'funcall expanded))))
 
 (defmacro apl-if (&rest each-clause)
+  "Expands to an APL-style if-statement where clauses are evaluated depending on whether given expressions evaluate to 1 or 0."
   (let ((condition (gensym)))
     (labels ((build-clauses (clauses)
                `(let ((,condition (disclose-atom ,(first clauses))))
@@ -1054,6 +1046,7 @@ It remains here as a standard against which to compare methods for composing APL
                                    ,@form))))))))
 
 (defmacro function-variant (assignment-clause variable-clause function-clause)
+  "Evaluates one form if the initial clause evaluates to a function, the other if it's a variable. Used to implement ⍺←function cases within defns, most often ⍺←⊢."
   `(if (functionp ,assignment-clause)
        ,function-clause ,variable-clause))
 
@@ -1390,11 +1383,7 @@ It remains here as a standard against which to compare methods for composing APL
   (match form
     ((list* 'a-call function-form arg1 arg2-rest)
      (if (listp function-form)
-         (let* ((arg2 (first arg2-rest))
-                (function-identity (if (eql 'apl-fn (first function-form))
-                                       (symbol-function (intern (format nil "APRIL-LEX-FN-~a"
-                                                                        (second function-form))
-                                                                *package-name-string*)))))
+         (let ((arg2 (first arg2-rest)))
            (if (not arg2) (if (and (listp arg1) (eql 'a-call (first arg1)))
                               (invert-function arg1 (lambda (form)
                                                       `(a-call (inv-fn ,function-form)

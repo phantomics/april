@@ -402,20 +402,16 @@
           (if (not alpha)
               ;; if the function is being applied monadically, map it over the array
               ;; or recurse if an array is found inside
-              (if oscalar (setq output (promote-or-not (if (arrayp oscalar)
-                                                           (apply-scalar function oscalar alpha axes is-boolean
-                                                                         is-non-scalar-function meta-table)
-                                                           (funcall function oscalar))))
+              (if oscalar (setq output (promote-or-not (apply-scalar function oscalar alpha axes is-boolean
+                                                                     is-non-scalar-function meta-table)))
                   (xdotimes output (i (size omega))
                     (setf (row-major-aref output i) (apply-scalar function (row-major-aref omega i)))))
               (if (and oscalar ascalar)
                   ;; if both arguments are scalar or 1-element, return the output of the
                   ;; function on both, remembering to promote the output to the highest rank
                   ;; of the input, either 0 or 1 if not scalar
-                  (setq output (promote-or-not (if (or (arrayp oscalar) (arrayp ascalar))
-                                                   (apply-scalar function oscalar ascalar axes is-boolean
-                                                                 is-non-scalar-function meta-table)
-                                                   (funcall function oscalar ascalar))))
+                  (setq output (promote-or-not (apply-scalar function oscalar ascalar axes is-boolean
+                                                             is-non-scalar-function meta-table)))
                   (if (and is-non-scalar-function (or oempty aempty))
                       (setq output (funcall function (disclose omega) (disclose alpha)))
                       (if (or oscalar ascalar
@@ -1515,8 +1511,7 @@
                                                 (typep input set-type)))))
                               ;; if setting is not being done (i.e. values are being retrieved)
                               ;; and only one index is being fetched, an output array isn't needed
-                              (or set odims (< 1 (size rmindices))
-                                  (and odims (< 1 (length indices))))))
+                              (or set odims (< 1 (size rmindices)))))
                      (make-array (if set idims odims)
                                  :element-type (if set-by t (or set-type (element-type input))))))
          ;; the default set-by function just returns the second argument
@@ -2336,65 +2331,62 @@
                                       (elem-width 1)
                                       (elem-height 1)
                                       (rendered (apply #'aref strings coords)))
-                                 (flet ((is-pure-character-column (&optional index)
-                                          (and (eq :character (first (aref col-types (or index last-coord))))
-                                               (not (rest (aref col-types (or index last-coord)))))))
-                                   (cond ((and (arrayp elem)
-                                               (not (characterp rendered)))
-                                          (let ((rdims (reverse (dims rendered))))
-                                            (setf elem-height (or (second rdims) 1)
-                                                  elem-width (first rdims))))
-                                         ((numberp elem)
-                                          ;; pass the information on realpart type for correct printing
-                                          (let* ((elem-string (funcall format elem segments
-                                                                       (and (member :complex this-col-type)
-                                                                            (or (member :realpart-float
-                                                                                        this-col-type)
-                                                                                (member :realpart-rational
-                                                                                        this-col-type))))))
-                                            (setf this-string elem-string
-                                                  rendered (apply #'aref strings coords)
-                                                  elem-width (length elem-string)))))
-                                   ;; if this is the beginning of a new row, increment the row's y-offset
-                                   ;; by the number of preceding empty rows
-                                   (if (= 0 last-coord)
-                                       (setf row (reduce
-                                                  #'+ (mapcar #'* (rest (reverse coords))
-                                                              (let ((current 1))
-                                                                (loop :for dim
-                                                                   :in (cons 1 (rest (reverse (rest idims))))
-                                                                   :collect (setq current
-                                                                                  (* current dim))))))
-                                             ;; find the total number of empty lines preceding this row by
-                                             ;; encoding the coordinates excepting the last two with a series
-                                             ;; of number bases found by multiplying each dimension going
-                                             ;; backwards excepting the last 2 by the previous base and adding 1
-                                             empty-rows
-                                             (reduce
-                                              #'+ (mapcar #'* (cddr (reverse coords))
-                                                          (cons 1 (let ((last 1))
-                                                                    (loop :for dim
-                                                                       :in (reverse (rest (butlast idims 2)))
-                                                                       :collect (setq last
-                                                                                      (1+ (* dim last))))))))
-                                             (aref y-offsets row)
-                                             (+ empty-rows (aref y-offsets row))))
-                                   (setf this-col-width (max this-col-width elem-width)
-                                         (aref y-offsets (1+ row))
-                                         (max (aref y-offsets (1+ row))
-                                              (+ elem-height (aref y-offsets row) (- empty-rows))
-                                              (if (and (= 2 (length y-offsets))
-                                                       (< 1 (aref y-offsets (1+ row))))
-                                                  ;; don't increment the next row if it is the last, there's only
-                                                  ;; one row in the output and its value is higher than one;
-                                                  ;; this mainly applies to vectors containing nested arrays
-                                                  ;; of rank>1
-                                                  (aref y-offsets (1+ row))
-                                                  (if (= row (- (length y-offsets) 2))
-                                                      (+ elem-height (aref y-offsets row))
-                                                      (+ row (if (and (= 0 last-coord)
-                                                                      (/= last-coord (1- (length y-offsets))))
-                                                                 1 0))))))))))
+                                 (cond ((and (arrayp elem)
+                                             (not (characterp rendered)))
+                                        (let ((rdims (reverse (dims rendered))))
+                                          (setf elem-height (or (second rdims) 1)
+                                                elem-width (first rdims))))
+                                       ((numberp elem)
+                                        ;; pass the information on realpart type for correct printing
+                                        (let* ((elem-string (funcall format elem segments
+                                                                     (and (member :complex this-col-type)
+                                                                          (or (member :realpart-float
+                                                                                      this-col-type)
+                                                                              (member :realpart-rational
+                                                                                      this-col-type))))))
+                                          (setf this-string elem-string
+                                                rendered (apply #'aref strings coords)
+                                                elem-width (length elem-string)))))
+                                 ;; if this is the beginning of a new row, increment the row's y-offset
+                                 ;; by the number of preceding empty rows
+                                 (if (= 0 last-coord)
+                                     (setf row (reduce
+                                                #'+ (mapcar #'* (rest (reverse coords))
+                                                            (let ((current 1))
+                                                              (loop :for dim
+                                                                      :in (cons 1 (rest (reverse (rest idims))))
+                                                                    :collect (setq current
+                                                                                   (* current dim))))))
+                                           ;; find the total number of empty lines preceding this row by
+                                           ;; encoding the coordinates excepting the last two with a series
+                                           ;; of number bases found by multiplying each dimension going
+                                           ;; backwards excepting the last 2 by the previous base and adding 1
+                                           empty-rows
+                                           (reduce
+                                            #'+ (mapcar #'* (cddr (reverse coords))
+                                                        (cons 1 (let ((last 1))
+                                                                  (loop :for dim
+                                                                          :in (reverse (rest (butlast idims 2)))
+                                                                        :collect (setq last
+                                                                                       (1+ (* dim last))))))))
+                                           (aref y-offsets row)
+                                           (+ empty-rows (aref y-offsets row))))
+                                 (setf this-col-width (max this-col-width elem-width)
+                                       (aref y-offsets (1+ row))
+                                       (max (aref y-offsets (1+ row))
+                                            (+ elem-height (aref y-offsets row) (- empty-rows))
+                                            (if (and (= 2 (length y-offsets))
+                                                     (< 1 (aref y-offsets (1+ row))))
+                                                ;; don't increment the next row if it is the last, there's only
+                                                ;; one row in the output and its value is higher than one;
+                                                ;; this mainly applies to vectors containing nested arrays
+                                                ;; of rank>1
+                                                (aref y-offsets (1+ row))
+                                                (if (= row (- (length y-offsets) 2))
+                                                    (+ elem-height (aref y-offsets row))
+                                                    (+ row (if (and (= 0 last-coord)
+                                                                    (/= last-coord (1- (length y-offsets))))
+                                                               1 0)))))))))
                ;; (print (list :xoyo x-offsets y-offsets col-widths col-decimals))
                ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
                ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
@@ -2470,13 +2462,8 @@
                                   (last-coord (first (last coords)))
                                   (chars-width (first (last (dims chars)))))
                              (flet ((is-pure-character-column (&optional index)
-                                      (and (eq :character (first (aref col-types (or index last-coord))))
-                                           (not (rest (aref col-types (or index last-coord))))))
-                                    (is-character-array-column (&optional index)
-                                      (let ((type-list (aref col-types (or index last-coord))))
-                                        (and (not (member :number type-list))
-                                             (not (member :mixed-array type-list))
-                                             (not (member :number-array type-list))))))
+                                      (and (eq :character (first (aref col-types index)))
+                                           (not (rest (aref col-types index))))))
                                (if (arrayp chars)
                                    ;; print a string or sub-matrix of characters; the coordinate conversion
                                    ;; is different depending on whether collated output is being produced

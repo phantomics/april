@@ -800,32 +800,35 @@
                                    (if (not last-axis) 0 (1- (rank omega)))))
                          (rlen (nth axis odims))
                          (increment (reduce #'* (nthcdr (1+ axis) odims)))
+                         (fn-meta (handler-case (funcall function :get-metadata nil) (error nil)))
                          (output (make-array odims)))
                     (dotimes (i (size output)) ;; xdo
                       (declare (optimize (safety 1)))
-                      (let ((value) (vector-index (mod (floor i increment) rlen)))
+                      (let ((value) (vector-index (mod (floor i increment) rlen))
+                            (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
                         (if inverse
                             (let ((original (disclose (row-major-aref
-                                                       omega (+ (mod i increment)
-                                                                (* increment vector-index)
-                                                                (* increment rlen
-                                                                   (floor i (* increment rlen))))))))
+                                                       omega (+ base (* increment vector-index))))))
                               (setq value (if (= 0 vector-index)
                                               original
                                               (funcall function original
                                                        (disclose
                                                         (row-major-aref
-                                                         omega (+ (mod i increment)
-                                                                  (* increment (1- vector-index))
-                                                                  (* increment rlen
-                                                                     (floor i (* increment rlen))))))))))
-                            (loop :for ix :from vector-index :downto 0
-                               :do (let ((original (row-major-aref
-                                                    omega (+ (mod i increment) (* ix increment)
-                                                             (* increment rlen
-                                                                (floor i (* increment rlen)))))))
-                                     (setq value (if (not value) (disclose original)
-                                                     (funcall function value (disclose original)))))))
+                                                         omega (+ base (* increment (1- vector-index)))))))))
+                            ;; faster method for commutative functions
+                            ;; NOTE: xdotimes will not work with this method
+                            (if (getf fn-meta :inverse-commuted)
+                                (setq value (if (= 0 vector-index)
+                                                (row-major-aref omega base)
+                                                (funcall function
+                                                         (row-major-aref
+                                                          output (+ base (* increment (1- vector-index))))
+                                                         (row-major-aref
+                                                          omega (+ base (* increment vector-index))))))
+                                (loop :for ix :from vector-index :downto 0
+                                      :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
+                                            (setq value (if (not value) (disclose original)
+                                                            (funcall function value (disclose original))))))))
                         (setf (row-major-aref output i) value)))
                     output)))))
 
@@ -896,11 +899,9 @@
            (key-list))
       (dotimes (i (size keys))
         (let ((item (row-major-aref keys i)))
-          ;; (declare (dynamic-extent item))
           (if (loop :for key :in key-list :never (funcall key-test item key))
               (setq key-list (cons item key-list)))
-          (setf (gethash item key-table)
-                (cons i (gethash item key-table)))))
+          (push i (gethash item key-table))))
       (let ((item-sets (loop :for key :in (reverse key-list)
                           :collect (funcall function
                                             (if alpha (choose omega
@@ -914,6 +915,7 @@
         (mix-arrays 1 (apply #'vector item-sets))))))
 
 (defun operate-producing-outer (operand)
+  "Generate a function producing an outer product. Used to implement [∘. outer product]."
   (lambda (omega alpha)
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
@@ -925,6 +927,7 @@
         (array-outer-product omega alpha operand))))
 
 (defun operate-producing-inner (right left)
+  "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega)
     (if (or (= 0 (size omega))
             (= 0 (size alpha)))
@@ -937,7 +940,7 @@
                            (error () nil))))
           (array-inner-product omega alpha right left (not is-scalar))))))
 
-(defun operate-composed (right left)
+(defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
   (let ((fn-right (and (functionp right) right))
         (fn-left (and (functionp left) left))
