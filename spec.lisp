@@ -1251,7 +1251,9 @@
                 #2A(("Apple" #(12 2)) ("Orange" #(3 8)) ("Pear" #(6 7 3)) ("Peach" #(16))))
             (is "{⊂⍵}⌸ quantities" #(#(1) #(2 8) #(3) #(4) #(5) #(6) #(7)))
             (is "fruit←'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach' ⋄ {⍴⍵}⌸ fruit"
-                #2A((2) (2) (1) (1))))))
+                #2A((2) (2) (1) (1)))
+            (is "{(2|⍳≢⍵)⊢⌸⍵}10 2⍴⍳20" #3A(((1 2) (5 6) (9 10) (13 14) (17 18))
+                                           ((3 4) (7 8) (11 12) (15 16) (19 20)))))))
 
  (operators
   (with (:name :lexical-operators-pivotal)
