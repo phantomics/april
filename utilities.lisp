@@ -1110,9 +1110,8 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
-  ;; currently, this function is used to initialize function and variable references
-  ;; in the workspace before compilation is performed so that recursive
-  ;; functions will work correctly as with fn←{A←⍵-1 ⋄ $[A≥0;A,fn A;0]} ⋄ fn 5
+  ;; this function is used to initialize function and variable references in the workspace and tabulate
+  ;; those references for each closure, along with generating implicit statements for guards and ⍺←function
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
@@ -1256,6 +1255,7 @@ It remains here as a standard against which to compare methods for composing APL
                                '(:fn #\←) symbol)))))))
         ((list form '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍵ ⍺))))))
          ;; handle other types of function assignment
+         ;; (print (list :ss form))
          (if (symbolp form)
              (if (or (and closure-meta (member form '(⍺⍺ ⍵⍵)))
                      (and closure-meta (member form (of-meta-hierarchy closure-meta :fn-syms)))

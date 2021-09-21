@@ -790,7 +790,6 @@
 (defun operate-scanning (function axis index-origin &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega)
-    ;; second argument for cases where a nil argument is passed in place of a right argument
     (if (eq :get-metadata omega)
         (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
                          (operate-scanning inverse-function axis index-origin last-axis t)))

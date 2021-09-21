@@ -50,6 +50,7 @@
          (values this-item '(:type (:array :character))))
         ;; process symbol-referenced values
         ((and (symbolp this-item)
+              ;; (print (list :ti this-item (is-workspace-function this-item) properties))
               (or (member this-item '(⍵ ⍺ ⍹ ⍶) :test #'eql)
                   (getf properties :symbol-overriding)
                   (not (is-workspace-function this-item)))
@@ -639,10 +640,10 @@
                 (assign-axes axes process)
                 (let ((symbols-present t))
                   ;; collect each symbol to the left of ←, keeping them in (inws) forms if needed
-                  (loop :while symbols-present
+                  (loop :while symbols-present :for sx :from 0
                      :do (multiple-value-bind (symbol-out symbol-props)
-                             (process-value item `(:symbol-overriding
-                                                   t :special ,(getf (first (last preceding-properties))
+                             (process-value item `(,@(if (= 0 sx) '(:symbol-overriding t))
+                                                   :special ,(getf (first (last preceding-properties))
                                                                      :special))
                                             process idiom space)
                            (if (listp symbol-out)
@@ -671,16 +672,7 @@
       ;; define them as dynamic variables if they're unbound there;
       ;; remove symbols from (inws) unless they're bare and thus idiom-native
       (values
-       (progn (loop :for symbol :in symbols-list
-                 :do (if (is-workspace-function symbol)
-                         (fmakunbound (intern (string symbol) space)))
-                   (if (and (not (boundp (intern (string symbol) space)))
-                            (member :top-level (getf (first (last preceding-properties)) :special)))
-                       ;; only bind dynamic variables in the workspace if the compiler is at the top level;
-                       ;; i.e. not within a { function }, where bound variables are lexical
-                       (progn (proclaim (list 'special (intern (string symbol) space)))
-                              (set (intern (string symbol) space) nil))))
-              (cond ((eql 'to-output symbol)
+       (progn (cond ((eql 'to-output symbol)
                      ;; a special case to handle ⎕← quad output
                      `(a-out ,precedent :print-precision print-precision
                                         :print-to output-stream :print-assignment t :with-newline t))
@@ -700,7 +692,17 @@
                                    `(setq output-stream ,(intern symbol-string package-string))
                                    (error "Invalid assignment to ⎕OST.")))
                              (error "Invalid assignment to ⎕OST."))))
-                    (t (let ((osymbol (if (symbolp symbol)
+                    (t ;; (print (list :sl symbols-list))
+                       (loop :for symbol :in symbols-list
+                             :do (if (is-workspace-function symbol)
+                                     (fmakunbound (intern (string symbol) space)))
+                                 (if (and (not (boundp (intern (string symbol) space)))
+                                          (member :top-level (getf (first (last preceding-properties)) :special)))
+                                     ;; only bind dynamic variables in the workspace if the compiler is at the top level;
+                                     ;; i.e. not within a { function }, where bound variables are lexical
+                                     (progn (proclaim (list 'special (intern (string symbol) space)))
+                                            (set (intern (string symbol) space) nil))))
+                       (let ((osymbol (if (symbolp symbol)
                                           symbol (if (and (listp symbol)
                                                           (member (first symbol) '(inws inwsd)))
                                                      (second symbol)))))
@@ -970,7 +972,6 @@
                          (lcm-fun (second (getf (getf left-props :call-refs) :monadic)))
                          (lcd-fun (second (getf (getf left-props :call-refs) :dyadic)))
                          (call-form `(lambda (,omega &optional ,alpha)
-                                       555
                                        (if ,alpha
                                            (a-call ,center ,right-call-d
                                                    ,(if (getf left-props :call-refs)
