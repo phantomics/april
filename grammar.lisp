@@ -365,7 +365,10 @@
                               (not (member :overloaded-operator (getf function-props :type))))
                          (let* ((sub-properties
                                  ;; create special properties for next level down
-                                 `(:special (,@include-closure-meta-last)))
+                                  `(:special (,@include-closure-meta-last
+                                              :omit ,(intersection '(:train-composition)
+                                                                   (getf (getf properties :special)
+                                                                         :omit))))) ;; ***
                                 (next (if items (multiple-value-list (funcall process items sub-properties)))))
                            (and (not (member :function (getf (second next) :type)))
                                 (not (and (listp (first next))
@@ -376,6 +379,8 @@
                                                                                  :closure-meta))
                                                                      :fn-syms))))
                                 (not (third next)))))))
+    ;; (print (list :arrp properties preceding-properties
+    ;;              (getf (getf properties :special) :omit)))
     (if (and (member :left-operand-value (getf function-props :type))
              (not (and (listp (first items)) (eq :fn (caar items))
                        (char= #\← (cadar items)))))
@@ -759,8 +764,11 @@
                                 (if (not (fboundp (intern (string symbol) space)))
                                     (setf (symbol-function (intern (string symbol) space))
                                           #'dummy-nargument-function))))
+                     ;; (print (list :prec precedent))
                      (if (and (listp precedent)
-                              (eql 'a-comp (first precedent))
+                              ;; (not (member (first precedent) '(inws inwsd)))
+                              (member (first precedent) '(lambda a-comp))
+                              ;; (member (first precedent) '(a-comp))
                               (member symbol (getf (rest (getf (getf (first (last preceding-properties))
                                                                      :special)
                                                                :closure-meta))
@@ -914,10 +922,14 @@
             ;;              (not (null (member :function (getf (first preceding-properties) :type))))))
             ;; (if (member :function (getf (first preceding-properties) :type))
             ;;     (print (list :prpr preceding-properties center right)))
-            (if (and center (or (and (= 2 (length preceding-properties))
+            (if (and center
+                     ;; (= 2 (length preceding-properties))
+                     ;; (print (list :pre preceding-properties properties))
+                     (or (and (= 2 (length preceding-properties))
                                      (or (getf (getf (second preceding-properties) :special)
                                                :from-outside-functional-expression)
-                                         (member :function (getf (first preceding-properties) :type))))
+                                         (member :function (getf (first preceding-properties) :type)) ;; ***
+                                         ))
                                 (and (member :function (getf (first preceding-properties) :type))
                                      (member :operator-composed (getf (first preceding-properties) :type)))
                                 (member :train-fork-composition (getf (first preceding-properties) :type))))
@@ -1013,14 +1025,16 @@
                                     ;; fn←5∘- where an operator-composed function is assigned
                                     (assign-subprocessed
                                      left-operand left-operand-props
-                                     `(:special (:omit (:value-assignment :function-assignment :operation)
+                                     `(:special (:omit (:value-assignment :function-assignment :operation
+                                                                          :train-composition) ;; ***
                                                        ,@include-closure-meta-last)))
                                     ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
                                     (if (member :dyadic (getf operator-props :type))
                                         (assign-subprocessed
                                          left-value left-value-props
                                          `(:special (:omit
-                                                     (:value-assignment :function-assignment :operation)
+                                                     (:value-assignment :function-assignment :operation
+                                                                        :train-composition) ;; ***
                                                      ,@include-closure-meta)))))))))
   (if operator
       ;; get left axes from the left operand and right axes from the precedent's properties so the
@@ -1119,7 +1133,8 @@
     (function-axes fn-element function-props is-function value value-props prior-items preceding-type)
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
-         (progn (assign-subprocessed fn-element function-props
+         (progn ;; (print (list :ooo items))
+                (assign-subprocessed fn-element function-props
                                      `(:special (:omit (:function-assignment :value-assignment-by-selection
                                                                              :lateral-inline-composition
                                                                              :train-composition :operation)

@@ -188,12 +188,12 @@ pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
 scc ← {                                      ⍝ Strongly connected components.
                                              ⍝ (Tarjan)
   T←(3/⊂0⊣¨G←⍵),1 ⍬                          ⍝ state tuple T :: C L X x S
-  C L X1 x S←⍳⍴T                              ⍝ access names for items of tuple T
+  C L X1 x S←⍳⍴T                             ⍝ access names for items of tuple T
 
   ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                    ⍝ ⍹ at ⍺ in field ⍶ of ⍵
   put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                       ⍝ ⍹ at ⍺ in field ⍶ of ⍵
   Lx←L put x                                 ⍝ ⍺ at x in lowlink vec :: T ← ⍺ ∇ T
-  Xx←X1 put x                                 ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
+  Xx←X1 put x                                ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
   x1←{1+@x⊢⍵}                                ⍝ successor of index x  :: T ←   ∇ T
   push←,¨@S                                  ⍝ ⍺ pushed onto stack   :: T ← ⍺ ∇ T
   
