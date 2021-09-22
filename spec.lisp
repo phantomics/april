@@ -195,7 +195,7 @@
      (ambivalent (scalar-function -)
                  (scalar-function (reverse-op -)))
      (meta (monadic :id 0 :inverse (ac-wrap :m (scalar-function (reverse-op -))))
-           (dyadic :id 0 :commutative t :inverse (ac-wrap :d (scalar-function (reverse-op -)))
+           (dyadic :id 0 :inverse (ac-wrap :d (scalar-function (reverse-op -)))
                    :inverse-right (ac-wrap :d (scalar-function +))))
      (tests (is "2-1" 1)
             (is "7-2 3 4" #(5 4 3))))
@@ -214,7 +214,7 @@
                  (scalar-function (apl-divide division-method)))
      (meta (primary :implicit-args (division-method))
            (monadic :id 1 :inverse (ac-wrap :m (scalar-function (apl-divide division-method))))
-           (dyadic :id 1 :commutative t :inverse (ac-wrap :d (scalar-function (apl-divide division-method)))
+           (dyadic :id 1 :inverse (ac-wrap :d (scalar-function (apl-divide division-method)))
                    :inverse-right (ac-wrap :d (scalar-function *))))
      (tests (is "6÷2" 3)
             (is "12÷6 3 2" #(2 4 6))
@@ -263,7 +263,7 @@
      (ambivalent (scalar-function apl-ceiling)
                  (scalar-function (reverse-op max)))
      (meta (monadic)
-           (dyadic :id most-negative-double-float
+           (dyadic :id most-negative-double-float :commutative t
                    :inverse-commuted (ac-wrap :m (scalar-function identity))))
      (tests (is "⌈1.0001" 2)
             (is "⌈1.9998" 2)
@@ -275,7 +275,7 @@
      (ambivalent (scalar-function apl-floor)
                  (scalar-function (reverse-op min)))
      (meta (monadic)
-           (dyadic :id most-positive-double-float
+           (dyadic :id most-positive-double-float :commutative t
                    :inverse-commuted (ac-wrap :m (scalar-function identity))))
      (tests (is "⌊1.0001" 1)
             (is "⌊1.9998" 1)

@@ -816,7 +816,7 @@
                                                          omega (+ base (* increment (1- vector-index)))))))))
                             ;; faster method for commutative functions
                             ;; NOTE: xdotimes will not work with this method
-                            (if (getf fn-meta :inverse-commuted)
+                            (if (getf fn-meta :commutative)
                                 (setq value (if (= 0 vector-index)
                                                 (row-major-aref omega base)
                                                 (funcall function
