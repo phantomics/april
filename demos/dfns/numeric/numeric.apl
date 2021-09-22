@@ -227,7 +227,7 @@ alt ← {                                      ⍝ Alternant.
   0=r:⍵⍵⌿,⍵                                  ⍝ zero-row case
   1≥c:⍺⍺⌿,⍵                                  ⍝ zero/one-column case
   M←~⍤1 0⍨⍳r                                 ⍝ minors
-  ⍵[;⎕IO]⍺⍺.⍵⍵(∇⍤2)⍵[M;1↓⍳c]
+  ⍵[;⎕IO]⍺⍺ . ⍵⍵(∇⍤2)⍵[M;1↓⍳c] ⍝ TODO: ⍺⍺ . ⍵⍵ spaces shouldn't be needed
 }
 
 bayes ← { ⍺(×÷+.×)⍵ }                        ⍝ Bayes' formula. (implemented as a fork)

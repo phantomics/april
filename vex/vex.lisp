@@ -443,6 +443,7 @@
                                         (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
                                         (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
                                                         (intern "*BRANCHES*" ,,ws-fullname)
+                                                        (intern "*NAMESPACES*" ,,ws-fullname)
                                                         ,@(loop :for (key val)
                                                                   :on ,(getf (of-subspec system) :variables)
                                                                 :by #'cddr
@@ -452,6 +453,7 @@
                                              ,',(cons 'list (of-subspec system)))
                                         ;; TODO: following is APL-specific, move into spec
                                         (set (intern "*BRANCHES*" ,,ws-fullname) nil)
+                                        (set (intern "*NAMESPACES*" ,,ws-fullname) nil)
                                         ,@(loop :for (key val)
                                                   :on ,(getf (of-subspec system) :variables) :by #'cddr
                                                 :collect `(set (intern ,(string-upcase val) ,,ws-fullname)

@@ -66,8 +66,8 @@
                   (not (loop :for c :across "._¯eEjJrR" :never (char= c char)))))
             :match-token-character
             (lambda (char)
-              (or (alphanumericp char)
-                  (not (loop :for c :across "_⍺⍵⍶⍹⎕∆⍙∇¯⍬" :never (char= c char)))))
+              (or (alphanumericp char) ;; TODO: refine these criteria, ∇⍺⍵⍬ etc. can't be part of a name
+                  (not (loop :for c :across "._⍺⍵⍶⍹⎕∆⍙∇¯⍬" :never (char= c char)))))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
             :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -172,7 +172,8 @@
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕div *division-method*
                        ⎕ost output-stream ⎕ct *comparison-tolerance*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
-          (:function ⎕dt coerce-or-get-type ⎕fmt (format-array-uncollated print-precision)))
+          (:function ⎕ns init-namespace ⎕dt coerce-or-get-type
+                     ⎕fmt (format-array-uncollated print-precision)))
  
  ;; APL's set of functions represented by characters
  (functions

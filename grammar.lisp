@@ -319,10 +319,6 @@
                                 (setq items rest-items
                                       value-elements (cons output value-elements)
                                       value-props (cons properties value-props)))))
-                      ;; (if (and (eql '⍺ item) (= 0 index) (not precedent)
-                      ;;          (member '⍺ (getf (rest (getf (getf properties :special)
-                      ;;                                       :closure-meta)) :fn-syms)))
-                      ;;     '⍺)
                       (multiple-value-bind (value-out value-properties)
                           (process-value item properties process idiom space)
                         (if value-out (setq items rest-items
@@ -697,8 +693,7 @@
                                    `(setq output-stream ,(intern symbol-string package-string))
                                    (error "Invalid assignment to ⎕OST.")))
                              (error "Invalid assignment to ⎕OST."))))
-                    (t ;; (print (list :sl symbols-list))
-                       (loop :for symbol :in symbols-list
+                    (t (loop :for symbol :in symbols-list
                              :do (if (is-workspace-function symbol)
                                      (fmakunbound (intern (string symbol) space)))
                                  (if (and (not (boundp (intern (string symbol) space)))
@@ -732,17 +727,17 @@
                              (push osymbol (getf (rest (getf (getf (first (last preceding-properties))
                                                                    :special)
                                                              :closure-meta))
-                                                 :var-syms))))
-                       (if axes (enclose-axes symbol axes :set precedent)
-                           ;; enclose the symbol in (inws) so the (with-april-workspace) macro
-                           ;; will correctly intern it, unless it's one of the system variables
-                           `(a-set ,(if (not (and (listp symbols)
-                                                  (not (or (eql 'inws (first symbols))
-                                                           (eql 'inwsd (first symbols))))))
-                                        symbols (if (= 1 (length symbols))
-                                                    (first symbols)
-                                                    (cons 'avector symbols)))
-                                   ,precedent)))))
+                                                 :var-syms)))
+                         (if axes (enclose-axes symbol axes :set precedent)
+                             ;; enclose the symbol in (inws) so the (with-april-workspace) macro
+                             ;; will correctly intern it, unless it's one of the system variables
+                             `(a-set ,(if (not (and (listp symbols)
+                                                    (not (or (eql 'inws (first symbols))
+                                                             (eql 'inwsd (first symbols))))))
+                                          symbols (if (= 1 (length symbols))
+                                                      (first symbols)
+                                                      (cons 'avector symbols)))
+                                     ,precedent))))))
        '(:type (:array :assigned))
        items)))
 
