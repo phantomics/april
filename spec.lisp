@@ -1650,6 +1650,8 @@
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
+  (for "Two-element monadic atop function train of lateral compositions assigned as function."
+       "{ ee ← +/ {5⍴⍵}¨ ⋄ ee ⍵} ⍳9" #0A#(45 45 45 45 45))
   (for "Basic three-element monadic fork function train." "(-,÷)5" #(-5 1/5))
   (for "Three-element monadic fork function train with inline function." "(+ {⍺×⍵} -)5" -25)
   (for "Three-element monadic fork function train with variable-referenced and inline functions."
@@ -1661,6 +1663,7 @@
   (for "Five-element monadic fork function train." "(!⍴-,÷)3" #(-3 1/3 -3 1/3 -3 1/3))
   (for "Five-element monadic fork function train with second argument value at end."
        "(3 5⍴-,÷)5" #2A((-5 1/5 -5 1/5 -5) (1/5 -5 1/5 -5 1/5) (-5 1/5 -5 1/5 -5)))
+  (for "As above but assigned as a function." "{gg←!⍴-,÷ ⋄ 3 gg ⍵} 5" #(-2 3/5 -2 3/5 -2 3/5 -2 3/5 -2 3/5))
   (for "Three-element dyadic fork function train."
        "' ' (≠⊆⊢) ' one two  three'" #("one" "two" "three"))
   (for "Three-element dyadic fork function train with left argument value."
