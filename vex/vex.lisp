@@ -607,10 +607,13 @@
                                                                     (not (funcall
                                                                           (of-utilities
                                                                            idiom
-                                                                           :match-inline-newline-character)
+                                                                           :match-newline-character)
                                                                           char)))))
-                                                       (error "Newlines cannot occur within a ~a closure."
-                                                              boundary-chars))
+                                                       (progn
+                                                         (print (list :aaa char dlb-overriding-balance
+                                                                      boundary-chars))
+                                                         (error "Newlines cannot occur within a ~a closure."
+                                                                boundary-chars)))
                                                    (if (and (char= char (aref boundary-chars 0))
                                                             (< 0 char-index))
                                                        (incf balance)
@@ -618,9 +621,10 @@
                                                                 (< 0 char-index))
                                                            (decf balance)))
                                                    (if dlbor-opening-chars
-                                                       (if (not (loop :for c :across dlbor-opening-chars
-                                                                   :never (char= char c)))
-                                                           (incf dlb-overriding-balance)
+                                                       (if (and (< 0 char-index)
+                                                                (not (loop :for c :across dlbor-opening-chars
+                                                                           :never (char= char c))))
+                                                           (print (incf dlb-overriding-balance))
                                                            (if (not (loop :for c :across dlbor-closing-chars
                                                                        :never (char= char c)))
                                                                (decf dlb-overriding-balance))))

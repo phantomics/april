@@ -58,7 +58,7 @@
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab) :test #'char=))
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
-            :match-inline-newline-character (lambda (char) (member char '(#\⋄ #\◊) :test #'char=))
+            ;; :match-inline-newline-character (lambda (char) (member char '(#\⋄ #\◊) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
             (lambda (char)
