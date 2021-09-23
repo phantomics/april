@@ -17,7 +17,7 @@
 (defun process-value (this-item properties process idiom space)
   "Process a value token."
   (cond ((and (listp this-item)
-              (not (member (first this-item) '(:fn :op :st :axes))))
+              (not (member (first this-item) '(:fn :op :st :pt :axes))))
          ;; if the item is a closure, evaluate it and return the result
          (let ((sub-props (list :special
                                 (list :closure-meta (getf (getf properties :special) :closure-meta)))))
@@ -30,6 +30,10 @@
                                         (cons :enclosed (rest (getf out-properties :type))))))
                         (values output out-properties))
                  (values nil nil)))))
+        ((and (listp this-item)
+              (eq :pt (first this-item)))
+         (values (cons 'nspath (cons `(inws ,(second this-item)) (cddr this-item)))
+                 '(:type :symbol)))
         ;; process the empty vector expressed by the [⍬ zilde] character
         ((eq :empty-array this-item)
          (values (make-array 0) '(:type (:array :empty))))
@@ -311,7 +315,7 @@
                                       value-elements (cons output value-elements)
                                       value-props (cons properties value-props)
                                       stopped t))))
-                      (if (and (listp item) (not (member (first item) '(:op :fn :st :axes))))
+                      (if (and (listp item) (not (member (first item) '(:op :fn :st :pt :axes))))
                           ;; if a closure is encountered, recurse to process it
                           (multiple-value-bind (output properties)
                               (funcall process item special-props)
@@ -568,7 +572,7 @@
     ;; match a selective value assignment like (3↑x)←5
     ((assign-element asop asop-props process-function '(:glyph ←))
      (if (and asop (and (listp (first items))
-                        (not (member (caar items) '(:fn :op :st :axes)))))
+                        (not (member (caar items) '(:fn :op :st :pt :axes)))))
          (let ((items (first items)))
            (assign-axes selection-axes process)
            (if (symbolp item) (setq val-sym item))
@@ -736,7 +740,8 @@
                                                              (eql 'inwsd (first symbols))))))
                                           symbols (if (= 1 (length symbols))
                                                       (first symbols)
-                                                      (cons 'avector symbols)))
+                                                      (if (eql 'nspath (first symbols))
+                                                          symbols (cons 'avector symbols))))
                                      ,precedent))))))
        '(:type (:array :assigned))
        items)))

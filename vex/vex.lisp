@@ -443,7 +443,7 @@
                                         (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
                                         (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
                                                         (intern "*BRANCHES*" ,,ws-fullname)
-                                                        (intern "*NAMESPACES*" ,,ws-fullname)
+                                                        (intern "*NS-POINT*" ,,ws-fullname)
                                                         ,@(loop :for (key val)
                                                                   :on ,(getf (of-subspec system) :variables)
                                                                 :by #'cddr
@@ -453,7 +453,7 @@
                                              ,',(cons 'list (of-subspec system)))
                                         ;; TODO: following is APL-specific, move into spec
                                         (set (intern "*BRANCHES*" ,,ws-fullname) nil)
-                                        (set (intern "*NAMESPACES*" ,,ws-fullname) nil)
+                                        (set (intern "*NS-POINT*" ,,ws-fullname) nil)
                                         ,@(loop :for (key val)
                                                   :on ,(getf (of-subspec system) :variables) :by #'cddr
                                                 :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
@@ -600,20 +600,12 @@
                                          (%some (?satisfies
                                                  (lambda (char)
                                                    (if (and disallow-linebreaks
-                                                            (if (funcall (of-utilities
-                                                                          idiom :match-newline-character)
-                                                                         char)
-                                                                (or (= 0 dlb-overriding-balance)
-                                                                    (not (funcall
-                                                                          (of-utilities
-                                                                           idiom
-                                                                           :match-newline-character)
-                                                                          char)))))
-                                                       (progn
-                                                         (print (list :aaa char dlb-overriding-balance
-                                                                      boundary-chars))
-                                                         (error "Newlines cannot occur within a ~a closure."
-                                                                boundary-chars)))
+                                                            (= 0 dlb-overriding-balance)
+                                                            (funcall (of-utilities
+                                                                      idiom :match-newline-character)
+                                                                     char))
+                                                       (error "Newlines cannot occur within a ~a closure."
+                                                              boundary-chars))
                                                    (if (and (char= char (aref boundary-chars 0))
                                                             (< 0 char-index))
                                                        (incf balance)
@@ -624,7 +616,7 @@
                                                        (if (and (< 0 char-index)
                                                                 (not (loop :for c :across dlbor-opening-chars
                                                                            :never (char= char c))))
-                                                           (print (incf dlb-overriding-balance))
+                                                           (incf dlb-overriding-balance)
                                                            (if (not (loop :for c :across dlbor-closing-chars
                                                                        :never (char= char c)))
                                                                (decf dlb-overriding-balance))))

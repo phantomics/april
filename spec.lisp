@@ -170,9 +170,9 @@
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕div *division-method*
-                       ⎕ost output-stream ⎕ct *comparison-tolerance*)
+                     ⎕ost output-stream ⎕ct *comparison-tolerance*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
-          (:function ⎕ns init-namespace ⎕dt coerce-or-get-type
+          (:function ⎕ns make-namespace ⎕cs change-namespace ⎕dt coerce-or-get-type
                      ⎕fmt (format-array-uncollated print-precision)))
  
  ;; APL's set of functions represented by characters
