@@ -45,7 +45,8 @@
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal :lexical-statements :general-tests
-                  :system-variable-function-tests :function-inversion-tests :printed-format-tests)
+                  :system-variable-function-tests :function-inversion-tests :namespace-tests
+                  :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
@@ -53,7 +54,7 @@
            (:demo :general-tests :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal :lexical-statements :system-variable-function-tests
-                  :function-inversion-tests :printed-format-tests))
+                  :function-inversion-tests :namespace-tests :printed-format-tests))
 
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab) :test #'char=))
@@ -1810,6 +1811,23 @@
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
   (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
   (for "Dyadic arbitrary function inverted." "(3 {⍵+÷-⍺}⍣¯1⊢5), 3 {⍺+÷-⍵}⍣¯1⊢5" #(16/3 -1/2)))
+
+ (test-set
+  (with (:name :namespace-tests)
+        (:tests-profile :title "Namespace Tests")
+        (:demo-profile :title "Namespace Demos"
+                       :description "Demos of namespace functionality."))
+  (for "Assignment of and operation on namespace values."
+       "myns←⎕NS ⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9 ⋄ myns.cc[2;],myns.aa×myns.bb"
+       #(4 5 6 5 10 15 20 25 30 35 40 45))
+  (for "Assignment of values in nested namespaces."
+       "myns←⎕NS ⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS ⍬ ⋄ myns.bb.dd.ee←5 
+myns.bb.ff←⍳4 ⋄ myns.bb.gg←2 2⍴⍳4 ⋄ myns.cc,myns.bb.ff,,myns.bb.gg×myns.bb.dd.ee+myns.aa"
+       #(1 2 3 1 2 3 4 8 16 24 32))
+  (for "Assignment, modification and display of values in nested namespaces."
+       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS ⍬
+myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 ⋄ myns,myns.aa.bb[2 4].cc"
+       #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8)))
  
  (test-set
   (with (:name :printed-format-tests)

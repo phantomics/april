@@ -1445,7 +1445,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key (set) (set-by) (reference) (modify-input))
+(defun choose (input indices &key (set) (set-by) (set-nil) (reference) (modify-input))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices
@@ -1520,7 +1520,7 @@
     ;; if multiple axes have been passed, populate the vector of row-major indices
     (if naxes (axes-to-indices indices idims rmindices))
     (if empty-output output
-        (if (or set set-by)
+        (if (or set set-by set-nil)
             (let ((pindices (if (and output indices) (make-array (size input) :initial-element 0))))
               ;; if an output array is being used, the processed indices vector stores the indices
               ;; of elements that have been processed so the ones that weren't can be assigned
@@ -1534,20 +1534,21 @@
                                                                  ;; or to the set value if it's scalar
                                                                  (or (and (arrayp set) (< 0 (rank set))
                                                                           (list (row-major-aref set o)))
-                                                                     (and set (list set)))))))
+                                                                     ;; account for the :nil keyword
+                                                                     ;; used to set a nil value
+                                                                     (if set-nil (list nil)
+                                                                         (list set)))))))
                                     (if output (setf (row-major-aref output i) result)
                                         (setf (row-major-aref input i) result))
                                     (if pindices (setf (aref pindices i) 1)))
-                                  (if (or (vectorp i) ;; this clause can only be reached when reach indexing
-                                          ;; (= 0 (rank i))
-                                          )
+                                  (if (vectorp i) ;; this clause can only be reached when reach indexing
                                       ;; the set-by function is called on each pair of input
                                       ;; and replacement values
                                       (if (= (length i) (rank input))
                                           (progn (setf (varef (or output input) i)
                                                        (funcall set-by (varef input i)
                                                                 (or (and (arrayp set) (row-major-aref set o))
-                                                                    set)))
+                                                                    (if set-nil nil set))))
                                                  (if pindices (setf (aref pindices
                                                                           (rmi-from-subscript-vector input i))
                                                                     1)))
