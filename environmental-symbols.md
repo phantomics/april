@@ -39,5 +39,13 @@ The values of these symbols are fixed and cannot be changed.
 These symbols represent standard functions available within April. Currently, the only system function is `⎕TS`, which takes no arguments and returns a timestamp vector.
 
 |Symbol|Name             |Description|
-|------|-----------------|-----------|
-|`⎕TS` |Timestamp        |Evaluates to the current APL timestamp: a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
+|------|----------------|-----------|
+|`⎕TS` |Timestamp       |Evaluates to the current APL timestamp: a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
+|`⎕NS` |Create Namespace|Create an empty namespace.|
+|`⎕FMT`|Format          |Create a character matrix containing the printed representation of an array.|
+
+### April's Unique System Functions
+
+|Symbol |Name             |Description|
+|-------|-----------------|-----------|
+|`⎕DT`  |Coerce/Get Type  |Get a number representing the element type of an array or coerce an array to a particular element type.|

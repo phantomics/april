@@ -315,19 +315,22 @@
   (concatenate 'string "  * " (regex-replace-all "[\\n]" string (format nil "~%    "))))
 
 (defun process-path (item key-list &optional processor value)
+  "Generate appropriate code to fetch or change elements nested within (arrays of) namespaces."
   (if (not key-list)
       (funcall (or processor (lambda (a b) (declare (ignore b)) a))
                item value)
       (if (symbolp (first key-list))
           (if (and (listp item) (eql 'achoose (first item)))
               (let ((arg (gensym)) (key-sym (intern (string (first key-list)) "KEYWORD")))
+                ;; if multiple namespaces have been fetched from an array, the function to fetch the
+                ;; rest of the path must be applied over the output array with (apply-scalar)
                 `(apply-scalar (lambda (,arg) ,(process-path `(getf ,arg ,key-sym)
                                                              (rest key-list) processor value))
                                ,item))
               (process-path `(getf ,item ,(intern (string (first key-list)) "KEYWORD"))
                             (rest key-list) processor value))
           (let ((this-item (gensym)) (other (gensym)))
-            (if processor
+            (if processor ;; if there's a processor, this path is being used for assignment
                 (enclose-axes item (first key-list)
                               :set value :set-nil (not value)
                               :set-by `(lambda (,this-item ,other)
@@ -391,6 +394,7 @@
                                 value)))
             (let ((symbols (if (not (eql 'avector (first symbol)))
                                symbol (rest symbol))))
+              ;; handle multiple assignments like a b c←1 2 3
               (labels ((process-symbols (sym-list values)
                          (let ((this-val (gensym)))
                            `(let ((,this-val ,values))
@@ -992,10 +996,12 @@ It remains here as a standard against which to compare methods for composing APL
               (rest axis-sets)))))
 
 (defun make-namespace (contents)
+  "Create a namespace. Used to implement ⎕NS. A namespace is just a plist, so this returns nil."
   (declare (ignore contents))
   nil)
 
 (defun change-namespace (ns-path workspace-symbol)
+  "Change the current 'namespace point' within the workspace. Used to implement ⎕CS."
   (if (and (symbolp ns-path)
            (string= "_" (string ns-path)))
       (setf (symbol-value workspace-symbol) nil)
@@ -1015,31 +1021,6 @@ It remains here as a standard against which to compare methods for composing APL
                        (keywordp (first namespace))))
               (setf (symbol-value workspace-symbol) ns-path)
               (error "Not a valid namespace."))))))
-
-;; (defun change-namespace (ns-path workspace-symbol)
-;;   (if (and (symbolp ns-path)
-;;            (string= "_" (string ns-path)))
-;;       (setf (symbol-value workspace-symbol) nil)
-;;       (labels ((follow-path (item path)
-;;                  (if (not path)
-;;                      item (follow-path (getf item (first path))
-;;                                        (rest path)))))
-;;         (let ((namespace (if (symbolp ns-path)
-;;                              (if (boundp ns-path) (symbol-value ns-path)
-;;                                  (error "Namespace does not exist."))
-;;                              (if (listp ns-path)
-;;                                  (or (follow-path (symbol-value (first ns-path)) (rest ns-path))
-;;                                      (error "Namespace does not exist."))))))
-;;           (if (and (listp namespace)
-;;                    (or (null namespace)
-;;                        (keywordp (first namespace))))
-;;               (setf (symbol-value workspace-symbol)
-;;                     (if (not (null namespace))
-;;                         namespace (cons nil ns-path)))
-;;               (if (and (vectorp namespace)
-;;                        (= 0 (length namespace)))
-;;                   (setf (symbol-value workspace-symbol) nil)
-;;                   (error "Not a valid namespace.")))))))
 
 (defun coerce-or-get-type (array &optional type-index)
   "Create an array with a numerically designated type holding the contents of the given array."
@@ -1246,68 +1227,10 @@ It remains here as a standard against which to compare methods for composing APL
                    (if (< 1 (length exps))
                        (cons 'progn exps) (first exps)))))))
 
-#|
-
-    (if (listp tokens)
-        (let* ((found)
-               (last-token)
-               (processed (loop :for i :in tokens
-                                :collect (if (and (symbolp i)
-                                                  (not (loop :for c :across (string i)
-                                                             :never (char= c #\.))))
-                                             (setq found (process-split-sym i))
-                                             (if (and (is-product-operator last-token)
-                                                      (listp i) (eq :axes (first i)))
-                                                 (progn (setq found t) nil)))
-                                :do (print (list :lt last-token i))
-                                    (setq last-token i)))
-               (path-contents) (in-path) (new-tokens))
-          (labels ((process-token-sets (tokens processed)
-                     (if tokens
-                         (let ((tk (first tokens)) (pr (first processed)))
-                           (if pr (if (eq :pt (first pr))
-                                      (progn (setq in-path t)
-                                             (loop :for pelem :in (reverse (rest pr))
-                                                   :do (push pelem path-contents)))
-                                      (push pr path-contents))
-                               (if in-path (if (not (is-product-operator tk))
-                                               (if (and (listp tk) (eq :axes (first tk)))
-                                                   (push tk path-contents)
-                                                   (progn (setq in-path nil)
-                                                          (push (cons :pt path-contents) new-tokens)
-                                                          (push tk new-tokens))))
-                                   (push tk new-tokens)))
-                           (process-token-sets (rest tokens) (rest processed))))))
-            (print (list :ff found))
-            (if found
-                (progn ;;(process-token-sets tokens processed)
-                       (loop :for tk :in tokens :for pr :in processed
-                             :do (if pr (if (eq :pt (first pr))
-                                            (progn (setq in-path t)
-                                                   (loop :for pelem :in (reverse (rest pr))
-                                                         :do (push pelem path-contents)))
-                                            (push pr path-contents))
-                                     (if in-path (if (not ;; (and (listp tk) (eq :op (first tk))
-                                                      ;;      (eq :pivotal (second tk))
-                                                      ;;      (char= #\. (third tk)))
-                                                      (is-product-operator tk))
-                                                     (if (and (listp tk) (eq :axes (first tk)))
-                                                         (push tk path-contents)
-                                                         (progn (setq in-path nil)
-                                                                (push (cons :pt path-contents) new-tokens)
-                                                                (push tk new-tokens))))
-                                         (push tk new-tokens))))
-                  (if in-path (push (cons :pt path-contents) new-tokens))
-                  ;; (print (list :pro processed new-tokens path-contents))
-                  (setq tokens (reverse new-tokens)))))))
-
-|#
-
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; this function is used to initialize function and variable references in the workspace and tabulate
   ;; those references for each closure, along with generating implicit statements for guards and ⍺←function
-  ;; (print (list :to tokens))
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
@@ -1599,21 +1522,6 @@ It remains here as a standard against which to compare methods for composing APL
          symbol)
         ;; handle any other token
         (token-or-tokens token-or-tokens)))))
-
-;; ((guard symbol (and (symbolp symbol)
-;;                     (not (loop :for c :across (string symbol) :never (char= c #\.)))))
-;;  (let ((split-segments (cl-ppcre:split "[.]" (string symbol))))
-;;    (if (and (= 2 (length split-segments))
-;;             (or (fboundp (intern (first split-segments) space))
-;;                 (member (intern (first split-segments) *package-name-string*)
-;;                         '(⍺⍺ ⍵⍵ ∇ ∇∇))
-;;                 (member (intern (first split-segments) *package-name-string*)
-;;                         (getf (rest closure-meta-form) :fn-syms))))
-;;        (list (intern (second split-segments) *package-name-string*)
-;;              '(:op :pivotal #\.)
-;;              (intern (first split-segments) *package-name-string*))
-;;        (cons :pt (mapcar (lambda (item) (intern item *package-name-string*))
-;;                          split-segments)))))
 
 (defun get-assigned-symbols (tokens space &optional token-list is-nested in-assignment-context)
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
