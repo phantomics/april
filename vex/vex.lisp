@@ -481,7 +481,18 @@
                                                     (symbol-package symbol))
                                          ,,ws-name)
                                         ,(format nil "No workspace called ｢~a｣ was found to clear; ~a"
-                                                 ,ws-name "the workspace has been created..")))))))
+                                                 ,ws-name "the workspace has been created..")))))
+                        (defun ,(intern (concatenate 'string symbol-string "-FN")
+                                        (symbol-package symbol))
+                            (,ws-name &optional ,form)
+                          ;; this macro creates a context enclosure within which evaluations have a default
+                          ;; context; use this to evaluate many times with the same (with) expression
+                          (let ((,ws-fullname (if ,form (concatenate 'string ,(string-upcase symbol)
+                                                                     "-WORKSPACE-" (string-upcase ,ws-name))
+                                                  (concatenate 'string ,(string-upcase symbol)
+                                                               "-WORKSPACE-COMMON")))
+                                (,form (or ,form ,ws-name)))
+                            (symbol-function (intern (string ,form) (string ,ws-fullname)))))))
                 ;; print a summary of the idiom as it was specified or extended
                 (let ((items 0)
                       (set-index 0)

@@ -343,6 +343,16 @@
   "Macro to expedite the fetching of values from nested namespaces."
   (process-path list keys))
 
+(defun format-nspath (items &optional output)
+  "Create a string representation of a namespace path from the symbol list implementing that path."
+  (if (not items)
+      output (let ((this-item (if (and (listp (first items))
+                                       (member (caar items) '(inws inwsd)))
+                                  (cadar items) (if (symbolp (first items))
+                                                    (first items)))))
+               (if this-item (format-nspath (rest items) (if output (format nil "~a.~a" output this-item)
+                                                             (string this-item)))))))
+
 (defmacro a-set (symbol value &key (by) (axes))
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
   (labels ((follow-path (item path)
@@ -1324,9 +1334,16 @@ It remains here as a standard against which to compare methods for composing APL
                      (if rest-t
                          (let ((tk (first rest-t)) (pr (first rest-p)) (skip-next))
                            (if pr (if (and (listp pr) (eq :pt (first pr)))
-                                      (progn (setq in-path t)
-                                             (loop :for pelem :in (reverse (rest pr))
-                                                   :do (push pelem path-contents)))
+                                      (let ((next-p (second rest-p)))
+                                        (setq in-path t)
+                                        (loop :for pelem :in (reverse (rest pr))
+                                              :do (push pelem path-contents))
+                                        ;; finish processing this path if the next token is also a path,
+                                        ;; i.e. for successive namespace refs like 5×myns.a myns.b
+                                        (if (and (listp next-p) (eq :pt (first next-p)))
+                                            (progn (setq in-path nil)
+                                                   (push (cons :pt path-contents) new-tokens)
+                                                   (setq path-contents nil))))
                                       (progn (setq in-path t)
                                              (push pr path-contents)))
                                (if in-path (if (and (is-product-operator tk)

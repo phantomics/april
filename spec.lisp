@@ -354,7 +354,7 @@
   (= (has :title "Equal")
      (dyadic (scalar-function (boolean-op (scalar-compare comparison-tolerance))))
      (meta (primary :implicit-args (comparison-tolerance))
-           (dyadic :id 1))
+           (dyadic :id 1 :commutative t))
      (tests (is "3=1 2 3 4 5" #*00100)
             (is "'cat'='hat'" #*011)))
   (≥ (has :title "Greater or Equal")
@@ -372,7 +372,7 @@
                  (scalar-function (boolean-op (λωα (not (funcall (scalar-compare comparison-tolerance)
                                                                  omega alpha))))))
      (meta (primary :implicit-args (comparison-tolerance))
-           (dyadic :id 0))
+           (dyadic :id 0 :commutative t))
      (tests (is "≠2 4 7 4 6 8 3 5 2 4 2 5 6 7" #*11101111000000)
             (is "≠'ONE' 'TWO' 'ONE' 'THREE' 'TWO' 'THREE'" #*110100)
             (IS "≠↑'ONE' 'TWO' 'ONE' 'THREE' 'TWO' 'THREE'" #*110100)
@@ -380,19 +380,19 @@
             (is "'Harrison'≠'Bergeron'" #*11011100)))
   (∧ (has :title "And" :aliases (^)) ;; TODO: complex tests for ∨∧ once proper complex functionality is verified
      (dyadic (scalar-function apl-lcm))
-     (meta (dyadic :id 1))
+     (meta (dyadic :id 1 :commutative t))
      (tests (is "0 1 0 1∧0 0 1 1" #*0001)))
   (⍲ (has :title "Nand")
      (dyadic (scalar-function (boolean-op (λωα (not (= omega alpha 1))))))
-     (meta (dyadic :value :dummy)) ;; dummy value for correct compilation, TODO: obviate this
+     (meta (dyadic :commutative t))
      (tests (is "0 1 0 1⍲0 0 1 1" #*1110)))
   (∨ (has :title "Or")
      (dyadic (scalar-function apl-gcd))
-     (meta (dyadic :id 0))
+     (meta (dyadic :id 0 :commutative t))
      (tests (is "0 1 0 1∨0 0 1 1" #*0111)))
   (⍱ (has :title "Nor")
      (dyadic (scalar-function (boolean-op (λωα (= omega alpha 0)))))
-     (meta (dyadic :value :dummy))
+     (meta (dyadic :commutative t))
      (tests (is "0 1 0 1⍱0 0 1 1" #*1000))))
 
  (functions
@@ -1818,16 +1818,23 @@
         (:demo-profile :title "Namespace Demos"
                        :description "Demos of namespace functionality."))
   (for "Assignment of and operation on namespace values."
-       "myns←⎕NS ⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9 ⋄ myns.cc[2;],myns.aa×myns.bb"
+       "myns←⎕NS ⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9
+    myns.cc[2;],myns.aa×myns.bb"
        #(4 5 6 5 10 15 20 25 30 35 40 45))
   (for "Assignment of values in nested namespaces."
-       "myns←⎕NS ⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS ⍬ ⋄ myns.bb.dd.ee←5 
-myns.bb.ff←⍳4 ⋄ myns.bb.gg←2 2⍴⍳4 ⋄ myns.cc,myns.bb.ff,,myns.bb.gg×myns.bb.dd.ee+myns.aa"
+       "myns←⎕NS ⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS ⍬ 
+    myns.bb.dd.ee←5 ⋄ myns.bb.ff←⍳4 ⋄ myns.bb.gg←2 2⍴⍳4 
+    myns.cc,myns.bb.ff,,myns.bb.gg×myns.bb.dd.ee+myns.aa"
        #(1 2 3 1 2 3 4 8 16 24 32))
   (for "Assignment, modification and display of values in nested namespaces."
        "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS ⍬
-myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 ⋄ myns,myns.aa.bb[2 4].cc"
-       #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8)))
+    myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
+    myns,myns.aa.bb[2 4].cc"
+       #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
+  (for "Use of function within namespace."
+       "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2}
+    myns.f1 myns.a.f2 6"
+       15))
  
  (test-set
   (with (:name :printed-format-tests)
