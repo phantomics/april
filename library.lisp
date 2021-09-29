@@ -800,7 +800,20 @@
                          (rlen (nth axis odims))
                          (increment (reduce #'* (nthcdr (1+ axis) odims)))
                          (fn-meta (handler-case (funcall function :get-metadata nil) (error nil)))
-                         (output (make-array odims)))
+                         (output (make-array odims))
+                         (sao-copy))
+                    (if (getf fn-meta :scan-alternating)
+                        (progn (setq sao-copy (make-array (dims omega)))
+                               (xdotimes sao-copy (i (size omega))
+                                 (let ((vector-index (mod (floor i increment) rlen))
+                                       (base (+ (mod i increment)
+                                                (* increment rlen (floor i (* increment rlen))))))
+                                   (setf (row-major-aref sao-copy (+ base (* increment vector-index)))
+                                         (if (/= 0 (mod vector-index 2))
+                                             (funcall (getf fn-meta :scan-alternating)
+                                                      (row-major-aref omega
+                                                                      (+ base (* increment vector-index))))
+                                             (row-major-aref omega (+ base (* increment vector-index)))))))))
                     (dotimes (i (size output)) ;; xdo
                       (declare (optimize (safety 1)))
                       (let ((value) (vector-index (mod (floor i increment) rlen))
@@ -816,14 +829,16 @@
                                                          omega (+ base (* increment (1- vector-index)))))))))
                             ;; faster method for commutative functions
                             ;; NOTE: xdotimes will not work with this method
-                            (if (getf fn-meta :commutative)
+                            (if (or sao-copy (getf fn-meta :commutative))
                                 (setq value (if (= 0 vector-index)
                                                 (row-major-aref omega base)
-                                                (funcall function
+                                                (funcall (if sao-copy (getf fn-meta :inverse-right)
+                                                             function)
                                                          (row-major-aref
                                                           output (+ base (* increment (1- vector-index))))
                                                          (row-major-aref
-                                                          omega (+ base (* increment vector-index))))))
+                                                          (or sao-copy omega)
+                                                          (+ base (* increment vector-index))))))
                                 (loop :for ix :from vector-index :downto 0
                                       :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
                                             (setq value (if (not value) (disclose original)
@@ -1158,7 +1173,9 @@
            1 (choose omega
                      (if (not right-fn)
                          (append (list (apply-scalar #'- right index-origin))
-                                 (loop :for i :below (1- (rank omega)) :collect nil)))
+                                 ;; (loop :for i :below (1- (rank omega)) :collect nil)
+                                 (loop :for i :below (- (rank omega) (array-depth right))
+                                       :collect nil)))
                      :set (if (not left-fn) left)
                      :set-by (if (or left-fn right-fn)
                                  (lambda (old &optional new)
