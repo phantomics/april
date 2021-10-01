@@ -1205,3 +1205,14 @@
                                               :initial-element 1)))))
             (mix-arrays (rank omega)
                         (stencil omega left-function window-dims movement)))))))
+
+;;; From this point are optimized implementations of APL idioms.
+
+(defun iota-sum (n)
+  "Fast implementation of +/⍳X."
+  (declare (type (integer 0 10000000) n)
+           (optimize (speed 3) (safety 0)))
+  (let ((total 0))
+    (declare (type fixnum total))
+    (loop :for i :of-type fixnum :from 0 :below n :do (incf total i))
+    total))

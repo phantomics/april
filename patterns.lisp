@@ -11,7 +11,10 @@
      (assign-element plus plus-props process-function '(:glyph +)))
   (if (and iota slash plus)
       (let ((arg (gensym)) (var (gensym)))
-        (values `(lambda (,arg) (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var))
+        (values `(lambda (,arg)
+                   (if (< ,arg 10000000)
+                       (iota-sum ,arg)
+                       (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var)))
                 '(:type (:function :implicit :sum-until-pattern))))
       (values nil nil tokens)))
 
