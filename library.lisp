@@ -810,9 +810,9 @@
                                                 (* increment rlen (floor i (* increment rlen))))))
                                    (setf (row-major-aref sao-copy (+ base (* increment vector-index)))
                                          (if (/= 0 (mod vector-index 2))
-                                             (funcall (getf fn-meta :scan-alternating)
-                                                      (row-major-aref omega
-                                                                      (+ base (* increment vector-index))))
+                                             (apply-scalar (getf fn-meta :scan-alternating)
+                                                           (row-major-aref
+                                                            omega (+ base (* increment vector-index))))
                                              (row-major-aref omega (+ base (* increment vector-index)))))))))
                     (dotimes (i (size output)) ;; xdo
                       (declare (optimize (safety 1)))
@@ -1173,7 +1173,6 @@
            1 (choose omega
                      (if (not right-fn)
                          (append (list (apply-scalar #'- right index-origin))
-                                 ;; (loop :for i :below (1- (rank omega)) :collect nil)
                                  (loop :for i :below (- (rank omega) (array-depth right))
                                        :collect nil)))
                      :set (if (not left-fn) left)

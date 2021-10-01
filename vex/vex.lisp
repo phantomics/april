@@ -373,10 +373,8 @@
                           ;; an alternate evaluation macro that calls a function on arguments passed inline;
                           ;; makes for more compact invocations of the language
                           ;; TODO: can this be made to work with code passed in string-referencing variables?
-                          (let ((,args (if (stringp ,options)
-                                           ,args (rest ,args)))
-                                (,input-string (if (listp ,options)
-                                                   (first ,args))))
+                          (let ((,args (if (stringp ,options) ,args (rest ,args)))
+                                (,input-string (if (listp ,options) (first ,args))))
                             (apply #'vex-program ,idiom-symbol
                                    (if ,input-string
                                        (if (or (string= "WITH" (string (first ,options)))
@@ -928,10 +926,13 @@ These are examples of the output of the three macro-builders above.
                                                          out idiom space))))
                               (process-lines remaining
                                              (if (null out)
-                                                 output (append output
-                                                                (list (composer idiom space out nil nil
-                                                                                '((:special
-                                                                                   (:top-level t))))))))))))
+                                                 output (multiple-value-bind (new-output _ remaining)
+                                                            (composer idiom space out nil nil
+                                                                      '((:special (:top-level t))))
+                                                          (declare (ignore _))
+                                                          (if remaining (error "Function called without ~a"
+                                                                               "right argument."))
+                                                          (append output (list new-output)))))))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

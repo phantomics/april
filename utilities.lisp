@@ -432,7 +432,9 @@
   (let ((result (gensym)) (printout (gensym))
         ;; get the symbol referencing a function passed as the output
         (function-name-value (if (and (listp form) (eql 'function (first form)))
-                                 `(string (quote ,(second form))))))
+                                 `(string (quote ,(second form)))))
+        (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
+                  form (build-call-form form))))
     `(let* ((,result ,form)
             (,printout ,(if (and (or print-to output-printed))
                             ;; don't print the results of assignment unless the :print-assignment option is set,

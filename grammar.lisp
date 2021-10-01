@@ -385,8 +385,7 @@
                                  ;; create special properties for next level down
                                   `(:special (,@include-closure-meta-last
                                               :omit ,(intersection '(:train-composition)
-                                                                   (getf (getf properties :special)
-                                                                         :omit))))) ;; ***
+                                                                   (getf (getf properties :special) :omit)))))
                                 (next (if items (multiple-value-list (funcall process items sub-properties)))))
                            (and (not (member :function (getf (second next) :type)))
                                 (not (and (listp (first next))
@@ -725,8 +724,9 @@
                                      (fmakunbound (intern (string symbol) space)))
                                  (if (and (not (boundp (intern (string symbol) space)))
                                           (member :top-level (getf (first (last preceding-properties)) :special)))
-                                     ;; only bind dynamic variables in the workspace if the compiler is at the top level;
-                                     ;; i.e. not within a { function }, where bound variables are lexical
+                                     ;; only bind dynamic variables in the workspace if the compiler
+                                     ;; is at the top level; i.e. not within a { function }, where
+                                     ;; bound variables are lexical
                                      (progn (proclaim (list 'special (intern (string symbol) space)))
                                             (set (intern (string symbol) space) nil))))
                        (let ((osymbol (if (symbolp symbol)
@@ -950,18 +950,10 @@
             ;; train composition is only valid when there is only one function in the precedent
             ;; or when continuing a train composition as for (×,-,÷)5; remember that operator-composed
             ;; functions are also valid as preceding functions, as with (1+-∘÷)
-            ;; (print (list :ll preceding-properties (getf (first preceding-properties) :type)
-            ;;              (not (null (member :function (getf (first preceding-properties) :type))))))
-            ;; (if (member :function (getf (first preceding-properties) :type))
-            ;;     (print (list :prpr preceding-properties center right)))
-            (if (and center
-                     ;; (= 2 (length preceding-properties))
-                     ;; (print (list :pre preceding-properties properties))
-                     (or (and (= 2 (length preceding-properties))
+            (if (and center (or (and (= 2 (length preceding-properties))
                                      (or (getf (getf (second preceding-properties) :special)
                                                :from-outside-functional-expression)
-                                         (member :function (getf (first preceding-properties) :type)) ;; ***
-                                         ))
+                                         (member :function (getf (first preceding-properties) :type))))
                                 (and (member :function (getf (first preceding-properties) :type))
                                      (member :operator-composed (getf (first preceding-properties) :type)))
                                 (member :train-fork-composition (getf (first preceding-properties) :type))))
@@ -1058,15 +1050,15 @@
                                     (assign-subprocessed
                                      left-operand left-operand-props
                                      `(:special (:omit (:value-assignment :function-assignment :operation
-                                                                          :train-composition) ;; ***
+                                                                          :train-composition)
                                                        ,@include-closure-meta-last)))
                                     ;; try getting a value on the left, as for 3 +{⍺ ⍺⍺ ⍵} 4
                                     (if (member :dyadic (getf operator-props :type))
                                         (assign-subprocessed
                                          left-value left-value-props
-                                         `(:special (:omit
-                                                     (:value-assignment :function-assignment :operation
-                                                                        :train-composition) ;; ***
+                                         `(:special (:omit (:value-assignment
+                                                            :function-assignment :operation
+                                                            :train-composition)
                                                      ,@include-closure-meta)))))))))
   (if operator
       ;; get left axes from the left operand and right axes from the precedent's properties so the
@@ -1165,8 +1157,7 @@
     (function-axes fn-element function-props is-function value value-props prior-items preceding-type)
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
-         (progn ;; (print (list :ooo items))
-                (assign-subprocessed fn-element function-props
+         (progn (assign-subprocessed fn-element function-props
                                      `(:special (:omit (:function-assignment :value-assignment-by-selection
                                                                              :lateral-inline-composition
                                                                              :train-composition :operation)
@@ -1175,12 +1166,11 @@
                       prior-items items)
                 (if is-function (assign-subprocessed
                                  value value-props
-                                 `(:special (:omit (:value-assignment :function-assignment
-                                                                      :value-assignment-by-selection :branch
-                                                                      :value-assignment-by-function-result
-                                                                      :lateral-composition
-                                                                      :lateral-inline-composition
-                                                                      :operation :operator-assignment)
+                                 `(:special (:omit (:value-assignment
+                                                    :function-assignment :operator-assignment
+                                                    :value-assignment-by-selection :branch
+                                                    :value-assignment-by-function-result :operation
+                                                    :lateral-composition :lateral-inline-composition)
                                                    ,@include-closure-meta-last
                                                    :valence :lateral))))
                 (if (not (eq :array (first (getf value-props :type))))
@@ -1188,9 +1178,9 @@
                 (if (and (not function-axes) (member :axes function-props))
                     (setq function-axes (getf function-props :axes))))))
   (if is-function (let ((fn-content (if (and (symbolp fn-element) (eql '∇ fn-element))
-                                        ;; the ∇ symbol resolving to :self-reference generates the #'∇self function used
-                                        ;; as a self-reference by lambdas invoked through the (alambda) macro
-                        
+                                        ;; the ∇ symbol resolving to :self-reference generates the
+                                        ;; #'∇self function used as a self-reference by lambdas invoked
+                                        ;; through the (alambda) macro
                                         '#'∇self
                                         (if (or (functionp fn-element)
                                                 (and (symbolp fn-element)
@@ -1206,7 +1196,7 @@
                                                      (eql 'function (first fn-element))))
                                             fn-element (if (characterp fn-element)
                                                            (if (of-lexicons idiom fn-element :functions)
-                                                               (build-call-form fn-element ;; nil
+                                                               (build-call-form fn-element
                                                                                 (if value :dyadic
                                                                                     :monadic)
                                                                                 function-axes))
@@ -1214,7 +1204,7 @@
                                                                fn-element))))))
                     (values `(a-call ,fn-content ,precedent ,@(if value (list value)))
                             '(:type (:array :evaluated)) items))))
-
+    
 (defvar *composer-following-patterns*)
 
 (setq *composer-following-patterns*
