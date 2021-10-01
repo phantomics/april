@@ -1056,9 +1056,8 @@
                                     (if (member :dyadic (getf operator-props :type))
                                         (assign-subprocessed
                                          left-value left-value-props
-                                         `(:special (:omit (:value-assignment
-                                                            :function-assignment :operation
-                                                            :train-composition)
+                                         `(:special (:omit (:operation :value-assignment
+                                                            :function-assignment :train-composition)
                                                      ,@include-closure-meta)))))))))
   (if operator
       ;; get left axes from the left operand and right axes from the precedent's properties so the
