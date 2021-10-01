@@ -134,7 +134,7 @@
                                       (second (getf state :output-stream)))))
                       (loop :for (key value) :on *system-variables* :by #'cddr
                          :collect (list (intern (string-upcase key) *package-name-string*)
-                                        (or (getf state key) `(inws ,value))))))
+                                        (or (getf state key) `(inwsd ,value))))))
             :lexer-postprocess #'lexer-postprocess
             :postprocess-compiled
             (lambda (state &rest inline-arguments)

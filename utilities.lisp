@@ -53,18 +53,22 @@
            (lex-space-name (concatenate 'string space-name "-LEX")))
       (labels ((replace-symbols (form &optional inside-function)
                  (loop :for item :in form :for ix :from 0
-                    :do (cond ((listp item)
-                               (if (and (second item) (not (third item))
-                                        (symbolp (second item)) (member (first item) '(inws inwsd)))
-                                   (setf (nth ix form)
-                                         (intern (string (second item))
-                                                 (if (and inside-function (not (eql 'inwsd (first item)))
-                                                          (not (char= #\* (aref (string (second item)) 0))))
-                                                     lex-space-name space-name)))
-                                   ;; don't lex-intern functions like #'𝕊|fn|
-                                   (replace-symbols item (and (not (eql 'function (first item)))
-                                                              (or inside-function
-                                                                  (member (first item) '(alambda olambda)))))))
+                       :do (cond ((listp item)
+                                  (if (and (second item) (not (third item))
+                                           (symbolp (second item)) (member (first item) '(inws inwsd)))
+                                      (let ((is-lexical (and inside-function (not (eql 'inwsd (first item)))
+                                                             (not (char= #\* (aref (string (second item)) 0)))))
+                                            (is-exdyn (eql 'inwsd (first item)))) ;; an explicit dynamic symbol
+                                        (setf (nth ix form)
+                                              (funcall (if t ; (or is-lexical is-exdyn)
+                                                           #'identity (lambda (i) `(fn-ref ,i)))
+                                                       (intern (string (second item))
+                                                               (if is-lexical lex-space-name space-name)))))
+                                      ;; don't lex-intern functions like #'𝕊|fn|
+                                      (replace-symbols item (and (not (eql 'function (first item)))
+                                                                 (or inside-function
+                                                                     (member (first item)
+                                                                             '(alambda olambda)))))))
                               ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
                                (setf (nth ix form) (list 'quote (intern (string-upcase name)
                                                                         this-package))))))))
@@ -73,6 +77,8 @@
               (cons '(make-threading-kernel-if-absent)
                     (cdddr (first body))))
         (first body)))))
+
+;; (defmacro fn-ref (item) item)
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\𝕊 (lambda (stream character)
@@ -1162,7 +1168,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                   ,form)))
                  `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
                       (with (:sys-vars ,@(loop :for (key value) :on *system-variables* :by #'cddr
-                                               :collect `(inws ,value)))
+                                               :collect `(inwsd ,value)))
                             (:meta :inverse (alambda ,(if arguments arguments `(⍵ &optional ⍺)) (with nil)
                                               ,(if (= 1 (length form))
                                                    (if (listp (first form))
