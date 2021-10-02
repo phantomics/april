@@ -486,13 +486,15 @@
                           ;; this macro creates a context enclosure within which evaluations have a default
                           ;; context; use this to evaluate many times with the same (with) expression
                           (let* ((,ws-fullname (if ,form (concatenate 'string ,(string-upcase symbol)
-                                                                      "-WORKSPACE-" (string-upcase ,ws-name))
+                                                                      "-WORKSPACE-" (string ,ws-name))
                                                    (concatenate 'string ,(string-upcase symbol)
                                                                 "-WORKSPACE-COMMON")))
                                  (,form (or ,form ,ws-name))
                                  (,item (intern (string ,form) (string ,ws-fullname))))
                             (if (fboundp ,item) (symbol-function ,item)
-                                (symbol-value ,item))))))
+                                (if (boundp ,item) (symbol-value ,item)
+                                    (error "The symbol ｢~a｣ is not bound in workspace ｢~a｣."
+                                           ,item ,ws-name)))))))
                 ;; print a summary of the idiom as it was specified or extended
                 (let ((items 0)
                       (set-index 0)

@@ -678,7 +678,7 @@ By default `(april-ref)` fetches items from the default `common` workspace. By p
 * (april (with (:space space1)) "v←25")
 25
 
-* (* 3 (april-ref (format nil "space~a" 1) :|v|))
+* (* 3 (april-ref (format nil "SPACE~a" 1) :|v|))
 75
 ```
 
@@ -950,7 +950,7 @@ For GNU/Linux users who'd like use APL characters outside of a customized editor
 
 ## Thanks to:
 
-Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), of which April makes heavy use.
+Tamas K. Papp, creator of [array-operations](https://github.com/tpapp/array-operations), the basis for some of April's early function implementations.
 
 Max Rottenkolber, creator of [MaxPC](https://github.com/eugeneia/maxpc), the heart of April's parsing engine.
 
