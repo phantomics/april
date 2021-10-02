@@ -8,8 +8,9 @@
 (composer-pattern sum-until-pattern (iota iota-props slash slash-props plus plus-props)
     ((assign-element iota iota-props process-function '(:glyph ⍳))
      (assign-element slash slash-props process-operator '(:glyph /))
-     (assign-element plus plus-props process-function '(:glyph +)))
-  (if (and iota slash plus)
+     (assign-element plus plus-props process-function '(:glyph +))
+     (assign-element value value-props process-value)) ;; doesn't work if a left arg is present
+  (if (and iota slash plus (not value))
       (let ((arg (gensym)) (var (gensym)))
         (values `(lambda (,arg)
                    (if (< ,arg 10000000)
@@ -18,7 +19,16 @@
                 '(:type (:function :implicit :sum-until-pattern))))
       (values nil nil tokens)))
 
-(composer-pattern get-last-pattern (comma comma-props rotate rotate-props disclose disclose-props value value-props)
+(composer-pattern array-size-pattern (comma comma-props shape shape-props value value-props)
+    ((assign-element comma comma-props process-function '(:glyph \,))
+     (assign-element shape shape-props process-function '(:glyph ⍴))
+     (assign-element value value-props process-value)) ;; doesn't work if a left arg is present
+  (if (and comma shape (not value))
+      (values '#'array-total-size '(:type (:function :implicit :array-size-pattern)))
+      (values nil nil tokens)))
+
+(composer-pattern get-last-pattern
+    (comma comma-props rotate rotate-props disclose disclose-props value value-props)
     ((assign-element comma comma-props process-function '(:glyph \,))
      (assign-element rotate rotate-props process-function '(:glyph ⌽))
      (if (not rotate) (assign-element rotate rotate-props process-function '(:glyph ⊖)))
@@ -46,5 +56,6 @@
 
 (setq *composer-optimized-opening-patterns-common*
       '((:name :sum-until-pattern :function sum-until-pattern)
+        (:name :array-size-pattern :function array-size-pattern)
         (:name :get-last-pattern :function get-last-pattern)
         (:name :rank-pattern :function rank-pattern)))

@@ -641,6 +641,47 @@ You can use this macro to clear a workspace, removing all user-created variables
 "The workspace ｢SPACE1｣ has been cleared."
 ```
 
+## References to April Workspace Contents: The (april-ref) Function
+
+If you'd like to easily fetch a value or function from an April workspace within Common Lisp code, you can use the `(april-ref)` function. It works like this:
+
+```lisp
+* (april "v←⍳3")
+#(1 2 3)
+
+* (length (april-ref '|v|))
+3
+
+* (april "fn←{⍵+5}")
+#<FUNCTION ...>
+
+* (funcall (april-ref "fn") 10)
+15
+```
+
+The arguments to `(april-ref)` can be strings or symbols (which will be converted to strings). Since `(april-ref)` is a function and not a macro you can construct strings to pass to it as arguments like so:
+
+```lisp
+* (april "abcdef←×")
+#<FUNCTION ...>
+
+* (funcall (april-ref (format nil "~a~a" "abc" :|def|)) 2 5)
+10
+```
+
+By default `(april-ref)` fetches items from the default `common` workspace. By passing two arguments you can choose the workspace to use:
+
+```lisp
+* (april-create-workspace space1)
+"Successfully created workspace ｢SPACE1｣."
+
+* (april (with (:space space1)) "v←25")
+25
+
+* (* 3 (april-ref (format nil "space~a" 1) :|v|))
+75
+```
+
 ## Sharing Scope: The (with-april-context) Macro
 
 Perhaps you'd like to make multiple calls to April using the same workspace and other parameters and you don't want to have to enter the same parameters over and over again. The `(with-april-context)` macro can help. For example:
