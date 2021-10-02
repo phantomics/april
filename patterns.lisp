@@ -5,7 +5,7 @@
 
 "A set of optimization patterns for April; these patterns are matched before more basic language structures are recognized by the compiler. Optimized code for common APL language idioms is implemented in this way."
 
-(composer-pattern sum-until-pattern (iota iota-props slash slash-props plus plus-props)
+(composer-pattern sum-until-pattern (iota iota-props slash slash-props plus plus-props value value-props)
     ((assign-element iota iota-props process-function '(:glyph ⍳))
      (assign-element slash slash-props process-operator '(:glyph /))
      (assign-element plus plus-props process-function '(:glyph +))

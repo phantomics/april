@@ -58,7 +58,8 @@
                                            (symbolp (second item)) (member (first item) '(inws inwsd)))
                                       (let ((is-lexical (and inside-function (not (eql 'inwsd (first item)))
                                                              (not (char= #\* (aref (string (second item)) 0)))))
-                                            (is-exdyn (eql 'inwsd (first item)))) ;; an explicit dynamic symbol
+                                            ;; (is-exdyn (eql 'inwsd (first item)))
+                                            ) ;; an explicit dynamic symbol
                                         (setf (nth ix form)
                                               (funcall (if t ; (or is-lexical is-exdyn)
                                                            #'identity (lambda (i) `(fn-ref ,i)))
@@ -377,9 +378,10 @@
                (ns-sym (intern "*NS-POINT*" (package-name (symbol-package symbol))))
                (namespace (if (boundp ns-sym) (symbol-value ns-sym)))
                (set-to (if (not is-symbol-value) value `(duplicate ,value)))
-               (symbol (if (or (not (listp symbol))
-                               (not (eql 'nspath (first symbol))))
-                           symbol (macroexpand symbol))))
+               ;; (symbol (if (or (not (listp symbol))
+               ;;                 (not (eql 'nspath (first symbol))))
+               ;;             symbol (macroexpand symbol)))
+               )
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
           ;; present; ⍵-assignment is an error. This is handled below for strand assignments.
           (if axes (enclose-axes symbol axes :set value :set-by by)

@@ -699,36 +699,41 @@
             (+ index (if ext-index 0 1)))))
 
 (defun assign-by-selection (prime-function function value omega &key (axes))
+  "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    (if (getf function-meta :selective-assignment-compatible)
-        (let* ((omega (duplicate-t omega))
-               (assign-array (if (not axes) omega (choose omega axes :reference t)))
-               ;; assign reference is used to determine the shape of the area to be assigned,
-               ;; which informs the proper method for generating the index array
-               (assign-reference (disclose-atom (funcall function assign-array))))
-          ;; TODO: this logic can be improved
-          (if (arrayp value)
-              (let* ((index-array (generate-index-array assign-array t))
-                     (target-index-array (enclose-atom (funcall function index-array))))
-                (assign-by-vector assign-array index-array
-                                  (vectorize-assigned target-index-array value (size assign-array)))
-                assign-array)
-              (multiple-value-bind (index-array assignment-size)
-                  (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
-                                                          (not (< 1 (size (disclose-atom assign-reference))))
-                                                          (not (arrayp value))))
-                (let ((target-index-array (enclose-atom (funcall function index-array))))
-                  ;; (print (list :ii target-index-array value assign-array))
-                  ;; (setf value (vector (aref value 1) (aref value 0)))
-                  ;; (vectorize-assigned target-index-array value elem-vector)
-                  ;; (print (list :ev elem-vector value))
-                  ;; (assign-by-vector assign-array index-array elem-vector)
+    (flet ((duplicate-t (array)
+             (let ((output (make-array (dims array))))
+               (dotimes (i (size array))
+                 (setf (row-major-aref output i)
+                       (if (not (arrayp (row-major-aref array i)))
+                           (row-major-aref array i)
+                           (duplicate-t (row-major-aref array i)))))
+               output)))
+      (if (getf function-meta :selective-assignment-compatible)
+          (let* ((omega (duplicate-t omega))
+                 (assign-array (if (not axes) omega (choose omega axes :reference t)))
+                 ;; assign reference is used to determine the shape of the area to be assigned,
+                 ;; which informs the proper method for generating the index array
+                 (assign-reference (disclose-atom (funcall function assign-array))))
+            ;; TODO: this logic can be improved
+            (if (arrayp value)
+                (let* ((index-array (generate-index-array assign-array t))
+                       (target-index-array (enclose-atom (funcall function index-array))))
                   (assign-by-vector assign-array index-array
-                                    (vectorize-assigned target-index-array value assignment-size))
-                  omega))))
-        (error "This function cannot be used for selective assignment."))))
+                                    (vectorize-assigned target-index-array value (size assign-array)))
+                  assign-array)
+                (multiple-value-bind (index-array assignment-size)
+                    (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
+                                                            (not (< 1 (size (disclose-atom assign-reference))))
+                                                            (not (arrayp value))))
+                  (let ((target-index-array (enclose-atom (funcall function index-array))))
+                    (assign-by-vector assign-array index-array
+                                      (vectorize-assigned target-index-array value assignment-size))
+                    omega))))
+          (error "This function cannot be used for selective assignment.")))))
 
 (defun vectorize-assigned (indices values vector-or-length)
+  "Generate a vector of assigned values for use by (assign-by-selection)."
   (let ((vector (if (arrayp vector-or-length) vector-or-length
                     (make-array (list vector-or-length) :initial-element nil))))
     (if (and (arrayp values)
@@ -752,6 +757,7 @@
                vector))))
 
 (defun assign-by-vector (array indices vector)
+  "Assign elements of an array corresponding to an array of indices from a vector. For use with (assign-by-selection)."
   (dotimes (i (size array))
     (if (not (arrayp (row-major-aref array i)))
         (if (aref vector (row-major-aref indices i))
@@ -764,15 +770,6 @@
             (assign-by-vector (row-major-aref array i)
                               (row-major-aref indices i)
                               vector)))))
-
-(defun duplicate-t (array)
-  (let ((output (make-array (dims array))))
-    (dotimes (i (size array))
-      (setf (row-major-aref output i)
-            (if (not (arrayp (row-major-aref array i)))
-                (row-major-aref array i)
-                (duplicate-t (row-major-aref array i)))))
-    output))
 
 (defun operate-reducing (function axis index-origin &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
