@@ -455,7 +455,7 @@ shannon ← { -+/(2∘⍟×⊣)¨({≢⍵}⌸÷≢)⍵ }          ⍝ Shannon en
 
 ⍝ From http://dfns.dyalog.com/c_subvec.htm
 
-subvec←{ ⎕IO←1                               ⍝ Is ⍺ a subvector of ⍵?
+subvec ← { ⎕IO←1                             ⍝ Is ⍺ a subvector of ⍵?
   0∊⍴⍺:1                                     ⍝ null ⍺: success.
   0∊⍴⍵:0                                     ⍝ null ⍵: failure.
   (1↓⍺)∇(⍵⍳1↑⍺)↓⍵                            ⍝ otherwise, check remaining items.
