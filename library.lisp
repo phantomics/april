@@ -701,7 +701,7 @@
 (defun assign-by-selection (prime-function function value omega &key (axes))
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    (flet ((duplicate-t (array)
+    (labels ((duplicate-t (array)
              (let ((output (make-array (dims array))))
                (dotimes (i (size array))
                  (setf (row-major-aref output i)
