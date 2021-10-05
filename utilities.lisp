@@ -163,7 +163,10 @@
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
-  (let ((metadata (gensym)) (inverse (gensym)))
+  (let ((metadata (gensym)) (inverse (gensym))
+        (function (if (not (and (listp function) (eql 'function (first function))
+                                (listp (second function)) (eql 'fn-ref (first (second function)))))
+                      function (list 'function (macroexpand (second function))))))
     `(let* ((,metadata (funcall ,function :get-metadata ,@(if is-dyadic (list nil))))
             (,inverse (if (listp ,metadata) (getf ,metadata ,(or inverse-type :inverse)))))
        (or ,inverse (error "Cannot invert function ~a." (quote ,function))))))
@@ -449,7 +452,7 @@
         (form (if (and (characterp form) (of-lexicons this-idiom form :functions))
                   (build-call-form form)
                   (if (not (and (listp form) (eql 'function (first form))
-                                (listp (second form)) (eql 'fn-ref (first (second  form)))))
+                                (listp (second form)) (eql 'fn-ref (first (second form)))))
                       form (list 'function (macroexpand (second form)))))))
     `(let* ((,result ,form)
             (,printout ,(if (and (or print-to output-printed))
