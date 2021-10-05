@@ -581,7 +581,7 @@
                                                   ,@(if function-axes `((list ,@(first function-axes)))))))
                            (if (boundp (quote ,(intern (string symbol) space)))
                                (setf (symbol-value (quote ,(intern (string symbol) space))) ,assigned))
-                           (setq (inws ,symbol) ,assigned)))
+                           (setf (inws ,symbol) ,assigned)))
                     `(a-set (inws ,symbol) ,precedent
                             :axes ,symbol-axes :by (lambda (item item2)
                                                      (a-call ,fn-content item item2))))
@@ -824,17 +824,17 @@
                                `(a-set ⍺ ,(build-call-form precedent nil
                                                            (getf (first preceding-properties) :axes)))
                                (if (of-lexicons idiom precedent :functions)
-                                   `(setf ,(if at-top-level `(symbol-function '(inws ,symbol))
-                                               `(inws ,symbol))
-                                          ,(build-call-form precedent nil
-                                                            (getf (first preceding-properties)
-                                                                  :axes)))))
+                                   `(a-set ,(if at-top-level `(symbol-function '(inws ,symbol))
+                                                `(inws ,symbol))
+                                           ,(build-call-form precedent nil
+                                                             (getf (first preceding-properties)
+                                                                   :axes)))))
                            (if (and (listp symbol) (eql 'nspath (first symbol)))
                                (let ((path-symbol (intern (format-nspath (rest symbol)) space)))
                                  (setf (symbol-function path-symbol) #'dummy-nargument-function)
                                  `(setf ,(macroexpand symbol) :function
                                         ,path-symbol ,precedent))
-                               `(setf ,(if (and (listp symbol) (eql 'nspath (first symbol)))
+                               `(a-set ,(if (and (listp symbol) (eql 'nspath (first symbol)))
                                            (follow-path (second symbol) (cddr symbol))
                                            (if at-top-level `(symbol-function (quote (inws ,symbol)))
                                                `(inws ,symbol)))
@@ -847,10 +847,10 @@
      (if (eq :operator (first preceding-type))
          (assign-element asop asop-props process-function '(:glyph ←)))
      (if asop (assign-element symbol symbol-props process-value '(:symbol-overriding t))))
-  (if asop (values `(setf ,(if (member :top-level (getf (first (last preceding-properties)) :special))
-                               `(symbol-function (quote (inws ,symbol)))
-                               `(inws ,symbol))
-                          ,precedent)
+  (if asop (values `(a-set ,(if (member :top-level (getf (first (last preceding-properties)) :special))
+                                `(symbol-function (quote (inws ,symbol)))
+                                `(inws ,symbol))
+                           ,precedent)
                    '(:type (:operator :assigned)) items)))
 
 (composer-pattern branch (asop asop-props branch-from from-props preceding-type)
