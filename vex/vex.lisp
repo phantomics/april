@@ -893,15 +893,17 @@ These are examples of the output of the three macro-builders above.
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-value ',symbol) ,value)))
+  (let ((symbol (if (symbolp symbol) symbol (second symbol))))
+    `(progn (if (not (boundp ',symbol))
+                (proclaim '(special ,symbol)))
+            (setf (symbol-value ',symbol) ,value))))
 
 (defmacro ws-assign-fun (symbol value)
   "Assignment macro for use with (:store-fun) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-function ',symbol) ,value)))
+  (let ((symbol (if (symbolp symbol) symbol (second symbol))))
+    `(progn (if (not (boundp ',symbol))
+                (proclaim '(special ,symbol)))
+            (setf (symbol-function ',symbol) ,value))))
 
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
