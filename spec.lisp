@@ -1325,13 +1325,7 @@
             (is "qq←-∘⌽ ⋄ qq 3 3⍴⍳9" #2A((-3 -2 -1) (-6 -5 -4) (-9 -8 -7)))
             (is "rr←-∘⌽[1] ⋄ rr 3 3⍴⍳9" #2A((-7 -8 -9) (-4 -5 -6) (-1 -2 -3)))))
   (⍤ (has :title "Rank / Atop")
-     (pivotal (lambda (right left)
-                `(operate-at-rank ,right ,left)
-                ;; (let ((r (gensym)))
-                ;;   `(let ((,r ,right))
-                ;;      (if (functionp ,r) (operate-atop ,right ,left)
-                ;;          (operate-at-rank ,right ,left))))
-                ))
+     (pivotal (lambda (right left) `(operate-at-rank ,right ,left)))
      (tests (is "⊂⍤2⊢2 3 4⍴⍳9" #(#2A((1 2 3 4) (5 6 7 8) (9 1 2 3)) #2A((4 5 6 7) (8 9 1 2) (3 4 5 6))))
             (is "⊂⍤1 0 2⊢2 3 4⍴⍳9" #2A((#(1 2 3 4) #(5 6 7 8) #(9 1 2 3)) (#(4 5 6 7) #(8 9 1 2) #(3 4 5 6))))
             (is "{(⊂⍋⍵)⌷⍵}⍤1⊢3 4 5⍴⍳9" #3A(((1 2 3 4 5) (1 6 7 8 9) (2 3 4 5 6) (1 2 7 8 9))
@@ -1839,6 +1833,8 @@
     myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
     myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
+  ;; (for "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ myns.aa.bb←⍳9 ⋄ ⎕CS myns.aa ⋄ bb←31 ⋄ cc←aa+bb ⋄ ⎕CS _ ⋄ myns"
+  ;;      "")
   (for "Use of function within namespace."
        "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2}
     myns.f1 myns.a.f2 6"

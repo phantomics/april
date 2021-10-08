@@ -830,10 +830,17 @@
                                                              (getf (first preceding-properties)
                                                                    :axes)))))
                            (if (and (listp symbol) (eql 'nspath (first symbol)))
-                               (let ((path-symbol (intern (format-nspath (rest symbol)) space)))
+                               (let ((path-symbol (intern (format-nspath (rest symbol)) space))
+                                     (path-head (intern (string (macroexpand (second symbol))) space))
+                                     (path-tail (loop :for sym :in (cddr symbol)
+                                                      :collect (intern (string sym) "KEYWORD"))))
+                                 ;; ensure the path to the function is valid
                                  (setf (symbol-function path-symbol) #'dummy-nargument-function)
-                                 `(setf ,(macroexpand symbol) :function
-                                        ,path-symbol ,precedent))
+                                 `(if (verify-nspath (symbol-value ',path-head) ',path-tail)
+                                      (setf ,(macroexpand symbol) :function
+                                            (symbol-value ',path-symbol) ,precedent)
+                                      ;; TODO: should symbol-function be set above?
+                                      (error "Invalid path for functon."))) ;; TODO: improve error message
                                `(a-set ,(if (and (listp symbol) (eql 'nspath (first symbol)))
                                            (follow-path (second symbol) (cddr symbol))
                                            (if at-top-level `(symbol-function (quote (inws ,symbol)))

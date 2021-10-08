@@ -61,7 +61,10 @@
                                             (is-exdyn (eql 'inwsd (first item)))
                                             ) ;; an explicit dynamic symbol
                                         (setf (nth ix form)
-                                              (funcall (if (or is-lexical is-exdyn inside-function)
+                                              (funcall (if (or is-lexical inside-function is-exdyn
+                                                               ;; the _ symbol is used to set an empty
+                                                               ;; namespace point with ⎕CS _
+                                                               (string= "_" (string (second item))))
                                                            #'identity (lambda (i) `(fn-ref ,i)))
                                                        (intern (string (second item))
                                                                (if is-lexical lex-space-name space-name)))))
@@ -75,11 +78,13 @@
                                                                         this-package))))))))
         (replace-symbols body)
         (setf (cdddr (first body))
-              (cons '(make-threading-kernel-if-absent)
+              (cons '(make-threading-kernel-if-absent) ;; lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5
                     (cdddr (first body))))
         (first body)))))
 
 (defmacro fn-ref (item) item)
+
+(defmacro inws (item) item)
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\𝕊 (lambda (stream character)
@@ -353,6 +358,13 @@
   "Macro to expedite the fetching of values from nested namespaces."
   (process-path list keys))
 
+(defun verify-nspath (object items)
+  "Verify that the path to a key within a ptree exists."
+  (if (= 1 (length items))
+      (or (member (first items) object) t)
+      (let ((head (member (first items) object)))
+        (if head (verify-nspath (second head) (rest items))))))
+
 (defun format-nspath (items &optional output)
   "Create a string representation of a namespace path from the symbol list implementing that path."
   (if (not items)
@@ -362,6 +374,16 @@
                                                     (first items)))))
                (if this-item (format-nspath (rest items) (if output (format nil "~a.~a" output this-item)
                                                              (string this-item)))))))
+
+(defun set-path (object path value)
+  (if (= 1 (length path))
+      (setf (getf (symbol-value object) (first path)) value)
+      (let ((object (if (listp object) object (symbol-value object))))
+        (if (= 2 (length path))
+            (let ((this-object (getf object (first path))))
+              (setf (getf this-object (second path)) value)
+              (setf (getf object (first path)) this-object))
+            (set-path (getf object (first path)) (rest path) value)))))
 
 (defmacro a-set (symbol value &key (by) (axes))
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
@@ -382,19 +404,20 @@
                                                       (and (listp (second value))
                                                            (member (second value) '(inws inwsd)))))))))
                (ns-sym (intern "*NS-POINT*" (package-name (symbol-package symbol))))
+               (ns-symb (if (boundp ns-sym) ns-sym))
                (namespace (if (boundp ns-sym) (symbol-value ns-sym)))
-               (set-to (if (not is-symbol-value) value `(duplicate ,value)))
-               )
+               (set-to (if (not is-symbol-value) value `(duplicate ,value))))
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
           ;; present; ⍵-assignment is an error. This is handled below for strand assignments.
           (if axes (enclose-axes symbol axes :set value :set-by by)
               (if (eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to))
                   (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
-                      (if namespace `(setf (getf ,(if (symbolp namespace)
-                                                      namespace (follow-path (first namespace) (rest namespace)))
-                                                 ,(intern (string symbol) "KEYWORD"))
-                                           ,set-to)
-                          `(setf ,symbol ,set-to))))))
+                      `(if ,ns-symb (set-path (first ,ns-symb)
+                                              (append (loop :for i :in (rest ,ns-symb)
+                                                            :collect (intern (string i) "KEYWORD"))
+                                                      (list ,(intern (string symbol) "KEYWORD")))
+                                              ,set-to)
+                           (setf ,symbol ,set-to))))))
         (if (eql 'nspath (first symbol))
             ;; handle assignments within namespaces, using process-path to handle the paths
             (let* ((is-symbol-value (or (symbolp value)
@@ -413,36 +436,47 @@
                                   `(setf ,form ,(if (not is-symbol-value) val `(duplicate ,value))))
                                 value)))
             (if (eql 'symbol-function (first symbol))
-                 (let ((mm (macroexpand (second (second symbol)))))
-                   `(setf (symbol-function ',mm)
-                          ,value))
-                 (let ((symbols (if (not (eql 'avector (first symbol)))
-                                    symbol (rest symbol))))
-                   ;; handle multiple assignments like a b c←1 2 3
-                   (labels ((process-symbols (sym-list values)
-                              (let ((this-val (gensym)))
-                                `(let ((,this-val ,values))
-                                   ,@(loop :for sym :in sym-list :for sx :from 0
-                                           :append (if (and (listp sym) (not (eql 'inws (first sym)))
-                                                            (not (eql 'fn-ref (first sym))))
-                                                       (list (process-symbols
-                                                              sym `(if (not (vectorp ,this-val))
-                                                                       ,this-val (aref ,this-val ,sx))))
-                                                       (let ((sym (if (not (and (listp sym)
-                                                                                (eql 'fn-ref (first sym))))
-                                                                      sym (macroexpand sym))))
-                                                         (if (eql '⍺ sym)
-                                                             `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
-                                                                                 (disclose ,this-val)
-                                                                                 (aref ,this-val sx)))))
-                                                             (if (eql '⍵ sym)
-                                                                 `(error "The [⍵ right argument] cannot ~a"
-                                                                         "have a default assignment.")
-                                                                 `((setf ,sym (if (not (vectorp ,this-val))
-                                                                                  (disclose ,this-val)
-                                                                                  (aref ,this-val ,sx)))))))))
-                                   ,this-val))))
-                     (process-symbols symbols value))))))))
+                (let* ((mm (macroexpand (second (second symbol))))
+                       (space (package-name (symbol-package mm)))
+                       (ns-sym (intern "*NS-POINT*" (package-name (symbol-package mm))))
+                       (ns-symb (if (boundp ns-sym) ns-sym)))
+                  `(if ,ns-symb ,(let ((sym-key (intern (string mm) "KEYWORD")))
+                                   `(let ((ns-path (append (loop :for i :in (rest ,ns-symb)
+                                                                 :collect (intern (string i) "KEYWORD"))
+                                                           (list ,sym-key))))
+                                      (if (verify-nspath (symbol-value (first ,ns-symb)) ns-path)
+                                          (progn (set-path (first ,ns-symb) ns-path :function)
+                                                 (setf (symbol-function
+                                                        (intern (format-nspath (append ,ns-symb (list ,sym-key)))
+                                                                ,space))
+                                                       ,value))
+                                          (error "Invalid path to function."))))
+                       (setf (symbol-function ',mm)
+                             ,value)))
+                (let ((symbols (if (not (eql 'avector (first symbol)))
+                                   symbol (rest symbol))))
+                  ;; handle multiple assignments like a b c←1 2 3
+                  (labels ((process-symbols (sym-list values)
+                             (let ((this-val (gensym)))
+                               `(let ((,this-val ,values))
+                                  ,@(loop :for sym :in sym-list :for sx :from 0
+                                          :append (if (and (listp sym) (not (eql 'inws (first sym)))
+                                                           (not (eql 'fn-ref (first sym))))
+                                                      (list (process-symbols
+                                                             sym `(if (not (vectorp ,this-val))
+                                                                      ,this-val (aref ,this-val ,sx))))
+                                                      (if (eql '⍺ sym)
+                                                          `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
+                                                                              (disclose ,this-val)
+                                                                              (aref ,this-val sx)))))
+                                                          (if (eql '⍵ sym)
+                                                              `((error "The [⍵ right argument] cannot ~a"
+                                                                       "have a default assignment."))
+                                                              `((a-set ,sym (if (not (vectorp ,this-val))
+                                                                                (disclose ,this-val)
+                                                                                (aref ,this-val ,sx))))))))
+                                  ,this-val))))
+                    (process-symbols symbols value))))))))
 
 (defmacro a-out (form &key (print-to) (output-printed)
                              (print-assignment) (print-precision) (with-newline))
@@ -794,20 +828,30 @@
                                     (package-name (symbol-package arg))
                                     (if (and (listp (first arguments))
                                              (eql 'nspath (first arg)))
-                                        (package-name (symbol-package (second arg)))))))
-                (if workspace `(change-namespace ',(if (not (listp arg)) arg (rest arg))
+                                        (package-name (symbol-package (if (listp (second arg))
+                                                                          ;; handle the (fn-ref ...) case
+                                                                          (second (second arg))
+                                                                          (second arg))))))))
+                (if workspace `(change-namespace ',(if (not (listp arg)) arg
+                                                       (cons (if (listp (second arg))
+                                                                 (cadadr arg) (second arg))
+                                                             (cddr arg)))
                                                  ',(intern "*NS-POINT*" workspace)))))
           (progn (if (listp function)
                      (if (eql 'nspath (first function))
                          (let* ((ns-sym (intern "*NS-POINT*"
                                                 (package-name (symbol-package (second function)))))
                                 (namespace (if (boundp ns-sym) (symbol-value ns-sym))))
-                           (if namespace (setq function
-                                               (cons 'nspath (append (if (listp namespace) namespace
-                                                                         (list namespace))
-                                                                     (list (intern (string (second function))
-                                                                                   "KEYWORD"))
-                                                                     (cddr function))))))
+                           (if namespace
+                               (setq function
+                                     (cons 'nspath
+                                           (append (if (listp namespace) namespace
+                                                       (list namespace))
+                                                   (list (intern (if (listp (second function))
+                                                                     (string (second (second function)))
+                                                                     (string (second function)))
+                                                                 "KEYWORD"))
+                                                   (cddr function))))))
                          (if (and (eql 'function (first function))
                                   (listp (second function)) (eql 'fn-ref (first (second function))))
                              (setq function (list 'function (macroexpand (second function)))))))
@@ -1062,7 +1106,8 @@ It remains here as a standard against which to compare methods for composing APL
           (if (or (eq t namespace)
                   (and (listp namespace)
                        (keywordp (first namespace))))
-              (setf (symbol-value workspace-symbol) ns-path)
+              (setf (symbol-value workspace-symbol) (if (listp ns-path)
+                                                        ns-path (list ns-path)))
               (error "Not a valid namespace."))))))
 
 (defun coerce-or-get-type (array &optional type-index)
