@@ -14,7 +14,7 @@
   (let ((workers (lparallel.kernel::workers lparallel:*kernel*)))
     (loop :for w :across workers :when (not (lparallel.kernel::running-category w))
        :counting w :into total :finally (return total))))
-
+ 
 (defun sub-7-bit-integer-elements-p (array)
   "Return true if the argument is an array whose elements are integers narrower than 7 bits."
   (and (arrayp array)
@@ -1499,7 +1499,9 @@
          ;; create output array if 1. nothing is being set, this is just a retrieval operation, or
          ;; 2. a scalar value is being set and its type is not compatible with the input
          ;; or 3. the input and the items to set are in arrays of different types
-         (output (if (or set-by empty-output
+         (output (if (or set-by
+                         empty-output
+                         ;; (and set-by (not modify-input))
                          (and (or (not set)
                                   ;; an output array is used if the types of the input and
                                   ;; values to set are not compatible

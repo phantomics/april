@@ -581,7 +581,7 @@
                                                   ,@(if function-axes `((list ,@(first function-axes)))))))
                            (if (boundp (quote ,(intern (string symbol) space)))
                                (setf (symbol-value (quote ,(intern (string symbol) space))) ,assigned))
-                           (setf (inws ,symbol) ,assigned)))
+                           (a-set (inws ,symbol) ,assigned)))
                     `(a-set (inws ,symbol) ,precedent
                             :axes ,symbol-axes :by (lambda (item item2)
                                                      (a-call ,fn-content item item2))))
@@ -836,11 +836,13 @@
                                                       :collect (intern (string sym) "KEYWORD"))))
                                  ;; ensure the path to the function is valid
                                  (setf (symbol-function path-symbol) #'dummy-nargument-function)
-                                 `(if (verify-nspath (symbol-value ',path-head) ',path-tail)
-                                      (setf ,(macroexpand symbol) :function
-                                            (symbol-value ',path-symbol) ,precedent)
-                                      ;; TODO: should symbol-function be set above?
-                                      (error "Invalid path for functon."))) ;; TODO: improve error message
+                                 ;; `(if (verify-nspath (symbol-value ',path-head) ',path-tail)
+                                 ;;      (setf ,(macroexpand symbol) :function
+                                 ;;            (symbol-value ',path-symbol) ,precedent)
+                                 ;;      ;; TODO: should symbol-function be set above?
+                                 ;;      (error "Invalid path for functon."))
+                                 `(a-set ,symbol ,precedent :fn-path-sym ,path-symbol)
+                                 ) ;; TODO: improve error message
                                `(a-set ,(if (and (listp symbol) (eql 'nspath (first symbol)))
                                            (follow-path (second symbol) (cddr symbol))
                                            (if at-top-level `(symbol-function (quote (inws ,symbol)))
