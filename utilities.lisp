@@ -403,20 +403,31 @@
               (setf (getf object (first path)) this-object))
             (set-path (getf object (first path)) (rest path) value)))))
 
-(defun at-path (object path &key (value) (value-nil))
+(defun at-path (object path &key (value) (value-nil) (set-by))
+  ;; (print (list :ob object path value set-by))
   (if (and (arrayp object) (symbolp (first path)))
       (apply-scalar (lambda (item) (at-path item path))
                     object)
       (if (= 1 (length path))
           (if (symbolp (first path)) (if (or value value-nil)
                                          (progn (if (and object (symbolp object))
-                                                    (setf (getf (symbol-value object) (first path)) value)
-                                                    (setf (getf object (first path)) value))
+                                                    (if set-by
+                                                        (setf (getf (symbol-value object) (first path))
+                                                              (funcall
+                                                               set-by value
+                                                               (getf (symbol-value object) (first path))))
+                                                        (setf (getf (symbol-value object) (first path)) value))
+                                                    (if set-by
+                                                        (setf (getf object (first path))
+                                                              (funcall set-by value
+                                                                       (getf object (first path))))
+                                                        (setf (getf object (first path)) value)))
                                                 object)
                                          (getf (if (not (symbolp object)) object (symbol-value object))
                                                (first path)))
               (nth-value 1 (achoose object (first path) :set value :set-nil value-nil :modify-input t
-                                                        :set-by (lambda (a b) (declare (ignore a)) b))))
+                                                        :set-by (or set-by
+                                                                    (lambda (a b) (declare (ignore a)) b)))))
           (let ((object (if (symbolp object) (symbol-value object)
                             object)))
             (if (or value value-nil)
@@ -427,26 +438,39 @@
                               (setf (getf this-object (second path)) value)
                               (setf (getf object (first path)) this-object))
                             (let ((this-object (at-path (getf object (first path))
-                                                        (rest path) :value value :value-nil value-nil)))
+                                                        (rest path) :value value :value-nil value-nil
+                                                        :set-by set-by)))
                               (setf (getf object (first path)) this-object)))
                         (nth-value 1 (achoose object (first path)
                                               :set value :set-nil value-nil :modify-input t
-                                              :set-by (lambda (a b) (at-path a (rest path) :value b)))))
+                                              :set-by
+                                              (lambda (a b) (at-path a (rest path) :value b
+                                                                                   :set-by set-by)))))
                     (if (not (symbolp (first path)))
                         (achoose object (first path)
                                  :set value :set-nil value-nil :modify-input t
                                  :set-by (if (rest path)
                                              (lambda (a b)
-                                               (at-path a (rest path) :value b :value-nil value-nil))))
+                                               (at-path a (rest path) :value b :value-nil value-nil
+                                                                      :set-by set-by))))
                         (if (not (symbolp (second path)))
                             (setf (getf object (first path))
                                   (at-path (getf object (first path)) (rest path)
-                                           :value value :value-nil value-nil))
-                            (at-path (getf object (first path)) (rest path) :value value :value-nil value-nil))))
+                                           :value value :value-nil value-nil :set-by set-by))
+                            (at-path (getf object (first path)) (rest path)
+                                     :value value :value-nil value-nil :set-by set-by))))
                 (if (symbolp (first path))
                     (at-path (getf object (first path)) (rest path))
                     (at-path (achoose object (first path))
                              (rest path))))))))
+
+;; (process-path root-sym (append (cddr symbol) (if axes (list axes)))
+;;               (lambda (form val) `(setf ,form (funcall ,by ,val ,form)))
+;;               value)
+;; (process-path root-sym (append (cddr symbol) (if axes (list axes)))
+;;               (lambda (form val)
+;;                 `(setf ,form ,(if (not is-symbol-value) val `(duplicate ,value))))
+;;               value)
 
 (defmacro a-set (symbol value &key (by) (axes) (fn-path-sym))
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
@@ -494,15 +518,54 @@
                  (ns-symb (if (boundp ns-sym) ns-sym))
                  (key-path (loop :for sym :in (cddr symbol) :collect (if (symbolp sym)
                                                                          (intern (string sym) "KEYWORD")))))
-            (if by (process-path root-sym (append (cddr symbol) (if axes (list axes)))
-                                 (lambda (form val) `(setf ,form (funcall ,by ,val ,form)))
-                                 value)
-                ;; (process-path root-sym (append (cddr symbol) (if axes (list axes)))
-                ;;               (lambda (form val)
-                ;;                 `(setf ,form ,(if (not is-symbol-value) val `(duplicate ,value))))
-                ;;               value)
-                `(if ,ns-symb (progn ,@(if fn-path-sym `((setf (symbol-value ',fn-path-sym)
-                                                               ,value)))
+            ;; (print (list :sym symbol value fn-path-sym))
+            (if by
+                `(let ((val ,value))
+                   (if ,ns-symb
+                       (at-path (first ,ns-symb)
+                                (append (rest ,ns-symb)
+                                        ,(cons 'list (loop :for s :in (append (rest symbol)
+                                                                              (if axes (list axes)))
+                                                           :collect (if (symbolp s)
+                                                                        (intern (string s) "KEYWORD")
+                                                                        (if (and (listp s)
+                                                                                 (eql 'fn-ref (first s)))
+                                                                            (intern (string (second s))
+                                                                                    "KEYWORD")
+                                                                            `(mapcar
+                                                                              (lambda (array)
+                                                                                (if array (apply-scalar
+                                                                                           #'- array
+                                                                                           index-origin)))
+                                                                              ,(cons 'list (first s))))))))
+                                :value val :value-nil (null val)
+                                :set-by (lambda (form v)
+                                          (setf form (funcall ,by v form))))
+                       (at-path ',(if (not (and (listp root-sym) (eql 'fn-ref (first root-sym))))
+                                      root-sym (second root-sym))
+                                ,(cons 'list (loop :for s :in (append (cddr symbol)
+                                                                      (if axes (list axes)))
+                                                   :collect (if (symbolp s)
+                                                                (intern (string s) "KEYWORD")
+                                                                `(mapcar (lambda (array)
+                                                                           (if array (apply-scalar
+                                                                                      #'- array
+                                                                                      index-origin)))
+                                                                         ,(cons 'list (first s))))))
+                                :value val :value-nil (null val)
+                                :set-by (lambda (form v)
+                                          (setf form (funcall ,by v form))))))
+                `(if ,ns-symb (progn ,@(if fn-path-sym
+                                           `((setf (symbol-value
+                                                    (intern (format nil "~a.~a" (format-nspath ,ns-symb)
+                                                                    ',fn-path-sym)
+                                                            (package-name (symbol-package ',fn-path-sym))))
+                                                   ,value
+                                                   (symbol-function
+                                                    (intern (format nil "~a.~a" (format-nspath ,ns-symb)
+                                                                    ',fn-path-sym)
+                                                            (package-name (symbol-package ',fn-path-sym))))
+                                                   #'dummy-nargument-function)))
                                      (set-path (first ,ns-symb)
                                                (append (loop :for i :in (rest ,ns-symb)
                                                              :collect (intern (string i) "KEYWORD"))
@@ -510,7 +573,9 @@
                                                        ',key-path)
                                                ,(if fn-path-sym :function value)))
                      (progn ,@(if fn-path-sym `((setf (symbol-value ',fn-path-sym)
-                                                      ,value)))
+                                                      ,value
+                                                      (symbol-function ',fn-path-sym)
+                                                      #'dummy-nargument-function)))
                             (let ((val ,value)) ;; gensym
                               (at-path ',(if (not (and (listp root-sym) (eql 'fn-ref (first root-sym))))
                                              root-sym (second root-sym))
@@ -523,8 +588,7 @@
                                                                                              #'- array
                                                                                              index-origin)))
                                                                                 ,(cons 'list (first s))))))
-                                       :value val :value-nil (null val)))))
-                ))
+                                       :value val :value-nil (null val)))))))
           (if (eql 'symbol-function (first symbol))
               (let* ((mm (second (second (second symbol))))
                      (space (package-name (symbol-package mm)))
@@ -539,7 +603,11 @@
                                                (setf (symbol-value
                                                       (intern (format-nspath (append ,ns-symb (list ,sym-key)))
                                                               ,space))
-                                                     ,value))
+                                                     ,value
+                                                     (symbol-function
+                                                      (intern (format-nspath (append ,ns-symb (list ,sym-key)))
+                                                              ,space))
+                                                     #'dummy-nargument-function))
                                         (error "Invalid path to function."))))
                      (setf (symbol-function ',mm)
                            ,value)))

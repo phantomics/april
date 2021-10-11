@@ -789,6 +789,7 @@
                            (progn (if (is-workspace-value symbol)
                                       (makunbound (intern (string symbol) space)))
                                   (if (not (fboundp (intern (string symbol) space)))
+                                      ;; TODO: dummy assignment here causes problems when *ns-point* is set
                                       (setf (symbol-function (intern (string symbol) space))
                                             #'dummy-nargument-function))))
                        (if (and (listp precedent) (symbolp symbol)
