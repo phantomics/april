@@ -1837,6 +1837,9 @@
     myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
     myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
+  (for "Assignment of values within namespace using namespace point."
+       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ ⎕CS _ ⋄ myns"
+       '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION :|bb| 33)))
   (for "Use of function within namespace."
        "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2}
     myns.f1 myns.a.f2 6"
