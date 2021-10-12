@@ -1837,15 +1837,19 @@
     myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
     myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
-  (for "Assignment of values within namespace using namespace point."
-       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
-        gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk← gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
-       '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION
-                         :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
   (for "Use of function within namespace."
        "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2}
     myns.f1 myns.a.f2 6"
-       15))
+       15)
+  (for "Assignment of values within namespace using namespace point."
+       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
+    gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk← gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
+       '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION
+                         :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
+  (for "Namespace points set in global and local scopes."
+       "myns←⎕NS ⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns 
+    ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
+       '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10)))
  
  (test-set
   (with (:name :printed-format-tests)
