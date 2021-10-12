@@ -184,16 +184,16 @@ pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
 }     
 
 ⍝ From http://dfns.dyalog.com/c_scc.htm
-⍝ TODO: X should be usable here instead of X1
+
 scc ← {                                      ⍝ Strongly connected components.
                                              ⍝ (Tarjan)
   T←(3/⊂0⊣¨G←⍵),1 ⍬                          ⍝ state tuple T :: C L X x S
-  C L X1 x S←⍳⍴T                             ⍝ access names for items of tuple T
+  C L X x S←⍳⍴T                              ⍝ access names for items of tuple T
 
   ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                    ⍝ ⍹ at ⍺ in field ⍶ of ⍵
   put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                       ⍝ ⍹ at ⍺ in field ⍶ of ⍵
   Lx←L put x                                 ⍝ ⍺ at x in lowlink vec :: T ← ⍺ ∇ T
-  Xx←X1 put x                                ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
+  Xx←X put x                                 ⍝ ⍺ at x in indices vec :: T ← ⍺ ∇ T
   x1←{1+@x⊢⍵}                                ⍝ successor of index x  :: T ←   ∇ T
   push←,¨@S                                  ⍝ ⍺ pushed onto stack   :: T ← ⍺ ∇ T
   
@@ -210,16 +210,15 @@ scc ← {                                      ⍝ Strongly connected components
     T1←x1 v push v Lx v Xx T0                ⍝ successor state for x S L and X
     T2←↑{w←⍺                                 ⍝ edge v → w
       min_L←{(⍺ w⊃⍵)⌊@(⊂L v)⊢⍵}              ⍝ L[v] ⌊← ⍺[w]
-      $[0=X1 w⊃⍵;L min_L w conn ⍵;           ⍝ w not connected: depth-first trav
-        X1 min_L⍣(w∊S⊃⍵)⊢⍵                   ⍝ low-link if w on stack
-       ]
+      0=X w⊃⍵:L min_L w conn ⍵               ⍝ w not connected: depth-first trav
+      X min_L⍣(w∊S⊃⍵)⊢⍵                      ⍝ low-link if w on stack
     }/(⌽v⊃G),⊂T1                             ⍝ for each edge from vertex v
-    root←(L v⊃T2)=X1 v⊃T2                    ⍝ is a root vertex?
+    root←(L v⊃T2)=X v⊃T2                     ⍝ is a root vertex?
     v comp⍣root⊢T2                           ⍝ new component if root
   }                                          ⍝ :: T ← v ∇ T
 
   loop←{                                     ⍝ for each vertex in graph G
-    vert←{⍺ conn⍣(0=X1 ⍺⊃⍵)⊢⍵}               ⍝ connection of unvisited vertex ⍺
+    vert←{⍺ conn⍣(0=X ⍺⊃⍵)⊢⍵}                ⍝ connection of unvisited vertex ⍺
     ⊃vert/(⌽⍳⍴G),⊂⍵                          ⍝   for each vertex in G
   }                                          ⍝ :: T ← ∇ T
 
@@ -228,7 +227,7 @@ scc ← {                                      ⍝ Strongly connected components
   ⍝ T :: C L X x S                           ⍝ state tuple
   ⍝ C :: [x]                                 ⍝ connected components vector
   ⍝ L :: [x]                                 ⍝ low-link vector
-  ⍝ X1 :: [x]                                ⍝ indices vector
+  ⍝ X :: [x]                                 ⍝ indices vector
   ⍝ x ::  #                                  ⍝ index of vertex in graph G
   ⍝ S :: [x]                                 ⍝ stack of vertices
 }

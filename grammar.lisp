@@ -83,8 +83,15 @@
         ((and (symbolp this-item)
               (or (member this-item '(⍵ ⍺ ⍹ ⍶) :test #'eql)
                   (getf properties :symbol-overriding)
-                  (not (is-workspace-function this-item)))
+                  (or (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
+                                                                       :closure-meta))
+                                                           :var-syms))
+                      ;; if it's defined locally as a variable, disregard a global function definition
+                      (not (is-workspace-function this-item))))
               (or (getf properties :symbol-overriding)
+                  (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
+                                                                   :closure-meta))
+                                                       :var-syms))
                   (not (member this-item
                                (append '(⍺⍺ ⍵⍵)
                                        (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
@@ -95,6 +102,9 @@
                                                           :pop-syms)))))
               ;; make sure the symbol doesn't reference a lexically-defined function
               (or (not (is-workspace-operator this-item))
+                  (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
+                                                                   :closure-meta))
+                                                       :var-syms))
                   (getf properties :symbol-overriding))
               (not (member (intern (string-upcase this-item) *package-name-string*)
                            (rest (assoc :function (idiom-symbols idiom)))))
@@ -154,7 +164,6 @@
                             (fn (if (not polyadic-args)
                                     fn (cons (butlast (first fn) 1)
                                              (rest fn))))
-                            ;; (initial-expr (first (last (first (last this-item)))))
                             (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇)
                                                        (getf (cdadr this-item) :arg-syms)))
                             (this-closure-meta (second this-item))
@@ -208,7 +217,11 @@
                    (values (intern (format-nspath (append current-path (list (intern (string this-item)
                                                                                      "KEYWORD")))))
                            (list :type '(:function :referenced :at-path))))
-                  ((is-workspace-function this-item)
+                  ((and (is-workspace-function this-item)
+                        ;; make sure it's not defined locally as a variable
+                        (not (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
+                                                                              :closure-meta))
+                                                                  :var-syms))))
                    ;; process workspace-aliased lexical functions, as when f←+ has been set
                    (values this-item (list :type '(:function :referenced))))
                   ((eql this-item '∇)
@@ -306,6 +319,10 @@
                  (pop-string (if (eq :pivotal (getf properties :valence))
                                  symbol-string))
                  (bound-op (if (and lop-string
+                                    (not (member this-item ;; make sure it's not defined locally as a variable
+                                                 (of-meta-hierarchy (rest (getf (getf properties :special)
+                                                                                :closure-meta))
+                                                                    :var-syms)))
                                     (or (and (fboundp (intern lop-string space))
                                              (boundp (intern lop-string space))
                                              (eq :lateral (getf (rest (symbol-value (intern lop-string space)))
@@ -1244,7 +1261,6 @@
                                                                                 function-axes))
                                                            (or (of-lexicons idiom fn-element :functions)
                                                                fn-element))))))
-                    ;; (print (list :pro properties fn-content precedent))
                     (if (and (listp fn-content) (eql 'function (first fn-content))
                              (eql 'change-namespace (second fn-content)))
                         (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))

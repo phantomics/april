@@ -45,8 +45,8 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
   }
 
   aligned←{                                  ⍝ Alignment and centring.
-    Rows cols←sepr⍴¨⍵                        ⍝ subarray dimensions.
-    sizes←(⌈/Rows)∘.,⌈⌿cols                  ⍝ aligned subarray sizes.
+    rows cols←sepr⍴¨⍵                        ⍝ subarray dimensions.
+    sizes←(⌈/rows)∘.,⌈⌿cols                  ⍝ aligned subarray sizes.
     ctd=0:sizes↑¨⍵                           ⍝ top-left alignment.
     v h←sepr⌈0.5×↑(⍴¨⍵)-sizes                ⍝ vertical and horizontal rotation.
     v⊖¨h⌽¨sizes↑¨⍵                           ⍝ centred aligned subarrays.
@@ -95,8 +95,8 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
   right←{                                    ⍝ Border right each subarray.
     types←2⊥¨(⍳⍴⍵)=⊂¯1+⍴⍵                    ⍝ right border lower corner types.
     chars←'┼┤┴┘'[types]                      ⍝    ..     ..      ..      chars.
-    rgt←{⍵,(-≢⍵)↑(≢⍵)1 1/'│',⍺}             ⍝ form right border.
-    ((matr 1 open ⍺),¨chars)rgt¨⍵           ⍝ cells bordered right.
+    rgt←{⍵,(-≢⍵)↑(≢⍵)1 1/'│',⍺}              ⍝ form right border.
+    ((matr 1 open ⍺),¨chars)rgt¨⍵            ⍝ cells bordered right.
   }
 
   lower←{                                    ⍝ Border below each subarray.
@@ -120,8 +120,8 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     dec≤0=⍴⍴⍵:⍺/¨'│─'                        ⍝ no decoration or scalar.
     cols←(×¯1↑⍴⍵)⊃'⊖→'                       ⍝ zero or more cols.
     rsig←(××/¯1↓⍴⍵)⊃'⌽↓'                     ⍝ zero or more rows.
-    Rows←(¯1+3⌊⍴⍴⍵)⊃'│'rsig'⍒'               ⍝ high rank decorator overrides.
-    Rows cols                                ⍝ shape decorators.
+    rows←(¯1+3⌊⍴⍴⍵)⊃'│'rsig'⍒'               ⍝ high rank decorator overrides.
+    rows cols                                ⍝ shape decorators.
   }
 
   matr←{↑,↓⍵}                                ⍝ matrix from non-scalar array.
@@ -257,9 +257,9 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
   rs cs←+/¨1⊂↑⍴¨subs                         ⍝ numbers of rows and cols
   dims←(mrs←⌈/rs)∘.,mcs←⌈/⍪⍉cs               ⍝ max dimensions per row & col
   join←{↑⍺{⍺,⍶,⍵}/⍵}                         ⍝ ⍺-join of vector ⍵
-  Rows←(mrs/¨'│')join¨↓dims↑¨subs            ⍝ complete rows with '│'-separated items
+  rows←(mrs/¨'│')join¨↓dims↑¨subs            ⍝ complete rows with '│'-separated items
   hzs←'┼'join mcs/¨'─'                       ⍝ inter-row horizontal '─┼─' separators
-  cells←{⍺⍪hzs⍪⍵}/Rows                       ⍝ joined rows: array of 2D planes
+  cells←{⍺⍪hzs⍪⍵}/rows                       ⍝ joined rows: array of 2D planes
   gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                       ⍝ increasing cell gaps for higher ranks
   cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                       ⍝ vertical cell join with ⍶ gap
   top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells               ⍝ cell-joining with increasing gaps
