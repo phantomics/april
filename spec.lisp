@@ -1470,7 +1470,7 @@
             (is "{⍵+5}⍣$[3>2;4;5]⊢2" 22)
             (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
             (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
-  (⍢ (has :title "Variant") ;; todo: implement this as a symbol since its use is implicit?
+  (⍢ (has :title "Variant") ;; TODO: implement this as a symbol since its use is implicit?
      (unitary (lambda (axes) (cons 'function-variant axes)))))
 
  ;; tests for general language functions not associated with a particular function or operator
@@ -1634,6 +1634,8 @@
            (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))
            (#(#\R #\A #\N #\D #\* #\*) #(#\C #\H #\A #\N #\C #\E) #(#\R #\A #\N #\D #\* #\*))
            (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))))
+  (for "Selective assignment using aliased [⌷ index] function."
+       "{e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9" #(1 2 5 4 5 6 7 8 9))
   (for "Print the result of a function applied to assignment." "⎕←⍴x←1 2 3 ⋄ x" #(1 2 3))
   (for "Assignment of dynamic variable within function."
        "aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5" 8)
@@ -1704,8 +1706,10 @@
   (for "Inline pivotal operator in parentheses with internal ⋄ breaks." "3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4" 3/4)
   (for "Inline lateral operator used with single-character function-referring operand."
        "'*' {⍶,⍵} ' b c d'" "* b c d")
-  (for "Operator composition of function within defined operator."
+  (for "Operator composition of function within named operator."
        "filter←{(⍺⍺¨⍵)/⍵} ⋄ {2|⍵} filter ⍳20" #(1 3 5 7 9 11 13 15 17 19))
+  (for "Operator composition of function within inline operator."
+       "{2|⍵} {(⍺⍺¨⍵)/⍵} ⍳20" #(1 3 5 7 9 11 13 15 17 19))
   (for "Defined lateral operator with value passed as operand."
        "(2{⍵+⍶}7),3{⍶+⍵}5" #(9 8))
   (for "Defined lateral operator with value passed as operand positioned in vector."
@@ -1725,7 +1729,7 @@
   (for "Indexed element of above array."
        "{⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(#0A#(1 5) 3))
   (for "Fibonacci sequence generated using [∇ self] for self-reference within a function."
-       "{$[(⍵=1)∨⍵=2;1;(∇ (⍵-2))+∇ (⍵-1)]}¨⍳7" #(1 1 2 3 5 8 13))
+       "{(⍵=1)∨⍵=2 : 1 ⋄ (∇ (⍵-2))+∇ (⍵-1)}¨⍳12" #(1 1 2 3 5 8 13 21 34 55 89 144))
   (for "Locally-scoped function used with lateral operator within if-statement."
        "(⍳3){ g←{5+⍵} ⋄ b←-∘5 ⋄ h←{12×$[~2|⍺;b¨⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(84 96 108) #(-24 -12 0) #(108 120 132)))
@@ -1736,7 +1740,7 @@
        "(⍳3){ g←{⍵×⍺-2} ⋄ b←{⍺×⍵÷3} ⋄ h←{12×$[~2|⍺;⍺ (b . g) ⍵;⍺ g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(-24 -36 -48) 0 #(48 60 72)))
   (for "Function containing multiple nested locally-scoped functions."
-       "{ aa←{⍵+5} ⋄ bb←{ cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵ } ⋄ 9 bb ⍵ } 100" #(9 105))
+       "{aa←{⍵+5} ⋄ bb←{cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵} ⋄ 9 bb ⍵} 100" #(9 105))
   (for "Aliasing of [/ reduce] operator." "{r←/ ⋄ rf←/[1] ⋄ (+rf ⍵),(+ r[1] ⍵),+ r ⍵} 3 3⍴⍳9"
        #(12 15 18 12 15 18 6 15 24))
   (for "Aliasing of [\\ scan] operator." "{s←\\ ⋄ sf←\\[1] ⋄ (+ sf ⍵),(+ s[1] ⍵),+ s ⍵} 3 4⍴⍳12"
@@ -2296,6 +2300,11 @@ fun 3")) 8))
           
           (is (print-and-run (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10))
               #(8 8 8 8 8 8 0 0 0 0) :test #'equalp)
+          
+          (princ (format nil "~%"))
+          
+          (is (print-and-run (april-c "⍴" 5 3))
+              #(5 5 5) :test #'equalp)
           
           (princ (format nil "~%"))
 

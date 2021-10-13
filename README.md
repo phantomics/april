@@ -218,7 +218,7 @@ April uses the backslash character `\` to implement the expand function and the 
 #(1 3 6 10 15)
 ```
 
-The inside the `"string"`, the two backslashes evaluate to a single backslash. If you forget about this, you can experience confusing errors.
+Inside the `"string"`, the two backslashes evaluate to a single backslash. If you forget about this, you can experience confusing errors.
 
 ## Unique Language Features in April
 
@@ -240,9 +240,20 @@ For the most part, April's syntax and functions follow standard APL conventions.
 ;; symbol-referenced branch points and a branch function with expression-determined branch symbol choice
 * (april "x←1 ⋄ (5-3)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7")
 7
+
+;; ⍶ and ⍹ are used to reference values passed as operands to a user-defined operator
+* (april "'*' {⍶,⍵} ' b c d'")
+"* b c d"
+
+;; if the operands passed to a user-defined operator are to be functions,
+;; ⍺⍺ and ⍵⍵ are used as in other APLs
+* (april "(2∘|) {(⍺⍺¨⍵)/⍵} ⍳20")
+#(1 3 5 7 9 11 13 15 17 19)
 ```
 
 The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if-statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
+
+Because of April's nature as a compiler, user-defined operators use different symbols to refer to operands depending whether the operands are values or functions. The underlined characters `⍶` and `⍹` are used to refer to the operands as values, while the doubled characters `⍺⍺` and `⍵⍵` refer to the operands as functions. The presence of both `⍶` and `⍺⍺` or both `⍹` and `⍵⍵` in a defined operator will cause an error.
 
 ### Using rational numbers
 
@@ -305,7 +316,7 @@ In April, either single or double quotes can be used to enclose character string
 "ghijkl"
 ```
 
-Note that you must use backslashes to escape double quotes used within Lisp strings, making double quotes a less desirable choice unless you're loading April code from files using `april-load`. In order to escape quote characters within an April string, you can either enter a backslash before the quote character, as in Lisp and many other languages, or enter the quote character twice in the traditional APL style. For example:
+Note that you must use backslashes to escape double quotes used within Lisp strings, making double quotes a less desirable choice unless you're loading April code from files using `(april-load)`. In order to escape quote characters within an April string, you can either enter a backslash before the quote character, as in Lisp and many other languages, or enter the quote character twice in the traditional APL style. For example:
 
 ```lisp
 * (april "'\'abc'\'")

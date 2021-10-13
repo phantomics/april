@@ -1213,7 +1213,7 @@ It remains here as a standard against which to compare methods for composing APL
                                  :when (and agets-encountered (= dx (1- (length processed-form)))
                                             (not (eql '⍺ d)))
                                    :do (setq agets-encountered nil))
-                           (if agets-encountered
+                           (if agets-encountered ;; handle ⍺← implicit statements
                                (push (list (list :axes (list processed-form)
                                                  (list (list (list :fn (list :meta :variant-niladic t
                                                                                    :parent form-meta)
@@ -1229,6 +1229,7 @@ It remains here as a standard against which to compare methods for composing APL
                                            (list :st :unitary #\⍢))
                                      processed)
                                (if (not guard-sym-index) (push processed-form processed)
+                                   ;; handle guard composition
                                    (progn (setq guard-encountered t)
                                           (push (list (list :axes (list (nthcdr (1+ guard-sym-index)
                                                                                 processed-form))

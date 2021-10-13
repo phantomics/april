@@ -438,7 +438,7 @@
                 ;; as with op←{⍺⍺ ⍵}
                 (if (and (assign-element function-form function-props process-operator)
                          (not (and (listp (first items)) (eq :fn (caar items))
-                                   (char= #\← (cadar items)))))
+                                   (characterp (cadar items)) (char= #\← (cadar items)))))
                     (setq is-inline-operator t)))))
   (let ((is-function (or (and (not is-inline-operator)
                               (not (member :overloaded-operator (getf function-props :type))))
@@ -461,7 +461,7 @@
                                 (not (third next)))))))
     (if (and (member :left-operand-value (getf function-props :type))
              (not (and (listp (first items)) (eq :fn (caar items))
-                       (char= #\← (cadar items)))))
+                       (characterp (cadar items)) (char= #\← (cadar items)))))
         ;; disqualify inline operators whose left operand is a value, as for { ↑⍵{(⍺|⍶+⍵)-⍵}/2*⍺-0 1 },
         ;; unless the operator is being assigned a name
         (values nil nil prior-items)
@@ -674,14 +674,17 @@
            (assign-axes selection-axes process)
            (if (symbolp item) (setq val-sym item))
            (assign-subprocessed selection-form sform-specs
-                                '(:special (:omit (:value-assignment :function-assignment))))))
+                                `(:special (:omit (:value-assignment :function-assignment)
+                                                  ,@include-closure-meta-last)))))
      (if selection-form (setf items (rest items))))
   (if (and selection-form (listp selection-form) (eql 'a-call (first selection-form)))
-      (let ((val-sym-form (list (if (boundp (intern (string val-sym) space))
-                                    'inwsd 'inws)
-                                val-sym))
-            (prime-function (second selection-form))
-            (item (gensym)))
+      (let* ((context-vars (getf (rest (getf (getf properties :special) :closure-meta)) :var-syms))
+             (val-sym-form (list (if (and (boundp (intern (string val-sym) space))
+                                          (not (member val-sym context-vars)))
+                                     'inwsd 'inws)
+                                 val-sym))
+             (prime-function (second selection-form))
+             (item (gensym)))
         (labels ((set-assn-sym (form)
                    (if (and (listp (third form))
                             (member (first (third form)) '(inws inwsd)))
@@ -693,7 +696,8 @@
           (values `(progn (a-set ,val-sym-form
                                  (assign-by-selection
                                   ,(if (or (symbolp prime-function)
-                                           (eql 'apl-fn (first prime-function)))
+                                           (and (listp prime-function)
+                                                (member (first prime-function) '(inws apl-fn function))))
                                        ;; TODO: make this work with an aliased ¨ operator
                                        prime-function (if (eql 'a-comp (first prime-function))
                                                           (if (eql '|¨| (second prime-function))
