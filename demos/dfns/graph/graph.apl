@@ -332,10 +332,8 @@ sudokuX ← { ⎕IO←1                            ⍝ Exact cover Sudoku solver
 
 queensX ← {                                  ⍝ Exact cover N-Queens.
   m←⍳3/⍵                                     ⍝ cell coordinate properties.
-  ⍝ r←=/¨1 0 1∘/¨m                           ⍝ each rank must contain one queen.
-  r←=/¨{1 0 1/⍵}¨m                           ⍝ each rank must contain one queen.
-  ⍝ f←=/¨0 1 1∘/¨m                           ⍝  ..  file  ..     ..      ..
-  f←=/¨{0 1 1/⍵}¨m                           ⍝  ..  file  ..     ..      ..
+  r←=/¨1 0 1∘/¨m                             ⍝ each rank must contain one queen.
+  f←=/¨0 1 1∘/¨m                             ⍝  ..  file  ..     ..      ..
   
   dm←-/¨⍳2/⍵                                 ⍝ diagonals.
   du←{⍵[⍋⍵]}∪,dm                             ⍝ unique diagnonals.

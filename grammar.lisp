@@ -44,13 +44,15 @@
                            (cons 'nspath (append current-path
                                                  (loop :for i :in (rest this-item)
                                                        :collect (if (symbolp i)
-                                                                    (intern (string i) "KEYWORD")
+                                                                    (if (member i '(⍵ ⍺ ⍹ ⍶))
+                                                                        i (intern (string i) "KEYWORD"))
                                                                     (if (and (listp i)
                                                                              (eq :axes (first i)))
                                                                         (list (mapcar (lambda (item)
                                                                                         (funcall process item))
                                                                                       (rest i))))))))
-                           (cons 'nspath (cons `(inws ,(second this-item))
+                           (cons 'nspath (cons (if (member (second this-item) '(⍵ ⍺ ⍹ ⍶))
+                                                   (second this-item) `(inws ,(second this-item)))
                                                (loop :for i :in (cddr this-item)
                                                      :collect (if (symbolp i)
                                                                   (intern (string i) "KEYWORD")
@@ -149,6 +151,8 @@
                                             (or (of-lexicons idiom (third this-item) :functions-dyadic)
                                                 (of-lexicons idiom (third this-item) :functions-symbolic)))))
               (cond ((and (characterp fn)
+                          (or (not (getf (getf properties :special) :exclude-symbolic))
+                              (not (of-lexicons idiom fn :functions-symbolic)))
                           (or (not (getf properties :glyph))
                               (and (char= fn (aref (string (getf properties :glyph)) 0)))))
                      (values fn (list :type (append '(:function :glyph)
@@ -544,7 +548,8 @@
                                  `(:special (:omit (:value-assignment :function-assignment
                                                                       :operation :operator-assignment
                                                                       :train-composition)
-                                                   ,@include-closure-meta-last))))))
+                                                   ,@include-closure-meta-last
+                                                   :exclude-symbolic t))))))
     (if symbol-referenced
         ;; call the operator constructor on the output of the operand constructor which integrates axes
         (values `(a-comp :op ,(list (if (and (fboundp (intern (string symbol-referenced) space))
@@ -560,31 +565,38 @@
                              (member :lateral (getf operator-props :type))
                              operator-form)))
           (if operator
-              (if (eq :operator-self-reference operator-form)
-                  (values `(a-comp :op ∇oself ,operand-form)
-                          '(:type (:function :operator-composed :lateral))
-                          items)
-                  (values (if (listp operator-form)
-                              `(a-comp :op ,operator-form
-                                       ,(if (not (characterp operand-form))
-                                            operand-form (build-call-form operand-form
-                                                                          :dyadic operand-axes)))
-                              (let ((operand (if (eql '∇ operand-form)
-                                                 '#'∇self
-                                                     (if (and (characterp operand-form)
-                                                              (of-lexicons idiom operand-form :functions))
-                                                         (build-call-form operand-form :dyadic operand-axes)
-                                                         operand-form))))
-                                (cons 'a-comp
-                                      (cons (intern (string-upcase operator) *package-name-string*)
-                                            (funcall (symbol-function
-                                                      (intern (format nil "APRIL-LEX-OP-~a" operator-form)
-                                                              *package-name-string*))
-                                                     operand (if (listp (first operator-axes))
-                                                                 (cons 'list (first operator-axes))
-                                                                 (list (first operator-axes))))))))
-                          '(:type (:function :operator-composed :lateral))
-                          items)))))))
+              (if (and (not operand-form)
+                       (of-lexicons idiom operator :functions-dyadic))
+                  (values (build-call-form operator :dyadic operator-axes)
+                          '(:type (:function :referenced)))
+                  (if (eq :operator-self-reference operator-form)
+                      (values `(a-comp :op ∇oself ,operand-form)
+                              '(:type (:function :operator-composed :lateral))
+                              items)
+                      (values (if (listp operator-form)
+                                  `(a-comp :op ,operator-form
+                                           ,(if (not (characterp operand-form))
+                                                operand-form (build-call-form operand-form
+                                                                              :dyadic operand-axes)))
+                                  (let ((operand (if (eql '∇ operand-form)
+                                                     '#'∇self
+                                                         (if (and (characterp operand-form)
+                                                                  (of-lexicons idiom operand-form
+                                                                               :functions))
+                                                             (build-call-form operand-form :dyadic
+                                                                              operand-axes)
+                                                             operand-form))))
+                                    (cons 'a-comp
+                                          (cons (intern (string-upcase operator) *package-name-string*)
+                                                (funcall (symbol-function
+                                                          (intern (format nil "APRIL-LEX-OP-~a"
+                                                                          operator-form)
+                                                                  *package-name-string*))
+                                                         operand (if (listp (first operator-axes))
+                                                                     (cons 'list (first operator-axes))
+                                                                     (list (first operator-axes))))))))
+                              '(:type (:function :operator-composed :lateral))
+                              items))))))))
 
 (composer-pattern composer-pattern-unitary-statement (statement-axes statement-form statement-props)
     ;; match a unitary operator like $

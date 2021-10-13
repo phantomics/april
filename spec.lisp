@@ -1546,7 +1546,7 @@
   (for "Selection from an array with multi-index, array and elided dimensions."
        "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
                                       (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
-  (for "Selection from witthin an array with spaces in axis specification."
+  (for "Selection from within an array with spaces in axis specification."
        "(3 4⍴⍳12)[ ;4 3 ]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
@@ -1655,6 +1655,8 @@
        #3A(((44 84 124) (48 88 128) (52 92 132))
            ((55 105 155) (60 110 160) (65 115 165))
            ((66 126 186) (72 132 192) (78 138 198))))
+  (for "Pivotal composition of overloaded function, further composed laterally."
+       "(1 0 1∘/)¨⍳3" #(#*11 #(2 2) #(3 3)))
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
@@ -1830,7 +1832,7 @@
   (for "Assignment of values in nested namespaces."
        "myns←⎕NS ⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS ⍬ 
     myns.bb.dd.ee←5 ⋄ myns.bb.ff←⍳4 ⋄ myns.bb.gg←2 2⍴⍳4 
-    myns.cc,myns.bb.ff,,myns.bb.gg×myns.bb.dd.ee+myns.aa"
+    myns.cc,({⍵.bb.ff} myns),,myns.bb.gg×myns.bb.dd.ee+myns.aa"
        #(1 2 3 1 2 3 4 8 16 24 32))
   (for "Assignment, modification and display of values in nested namespaces."
        "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS ⍬

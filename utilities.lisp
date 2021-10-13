@@ -340,6 +340,36 @@
                 (process-path (enclose-axes item (first key-list))
                               (rest key-list) processor value))))))
 
+;; (defun process-path (item key-list &optional processor value)
+;;   "Generate appropriate code to fetch or change elements nested within (arrays of) namespaces."
+;;   (flet ((fetcher (item key)
+;;            (let ((arg (gensym)))
+;;              `(if (listp ,item) (getf ,item ,key)
+;;                   (apply-scalar (lambda (,arg) ,(process-path `(getf ,arg ,key) (rest key-list)
+;;                                                               processor value))
+;;                                 ,item)))))
+;;     (if (not key-list)
+;;         (funcall (or processor (lambda (a b) (declare (ignore b)) a))
+;;                  item value)
+;;         (if (symbolp (first key-list))
+;;             (if (and (listp item) (eql 'achoose (first item)))
+;;                 (let ((arg (gensym)) (key-sym (intern (string (first key-list)) "KEYWORD")))
+;;                   ;; if multiple namespaces have been fetched from an array, the function to fetch the
+;;                   ;; rest of the path must be applied over the output array with (apply-scalar)
+;;                   (fetcher item key-sym))
+;;                 (process-path ;; (fetcher item (intern (string (first key-list)) "KEYWORD"))
+;;                               `(getf ,item ,(intern (string (first key-list)) "KEYWORD"))
+;;                               (rest key-list) processor value))
+;;             (let ((this-item (gensym)) (other (gensym)))
+;;               (if processor ;; if there's a processor, this path is being used for assignment
+;;                   (enclose-axes item (first key-list)
+;;                                 :set value :set-nil (not value)
+;;                                 :set-by `(lambda (,this-item ,other)
+;;                                            ,(process-path this-item (rest key-list) processor other)
+;;                                            ,this-item))
+;;                   (process-path (enclose-axes item (first key-list))
+;;                                 (rest key-list) processor value)))))))
+
 (defmacro nspath (list &rest keys)
   "Macro to expedite the fetching of values from nested namespaces."
   (process-path list keys))
