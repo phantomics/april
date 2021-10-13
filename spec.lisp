@@ -143,7 +143,7 @@
                 (let* ((form (if (not (and (= 1 (length form)) (characterp (first form))
                                            (of-lexicons this-idiom (first form) :functions)))
                                  form (list (build-call-form (first form)))))
-                       (final-form (if inline-arguments `(apl-call :fn ,(first (last form)) ,@inline-arguments)
+                       (final-form (if inline-arguments `(a-call ,(first (last form)) ,@inline-arguments)
                                        (first (last form)))))
                   (append (butlast form)
                           (list (append (list 'a-out final-form)

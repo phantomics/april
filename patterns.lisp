@@ -52,10 +52,25 @@
                 '(:type (:function :implicit :rank-pattern))))
       (values nil nil tokens)))
 
+(composer-pattern unique-anyrank-pattern (ravel ravel-props unique unique-props value value-props)
+    ((assign-element ravel ravel-props process-function '(:glyph \,))
+     (assign-element unique unique-props process-function '(:glyph \∪))
+     (assign-element value value-props process-value))
+  (if (and ravel unique (not value))
+      (let ((input (gensym)) (raveled (gensym)))
+        (values `(lambda (,input)
+                   (if (not (arrayp ,input))
+                       ,input (let ((,raveled (make-array (size ,input) :element-type (element-type ,input)
+                                                                        :displaced-to ,input)))
+                                (unique ,raveled))))
+                '(:type (:function :implicit :unique-anyrank-pattern))))
+      (values nil nil tokens)))
+
 (defvar *composer-optimized-opening-patterns-common*)
 
 (setq *composer-optimized-opening-patterns-common*
       '((:name :sum-until-pattern :function sum-until-pattern)
         (:name :array-size-pattern :function array-size-pattern)
         (:name :get-last-pattern :function get-last-pattern)
-        (:name :rank-pattern :function rank-pattern)))
+        (:name :rank-pattern :function rank-pattern)
+        (:name :unique-anyrank-pattern :function unique-anyrank-pattern)))

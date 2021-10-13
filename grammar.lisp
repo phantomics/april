@@ -152,6 +152,8 @@
                                                 (of-lexicons idiom (third this-item) :functions-symbolic)))))
               (cond ((and (characterp fn)
                           (or (not (getf (getf properties :special) :exclude-symbolic))
+                              ;; the :exclude-symbolic property prevents a
+                              ;; symbolic function like ∘ from matching
                               (not (of-lexicons idiom fn :functions-symbolic)))
                           (or (not (getf properties :glyph))
                               (and (char= fn (aref (string (getf properties :glyph)) 0)))))
@@ -567,6 +569,8 @@
           (if operator
               (if (and (not operand-form)
                        (of-lexicons idiom operator :functions-dyadic))
+                  ;; if there is no operand, this is actually a function represented
+                  ;; by an overloaded function glyph like /, so return it
                   (values (build-call-form operator :dyadic operator-axes)
                           '(:type (:function :referenced)))
                   (if (eq :operator-self-reference operator-form)

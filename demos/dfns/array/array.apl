@@ -180,6 +180,7 @@ displays ← { ⎕IO←0                           ⍝ Boxed display of array.
     lft←⍉'┌',(↑lax),'└'                      ⍝ ... and corners.
     lft,(top⍪w⍪bot),rgt                      ⍝ Fully boxed array.
   }
+
   deco←{⍺←type open ⍵ ⋄ ⍺,axes ⍵}            ⍝ Type and axes vector.
   axes←{(-2⌈⍴⍴⍵)↑1+×⍴⍵}                      ⍝ Array axis types.
   open←{(1⌈⍴⍵)⍴⍵}                            ⍝ Expose null axes.
@@ -187,6 +188,7 @@ displays ← { ⎕IO←0                           ⍝ Boxed display of array.
   type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ Simple array type.
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ Simple scalar type.
   qfmt←{(⍕⍴⍺)(⎕FMT open ⍵)}
+
   {                                          ⍝ Recursively box arrays:
     0=≡⍵:' '⍪(⎕FMT ⍵)⍪(' '≡⊃0⍴⍵)⊃' -'        ⍝ Simple scalar.
     1 ⍬≡(≡⍵)(⍴⍵):'∇' 0 0 box(,'─')(⎕FMT ⍵)   ⍝ Object rep: ⎕OR.
@@ -316,7 +318,7 @@ list ← { ↑{⍺ ⍵}/⍵,'∘' }                      ⍝ List from vector �
 
 ⍝ From http://dfns.dyalog.com/c_ltrav.htm
 
-ltrav←{                                      ⍝ List traversal.
+ltrav ← {                                    ⍝ List traversal.
   '∘'≡head tail←⍵:⍺                          ⍝ head and tail of list, else accumulator
   (⍺ ⍺⍺ head)∇ tail                          ⍝ accumulated result with tail.
 }

@@ -5,6 +5,93 @@
 
 ;; an archive of old APL function implementations, not as fast as current ones but historically interesting
 
+
+(defmacro apl-call (symbol function &rest arguments)
+  "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
+  (declare (ignore symbol))
+  (let ((arg (gensym "A")))
+    (flet ((is-scalar (form) (and (listp form) (eql 'scalar-function (first form))))
+           (is-boolean (form) (and (listp form) (listp (second form))
+                                   (eql 'boolean-op (caadr form))))
+           (expand-monadic (fn argument)
+             (let ((arg-expanded (macroexpand argument)))
+               (if (and (listp arg-expanded)
+                        (eql 'apply-scalar (first arg-expanded))
+                        (not (fourth arg-expanded)))
+                   (let ((innerfn (second arg-expanded)))
+                     (list (if (not (eql 'lambda (first innerfn)))
+                               `(lambda (,arg) (funcall ,fn (funcall ,innerfn ,arg)))
+                               (list (first innerfn) (second innerfn)
+                                     `(funcall ,fn ,(third innerfn))))
+                           (third arg-expanded)))
+                   (list fn argument))))
+           (expand-dyadic (fn is-first arg1 arg2)
+             (let* ((arg-expanded (macroexpand (if is-first arg1 arg2))))
+               (if (and (listp arg-expanded)
+                        (eql 'apply-scalar (first arg-expanded))
+                        ;; extract the sub-arguments within the expanded argument to the function; if one
+                        ;; is a scalar value, the function may be merged into the containing closure
+                        (let ((sub-arg1 (if (and (listp (second arg-expanded))
+                                                 (eql 'lambda (caadr arg-expanded)))
+                                            (third (third (second arg-expanded)))
+                                            (third arg-expanded)))
+                              (sub-arg2 (if (and (listp (second arg-expanded))
+                                                 (eql 'lambda (caadr arg-expanded)))
+                                            (fourth (third (second arg-expanded)))
+                                            (fourth arg-expanded))))
+                          ;; one of the sub-arguments must be a number - or if there is no second argument,
+                          ;; the inner function is monadic and the decomposition can proceed
+                          (or (numberp sub-arg1) (not sub-arg2) (numberp sub-arg2))))
+                   (let ((innerfn (second arg-expanded)))
+                     (list (if (not (eql 'lambda (first innerfn)))
+                               `(lambda (,arg) (funcall ,fn ,@(if (not is-first) (list arg1))
+                                                        (funcall ,innerfn ,arg
+                                                                 ;; include the inner function's
+                                                                 ;; second argument if present
+                                                                 ,@(if (fourth arg-expanded)
+                                                                       (list (fourth arg-expanded))))
+                                                        ,@(if is-first (list arg2))))
+                               (list (first innerfn) (second innerfn)
+                                     `(funcall ,fn ,@(if (not is-first) (list arg1))
+                                               ,(third innerfn) ,@(if is-first (list arg2)))))
+                           (third arg-expanded)))))))
+      (let* ((scalar-fn (is-scalar function))
+             (fn-body (cond ((and scalar-fn (not (second arguments)))
+                             ;; compose monadic functions if the argument is the output of another scalar function
+                             (expand-monadic function (first arguments)))
+                            ((and scalar-fn (second arguments)
+                                  (numberp (first arguments)))
+                             ;; compose dyadic functions if the first argument is a scalar numeric value
+                             ;; and the other argument is the output of a scalar function
+                             (let ((expanded (expand-dyadic function nil (first arguments) (second arguments))))
+                               (or expanded `((lambda (,arg) (funcall ,function ,(first arguments) ,arg))
+                                              ,(macroexpand (second arguments))
+                                              nil))))
+                            ((and scalar-fn (second arguments)
+                                  (numberp (second arguments)))
+                             ;; same as above if the numeric argument is reversed
+                             (let ((expanded (expand-dyadic function t (first arguments) (second arguments))))
+                               (or expanded `((lambda (,arg) (funcall ,function ,arg ,(second arguments)))
+                                              ,(macroexpand (first arguments))
+                                              nil))))
+                            ;; otherwise, just list the function and its arguments
+                            (t (cons function arguments)))))
+        (funcall (lambda (form)
+                   (if (not scalar-fn)
+                       form (list 'value-meta-process form)))
+                 ;; wrap (apply-scalar) forms in the (value-meta-process) macro
+                 (append (list (if scalar-fn 'apply-scalar 'funcall))
+                         (if (and scalar-fn (= 4 (length fn-body)))
+                             ;; if the function is scalar and an axis argument is present,
+                             ;; adjust the numerical axis values according to the index origin
+                             (append (butlast fn-body 1)
+                                     `((adjust-axes-for-index-origin index-origin ,(fourth fn-body))))
+                             fn-body)
+                         (if (and scalar-fn (= 2 (length fn-body)))
+                             '(nil))
+                         (if (and scalar-fn (is-boolean function))
+                             '(nil t))))))))
+
 (defun catenate (a1 a2 axis)
   "Join two arrays along the specified axis."
   (let* ((rank1 (rank a1)) (rank2 (rank a2))

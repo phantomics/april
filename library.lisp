@@ -346,6 +346,7 @@
                                      (if populator (funcall populator)))))))
 
 (defun wrap-split-array (index-origin axes)
+  "Wrapper for [↓ split]."
   (lambda (omega) (split-array omega *last-axis*)))
 
 (defun section-array (index-origin &optional inverse axes)
@@ -379,6 +380,7 @@
           output))))
 
 (defun enclose-array (index-origin axes)
+  "Wrapper for [⊂ enclose]."
   (lambda (omega &optional alpha)
     (if alpha (partitioned-enclose alpha omega *last-axis*)
         (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
@@ -388,6 +390,7 @@
             (enclose omega)))))
 
 (defun partition-array-wrap (index-origin axes)
+  "Wrapper for [⊆ partition]."
   (lambda (omega alpha)
     (partition-array alpha omega *last-axis*)))
 
@@ -485,6 +488,7 @@
     output))
 
 (defun rotate-array (first-axis index-origin axes)
+  "Wrapper for turn function, used to implement [⌽ rotate] and [⊖ rotate first]."
   (lambda (omega &optional alpha)
     (if first-axis (if alpha (turn omega *first-axis* alpha)
                        (turn omega *first-axis*))
@@ -886,6 +890,7 @@
               output))))))
 
 (defun operate-commuting (operand)
+  "Generate a function with reversed or mirrored arguments. Used to implement [⍨ commute]."
   (lambda (omega &optional alpha)
     (if (eq :get-metadata omega)
         (list :inverse (lambda (omega &optional alpha)

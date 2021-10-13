@@ -180,7 +180,7 @@ dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
 show ← {↑(⍕¨⍳⍴⍵),¨' → '∘,¨⍕¨⍵}
 
 pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
-  {$[1≥⍴⍵;↑,↓⍵;↑⍪/⍵,∘∇¨⍵∘~¨⍵]}⍳⍵             ⍝ short vector: done, else items prefix sub-perms of remainder.
+  {1≥⍴⍵ : ↑,↓⍵ ⋄ ↑⍪/⍵,∘∇¨⍵∘~¨⍵}⍳⍵            ⍝ short vector: done, else items prefix sub-perms of remainder.
 }     
 
 ⍝ From http://dfns.dyalog.com/c_scc.htm
@@ -259,7 +259,7 @@ stdists ← {                                  ⍝ Spanning-tree path lengths.
   
 ⍝ From http://dfns.dyalog.com/n_stpath.htm
 
-stpath←{                                     ⍝ Path through spanning tree ⍺ to vertex ⍵.
+stpath ← {                                   ⍝ Path through spanning tree ⍺ to vertex ⍵.
   tree←⍺                                     ⍝ (partial) spanning tree.
   ⍬{                                         ⍝ path accumulator.
     ⍵<0:(⍵=¯2)↓⍺                             ⍝ root or unvisited vertex: finished.
