@@ -16,21 +16,25 @@
 
 (defun process-value (this-item properties process idiom space)
   "Process a value token."
-  (cond ((and (listp this-item)
+  (cond ((and ;; this-item
+              (listp this-item)
               (not (member (first this-item) '(:fn :op :st :pt :axes))))
          ;; if the item is a closure, evaluate it and return the result
          (let ((sub-props (list :special
                                 (list :closure-meta (getf (getf properties :special) :closure-meta)))))
-           (multiple-value-bind (output out-properties)
+           (multiple-value-bind (output out-properties remaining)
                (funcall process this-item sub-props)
-             (if (eq :array (first (getf out-properties :type)))
-                 (progn (if (not (member :enclosed (getf out-properties :type)))
-                            (setf (getf out-properties :type)
-                                  (cons (first (getf out-properties :type))
-                                        (cons :enclosed (rest (getf out-properties :type))))))
-                        (values output out-properties))
-                 (values nil nil)))))
-        ((and (listp this-item)
+             (if (and remaining (member :operator-composed (getf out-properties :type)))
+                 ;; operator compositions may not have tokens left at the end
+                 (error "Invalid function form.")
+                 (if (eq :array (first (getf out-properties :type)))
+                     (progn (if (not (member :enclosed (getf out-properties :type)))
+                                (setf (getf out-properties :type)
+                                      (cons (first (getf out-properties :type))
+                                            (cons :enclosed (rest (getf out-properties :type))))))
+                            (values output out-properties))
+                     (values nil nil))))))
+        ((and this-item (listp this-item)
               (eq :pt (first this-item)))
          (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                         :ns-point)
