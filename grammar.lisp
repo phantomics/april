@@ -24,7 +24,8 @@
                                 (list :closure-meta (getf (getf properties :special) :closure-meta)))))
            (multiple-value-bind (output out-properties remaining)
                (funcall process this-item sub-props)
-             (if (and remaining (member :operator-composed (getf out-properties :type)))
+             (if (and remaining (or (member :operator-composed (getf out-properties :type))
+                                    (getf (getf properties :special) :no-remaining)))
                  ;; operator compositions may not have tokens left at the end
                  (error "Invalid function form.")
                  (if (eq :array (first (getf out-properties :type)))
@@ -628,7 +629,7 @@
         (:name :function :function composer-pattern-function)
         (:name :operator-alias :function composer-pattern-operator-alias)
         (:name :lateral-composition :function composer-pattern-lateral-composition)
-        (:name :unitary-operator :function composer-pattern-unitary-statement)))
+        (:name :unitary-statement :function composer-pattern-unitary-statement)))
 
 (composer-pattern value-assignment-by-function-result
     (asop asop-props fn-element fnel-specs function-axes symbol symbol-props symbol-axes)
@@ -1241,10 +1242,12 @@
     ((setq preceding-type (getf (first preceding-properties) :type))
      (if (eq :array (first preceding-type))
          (progn (assign-subprocessed fn-element function-props
-                                     `(:special (:omit (:function-assignment :value-assignment-by-selection
-                                                                             :lateral-inline-composition
-                                                                             :train-composition :operation)
-                                                       ,@include-closure-meta-last)))
+                                         `(:special (:omit (:function-assignment
+                                                            :value-assignment-by-selection
+                                                            :lateral-inline-composition
+                                                            :train-composition :operation)
+                                                           ;; :no-remaining t
+                                                           ,@include-closure-meta-last)))
                 (setq is-function (eq :function (first (getf function-props :type)))
                       prior-items items)
                 (if is-function (assign-subprocessed
