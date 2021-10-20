@@ -222,12 +222,14 @@
   "Checks if a variable is present in the current workspace as a function."
   `(and (fboundp (intern (string ,item) space))
         (or (not (boundp (intern (string ,item) space)))
+            (not (listp (symbol-value (intern (string ,item) space))))
             (not (getf (rest (symbol-value (intern (string ,item) space))) :valence)))))
 
 (defmacro is-workspace-operator (item)
   "Checks if a variable is present in the current workspace as an operator."
   `(and (fboundp (intern (string ,item) space))
         (boundp (intern (string ,item) space))
+        (listp (symbol-value (intern (string ,item) space)))
         (getf (rest (symbol-value (intern (string ,item) space))) :valence)))
 
 (defun get-array-meta (array &rest keys)
@@ -1013,7 +1015,7 @@ It remains here as a standard against which to compare methods for composing APL
                    (let ((initial (if (not (and (listp (first form))
                                                 (member (first form) '(inws inwsd))))
                                       (first form) (first form))))
-                     (if (member (first form) '(avector inws inwsd))
+                     (if (member (first form) '(avector achoose inws inwsd))
                          form (if (not (or (numberp initial)
                                            (listp initial)
                                            (stringp initial)

@@ -676,6 +676,7 @@
      (if (and asop (and (listp (first items))
                         (not (member (caar items) '(:fn :op :st :pt :axes)))))
          (let ((items (first items)))
+           (print (list :it item items))
            (assign-axes selection-axes process)
            (if (symbolp item) (setq val-sym item))
            (assign-subprocessed selection-form sform-specs
@@ -690,6 +691,7 @@
                                  val-sym))
              (prime-function (second selection-form))
              (item (gensym)))
+        ;; (print (list :vv val-sym))
         (labels ((set-assn-sym (form)
                    (if (and (listp (third form))
                             (member (first (third form)) '(inws inwsd)))

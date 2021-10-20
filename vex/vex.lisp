@@ -970,7 +970,7 @@ These are examples of the output of the three macro-builders above.
               system-to-use (assign-from state system-to-use))
 
         (if string
-            (let* ((string (if (stringp string)
+            (let* ((string (if t ; (stringp string) ***
                                ;; just pass the string through if it's not a pathname;
                                ;; if it is a pathname, evaluate it in case something like
                                ;; (asdf:system-relative-pathname ...) was passed
@@ -983,8 +983,14 @@ These are examples of the output of the three macro-builders above.
                    (output-vars (getf state-to-use :out))
                    (stored-refs (append (get-item-refs (rest (assoc :store-val options)))
                                         (get-item-refs (rest (assoc :store-fun options)) t)))
-                   (compiled-expressions (process-lines (funcall (of-utilities idiom :prep-code-string)
-                                                                 string)))
+                   (compiled-expressions (if (listp string)
+                                             string ;; ***
+                                             ;; (process-lines (funcall (of-utilities idiom :prep-code-string)
+                                             ;;                         string))
+                                             (april::compile-test
+                                              (funcall (of-utilities idiom :prep-code-string) string)
+                                              space)
+                                             ))
                    (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
                                          state-to-use))
                    (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
