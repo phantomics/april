@@ -173,9 +173,15 @@
                         (not (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
                                                                               :closure-meta))
                                                                   :var-syms)))
-                        (not (member this-item (of-meta-hierarchy
-                                                (rest (getf (getf properties :special) :closure-meta))
-                                                :fn-syms))))
+                        (not (or (member this-item (of-meta-hierarchy
+                                                    (rest (getf (getf properties :special) :closure-meta))
+                                                    :fn-syms))
+                                 (member this-item (of-meta-hierarchy
+                                                    (rest (getf (getf properties :special) :closure-meta))
+                                                    :lop-syms))
+                                 (member this-item (of-meta-hierarchy
+                                                    (rest (getf (getf properties :special) :closure-meta))
+                                                    :pop-syms)))))
                    ;; process workspace-aliased lexical functions, as when f←+ has been set
                    (values `(inwsd ,this-item) (list :type '(:function :referenced))))
                   ((eql this-item '∇)
@@ -302,7 +308,7 @@
                                                        :valence)))
                                         (member this-item (of-meta-hierarchy closure-meta :pop-syms))))
                                (if (not (member this-item (of-meta-hierarchy closure-meta :pop-syms)))
-                                   (list 'inwd (intern pop-string))
+                                   (list 'inwsd (intern pop-string))
                                    (list 'inws (intern pop-string)))))))
         (if bound-op
             (values bound-op (list :type (list :operator (or (getf properties :valence)
@@ -311,7 +317,7 @@
             (values nil nil)))
       (values nil nil))))
 
-(defun build-value (tokens &key axes elements space params left)
+(defun build-value (tokens &key axes elements space params left axes-last)
   ;; (print (list :to tokens axes elements space params))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (if elements (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
@@ -328,13 +334,14 @@
               ;; if elements are present, recurse and process the items after the axes as another
               ;; vector for the axes to be applied to
               (if elements
-                  (if left (values (build-value nil :axes axes :space space
+                  (if left (values (build-value nil :axes axes :space space :axes-last t
                                                     :params params :elements elements)
                                    tokens)
                       (build-value (rest tokens) :elements elements :space space :params params
                                                  :axes (cons (compile-form (cdar tokens) :space space
                                                                            :params params)
-                                                             axes))
+                                                             axes)
+                                                 :axes-last t)
                       ;; (build-value 
                       ;;  nil :axes axes :space space :params params :left left
                       ;;      :elements (cons (output-value
@@ -406,9 +413,12 @@
                                 (let ((preceding (build-value nil :elements elements :params params
                                                               ;; :axes axes
                                                               :space space)))
-                                  ;; (print (list :iii preceding tokens))
+                                  ;; (print (list :iii preceding tokens elements axes-last))
                                   (multiple-value-bind (function remaining)
-                                      (build-function tokens :space space :axes axes :params params)
+                                      (build-function tokens :space space :params params
+                                                             :axes ;(if axes-last axes)
+                                                             axes
+                                                             )
                                     ;; (print (list :ff function remaining tokens elements))
                                     (if function
                                         (multiple-value-bind (lval remaining remaining-axes)
@@ -912,7 +922,8 @@
                        function `(list ,@(first axes))))
       `(a-comp :op ,(if (not (symbolp operator))
                         operator `(inws ,operator))
-               ,(or function value))))
+               ,(or function value)
+               ,@(if axes `((list ,@(first axes)))))))
   
 (defun compose-function-pivotal (operator function1 function2 value2)
   (if (characterp operator)
