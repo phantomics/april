@@ -323,48 +323,8 @@
       (if (and (not left) (listp (first tokens)) (eq :fn (caar tokens))
                (characterp (cadar tokens)) (char= #\← (cadar tokens)))
           ;; if a ← is encountered, this is a value assignment form
-          (multiple-value-bind (function remaining)
-              (if (= 1 (length (rest tokens))) (values nil (rest tokens))
-                  (build-function (rest tokens) :space space :params params))
-            ;; (print (list :aa function remaining))
-            (multiple-value-bind (symbol remaining2)
-                ;; (if (member (second tokens) '(to-output output-stream))
-                ;;     (second tokens)
-                ;;     (if (symbolp (second tokens))
-                ;;         `(inws ,(second tokens))
-                ;;         (build-value (if (not (and (or (symbolp function)
-                ;;                                        (and (listp function)
-                ;;                                             (member (first function)
-                ;;                                                     '(inws inwsd))))
-                ;;                                    (not remaining)))
-                ;;                          remaining (rest tokens))
-                ;;                      :space space :left t :params params)))
-                (or (build-value (if (not (and (or (symbolp function)
-                                                   (and (listp function)
-                                                        (member (first function)
-                                                                '(inws inwsd))))
-                                               (not remaining)))
-                                     remaining (rest tokens))
-                                 :space space :left t :params (append (list :match-all-syms t)
-                                                                      params))
-                    ;; (and (symbolp (second tokens))
-                    ;;      (values (second tokens) (cddr tokens)))
-                    )
-              ;; (setq symbol function)
-              ;; (print (list :ss symbol function remaining2))
-              ;; TODO: account for stuff after the assigned symbol
-              ;; (print (list :rem remaining))
-              (if (or symbol function)
-                  (build-value
-                   remaining2
-                   :elements
-                   (list (compose-value-assignment
-                          (or symbol function)
-                          (build-value nil :axes axes :elements elements
-                                           :space space :params params)
-                          :params params :space space :function (if symbol function)
-                          ))
-                   :space space :params params))))
+          (complete-value-assignment
+           (rest tokens) elements space params axes)
           (if (and (listp (first tokens)) (eq :axes (caar tokens))) ;; if axes like [2] are encountered
               ;; if elements are present, recurse and process the items after the axes as another
               ;; vector for the axes to be applied to
@@ -429,6 +389,8 @@
                                            :params params :space space :left left
                                            :axes axes)))
                         (if left
+                            ;; if this value is to the left of a function like the 5 in 5+3,
+                            ;; process it without looking for a function to its left
                             (let ((exp-operator (build-operator ;; TODO: is this clause used?
                                                  (list (first tokens))
                                                  :params params :space space
@@ -500,6 +462,60 @@
                                 ;;                                        :space space :params params))))
                                 ;;         preceding)))
                                 )))))))))
+
+(defun complete-value-assignment (tokens elements space params axes)
+  (if nil ; (= 1 (length tokens))
+      (build-value nil :elements
+                   (list (compose-value-assignment
+                          (list (if (getf (getf params :special) :closure-meta)
+                                    'inws 'inwsd)
+                                (first tokens))
+                          (build-value nil :axes axes :elements elements
+                                           :space space :params params)
+                          :params params :space space))
+                       :space space :params params)
+      (multiple-value-bind (function remaining)
+          (if (= 1 (length tokens)) (values nil tokens)
+              (build-function tokens :space space :params params))
+        ;; (print (list :aa function remaining))
+        (multiple-value-bind (symbol remaining2)
+            ;; (if (member (second tokens) '(to-output output-stream))
+            ;;     (second tokens)
+            ;;     (if (symbolp (second tokens))
+            ;;         `(inws ,(second tokens))
+            ;;         (build-value (if (not (and (or (symbolp function)
+            ;;                                        (and (listp function)
+            ;;                                             (member (first function)
+            ;;                                                     '(inws inwsd))))
+            ;;                                    (not remaining)))
+            ;;                          remaining tokens)
+            ;;                      :space space :left t :params params)))
+            (or (build-value (if (not (and (or (symbolp function)
+                                               (and (listp function)
+                                                    (member (first function)
+                                                            '(inws inwsd))))
+                                           (not remaining)))
+                                 remaining tokens)
+                             :space space :left t :params (append (list :match-all-syms t)
+                                                                  params))
+                ;; (and (symbolp (second tokens))
+                ;;      (values (second tokens) (cddr tokens)))
+                )
+          ;; (setq symbol function)
+          ;; (print (list :ss symbol function remaining2))
+          ;; TODO: account for stuff after the assigned symbol
+          ;; (print (list :rem remaining))
+          (if (or symbol function)
+              (build-value
+               remaining2
+               :elements
+               (list (compose-value-assignment
+                      (or symbol function)
+                      (build-value nil :axes axes :elements elements
+                                       :space space :params params)
+                      :params params :space space :function (if symbol function)
+                      ))
+               :space space :params params))))))
 
 ;; (multiple-value-bind (function remaining)
 ;;     (build-function tokens :space space :axes axes :params params)
@@ -882,9 +898,15 @@
                               ,@(if left-value (list left-value)))
                (a-call ,center (a-call ,right ,omega) ,@(if left-value (list left-value))))))))
 
+(defun fnexp-backup (form &key space params)
+  "If a value build produces an pivotal function composition, it is built as a function. Needed for cases like fn←{2+⍵}⍣3 ⋄ fn 5."
+  (if (not (and (listp form) (listp (first form)) (eq :fn (caar form))))
+      form (build-function form :initial t :space space :params params)))
+
 (defun compile-form (exprs &key space params)
   (loop :for expr :in exprs
-        :collect (or (build-value expr :space space :params params)
+        :collect (or (fnexp-backup (build-value expr :space space :params params)
+                                   :space space :params params)
                      (build-function expr :initial t :space space :params params)
                      (build-operator expr :initial t :space space :params params))))
 
