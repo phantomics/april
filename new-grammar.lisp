@@ -94,8 +94,7 @@
 (defun proc-function (this-item &optional properties process idiom space)
   "Process a function token."
   ;; (print (list :ti this-item properties))
-  (let* ((space "APRIL-WORKSPACE-COMMON")
-         (current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
+  (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
     (if (listp this-item)
         ;; process a function specification starting with :fn
@@ -415,7 +414,11 @@
                                         (multiple-value-bind (lval remaining remaining-axes)
                                             (build-value remaining :space space :params params :left t)
                                           ;; (print (list :lv lval remaining function preceding))
-                                          (let ((value `(a-call ,function ,preceding
+                                          (let ((value `(a-call ,(if (not (and (listp function)
+                                                                               (eql 'inwsd
+                                                                                    (first function))))
+                                                                     function `(function ,function))
+                                                                ,preceding
                                                                 ,@(if lval (list lval)))))
                                             ;; (print (list :rem remaining))
                                             (if (not remaining) value
@@ -464,7 +467,8 @@
                                 )))))))))
 
 (defun complete-value-assignment (tokens elements space params axes)
-  (if nil ; (= 1 (length tokens))
+  (if (and (= 1 (length tokens))
+           (symbolp (first tokens)))
       (build-value nil :elements
                    (list (compose-value-assignment
                           (list (if (getf (getf params :special) :closure-meta)
@@ -553,37 +557,53 @@
                                                            :initial initial :params params))))
       (if (and (listp (first tokens)) (eq :axes (caar tokens)))
           (if found-function (values found-function tokens)
-              (build-function (rest tokens) :axes (list (compile-form (cdar tokens)))
+              (build-function (rest tokens) :axes (list (compile-form (cdar tokens)
+                                                                      :space space :params params))
                                             :initial initial :space space :params params))
           (if (not found-function) ;; this is the beginning of the function composition
               (let ((exp-operator ;; (proc-operator (first tokens) (append params '(:valence :lateral))
                                   ;;                nil *april-idiom* space)
                                   (build-operator (list (first tokens))
                                                   :params params :space space :initial initial
-                                                  :valence :lateral :axes axes)))
-                ;; (print (list :ee exp-operator params))
+                                                  :valence :lateral :axes axes))
+                    (value-operand (and (listp (first tokens)) (eq :op (caar tokens))
+                                        (listp (cadar tokens))
+                                        (member '⍶ (getf (cdadar tokens) :arg-syms))))
+                    )
+                ;; (print (list :vl value-operand))
                 (if exp-operator ;; if a lateral operator is present as for +/
-                    (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
-                                  (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
-                        ;; if a lateral operator is encountered followed by ←, the operator is
-                        ;; being assigned and the current form is not valid as a function, so return nil
-                        (multiple-value-bind (exp-function remaining)
-                            (build-function (rest tokens) :space space :params params)
-                          ;; (print (list :ex exp-operator exp-function tokens
-                          ;;              (build-function (rest tokens) :space space :params params)
-                          ;;              :rem remaining))
-                          (if exp-function
+                    (if value-operand
+                        (multiple-value-bind (exp-value remaining)
+                            (build-value (rest tokens) :space space :params params :left t)
+                          (if exp-value ;; TODO: write negative clause
                               (build-function remaining :space space :params params :initial initial
                                                         :found-function (compose-function-lateral
-                                                                         exp-operator exp-function axes))
-                              ;; if the operator was not followed by a function, check
-                              ;; whether it's an overloaded lexical function and if so process it as such
-                              (let* ((fn-token (list :fn (third (first tokens))))
-                                     (ol-function (proc-function fn-token params nil *april-idiom*)))
-                                ;; (print (list :oo (build-call-form ol-function)))
-                                (values (build-call-form ol-function nil axes) (rest tokens))))))
-                    (let ((exp-function (proc-function (first tokens) params nil *april-idiom*)))
-                      ;; (print (list :ex exp-function tokens))
+                                                                         exp-operator nil exp-value axes))))
+                        (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
+                                      (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
+                            ;; if a lateral operator is encountered followed by ←, the operator is
+                            ;; being assigned and the current form is not valid as a function, so return nil
+                            (multiple-value-bind (exp-function remaining)
+                                (build-function (rest tokens) :space space :params params)
+                              ;; (print (list :ex exp-operator exp-function tokens
+                              ;;              (build-function (rest tokens) :space space :params params)
+                              ;;              :rem remaining))
+                              (if exp-function
+                                  (let ((fn-wrap (if (not (and (listp exp-function)
+                                                               (eql 'inwsd (first exp-function))))
+                                                     exp-function `(function ,exp-function))))
+                                    ;; (print (list :ff fn-wrap))
+                                    (build-function remaining :space space :params params :initial initial
+                                                              :found-function (compose-function-lateral
+                                                                               exp-operator fn-wrap nil axes)))
+                                  ;; if the operator was not followed by a function, check
+                                  ;; whether it's an overloaded lexical function and if so process it as such
+                                  (let* ((fn-token (list :fn (third (first tokens))))
+                                         (ol-function (proc-function fn-token params nil *april-idiom* space)))
+                                    ;; (print (list :oo (build-call-form ol-function)))
+                                    (values (build-call-form ol-function nil axes) (rest tokens)))))))
+                    (let ((exp-function (proc-function (first tokens) params nil *april-idiom* space)))
+                      ;; (print (list :ex exp-function tokens space))
                       (if exp-function (build-function
                                         (rest tokens)
                                         :initial initial :space space :params params
@@ -695,21 +715,27 @@
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
               (build-value (rest tokens) :space space :params params :left t))
-        (if (or left-function left-value)
-            (build-function remaining ; (cddr tokens)
-                            :space space :params params :initial initial
-                            :found-function (compose-function-pivotal
-                                             operator (or right-function right-value)
-                                             ;; (if (not (characterp left-function))
-                                             ;;     left-function
-                                             ;;     (build-call-form left-function))
-                                             left-function left-value)))))))
+        (let ((lfn-wrap (if (not (and (listp left-function)
+                                      (eql 'inwsd (first left-function))))
+                            left-function `(function ,left-function)))
+              (rfn-wrap (if (not (and (listp right-function)
+                                      (eql 'inwsd (first right-function))))
+                            right-function `(function ,right-function))))
+          (if (or left-function left-value)
+              (build-function remaining ; (cddr tokens)
+                              :space space :params params :initial initial
+                              :found-function (compose-function-pivotal
+                                               operator (or rfn-wrap right-value)
+                                               ;; (if (not (characterp left-function))
+                                               ;;     left-function
+                                               ;;     (build-call-form left-function))
+                                               lfn-wrap left-value))))))))
 
 ;; (defun complete-pivotal-match (operator tokens right-function right-value space params)
 ;;   ;; (print (list :op operator tokens))
 ;;   (let* ((next-token (if (not (and (listp (second tokens)) (eq :op (caadr tokens))))
 ;;                            (second tokens) (list :fn (third (second tokens)))))
-;;            (left-function (proc-function next-token params nil *april-idiom*)
+;;            (left-function (proc-function next-token params nil *april-idiom* space)
 ;;                           ;; (build-function (rest tokens) :space space :params params)
 ;;                           )
 ;;            (left-value (if (not left-function)
@@ -749,7 +775,15 @@
                        (error "Invalid assignment to ⎕OST.")))
                  (error "Invalid assignment to ⎕OST."))))
         ((and (listp symbol) (eql 'achoose (first symbol)))
-         (append symbol (list :set value :modify-input t)))
+         (let ((val (gensym)) (var-sym (second symbol))
+               (out1 (gensym)) (out2 (gensym)))
+           `(let ((,val ,value))
+              (multiple-value-bind (,out1 ,out2)
+                  ,(append symbol (list :set val :modify-input t))
+                (if ,out2 (setf ,var-sym ,out2))
+                ,out1)
+           ;;(list :set value :modify-input t)
+           )))
         ((and (listp symbol) (eql 'a-call (first symbol)))
          (let* ((val-sym (if (symbolp (first symbol)) (first symbol)))
                 (selection-form symbol)
@@ -853,7 +887,7 @@
                               `(a-set ,symbol ,value)))))))))
 
 (defun compose-function-assignment (symbol function &key space params)
-  (declare (ignore params))
+  ;; (declare (ignore params))
   (if (symbolp symbol)
       (let ((i-sym (intern (string symbol) space))
             (in-closure (getf (getf params :special) :closure-meta))
@@ -862,19 +896,23 @@
         ;; (print (list :par params symbol))
         (if (boundp i-sym) (makunbound i-sym))
         (setf (symbol-function i-sym) #'dummy-nargument-function)
-        `(a-set ;; ,(output-value space symbol (list nil) nil)
-                ,(list (if in-closure 'inws 'inwsd)
-                       symbol)
-                ,function))))
+        ;; `(a-set ;; ,(output-value space symbol (list nil) nil)
+        ;;         ,(list (if in-closure 'inws 'inwsd)
+        ;;                symbol)
+        ;;         ,function)
+        `(setf ,(if in-closure `(inws ,symbol)                    
+                    `(symbol-function '(inwsd ,symbol)))
+               ,function)
+        )))
 
-(defun compose-function-lateral (operator function axes)
+(defun compose-function-lateral (operator function value axes)
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
               (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator) *package-name-string*))
                        function `(list ,@(first axes))))
       `(a-comp :op ,(if (not (symbolp operator))
                         operator `(inws ,operator))
-               ,function)))
+               ,(or function value))))
   
 (defun compose-function-pivotal (operator function1 function2 value2)
   (if (characterp operator)
