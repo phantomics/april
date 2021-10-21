@@ -46,9 +46,8 @@
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
             :lexical-operators-pivotal ;:lexical-statements
                   :general-tests
-            ;;       :system-variable-function-tests :function-inversion-tests :namespace-tests
-            ;; :printed-format-tests
-                  )
+                  :system-variable-function-tests ;; :function-inversion-tests :namespace-tests
+                  :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral

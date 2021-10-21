@@ -218,7 +218,7 @@ April uses the backslash character `\` to implement the expand function and the 
 #(1 3 6 10 15)
 ```
 
-Inside the `"string"`, the two backslashes evaluate to a single backslash. If you forget about this, you can experience confusing errors.
+Inside the `"string"`, the two backslashes evaluate to a single backslash. If you forget about this, you can run into confusing errors.
 
 ## Unique Language Features in April
 
