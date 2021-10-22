@@ -438,7 +438,9 @@
               (labels ((process-symbols (sym-list values)
                          (let ((this-val (gensym)))
                            `(let ((,this-val ,values))
-                              ,@(loop :for sym :in sym-list :for sx :from 0
+                              ,@(loop :for sym :in (if (not (eql 'avector (first sym-list)))
+                                                       sym-list (rest sym-list))
+                                      :for sx :from 0
                                       :append (if (and (listp sym) (not (eql 'inws (first sym))))
                                                   (list (process-symbols
                                                          sym `(if (not (vectorp ,this-val))

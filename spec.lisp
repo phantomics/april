@@ -44,9 +44,8 @@
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-            :lexical-operators-pivotal ;:lexical-statements
-                  :general-tests
-                  :system-variable-function-tests ;; :function-inversion-tests :namespace-tests
+                  :lexical-operators-pivotal :lexical-statements :general-tests
+                  :system-variable-function-tests :function-inversion-tests ;:namespace-tests
                   :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -2217,8 +2216,7 @@ c   2.56  3
               #*10))
    (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
           (multiple-value-bind (out1 out2)
-              (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5))
-                                                  :out (a c)))
+              (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5)) :out (a c)))
                                     "c←a+⍳b"))
             (is out1 3)
             (princ (format nil "~%"))
