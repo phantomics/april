@@ -16,9 +16,7 @@
 
 (defun process-value (this-item properties process idiom space)
   "Process a value token."
-  (cond ((and ;; this-item
-              (listp this-item)
-              (not (member (first this-item) '(:fn :op :st :pt :axes))))
+  (cond ((and (listp this-item) (not (member (first this-item) '(:fn :op :st :pt :axes))))
          ;; if the item is a closure, evaluate it and return the result
          (let ((sub-props (list :special
                                 (list :closure-meta (getf (getf properties :special) :closure-meta)))))
@@ -35,8 +33,7 @@
                                             (cons :enclosed (rest (getf out-properties :type))))))
                             (values output out-properties))
                      (values nil nil))))))
-        ((and this-item (listp this-item)
-              (eq :pt (first this-item)))
+        ((and this-item (listp this-item) (eq :pt (first this-item)))
          (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                         :ns-point)
                                   (symbol-value (intern "*NS-POINT*" space))))
@@ -676,7 +673,6 @@
      (if (and asop (and (listp (first items))
                         (not (member (caar items) '(:fn :op :st :pt :axes)))))
          (let ((items (first items)))
-           (print (list :it item items))
            (assign-axes selection-axes process)
            (if (symbolp item) (setq val-sym item))
            (assign-subprocessed selection-form sform-specs

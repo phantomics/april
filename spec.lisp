@@ -1516,6 +1516,7 @@
        "fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]" 34)
   (for "Inline n-argument function."
        "{[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]" #(5 5 5 5 10 10 10 10 15 15 15 15))
+  (for "Function using default [⍺ left argument] assignment." "{⍺←3 ⋄ ⍵×⍺} 10" 30)
   (for "Variable-referenced values, including an element within an array, in a vector."
        "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 (b[1;2;1])" #(1 2 9 3 5))
   (for "Index of inline vector." "5 6 7 8[2]" 6)
@@ -1541,6 +1542,8 @@
        "⎕IO←1 ⋄ (a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
   (for "Strand assignment of variables without parentheses." "a b c←4 5 6 ⋄ a×b,c" #(20 24))
   (for "Strand assignment with nesting." "d (e f)←7 (8 9) ⋄ e⍴d×f" #(63 63 63 63 63 63 63 63))
+  (for "Assignment of axis-selected element within inline function."
+       "{m←'+∘×'[2],⍵ ⋄ ↓m} 3 3⍴'ab'" #("∘aba" "∘bab" "∘aba"))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."
@@ -1812,9 +1815,9 @@
   (for "Commutative inversion of multiplication." "×⍨⍣¯1⊢64" 8.0)
   (for "Commutative inversion of max and min."    "(⌈⍨⍣¯1⊢64),⌊⍨⍣¯1⊢64" #(64 64))
   (for "Inversion of commuted outer product." "(∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6" #(1 2 3))
-  (for "Inversion of commuted outer product, other side." "(1 2 3∘∘.×)⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
+  (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
   (for "More complex outer product inversion."
-       "(∘.×∘4 5 6)⍣¯1⊢(∘.×∘4 5 6) (1 2 3∘∘.+) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
+       "(∘.×∘4 5 6)⍣¯1⊢(∘.×∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
   (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #("" "a" "b" "ab"))
   (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
        #("" "a" "b" "ab" "c" "ac" "bc" "abc"))

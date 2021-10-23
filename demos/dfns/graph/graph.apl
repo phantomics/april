@@ -141,16 +141,16 @@ span ← {                                       ⍝ Breadth-first spanning tree
 
 ⍝ From http://dfns.dyalog.com/c_dfspan.htm
 
-dfspan ← {                                   ⍝ Depth-first spanning tree: graph ⍺ from vertex ⍵.
-  graph←⍺                                    ⍝ ⍺ is graph vector.
-  trav←{                                     ⍝ initial vertex and parent
-    ¯2≠⍺⊃⍵:⍵                                 ⍝ vertex visited: backtrack
-    next←⌽⍺⊃graph                            ⍝ edges from vertex ⍺
-    tree←⍺⍺@⍺⊢⍵                              ⍝ ⍺⍺ is ⍺'s parent
-    ⊃⍺ ∇∇/next,⊂tree                         ⍝ visiting each edge in order
-  }                                          ⍝ :: tree ← vtx (vtx ∇∇) tree
-  ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
-}
+⍝ dfspan ← {                                   ⍝ Depth-first spanning tree: graph ⍺ from vertex ⍵.
+⍝   graph←⍺                                    ⍝ ⍺ is graph vector.
+⍝   trav←{                                     ⍝ initial vertex and parent
+⍝     ¯2≠⍺⊃⍵:⍵                                 ⍝ vertex visited: backtrack
+⍝     next←⌽⍺⊃graph                            ⍝ edges from vertex ⍺
+⍝     tree←⍺⍺@⍺⊢⍵                              ⍝ ⍺⍺ is ⍺'s parent
+⍝     ⊃⍺ ∇∇/next,⊂tree                         ⍝ visiting each edge in order
+⍝   }                                          ⍝ :: tree ← vtx (vtx ∇∇) tree
+⍝   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
+⍝ }
   
 ⍝ From http://dfns.dyalog.com/c_dsp.htm
   
