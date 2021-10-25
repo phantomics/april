@@ -47,6 +47,7 @@
         ((and (symbolp this-item)
               (or (member this-item '(⍵ ⍺ ⍹ ⍶) :test #'eql)
                   (getf properties :symbol-overriding)
+                  (member this-item (getf (getf properties :call-scope) :input-vars))
                   (or (member this-item (of-meta-hierarchy (rest (getf (getf properties :special)
                                                                        :closure-meta))
                                                            :var-syms))
@@ -161,7 +162,9 @@
                                           (compile-form fn :space space
                                                            :params (list :special
                                                                          (list :closure-meta
-                                                                               (second this-item))))
+                                                                               (second this-item))
+                                                                         :call-scope
+                                                                         (getf properties :call-scope)))
                                           polyadic-args (rest this-closure-meta))
                                          (list :type '(:function :closure)
                                                :obligate-dyadic obligate-dyadic)))))))
@@ -254,7 +257,9 @@
                                      (compile-form fn :space space
                                                       :params (list :special
                                                                     (list :closure-meta
-                                                                          (second this-item))))
+                                                                          (second this-item))
+                                                                    :call-scope (getf properties
+                                                                                      :call-scope)))
                                      nil (rest this-closure-meta))))))))
       (if (symbolp this-item)
           ;; if the operator is represented by a symbol, it is a user-defined operator
@@ -701,7 +706,9 @@
   (if (not found-operator) ;; no operator has yet been registered
       (if (and (listp (first tokens)) (eq :axes (caar tokens)))
           ;; concatenate axes as they are found
-          (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens)) axes)
+          (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens) :space space
+                                                                                :params params)
+                                                    axes)
                                         :initial initial :space space :params params)
           (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
                                    nil *april-idiom* space)))
@@ -1004,14 +1011,14 @@
                        (wrap-fn-sym tokens))
                      (build-operator expr :initial t :space space :params params))))
 
-(defun compile-test (string &optional space output)
+(defun compile-test (string &optional space params output)
   (if (= 0 (length string))
       ;; (compile-form (reverse output) :space "APRIL-WORKSPACE-COMMON")
-      (compile-form (reverse output) :space space)
+      (compile-form (reverse output) :space space :params params)
       (let ((result (lexer-postprocess (vex::parse string (vex::=vex-string *april-idiom*))
                                        *april-idiom* space)))
         (compile-test (second result)
-                      space (cons (first result) output)))))
+                      space params (cons (first result) output)))))
 
 (defun compile-test2 (string)
   (vex-program *april-idiom* nil string))
