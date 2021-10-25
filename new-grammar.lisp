@@ -130,7 +130,7 @@
                                                         '(:symbolic-function))))))
                     ((and (listp fn)
                           (not (getf properties :glyph)))
-                     (if (and (= 2 (length this-item)) (listp fn))
+                     (if (eq :pass (second this-item))
                          ;; handle a (:fn)-enclosed operator form produced by build-value
                          (values fn)
                          (let* ((polyadic-args (if (and (listp (first (last (first fn))))
@@ -311,9 +311,7 @@
       (if (and (not left) (listp (first tokens)) (eq :fn (caar tokens))
                (characterp (cadar tokens)) (char= #\← (cadar tokens)))
           ;; if a ← is encountered, this is a value assignment form
-          (progn ;; (print (list :rt tokens))
-          (complete-value-assignment
-           (rest tokens) elements space params axes))
+          (complete-value-assignment (rest tokens) elements space params axes)
           (if (and (listp (first tokens)) (eq :axes (caar tokens))) ;; if axes like [2] are encountered
               ;; if elements are present, recurse and process the items after the axes as another
               ;; vector for the axes to be applied to
@@ -330,13 +328,12 @@
                                                                              :space space :params params)
                                                                  axes)
                                                      :axes-last t)))
-                  ;; if no elements preceded the axes, just pass the axes to the next level of recursion
-                  ;; to be applied to the next element encountered
+                  ;; if no elements preceded the axes, just pass the axes to the next
+                  ;; level of recursion to be applied to the next element encountered
                   (build-value (rest tokens) :axes (cons (build-axes (cdar tokens)
                                                                      :space space :params params)
                                                          axes)
-                                             :axes-last t :space space :params params :left left
-                                             ))
+                                             :axes-last t :space space :params params :left left))
               (if (and (listp (first tokens)) (eq :st (caar tokens))) ; 1 2 3∘.⌽[1]⊂2 3 4⍴⍳9
                   (let ((stm (funcall (symbol-function (intern (format nil "APRIL-LEX-ST-~a" (caddar tokens))
                                                                *package-name-string*))
@@ -349,11 +346,11 @@
                          ;; handle enclosed values like (1 2 3)
                          (first-value (if is-closure (build-value (first tokens) :space space :params params)
                                           (proc-value (first tokens) params nil *april-idiom* space))))
-                    ;; (print (list :fv left first-value tokens elements))
+                    ;; (print (list :fv is-closure left first-value tokens elements axes))
                     ;; if a value element is confirmed, add it to the list of elements and recurse
                     (if first-value
                         (if (and is-closure (listp first-value) (listp (first first-value))
-                                 (eq :fn (caar first-value)))
+                                 (eq :fn (caar first-value)) (eq :pass (cadar first-value)))
                             ;; handle the case of an enclosed pivotal operator with a value
                             ;; as right operand, i.e. (+∘5) 10
                             ;; TODO: add error messages for i.e. (2+) 5
@@ -366,7 +363,7 @@
                                 ;; if no elements are present proceed as if this expression is not
                                 ;; to the left of a function/operand, as for (×∘10)⍣¯1⊢100
                                 (build-value (cons (first first-value) (rest tokens))
-                                             :elements elements :params params :space space))
+                                             :elements elements :params params :space space :axes axes))
                             (let ((fv-output (output-value space first-value (list nil)
                                                            (of-meta-hierarchy (rest (getf (getf params :special)
                                                                                           :closure-meta))
@@ -409,8 +406,10 @@
                                     (if function
                                         (multiple-value-bind (lval remaining remaining-axes raxes-last)
                                             (build-value remaining :space space :params params :left t)
-                                          ;; (print (list :llv lval remaining))
-                                          (if (and (listp lval) (listp (first lval)) (eq :fn (caar lval)))
+                                          ;; (print (list :llv lval remaining function axes
+                                          ;;              remaining-axes))
+                                          (if (and (listp lval) (listp (first lval))
+                                                   (eq :fn (caar lval)) (eq :pass (cadar lval)))
                                               ;; handle the case of a left-value pivotal composition
                                               ;; like +∘3 to the left of the function
                                               (let* ((left-fn (build-function lval :space space
@@ -434,7 +433,8 @@
                                                                          function `(function ,function))
                                                                     ,preceding
                                                                     ,@(if lval (list lval)))))
-                                                ;; (print (list :rem remaining value))
+                                                ;; (print (list :rem remaining value function
+                                                ;;              preceding axes))
                                                 (if (not remaining) value
                                                     (build-value remaining :elements (list value)
                                                                            :axes remaining-axes
@@ -455,7 +455,7 @@
                                                    space params nil)
                                                 ;; (print (list :rem remaining))
                                                 ;; (print (list :comp tokens composed elements))
-                                                (cons (list :fn composed) remaining))
+                                                (cons (list :fn :pass composed) remaining))
                                               preceding)))))
                                 (if axes (if (or (symbolp (first tokens))
                                                  (and (listp (first tokens))
@@ -608,7 +608,8 @@
                                             (build-value (rest tokens) :space space :params params)
                                           ;; (print (list :ff fn-as-val-tokens remaining fnrem))
                                           (if (and (listp fn-as-val-tokens) (listp (first fn-as-val-tokens))
-                                                   (eq :fn (caar fn-as-val-tokens)))
+                                                   (eq :fn (caar fn-as-val-tokens))
+                                                   (eq :pass (cadar fn-as-val-tokens)))
                                               (multiple-value-bind (val-fn remaining)
                                                   (build-function fn-as-val-tokens :space space
                                                                                    :params params)
@@ -616,7 +617,8 @@
                                                          exp-operator val-fn nil axes)
                                                         remaining))
                                               (if (and (listp fnrem) (listp (first fnrem))
-                                                       (eq :fn (caar fnrem)))
+                                                       (eq :fn (caar fnrem))
+                                                       (eq :pass (cadar fnrem)))
                                                   (multiple-value-bind (val-fn remaining)
                                                       (build-function fnrem :space space
                                                                             :params params)
@@ -667,23 +669,26 @@
                                       (if (or second-function second-value
                                               (not (and (listp second-val-remaining)
                                                         (listp (first second-val-remaining))
-                                                        (eq :fn (caar second-val-remaining)))))
+                                                        (eq :fn (caar second-val-remaining))
+                                                        (eq :pass (cadar second-val-remaining)))))
                                           (values (or second-function second-value)
                                                   second-val-remaining)
                                           (build-function second-val-remaining :space space :params params))
-                                    ;; (print (list :ss second-function second-value second-val-fn))
+                                    ;; (print (list :ss second-function second-value second-val-fn
+                                    ;;              second-val-fn-remaining second-remaining
+                                    ;;              second-val-remaining))
                                     (if first-function
                                         (build-function
                                          (if second-function second-remaining
-                                             (if second-val-fn-remaining second-val-fn-remaining
+                                             (if second-val-fn second-val-fn-remaining
                                                  second-val-remaining))
                                          :found-function
                                          (if (or second-function second-value second-val-fn)
                                              (compose-function-train found-function first-function
-                                                                     second-function
-                                                                     ;; (or second-function
-                                                                     ;;     (if (not second-value)
-                                                                     ;;         second-val-fn))
+                                                                     ;; second-function
+                                                                     (or second-function
+                                                                         (if (not second-value)
+                                                                             second-val-fn))
                                                                      second-value)
                                              (compose-function-train found-function first-function))
                                          :initial initial :space space :params params)
@@ -981,7 +986,8 @@
 
 (defun fnexp-backup (form &key space params)
   "If a value build produces an pivotal function composition, it is built as a function. Needed for cases like fn←{2+⍵}⍣3 ⋄ fn 5."
-  (if (not (and (listp form) (listp (first form)) (eq :fn (caar form))))
+  (if (not (and (listp form) (listp (first form)) (eq :fn (caar form))
+                (eq :pass (cadar form))))
       form (build-function form :initial t :space space :params params)))
 
 (defun wrap-fn-sym (form)

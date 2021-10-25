@@ -181,7 +181,7 @@
          (is "list 'hello'" #(#\h #(#\e #(#\l #(#\l #(#\o #\RING_OPERATOR))))))
          (is "listLength list ⎕A" 26)
          (is "vectFromList list 'hello'" "hello")
-         ;; (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
+         (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
          (is "↓'<<*>>' showmatch '<<>> <<aa>>'" #("<<>> <<aa>>"
                                                   "¯    ¯     "))
          (is "↓'<<*>>' showmatch 2 2 24⍴'<<aa>>  <<>>  <<bbb>> '" #("<<aa>>  <<>>  <<bbb>> <<"
