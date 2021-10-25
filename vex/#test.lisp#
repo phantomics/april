@@ -1,0 +1,976 @@
+(IN-APRIL-WORKSPACE COMMON
+  (LET ((OUTPUT-STREAM *STANDARD-OUTPUT*))
+    (DECLARE (IGNORABLE OUTPUT-STREAM))
+    (SYMBOL-MACROLET ((INDEX-ORIGIN 𝔻*INDEX-ORIGIN*)
+                      (PRINT-PRECISION 𝔻*PRINT-PRECISION*)
+                      (COMPARISON-TOLERANCE 𝔻*COMPARISON-TOLERANCE*)
+                      (DIVISION-METHOD 𝔻*DIVISION-METHOD*))
+      (SETF (SYMBOL-FUNCTION '𝕊|disp|)
+             (ALAMBDA (⍵ &OPTIONAL ⍺)
+                 (WITH
+                  (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                             𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                  (:META :INVERSE
+                         (ALAMBDA (⍵ &OPTIONAL ⍺)
+                             (WITH NIL)
+                           (ERROR "This function cannot be inverted as it ~a"
+                                  "contains more than one statement."))))
+               (F-LEX ((𝔻INWS 𝔻|dec| 𝔻|ctd| 𝔻|glue| 𝔻|isor| 𝔻|open| 𝔻|sepr|
+                              𝔻|matr| 𝔻|shape| 𝔻|type| 𝔻|lower| 𝔻|right| 𝔻|collect|
+                              𝔻|inner| 𝔻|outer| 𝔻|join| 𝔻|plane| 𝔻|gaps| 𝔻|aligned|
+                              𝔻|box|)
+                       (𝕊INWS 𝕊|dec| 𝕊|ctd| 𝕊|glue| 𝕊|isor| 𝕊|open| 𝕊|sepr|
+                              𝕊|matr| 𝕊|shape| 𝕊|type| 𝕊|lower| 𝕊|right| 𝕊|collect|
+                              𝕊|inner| 𝕊|outer| 𝕊|join| 𝕊|plane| 𝕊|gaps| 𝕊|aligned|
+                              𝕊|box|))
+                 (A-SET 𝕊*INDEX-ORIGIN* 0)
+                 (A-SET ⍺ #())
+                 (A-SET (AVECTOR 𝕊|dec| 𝕊|ctd|)
+                        (A-CALL (APL-FN ↑ INDEX-ORIGIN) ⍺ 2))
+                 (SETF 𝕊|box|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (F-LEX ((𝔻|subs| 𝔻|r| 𝔻|c| 𝔻|mat|)
+                                 (𝕊INWS 𝕊|subs| 𝕊|r| 𝕊|c| 𝕊|mat|))
+                           (APL-IF (A-CALL #'𝕊|isor| ⍵)
+                                   (A-CALL
+                                    (FORMAT-ARRAY-UNCOLLATED
+                                     PRINT-PRECISION)
+                                    (A-CALL (APL-FN ⊂ INDEX-ORIGIN) ⍵))
+                                   (APL-IF
+                                    (A-CALL
+                                     (APL-FN-S = COMPARISON-TOLERANCE)
+                                     (A-CALL (APL-FN ≡)
+                                             (A-CALL
+                                              (APL-FN |,| INDEX-ORIGIN) ⍵))
+                                     1)
+                                    (A-CALL #'𝕊|open|
+                                            (A-CALL
+                                             (FORMAT-ARRAY-UNCOLLATED
+                                              PRINT-PRECISION)
+                                             (A-CALL #'𝕊|open| ⍵ 𝕊|dec|))
+                                            𝕊|dec|)
+                                    (PROGN
+                                      (A-SET 𝕊|mat|
+                                             (A-CALL #'𝕊|matr|
+                                                     (A-CALL
+                                                      (APL-FN / INDEX-ORIGIN)
+                                                      (A-CALL #'𝕊|open| ⍵
+                                                              𝕊|dec|)
+                                                      1)))
+                                      (A-SET (AVECTOR 𝕊|r| 𝕊|c|)
+                                             (A-CALL (APL-FN-S ×)
+                                                     (A-CALL (APL-FN ⍴)
+                                                             𝕊|mat|)))
+                                      (APL-IF
+                                       (A-CALL
+                                        (APL-FN-S < COMPARISON-TOLERANCE)
+                                        (A-CALL (APL-FN ∊)
+                                                (AVECTOR 𝕊|r| 𝕊|c|) 0)
+                                        𝕊|dec|)
+                                       (A-CALL (APL-FN / INDEX-ORIGIN)
+                                               (A-CALL
+                                                (APL-FN ⌿ INDEX-ORIGIN)
+                                                (A-CALL #'∇SELF
+                                                           (A-CALL #'𝕊|open|
+                                                                   𝕊|mat| 1))
+                                                𝕊|r|)
+                                               𝕊|c|)
+                                       (PROGN
+                                         (A-SET 𝕊|subs|
+                                                (A-CALL #'𝕊|aligned|
+                                                        (A-CALL
+                                                         (A-COMP |¨|
+                                                                 OPERATE-EACH
+                                                                 #'∇SELF)
+                                                         𝕊|mat|)))
+                                         (A-CALL 𝕊|gaps|
+                                                 (A-CALL #'𝕊|plane| 𝕊|subs| ⍵)
+                                                 (A-CALL (APL-FN ≢)
+                                                         (A-CALL (APL-FN ⍴)
+                                                                 ⍵)))))))))))
+                 (SETF 𝕊|aligned|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|v| 𝔻|h| 𝔻|sizes| 𝔻|rows| 𝔻|cols|)
+                                 (𝕊INWS 𝕊|v| 𝕊|h| 𝕊|sizes| 𝕊|rows| 𝕊|cols|))
+                           (A-SET (AVECTOR 𝕊|rows| 𝕊|cols|)
+                                  (A-CALL #'𝕊|sepr|
+                                          (A-CALL
+                                           (A-COMP |¨| OPERATE-EACH
+                                                   (APL-FN ⍴))
+                                           ⍵)))
+                           (A-SET 𝕊|sizes|
+                                  (A-CALL
+                                   (A-COMP |.| OPERATE-PRODUCING-OUTER
+                                           (APL-FN |,| INDEX-ORIGIN))
+                                   (A-CALL
+                                    (A-COMP ⌿ OPERATE-REDUCING (APL-FN-S ⌈)
+                                              (LIST) INDEX-ORIGIN)
+                                    𝕊|cols|)
+                                   (A-CALL
+                                    (A-COMP / OPERATE-REDUCING (APL-FN-S ⌈)
+                                            (LIST) INDEX-ORIGIN T)
+                                    𝕊|rows|)))
+                           (APL-IF
+                            (A-CALL (APL-FN-S = COMPARISON-TOLERANCE) 0
+                                    𝕊|ctd|)
+                            (A-CALL
+                             (A-COMP |¨| OPERATE-EACH
+                                     (APL-FN ↑ INDEX-ORIGIN))
+                             ⍵ 𝕊|sizes|)
+                            (PROGN
+                              (A-SET (AVECTOR 𝕊|v| 𝕊|h|)
+                                     (A-CALL #'𝕊|sepr|
+                                             (A-CALL (APL-FN-S ⌈)
+                                                     (A-CALL (APL-FN-S ×)
+                                                             (A-CALL
+                                                              (APL-FN ↑
+                                                                      INDEX-ORIGIN)
+                                                              (A-CALL
+                                                               (APL-FN-S -)
+                                                               𝕊|sizes|
+                                                               (A-CALL
+                                                                (A-COMP |¨|
+                                                                        OPERATE-EACH
+                                                                        (APL-FN
+                                                                         ⍴))
+                                                                ⍵)))
+                                                             0.5d0))))
+                              (A-CALL
+                               (A-COMP |¨| OPERATE-EACH
+                                       (APL-FN ⊖ INDEX-ORIGIN))
+                               (A-CALL
+                                (A-COMP |¨| OPERATE-EACH
+                                        (APL-FN ⌽ INDEX-ORIGIN))
+                                (A-CALL
+                                 (A-COMP |¨| OPERATE-EACH
+                                         (APL-FN ↑ INDEX-ORIGIN))
+                                 ⍵ 𝕊|sizes|)
+                                𝕊|h|)
+                               𝕊|v|))))))
+                 (SETF 𝕊|gaps|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (F-LEX ((𝔻|fill| 𝔻|width| 𝔻|subs|)
+                                 (𝕊|fill| 𝕊|width| 𝕊|subs|))
+                           (APL-IF
+                            (A-CALL (APL-FN-S ≤ COMPARISON-TOLERANCE) 2 ⍺) ⍵
+                            (PROGN
+                              (A-SET 𝕊|subs|
+                                     (A-CALL
+                                      (A-COMP |¨| OPERATE-EACH #'∇SELF) ⍵
+                                      (A-CALL (APL-FN-S -) 1 ⍺)))
+                              (A-SET 𝕊|width|
+                                     (A-CALL (APL-FN ⊃ INDEX-ORIGIN)
+                                             (A-CALL (APL-FN ⌽ INDEX-ORIGIN)
+                                                     (A-CALL (APL-FN ⍴)
+                                                             (A-CALL
+                                                              (APL-FN ⊃
+                                                                      INDEX-ORIGIN)
+                                                              𝕊|subs|)))))
+                              (A-SET 𝕊|fill|
+                                     (A-CALL (APL-FN ⍴) #\
+                                             (A-CALL (APL-FN-S -)
+                                                     (AVECTOR 3 0)
+                                                     (AVECTOR ⍺ 𝕊|width|))))
+                              (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                      (A-CALL
+                                       (A-COMP / OPERATE-REDUCING
+                                               (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                   (WITH
+                                                    (:SYS-VARS
+                                                     𝔻*INDEX-ORIGIN*
+                                                     𝔻*PRINT-PRECISION*
+                                                     𝔻*COMPARISON-TOLERANCE*
+                                                     𝔻*DIVISION-METHOD*)
+                                                    (:META :INVERSE
+                                                           (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                               (WITH NIL)
+                                                             (A-CALL
+                                                              (INV-FN
+                                                               (APL-FN ⍪
+                                                                INDEX-ORIGIN)
+                                                               T :INVERSE)
+                                                              (A-CALL
+                                                               (INV-FN
+                                                                (APL-FN ⍪
+                                                                 INDEX-ORIGIN)
+                                                                T :INVERSE)
+                                                               ⍵ ⍺)
+                                                              𝕊|fill|))))
+                                                 (A-CALL
+                                                  (APL-FN ⍪ INDEX-ORIGIN)
+                                                  (A-CALL
+                                                   (APL-FN ⍪ INDEX-ORIGIN) ⍵
+                                                   𝕊|fill|)
+                                                  ⍺))
+                                               (LIST) INDEX-ORIGIN T)
+                                       (A-CALL #'𝕊|open| 𝕊|subs| 1))))))))
+                 (SETF 𝕊|plane|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (F-LEX ((𝔻|idec| 𝔻|odec|) (𝕊|idec| 𝕊|odec|))
+                           (APL-IF
+                            (A-CALL (APL-FN-S < COMPARISON-TOLERANCE)
+                                    (A-CALL
+                                     (LAMBDA (#:G1136829)
+                                       (VECTOR (RANK #:G1136829)))
+                                     ⍺)
+                                    2)
+                            (A-CALL #'𝕊|join| ⍵ ⍺)
+                            (PROGN
+                              (A-SET 𝕊|odec|
+                                     (A-CALL #'𝕊|outer| ⍵
+                                             (A-CALL #'𝕊|shape| ⍺ 𝕊|dec|)))
+                              (A-SET 𝕊|idec| (A-CALL #'𝕊|inner| ⍺))
+                              (A-CALL #'𝕊|collect| ⍵
+                                      (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                              𝕊|idec| 𝕊|odec|)))))))
+                 (SETF 𝕊|join|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|split| 𝔻|sep|) (𝕊|split| 𝕊|sep|))
+                           (A-SET 𝕊|sep|
+                                  (A-CALL (APL-FN-S ÷ DIVISION-METHOD)
+                                          (A-CALL (APL-FN-S ⌈)
+                                                  (A-CALL (APL-FN ≢) ⍺) 1)
+                                          (A-CALL (APL-FN ≢) ⍵)))
+                           (A-SET 𝕊|split|
+                                  (A-CALL (APL-FN ⊂ INDEX-ORIGIN (LIST 0)) ⍵
+                                          (A-CALL
+                                           (APL-FN-S = COMPARISON-TOLERANCE)
+                                           (A-CALL (APL-FN-S |\||)
+                                                   (A-CALL
+                                                    (APL-FN ⍳ INDEX-ORIGIN)
+                                                    (A-CALL (APL-FN ≢) ⍵))
+                                                   𝕊|sep|)
+                                           0)))
+                           (A-CALL (A-COMP |¨| OPERATE-EACH #'𝕊|plane|)
+                                   𝕊|split|
+                                   (A-CALL
+                                    (A-COMP ⍤ LET ((#:G1136889 -1))
+                                              (IF (FUNCTIONP #:G1136889)
+                                                  (OPERATE-ATOP -1
+                                                                (APL-FN ⊂
+                                                                 INDEX-ORIGIN))
+                                                  (OPERATE-AT-RANK -1
+                                                                   (APL-FN ⊂
+                                                                    INDEX-ORIGIN))))
+                                    (A-CALL (APL-FN ⊢) ⍺))))))
+                 (SETF 𝕊|outer|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|bords| 𝔻|sides| 𝔻|sizes|)
+                                 (𝕊|bords| 𝕊|sides| 𝕊|sizes|))
+                           (A-SET 𝕊|sizes|
+                                  (A-CALL
+                                   (A-COMP |¨| OPERATE-EACH
+                                           (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                               (WITH
+                                                (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                           𝔻*PRINT-PRECISION*
+                                                           𝔻*COMPARISON-TOLERANCE*
+                                                           𝔻*DIVISION-METHOD*)
+                                                (:META :INVERSE
+                                                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                           (WITH NIL)
+                                                         (A-CALL
+                                                          (INV-FN
+                                                           (A-COMP ⍣
+                                                            OPERATE-TO-POWER
+                                                            (LAMBDA () ⍺)
+                                                            (APL-FN ⍉
+                                                             INDEX-ORIGIN)))
+                                                          (A-CALL
+                                                           (INV-FN
+                                                            (APL-FN ↓
+                                                             INDEX-ORIGIN))
+                                                           (A-CALL
+                                                            (INV-FN
+                                                             (APL-FN ⊃
+                                                              INDEX-ORIGIN))
+                                                            ⍵))))))
+                                             (A-CALL (APL-FN ⊃ INDEX-ORIGIN)
+                                                     (A-CALL
+                                                      (APL-FN ↓
+                                                       INDEX-ORIGIN)
+                                                      (A-CALL
+                                                       (A-COMP ⍣
+                                                        OPERATE-TO-POWER
+                                                        (LAMBDA () ⍺)
+                                                        (APL-FN ⍉
+                                                         INDEX-ORIGIN))
+                                                       ⍵)))))
+                                   (A-CALL #'𝕊|sepr|
+                                           (A-CALL
+                                            (A-COMP |¨| OPERATE-EACH
+                                                    (APL-FN ⍴))
+                                            ⍵))
+                                   (AVECTOR 1 0)))
+                           (A-SET 𝕊|sides|
+                                  (A-CALL
+                                   (A-COMP |¨| OPERATE-EACH
+                                           (A-COMP |¨| OPERATE-EACH
+                                                   (APL-FN / INDEX-ORIGIN)))
+                                   "│─" 𝕊|sizes|))
+                           (A-SET 𝕊|bords|
+                                  (A-CALL
+                                   (A-COMP |¨| OPERATE-EACH
+                                           (APL-FN ↓ INDEX-ORIGIN))
+                                   (A-CALL
+                                    (A-COMP |¨| OPERATE-EACH #'𝕊|glue|)
+                                    𝕊|sides| "├┬")
+                                   𝕊|dec|))
+                           (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                   (A-CALL
+                                    (A-COMP / OPERATE-REDUCING
+                                            (A-COMP |¨| OPERATE-EACH
+                                                    (APL-FN |,|
+                                                            INDEX-ORIGIN))
+                                            (LIST) INDEX-ORIGIN T)
+                                    (AVECTOR
+                                     (AVECTOR
+                                      #\BOX_DRAWINGS_LIGHT_DOWN_AND_RIGHT
+                                      "")
+                                     ⍺ 𝕊|bords| "└┐"))))))
+                 (SETF 𝕊|inner|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|deco|) (𝕊|deco|))
+                           (SETF 𝕊|deco|
+                                 (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                     (WITH
+                                      (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                 𝔻*PRINT-PRECISION*
+                                                 𝔻*COMPARISON-TOLERANCE*
+                                                 𝔻*DIVISION-METHOD*)
+                                      (:META :INVERSE
+                                             (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                 (WITH NIL)
+                                               (A-CALL
+                                                (INV-FN
+                                                 (APL-FN |,| INDEX-ORIGIN) T
+                                                 :INVERSE)
+                                                (A-CALL
+                                                 (INV-FN #'𝕊|shape| T :INVERSE)
+                                                 ⍵ 1)
+                                                (A-CALL (INV-FN #'𝕊|type|) ⍵)))))
+                                   (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                           (A-CALL #'𝕊|shape| ⍵ 1)
+                                           (A-CALL #'𝕊|type| ⍵))))
+                           (A-CALL #'𝕊|sepr|
+                                   (A-CALL
+                                    (A-COMP |¨| OPERATE-EACH #'𝕊|deco|)
+                                    (A-CALL #'𝕊|matr|
+                                            (A-CALL #'𝕊|open| ⍵ 𝕊|dec|)))))))
+                 (SETF 𝕊|collect|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|boxes| 𝔻|cells| 𝔻|lft| 𝔻|top| 𝔻|tt|
+                                   𝔻|vv| 𝔻|hh|)
+                                 (𝕊INWS 𝕊|boxes| 𝕊|cells| 𝕊|lft| 𝕊|top|
+                                        𝕊|tt| 𝕊|vv| 𝕊|hh|))
+                           (A-SET (AVECTOR 𝕊|lft| 𝕊|top| 𝕊|tt| 𝕊|vv| 𝕊|hh|)
+                                  ⍺)
+                           (A-SET 𝕊|cells|
+                                  (A-CALL #'𝕊|right|
+                                          (A-CALL #'𝕊|open|
+                                                  (A-CALL #'𝕊|lower| ⍵
+                                                          (AVECTOR 𝕊|tt|
+                                                                   𝕊|hh|))
+                                                  1)
+                                          𝕊|vv|))
+                           (A-SET 𝕊|boxes|
+                                  (A-CALL #'𝕊|open| 𝕊|cells|
+                                          (A-CALL (APL-FN-S ∨)
+                                                  (A-CALL (APL-FN ∊)
+                                                          (A-CALL (APL-FN ⍴)
+                                                                  ⍵)
+                                                          0)
+                                                  𝕊|dec|)))
+                           (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                   (A-CALL (APL-FN ⍪ INDEX-ORIGIN)
+                                           (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                                   (A-CALL
+                                                    (A-COMP ⌿
+                                                     OPERATE-REDUCING
+                                                     (APL-FN ⍪
+                                                             INDEX-ORIGIN)
+                                                     (LIST)
+                                                     INDEX-ORIGIN)
+                                                    (A-CALL
+                                                     (A-COMP /
+                                                             OPERATE-REDUCING
+                                                             (APL-FN |,|
+                                                                     INDEX-ORIGIN)
+                                                             (LIST)
+                                                             INDEX-ORIGIN T)
+                                                     𝕊|boxes|)))
+                                           𝕊|top|)
+                                   𝕊|lft|))))
+                 (SETF 𝕊|right|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|chars| 𝔻|types| 𝔻|rgt|)
+                                 (𝕊|chars| 𝕊|types| 𝕊|rgt|))
+                           (A-SET 𝕊|types|
+                                  (A-CALL
+                                   (A-COMP |¨| OPERATE-EACH (APL-FN ⊥))
+                                   (A-CALL (APL-FN-S = COMPARISON-TOLERANCE)
+                                           (A-CALL (APL-FN ⊂ INDEX-ORIGIN)
+                                                   (A-CALL (APL-FN-S +)
+                                                           (A-CALL
+                                                            (APL-FN ⍴) ⍵)
+                                                           -1))
+                                           (A-CALL (APL-FN ⍳ INDEX-ORIGIN)
+                                                   (A-CALL (APL-FN ⍴) ⍵)))
+                                   2))
+                           (A-SET 𝕊|chars|
+                                  (ACHOOSE "┼┤┴┘"
+                                           (MAPCAR
+                                            (LAMBDA (ARRAY)
+                                              (IF ARRAY
+                                                  (APPLY-SCALAR #'- ARRAY
+                                                                INDEX-ORIGIN)))
+                                            (LIST 𝕊|types|))))
+                           (SETF 𝕊|rgt|
+                                 (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                     (WITH
+                                      (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                 𝔻*PRINT-PRECISION*
+                                                 𝔻*COMPARISON-TOLERANCE*
+                                                 𝔻*DIVISION-METHOD*)
+                                      (:META :INVERSE
+                                             (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                 (WITH NIL)
+                                               (A-CALL
+                                                (INV-FN
+                                                 (APL-FN |,| INDEX-ORIGIN) T
+                                                 :INVERSE-RIGHT)
+                                                (A-CALL
+                                                 (INV-FN (APL-FN ↑ INDEX-ORIGIN)
+                                                         T :INVERSE)
+                                                 (A-CALL
+                                                  (INV-FN
+                                                   (APL-FN |,| INDEX-ORIGIN) T
+                                                   :INVERSE)
+                                                  (A-CALL
+                                                   (INV-FN
+                                                    (APL-FN / INDEX-ORIGIN) T
+                                                    :INVERSE)
+                                                   ⍺
+                                                   (AVECTOR
+                                                    (A-CALL (APL-FN ≢) ⍵) 1 1))
+                                                  #\BOX_DRAWINGS_LIGHT_VERTICAL)
+                                                 (A-CALL (INV-FN (APL-FN ≢))
+                                                         (A-CALL
+                                                          (INV-FN (APL-FN-S -))
+                                                          ⍵)))
+                                                ⍵))))
+                                   (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                           (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                                   (A-CALL
+                                                    (APL-FN /
+                                                            INDEX-ORIGIN)
+                                                    (A-CALL
+                                                     (APL-FN |,|
+                                                             INDEX-ORIGIN)
+                                                     ⍺
+                                                     #\BOX_DRAWINGS_LIGHT_VERTICAL)
+                                                    (AVECTOR
+                                                     (A-CALL (APL-FN ≢) ⍵)
+                                                     1 1))
+                                                   (A-CALL (APL-FN-S -)
+                                                           (A-CALL
+                                                            (APL-FN ≢)
+                                                            ⍵)))
+                                           ⍵)))
+                           (A-CALL (A-COMP |¨| OPERATE-EACH 𝕊|rgt|) ⍵
+                                   (A-CALL
+                                    (A-COMP |¨| OPERATE-EACH
+                                            (APL-FN |,| INDEX-ORIGIN))
+                                    𝕊|chars|
+                                    (A-CALL #'𝕊|matr|
+                                            (A-CALL #'𝕊|open| ⍺ 1)))))))
+                 (SETF 𝕊|lower|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (ERROR
+                                      "This function cannot be inverted as it ~a"
+                                      "contains more than one statement."))))
+                         (F-LEX ((𝔻|bot| 𝔻|split|) (𝕊|bot| 𝕊|split|))
+                           (SETF 𝕊|split|
+                                 (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                     (WITH
+                                      (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                 𝔻*PRINT-PRECISION*
+                                                 𝔻*COMPARISON-TOLERANCE*
+                                                 𝔻*DIVISION-METHOD*)
+                                      (:META :INVERSE
+                                             (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                 (WITH NIL)
+                                               NIL)))
+                                   (A-CALL #'𝕊|glue| ⍺
+                                           (A-CALL (APL-FN / INDEX-ORIGIN)
+                                                   #\BOX_DRAWINGS_LIGHT_HORIZONTAL
+                                                   (A-CALL (APL-FN-S +)
+                                                           (A-CALL
+                                                            (APL-FN ⊃
+                                                             INDEX-ORIGIN)
+                                                            (A-CALL
+                                                             (APL-FN ⍴) ⍵)
+                                                            1)
+                                                           -2)))))
+                           (SETF 𝕊|bot|
+                                 (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                     (WITH
+                                      (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                 𝔻*PRINT-PRECISION*
+                                                 𝔻*COMPARISON-TOLERANCE*
+                                                 𝔻*DIVISION-METHOD*)
+                                      (:META :INVERSE
+                                             (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                 (WITH NIL)
+                                               (A-CALL
+                                                (INV-FN (APL-FN ⍪ INDEX-ORIGIN)
+                                                        T :INVERSE-RIGHT)
+                                                (A-CALL
+                                                 (INV-FN (APL-FN ↑ INDEX-ORIGIN)
+                                                         T :INVERSE)
+                                                 (A-CALL
+                                                  (INV-FN 𝕊|split| T :INVERSE) ⍵
+                                                  ⍺)
+                                                 (A-CALL (INV-FN (APL-FN ⍴))
+                                                         (A-CALL
+                                                          (INV-FN
+                                                           (APL-FN ⊃
+                                                                   INDEX-ORIGIN)
+                                                           T :INVERSE)
+                                                          (A-CALL
+                                                           (INV-FN (APL-FN-S -))
+                                                           ⍵)
+                                                          1)))
+                                                ⍵))))
+                                   (A-CALL (APL-FN ⍪ INDEX-ORIGIN)
+                                           (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                                   (A-CALL 𝕊|split| ⍵ ⍺)
+                                                   (A-CALL (APL-FN-S -)
+                                                           (A-CALL
+                                                            (APL-FN ⊃
+                                                             INDEX-ORIGIN)
+                                                            (A-CALL
+                                                             (APL-FN ⍴) ⍵)
+                                                            1)))
+                                           ⍵)))
+                           (A-CALL (A-COMP |¨| OPERATE-EACH 𝕊|bot|)
+                                   (A-CALL #'𝕊|matr| ⍵)
+                                   (A-CALL #'𝕊|matr|
+                                           (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                                   (A-CALL
+                                                    (A-COMP /
+                                                            OPERATE-REDUCING
+                                                            (A-COMP |¨|
+                                                                    OPERATE-EACH
+                                                                    (APL-FN
+                                                                     |,|
+                                                                     INDEX-ORIGIN))
+                                                            (LIST)
+                                                            INDEX-ORIGIN T)
+                                                    ⍺)))))))
+                 (SETF 𝕊|type|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (F-LEX ((𝔻|sst|) (𝕊|sst|))
+                           (APL-IF
+                            (A-CALL (APL-FN-S < COMPARISON-TOLERANCE)
+                                    (A-CALL (APL-FN-S |\||)
+                                            (A-CALL (APL-FN ≡) ⍵))
+                                    𝕊|dec|)
+                            #\BOX_DRAWINGS_LIGHT_HORIZONTAL
+                            (APL-IF (A-CALL #'𝕊|isor| ⍵) #\NABLA
+                                    (PROGN
+                                      (SETF 𝕊|sst|
+                                            (A-COMP ∘ OPERATE-BESIDE
+                                                      (APL-FN ⍕
+                                                       PRINT-PRECISION)
+                                                      (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                          (WITH
+                                                           (:SYS-VARS
+                                                            𝔻*INDEX-ORIGIN*
+                                                            𝔻*PRINT-PRECISION*
+                                                            𝔻*COMPARISON-TOLERANCE*
+                                                            𝔻*DIVISION-METHOD*)
+                                                           (:META :INVERSE
+                                                                  (ALAMBDA (⍵
+                                                                            &OPTIONAL
+                                                                            ⍺)
+                                                                      (WITH NIL)
+                                                                    NIL)))
+                                                        (APL-IF
+                                                         (A-CALL
+                                                          (APL-FN-S =
+                                                                    COMPARISON-TOLERANCE)
+                                                          (A-CALL
+                                                           (APL-FN-S ×)
+                                                           (A-CALL
+                                                            (LAMBDA
+                                                                (#:G1146483)
+                                                              (VECTOR
+                                                               (RANK
+                                                                #:G1146483)))
+                                                            ⍵)
+                                                           𝕊|dec|)
+                                                          0)
+                                                         #\BOX_DRAWINGS_LIGHT_HORIZONTAL
+                                                         (A-CALL
+                                                          (APL-FN ⊃
+                                                           INDEX-ORIGIN)
+                                                          "#~"
+                                                          (A-CALL
+                                                           (APL-FN ⊃
+                                                            INDEX-ORIGIN)
+                                                           (A-CALL (APL-FN ∊)
+                                                                   (A-CALL
+                                                                    (APL-FN
+                                                                     |,|
+                                                                     INDEX-ORIGIN)
+                                                                    *DIGIT-VECTOR*
+                                                                    #\MACRON)
+                                                                   ⍵)))))))
+                                      (APL-IF
+                                       (A-CALL
+                                        (APL-FN-S = COMPARISON-TOLERANCE)
+                                        (A-CALL (APL-FN ≡) ⍵) 0)
+                                       (A-CALL #'𝕊|sst| ⍵)
+                                       (A-CALL
+                                        (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                            (WITH
+                                             (:SYS-VARS 𝔻*INDEX-ORIGIN*
+                                                        𝔻*PRINT-PRECISION*
+                                                        𝔻*COMPARISON-TOLERANCE*
+                                                        𝔻*DIVISION-METHOD*)
+                                             (:META :INVERSE
+                                                    (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                        (WITH NIL)
+                                                      NIL)))
+                                          (A-CALL (APL-FN ⊃ INDEX-ORIGIN)
+                                                  (AVECTOR #\+ ⍵)
+                                                  (A-CALL
+                                                   (APL-FN-S =
+                                                             COMPARISON-TOLERANCE)
+                                                   (A-CALL (APL-FN ⍴) ⍵) 1)))
+                                        (A-CALL
+                                         (LAMBDA (#:G1146542)
+                                           (IF (NOT (ARRAYP #:G1146542))
+                                               #:G1146542
+                                               (LET ((#:G1146543
+                                                       (MAKE-ARRAY
+                                                        (SIZE #:G1146542)
+                                                        :ELEMENT-TYPE
+                                                        (ELEMENT-TYPE
+                                                         #:G1146542)
+                                                        :DISPLACED-TO
+                                                        #:G1146542)))
+                                                 (UNIQUE #:G1146543))))
+                                         (A-CALL
+                                          (A-COMP |¨| OPERATE-EACH #'𝕊|sst|)
+                                          (A-CALL #'𝕊|open| ⍵
+                                                  𝕊|dec|)))))))))))
+                 (SETF 𝕊|shape|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (F-LEX ((𝔻|rows| 𝔻|rsig| 𝔻|cols|)
+                                 (𝕊|rows| 𝕊|rsig| 𝕊|cols|))
+                           (APL-IF
+                            (A-CALL (APL-FN-S ≤ COMPARISON-TOLERANCE)
+                                    (A-CALL
+                                     (APL-FN-S = COMPARISON-TOLERANCE)
+                                     (A-CALL
+                                      (LAMBDA (#:G1146581)
+                                        (VECTOR (RANK #:G1146581)))
+                                      ⍵)
+                                     0)
+                                    𝕊|dec|)
+                            (A-CALL
+                             (A-COMP |¨| OPERATE-EACH
+                                     (APL-FN / INDEX-ORIGIN))
+                             "│─" ⍺)
+                            (PROGN
+                              (A-SET 𝕊|cols|
+                                     (A-CALL (APL-FN ⊃ INDEX-ORIGIN) "⊖→"
+                                             (A-CALL (APL-FN-S ×)
+                                                     (A-CALL
+                                                      (APL-FN ↑ INDEX-ORIGIN)
+                                                      (A-CALL (APL-FN ⍴) ⍵)
+                                                      -1))))
+                              (A-SET 𝕊|rsig|
+                                     (A-CALL (APL-FN ⊃ INDEX-ORIGIN) "⌽↓"
+                                             (A-CALL (APL-FN-S ×)
+                                                     (A-CALL
+                                                      (A-COMP /
+                                                              OPERATE-REDUCING
+                                                              (APL-FN-S ×)
+                                                              (LIST)
+                                                              INDEX-ORIGIN T)
+                                                      (A-CALL
+                                                       (APL-FN ↓
+                                                               INDEX-ORIGIN)
+                                                       (A-CALL (APL-FN ⍴) ⍵)
+                                                       -1)))))
+                              (A-SET 𝕊|rows|
+                                     (A-CALL (APL-FN ⊃ INDEX-ORIGIN)
+                                             (AVECTOR
+                                              #\BOX_DRAWINGS_LIGHT_VERTICAL
+                                              𝕊|rsig|
+                                              #\APL_FUNCTIONAL_SYMBOL_DEL_STILE)
+                                             (A-CALL (APL-FN-S +)
+                                                     (A-CALL (APL-FN-S ⌊)
+                                                             (A-CALL
+                                                              (LAMBDA
+                                                                  (
+                                                                   #:G1146588)
+                                                                (VECTOR
+                                                                 (RANK
+                                                                  #:G1146588)))
+                                                              ⍵)
+                                                             3)
+                                                     -1)))
+                              (AVECTOR 𝕊|rows| 𝕊|cols|))))))
+                 (SETF 𝕊|matr|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (A-CALL (INV-FN (APL-FN ↓ INDEX-ORIGIN))
+                                             (A-CALL
+                                              (INV-FN (APL-FN |,| INDEX-ORIGIN))
+                                              (A-CALL
+                                               (INV-FN (APL-FN ↑ INDEX-ORIGIN))
+                                               ⍵))))))
+                         (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                 (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                         (A-CALL (APL-FN ↓ INDEX-ORIGIN)
+                                                 ⍵)))))
+                 (SETF 𝕊|sepr|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (A-CALL (INV-FN (APL-FN ↑ INDEX-ORIGIN))
+                                             (A-CALL
+                                              (INV-FN (APL-FN ⊂ INDEX-ORIGIN) T
+                                                      :INVERSE)
+                                              (A-CALL
+                                               (INV-FN
+                                                (A-COMP |¨| OPERATE-EACH
+                                                        (A-COMP / OPERATE-REDUCING
+                                                                (APL-FN-S +)
+                                                                (LIST)
+                                                                INDEX-ORIGIN T)))
+                                               ⍵)
+                                              1)))))
+                         (A-CALL
+                          (A-COMP |¨| OPERATE-EACH
+                                  (A-COMP / OPERATE-REDUCING (APL-FN-S +)
+                                          (LIST) INDEX-ORIGIN T))
+                          (A-CALL (APL-FN ⊂ INDEX-ORIGIN)
+                                  (A-CALL (APL-FN ↑ INDEX-ORIGIN) ⍵) 1))))
+                 (SETF 𝕊|open|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (A-CALL (INV-FN (APL-FN ⍴) T :INVERSE-RIGHT)
+                                             ⍵
+                                             (A-CALL (INV-FN (APL-FN ⍴))
+                                                     (A-CALL
+                                                      (INV-FN (APL-FN-S ⌈) T
+                                                              :INVERSE)
+                                                      ⍵ ⍺))))))
+                         (A-CALL (APL-FN ⍴) ⍵
+                                 (A-CALL (APL-FN-S ⌈) (A-CALL (APL-FN ⍴) ⍵)
+                                         ⍺))))
+                 (SETF 𝕊|isor|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     (A-CALL (INV-FN (APL-FN ≡) T :INVERSE)
+                                             (AVECTOR (A-CALL (APL-FN ≡) ⍵)
+                                                      (A-CALL (APL-FN ⍴) ⍵))
+                                             (AVECTOR 1 #())))))
+                         (A-CALL (APL-FN ≡)
+                                 (AVECTOR (A-CALL (APL-FN ≡) ⍵)
+                                          (A-CALL (APL-FN ⍴) ⍵))
+                                 (AVECTOR 1 #()))))
+                 (SETF 𝕊|glue|
+                       (ALAMBDA (⍵ &OPTIONAL ⍺)
+                           (WITH
+                            (:SYS-VARS 𝔻*INDEX-ORIGIN* 𝔻*PRINT-PRECISION*
+                                       𝔻*COMPARISON-TOLERANCE* 𝔻*DIVISION-METHOD*)
+                            (:META :INVERSE
+                                   (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                       (WITH NIL)
+                                     NIL)))
+                         (APL-IF
+                          (A-CALL (APL-FN-S = COMPARISON-TOLERANCE)
+                                  (A-CALL (APL-FN ⍴) ⍵) 0)
+                          ⍵
+                          (A-CALL (APL-FN ↑ INDEX-ORIGIN)
+                                  (A-CALL
+                                   (A-COMP / OPERATE-REDUCING
+                                           (A-COMP :OP
+                                                   (OLAMBDA (⍶ &OPTIONAL ⍵⍵)
+                                                     (DECLARE
+                                                      (IGNORABLE ⍶ ⍵⍵))
+                                                     (ALAMBDA (⍵ &OPTIONAL ⍺)
+                                                         (WITH
+                                                          (:SYS-VARS
+                                                           𝔻*INDEX-ORIGIN*
+                                                           𝔻*PRINT-PRECISION*
+                                                           𝔻*COMPARISON-TOLERANCE*
+                                                           𝔻*DIVISION-METHOD*)
+                                                          (:META :INVERSE
+                                                                 (ALAMBDA (⍵
+                                                                           &OPTIONAL
+                                                                           ⍺)
+                                                                     (WITH NIL)
+                                                                   (A-CALL
+                                                                    (INV-FN
+                                                                     (APL-FN |,|
+                                                                             INDEX-ORIGIN)
+                                                                     T :INVERSE)
+                                                                    (A-CALL
+                                                                     (INV-FN
+                                                                      (APL-FN |,|
+                                                                              INDEX-ORIGIN)
+                                                                      T :INVERSE)
+                                                                     ⍵ ⍺)
+                                                                    ⍶))))
+                                                       (A-CALL
+                                                        (APL-FN |,|
+                                                                INDEX-ORIGIN)
+                                                        (A-CALL
+                                                         (APL-FN |,|
+                                                                 INDEX-ORIGIN)
+                                                         ⍵ ⍶)
+                                                        ⍺)))
+                                                   ⍺)
+                                           (LIST) INDEX-ORIGIN T)
+                                   ⍵)))))
+                 (APL-IF (A-CALL #'𝕊|isor| ⍵)
+                         (A-CALL (FORMAT-ARRAY-UNCOLLATED PRINT-PRECISION)
+                                 (A-CALL (APL-FN ⊂ INDEX-ORIGIN) ⍵))
+                         (APL-IF
+                          (A-CALL (APL-FN-S = COMPARISON-TOLERANCE)
+                                  (A-CALL (APL-FN ≡)
+                                          (A-CALL (APL-FN |,| INDEX-ORIGIN)
+                                                  ⍵))
+                                  1)
+                          (A-CALL (FORMAT-ARRAY-UNCOLLATED PRINT-PRECISION) ⍵)
+                          (A-CALL #'𝕊|box| ⍵))))))
+      (A-OUT
+       (A-CALL #'𝕊|disp|
+               (A-CALL (APL-FN ⍴)
+                       (A-CALL (APL-FN ⊂ INDEX-ORIGIN)
+                               (A-CALL (APL-FN ⍴)
+                                       (A-CALL (APL-FN ⍳ INDEX-ORIGIN) 4)
+                                       (AVECTOR 2 2)))
+                       (AVECTOR 2 2)))
+       :PRINT-PRECISION PRINT-PRECISION))))

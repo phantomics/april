@@ -153,8 +153,8 @@ display ← { ⎕IO←0                            ⍝ Boxed display of array.
   axes←{(-2⌈⍴⍴⍵)↑1+×⍴⍵}                      ⍝ array axis types
   open←{(1⌈⍴⍵)⍴⍵}                            ⍝ exposure of null axes
   trim←{(~1 1⍷∧⌿⍵=' ')/⍵}                    ⍝ removal of extra blank cols
-  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ simple scalar type
+  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
   line←{(49=⎕DT 1⍴⍵)⊃' -'}                   ⍝ underline for atom
 
   {                                          ⍝ recursive boxing of arrays:
@@ -185,8 +185,8 @@ displays ← { ⎕IO←0                           ⍝ Boxed display of array.
   axes←{(-2⌈⍴⍴⍵)↑1+×⍴⍵}                      ⍝ Array axis types.
   open←{(1⌈⍴⍵)⍴⍵}                            ⍝ Expose null axes.
   trim←{(0⊃⍵)((~1 1⍷∧⌿(1⊃⍵)=' ')/(1⊃⍵))}     ⍝ Remove extra blank cols.
-  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ Simple array type.
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ Simple scalar type.
+  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ Simple array type.
   qfmt←{(⍕⍴⍺)(⎕FMT open ⍵)}
 
   {                                          ⍝ Recursively box arrays:
@@ -215,8 +215,8 @@ displayr ← { ⎕IO←0                           ⍝ Boxed display of array
   axes←{(-2⌈⍴⍴⍵)↑1+×⍴⍵}                      ⍝ array axis types
   open←{(1⌈⍴⍵)⍴⍵}                            ⍝ exposed null axes
   trim←{(~1 1⍷∧⌿⍵=' ')/⍵}                    ⍝ removal of extra blank cols
-  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ simple scalar type
+  type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
 
   {                                          ⍝ recursively boxed arrays:
     0=≡⍵:' '⍪(open ⎕FMT ⍵)⍪(' '=⊃0⍴⍵)⊃' -'   ⍝ simple scalar

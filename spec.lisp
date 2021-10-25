@@ -1516,6 +1516,7 @@
        "fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]" 34)
   (for "Inline n-argument function."
        "{[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]" #(5 5 5 5 10 10 10 10 15 15 15 15))
+  (for "Inline function containing lateral composition." "2 {⍺/¨⍵} 22 33" #(#(22 22) #(33 33)))
   (for "Function using default [⍺ left argument] assignment." "{⍺←3 ⋄ ⍵×⍺} 10" 30)
   (for "Variable-referenced values, including an element within an array, in a vector."
        "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 (b[1;2;1])" #(1 2 9 3 5))
@@ -1662,6 +1663,8 @@
            ((66 126 186) (72 132 192) (78 138 198))))
   (for "Pivotal composition of overloaded function, further composed laterally."
        "(1 0 1∘/)¨⍳3" #(#*11 #(2 2) #(3 3)))
+  (for "Pivotal composition composed across a vector followed by another lateral composition."
+       "+/×⍤1¨1 0 ¯1" 0)
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
@@ -1723,6 +1726,8 @@
        "{ ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22" 1)
   (for "Compose operator composition within defined lateral operator."
        "÷{⍺⍺∘⌽⍵}⍳9" #(1/9 1/8 1/7 1/6 1/5 1/4 1/3 1/2 1))
+  (for "Pivotal inline operator containing variable function/value ⍺ assignment."
+       "2 ↑{⍺←⊢ ⋄ b←⍵ ⋄ (⍺ ⍺⍺ b)←⍵⍵ ⍺ ⍺⍺ b ⋄ b}⌽ ⍳3" #(2 1 3))
   (for "Lexically scoped function defined and used within defined lateral operator."
        ",{op←⍺⍺ ⋄ ⊃op{(⊂⍺ op⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1⌽⍵}⍳4" #(#(1 2 3 4) #(2 3 4) #(3 4) 4))
   (for "As above with different left operand."
