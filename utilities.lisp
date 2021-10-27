@@ -70,9 +70,8 @@
                                   (setf (nth ix form) (list 'quote (intern (string-upcase name)
                                                                            this-package))))))))
         (replace-symbols body)
-        (setf (cdddr (first body))
-              (cons '(make-threading-kernel-if-absent)
-                    (cdddr (first body))))
+        (push '(make-threading-kernel-if-absent)
+              (cdddr (first body)))
         (first body)))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code

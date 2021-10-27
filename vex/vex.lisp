@@ -714,10 +714,10 @@
                                         (let ((char (character string)))
                                           (if (not olnchar)
                                               (append (list (if (of-lexicons idiom char :statements)
-                                                                :st
-                                                                (if (of-lexicons idiom char :operators)
-                                                                    :op (if (of-lexicons idiom char :functions)
-                                                                            :fn))))
+                                                                :st (if (of-lexicons idiom char :operators)
+                                                                        :op (if (of-lexicons idiom char
+                                                                                             :functions)
+                                                                                :fn))))
                                                       (if (of-lexicons idiom char :operators)
                                                           (list (if (of-lexicons idiom char :operators-pivotal)
                                                                     :pivotal

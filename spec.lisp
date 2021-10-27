@@ -1125,22 +1125,22 @@
             (is "(a b c)←5 ⋄ ⊃+/a b c" 15)
             (is "(a b c)←10 20 30 ⋄ a+b×c" 610)
             (is "5+(a b c)←1 2 3" #(6 7 8))))
-  ;; (→ (has :title "Branch") 
-  ;;    (symbolic :special-lexical-form-branch)
-  ;;    (tests (is "x←1 ⋄ →1              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 105)
-  ;;           (is "x←1 ⋄ →1+1            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 35)
-  ;;           (is "x←1 ⋄ →2+3            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
-  ;;           (is "x←1 ⋄ →0              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
-  ;;           (is "x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
-  ;;           (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
-  ;;           (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
+  (→ (has :title "Branch") 
+     (symbolic :special-lexical-form-branch)
+     (tests (is "x←1 ⋄ →1              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 105)
+            (is "x←1 ⋄ →1+1            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 35)
+            (is "x←1 ⋄ →2+3            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
+            (is "x←1 ⋄ →0              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
+            (is "x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
+            (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
+            (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
      (symbolic :outer-product-designator2))
   (\: (has :title "Guard Indicator")
       (symbolic :guard-indicator)))
 
- ;; APL's character-represented operators, which take one or two functions or arrays as input
- ;; and generate a function
+ ;; APL's lexical operators, which take one or two functions or arrays
+ ;; as input and generate a function
  (operators
   (with (:name :lexical-operators-lateral)
         (:tests-profile :title "Lateral Operator Tests")
@@ -1852,8 +1852,7 @@
     myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
   (for "Use of function within namespace."
-       "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2}
-    myns.f1 myns.a.f2 6"
+       "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2} ⋄ myns.f1 myns.a.f2 6"
        15)
   (for "Assignment of values within namespace using namespace point."
        "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
