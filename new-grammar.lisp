@@ -23,6 +23,7 @@
                               (cons 'list (first axes)))))))))
 
 (defun resolve-path (input-sym idiom space properties)
+  "Generate an (nspath) namespace path form depending on the symbols found and the status of the workspace's namespace point, set using ⎕CS."
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
       input-sym
       (let ((path-val (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
@@ -93,7 +94,6 @@
                 (nspath (format-nspath (if (not current-path)
                                            (rest this-item)
                                            (append current-path (rest this-item))))))
-           ;; (print (list :ti this-item nspath current-path))
            (if (or (not nspath) (not (fboundp (intern nspath space)))
                    (getf properties :symbol-overriding))
                (resolve-path this-item idiom space properties))))
@@ -259,8 +259,7 @@
                    (not (characterp (first (last this-item))))
                    (char= (character (getf properties :glyph))
                           (first (last this-item)))))
-          ;; process an operator token, allowing specification of the valence,
-          ;; either :lateral or :pivotal
+          ;; process an operator token, allowing specification of the valence, either :lateral or :pivotal
           (destructuring-bind (op-type op-symbol)
               (rest this-item)
             (let ((valid-by-valence (or (not (getf properties :valence))
@@ -424,10 +423,9 @@
                      (if left
                          ;; if this value is to the left of a function like the 5 in 5+3,
                          ;; process it without looking for a function to its left
-                         (let ((exp-operator (build-operator ;; TODO: is this clause used?
-                                              (list (first tokens)) :params params :space space
-                                              :valence :pivotal :axes axes)))
-                           ;; (print (list :ax exp-operator axes elements))
+                         (let ((exp-operator (build-operator (list (first tokens))
+                                                             :params params :space space
+                                                             :valence :pivotal :axes axes)))
                            (if exp-operator
                                (values nil (build-value tokens :elements elements :params params
                                                                :space space :axes axes)
@@ -481,16 +479,14 @@
                                                       (eql 'change-namespace (second function)))
                                                  (set-namespace-path preceding space params))
                                              (if (not remaining) value
-                                                 (build-value remaining :elements (list value)
-                                                                        :axes remaining-axes
-                                                                        :axes-last raxes-last
-                                                                        :space space :params params)))))
+                                                 (build-value remaining :elements (list value) :space space 
+                                                                        :axes remaining-axes :params params
+                                                                        :axes-last raxes-last)))))
                                      ;; the strangest part of (build-value), where
                                      ;; pivotal operators that begin with a value like +∘5 are matched
-                                     (let ((exp-operator (build-operator
-                                                          (list (first tokens))
-                                                          :params params :space space
-                                                          :valence :pivotal :axes axes)))
+                                     (let ((exp-operator (build-operator (list (first tokens))
+                                                                         :params params :space space
+                                                                         :valence :pivotal :axes axes)))
                                        (if exp-operator
                                            (multiple-value-bind (composed remaining)
                                                (complete-pivotal-match
@@ -542,11 +538,10 @@
               path-val))))
 
 (defun all-symbols-p (list)
-  (if (listp list)
-      (loop :for item :in list
-            :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
-                        (and (listp item) (member (first item) '(inws inwsd)))
-                        (and (listp item) (all-symbols-p item))))
+  (if (listp list) (loop :for item :in list
+                         :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
+                                     (and (listp item) (member (first item) '(inws inwsd)))
+                                     (and (listp item) (all-symbols-p item))))
       (if (symbolp list) t)))
 
 (defun match-function-patterns (tokens)
@@ -582,7 +577,6 @@
 
 (defun build-function (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :to tokens found-function))
   (multiple-value-bind (function rest)
       (match-function-patterns tokens)
     (if function (values function rest)
@@ -592,268 +586,253 @@
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   ;; (print (list :to tokens found-function))
-  (if (and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
-           (not (member (caar tokens) '(:fn :op :st :pt :axes))))
-      (if found-function (values found-function tokens)
-          ;; if a function is under construction, a following closure indicates that there
-          ;; are no more components to the function, as with ⌽@(2∘|)⍳5
-          (let ((sub-function (build-function (first tokens) :initial t :space space :params params)))
-            ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-            (if sub-function (build-function (rest tokens) :found-function sub-function :space space
-                                                           :initial initial :params params))))
+  (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
+              (not (member (caar tokens) '(:fn :op :st :pt :axes))))
+         (if found-function (values found-function tokens)
+             ;; if a function is under construction, a following closure indicates that there
+             ;; are no more components to the function, as with ⌽@(2∘|)⍳5
+             (let ((sub-function (build-function (first tokens) :initial t :space space :params params)))
+               ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
+               (if sub-function (build-function (rest tokens) :found-function sub-function :space space
+                                                              :initial initial :params params)))))
+        ((and (listp (first tokens)) (eq :axes (caar tokens)))
+         (if found-function (values found-function tokens)
+             (build-function (rest tokens) :axes (list (build-axes (cdar tokens) :space space :params params))
+                                           :initial initial :space space :params params)))
+        ((not found-function) ;; this is the beginning of the function composition
+         (let* ((exp-operator (build-operator (list (first tokens))
+                                              :params params :space space :initial initial
+                                              :valence :lateral :axes axes))
+                ;; check whether the operator is to take a value as its left operand,
+                ;; necessary in cases like 3{1 2 ⍶ 4 5×⍵}9
+                (value-operand (or (member (first tokens)
+                                           (of-meta-hierarchy (rest (getf (getf params :special)
+                                                                          :closure-meta))
+                                                              :op-syms-lval))
+                                   ;; check closure metadata for cases
+                                   ;; like (⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)3 3 3} 5
+                                   (and (listp (first tokens)) (eq :op (caar tokens))
+                                        (listp (cadar tokens))
+                                        (member '⍶ (getf (cdadar tokens) :arg-syms)))
+                                   (and (eql '∇oself exp-operator)
+                                        ;; if this is a self-reference, look for ⍶ in the list
+                                        ;; of argument symbols
+                                        (member '⍶ (of-meta-hierarchy
+                                                    (rest (getf (getf params :special) :closure-meta))
+                                                    :arg-syms))))))
+           (if exp-operator ;; if a lateral operator is present as for +/
+               (if value-operand
+                   (multiple-value-bind (exp-value remaining)
+                       (build-value (rest tokens) :space space :params params :left t)
+                     (if exp-value ;; TODO: write negative clause
+                         (build-function
+                          remaining :space space :params params :initial initial
+                                    :found-function (compose-function-lateral
+                                                     exp-operator nil exp-value axes))))
+                   (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
+                                 (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
+                       ;; if a lateral operator is encountered followed by ←, the operator is being
+                       ;; assigned and the current form is not valid as a function, so return nil
+                       (multiple-value-bind (exp-function remaining)
+                           (build-function (rest tokens) :space space :params params)
+                         (if exp-function
+                             (let ((fn-wrap (if (not (and (listp exp-function)
+                                                          (eql 'inwsd (first exp-function))))
+                                                exp-function `(function ,exp-function))))
+                               (build-function remaining :space space :params params :initial initial
+                                                         :found-function (compose-function-lateral
+                                                                          exp-operator fn-wrap nil axes)))
+                             ;; if the operator was not followed by a function, check whether
+                             ;; it's an overloaded lexical function and if so process it as such
+                             (let* ((fn-token (if (characterp (third (first tokens)))
+                                                  (list :fn (third (first tokens)))))
+                                    (ol-function (if fn-token (proc-function fn-token params nil
+                                                                             *april-idiom* space))))
+                               (if ol-function (build-function (rest tokens)
+                                                               :space space :params params
+                                                               :found-function (build-call-form
+                                                                                ol-function :dyadic axes))
+                                   (multiple-value-bind (fn-as-val-tokens fnrem)
+                                       (build-value (rest tokens) :space space :params params)
+                                     (if (and (listp fn-as-val-tokens)
+                                              (listp (first fn-as-val-tokens))
+                                              (eq :fn (caar fn-as-val-tokens))
+                                              (eq :pass (cadar fn-as-val-tokens)))
+                                         (multiple-value-bind (val-fn remaining)
+                                             (build-function fn-as-val-tokens :space space :params params)
+                                           (values (compose-function-lateral exp-operator val-fn nil axes)
+                                                   remaining))
+                                         (if (and (listp fnrem) (listp (first fnrem))
+                                                  (eq :fn (caar fnrem))
+                                                  (eq :pass (cadar fnrem)))
+                                             (multiple-value-bind (val-fn remaining)
+                                                 (build-function fnrem :space space :params params)
+                                               (values (compose-function-lateral exp-operator val-fn nil axes)
+                                                       remaining)))))))))))
+               (if (and (listp (first tokens)) (eq :fn (caar tokens))
+                        (characterp (cadar tokens)) (char= #\← (cadar tokens)))
+                   (values nil tokens)
+                   (let ((exp-function (proc-function (first tokens) params nil *april-idiom* space)))
+                     (if exp-function (build-function
+                                       (rest tokens)
+                                       :initial initial :space space :params params
+                                       :found-function (if (not (characterp exp-function))
+                                                           exp-function
+                                                           (build-call-form exp-function :dyadic axes)))
+                         #|TODO: clause for overloaded operators like /|#))))))
+               ;; this clause continues a function composition that started in previous iterations
+        ((and initial (listp (first tokens)) (eq :fn (caar tokens))
+              (characterp (cadar tokens)) (char= #\← (cadar tokens)))
+         ;; if a ← is encountered, this becomes a function assignment form
+         (if (third tokens) (error "Nothing can follow a function assignment.")
+             (compose-function-assignment (second tokens) found-function :space space :params params)))
+        (t (let ((exp-operator (build-operator (list (first tokens))
+                                               :params params :space space :initial initial
+                                               :valence :pivotal :axes axes)))
+             (if exp-operator ;; if a pivotal operator is present as for +.×
+                 (complete-pivotal-match exp-operator tokens found-function
+                                         nil space params initial)
+                 (if initial ;; if the found-function begins a clause as with (-÷,)
+                     (multiple-value-bind (first-function remaining)
+                         (build-function tokens :params params :space space)
+                       (multiple-value-bind (second-function second-remaining)
+                           (build-function remaining :params params :space space)
+                         (multiple-value-bind (second-value second-val-remaining)
+                             (if second-function (values nil nil)
+                                 (build-value (rest tokens) :params params :space space :left t))
+                           ;; first function confirms an atop train like *÷
+                           ;; second function confirms a three-element train like -÷,
+                           ;; in either case what comes before may be a function of any complexity
+                           (multiple-value-bind (second-val-fn second-val-fn-remaining)
+                               ;; if a right-value pivotal composition is at the
+                               ;; left of the train, as for (∊⍤1 , ⊣)
+                               (if (or second-function second-value
+                                       (not (and (listp second-val-remaining)
+                                                 (listp (first second-val-remaining))
+                                                 (eq :fn (caar second-val-remaining))
+                                                 (eq :pass (cadar second-val-remaining)))))
+                                   (values (or second-function second-value)
+                                           second-val-remaining)
+                                   (build-function second-val-remaining :space space :params params))
+                             (if first-function
+                                 (build-function
+                                  (if second-function second-remaining
+                                      (if second-val-fn second-val-fn-remaining second-val-remaining))
+                                  :found-function
+                                  (if (or second-function second-value second-val-fn)
+                                      (compose-function-train found-function first-function
+                                                              (or second-function
+                                                                  (if (not second-value) second-val-fn))
+                                                              second-value)
+                                      (compose-function-train found-function first-function))
+                                  :initial initial :space space :params params)
+                                 (values found-function tokens))))))
+                     (values found-function tokens)))))))
+
+(defun build-operator (tokens &key axes found-operator initial space params valence)
+  "Build an operator like @ (a lexical operator), {⍺⍺/⍵} (a defined operator) or an operator assignment like p←⍣."
+  (if (not found-operator) ;; no operator has yet been registered
       (if (and (listp (first tokens)) (eq :axes (caar tokens)))
-          (if found-function (values found-function tokens)
-              (build-function (rest tokens) :axes (list (build-axes (cdar tokens)
-                                                                    :space space :params params))
-                                            :initial initial :space space :params params))
-          (if (not found-function) ;; this is the beginning of the function composition
-              (let* ((exp-operator (build-operator (list (first tokens))
-                                                   :params params :space space :initial initial
-                                                   :valence :lateral :axes axes))
-                     ;; check whether the operator is to take a value as its left operand,
-                     ;; necessary in cases like 3{1 2 ⍶ 4 5×⍵}9
-                     (value-operand (or (member (first tokens)
-                                                (of-meta-hierarchy (rest (getf (getf params :special)
-                                                                               :closure-meta))
-                                                                   :op-syms-lval))
-                                        ;; check closure metadata for cases
-                                        ;; like (⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)3 3 3} 5
-                                        (and (listp (first tokens)) (eq :op (caar tokens))
-                                             (listp (cadar tokens))
-                                             (member '⍶ (getf (cdadar tokens) :arg-syms)))
-                                        (and (eql '∇oself exp-operator)
-                                             ;; if this is a self-reference, look for ⍶ in the list
-                                             ;; of argument symbols
-                                             (member '⍶ (of-meta-hierarchy
-                                                         (rest (getf (getf params :special) :closure-meta))
-                                                         :arg-syms))))))
-                (if exp-operator ;; if a lateral operator is present as for +/
-                    (if value-operand
-                        (multiple-value-bind (exp-value remaining)
-                            (build-value (rest tokens) :space space :params params :left t)
-                          (if exp-value ;; TODO: write negative clause
-                              (build-function
-                               remaining :space space :params params :initial initial
-                                         :found-function (compose-function-lateral
-                                                          exp-operator nil exp-value axes))))
-                        (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
-                                      (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
-                            ;; if a lateral operator is encountered followed by ←, the operator is being
-                            ;; assigned and the current form is not valid as a function, so return nil
-                            (multiple-value-bind (exp-function remaining)
-                                (build-function (rest tokens) :space space :params params)
-                              (if exp-function
-                                  (let ((fn-wrap (if (not (and (listp exp-function)
-                                                               (eql 'inwsd (first exp-function))))
-                                                     exp-function `(function ,exp-function))))
-                                    (build-function
-                                     remaining :space space :params params :initial initial
-                                     :found-function (compose-function-lateral
-                                                      exp-operator fn-wrap nil axes)))
-                                  ;; if the operator was not followed by a function, check whether
-                                  ;; it's an overloaded lexical function and if so process it as such
-                                  (let* ((fn-token (if (characterp (third (first tokens)))
-                                                       (list :fn (third (first tokens)))))
-                                         (ol-function (if fn-token (proc-function fn-token params nil
-                                                                                  *april-idiom* space))))
-                                    (if ol-function
-                                        (build-function (rest tokens)
-                                                        :space space :params params
-                                                        :found-function (build-call-form
-                                                                         ol-function :dyadic axes))
-                                        (multiple-value-bind (fn-as-val-tokens fnrem)
-                                            (build-value (rest tokens) :space space :params params)
-                                          (if (and (listp fn-as-val-tokens)
-                                                   (listp (first fn-as-val-tokens))
-                                                   (eq :fn (caar fn-as-val-tokens))
-                                                   (eq :pass (cadar fn-as-val-tokens)))
-                                              (multiple-value-bind (val-fn remaining)
-                                                  (build-function fn-as-val-tokens :space space :params params)
-                                                (values (compose-function-lateral
-                                                         exp-operator val-fn nil axes)
-                                                        remaining))
-                                              (if (and (listp fnrem) (listp (first fnrem))
-                                                       (eq :fn (caar fnrem))
-                                                       (eq :pass (cadar fnrem)))
-                                                  (multiple-value-bind (val-fn remaining)
-                                                      (build-function fnrem :space space
-                                                                            :params params)
-                                                    (values (compose-function-lateral
-                                                             exp-operator val-fn nil axes)
-                                                            remaining)))))))))))
-                    (if (and (listp (first tokens)) (eq :fn (caar tokens))
-                             (characterp (cadar tokens)) (char= #\← (cadar tokens)))
-                        (values nil tokens)
-                        (let ((exp-function (proc-function (first tokens) params nil *april-idiom* space)))
-                          (if exp-function (build-function
-                                            (rest tokens)
-                                            :initial initial :space space :params params
-                                            :found-function (if (not (characterp exp-function))
-                                                                exp-function
-                                                                (build-call-form exp-function :dyadic axes)))
-                              #|TODO: clause for overloaded operators like /|#)))))
-              ;; this clause continues a function composition that started in previous iterations
-              (if (and initial (listp (first tokens)) (eq :fn (caar tokens))
-                       (characterp (cadar tokens)) (char= #\← (cadar tokens)))
-                  ;; if a ← is encountered, this becomes a function assignment form
-                  (if (third tokens) (error "Nothing can follow a function assignment.")
-                      (compose-function-assignment (second tokens) found-function
-                                                   :space space :params params))
-                  (let ((exp-operator (build-operator (list (first tokens))
-                                                      :params params :space space :initial initial
-                                                      :valence :pivotal :axes axes)))
-                    (if exp-operator ;; if a pivotal operator is present as for +.×
-                        (complete-pivotal-match exp-operator tokens found-function
-                                                nil space params initial)
-                        (if initial ;; if the found-function begins a clause as with (-÷,)
-                            (multiple-value-bind (first-function remaining)
-                                (build-function tokens :params params :space space)
-                              (multiple-value-bind (second-function second-remaining)
-                                  (build-function remaining :params params :space space)
-                                (multiple-value-bind (second-value second-val-remaining)
-                                    (if second-function (values nil nil)
-                                        (build-value (rest tokens) :params params :space space :left t))
-                                  ;; first function confirms an atop train like *÷
-                                  ;; second function confirms a three-element train like -÷,
-                                  ;; in either case what comes before may be a function of any complexity
-                                  (multiple-value-bind (second-val-fn second-val-fn-remaining)
-                                      ;; if a right-value pivotal composition is at the
-                                      ;; left of the train, as for (∊⍤1 , ⊣)
-                                      (if (or second-function second-value
-                                              (not (and (listp second-val-remaining)
-                                                        (listp (first second-val-remaining))
-                                                        (eq :fn (caar second-val-remaining))
-                                                        (eq :pass (cadar second-val-remaining)))))
-                                          (values (or second-function second-value)
-                                                  second-val-remaining)
-                                          (build-function second-val-remaining :space space :params params))
-                                    (if first-function
-                                        (build-function
-                                         (if second-function second-remaining
-                                             (if second-val-fn second-val-fn-remaining
-                                                 second-val-remaining))
-                                         :found-function
-                                         (if (or second-function second-value second-val-fn)
-                                             (compose-function-train found-function first-function
-                                                                     (or second-function
-                                                                         (if (not second-value)
-                                                                             second-val-fn))
-                                                                     second-value)
-                                             (compose-function-train found-function first-function))
-                                         :initial initial :space space :params params)
-                                        (values found-function tokens))))))
-                            (values found-function tokens)))))))))
+          ;; concatenate axes as they are found
+          (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens) :space space
+                                                                                :params params)
+                                                    axes)
+                                        :initial initial :space space :params params)
+          (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
+                                   nil *april-idiom* space)))
+            ;; register an operator when found
+            (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
+                                                 :space space :params params :valence valence))))
+      ;; if an operator has been registered, the only subsequent material that may still resolve
+      ;; as an operator is an operator assignment like k←⌸, and only if this is the initial form
+      (if (not (and initial (listp (first tokens)) (eq :fn (caar tokens))
+                    (characterp (cadar tokens)) (char= #\← (cadar tokens))))
+          (values found-operator tokens)
+          (let* ((assign-symbol (proc-operator (second tokens) params nil *april-idiom* space))
+                 (assign-sym (if (and (listp assign-symbol)
+                                      (member (first assign-symbol) '(inws inwsd)))
+                                 (second assign-symbol)))
+                 (closure-meta (rest (getf (getf params :special) :closure-meta)))
+                 (operator-type (or (getf params :valence)
+                                    (if (member assign-sym (getf closure-meta :lop-syms))
+                                        :lateral (if (member assign-sym (getf closure-meta :pop-syms))
+                                                     :pivotal)))))
+            ;; (print (list :fo found-operator params assign-sym))
+            (if (and (listp found-operator) (eql 'olambda (first found-operator))
+                     (member '⍶ (second found-operator)))
+                (push assign-sym (getf (rest (getf (getf params :special) :closure-meta)) :op-syms-lval)))
+            (values `(setf ,(if (getf (getf params :special) :closure-meta)
+                                assign-symbol `(symbol-function ',assign-symbol))
+                           ,(if (not (characterp found-operator))
+                                found-operator
+                                `(lambda ,(if (eq :lateral operator-type)
+                                              (if axes '(operand) '(operand &optional axes))
+                                              (if (eq :pivotal operator-type) '(left right)))
+                                   ,@(if (and (not axes)
+                                              (eq :lateral operator-type))
+                                         '((declare (ignorable axes)))
+                                         (if (eq :pivotal operator-type)
+                                             '((declare (ignorable left right)))))
+                                   ,(if axes (apply (symbol-function
+                                                     (intern (format nil "APRIL-LEX-OP-~a" found-operator)
+                                                             *package-name-string*))
+                                                    (if (eq :lateral operator-type)
+                                                        (list 'operand (if (listp (first axes))
+                                                                           (cons 'list (first axes))
+                                                                           `(list ,(first axes))))
+                                                        (list 'right 'left)))
+                                        (apply (symbol-function
+                                                (intern (format nil "APRIL-LEX-OP-~a" found-operator)
+                                                        *package-name-string*))
+                                               (if (eq :lateral operator-type)
+                                                   '(operand axes) '(right left)))))))
+                    (cddr tokens))))))
 
-  (defun build-operator (tokens &key axes found-operator initial space params valence)
-    "Build an operator like @ (a lexical operator), {⍺⍺/⍵} (a defined operator) or an operator assignment like p←⍣."
-    (if (not found-operator) ;; no operator has yet been registered
-        (if (and (listp (first tokens)) (eq :axes (caar tokens)))
-            ;; concatenate axes as they are found
-            (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens) :space space
-                                                                                  :params params)
-                                                      axes)
-                                          :initial initial :space space :params params)
-            (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
-                                     nil *april-idiom* space)))
-              ;; register an operator when found
-              (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
-                                                   :space space :params params :valence valence))))
-        ;; if an operator has been registered, the only subsequent material that may still resolve
-        ;; as an operator is an operator assignment like k←⌸, and only if this is the initial form
-        (if (and initial (listp (first tokens)) (eq :fn (caar tokens))
-                 (characterp (cadar tokens)) (char= #\← (cadar tokens)))
-            (let* ((assign-symbol (proc-operator (second tokens) params nil *april-idiom* space))
-                   (assign-sym (if (and (listp assign-symbol)
-                                        (member (first assign-symbol) '(inws inwsd)))
-                                   (second assign-symbol)))
-                   (closure-meta (rest (getf (getf params :special) :closure-meta)))
-                   (operator-type (or (getf params :valence)
-                                      (if (member assign-sym (getf closure-meta :lop-syms))
-                                          :lateral (if (member assign-sym (getf closure-meta :pop-syms))
-                                                       :pivotal)))))
-              ;; (print (list :fo found-operator params assign-sym))
-              (if (and (listp found-operator) (eql 'olambda (first found-operator))
-                       (member '⍶ (second found-operator)))
-                  (push assign-sym (getf (rest (getf (getf params :special) :closure-meta)) :op-syms-lval)))
-              (values `(setf ,(if (getf (getf params :special) :closure-meta)
-                                  assign-symbol `(symbol-function ',assign-symbol))
-                             ,(if (not (characterp found-operator))
-                                  found-operator
-                                  `(lambda ,(if (eq :lateral operator-type)
-                                                (if axes '(operand) '(operand &optional axes))
-                                                (if (eq :pivotal operator-type) '(left right)))
-                                     ,@(if (and (not axes)
-                                                (eq :lateral operator-type))
-                                           '((declare (ignorable axes)))
-                                           (if (eq :pivotal operator-type)
-                                               '((declare (ignorable left right)))))
-                                     ,(if axes (apply (symbol-function
-                                                       (intern (format nil "APRIL-LEX-OP-~a" found-operator)
-                                                               *package-name-string*))
-                                                      (if (eq :lateral operator-type)
-                                                          (list 'operand (if (listp (first axes))
-                                                                             (cons 'list (first axes))
-                                                                             `(list ,(first axes))))
-                                                          (list 'right 'left)))
-                                          (apply (symbol-function
-                                                  (intern (format nil "APRIL-LEX-OP-~a" found-operator)
-                                                          *package-name-string*))
-                                                 (if (eq :lateral operator-type)
-                                                     '(operand axes) '(right left)))))))
-                      (cddr tokens)))
-            (values found-operator tokens))))
-
-  (defun complete-value-assignment (tokens elements space params axes)
-    "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
-    (if (and (= 1 (length tokens))
-             (symbolp (first tokens)))
-        (build-value nil :elements
-                     (list (compose-value-assignment
-                            (if (and (member (first tokens)
-                                             (rest (assoc :variable (idiom-symbols *april-idiom*))))
-                                     (not (member (first tokens) *system-variables*)))
-                                ;; intern symbols like print-precision properly for assignment
-                                (first tokens)
-                                (list (if (getf (getf params :special) :closure-meta)
-                                          'inws 'inwsd)
-                                      (first tokens)))
-                            (build-value nil :axes axes :elements elements
-                                             :space space :params params)
-                            :params params :space space))
-                         :space space :params params)
-        (multiple-value-bind (function remaining)
-            (if (= 1 (length tokens)) (values nil tokens)
-                (build-function tokens :space space :params params))
+(defun complete-value-assignment (tokens elements space params axes)
+  "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
+  (if (and (= 1 (length tokens))
+           (symbolp (first tokens)))
+      (build-value nil :elements
+                   (list (compose-value-assignment
+                          (if (and (member (first tokens)
+                                           (rest (assoc :variable (idiom-symbols *april-idiom*))))
+                                   (not (member (first tokens) *system-variables*)))
+                              ;; intern symbols like print-precision properly for assignment
+                              (first tokens)
+                              (list (if (getf (getf params :special) :closure-meta)
+                                        'inws 'inwsd)
+                                    (first tokens)))
+                          (build-value nil :axes axes :elements elements :space space :params params)
+                          :params params :space space))
+                       :space space :params params)
+      (multiple-value-bind (function remaining)
+          (if (= 1 (length tokens)) (values nil tokens)
+              (build-function tokens :space space :params params))
+        (multiple-value-bind (symbol remaining2)
+            ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
+            (build-value (if (not (and (or (symbolp function)
+                                           (and (listp function)
+                                                (member (first function) '(inws inwsd))))
+                                       (not remaining)))
+                             remaining tokens)
+                         :space space :left t :params (append (list :match-all-syms t) params))
           (multiple-value-bind (symbol remaining2)
-              ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
-              (or (build-value (if (not (and (or (symbolp function)
+              (if (all-symbols-p symbol) (values symbol remaining2)
+                  (build-value (if (not (and (or (symbolp function)
                                                  (and (listp function)
                                                       (member (first function) '(inws inwsd))))
                                              (not remaining)))
                                    remaining tokens)
-                               :space space :left t :params (append (list :match-all-syms t) params)))
-            (multiple-value-bind (symbol remaining2)
-                (if (all-symbols-p symbol) (values symbol remaining2)
-                    (build-value (if (not (and (or (symbolp function)
-                                                   (and (listp function)
-                                                        (member (first function)
-                                                                '(inws inwsd))))
-                                               (not remaining)))
-                                     remaining tokens)
-                                 :space space :left t :params params))
-              ;; (setq symbol function)
-              ;; (print (list :ss symbol function remaining2 params (all-symbols-p symbol)))
-              ;; TODO: account for stuff after the assigned symbol
-              ;; (print (list :rem remaining))
-              (if (or symbol function)
-                  (build-value remaining2
-                               :elements
-                               (list (compose-value-assignment
-                                      (or symbol function)
-                                      (build-value nil :axes axes :elements elements
-                                                       :space space :params params)
-                                      :params params :space space :function (if symbol function)))
-                               :space space :params params)))))))
+                               :space space :left t :params params))
+            ;; TODO: account for stuff after the assigned symbol
+            (if (or symbol function)
+                (build-value remaining2
+                             :elements (list (compose-value-assignment
+                                              (or symbol function)
+                                              (build-value nil :axes axes :elements elements
+                                                               :space space :params params)
+                                              :params params :space space :function (if symbol function)))
+                             :space space :params params)))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
   "Complete the composition of a branch statement, either creating or optionally moving to a branch within an APL expression."
@@ -924,11 +903,9 @@
             ;; (:fn) form will have been pushed onto the list of tokens, so process it
             (if (or left-function left-value) (values left-function remaining)
                 (build-function remaining :space space :params params))
-          (let ((lfn-wrap (if (not (and (listp left-function)
-                                        (eql 'inwsd (first left-function))))
+          (let ((lfn-wrap (if (not (and (listp left-function) (eql 'inwsd (first left-function))))
                               left-function `(function ,left-function)))
-                (rfn-wrap (if (not (and (listp right-function)
-                                        (eql 'inwsd (first right-function))))
+                (rfn-wrap (if (not (and (listp right-function) (eql 'inwsd (first right-function))))
                               right-function `(function ,right-function))))
             (if (or left-function left-value)
                 (build-function remaining
