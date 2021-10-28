@@ -45,7 +45,7 @@
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal :lexical-statements :general-tests
-                  :system-variable-function-tests :function-inversion-tests ;:namespace-tests
+                  :system-variable-function-tests :function-inversion-tests :namespace-tests
                   :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -69,6 +69,8 @@
             (lambda (char)
               (or (alphanumericp char) ;; TODO: refine these criteria, ∇⍺⍵⍬ etc. can't be part of a name
                   (not (loop :for c :across "._⍺⍵⍶⍹⎕∆⍙∇¯⍬" :never (char= c char)))))
+            ;; :match-uniform-token-character
+            ;; (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹∇⍬" :never (char= c char))))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
             :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -444,8 +446,8 @@
             (is "2 2⍴0⍴3⍴⊂2 3⍴5" #2A((#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))
                                      (#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))))))
   (⌷ (has :title "Index")
-     (dyadic (at-index index-origin axes));; ref-enclosed))
-     (meta (primary :axes axes :implicit-args (index-origin)) ;; :optional-implicit-args (ref-enclosed))
+     (dyadic (at-index index-origin axes))
+     (meta (primary :axes axes :implicit-args (index-origin))
            (dyadic :selective-assignment-compatible t))
      (tests (is "1⌷3" 3)
             (is "3⌷2 4 6 8 10" 6)
@@ -1104,7 +1106,8 @@
                                 (#\1 #\5 #\. #\7 #\0 #\7 #\9 #\6 #\  #\1 #\8 #\. #\8 #\4 #\9 #\5 #\6 #\ 
                                      #\2 #\1 #\. #\9 #\9 #\1 #\1 #\5 #\  #\2 #\5 #\. #\1 #\3 #\2 #\7 #\4)
                                 (#\2 #\8 #\. #\2 #\7 #\4 #\3 #\3 #\  #\  #\3 #\. #\1 #\4 #\1 #\5 #\9 #\ 
-                                     #\  #\6 #\. #\2 #\8 #\3 #\1 #\9 #\  #\  #\9 #\. #\4 #\2 #\4 #\7 #\8)))))
+                                     #\  #\6 #\. #\2 #\8 #\3 #\1 #\9 #\  #\  #\9 #\. #\4 #\2 #\4 #\7 #\8)))
+            (is "⍕'a'" #\a)))
   (⍎ (has :title "Evaluate")
      (monadic (lambda (omega &optional alpha)
                 (declare (ignore alpha))
@@ -1855,12 +1858,12 @@
        "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2} ⋄ myns.f1 myns.a.f2 6"
        15)
   (for "Assignment of values within namespace using namespace point."
-       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
+       "⎕CS _ ⋄ myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
     gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk← gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
        '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION
                          :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
   (for "Namespace points set in global and local scopes."
-       "myns←⎕NS ⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns 
+       "⎕CS _ ⋄ myns←⎕NS ⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns
     ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
        '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10)))
  

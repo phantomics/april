@@ -141,16 +141,16 @@ span ← {                                       ⍝ Breadth-first spanning tree
 
 ⍝ From http://dfns.dyalog.com/c_dfspan.htm
 
-⍝ dfspan ← {                                   ⍝ Depth-first spanning tree: graph ⍺ from vertex ⍵.
-⍝   graph←⍺                                    ⍝ ⍺ is graph vector.
-⍝   trav←{                                     ⍝ initial vertex and parent
-⍝     ¯2≠⍺⊃⍵:⍵                                 ⍝ vertex visited: backtrack
-⍝     next←⌽⍺⊃graph                            ⍝ edges from vertex ⍺
-⍝     tree←⍺⍺@⍺⊢⍵                              ⍝ ⍺⍺ is ⍺'s parent
-⍝     ⊃⍺ ∇∇/next,⊂tree                         ⍝ visiting each edge in order
-⍝   }                                          ⍝ :: tree ← vtx (vtx ∇∇) tree
-⍝   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
-⍝ }
+dfspan ← {                                   ⍝ Depth-first spanning tree: graph ⍺ from vertex ⍵.
+  graph←⍺                                    ⍝ ⍺ is graph vector.
+  trav←{                                     ⍝ initial vertex and parent
+    ¯2≠⍺⊃⍵:⍵                                 ⍝ vertex visited: backtrack
+    next←⌽⍺⊃graph                            ⍝ edges from vertex ⍺
+    tree←⍶@⍺⊢⍵                               ⍝ ⍺⍺ is ⍺'s parent
+    ⊃⍺ ∇∇/next,⊂tree                         ⍝ visiting each edge in order
+  }                                          ⍝ :: tree ← vtx (vtx ∇∇) tree
+  ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
+}
   
 ⍝ From http://dfns.dyalog.com/c_dsp.htm
   
@@ -389,41 +389,41 @@ wpath ← {                                    ⍝ Quickest path fm/to ⍵ in we
   
 ⍝ From http://dfns.dyalog.com/n_wspan.htm
 
-wspan ← {                                      ⍝ Spanning tree for weighted graph ⍺ from ⍵.
-  graph costs←↓⍺                               ⍝ graph structure and costs.
-  tree←¯1⊣¨graph                               ⍝ initial spanning tree.
-  cost←(⌊/⍬)×⍵≠⍳⍴costs                         ⍝ cost to reach each vertex.
-  I←⊃¨∘⊂                                       ⍝ helper function: ⍺th items of ⍵
-  ⍵{                                           ⍝ from starting vertex.
-    tree cost←⍵                                ⍝ current tree and costs
-    ⍺≡⍬:tree                                   ⍝ all vertices visited: done
-    adjv←⍺ I graph                             ⍝ adjacent vertices
-    accm←⍺ I cost+costs                        ⍝ cumulative cost via this vertex
-    mask←accm<adjv I¨⊂cost                     ⍝ mask of better routes
-    cvec←⊃,/mask/¨accm                         ⍝ cost vector
-    next←mask/¨adjv                            ⍝ next vertices to visit
-    back←⊃,/⍺+0×next                           ⍝ back links to parent node
-    ⍝ decr←(⍒cvec)I⊢                           ⍝ TODO: fix bug with this original line
-    decr←{(⍒cvec)I ⍵}                          ⍝ in decreasing order of cost
-    wave←decr↑,/next                           ⍝ vertex wave front
-    new←back cvec decr⍨@wave¨⍵                 ⍝ successor tree & cost
-    (∪wave)∇ new                               ⍝ wave spreads to adjacent vertices
-  }tree cost                                   ⍝ initial spanning tree and cost vectors
+wspan ← {                                    ⍝ Spanning tree for weighted graph ⍺ from ⍵.
+  graph costs←↓⍺                             ⍝ graph structure and costs.
+  tree←¯1⊣¨graph                             ⍝ initial spanning tree.
+  cost←(⌊/⍬)×⍵≠⍳⍴costs                       ⍝ cost to reach each vertex.
+  I←⊃¨∘⊂                                     ⍝ helper function: ⍺th items of ⍵
+  ⍵{                                         ⍝ from starting vertex.
+    tree cost←⍵                              ⍝ current tree and costs
+    ⍺≡⍬:tree                                 ⍝ all vertices visited: done
+    adjv←⍺ I graph                           ⍝ adjacent vertices
+    accm←⍺ I cost+costs                      ⍝ cumulative cost via this vertex
+    mask←accm<adjv I¨⊂cost                   ⍝ mask of better routes
+    cvec←⊃,/mask/¨accm                       ⍝ cost vector
+    next←mask/¨adjv                          ⍝ next vertices to visit
+    back←⊃,/⍺+0×next                         ⍝ back links to parent node
+    ⍝ decr←(⍒cvec)I⊢                         ⍝ TODO: fix bug with this original line
+    decr←{(⍒cvec)I ⍵}                        ⍝ in decreasing order of cost
+    wave←decr↑,/next                         ⍝ vertex wave front
+    new←back cvec decr⍨@wave¨⍵               ⍝ successor tree & cost
+    (∪wave)∇ new                             ⍝ wave spreads to adjacent vertices
+  }tree cost                                 ⍝ initial spanning tree and cost vectors
 }
   
 ⍝ From http://dfns.dyalog.com/s_wmst.htm
 
-wmst ← {                                       ⍝ Minimum Spanning Tree for wu-graph ⍺.
-  graph costs←↓⍺                               ⍝ weighted, undirected graph
-  xvec←⍳⍴graph                                 ⍝ index vector for graph
-  ⍵{                                           ⍝ vertices inside tree: T
-    tree todo←⍵                                ⍝ partial tree and unconnected vertices
-    todo≡⍬:tree                                ⍝ all vertices connected: finished
-    edges←(graph∊¨⊂todo)∧xvec∊⍺                ⍝ edges from T to G~T
-    min←⌊/⌊/¨edges/¨costs                      ⍝ minimum edge cost
-    masks←edges∧min=costs                      ⍝ lowest cost edge masks
-    fm to←{↑,/masks/¨⍵}¨xvec graph             ⍝ lowest cost edges from T to G~T
-    fm≡⍬:tree                                  ⍝ disjoint graph: quit
-    (⍺,to)∇(fm@to⊢tree)(todo~to)               ⍝ vertices from G~T to T
-  }(¯1⊣¨graph)(xvec~⍵)                         ⍝ initial tree and unconnected vertices
+wmst ← {                                     ⍝ Minimum Spanning Tree for wu-graph ⍺.
+  graph costs←↓⍺                             ⍝ weighted, undirected graph
+  xvec←⍳⍴graph                               ⍝ index vector for graph
+  ⍵{                                         ⍝ vertices inside tree: T
+    tree todo←⍵                              ⍝ partial tree and unconnected vertices
+    todo≡⍬:tree                              ⍝ all vertices connected: finished
+    edges←(graph∊¨⊂todo)∧xvec∊⍺              ⍝ edges from T to G~T
+    min←⌊/⌊/¨edges/¨costs                    ⍝ minimum edge cost
+    masks←edges∧min=costs                    ⍝ lowest cost edge masks
+    fm to←{↑,/masks/¨⍵}¨xvec graph           ⍝ lowest cost edges from T to G~T
+    fm≡⍬:tree                                ⍝ disjoint graph: quit
+    (⍺,to)∇(fm@to⊢tree)(todo~to)             ⍝ vertices from G~T to T
+  }(¯1⊣¨graph)(xvec~⍵)                       ⍝ initial tree and unconnected vertices
 }

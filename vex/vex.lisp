@@ -555,6 +555,7 @@
              (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
              (?numeric-character () (?satisfies (of-utilities idiom :match-numeric-character)))
              (?token-character   () (?satisfies (of-utilities idiom :match-token-character)))
+             (?utoken-character  () (?satisfies (of-utilities idiom :match-uniform-token-character)))
              (numeric-string-p   (item) (funcall (of-utilities idiom :format-number) item))
              (=string (&rest delimiters)
                (let ((lastc) (delimiter) (escape-indices) (char-index 0))

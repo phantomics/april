@@ -651,12 +651,14 @@
     (if (and alpha (not (integerp alpha)))
         (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
                             " the precision at which to print floating-point numbers.")))
-    (array-impress omega :collate t
-                   :segment (lambda (number &optional segments)
-                              (count-segments number (if alpha (- alpha) print-precision)
-                                              segments))
-                   :format (lambda (number &optional segments rps)
-                             (print-apl-number-string number segments print-precision alpha rps)))))
+    (if (characterp omega)
+        omega (array-impress
+               omega :collate t
+                     :segment (lambda (number &optional segments)
+                                (count-segments number (if alpha (- alpha) print-precision)
+                                                segments))
+                     :format (lambda (number &optional segments rps)
+                               (print-apl-number-string number segments print-precision alpha rps))))))
 
 (defun format-array-uncollated (print-precision-default)
   "Generate a function using (aplesque:array-impress) to print an array in matrix form without collation. Used to implement ⎕FMT."
@@ -1218,3 +1220,19 @@
     (declare (type fixnum total))
     (loop :for i :of-type fixnum :from 0 :below n :do (incf total i))
     total))
+
+(defun get-last-row-major (array)
+  "Fast implementation of ⊃⌽,X."
+  (if (not (arrayp array))
+      array (row-major-aref array (1- (array-total-size array)))))
+
+(defun get-rank (array)
+  "Fast implementation of ⍴⍴X."
+  (vector (rank array)))
+
+(defun n-rank-uniques (array)
+  "Fast implementation of ∪,X."
+  (if (not (arrayp array))
+      array (let ((raveled (make-array (size array) :element-type (element-type array)
+                                                    :displaced-to array)))
+              (unique array))))
