@@ -164,7 +164,7 @@
                                             ((121 122 123 124 125) (111 112 113 114 115))))
          (is "{ta3[⍵;;] ≡ ⍵ (,⊂⍬) (,⊂⍬) from ta3} 2 2⍴2 1" 1)
          (is "(2 3 4⍴2 4 5) {ta3[⍵;;⍺] ≡ ⍵ (,⊂⍬) ⍺ from ta3} 2 2⍴2 1" 1)
-         (is "⍴(,1)(,2)(,3) from ta3" #*111)
+         (is "⍴ (,1)(,2)(,3) from ta3" #*111)
          (is "⍴⍴(,1)(,2)(,3) from ta3" #(3))
          (is "⍴⍴(,1)( 2)(,3) from ta3" #(2))
          (is "⍴⍴( 1)( 2)(,3) from ta3" #(1))
@@ -181,7 +181,7 @@
          (is "list 'hello'" #(#\h #(#\e #(#\l #(#\l #(#\o #\RING_OPERATOR))))))
          (is "listLength list ⎕A" 26)
          (is "vectFromList list 'hello'" "hello")
-         ;; (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
+         (is "vectFromList listRmDups list 'Mississippi'" "Misisipi")
          (is "↓'<<*>>' showmatch '<<>> <<aa>>'" #("<<>> <<aa>>"
                                                   "¯    ¯     "))
          (is "↓'<<*>>' showmatch 2 2 24⍴'<<aa>>  <<>>  <<bbb>> '" #("<<aa>>  <<>>  <<bbb>> <<"

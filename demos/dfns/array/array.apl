@@ -31,7 +31,6 @@ acc ← { ⊃⍺⍺{(⊂⍺ ⍺⍺⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1�
 ⍝ From http://dfns.dyalog.com/c_disp.htm
 
 disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested array.
-
   ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
 
   box←{                                      ⍝ Recursive boxing of nested array.

@@ -1,27 +1,6 @@
 
 (in-package #:april)
 
-(defun build-call-form (glyph-char &optional args axes)
-  "Format a function to be called within generated APL code."
-  (if (not (characterp glyph-char))
-      glyph-char
-      (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
-                                                                      *package-name-string*))
-                                             :get-metadata)
-                        (error () nil)))
-             (is-scalar (of-lexicons *april-idiom* glyph-char
-                                     (if (eq :dyadic args) :functions-scalar-dyadic
-                                         :functions-scalar-monadic))))
-        ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
-        ;; there's a left argument or not
-        (append (list (if is-scalar 'apl-fn-s 'apl-fn)
-                      (intern (string glyph-char) *package-name-string*))
-                (getf fn-meta :implicit-args)
-                (if (and axes (or (getf fn-meta :axes)
-                                  (eq :dyadic args)))
-                    (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
-                              (cons 'list (first axes)))))))))
-
 (defun resolve-path (input-sym idiom space properties)
   "Generate an (nspath) namespace path form depending on the symbols found and the status of the workspace's namespace point, set using ⎕CS."
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
@@ -141,7 +120,6 @@
 
 (defun proc-function (this-item &optional properties process idiom space)
   "Process a function token."
-  ;; (print (list :ti this-item properties))
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
     (if (listp this-item)
@@ -327,14 +305,37 @@
                         (list 'inws (intern pop-string)))))))))
 
 (defun build-axes (elements &key space params)
+  "Construct a set of axes from an (:axes) token form."
   (loop :for element :in elements
         :collect (let ((item-out (compile-form element :space space :params params)))
                    (if (= 1 (length element))
                        (first item-out) (cons 'progn item-out)))))
 
+(defun set-namespace-point (path space params)
+  "Set the namespace point to be used by the compiler; this point is prepended to all symbols or namespace segments."
+  (let* ((current-path (or (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
+                           (symbol-value (intern "*NS-POINT*" space))))
+         (path-val (if (listp path)
+                       (if (eql 'nspath (first path))
+                           ;; remove the prepended symbols from the current
+                           ;; path if present
+                           (if current-path (funcall (lambda (list)
+                                                       (cons (intern (string (first list)) space)
+                                                             (rest list)))
+                                        (nthcdr (length current-path) (rest path)))
+                               (cons (intern (string (second (second path))) space)
+                                     (loop :for item :in (cddr path)
+                                           :collect (intern (string item) "KEYWORD"))))
+                           (if (not (string= "_" (string (second path))))
+                               (list (intern (string (second path)) space)))))))
+    (if (getf (getf params :special) :closure-meta)
+        (setf (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
+              path-val)
+        (setf (symbol-value (intern "*NS-POINT*" space))
+              path-val))))
+
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
-  ;; (print (list :to tokens axes elements space params axes-last))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (if elements (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
                                                (loop :for i :below (length elements) :collect nil)
@@ -466,7 +467,7 @@
                                                                  ,@(if lval (list lval)))))
                                              (if (and (listp function)
                                                       (eql 'change-namespace (second function)))
-                                                 (set-namespace-path preceding space params))
+                                                 (set-namespace-point preceding space params))
                                              (if (not remaining) value
                                                  (build-value remaining :elements (list value) :space space 
                                                                         :axes remaining-axes :params params
@@ -504,35 +505,6 @@
                                           (values nil tokens axes axes-last))
                                  (values nil tokens))))))))))
 
-(defun set-namespace-path (path space params)
-  (let* ((current-path (or (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
-                           (symbol-value (intern "*NS-POINT*" space))))
-         (path-val (if (listp path)
-                       (if (eql 'nspath (first path))
-                           ;; remove the prepended symbols from the current
-                           ;; path if present
-                           (if current-path (funcall (lambda (list)
-                                                       (cons (intern (string (first list)) space)
-                                                             (rest list)))
-                                        (nthcdr (length current-path) (rest path)))
-                               (cons (intern (string (second (second path))) space)
-                                     (loop :for item :in (cddr path)
-                                           :collect (intern (string item) "KEYWORD"))))
-                           (if (not (string= "_" (string (second path))))
-                               (list (intern (string (second path)) space)))))))
-    (if (getf (getf params :special) :closure-meta)
-        (setf (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
-              path-val)
-        (setf (symbol-value (intern "*NS-POINT*" space))
-              path-val))))
-
-(defun all-symbols-p (list)
-  (if (listp list) (loop :for item :in list
-                         :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
-                                     (and (listp item) (member (first item) '(inws inwsd)))
-                                     (and (listp item) (all-symbols-p item))))
-      (if (symbolp list) t)))
-
 (defun match-function-patterns (tokens space params)
   (match tokens
     ((list* (guard index (equalp index '(:fn #\⍳)))
@@ -569,20 +541,20 @@
     ((list* (guard shape (equalp shape '(:fn #\⍴)))
             (guard shape2 (equalp shape2 '(:fn #\⍴)))
             rest)
-     ;; (print (list :to tokens rest))
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
                                     :space space :params (append (list :ignore-patterns t) params))
                       (get-rank ⍵)))
              rest))
-    ((list* (guard ravel (equalp ravel '(:fn #\,)))
-            (guard unique (equalp unique '(:fn #\∪)))
-            rest)
-     (values `(lambda (⍵ &optional ⍺)
-                (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
-                                    :space space :params (append (list :ignore-patterns t) params))
-                      (n-rank-uniques ⍵)))
-             rest))))
+    ;; ((list* (guard ravel (equalp ravel '(:fn #\,))) ;; TODO: problem with this and display function
+    ;;         (guard unique (equalp unique '(:fn #\∪)))
+    ;;         rest)
+    ;;  (values `(lambda (⍵ &optional ⍺)
+    ;;             (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
+    ;;                                 :space space :params (append (list :ignore-patterns t) params))
+    ;;                   (n-rank-uniques ⍵)))
+    ;;          rest))
+    ))
 
 (defun build-function (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
@@ -593,9 +565,29 @@
         (build-function-core tokens :axes axes :found-function found-function
                                     :initial initial :space space :params params))))
 
+(defun build-call-form (glyph-char &optional args axes)
+  "Format a function to be called within generated APL code."
+  (if (not (characterp glyph-char))
+      glyph-char
+      (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                                      *package-name-string*))
+                                             :get-metadata)
+                        (error () nil)))
+             (is-scalar (of-lexicons *april-idiom* glyph-char
+                                     (if (eq :dyadic args) :functions-scalar-dyadic
+                                         :functions-scalar-monadic))))
+        ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
+        ;; there's a left argument or not
+        (append (list (if is-scalar 'apl-fn-s 'apl-fn)
+                      (intern (string glyph-char) *package-name-string*))
+                (getf fn-meta :implicit-args)
+                (if (and axes (or (getf fn-meta :axes)
+                                  (eq :dyadic args)))
+                    (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
+                              (cons 'list (first axes)))))))))
+
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :to tokens found-function))
   (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
               (not (member (caar tokens) '(:fn :op :st :pt :axes))))
          (if found-function (values found-function tokens)
@@ -802,49 +794,55 @@
 
 (defun complete-value-assignment (tokens elements space params axes)
   "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
-  (if (and (= 1 (length tokens))
-           (symbolp (first tokens)))
-      (build-value nil :elements
-                   (list (compose-value-assignment
-                          (if (and (member (first tokens)
-                                           (rest (assoc :variable (idiom-symbols *april-idiom*))))
-                                   (not (member (first tokens) *system-variables*)))
-                              ;; intern symbols like print-precision properly for assignment
-                              (first tokens)
-                              (list (if (getf (getf params :special) :closure-meta)
-                                        'inws 'inwsd)
-                                    (first tokens)))
-                          (build-value nil :axes axes :elements elements :space space :params params)
-                          :params params :space space))
-                       :space space :params params)
-      (multiple-value-bind (function remaining)
-          (if (= 1 (length tokens)) (values nil tokens)
-              (build-function tokens :space space :params params))
-        (multiple-value-bind (symbol remaining2)
-            ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
-            (build-value (if (not (and (or (symbolp function)
-                                           (and (listp function)
-                                                (member (first function) '(inws inwsd))))
-                                       (not remaining)))
-                             remaining tokens)
-                         :space space :left t :params (append (list :match-all-syms t) params))
+  (labels ((all-symbols-p (list) ;; check whether list contains all symbols or lists of symbols
+             (if (listp list) (loop :for item :in list
+                                    :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
+                                                (and (listp item) (member (first item) '(inws inwsd)))
+                                                (and (listp item) (all-symbols-p item))))
+                 (if (symbolp list) t))))
+    (if (and (= 1 (length tokens))
+             (symbolp (first tokens)))
+        (build-value nil :elements
+                     (list (compose-value-assignment
+                            (if (and (member (first tokens)
+                                             (rest (assoc :variable (idiom-symbols *april-idiom*))))
+                                     (not (member (first tokens) *system-variables*)))
+                                ;; intern symbols like print-precision properly for assignment
+                                (first tokens)
+                                (list (if (getf (getf params :special) :closure-meta)
+                                          'inws 'inwsd)
+                                      (first tokens)))
+                            (build-value nil :axes axes :elements elements :space space :params params)
+                            :params params :space space))
+                         :space space :params params)
+        (multiple-value-bind (function remaining)
+            (if (= 1 (length tokens)) (values nil tokens)
+                (build-function tokens :space space :params params))
           (multiple-value-bind (symbol remaining2)
-              (if (all-symbols-p symbol) (values symbol remaining2)
-                  (build-value (if (not (and (or (symbolp function)
-                                                 (and (listp function)
-                                                      (member (first function) '(inws inwsd))))
-                                             (not remaining)))
-                                   remaining tokens)
-                               :space space :left t :params params))
-            ;; TODO: account for stuff after the assigned symbol
-            (if (or symbol function)
-                (build-value remaining2
-                             :elements (list (compose-value-assignment
-                                              (or symbol function)
-                                              (build-value nil :axes axes :elements elements
-                                                               :space space :params params)
-                                              :params params :space space :function (if symbol function)))
-                             :space space :params params)))))))
+              ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
+              (build-value (if (not (and (or (symbolp function)
+                                             (and (listp function)
+                                                  (member (first function) '(inws inwsd))))
+                                         (not remaining)))
+                               remaining tokens)
+                           :space space :left t :params (append (list :match-all-syms t) params))
+            (multiple-value-bind (symbol remaining2)
+                (if (all-symbols-p symbol) (values symbol remaining2)
+                    (build-value (if (not (and (or (symbolp function)
+                                                   (and (listp function)
+                                                        (member (first function) '(inws inwsd))))
+                                               (not remaining)))
+                                     remaining tokens)
+                                 :space space :left t :params params))
+              ;; TODO: account for stuff after the assigned symbol
+              (if (or symbol function)
+                  (build-value remaining2
+                               :elements (list (compose-value-assignment
+                                                (or symbol function)
+                                                (build-value nil :axes axes :elements elements
+                                                                 :space space :params params)
+                                                :params params :space space :function (if symbol function)))
+                               :space space :params params))))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
   "Complete the composition of a branch statement, either creating or optionally moving to a branch within an APL expression."
@@ -897,7 +895,6 @@
 
 (defun complete-pivotal-match (operator tokens right-function right-value space params initial)
   "Exension of (build-value) and (build-function) to process functions composed with pivotal operators."
-  ;; (print (list :op operator tokens right-function))
   (let ((next-token (if (not (and (listp (second tokens)) (eq :op (caadr tokens))
                                   (characterp (third (second tokens)))
                                   (of-lexicons *april-idiom* (third (second tokens)) :operators-pivotal)))
@@ -1146,18 +1143,18 @@
                 (eq :pass (cadar form))))
       form (build-function form :initial t :space space :params params)))
 
-(defun wrap-fn-sym (form)
-  (if (not (and (listp form) (eql 'inwsd (first form))))
-      form (list 'function form)))
-
 (defun compile-form (exprs &key space params)
-  (loop :for expr :in exprs
-        :collect (or (fnexp-backup (build-value expr :space space :params params)
-                                   :space space :params params)
-                     (multiple-value-bind (tokens other)
-                         (build-function expr :initial t :space space :params params)
-                       (wrap-fn-sym tokens))
-                     (build-operator expr :initial t :space space :params params))))
+  "Compile a series of APL expressions."
+  (flet ((wrap-fn-sym (form)
+           (if (not (and (listp form) (eql 'inwsd (first form))))
+               form (list 'function form))))
+    (loop :for expr :in exprs
+          :collect (or (fnexp-backup (build-value expr :space space :params params)
+                                     :space space :params params)
+                       (multiple-value-bind (tokens other)
+                           (build-function expr :initial t :space space :params params)
+                         (wrap-fn-sym tokens))
+                       (build-operator expr :initial t :space space :params params)))))
 
 (defun compile-test (string &optional space params output)
   (if (= 0 (length string))
