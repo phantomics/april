@@ -68,9 +68,18 @@
             :match-token-character
             (lambda (char)
               (or (alphanumericp char) ;; TODO: refine these criteria, ∇⍺⍵⍬ etc. can't be part of a name
-                  (not (loop :for c :across "._⍺⍵⍶⍹⎕∆⍙∇¯⍬" :never (char= c char)))))
-            ;; :match-uniform-token-character
-            ;; (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹∇⍬" :never (char= c char))))
+                  (not (loop :for c :across "._⎕∆⍙¯" :never (char= c char)))))
+            ;; match characters that can only appear in homogenous symbols, this is needed so that
+            ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
+            :match-uniform-token-character
+            (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹∇⍬" :never (char= c char))))
+            ;; match characters specifically representing function/operator arguments, this is needed
+            ;; so ⍵.path.to will work
+            :match-arg-token-character
+            (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹" :never (char= c char))))
+            ;; match characters used to link parts of paths together like namespace.path.to,
+            ;; this is needed so that ⍵.path.to will work
+            :match-path-joining-character (lambda (char) (char= #\. char))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
             :match-overloaded-numeric-character (lambda (char) (char= #\. char))
@@ -786,7 +795,8 @@
      (ambivalent #'get-first-or-disclose (pick index-origin))
      (meta (primary :implicit-args (index-origin))
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
-                                      (enclose omega))))
+                                      (enclose omega)))
+                    :selective-assignment-compatible t)
            (dyadic :selective-assignment-compatible t))
      (tests (is "⊃3" 3)
             (is "⊃⍳4" 1)
@@ -1841,29 +1851,29 @@
         (:demo-profile :title "Namespace Demos"
                        :description "Demos of namespace functionality."))
   (for "Assignment of and operation on namespace values."
-       "myns←⎕NS ⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9
+       "myns←⎕NS⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9
     myns.cc[2;],myns.aa×myns.bb"
        #(4 5 6 5 10 15 20 25 30 35 40 45))
   (for "Assignment of values in nested namespaces."
-       "myns←⎕NS ⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS ⍬ 
+       "myns←⎕NS⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS⍬ 
     myns.bb.dd.ee←5 ⋄ myns.bb.ff←⍳4 ⋄ myns.bb.gg←2 2⍴⍳4 
     myns.cc,({⍵.bb.ff} myns),,myns.bb.gg×myns.bb.dd.ee+myns.aa"
        #(1 2 3 1 2 3 4 8 16 24 32))
   (for "Assignment, modification and display of values in nested namespaces."
-       "myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS ⍬
+       "myns←⎕NS⍬ ⋄ myns.aa←⎕NS⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS⍬
     myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
     myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
   (for "Use of function within namespace."
-       "myns←⎕NS ⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS ⍬ ⋄ myns.a.f2←{⍵×2} ⋄ myns.f1 myns.a.f2 6"
+       "myns←⎕NS⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS⍬ ⋄ myns.a.f2←{⍵×2} ⋄ myns.f1 myns.a.f2 6"
        15)
   (for "Assignment of values within namespace using namespace point."
-       "⎕CS _ ⋄ myns←⎕NS ⍬ ⋄ myns.aa←⎕NS ⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS ⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
+       "⎕CS _ ⋄ myns←⎕NS⍬ ⋄ myns.aa←⎕NS⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
     gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk← gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
        '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION
                          :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
   (for "Namespace points set in global and local scopes."
-       "⎕CS _ ⋄ myns←⎕NS ⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS ⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns
+       "⎕CS _ ⋄ myns←⎕NS⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns
     ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
        '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10)))
  
@@ -2195,7 +2205,16 @@ c   2.56  3
   (for-printed "Binomial of positive and negative fractional numbers." "⎕pp←5 ⋄ 3!.05 2.5 ¯3.6"
                "0.0154 0.3125 ¯15.456
 ")
-  (for-printed "Function name." "⎕pp←10 ⋄ fun←{⍵+5} ⋄ fun" "∇fun"))
+  (for-printed "Function name." "⎕pp←10 ⋄ fun←{⍵+5} ⋄ fun" "∇fun")
+  (for-printed "Namespace with key/value pair count."
+               "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←3 ⋄ myns" "[ℕ𝕤.3]")
+  (for-printed "Array containing namespaces and other values."
+               "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ 4 4⍴1 2 3 myns 'a'"
+               "1      2      3 [ℕ𝕤.2]
+     a 1      2 3     
+[ℕ𝕤.2]      a 1 2     
+3      [ℕ𝕤.2] a 1     
+"))
  
  (arbitrary-test-set
   (with (:name :output-specification-tests)

@@ -1429,16 +1429,11 @@ It remains here as a standard against which to compare methods for composing APL
                                    :collect (lexer-postprocess item idiom space closure-meta-form)))
                  axes-of)))
         ((guard list (and (listp list) (not (member (first list) '(inws inwsd)))))
-        ;;  (print (list :ll list))
          ;; handle closures like (1,⍳5)
          (labels ((process-symbols (possible-symbols &optional top-level)
-                    ;; (print (list :po possible-symbols top-level
-                    ;;              (loop :for item :in possible-symbols :always (symbolp item))))
                     (let ((symbols-valid t))
                       (if (or top-level (loop :for item :in possible-symbols
-                                              :always (or (symbolp item) (listp item))
-                                              ;; (symbolp item)
-                                              ))
+                                              :always (or (symbolp item) (listp item))))
                           (progn (loop :for item :in possible-symbols :while symbols-valid
                                        :do (if (and (symbolp item) (not (member item '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇ ∇∇))))
                                                (if closure-meta

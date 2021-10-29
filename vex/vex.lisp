@@ -223,7 +223,7 @@
                               (cons (first section)
                                     osection)))))
     (loop :for section :in source :when (not (assoc (first section) target))
-       :do (setq output (cons section output)))
+       :do (push section output))
     output))
 
 (defun build-profile (symbol spec mode section-names)
@@ -555,8 +555,15 @@
              (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
              (?numeric-character () (?satisfies (of-utilities idiom :match-numeric-character)))
              (?token-character   () (?satisfies (of-utilities idiom :match-token-character)))
-             (?utoken-character  () (?satisfies (of-utilities idiom :match-uniform-token-character)))
-             (numeric-string-p   (item) (funcall (of-utilities idiom :format-number) item))
+             (numeric-string-p (item) (funcall (of-utilities idiom :format-number) item))
+             (pjoin-char-p     (item) (funcall (of-utilities idiom :match-path-joining-character) item))
+             (utoken-p         (item) (funcall (of-utilities idiom :match-uniform-token-character) item))
+             ;; (p-or-u-char-p (is-path uniform-char item)
+             ;;   (if is-path (funcall (of-utilities idiom :match-token-character) item)
+             ;;       (char= uniform-char item)))
+             (p-or-u-char-p (is-path uniform-char)
+               (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character) item))
+                   (lambda (item) (char= uniform-char item))))
              (=string (&rest delimiters)
                (let ((lastc) (delimiter) (escape-indices) (char-index 0))
                  (=destructure (_ content)
@@ -572,9 +579,8 @@
                                                              (setq lastc (if (and lastc (char= char delimiter)
                                                                                   (or (char= lastc delimiter)
                                                                                       (char= lastc #\\)))
-                                                                             (progn (setq escape-indices
-                                                                                          (cons (1- char-index)
-                                                                                                escape-indices))
+                                                                             (progn (push (1- char-index)
+                                                                                          escape-indices)
                                                                                     #\ )
                                                                              char)
                                                                    char-index (1+ char-index))))))))
@@ -682,9 +688,20 @@
                    (cons :axes each-axis-code))))
              (handle-function (input-string)
                (destructuring-bind (content meta) (process-lines input-string)
-                 (list :fn (cons :meta meta) content))))
+                 (list :fn (cons :meta meta) content)))
+             (handle-symbol (string)
+               (multiple-value-bind (formatted is-symbol)
+                   (funcall (of-utilities idiom :format-value)
+                            (string-upcase (idiom-name idiom))
+                            ;; if there's an overloaded token character, do as above
+                            (idiom-symbols idiom)
+                            (if (getf special-precedent :overloaded-num-char)
+                                (format nil "~a~a" (getf special-precedent :overloaded-num-char)
+                                        string)
+                                string))
+                 (values formatted is-symbol))))
 
-      (let ((olnchar) (symbols) (is-function-closure))
+      (let ((olnchar) (symbols) (is-function-closure) (uniform-char) (arg-rooted-path))
         ;; the olnchar variable is needed to handle characters that may be functional or part
         ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
         ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
@@ -739,19 +756,24 @@
                                                                                   :overloaded-num-char)
                                                                  string)
                                                          string)))))
+                          (=transform (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
+                                                                 (lambda (c)
+                                                                   (if c (setq uniform-char (aref c 0)))))
+                                                     (=transform
+                                                      (=subseq (%any (?test (#'pjoin-char-p) (=element))))
+                                                      (lambda (c)
+                                                        (if (< 0 (length c)) (setq arg-rooted-path t))))
+                                                     (=subseq (%any (?test ((p-or-u-char-p
+                                                                             arg-rooted-path
+                                                                             uniform-char)))))))
+                                      (lambda (string)
+                                        (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                          (if is-symbol (push formatted symbols))
+                                          formatted)))
                           (=transform (=subseq (%some (?token-character)))
                                       (lambda (string)
-                                        (multiple-value-bind (formatted is-symbol)
-                                            (funcall (of-utilities idiom :format-value)
-                                                     (string-upcase (idiom-name idiom))
-                                                     ;; if there's an overloaded token character, do as above
-                                                     (idiom-symbols idiom)
-                                                     (if (getf special-precedent :overloaded-num-char)
-                                                         (format nil "~a~a" (getf special-precedent
-                                                                                  :overloaded-num-char)
-                                                                 string)
-                                                         string))
-                                          (if is-symbol (setq symbols (cons formatted symbols)))
+                                        (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                          (if is-symbol (push formatted symbols))
                                           formatted)))
                           ;; this last clause returns the remainder of the input in case the input has either no
                           ;; characters or only blank characters before the first line break

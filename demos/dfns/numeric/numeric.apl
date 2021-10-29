@@ -43,7 +43,7 @@ cfract ← {                                   ⍝ Continued fraction approximat
   ,↑{                                        ⍝ cf from rational ⍺÷⍵:
     ⍵=1:⍺                                    ⍝ whole number: finished.
     n r←0 ⍵⊤⍺                                ⍝ next term and remainder.
-    n,⍵ ∇ r                                  ⍝ next term and cf of remainder.
+    n,⍵∇r                                    ⍝ next term and cf of remainder.
   }/⌊(1000×⎕CT)+⍵ 1÷1∨⍵                      ⍝ whole number ratio.
 } ⍝ TODO: the 1000×⎕CT should not be necessary
 
@@ -100,7 +100,7 @@ factors ← { ⎕IO←1                            ⍝ Prime factors of ⍵.
 
 ⍝ From http://dfns.dyalog.com/c_gcd.htm
 
-gcd ← { ⍵=0 : |⍺ ⋄ ⍵ ∇ ⍵|⍺ }                 ⍝ Greatest common divisor.
+gcd ← { ⍵=0 : |⍺ ⋄ ⍵∇⍵|⍺ }                   ⍝ Greatest common divisor.
   
 lcm ← { ⍺×⍵÷⍺ gcd ⍵ }                        ⍝ Least common multiple.
 
@@ -227,7 +227,7 @@ alt ← {                                      ⍝ Alternant.
   0=r:⍵⍵⌿,⍵                                  ⍝ zero-row case
   1≥c:⍺⍺⌿,⍵                                  ⍝ zero/one-column case
   M←~⍤1 0⍨⍳r                                 ⍝ minors
-  ⍵[;⎕IO]⍺⍺ . ⍵⍵(∇⍤2)⍵[M;1↓⍳c] ⍝ TODO: ⍺⍺ . ⍵⍵ spaces shouldn't be needed
+  ⍵[;⎕IO]⍺⍺.⍵⍵(∇⍤2)⍵[M;1↓⍳c]
 }
 
 bayes ← { ⍺(×÷+.×)⍵ }                        ⍝ Bayes' formula. (implemented as a fork)

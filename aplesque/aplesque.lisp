@@ -906,16 +906,16 @@
              (setq current-interval pos interval-size 0))
         ;; add the last entry to the intervals provided the positions list didn't have a 0 value at the end
         (if (/= 0 (aref positions (1- (length positions))))
-            (setq r-intervals (cons (- (length positions) (first r-indices))
-                                    r-intervals)))
+            (push (- (length positions) (first r-indices))
+                  r-intervals))
 
         (if (/= (length r-indices) (length r-intervals))
             (setq r-indices (rest r-indices)))
         ;; collect the indices and intervals into lists the right way around, dropping indices with 0-length
         ;; intervals corresponding to zeroes in the positions list
         (loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
-           :do (setq intervals (cons rint intervals)
-                     indices (cons rind indices)))
+           :do (push rint intervals)
+               (push rind indices))
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
@@ -1785,8 +1785,7 @@
                              (not (integerp axis)))
                         ;; if the axis is fractional, insert a new 1-length axis at the indicated position
                         (make-array (let ((index (- (ceiling axis) count-from)))
-                                      (if (= 0 index)
-                                          (setq idims (cons 1 idims))
+                                      (if (= 0 index) (push 1 idims)
                                           (push 1 (cdr (nthcdr (1- index) idims))))
                                       idims)
                                     :element-type (element-type input) :displaced-to (copy-nested-array input)))
@@ -1869,8 +1868,8 @@
                ;; otherwise, start by separating the dimensions of the original array into sets of dimensions
                ;; for the output array and each of its enclosed arrays
                (dotimes (axis (rank input))
-                 (if (find axis axis-list) (setq inner-dims (cons axis inner-dims))
-                     (setq outer-dims (cons axis outer-dims))))
+                 (if (find axis axis-list) (push axis inner-dims)
+                     (push axis outer-dims)))
                (setq inner-dims (reverse inner-dims)
                      outer-dims (reverse outer-dims))
                ;; create a blank array of the outer dimensions containing blank arrays of the inner dimensions
@@ -1951,15 +1950,14 @@
                                           ;; if a duplicate position is found, a diagonal section
                                           ;; is being performed
                                             (if (not (member i positions))
-                                                (setf positions (cons i positions)
-                                                      idims-reduced (cons id idims-reduced)))
+                                                (progn (push i positions)
+                                                       (push id idims-reduced)))
                                           ;; collect possible diagonal indices into diagonal list
                                             (if (assoc i diagonals)
-                                                (setf (rest (assoc i diagonals))
-                                                      (cons ix (rest (assoc i diagonals))))
-                                                (setf diagonals (cons (list i ix) diagonals)))
+                                                (push ix (rest (assoc i diagonals)))
+                                                (push (list i ix) diagonals))
                                           :collect i)
-                                       (progn (setf odims idims
+                                       (progn (setq odims idims
                                                     positions (cons alpha positions))
                                               (list alpha))))
                       (reverse (iota irank))))
@@ -2242,6 +2240,14 @@
   (cond ((or (functionp input) (= 0 (size input)))
          (concatenate 'string (if append (list append))))
         ;; a function input produces an empty string, as does an empty array
+        ((listp input)
+         (if (not (keywordp (first input)))
+             (format nil "(𝕃.~d)" (length input))
+             (let ((pairs-count 0))
+               (loop :for (key value) :on input :by #'cddr :while pairs-count
+                     :do (if (keywordp key) (incf pairs-count) (setq pairs-count nil)))
+               (if pairs-count (format nil "[ℕ𝕤.~d]" pairs-count)
+                   (format nil "(𝕃.~d)" (length input))))))
         ((not (arrayp input))
          (if (characterp input) (string input)
              (funcall format input (funcall segment input))))
@@ -2280,7 +2286,7 @@
                                  (flet ((add-column-types (&rest types)
                                           (loop :for type :in types
                                              :do (if (not (member type this-col-type))
-                                                     (setf this-col-type (cons type this-col-type))))))
+                                                     (push type this-col-type)))))
                                    (cond ((or (characterp elem)
                                               (and (stringp elem) (= 1 (length elem))))
                                           ;; characters are simply passed through,
@@ -2288,6 +2294,12 @@
                                           (add-column-types :character)
                                           (setf this-string (if (characterp elem)
                                                                 elem (aref elem 0))))
+                                         ((listp elem) ;; handle namespaces or other lists passed in
+                                          (let ((rendered (array-impress elem)))
+                                            (setf this-string rendered
+                                                  this-col-array-width (max this-col-array-width
+                                                                            (length rendered)))
+                                            (add-column-types :namespace)))
                                          ((arrayp elem)
                                           ;; recurse to handle nested arrays, passing back the rendered character
                                           ;; array and adjusting the offsets to allow for its height and width;
@@ -2297,9 +2309,8 @@
                                                                          :prepend (if (= 0 (rank elem))
                                                                                       0 t))))
                                             ;; if a 1D array (string) is passed back, height defaults to 1
-                                            (setf this-string rendered)
-                                            
-                                            (setf this-col-array-width
+                                            (setf this-string rendered
+                                                  this-col-array-width
                                                   (max this-col-array-width (or (second (dims rendered))
                                                                                 (first (dims rendered)))))
                                             ;; TODO: improve element type-checking here
@@ -2330,14 +2341,16 @@
                                                              (add-column-types :realpart-rational)))))))))))
                (across input (lambda (elem coords)
                                (let* ((last-coord (first (last coords)))
-                                      (elem-width 1)
-                                      (elem-height 1)
+                                      (elem-width 1) (elem-height 1)
                                       (rendered (apply #'aref strings coords)))
                                  (cond ((and (arrayp elem)
                                              (not (characterp rendered)))
                                         (let ((rdims (reverse (dims rendered))))
                                           (setf elem-height (or (second rdims) 1)
                                                 elem-width (first rdims))))
+                                       ((listp elem)
+                                        (setf elem-height 1
+                                              elem-width (length this-string)))
                                        ((numberp elem)
                                         ;; pass the information on realpart type for correct printing
                                         (let* ((elem-string (funcall format elem segments
@@ -2389,7 +2402,7 @@
                                                     (+ row (if (and (= 0 last-coord)
                                                                     (/= last-coord (1- (length y-offsets))))
                                                                1 0)))))))))
-               ;; (print (list :xoyo x-offsets y-offsets col-widths col-decimals))
+               ;; (print (list :xoyo x-offsets y-offsets col-widths)) ; col-decimals))
                ;; collated output is printed to a multidimensional array whose sub-matrices are character-rendered
                ;; versions of the original sub-matrices, as per APL's [⍕ format] function. If a prepend
                ;; character is set, the output array has an extra element in its last dimension to hold the
