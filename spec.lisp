@@ -36,9 +36,9 @@
 
  ;; standard grammar components, with elements to match the basic language forms and
  ;; pattern-matching systems to register combinations of those forms
- (grammar (:opening-patterns *composer-optimized-opening-patterns-common*
-                             *composer-opening-patterns*)
-          (:following-patterns *composer-following-patterns*))
+ ;; (grammar (:opening-patterns *composer-optimized-opening-patterns-common*
+ ;;                             *composer-opening-patterns*)
+ ;;          (:following-patterns *composer-following-patterns*))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -147,6 +147,7 @@
                          :collect (list (intern (string-upcase key) *package-name-string*)
                                         (or (getf state key) `(inwsd ,value))))))
             :lexer-postprocess #'lexer-postprocess
+            :compile-form #'compile-form
             :postprocess-compiled
             (lambda (state &rest inline-arguments)
               (lambda (form)

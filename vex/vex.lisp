@@ -942,24 +942,15 @@ These are examples of the output of the three macro-builders above.
                (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
                  (loop :for c :across string-sym
                     :always (funcall (of-utilities idiom :match-token-character) c))))
-             (process-lines (lines &optional output)
-               (if (= 0 (length lines))
-                   output (destructuring-bind (out remaining meta)
-                              (parse lines (=vex-string idiom))
-                            (declare (ignore meta))
-                            (let ((out (funcall (if print-tokens #'print #'identity)
-                                                (funcall (or (of-utilities idiom :lexer-postprocess)
-                                                             (lambda (a b c) (declare (ignore b c)) a))
-                                                         out idiom space))))
-                              (process-lines remaining
-                                             (if (null out)
-                                                 output (multiple-value-bind (new-output _ remaining)
-                                                            (composer idiom space out nil nil
-                                                                      '((:special (:top-level t))))
-                                                          (declare (ignore _))
-                                                          (if remaining (error "Function called without ~a"
-                                                                               "right argument."))
-                                                          (append output (list new-output)))))))))
+             (process-lines (string &optional space params output)
+               (if (= 0 (length string))
+                   (funcall (of-utilities idiom :compile-form)
+                            (reverse output) :space space :params params)
+                   (let ((result (funcall (of-utilities idiom :lexer-postprocess)
+                                          (parse string (=vex-string idiom))
+                                          idiom space)))
+                     (if print-tokens (print (first result)))
+                     (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a
@@ -1017,12 +1008,9 @@ These are examples of the output of the three macro-builders above.
                                                                  (string (idiom-name idiom))))
                                     output-vars))
                    (compiled-expressions 
-                     ;; (process-lines (funcall (of-utilities idiom :prep-code-string)
-                     ;;                         string))
-                     (april::compile-test
-                      (funcall (of-utilities idiom :prep-code-string) string)
-                      space (list :call-scope (list :input-vars iv-list :output-vars ov-list)))
-                     ))
+                     (process-lines (funcall (of-utilities idiom :prep-code-string) string)
+                                    space (list :call-scope (list :input-vars iv-list
+                                                                  :output-vars ov-list)))))
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)

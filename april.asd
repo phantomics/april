@@ -12,7 +12,7 @@
   ((:file "package")
    (:file "utilities")
    (:file "library")
-   (:file "grammar")
    (:file "patterns")
+   (:file "grammar")
    (:file "spec")
    (:file "game-of-life")))
