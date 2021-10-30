@@ -20,13 +20,7 @@
               :initarg :utilities)
    (lexicons :accessor idiom-lexicons
              :initform nil
-             :initarg :lexicons)
-   (composer-opening-patterns :accessor idiom-composer-opening-patterns
-                              :initform nil
-                              :initarg :composer-opening-patterns)
-   (composer-following-patterns :accessor idiom-composer-following-patterns
-                                :initform nil
-                                :initarg :composer-following-patterns)))
+             :initarg :lexicons)))
 
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
@@ -276,13 +270,6 @@
            ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
            ;; spec is intuitive, with more specific pattern sets such as optimization templates being included
            ;; after less specific ones like the baseline grammar
-           (pattern-settings
-            `((idiom-composer-opening-patterns ,idiom-symbol)
-              (append (idiom-composer-opening-patterns ,idiom-symbol)
-                      ,@(rest (assoc :opening-patterns (of-subspec grammar))))
-              (idiom-composer-following-patterns ,idiom-symbol)
-              (append (idiom-composer-following-patterns ,idiom-symbol)
-                      ,@(rest (assoc :following-patterns (of-subspec grammar))))))
            (idiom-definition `(make-instance 'idiom :name ,(intern symbol-string "KEYWORD")))
            (printout-sym (concatenate 'string symbol-string "-F"))
            (inline-sym (concatenate 'string symbol-string "-C"))
@@ -311,7 +298,6 @@
                               ,(list 'quote (of-subspec symbols)))
                       (idiom-lexicons ,idiom-symbol)
                       (quote ,idiom-list))
-                (setf ,@pattern-settings)
                 ,@(if (not extension)
                       `((defmacro ,(intern symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)
@@ -756,6 +742,9 @@
                                                                                   :overloaded-num-char)
                                                                  string)
                                                          string)))))
+                          ;; matches symbols like APL's ⍺, ∇∇, and ⍵⍵ that must be homogenous - however,
+                          ;; homogenous symbols on the list of argument symbols may be part of a larger
+                          ;; symbol that references a namespace path like ⍵.path.to
                           (=transform (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
                                                                  (lambda (c)
                                                                    (if c (setq uniform-char (aref c 0)))))
@@ -799,120 +788,6 @@
                               ;; unless an explicit empty string was parsed
                               output (cons item output))
                           rest special-precedent)))))))))
-
-(defmacro set-composer-elements (name with &rest params)
-  "Specify basic language elements for a Vex composer."
-  (let* ((with (rest with))
-         (tokens (getf with :tokens-symbol))
-         (idiom (getf with :idiom-symbol))
-         (space (getf with :space-symbol with))
-         (properties (getf with :properties-symbol))
-         (pre-props (getf with :preprops-symbol))
-         (process (getf with :processor-symbol with)))
-    `(defun ,(intern (string-upcase name) (package-name *package*)) (,idiom)
-       (declare (ignorable ,idiom))
-       (list ,@(loop :for param :in params
-                  :collect `(list ,(intern (string-upcase (first param)) "KEYWORD")
-                                  (lambda (,tokens &optional ,properties ,process ,idiom ,space ,pre-props)
-                                    (declare (ignorable ,properties ,process ,idiom ,space ,pre-props))
-                                    ,(second param))))))))
-
-(defun composer (idiom space tokens &optional precedent properties pre-props)
-  "Compile processed tokens output by the parser into code according to an idiom's grammars and primitive elements."
-  (if (not tokens)
-      (values precedent properties)
-      (let ((processed)
-            (pre-props (if (not properties)
-                           pre-props (cons properties pre-props)))
-            (special-params (getf properties :special)))
-        ;; previous property values are stored in preceding-props so that grammar elements that
-        ;; need to know the properties of precedents can access them for pivotal and train compositions
-        ;; (print (list :prec pre-props precedent tokens properties))
-        (loop :while (not processed)
-           :for pattern :in (if precedent (idiom-composer-following-patterns idiom)
-                                (idiom-composer-opening-patterns idiom))
-           :when (or (not (getf special-params :omit))
-                     (not (member (getf pattern :name) (getf special-params :omit))))
-           :do (multiple-value-bind (new-processed new-props remaining)
-                   (funcall (symbol-function (getf pattern :function))
-                            tokens space idiom (lambda (item &optional sub-props)
-                                                 (composer idiom space item nil sub-props))
-                            precedent properties pre-props)
-                 ;; (print (list :pattern (getf pattern :name) precedent tokens properties))
-                 (if new-processed (setq processed new-processed properties new-props tokens remaining))))
-        (if special-params (setf (getf properties :special) special-params))
-        (if processed (composer idiom space tokens processed properties pre-props)
-            (values precedent properties tokens)))))
-
-(defmacro composer-pattern-template
-    (macro-names tokens-sym space-sym idiom-sym process-sym precedent-sym
-     properties-sym preceding-properties-sym special-props-sym items-sym item-sym rest-items-sym)
-  (let ((name (gensym)) (var-names (gensym))
-        (assignment-clauses (gensym)) (generation (gensym)) (out-form (gensym)) (out-props (gensym))
-        (axis (gensym)) (subax (gensym)) (symbol (gensym)) (symbol-form (gensym)) (symbol-props (gensym))
-        (function (gensym)) (form-out (gensym)) (process (gensym))
-        (form-properties (gensym)) (remaining (gensym))
-        (args-list (list tokens-sym space-sym idiom-sym process-sym '&optional precedent-sym properties-sym
-                         preceding-properties-sym)))
-    `(progn (defmacro ,(first macro-names) (,name ,var-names ,assignment-clauses &body ,generation)
-              `(defun ,,name ,',args-list
-                 (declare (ignorable ,',space-sym ,',precedent-sym ,',properties-sym ,',preceding-properties-sym))
-                 (symbol-macrolet ((,',item-sym (first ,',items-sym)) (,',rest-items-sym (rest ,',items-sym)))
-                   (declare (ignorable ,',item-sym ,',rest-items-sym))
-                   (let* ((,',items-sym ,',tokens-sym)
-                          (,',special-props-sym (getf (first ,',preceding-properties-sym) :special))
-                          ,@(mapcar #'list ,var-names))
-                     (declare (ignorable ,',items-sym))
-                     ,@,assignment-clauses
-                     (if (not (member ,(intern (string-upcase ,name) "KEYWORD")
-                                      (getf ,',special-props-sym :omit)))
-                         (multiple-value-bind (,',out-form ,',out-props) ,(first ,generation)
-                           (if ,',out-form (values ,',out-form ,',out-props ,',items-sym)
-                               (values nil nil ,',tokens-sym)))
-                         (values nil nil ,',tokens-sym))))))
-            (defmacro ,(second macro-names) (,symbol ,process)
-              `(if (and (listp ,',item-sym) (eql :axes (first ,',item-sym)))
-                   (setq ,,symbol (list (loop :for ,',axis :in (rest ,',item-sym)
-                                           :collect (funcall (lambda (item)
-                                                               (if (< 1 (length item))
-                                                                   (cons 'progn item)
-                                                                   (first item)))
-                                                             (loop :for ,',subax :in ,',axis
-                                                                :collect (funcall ,,process ,',subax)))))
-                         ,',items-sym ,',rest-items-sym)))
-            (defmacro ,(third macro-names) (,symbol-form ,symbol-props ,function &optional ,properties-sym)
-              `(multiple-value-bind (,',form-out ,',form-properties)
-                   (,,function ,',item-sym ,,properties-sym ,',process-sym ,',idiom-sym ,',space-sym)
-                 (if ,',form-out (setq ,,symbol-form ,',form-out ,,symbol-props ,',form-properties
-                                       ,',items-sym ,',rest-items-sym))))
-            (defmacro ,(fourth macro-names) (,symbol-form ,symbol-props ,properties-sym)
-              `(multiple-value-bind (,',out-form ,',out-props ,',remaining)
-                   (funcall ,',process-sym ,',items-sym ,,properties-sym)
-                 (setq ,,symbol-form ,',out-form ,,symbol-props ,',out-props ,',items-sym ,',remaining))))))
-
-#|
-
-These are examples of the output of the three macro-builders above.
-
-(defmacro assign-axes (symbol process item items rest-items)
-  (let ((axis (gensym)))
-    `(if (and (listp ,item) (eql :axes (first ,item)))
-         (setq ,symbol (list (loop :for ,axis :in (rest ,item) :collect (funcall ,process ,axis)))
-               ,items ,rest-items))))
-
-(defmacro assign-element (symbol-form symbol-props function process properties space item items rest-items)
-  (let ((form-out (gensym)) (form-properties (gensym)))
-    `(multiple-value-bind (,form-out ,form-properties)
-         (,function ,item ,properties ,process idiom ,space)
-       (if ,form-out (setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,rest-items)))))
-
-(defmacro assign-subprocessed (symbol-form symbol-props process properties item items rest-items)
-  (let ((form-out (gensym)) (form-properties (gensym)) (remaining (gensym)))
-    `(multiple-value-bind (,form-out ,form-properties ,remaining)
-         (funcall ,process ,items ,properties)
-       (setq ,symbol-form ,form-out ,symbol-props ,form-properties ,items ,remaining))))
-
-|#
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."

@@ -13,7 +13,22 @@
                           (symbol-value (intern "*NS-POINT*" space))))
             (symbol (if (not (and (listp input-sym) (eql 'inwsd (first input-sym))))
                         input-sym (second input-sym))))
-        (if (not path-val)
+        (if path-val
+            (if (and (not (and (listp symbol) (member (first symbol) '(nspath :pt))))
+                     (or (string= "_" (string symbol))
+                         (member symbol '(⍵ ⍺ ⍹ ⍶))
+                         (member symbol *system-variables*)
+                         (of-meta-hierarchy2 (rest (getf (getf properties :special) :closure-meta))
+                                             :var-syms symbol)
+                         (member symbol (assoc :variable (idiom-symbols idiom)))
+                         (member symbol (assoc :constant (idiom-symbols idiom)))))
+                symbol (if (and (listp symbol) (member (first symbol) '(nspath :pt)))
+                           (cons 'nspath (append path-val (cons (intern (string (if (listp (second symbol))
+                                                                                    (cadadr symbol)
+                                                                                    (second symbol)))
+                                                                        "KEYWORD")
+                                                                (cddr symbol))))
+                           (cons 'nspath (append path-val (list (intern (string symbol) "KEYWORD"))))))
             (if (or (symbolp symbol)
                     (and (listp symbol) (member (first symbol) '(inws inwsd))))
                 input-sym (cons 'nspath (cons (if (member (second symbol) '(⍵ ⍺ ⍹ ⍶))
@@ -30,26 +45,9 @@
                                                                                  :params properties))
                                                                          (rest s))
                                                                  (if (symbolp s)
-                                                                     (intern (string s) "KEYWORD")))))))
-            (if (and (not (and (listp symbol) (member (first symbol) '(nspath :pt))))
-                     (or (string= "_" (string symbol))
-                         (member symbol '(⍵ ⍺ ⍹ ⍶))
-                         (member symbol *system-variables*)
-                         (of-meta-hierarchy2 (rest (getf (getf properties :special) :closure-meta))
-                                             :var-syms symbol)
-                         (member symbol (assoc :variable (idiom-symbols idiom)))
-                         (member symbol (assoc :constant (idiom-symbols idiom)))))
-                symbol (if (and (listp symbol) (member (first symbol) '(nspath :pt)))
-                           (cons 'nspath (append path-val (cons (if path-val
-                                                                    (intern (string (if (listp (second symbol))
-                                                                                        (cadadr symbol)
-                                                                                        (second symbol)))
-                                                                            "KEYWORD")
-                                                                    symbol)
-                                                                (cddr symbol))))
-                           (cons 'nspath (append path-val (list (intern (string symbol) "KEYWORD"))))))))))
+                                                                     (intern (string s) "KEYWORD")))))))))))
 
-(defun proc-value (this-item &optional properties process idiom space)
+(defun proc-value (this-item &optional properties idiom space)
   "Process a value token."
   (cond ((eq :empty-array this-item)
          ;; process the empty vector expressed by the [⍬ zilde] character
@@ -122,19 +120,14 @@
         ((and (symbolp this-item) (getf properties :match-all-syms))
          this-item)))
 
-(defun proc-function (this-item &optional properties process idiom space)
+(defun proc-function (this-item &optional properties idiom space)
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
     (if (listp this-item)
         ;; process a function specification starting with :fn
         (if (eq :fn (first this-item))
-            (let ((fn (first (last this-item)))
-                  (obligate-dyadic (and (eq :op (first this-item))
-                                        (of-lexicons idiom (third this-item) :functions-dyadic)))
-                  (overloaded-operator (and (eq :op (first this-item))
-                                            (or (of-lexicons idiom (third this-item) :functions-dyadic)
-                                                (of-lexicons idiom (third this-item) :functions-symbolic)))))
+            (let ((fn (first (last this-item))))
               (cond ((and (characterp fn)
                           (or (not (getf (getf properties :special) :exclude-symbolic))
                               ;; the :exclude-symbolic property prevents a
@@ -169,7 +162,7 @@
                                                   current-path))
                            ;; if this is an inline operator, pass just that keyword back
                            (if is-inline-operator :is-inline-operator
-                               (let ((sub-props (list :special (list :closure-meta this-closure-meta))))
+                               (progn
                                  (setf (getf (rest this-closure-meta) :var-syms)
                                        (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
                                  (output-function
@@ -223,7 +216,7 @@
                      (if (listp idiom-function-object)
                          idiom-function-object (list 'function idiom-function-object)))))))))
 
-(defun proc-operator (this-item &optional properties process idiom space)
+(defun proc-operator (this-item &optional properties idiom space)
   "Process an operator token."
   (declare (ignore idiom))
   (if (listp this-item)
@@ -251,7 +244,6 @@
                      (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇) (getf (cdadr this-item) :arg-syms)))
                      (this-closure-meta (second this-item))
                      (is-inline (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
-                     (is-dyadic (member '⍺ arg-symbols))
                      (is-pivotal (intersection arg-symbols '(⍹ ⍵⍵)))
                      (valence (getf properties :valence)))
                 (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
@@ -263,15 +255,12 @@
                 (if is-inline (if (or (not valence)
                                       (and is-pivotal (eq :pivotal valence))
                                       (and (not is-pivotal) (eq :lateral valence)))
-                                  (let ((sub-props (list :special (list :closure-meta this-closure-meta))))
-                                    (output-function
-                                     (compile-form fn :space space
-                                                      :params (list :special
-                                                                    (list :closure-meta
-                                                                          (second this-item))
-                                                                    :call-scope (getf properties
-                                                                                      :call-scope)))
-                                     nil (rest this-closure-meta))))))))
+                                  (output-function
+                                   (compile-form fn :space space
+                                                    :params (list :special
+                                                                  (list :closure-meta (second this-item))
+                                                                  :call-scope (getf properties :call-scope)))
+                                   nil (rest this-closure-meta)))))))
       (if (symbolp this-item)
           ;; if the operator is represented by a symbol, it is a user-defined operator
           ;; and the appropriate variable name should be verified in the workspace
@@ -387,7 +376,7 @@
                                        (not (member (caar tokens) '(:fn :op :st :pt :axes)))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
-                                       (proc-value (first tokens) params nil *april-idiom* space))))
+                                       (proc-value (first tokens) params *april-idiom* space))))
                  ;; (print (list :fv is-closure left first-value tokens elements axes))
                  ;; if a value element is confirmed, add it to the list of elements and recurse
                  (if first-value
@@ -497,7 +486,7 @@
                                           ;; handle n-argument functions with arguments passed
                                           ;; in axis format as for fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]
                                           (let* ((first-fn (proc-function (first tokens) params
-                                                                          nil *april-idiom* space))
+                                                                          *april-idiom* space))
                                                  (fn-form (if first-fn
                                                               (if (symbolp (first tokens))
                                                                   `(a-call #',first-fn ,@(first axes))
@@ -603,7 +592,7 @@
                              ;; it's an overloaded lexical function and if so process it as such
                              (let* ((fn-token (if (characterp (third (first tokens)))
                                                   (list :fn (third (first tokens)))))
-                                    (ol-function (if fn-token (proc-function fn-token params nil
+                                    (ol-function (if fn-token (proc-function fn-token params
                                                                              *april-idiom* space))))
                                (if ol-function (build-function (rest tokens)
                                                                :space space :params params
@@ -629,7 +618,7 @@
                (if (and (listp (first tokens)) (eq :fn (caar tokens))
                         (characterp (cadar tokens)) (char= #\← (cadar tokens)))
                    (values nil tokens)
-                   (let ((exp-function (proc-function (first tokens) params nil *april-idiom* space)))
+                   (let ((exp-function (proc-function (first tokens) params *april-idiom* space)))
                      (if exp-function (build-function
                                        (rest tokens)
                                        :initial initial :space space :params params
@@ -696,7 +685,7 @@
                                                     axes)
                                         :initial initial :space space :params params)
           (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
-                                   nil *april-idiom* space)))
+                                   *april-idiom* space)))
             ;; register an operator when found
             (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
                                                  :space space :params params :valence valence))))
@@ -705,7 +694,7 @@
       (if (not (and initial (listp (first tokens)) (eq :fn (caar tokens))
                     (characterp (cadar tokens)) (char= #\← (cadar tokens))))
           (values found-operator tokens)
-          (let* ((assign-symbol (proc-operator (second tokens) params nil *april-idiom* space))
+          (let* ((assign-symbol (proc-operator (second tokens) params *april-idiom* space))
                  (assign-sym (if (and (listp assign-symbol)
                                       (member (first assign-symbol) '(inws inwsd)))
                                  (second assign-symbol)))
@@ -913,13 +902,7 @@
                     ,out1)))))
         ((and (listp symbol) (eql 'a-call (first symbol)))
          ;; compose selective assignments like (3↑x)←5
-         (let* ((val-sym (if (symbolp (first symbol)) (first symbol)))
-                (selection-form symbol)
-                (context-vars (getf (rest (getf (getf params :special) :closure-meta)) :var-syms))
-                (val-sym-form (list (if (and (boundp (intern (string val-sym) space))
-                                             (not (member val-sym context-vars)))
-                                        'inwsd 'inws)
-                                    val-sym))
+         (let* ((selection-form symbol)
                 (prime-function (second selection-form))
                 (selection-axes) (assign-sym)
                 (item (gensym)))
@@ -1104,17 +1087,5 @@
     (loop :for expr :in exprs
           :collect (or (fnexp-backup (build-value expr :space space :params params)
                                      :space space :params params)
-                       (multiple-value-bind (tokens other)
-                           (build-function expr :initial t :space space :params params)
-                         (wrap-fn-sym tokens))
+                       (wrap-fn-sym (build-function expr :initial t :space space :params params))
                        (build-operator expr :initial t :space space :params params)))))
-
-;; (defun compile-string (string &optional space params output)
-;;   "Transform an APL string into tokens and pass them to ."
-;;   (if (= 0 (length string))
-;;       (compile-form (reverse output) :space space :params params)
-;;       (let ((result (lexer-postprocess (vex::parse string (vex::=vex-string *april-idiom*))
-;;                                        *april-idiom* space)))
-;;         ;; (print (list :rr result))
-;;         (compile-test (second result)
-;;                       space params (cons (first result) output)))))
