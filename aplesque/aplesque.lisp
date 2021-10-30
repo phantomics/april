@@ -144,6 +144,7 @@
       item (row-major-aref item 0)))
 
 (defun get-first-or-disclose (omega)
+  "Get the first element of an array or disclose the element of a 0-rank array."
   (if (not (arrayp omega))
       omega (if (= 0 (rank omega))
                 (aref omega) (if (< 0 (size omega))
@@ -735,7 +736,8 @@
                                                                (copy-array initial-element)))
                    output))
              (if (not (arrayp input))
-                 (make-array degrees :element-type (type-of input) :initial-element (disclose input))
+                 (make-array degrees :element-type (assign-element-type input)
+                                     :initial-element (disclose input))
                  (let ((output (make-array degrees :element-type (element-type input))))
                    (loop :for i :below (size output) :do (setf (row-major-aref output i)
                                                                (copy-array (disclose input))))
@@ -1023,7 +1025,7 @@
       (ash r shift))))
 
 (defun gamma (c)
-  "Gamma function using Lanczos approximation"
+  "Gamma function using Lanczos approximation."
   (if (< (realpart c) 0.5)
       (/ pi (* (sin (* pi c)) (gamma (- 1 c))))
       (let ((z c)
@@ -1125,7 +1127,6 @@
                         (if window-reversed (loop :for ix :below window :do (process-item ix))
                             (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
                       (setf (row-major-aref output i) value))))
-              ;; (print (list :out output))
               (if (not (and (arrayp output)
                             (= 0 (rank output))
                             (not (arrayp (aref output)))))
@@ -1982,7 +1983,6 @@
                :collect (multiple-value-bind (index remainder) (floor remaining od)
                           (incf oindex (* index s))
                           (setq remaining remainder)))
-            ;; (multiple-value-bind (index remainder) (floor oindex (size omega))
             (setf (row-major-aref output i) (row-major-aref omega oindex))))
         ;; handle diagonal array traversals
         (xdotimes output (i (size output))
@@ -2130,8 +2130,6 @@
          (out-factors (make-array wrank :element-type 'fixnum))
          (win-factors (make-array wrank :element-type 'fixnum))
          (output (make-array output-dims))
-         ;; (ref-coords (loop :for d :below wrank :collect 0))
-         ;; (acoords (loop :for d :below wrank :collect 0))
          (last-dim))
     
     ;; generate dimensional factors vector for window dimensions
@@ -2195,28 +2193,29 @@
   (flet ((process-rational (number)
            (list (write-to-string (numerator number))
                  (write-to-string (denominator number)))))
-    (let* ((strings (if (typep value 'ratio)
-                        (process-rational value)
-                        (append (if (typep (realpart value) 'ratio)
-                                    (process-rational (realpart value))
-                                    (let* ((number-string (first (cl-ppcre:split
-                                                                  #\D (string-upcase
-                                                                       (write-to-string (realpart value))))))
-                                           (sections (cl-ppcre:split #\. number-string)))
-                                      ;; if there are 4 or more segments, as when printing complex floats or rationals,
-                                      ;; and a complex value occurs with an integer real part, create a 0-length
-                                      ;; second segment so that the lengths of the imaginary components are correctly
-                                      ;; assigned to the 3rd and 4th columns, as for printing ⍪12.2J44 3J8 19J210r17
-                                      (append sections (if (and (< 3 (length segments))
-                                                                (= 1 (length sections)))
-                                                           (list nil)))))
-                                (if (complexp value)
-                                    (if (typep (imagpart value) 'ratio)
-                                        (process-rational (imagpart value))
-                                        (let ((number-string (first (cl-ppcre:split
-                                                                     #\D (string-upcase
-                                                                          (write-to-string (imagpart value)))))))
-                                          (cl-ppcre:split #\. number-string)))))))
+    (let* ((strings
+             (if (typep value 'ratio)
+                 (process-rational value)
+                 (append (if (typep (realpart value) 'ratio)
+                             (process-rational (realpart value))
+                             (let* ((number-string (first (cl-ppcre:split
+                                                           #\D (string-upcase
+                                                                (write-to-string (realpart value))))))
+                                    (sections (cl-ppcre:split #\. number-string)))
+                               ;; if there are 4 or more segments, as when printing complex floats or rationals,
+                               ;; and a complex value occurs with an integer real part, create a 0-length
+                               ;; second segment so that the lengths of the imaginary components are correctly
+                               ;; assigned to the 3rd and 4th columns, as for printing ⍪12.2J44 3J8 19J210r17
+                               (append sections (if (and (< 3 (length segments))
+                                                         (= 1 (length sections)))
+                                                    (list nil)))))
+                         (if (complexp value)
+                             (if (typep (imagpart value) 'ratio)
+                                 (process-rational (imagpart value))
+                                 (let ((number-string (first (cl-ppcre:split
+                                                              #\D (string-upcase
+                                                                   (write-to-string (imagpart value)))))))
+                                   (cl-ppcre:split #\. number-string)))))))
            (more-strings (< (length segments) (length strings))))
       ;; TODO: provide for e-notation
       (loop :for i :from 0 :for s :in (if more-strings strings segments)
@@ -2252,9 +2251,14 @@
          (if (characterp input) (string input)
              (funcall format input (funcall segment input))))
         ;; if indenting with a character, prepend it to the string; strings are otherwise passed back as-is
-        ((stringp input) input)
+        ((stringp input)
+         (if (not (integerp prepend))
+             input (let ((padding (make-array prepend :element-type 'character :initial-element #\ )))
+                     (concatenate 'string padding input padding))))
         ;; each layer of 0-rank enclosure adds 1 space of indentation
         ((= 0 (rank input))
+         ;; (print (list :rr (if (eq prepend t) t (1+ (or prepend 0)))))
+         ;; (princ #\Newline)
          (array-impress (aref input) :format format :segment segment :append append
                         :unpadded collate :prepend (if (eq prepend t)
                                                        t (1+ (or prepend 0)))))

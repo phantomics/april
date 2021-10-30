@@ -261,7 +261,7 @@ kcell ← {                                    ⍝ Relationship between point an
   b←,[(2=⍴⍴⍺)/⎕IO]⍺                          ⍝ Bounds of k-cell.
   p←((2⌊⍴⍴⍺)↓1 1,⍴⍵)⍴⍵                       ⍝ Points to evaluate.
   d←↑,¨⍺⍺⌿×-b,.-p                            ⍝ Apply operand to signum difference.
-  $[⍺⍺/⍬;⌈/d;5⊥⍉d]                           ⍝ Result is {¯1,0,1} or integer.
+  ⍺⍺/⍬ : ⌈/d ⋄ 5⊥⍉d                          ⍝ Result is {¯1,0,1} or integer.
 }
 
 ⍝ From http://dfns.dyalog.com/c_kball.htm

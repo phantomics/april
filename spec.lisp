@@ -1881,6 +1881,11 @@
   (for-printed "Negative integer." "¯5" "¯5")
   (for-printed "Rational numbers." "÷⍳5" "1 1r2 1r3 1r4 1r5
 ")
+  (for-printed "String." "'abcd'" "abcd")
+  (for-printed "Nested string." "⊂'efgh'" " efgh ")
+  (for-printed "Doubly nested string." "⊂⊂'hijk'" "  hijk  ")
+  (for-printed "Nested string within vector." "1 2 3 4 (⊂'lm') 5 6" "1 2 3 4   lm   5 6
+")
   (for-printed "Floating point number." "25.006" "25.006")
   (for-printed "Imaginary number." "3J9" "3J9")
   (for-printed "Numeric vector." "1+1 2 3" "2 3 4
