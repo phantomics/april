@@ -426,7 +426,7 @@
                                                (at-path a (rest path) :value b :value-nil value-nil
                                                                       :set-by set-by))))
                         (if (arrayp object) (dotimes (i (size object))
-                                              (at-path (row-major-aref object i)
+                                              (at-path (getf (row-major-aref object i) (first path))
                                                        (rest path) :value value :value-nil value-nil
                                                        :set-by set-by))
                             (if (not (symbolp (second path)))
@@ -437,7 +437,7 @@
                                          :value value :value-nil value-nil :set-by set-by)))))
                 (if (symbolp (first path))
                     (if (arrayp object) (dotimes (i (size object))
-                                          (at-path (row-major-aref object i)
+                                          (at-path (getf (row-major-aref object i) (first path))
                                                    (rest path)))
                         (at-path (getf object (first path)) (rest path)))
                     (at-path (achoose object (first path))
