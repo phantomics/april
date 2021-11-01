@@ -205,17 +205,10 @@
             `(λω (funcall ,body omega ,(cons 'list axes)))
             body))))
 
-(defun of-meta-hierarchy (meta-form key &optional is-recursing)
-  "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
-  (funcall (if is-recursing #'identity #'remove-duplicates)
-           (append (getf meta-form key)
-                   (if (getf meta-form :parent)
-                       (of-meta-hierarchy (rest (getf meta-form :parent)) key t)))))
-
-(defun of-meta-hierarchy2 (meta-form key symbol)
+(defun of-meta-hierarchy (meta-form key symbol)
   "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
   (or (and (getf meta-form key) (member symbol (getf meta-form key) :test #'eql))
-      (and (getf meta-form :parent) (of-meta-hierarchy2 (rest (getf meta-form :parent)) key symbol))))
+      (and (getf meta-form :parent) (of-meta-hierarchy (rest (getf meta-form :parent)) key symbol))))
 
 (defmacro is-workspace-value (item)
   "Checks if a variable is present in the current workspace as a value."
@@ -348,7 +341,14 @@
 
 (defmacro nspath (list &rest keys)
   "Macro to expedite the fetching of values from nested namespaces."
-  (process-path list keys))
+  `(at-path ,(if (not (and (listp list) (eql 'fn-ref (first list))))
+                 list (second list))
+            ,(cons 'list (loop :for k :in keys
+                               :collect (if (symbolp k) (intern (string k) "KEYWORD")
+                                            `(mapcar (lambda (array)
+                                                       (if array
+                                                           (apply-scalar #'- array index-origin)))
+                                                     ,(cons 'list (first k))))))))
 
 (defun format-nspath (items &optional output)
   "Create a string representation of a namespace path from the symbol list implementing that path."
@@ -359,6 +359,89 @@
                                                     (first items)))))
                (if this-item (format-nspath (rest items) (if output (format nil "~a.~a" output this-item)
                                                              (string this-item)))))))
+
+(defun at-path (object path &key (value) (value-nil) (set-by))
+  "Get or set values within a namespace (ptree), handling arrays within the namespace according to array indices within the namespace path."
+  (if (and (not value) (arrayp object) (symbolp (first path)))
+      (apply-scalar (lambda (item) (at-path item path))
+                    object)
+      (if (= 1 (length path))
+          (if (symbolp (first path))
+              (if (or value value-nil)
+                  (progn (if (and object (symbolp object))
+                             (if set-by (setf (getf (symbol-value object) (first path))
+                                              (funcall set-by value
+                                                       (getf (symbol-value object) (first path))))
+                                 (setf (getf (symbol-value object) (first path)) value))
+                             (if (arrayp object) ;; handle elided assignment of array elements
+                                 (progn (dotimes (i (size object))
+                                          (setf (getf (row-major-aref object i) (first path))
+                                                (if set-by (funcall set-by value
+                                                                    (getf (row-major-aref object i)
+                                                                          (first path)))
+                                                    value)))
+                                        object)
+                                 (setf (getf object (first path))
+                                       (if set-by (funcall set-by value (getf object (first path)))
+                                           value))))
+                         object)
+                  (if (arrayp object) ;; handle elision of arrays
+                      (let ((output (make-array (dims object))))
+                        (dotimes (i (size output))
+                          (let ((original (row-major-aref object i)))
+                            (setf (row-major-aref output i)
+                                  (getf (row-major-aref original i) (first path)))))
+                        output)
+                      (getf (if (not (symbolp object)) object (symbol-value object))
+                            (first path))))
+              (nth-value 1 (achoose object (first path) ;; array coordinates
+                                    :set value :set-nil value-nil :modify-input t
+                                    :set-by (or set-by (lambda (a b) (declare (ignore a)) b)))))
+          (let ((object (if (symbolp object) (symbol-value object)
+                            object)))
+            (if (or value value-nil)
+                (if (= 2 (length path))
+                    (if (symbolp (first path))
+                        (if (symbolp (second path))
+                            (let ((this-object (getf object (first path))))
+                              (if (arrayp this-object) ;; handle elision downstream
+                                  (at-path this-object (rest path) :value value :value-nil value-nil
+                                                                   :set-by set-by)
+                                  (setf (getf this-object (second path)) value
+                                        (getf object (first path)) this-object)))
+                            (let ((this-object (at-path (getf object (first path))
+                                                        (rest path) :value value :value-nil value-nil
+                                                        :set-by set-by)))
+                              (setf (getf object (first path)) this-object)))
+                        (nth-value 1 (achoose object (first path)
+                                              :set value :set-nil value-nil :modify-input t
+                                              :set-by
+                                              (lambda (a b) (at-path a (rest path) :value b
+                                                                                   :set-by set-by)))))
+                    (if (not (symbolp (first path))) ;; array coordinates
+                        (achoose object (first path)
+                                 :set value :set-nil value-nil :modify-input t
+                                 :set-by (if (rest path)
+                                             (lambda (a b)
+                                               (at-path a (rest path) :value b :value-nil value-nil
+                                                                      :set-by set-by))))
+                        (if (arrayp object) (dotimes (i (size object))
+                                              (at-path (row-major-aref object i)
+                                                       (rest path) :value value :value-nil value-nil
+                                                       :set-by set-by))
+                            (if (not (symbolp (second path)))
+                                (setf (getf object (first path))
+                                      (at-path (getf object (first path)) (rest path)
+                                               :value value :value-nil value-nil :set-by set-by))
+                                (at-path (getf object (first path)) (rest path)
+                                         :value value :value-nil value-nil :set-by set-by)))))
+                (if (symbolp (first path))
+                    (if (arrayp object) (dotimes (i (size object))
+                                          (at-path (row-major-aref object i)
+                                                   (rest path)))
+                        (at-path (getf object (first path)) (rest path)))
+                    (at-path (achoose object (first path))
+                             (rest path))))))))
 
 (defmacro a-set (symbol value &key (by) (axes))
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
@@ -388,26 +471,18 @@
                                                  ,(intern (string symbol) "KEYWORD"))
                                            ,set-to)
                           `(setf ,symbol ,set-to))))))
-        (if (and (listp symbol)
-                 (eql 'nspath (first symbol)))
+        (if (and (listp symbol) (eql 'nspath (first symbol)))
             ;; handle assignments within namespaces, using process-path to handle the paths
-            (let* ((is-symbol-value (or (symbolp value)
-                                        (and (listp value)
-                                             (or (member (first value) '(inws inwsd))
-                                                 ;; remember to duplicate an assigned symbol as well
-                                                 (and (eql 'a-set (first value))
-                                                      (or (symbolp (second value))
-                                                          (and (listp (second value))
-                                                               (member (second value) '(inws inwsd))))))))))
-              (if by (process-path (second symbol) (append (cddr symbol) (if axes (list axes)))
-                                   (lambda (form val) `(setf ,form (funcall ,by ,val ,form)))
-                                   value)
-                  (process-path (second symbol) (append (cddr symbol) (if axes (list axes)))
-                                (lambda (form val)
-                                  `(setf ,form ,(if (not is-symbol-value) val `(duplicate ,value))))
-                                value)))
-            (if (and (listp symbol)
-                     (eql 'symbol-function (first symbol)))
+            (let ((val (gensym)))
+              `(let ((,val ,value))
+                 ,(if (= 3 (length symbol))
+                      `(setf ,(second symbol) ,(append (macroexpand (append symbol (if axes (list axes))))
+                                                       (list :value val :value-nil `(null ,val))
+                                                       (if by (list :set-by by))))
+                      (append (macroexpand (append symbol (if axes (list axes))))
+                              (list :value val :value-nil `(null ,val))
+                              (if by (list :set-by by))))))
+            (if (and (listp symbol) (eql 'symbol-function (first symbol)))
                 `(setf ,symbol ,value)
                 (let ((symbols (if (not (eql 'avector (first symbol)))
                                    symbol (rest symbol))))
@@ -485,10 +560,8 @@
        :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
                                                                         (> 0 item))
                                                                     item (max 16 item))))))
-    `(make-array (list ,(length items))
-                 :element-type (quote ,type)
-                 ;; enclose each array included in an APL vector
-                 :initial-contents (list ,@items))))
+    `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
+                 :element-type (quote ,type) :initial-contents (list ,@items))))
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
@@ -977,7 +1050,7 @@ It remains here as a standard against which to compare methods for composing APL
              ;; if it isn't one of the designated idiom-native symbols
              (if (or (not (symbolp item))
                      (member item *idiom-native-symbols*))
-                 item (if (or (of-meta-hierarchy2 closure-meta :var-syms item)
+                 item (if (or (of-meta-hierarchy closure-meta :var-syms item)
                               (not (boundp (intern (string item) space))))
                           ;; if a symbol does not represent a lexical variable within the given scope,
                           ;; it must be a dynamic variable so wrap it with 𝔻
@@ -1004,8 +1077,8 @@ It remains here as a standard against which to compare methods for composing APL
                                            (member initial '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵) :test #'eql)
                                            (and (not (fboundp initial))
                                                 (and (symbolp initial)
-                                                     (and (or (of-meta-hierarchy2 closure-meta
-                                                                                  :var-syms initial)
+                                                     (and (or (of-meta-hierarchy closure-meta
+                                                                                 :var-syms initial)
                                                               (not (fboundp (intern (string initial)
                                                                                     space)))))))))
                                   (if (= 1 (length properties))
@@ -1043,34 +1116,34 @@ It remains here as a standard against which to compare methods for composing APL
                                             (member sym arguments)))
                                :collect `(inws ,sym)))
         (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
-                         :collect `(inws ,sym)))
+                            :collect `(inws ,sym)))
         (assigned-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                    :when (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                                   :lop-syms sym))
+                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                  :lop-syms sym))
                                       :collect `(inws ,(intern (string sym))))
                               (loop :for sym :in (getf closure-meta :pop-syms)
-                                    :when (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                                   :pop-syms sym))
+                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                  :pop-syms sym))
                                       :collect `(inws ,(intern (string sym))))))
         (context-vars (loop :for sym :in (getf closure-meta :var-syms)
                             :when (and (not (member sym '(⍺ nil)))
                                        (not (member sym *system-variables*))
                                        (not (member sym arguments))
-                                       (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                                :var-syms sym)))
-                         :collect `(inwsd, sym)))
+                                       (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                               :var-syms sym)))
+                              :collect `(inwsd, sym)))
         (context-fns (loop :for sym :in (getf closure-meta :fn-syms)
-                        :when (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                       :var-syms sym))
-                        :collect `(inwsd, sym)))
+                           :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                         :var-syms sym))
+                             :collect `(inwsd, sym)))
         (context-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                :when (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                               :lop-syms sym))
-                                :collect `(inwsd ,(intern (string sym))))
+                                   :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                 :lop-syms sym))
+                                     :collect `(inwsd ,(intern (string sym))))
                              (loop :for sym :in (getf closure-meta :pop-syms)
-                                :when (not (of-meta-hierarchy2 (rest (getf closure-meta :parent))
-                                                               :pop-syms sym))
-                                :collect `(inwsd ,(intern (string sym))))))
+                                   :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                 :pop-syms sym))
+                                     :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (progn) forms used to implement function variant implicit statements
@@ -1104,6 +1177,7 @@ It remains here as a standard against which to compare methods for composing APL
        ,function-clause ,variable-clause))
 
 (defun build-variable-declarations (input-vars space)
+  (declare (ignore space))
   "Create the set of variable declarations that begins April's compiled code."
   (loop :for var-entry :in input-vars :collect (list `(inws ,(intern (lisp->camel-case (first var-entry))
                                                                      *package-name-string*))
@@ -1374,19 +1448,19 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle other types of function assignment
          (if (symbolp form)
              (if (or (and closure-meta (member form '(⍺⍺ ⍵⍵)))
-                     (and closure-meta (of-meta-hierarchy2 closure-meta :fn-syms form))
+                     (and closure-meta (of-meta-hierarchy closure-meta :fn-syms form))
                      (fboundp (intern (string form) space)))
                  (if closure-meta (push symbol (getf closure-meta :fn-syms))
                      (progn (setf (symbol-function (intern (string symbol) space))
                                   #'dummy-nargument-function)
                             (set (intern (string symbol) space) (list :meta))))
                  ;; TODO: add cases for dynamically bound operators
-                 (if (and closure-meta (of-meta-hierarchy2 closure-meta :lop-syms form))
+                 (if (and closure-meta (of-meta-hierarchy closure-meta :lop-syms form))
                      (if closure-meta (push symbol (getf closure-meta :lop-syms))
                          (progn (setf (symbol-function (intern (string symbol) space))
                                       #'dummy-operator)
                                 (set (intern (string symbol) space) (list :meta :valence :lateral))))
-                     (if (and closure-meta (of-meta-hierarchy2 closure-meta :pop-syms form))
+                     (if (and closure-meta (of-meta-hierarchy closure-meta :pop-syms form))
                          (if closure-meta (push symbol (getf closure-meta :pop-syms))
                              (progn (setf (symbol-function (intern (string symbol) space))
                                           #'dummy-operator)

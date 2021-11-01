@@ -8,11 +8,10 @@
   :serial t
   :depends-on ("vex" "aplesque" "array-operations" "lparallel" "alexandria" "cl-ppcre" "cl-cpus"
 	             "decimals" "parse-number" "symbol-munger" "prove" "simple-date-time" "trivia")
-  :components 
-  ((:file "package")
-   (:file "utilities")
-   (:file "library")
-   (:file "patterns")
-   (:file "grammar")
-   (:file "spec")
-   (:file "game-of-life")))
+  :components ((:file "package")
+               (:file "utilities")
+               (:file "library")
+               (:file "patterns")
+               (:file "grammar")
+               (:file "spec")
+               (:file "game-of-life")))
