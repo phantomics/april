@@ -362,7 +362,7 @@
 
 (defun at-path (object path &key (value) (value-nil) (set-by))
   "Get or set values within a namespace (ptree), handling arrays within the namespace according to array indices within the namespace path."
-  (if (and (not value) (arrayp object) (symbolp (first path)))
+  (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
       (apply-scalar (lambda (item) (at-path item path))
                     object)
       (if (= 1 (length path))
@@ -409,26 +409,39 @@
                                                                    :set-by set-by)
                                   (setf (getf this-object (second path)) value
                                         (getf object (first path)) this-object)))
-                            (let ((this-object (at-path (getf object (first path))
-                                                        (rest path) :value value :value-nil value-nil
+                            (if (arrayp object)
+                                (let ((this-object object))
+                                  (dotimes (i (size this-object))
+                                    (setf (row-major-aref this-object i)
+                                          (at-path (row-major-aref this-object i)
+                                                   path :value value :value-nil value-nil
                                                         :set-by set-by)))
-                              (setf (getf object (first path)) this-object)))
+                                  this-object)
+                                (let ((this-object (at-path (getf object (first path))
+                                                            (rest path) :value value :value-nil value-nil
+                                                                        :set-by set-by)))
+                                  (setf (getf object (first path)) this-object)
+                                  object)))
                         (nth-value 1 (achoose object (first path)
                                               :set value :set-nil value-nil :modify-input t
                                               :set-by
                                               (lambda (a b) (at-path a (rest path) :value b
                                                                                    :set-by set-by)))))
                     (if (not (symbolp (first path))) ;; array coordinates
-                        (achoose object (first path)
-                                 :set value :set-nil value-nil :modify-input t
-                                 :set-by (if (rest path)
-                                             (lambda (a b)
-                                               (at-path a (rest path) :value b :value-nil value-nil
-                                                                      :set-by set-by))))
-                        (if (arrayp object) (dotimes (i (size object))
-                                              (at-path (getf (row-major-aref object i) (first path))
-                                                       (rest path) :value value :value-nil value-nil
-                                                       :set-by set-by))
+                        (progn (achoose object (first path)
+                                        :set value :set-nil value-nil :modify-input t
+                                        :set-by (if (rest path)
+                                                    (lambda (a b)
+                                                      (at-path a (rest path) :value b :value-nil value-nil
+                                                                             :set-by set-by))))
+                               object)
+                        (if (arrayp object)
+                            (progn (dotimes (i (size object)) ;; handle elision
+                                     (setf (getf (row-major-aref object i) (first path))
+                                           (at-path (getf (row-major-aref object i) (first path))
+                                                    (rest path) :value value :value-nil value-nil
+                                                                :set-by set-by)))
+                                   object)
                             (if (not (symbolp (second path)))
                                 (setf (getf object (first path))
                                       (at-path (getf object (first path)) (rest path)
@@ -436,7 +449,7 @@
                                 (at-path (getf object (first path)) (rest path)
                                          :value value :value-nil value-nil :set-by set-by)))))
                 (if (symbolp (first path))
-                    (if (arrayp object) (dotimes (i (size object))
+                    (if (arrayp object) (dotimes (i (size object)) ;; handle elision
                                           (at-path (getf (row-major-aref object i) (first path))
                                                    (rest path)))
                         (at-path (getf object (first path)) (rest path)))

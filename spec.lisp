@@ -1861,9 +1861,11 @@
     ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
        '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10))
   (for "Elision of namespaces within an array."
-       "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←{n←⎕NS⍬ ⋄ n.a←⍵ ⋄ n.b←⍵×2 ⋄ n}¨⍳3 
-    myns.c.a+←2 ⋄ myns.c.c←5 ⋄ myns"
-       '(:|c| #((:|c| 5 :|b| 2 :|a| 3) (:|c| 5 :|b| 4 :|a| 4) (:|c| 5 :|b| 6 :|a| 5))
+       "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←{n←⎕NS⍬ ⋄ n.a←⍵ ⋄ n.b←⍵×2 ⋄ ⋄ n.d←⍳5 ⋄ n}¨⍳3 
+    myns.c.a+←2 ⋄ myns.c.c←5 ⋄ myns.c.d[3 5]←⎕NS⍬ ⋄ myns.c.d[3 5].a←2 ⋄ myns"
+       '(:|c| #((:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 2 :|a| 3)
+                (:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 4 :|a| 4)
+                (:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 6 :|a| 5))
          :|b| 2 :|a| 1)))
  
  (test-set

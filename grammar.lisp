@@ -737,6 +737,7 @@
 
 (defun complete-value-assignment (tokens elements space params axes)
   "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
+  ;; (print (list :to tokens elements))
   (labels ((all-symbols-p (list) ;; check whether list contains all symbols or lists of symbols
              (if (listp list) (loop :for item :in list
                                     :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
@@ -759,7 +760,10 @@
                             :params params :space space))
                          :space space :params params)
         (multiple-value-bind (function remaining)
-            (if (= 1 (length tokens)) (values nil tokens)
+            (if (or (= 1 (length tokens))
+                    (and (= 2 (length tokens)) ;; check for trailing axes
+                         (listp (first tokens)) (eq :axes (caar tokens))))
+                (values nil tokens)
                 (build-function tokens :space space :params params))
           (multiple-value-bind (symbol remaining2)
               ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
