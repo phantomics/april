@@ -1835,8 +1835,7 @@
         (:demo-profile :title "Namespace Demos"
                        :description "Demos of namespace functionality."))
   (for "Assignment of and operation on namespace values."
-       "myns←⎕NS⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9
-    myns.cc[2;],myns.aa×myns.bb"
+       "myns←⎕NS⍬ ⋄ myns.aa←5 ⋄ myns.bb←⍳9 ⋄ myns.cc←3 3⍴⍳9 ⋄ myns.cc[2;],myns.aa×myns.bb"
        #(4 5 6 5 10 15 20 25 30 35 40 45))
   (for "Assignment of values in nested namespaces."
        "myns←⎕NS⍬ ⋄ myns.aa←3 ⋄ myns.bb←⎕NS⍬ ⋄ myns.cc←⍳3 ⋄ myns.bb.dd←⎕NS⍬ 
@@ -1844,9 +1843,8 @@
     myns.cc,({⍵.bb.ff} myns),,myns.bb.gg×myns.bb.dd.ee+myns.aa"
        #(1 2 3 1 2 3 4 8 16 24 32))
   (for "Assignment, modification and display of values in nested namespaces."
-       "myns←⎕NS⍬ ⋄ myns.aa←⎕NS⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS⍬
-    myns.aa.bb[2].cc←3 ⋄ myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 
-    myns,myns.aa.bb[2 4].cc"
+       "myns←⎕NS⍬ ⋄ myns.aa←⎕NS⍬ ⋄ myns.aa.bb←⍳9 ⋄ myns.aa.bb[2 4]←⎕NS⍬ ⋄ myns.aa.bb[2].cc←3 
+    myns.aa.bb[4].cc←5 ⋄ myns.aa.bb[2 4].cc+←3 ⋄ myns,myns.aa.bb[2 4].cc"
        #((:|aa| (:|bb| #(1 (:|cc| 6) 3 (:|cc| 8) 5 6 7 8 9))) 6 8))
   (for "Use of function within namespace."
        "myns←⎕NS⍬ ⋄ myns.f1←{⍵+3} ⋄ myns.a←⎕NS⍬ ⋄ myns.a.f2←{⍵×2} ⋄ myns.f1 myns.a.f2 6"
@@ -1861,11 +1859,15 @@
     ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
        '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10))
   (for "Elision of namespaces within an array."
-       "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←{n←⎕NS⍬ ⋄ n.a←⍵ ⋄ n.b←⍵×2 ⋄ ⋄ n.d←⍳5 ⋄ n}¨⍳3 
-    myns.c.a+←2 ⋄ myns.c.c←5 ⋄ myns.c.d[3 5]←⎕NS⍬ ⋄ myns.c.d[3 5].a←2 ⋄ myns"
-       '(:|c| #((:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 2 :|a| 3)
-                (:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 4 :|a| 4)
-                (:|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 6 :|a| 5))
+       "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←{n←⎕NS⍬ ⋄ n.a←⍵ ⋄ n.b←⍵×2 ⋄ n.d←⍳5 ⋄ n}¨⍳3 
+    myns.c.a+←2 ⋄ myns.c.c←5 ⋄ myns.c.d[3 5]←⎕NS⍬ ⋄ myns.c.d[3 5].a←2 
+    myns.c.e←3⍴⎕NS⍬ ⋄ myns.c.e.a←3 ⋄ myns"
+       '(:|c| #((:|e| #((:|a| 3) (:|a| 3) (:|a| 3))
+                 :|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 2 :|a| 3)
+                (:|e| #((:|a| 3) (:|a| 3) (:|a| 3))
+                 :|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 4 :|a| 4)
+                (:|e| #((:|a| 3) (:|a| 3) (:|a| 3))
+                 :|c| 5 :|d| #(1 2 (:|a| 2) 4 (:|a| 2)) :|b| 6 :|a| 5))
          :|b| 2 :|a| 1)))
  
  (test-set

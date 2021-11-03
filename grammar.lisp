@@ -8,14 +8,15 @@
 (defun resolve-path (input-sym idiom space properties)
   "Generate an (nspath) namespace path form depending on the symbols found and the status of the workspace's namespace point, set using ⎕CS."
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
-      input-sym
+      input-sym ;; lexically-scoped symbols don't get the path prepended, as for {a←⍵ ⋄ a+3} 5
       (let ((path-val (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                           (symbol-value (intern "*NS-POINT*" space))))
+            ;; get the workspace path as set in the current context
             (symbol (if (not (and (listp input-sym) (eql 'inwsd (first input-sym))))
                         input-sym (second input-sym))))
-        (if path-val
+        (if path-val ;; if a context path is set, it must be prepended to the each path resolved
             (if (and (not (and (listp symbol) (member (first symbol) '(nspath :pt))))
-                     (or (string= "_" (string symbol))
+                     (or (string= "_" (string symbol)) ;; these types of symbols don't get a path prepended
                          (member symbol '(⍵ ⍺ ⍹ ⍶))
                          (member symbol *system-variables*)
                          (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
