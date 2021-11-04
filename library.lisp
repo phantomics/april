@@ -703,7 +703,7 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
-(defun assign-by-selection (prime-function function value omega &key (axes))
+(defun assign-by-selection (prime-function function value omega &key (axes) (secondary-prime-fn))
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
     (labels ((duplicate-t (array)
@@ -719,7 +719,10 @@
                  (assign-array (if (not axes) omega (choose omega axes :reference t)))
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
-                 (assign-reference (disclose-atom (funcall function assign-array))))
+                 (assign-reference (disclose-atom (funcall function assign-array)))
+                 (value (funcall (if (getf function-meta :selective-assignment-enclosing)
+                                     #'enclose #'identity)
+                                 value)))
             ;; TODO: this logic can be improved
             (if (arrayp value)
                 (let* ((index-array (generate-index-array assign-array t))
@@ -735,7 +738,9 @@
                     (assign-by-vector assign-array index-array
                                       (vectorize-assigned target-index-array value assignment-size))
                     omega))))
-          (error "This function cannot be used for selective assignment.")))))
+          (if (getf function-meta :selective-assignment-passthrough)
+              (assign-by-selection secondary-prime-fn function value omega :axes axes)
+              (error "This function cannot be used for selective assignment."))))))
 
 (defun vectorize-assigned (indices values vector-or-length)
   "Generate a vector of assigned values for use by (assign-by-selection)."

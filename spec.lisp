@@ -793,7 +793,7 @@
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
                                       (enclose omega)))
                     :selective-assignment-compatible t)
-           (dyadic :selective-assignment-compatible t))
+           (dyadic :selective-assignment-compatible t :selective-assignment-enclosing t))
      (tests (is "⊃3" 3)
             (is "⊃⍳4" 1)
             (is "⊃⊂⍳4" #(1 2 3 4))
@@ -1074,7 +1074,8 @@
   (⊢ (has :titles ("Identity" "Right"))
      (ambivalent #'identity (λωα (declare (ignore alpha)) omega))
      (meta (monadic :inverse #'identity)
-           (dyadic :inverse (λωα (declare (ignore alpha)) omega)))
+           (dyadic :inverse (λωα (declare (ignore alpha)) omega)
+                   :selective-assignment-passthrough t))
      (tests (is "⊢77" 77)
             (is "55⊢77" 77)))
   (⊣ (has :titles ("Empty" "Left"))
@@ -1602,6 +1603,8 @@
        "x←4 5⍴⍳20 ⋄ (2 3↓x)←2 2⍴-⍳4 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 -1 -2) (16 17 18 -3 -4)))
   (for "Selective assignment of matrix element by [⊃ pick] function."
        "x←3 4⍴⍳12 ⋄ ((⊂2 3)⊃x)←50 ⋄ x" #2A((1 2 3 4) (5 6 50 8) (9 10 11 12)))
+  (for "Selective assignment of an array by [⊃ pick] function."
+       "x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x" #(#2A((1 2) (3 4)) 2 3 4))
   (for "Selective assignment of array elements by [/ compress] function."
        "x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←0 ⋄ x" #2A((1 2 3 0 0 0 0 8) (9 1 2 0 0 0 0 7) (8 9 1 0 0 0 0 6)
                                            (7 8 9 0 0 0 0 5) (6 7 8 0 0 0 0 4) (5 6 7 0 0 0 0 3)))

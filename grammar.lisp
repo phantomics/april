@@ -910,6 +910,12 @@
          ;; compose selective assignments like (3↑x)←5
          (let* ((selection-form symbol)
                 (prime-function (second selection-form))
+                (possible-prime-passthrough (and (listp (third selection-form))
+                                                 (eql 'a-call (first (third selection-form)))
+                                                 (or (symbolp prime-function)
+                                                     (and (listp prime-function)
+                                                          (member (first prime-function) '(inws inwsd)))
+                                                     (equalp prime-function '(apl-fn '⊢)))))
                 (selection-axes) (assign-sym)
                 (item (gensym)))
            (labels ((set-assn-sym (form)
@@ -941,7 +947,9 @@
                                           (error "Invalid operator-composed expression ~a"
                                                  "used for selective assignment."))))
                              (lambda (,item) ,selection-form)
-                             ,value ,assign-sym ,@(if selection-axes (list :axes selection-axes)))
+                             ,value ,assign-sym ,@(if selection-axes (list :axes selection-axes))
+                             ,@(if possible-prime-passthrough (list :secondary-prime-fn
+                                                                    (second (third selection-form)))))
                             ,@(if function (list :by function)))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
@@ -989,9 +997,9 @@
                                                (not (member symbol (getf (rest (getf (getf params :special)
                                                                                      :closure-meta))
                                                                          :var-syms))))
-                                          ;; only bind dynamic variables in the workspace if the compiler
-                                          ;; is at the top level; i.e. not within a { function }, where
-                                          ;; bound variables are lexical
+                                          ;; only bind dynamic variables in the workspace if the
+                                          ;; compiler is at the top level; i.e. not within a
+                                          ;; { function }, where bound variables are lexical
                                           (progn (proclaim (list 'special insym))
                                                  (set insym nil)))))
                           (if function
