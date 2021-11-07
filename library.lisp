@@ -36,16 +36,19 @@
                 0 (/ omega))))))
 
 (defun apl-exp (omega)
+  "Power of e function that will always output a double-precision float as per APL standard."
   (exp (if (typep omega 'double-float)
            omega (coerce omega 'double-float))))
 
 (defun apl-expt (omega alpha)
+  "Exponent function that will always output a double-precision float as per APL standard."
   (expt omega (if (not (and (or (not (integerp omega))
                                 (not (integerp alpha)))
                             (not (typep alpha 'double-float))))
                   alpha (coerce alpha 'double-float))))
 
 (defun apl-log (omega &optional alpha)
+  "Logarithm function that will always output a double-precision float as per APL standard."
   (if alpha (log omega (if (or (typep omega 'double-float)
                                (typep alpha 'double-float))
                            alpha (coerce alpha 'double-float)))

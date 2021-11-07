@@ -43,7 +43,7 @@
   "Create a kernel for multithreaded executuion via lparallel if none is present."
   (if (not lparallel:*kernel*)
       (setq lparallel:*kernel* (setq *april-parallel-kernel*
-                                     (lparallel:make-kernel (1- (cl-cpus:get-number-of-processors))
+                                     (lparallel:make-kernel (max 1 (1- (cl-cpus:get-number-of-processors)))
                                                             :name "april-language-kernel")))))
 
 (let ((this-package (package-name *package*)))
