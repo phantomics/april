@@ -184,7 +184,7 @@
                      ⎕ost output-stream ⎕ct *comparison-tolerance*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
           (:function ⎕ns make-namespace ⎕cs change-namespace ⎕dt coerce-or-get-type
-                     ⎕fmt (format-array-uncollated print-precision)))
+                     ⎕ucs scalar-code-char ⎕fmt (format-array-uncollated print-precision)))
  
  ;; APL's set of functions represented by characters
  (functions
@@ -448,7 +448,8 @@
             (is "⍬⍴(4 5) 6" #0A#(4 5))
             (is "3⍴0⍴⊂2 2⍴5" #(#2A((0 0) (0 0)) #2A((0 0) (0 0)) #2A((0 0) (0 0))))
             (is "2 2⍴0⍴3⍴⊂2 3⍴5" #2A((#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))
-                                     (#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))))))
+                                     (#2A((0 0 0) (0 0 0)) #2A((0 0 0) (0 0 0)))))
+            (is "(,0)⍴0 0⍴0" #())))
   (⌷ (has :title "Index")
      (dyadic (at-index index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
@@ -767,7 +768,8 @@
             (is "0 1 0 1⊂[1]4 8⍴⍳9"
                 #(#2A((9 1 2 3 4 5 6 7) (8 9 1 2 3 4 5 6)) #2A((7 8 9 1 2 3 4 5))))
             (is "2 0 1 3 0 2 0 1⊂'abcdefg'" #(#() "ab" "c" #() #() "de" #() "fg" #()))
-            (is "0 0 2 0 1⊂'abcdefg'" #(#() "cd" "efg"))))
+            (is "0 0 2 0 1⊂'abcdefg'" #(#() "cd" "efg"))
+            (is "3⍴0 0 0 0⊂⍳3" #(#() #() #()))))
   (⊆ (has :titles ("Nest" "Partition"))
      (ambivalent #'nest (partition-array-wrap index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
@@ -940,7 +942,8 @@
                                            (6 7 8 9 1) (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6))))
             (is "⍴0 1 0 1/0 4⍴0" #(0 2))
             (is "⍴5/0 4⍴0" #(0 20))
-            (is "⍴2 3/[2]0 2 0⍴0" #(0 5 0))))
+            (is "⍴2 3/[2]0 2 0⍴0" #(0 5 0))
+            (is "⍴0/2 3 4⍴⍳9" #(2 3 0))))
   (⌿ (has :title "Replicate First")
      (dyadic (expand-array t t index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
@@ -1306,7 +1309,8 @@
              (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
              (is "' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W) ∧ ∧/(+/A∘.=W) = +/A∘.=A } 'dog'" #(0))
              (is "⍴+.×⌿?2 30 30⍴1e10" #(30 30))
-             (is "'ADG',.,'EIHF' 'BIHC' 'BFEC'" #0A"AEIHFDBIHCGBFEC")))
+             (is "'ADG',.,'EIHF' 'BIHC' 'BFEC'" #0A"AEIHFDBIHCGBFEC")
+             (is "1 2 3,.-3 3⍴4 5 6" #(#(-3 -2 -1) #(-4 -3 -2) #(-5 -4 -3)))))
   (∘ (has :title "Beside")
      (pivotal (lambda (right left) `(operate-beside ,right ,left)))
      (tests (is "fn←⍴∘⍴ ⋄ fn 2 3 4⍴⍳9" #(3))
@@ -1395,7 +1399,8 @@
                                     #(1 2 3 4 5 6 7 8 9) #(1 2 3 4 5 6 7 8 9)))
             (is "3⌈@(⊂1 3)⊢3⍴⊂5⍴1" #(#(1 1 3 1 1) #*11111 #*11111))
             (is "5@(3 3)(4 4)⊢6 6⍴0" #2A((0 0 0 0 0 0) (0 0 0 0 0 0) (0 0 5 0 0 0)
-                                                       (0 0 0 5 0 0) (0 0 0 0 0 0) (0 0 0 0 0 0)))))
+                                                       (0 0 0 5 0 0) (0 0 0 0 0 0) (0 0 0 0 0 0)))
+            (is "{⍵[2;2]÷⍨@2⊢⍵} 3 3⍴⍳9" #2A((1 2 3) (4/5 1 6/5) (7 8 9)))))
   (⌺ (has :title "Stencil")
      (pivotal (lambda (right left) `(operate-stenciling ,right ,left)))
      (tests (is "{⊂⍵}⌺(⍪3 2)⍳8" #(#(0 1 2) #(2 3 4) #(4 5 6) #(6 7 8)))
@@ -1523,6 +1528,8 @@
        "a←9 10 11 ⋄ 1 2 a[2] 3 4 5 6[3]" 4)
   (for "Index of inline nested vector." "(1 2 3 4) 15[1]" #0A#(1 2 3 4))
   (for "Manifold left-associative indexing." "'a' 2[1] 2[1] 2[1] 2[1] 2[1]" #\a)
+  (for "Function taking an index applied to indices of vector."
+       "↓[1]'abcde'[2 2⍴2 3]" #("bb" "cc"))
   (for "Index of vector of strings." "'abc' 'def' 'ghi'[2]" #0A"def")
   (for "Indexing with empty vectors to create n-dimensional empty arrays."
        "a←3 4⍴⍳12 ⋄ ⍴a[⍬;]" #(0 4))
@@ -1552,6 +1559,8 @@
        "(3 4⍴⍳12)[ ;4 3 ]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
+  (for "Another elided assignment." "a←2 3 4⍴⍳40 ⋄ a[1;;]←3 4⍴0 ⋄ a"
+       #3A(((0 0 0 0) (0 0 0 0) (0 0 0 0)) ((13 14 15 16) (17 18 19 20) (21 22 23 24))))
   (for "Assignment from an array to an area of an array with the same shape."
        "x←8 8⍴0 ⋄ x[2+⍳3;3+⍳4]←3 4⍴⍳9 ⋄ x" #2A((0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0) (0 0 0 1 2 3 4 0)
                                                (0 0 0 5 6 7 8 0) (0 0 0 9 1 2 3 0) (0 0 0 0 0 0 0 0)
@@ -1779,7 +1788,16 @@
   (for-printed "Setting the print precision." "⎕pp←3 ⋄ ⎕io←1 ⋄ a←⍕*⍳3 ⋄ ⎕pp←6 ⋄ a,'  ',⍕*⍳3"
                "2.72 7.39 20.1  2.71828 7.38906 20.0855")
   (for "Alphabetical and numeric vectors." "⎕pp←10 ⋄ ⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-  (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7)))
+  (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7))
+  (for "Characters to unicode indices." "⎕ucs 'abcd'" #(97 98 99 100))
+  (for "Unicode indices to characters." "⎕ucs 13 133" #(#\Return #\Next-Line))
+  (for "3D array formatted as matrix." "↓⎕fmt 2 3 3⍴⍳9" #("1 2 3"
+                                                          "4 5 6"
+                                                          "7 8 9"
+                                                          "     "
+                                                          "1 2 3"
+                                                          "4 5 6"
+                                                          "7 8 9")))
 
  (test-set
   (with (:name :function-inversion-tests)
@@ -2293,9 +2311,9 @@ c   2.56  3
           (let* ((out-str (make-string-output-stream))
                  (vector (print-and-run (april (with (:state :print-to out-str))
                                                "⎕←x←1 2 3"))))
-
+            
             (is vector #(1 2 3) :test #'equalp)
-
+            
             (princ (format nil "~%"))
             
             (is (print-and-run (get-output-stream-string out-str))

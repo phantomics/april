@@ -50,6 +50,16 @@
                                                                              "├────┼────────┼───────┤"
                                                                              "│Gals│20      │80     │"
                                                                              "└────┴────────┴───────┘"))
+         (provision "solf←↑'do' ' re' '  mi' '   fa' '    sol' '     la' '      ti'")
+         (is "↓display solf" #("┌→───────┐"
+                               "↓do      │"
+                               "│ re     │"
+                               "│  mi    │"
+                               "│   fa   │"
+                               "│    sol │"
+                               "│     la │"
+                               "│      ti│"
+                               "└────────┘"))
          (is "↓display 1 'a' 'abc' (2 3⍴⍳6)" #("┌→──────────────────┐"
                                                "│     ┌→──┐ ┌→────┐ │"
                                                "│ 1 a │abc│ ↓1 2 3│ │"
@@ -283,8 +293,42 @@
                "││---│two│---│││---│beta│---│││---│blue│---││"
                "│└───┴───┴───┘│└───┴────┴───┘│└───┴────┴───┘│"
                "└─────────────┴──────────────┴──────────────┘"))
-         ;; (is "1 0 1 /sam{⊂'---'}¨ vex")
-         ;; (is "1 1 ⍉sam⌽ ↑vex")
+         (is "↓disp 1 0 1 /sam{⊂'---'}¨ vex" #("┌─────────────┬──────────────────┬─────────────┐"
+                                               "│┌───┬───┬───┐│┌─────┬────┬─────┐│┌───┬───┬───┐│"
+                                               "││---│---│---│││alpha│beta│gamma│││---│---│---││"
+                                               "│└───┴───┴───┘│└─────┴────┴─────┘│└───┴───┴───┘│"
+                                               "└─────────────┴──────────────────┴─────────────┘"))
+         (is "↓disp 1 1 ⍉sam⌽ ↑vex" #("┌─────┬────┬─────┐"
+                                      "│green│two │three│"
+                                      "├─────┼────┼─────┤"
+                                      "│alpha│beta│gamma│"
+                                      "├─────┼────┼─────┤"
+                                      "│red  │blue│one  │"
+                                      "└─────┴────┴─────┘"))
+         (is "↓disp 1 1 ⍉sam(⌽¨) ↑vex" #("┌─────┬────┬─────┐"
+                                         "│eno  │two │three│"
+                                         "├─────┼────┼─────┤"
+                                         "│alpha│ateb│gamma│"
+                                         "├─────┼────┼─────┤"
+                                         "│red  │blue│neerg│"
+                                         "└─────┴────┴─────┘"))
+         (is "↓disp 1 1 ⍉sam(ucase¨) ↑vex" #("┌─────┬────┬─────┐"
+                                             "│ONE  │two │three│"
+                                             "├─────┼────┼─────┤"
+                                             "│alpha│BETA│gamma│"
+                                             "├─────┼────┼─────┤"
+                                             "│red  │blue│GREEN│"
+                                             "└─────┴────┴─────┘"))
+         (is "↓disp (⊂1 1) ⍉sam{ucase ⍵}¨ ↑¨vex" #("┌─────┬─────┬─────┐"
+                                                   "│One  │Alpha│Red  │"
+                                                   "│tWo  │bEta │bLue │"
+                                                   "│thRee│gaMma│grEen│"
+                                                   "└─────┴─────┴─────┘"))
+         (is "↓disp (⊂1 1) ⍉sam{'·'}¨ ↑¨vex" #("┌─────┬─────┬─────┐"
+                                               "│·ne  │·lpha│·ed  │"
+                                               "│t·o  │b·ta │b·ue │"
+                                               "│th·ee│ga·ma│gr·en│"
+                                               "└─────┴─────┴─────┘"))
          (provision "eng←'One' '' '' '' 'Five'")
          (provision "esp←'Uno' 'Dos' 'Tres' '' ''")
          (is "⌽saw eng esp" #(#("enO" "" "" "" "eviF") #("onU" "soD" "serT" "" "")))
@@ -334,8 +378,240 @@
          (is "↓⍕' -'∘subs 2 12⍴'Many a time and oft.    '" #("Many-a-time-" "and-oft.----"))
          (is "(6 7)(666 777)subs 2 3 4⍴⍳12" #3A(((1 2 3 4) (5 666 777 8) (9 10 11 12))
                                                 ((1 2 3 4) (5 666 777 8) (9 10 11 12))))
-         (is "(7 8 9) 'repl' subs 3 5⍴⍳15" #2A((1 2 3 4 5 0) (6 #\r #\e #\p #\l 10) (11 12 13 14 15 0)))
+         (is "↓⍕(7 8 9) 'repl' subs 3 5⍴⍳15" #(" 1  2  3  4  5  0"
+                                               " 6  r  e  p  l 10"
+                                               "11 12 13 14 15  0"))
+         (is "↓⍕(7 8 9) 'r'    subs 3 5⍴⍳15" #(" 1  2  3  4  5"
+                                               " 6  r 10  0  0"
+                                               "11 12 13 14 15"))
          (is "⍕↑subs/('Mr' 'Mrs')('his' 'her')'Mr Green and his daughter, Theresa.'"
              "Mrs Green and her daughter, Theresa.")
-         ;; (is "⍕(3,¨2 3 4)('peek' 'a' 'boo') subs ⍳5 5")
-         (is "(1 1)(2 3)subs 0 1 1 1 0" #(0 2 3 2 3 0))))
+         (is "↓⍕(3,¨2 3 4)('peek' 'a' 'boo') subs ⍳5 5" #(" 1 1  1 2   1 3  1 4  1 5"
+                                                          " 2 1  2 2   2 3  2 4  2 5"
+                                                          " 3 1  peek  a    boo  3 5"
+                                                          " 4 1  4 2   4 3  4 4  4 5"
+                                                          " 5 1  5 2   5 3  5 4  5 5"))
+         (is "(1 1)(2 3)subs 0 1 1 1 0" #(0 2 3 2 3 0))
+         (is "↓display ¯1 0 1 just¨⊂'  hello world  '"
+             #("┌→──────────────────────────────────────────────────────┐"
+               "│ ┌→──────────────┐ ┌→──────────────┐ ┌→──────────────┐ │"
+               "│ │hello world    │ │  hello world  │ │    hello world│ │"
+               "│ └───────────────┘ └───────────────┘ └───────────────┘ │"
+               "└∊──────────────────────────────────────────────────────┘"))
+         (is "↓display just solf" #("┌→───────┐"
+                                    "↓do      │"
+                                    "│re      │"
+                                    "│mi      │"
+                                    "│fa      │"
+                                    "│sol     │"
+                                    "│la      │"
+                                    "│ti      │"
+                                    "└────────┘"))
+         (is "↓display ¯1 just solf" #("┌→───────┐"
+                                       "↓do      │"
+                                       "│re      │"
+                                       "│mi      │"
+                                       "│fa      │"
+                                       "│sol     │"
+                                       "│la      │"
+                                       "│ti      │"
+                                       "└────────┘"))
+         (is "↓display 0 just solf" #("┌→───────┐"
+                                      "↓   do   │"
+                                      "│   re   │"
+                                      "│   mi   │"
+                                      "│   fa   │"
+                                      "│  sol   │"
+                                      "│   la   │"
+                                      "│   ti   │"
+                                      "└────────┘"))
+         (is "↓display 1 just solf" #("┌→───────┐"
+                                      "↓      do│"
+                                      "│      re│"
+                                      "│      mi│"
+                                      "│      fa│"
+                                      "│     sol│"
+                                      "│      la│"
+                                      "│      ti│"
+                                      "└────────┘"))
+         (is "↓display ¯1 0 1 just¨⊂2 4 7⍴solf" #("┌→─────────────────────────────────┐"
+                                                  "│ ┌┌→──────┐ ┌┌→──────┐ ┌┌→──────┐ │"
+                                                  "│ ↓↓do     │ ↓↓  do   │ ↓↓     do│ │"
+                                                  "│ ││re     │ ││  re   │ ││     re│ │"
+                                                  "│ ││mi     │ ││  mi   │ ││     mi│ │"
+                                                  "│ ││f      │ ││   f   │ ││      f│ │"
+                                                  "│ ││       │ ││       │ ││       │ │"
+                                                  "│ ││a      │ ││   a   │ ││      a│ │"
+                                                  "│ ││sol    │ ││  sol  │ ││    sol│ │"
+                                                  "│ ││la     │ ││  la   │ ││     la│ │"
+                                                  "│ ││ti     │ ││  ti   │ ││     ti│ │"
+                                                  "│ └└───────┘ └└───────┘ └└───────┘ │"
+                                                  "└∊─────────────────────────────────┘"))
+         (is "↓⍕lcase 2 7⍴'PLEASE WHISPER'" #("please " "whisper"))
+         (is "↓⍕ucase 2 8⍴'please, speak up'" #("PLEASE, " "SPEAK UP"))
+         (is "↓display {(⊂⍵[⍋lcase ⍵;]),⊂⍵[⍋⍵;]} 5 7⍴'Baker  Fox    able   Dog    charlie'"
+             #("┌→────────────────────┐"
+               "│ ┌→──────┐ ┌→──────┐ │"
+               "│ ↓able   │ ↓Baker  │ │"
+               "│ │Baker  │ │Dog    │ │"
+               "│ │charlie│ │Fox    │ │"
+               "│ │Dog    │ │able   │ │"
+               "│ │Fox    │ │charlie│ │"
+               "│ └───────┘ └───────┘ │"
+               "└∊────────────────────┘"))
+         (is "↓display {(⊂⍵),⊂mtrim ⍵} 4 10⍴'It        little    profits   that      '"
+             #("┌→───────────────────────┐"
+               "│ ┌→─────────┐ ┌→──────┐ │"
+               "│ ↓It        │ ↓It     │ │"
+               "│ │little    │ │little │ │"
+               "│ │profits   │ │profits│ │"
+               "│ │that      │ │that   │ │"
+               "│ └──────────┘ └───────┘ │"
+               "└∊───────────────────────┘"))
+         (is "⍕ss'Banana' 'an' 'AN'" "BANANa")
+         (is "⍕ss'Banana' 'ana' 'ANA'" "BANAANA")
+         (is " ss(⍳10) (3 4 5) (88 99)" #(1 2 88 99 6 7 8 9 10))
+         (is "⍕ss'b.bb' 'bb' 'zz'" "b.zz")
+         (is "↓disp ssmat(2 12⍴'Is you is oris you aint?')'is' 'was'"
+             #("Is you was or"
+               "was you aint?"))
+         (is "ssmat (3 5⍴⍳15) (7 8 9) (70 80 90)" #2A((1 2 3 4 5) (6 70 80 90 10) (11 12 13 14 15)))
+         (is "↓⍕ssmat (3 5⍴⍳15) (7 8 9) 'repl'" #(" 1  2  3  4  5  0"
+                                                  " 6  r  e  p  l 10"
+                                                  "11 12 13 14 15  0"))
+         (is "↓⍕ssmat (3 5⍴⍳15) (7 8 9) 'r'" #(" 1  2  3  4  5"
+                                               " 6  r 10  0  0"
+                                               "11 12 13 14 15"))
+         (is "squeeze '   oranges    and     lemons'" " oranges and lemons")
+         (is "2003 12 25 13 30 0 timestamp 'Christmas Pudding'" "2003-12-25 13:30:00 Christmas Pudding")
+         (provision "newl←⎕ucs 13
+    htm←,'<html>                                                    ',newl
+    htm,←'  <body>                                                  ',newl
+    htm,←'    <table>                                               ',newl
+    htm,←'      <tr><td>%</td><td>Eye Poke</td><td>Kumquat</td></tr>',newl
+    htm,←'      <tr><td>Guys</td><td>60</td><td>40</td></tr>        ',newl
+    htm,←'      <tr><td>Dolls</td><td>20</td><td>80</td></tr>       ',newl
+    htm,←'    </table>                                              ',newl
+    htm,←' </body>                                                  ',newl
+    htm,←'</html>                                                   ',newl")
+         (is "'table' htx htm" #(" <tr><td>%</td><td>Eye Poke</td><td>Kumquat</td></tr> <tr><td>Guys</td><td>60</td><td>40</td></tr> <tr><td>Dolls</td><td>20</td><td>80</td></tr> "))
+         (is "'<table' htx htm" #("<table> <tr><td>%</td><td>Eye Poke</td><td>Kumquat</td></tr> <tr><td>Guys</td><td>60</td><td>40</td></tr> <tr><td>Dolls</td><td>20</td><td>80</td></tr> </table>"))
+         (is "'<tr' htx htm" #("<tr><td>%</td><td>Eye Poke</td><td>Kumquat</td></tr>"
+                               "<tr><td>Guys</td><td>60</td><td>40</td></tr>"
+                               "<tr><td>Dolls</td><td>20</td><td>80</td></tr>"))
+         (is "'<td' htx htm" #("<td>%</td>" "<td>Eye Poke</td>"
+                               "<td>Kumquat</td>" "<td>Guys</td>"
+                               "<td>60</td>" "<td>40</td>" "<td>Dolls</td>"
+                               "<td>20</td>" "<td>80</td>"))
+         (is "'<td'∘htx¨'<tr'htx htm" #(#("<td>%</td>" "<td>Eye Poke</td>" "<td>Kumquat</td>")
+                                        #("<td>Guys</td>" "<td>60</td>" "<td>40</td>")
+                                        #("<td>Dolls</td>" "<td>20</td>" "<td>80</td>")))
+         (is "'td'htx htm" #("%" "Eye Poke" "Kumquat" "Guys" "60" "40" "Dolls" "20" "80"))
+         (is "↑'td'∘htx¨'tr'htx htm" #2A(("%" "Eye Poke" "Kumquat")
+                                         ("Guys" "60" "40")
+                                         ("Dolls" "20" "80")))
+         (is "⍕¨'td'htx ltov htm" #("%" "Eye Poke" "Kumquat" "Guys" "60" "40" "Dolls" "20" "80"))
+         (is "'td'htx ⎕fmt htm" #("%" "Eye Poke" "Kumquat" "Guys" "60" "40" "Dolls" "20" "80"))
+         (is "'<jj'htx'<jj>aaa</jj><jj>bbb</jj>'" #("<jj>aaa</jj>" "<jj>bbb</jj>"))
+         (is "'<JJ'htx'<jj>aaa</jj><jj>bbb</jj>'" #())
+         (provision "lvec←{'fooling around', ⍵, 'with barrels', ⍵, 'in alleys'} ⎕ucs 10")
+         (is "⍕¨ltov lvec" #("fooling around" "with barrels" "in alleys"))
+         (is "(ltov lvec)≡ltov lvec,⎕ucs 10" 1)
+         (is "⍸(⎕UCS 10)=vtol∘ltov⍣≡ lvec" #(15 28 38))
+         (is "(' ',⍨⎕UCS 10)ltov lvec" #("fooling" "around" "with" "barrels" "in" "alleys"))
+         (is "0 ltov 1 2 3 0 4 5 6 0 7 8 9" #(#(1 2 3) #(4 5 6) #(7 8 9)))
+         (is "0 vtol 0 ltov 1 2 3 0 4 5 6 0 7 8 9" #(1 2 3 0 4 5 6 0 7 8 9 0))
+         (is "(⊂'and')ltov 'red' 'and' 'yellow' ',' 'pink' 'and' 'green'"
+             #(#("red") #("yellow" #\, "pink") #("green")))
+         (is "(⊂'and')vtol (⊂'and')ltov 'red' 'and' 'yellow' ',' 'pink' 'and' 'green'"
+             #("red" "and" "yellow" #\, "pink" "and" "green" "and"))
+         (is "'and' ',' ltov 'red' 'and' 'yellow' ',' 'pink' 'and' 'green'"
+             #(#("red") #("yellow") #("pink") #("green")))
+         (is "vtol 'fooling around' 'with barrels' 'in alleys'" "fooling around
+with barrels
+in alleys
+")
+         (is "⍸(⎕ucs 10)=vtol 'fooling around' 'with barrels' 'in alleys'" #(15 28 38))
+         (is "↓⍕1 disp 0 ltov 1 2 3 0 4 5 6 0 7 8 9" #("┌→────┬─────┬─────┐"
+                                                       "│1 2 3│4 5 6│7 8 9│"
+                                                       "└~───→┴~───→┴~───→┘"))
+         (is "26 wrap ⎕a" "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+         (is "26 wrap,'A'" "A")
+         (is "⍕' ·'subs 20 wrap 20⍴'tick '" "tick·tick·tick·tick·")
+         (is "⍕' ·'subs 19 wrap 20⍴'tock '" "tock·tock·tock·tock
+")
+         (is "⍕' ·'subs 18 wrap 20⍴'tuck '" "tuck·tuck·tuck
+tuck·")
+         (is "⍕' ·'subs 10 wrap ⎕a" "ABCDEFGHIJ
+KLMNOPQRST
+UVWXYZ")
+         (is "⍕10 wrap 10 ¯1 10\\'AB'" "AAAAAAAAAA
+BBBBBBBBBB")
+         (is "⍕10 wrap 10 ¯5 5\\'AB'" "AAAAAAAAAA
+    BBBBB")
+         (is "⍕' ·'subs 20 wrap(1↓,⍉↑⍬(⍳26))\\⎕a" "A·BB·CCC·DDDD·EEEEE
+FFFFFF·GGGGGGG
+HHHHHHHH·IIIIIIIII
+JJJJJJJJJJ
+KKKKKKKKKKK
+LLLLLLLLLLLL
+MMMMMMMMMMMMM
+NNNNNNNNNNNNNN
+OOOOOOOOOOOOOOO
+PPPPPPPPPPPPPPPP
+QQQQQQQQQQQQQQQQQ
+RRRRRRRRRRRRRRRRRR
+SSSSSSSSSSSSSSSSSSS
+TTTTTTTTTTTTTTTTTTTT
+UUUUUUUUUUUUUUUUUUUU
+U
+VVVVVVVVVVVVVVVVVVVV
+VV
+WWWWWWWWWWWWWWWWWWWW
+WWW
+XXXXXXXXXXXXXXXXXXXX
+XXXX
+YYYYYYYYYYYYYYYYYYYY
+YYYYY
+ZZZZZZZZZZZZZZZZZZZZ
+ZZZZZZ")
+         (is "⍕' ·'subs 24 wrap2 'Say can I have some of your purple berries? Yes, I''ve been eating them for six or seven weeks now; haven''t got sick once. Prob''ly keep us both alive.'
+"
+             "Say·can·I·have·some·of
+your·purple·berries?
+Yes,·I've·been·eating
+them·for·six·or·seven
+weeks·now;·haven't·got
+sick·once.·Prob'ly·keep
+us·both·alive.")
+         (is "↓⍕' ·'subs 1 disp 4 2⍴24 wrap3 'Say can I have some of your purple berries? Yes, I''ve been eating them for six or seven weeks now; haven''t got sick once. Prob''ly keep us both alive.'"
+             #("┌→──────────────────────┬────────────────────────┐"
+               "↓Say·can·I·have·some·of·│your·purple·berries?····│"
+               "├──────────────────────→┼───────────────────────→┤"
+               "│Yes,·I've·been·eating··│them·for·six·or·seven···│"
+               "├──────────────────────→┼───────────────────────→┤"
+               "│weeks·now;·haven't·got·│sick·once.·Prob'ly·keep·│"
+               "├──────────────────────→┼───────────────────────→┤"
+               "│us·both·alive.·········│Say·can·I·have·some·of··│"
+               "└──────────────────────→┴───────────────────────→┘"))
+         (is "⍕justify (⊃'\\ ')(⎕ucs 10)∘subs⊢'We''re all going on a\\summer holiday;\\no more working for a\\week or two.'"
+             "We're  all going on a
+summer       holiday;
+no more working for a
+week or two.")
+         (provision "text←(⎕ucs 10) {↑⍶{⍺,⍶,⍵}/⍵} 'Where Alph, the sacred river, ran  ' 'Through caverns measureless to man    ' '  Down to a sunless sea.           '")
+         (provision "show←' ·'∘subs")
+         (is "⍕(show text,⎕UCS 10),show vtrim text"
+             "Where·Alph,·the·sacred·river,·ran··
+Through·caverns·measureless·to·man····
+··Down·to·a·sunless·sea.···········
+Where·Alph,·the·sacred·river,·ran
+Through·caverns·measureless·to·man
+··Down·to·a·sunless·sea.")
+         (is "⍕{(show ⍵),(⎕UCS 10),show vtrim ⍵} (⎕UCS 10) {↑⍶{⍺,⍶,⍵}/⍵} ' ' 'ok'"
+             "·
+ok
+
+ok")
+         (is "''∘≡∘⍕∘vtrim¨ '' ' ' '  '" #(1 1 1))
+         (is "(⎕UCS 10)=vtrim 0 1 0 1 1 0 0 1 0 0\\⎕UCS 10" #(1 1 1 1))))

@@ -33,13 +33,13 @@ bsearch ← {                                  ⍝ Binary search: least n in ran
   ¯1≤-/⍵:1↑⍵+2-+/⍺⍺¨⍵                        ⍝ convergence: finished.
   mid←⌈0.5×+/⍵                               ⍝ Mid point:
   ⍺⍺ mid:∇(1↑⍵),mid                          ⍝ 1: search lower half.
-         ∇ mid,1↓⍵                           ⍝ 0: search upper half.
+         ∇ mid ,1↓⍵                          ⍝ 0: search upper half.
 }
 
 ⍝ From http://dfns.dyalog.com/c_cfract.htm
-  
+
 cfract ← {                                   ⍝ Continued fraction approximation of real ⍵.
-  ⍝ ⍺←⎕CT ⋄ ⎕CT←⍺                              ⍝ default comparison tolerance.
+  ⍝ ⍺←⎕CT ⋄ ⎕CT←⍺                            ⍝ default comparison tolerance.
   ,↑{                                        ⍝ cf from rational ⍺÷⍵:
     ⍵=1:⍺                                    ⍝ whole number: finished.
     n r←0 ⍵⊤⍺                                ⍝ next term and remainder.
@@ -48,7 +48,7 @@ cfract ← {                                   ⍝ Continued fraction approximat
 } ⍝ TODO: the 1000×⎕CT should not be necessary
 
 ⍝ From http://dfns.dyalog.com/c_colsum.htm
-  
+
 colsum ← {                                   ⍝ Sum of (default decimal) columns.
   ⍺←10 ⋄ ⍺{{(0=⍬⍴⍵)↓⍵}+⌿1 0⌽0,0 ⍺⊤⍵}⍣≡+⌿⍵    ⍝ repeat while overflow.
 }
@@ -56,7 +56,6 @@ colsum ← {                                   ⍝ Sum of (default decimal) colu
 ⍝ From http://dfns.dyalog.com/c_efract.htm
 
 efract ← {                                   ⍝ Egyptian fractions: Fibonacci-Sylvester algorithm
-
   ⍬{
     (p q)←⍵÷∨/⍵
     p=1:⍺,q
@@ -67,15 +66,15 @@ efract ← {                                   ⍝ Egyptian fractions: Fibonacci
 }
 
 ⍝ From http://dfns.dyalog.com/c_factorial.htm
-  
+
 factorial ← { ⍺←1 ⋄ $[⍵=0;⍺;(⍺×⍵)∇ ⍵-1] }    ⍝ Tail recursive factorial.
 
 ⍝ From http://dfns.dyalog.com/c_fibonacci.htm
 
-fibonacci ← {                                ⍝ Tail-recursive Fibonacci.
-  ⍺←0 1 ⋄ ⍵=0 : ⍬⍴⍺ ⋄ (1↓⍺,+/⍺)∇ ⍵-1
+fibonacci ← { ⍺←0 1                          ⍝ Tail-recursive Fibonacci.
+  ⍵=0:⍬⍴⍺ ⋄ (1↓⍺,+/⍺)∇ ⍵-1
 }
-  
+
 sulFib ← {                                   ⍝ Sullivan Fibonacci
   z←0.5×1+s←5*0.5
   ((z*⍵)-(2○○⍵)×z*-⍵)÷s
@@ -101,7 +100,7 @@ factors ← { ⎕IO←1                            ⍝ Prime factors of ⍵.
 ⍝ From http://dfns.dyalog.com/c_gcd.htm
 
 gcd ← { ⍵=0 : |⍺ ⋄ ⍵∇⍵|⍺ }                   ⍝ Greatest common divisor.
-  
+
 lcm ← { ⍺×⍵÷⍺ gcd ⍵ }                        ⍝ Least common multiple.
 
 ⍝ From http://dfns.dyalog.com/c_k6174.htm
@@ -115,6 +114,32 @@ k6174 ← {                                    ⍝ Kaprekar's operation.
     v←{⍵[⍒⍵]}enco ⍵                          ⍝ digits in descending order.
     (⍺,⍵)∇(deco v)-deco⌽v                    ⍝ smaller to larger difference.
   }⍵                                         ⍝ :: [#] ∇ # → [#]
+}
+
+⍝ From http://dfns.dyalog.com/c_hex.htm
+
+hex ← { ⎕CT ⎕IO←0                            ⍝ Hexadecimal from decimal.
+  ⍺←⊢                                        ⍝ no width specification.
+  1≠≡,⍵:⍺ ∇¨⍵                                ⍝ simple-array-wise:
+  1∊⍵=1+⍵:'Too big'                          ⍝ loss of precision.
+  n←⍬⍴⍺,2*⌈2⍟2⌈16⍟1+⌈/|⍵                     ⍝ default width.
+  ↓[0]'0123456789abcdef'[(n/16)⊤⍵]           ⍝ character hex numbers.
+}
+
+⍝ From http://dfns.dyalog.com/c_dec.htm
+
+dec ← { ⎕IO←0                                ⍝ Decimal from hexadecimal
+  ⍺←0                                        ⍝ unsigned by default.
+  1<⍴⍴⍵:⍺∘∇⍤1⊢⍵                              ⍝ vector-wise:
+  0≡≢⍵:0                                     ⍝ dec'' → 0.
+  1≠≡,⍵:⍺ ∇¨⍵                                ⍝ simple-array-wise:
+  ws←∊∘(⎕UCS 9 10 13 32 133 160)             ⍝ white-space?
+  ws⊃⍵:⍺ ∇ 1↓⍵                               ⍝ ignoring leading and
+  ws⊃⌽⍵:⍺ ∇ ¯1↓⍵                             ⍝ ... trailing blanks.
+  ∨/ws ⍵:⍺ ∇¨(1+ws ⍵)⊆⍵                      ⍝ white-space-separated:
+  v←16|'0123456789abcdef0123456789ABCDEF'⍳⍵  ⍝ hex digits.
+  ⍝ 11::'Too big'⎕SIGNAL 11                  ⍝ number too big.
+  (16⊥v)-⍺×(8≤⊃v)×16*≢v                      ⍝ (signed) decimal number.
 }
 
 ⍝ From http://dfns.dyalog.com/c_int.htm
@@ -185,7 +210,7 @@ path ← {                                     ⍝ Shortest path from/to ⍵ in 
 }
 
 ⍝ From http://dfns.dyalog.com/c_stamps.htm
-  
+
 stamps ← {                                   ⍝ Postage stamps to the value of ⍵.
   ⍺←1 5 6 10 26 39 43                        ⍝ Default UK stamp denominations.
   graph←⍺{⍵∘∩¨⍵+⊂⍺}⍳⍵+|⌊/⍺                   ⍝ values: 0 ·· ⍵.
@@ -195,12 +220,12 @@ stamps ← {                                   ⍝ Postage stamps to the value o
 
 ⍝ From http://dfns.dyalog.com/c_sieve.htm
 
-sieve ← {                                      ⍝ Sieve of Eratosthenes.
-  ⍺←⍬                                          ⍝ Default no primes yet.
-  nxt←1↑⍵                                      ⍝ Next prime, and
-  msk←0≠nxt|⍵                                  ⍝ ... mask of non-multiples.
-  ∧/1↓msk:⍺,⍵                                  ⍝ All non multiples - finished.
-  (⍺,nxt)∇ msk/⍵                               ⍝ Sieve remainder.
+sieve ← {                                    ⍝ Sieve of Eratosthenes.
+  ⍺←⍬                                        ⍝ Default no primes yet.
+  nxt←1↑⍵                                    ⍝ Next prime, and
+  msk←0≠nxt|⍵                                ⍝ ... mask of non-multiples.
+  ∧/1↓msk:⍺,⍵                                ⍝ All non multiples - finished.
+  (⍺,nxt)∇ msk/⍵                             ⍝ Sieve remainder.
 }
 
 ⍝ From http://dfns.dyalog.com/c_to.htm
@@ -211,14 +236,32 @@ to ← { ⎕IO←0                                 ⍝ Sequence ⍺ .. ⍵
 }
 
 ⍝ From http://dfns.dyalog.com/s_to.htm
-  
+
 xTo ← {                                      ⍝ Sequence ⍺ .. ⍵
   from step←⊂¨1 ¯1×-\2↑⍺,⍺+×⍵-⍺              ⍝ step default is +/- 1.
   size←0⌈1+⌊⊃(⍵-from)÷step+step=0            ⍝ shape of result
   from+step×(⍳size)-⎕IO                      ⍝ ⍺ thru ⍵ inclusive.
 }
-  
+
 ⍝⍝ Real number processing
+
+⍝ From http://dfns.dyalog.com/n_abc.htm
+
+bp ← {⊃(⍺<⍵)(⍺>⍵)}
+
+xd ← {×⍺-⍵}
+
+bd ← {(⍺>⍵)-(⍺<⍵)}
+
+rg ← {(⍺[1]⍺⍺ ⍵)∧⍺[2]⍵⍵ ⍵}
+
+xp ← {×/×⍵∘.-⍺}                              ⍝ Signum product
+
+xs ← {+/×⍵∘.-⍺}                              ⍝ Signum sum
+
+xm ← {-/⊃×⌿×⍺,.-⍉⍵}
+
+xr ← {d←⍉⊃+/×⍵,.-⍉⍺ ⋄ ((2∨.=|d)/d)←2 ⋄ 3⊥d}
 
 ⍝ From http://dfns.dyalog.com/c_alt.htm
 
@@ -254,14 +297,53 @@ det ← { ⎕IO←0                                ⍝ Determinant of square mat
   (⍺×⍵[i;j]×¯1*i+j)∇ ⍵[k~i;k~j]-⍵[k~i;j]∘.×⍵[i;k~j]÷⍵[i;j]
 }
 
-⍝ ⍝ From http://dfns.dyalog.com/c_kcell.htm
+⍝ From http://dfns.dyalog.com/c_gauss_jordan.htm
+
+gauss_jordan ← { ⎕IO←0                       ⍝ Gauss-Jordan elimination.
+  elim←{                                     ⍝ elimination of row/col ⍺
+    p←⍺+{⍵⍳⌈/⍵}|⍺↓⍵[;⍺]                      ⍝ index of pivot row
+    swap←⊖@⍺ p⊢⍵                             ⍝ ⍺th and pth rows exchanged
+    mat←swap[⍺;⍺]÷⍨@⍺⊢swap                   ⍝ col diagonal reduced to 1
+    mat-(mat[;⍺]×⍺≠⍳≢⍵)∘.×mat[⍺;]            ⍝ col off-diagonals reduced to 0
+  }
+
+  ⍺←=/↑⍳⍴⍵                                   ⍝ id matrix for monadic case
+  (⍴⍺)⍴(0 1×⍴⍵)↓↑elim/(⌽⍳⌊/⍴⍵),⊂⍵,⍺          ⍝ elimination/ ··· 2 1 0 (⍵,⍺)
+}
+
+⍝ From http://dfns.dyalog.com/s_gauss_jordan.htm
+
+tryGJ ← { ⍺←⊢                                ⍝ gauss_jordan vs primitive ⌹.
+  ⎕CT←1e¯13                                  ⍝ slightly more tolerant comparison.
+  fuzz0←{↑⍺⍺/⍺ ⍵+⎕CT>|⍺ ⍵}                   ⍝ 0-fuzzy comparison.
+  (⍺⌹⍵)≡fuzz0 ⍺ gauss_jordan ⍵
+}
+
+⍝ From http://dfns.dyalog.com/s_gauss_jordan.htm
+
+hil ← {÷1+∘.+⍨(⍳⍵)-⎕IO}                      ⍝ order ⍵ Hilbert matrix.
+
+⍝ From http://dfns.dyalog.com/c_invr.htm
+
+invr←{                                       ⍝ Approx inverse of real-valued function.
+  ⍝ 0::'no inverse'⎕SIGNAL ⎕EN               ⍝ pass back domain error.
+  ⍺←1+⎕CT+0×⍵                                ⍝ initial guess - slightly more than 1.
+  ∆x←⎕CT*÷2                                  ⍝ increment delta-x.
+  -∘⍵∘⍺⍺{                                    ⍝ Newton-Raphson: find root of ⍺⍺(x)-⍵ = 0.
+    ⍵⍵ ⍵:⍵                                   ⍝ all items within ⎕ct of inverse: finished.
+    y y∆←⍺⍺¨0 ∆x+⊂⍵                          ⍝ f(x) f(x+∆x)
+    ∇ ⍵-y×∆x÷y∆-y                            ⍝ refined estimate.
+  }(⍵∘≡∘⍺⍺)⍺                                 ⍝ starting from best guess.
+}
+  
+⍝ From http://dfns.dyalog.com/c_kcell.htm
 
 kcell ← {                                    ⍝ Relationship between point and k-cell.
   ⍺←(≢⍵)/2 1⍴0 1                             ⍝ Default is unit k-cell.
   b←,[(2=⍴⍴⍺)/⎕IO]⍺                          ⍝ Bounds of k-cell.
   p←((2⌊⍴⍴⍺)↓1 1,⍴⍵)⍴⍵                       ⍝ Points to evaluate.
   d←↑,¨⍺⍺⌿×-b,.-p                            ⍝ Apply operand to signum difference.
-  ⍺⍺/⍬ : ⌈/d ⋄ 5⊥⍉d                          ⍝ Result is {¯1,0,1} or integer.
+  ⍺⍺/⍬:⌈/d ⋄ 5⊥⍉d                            ⍝ Result is {¯1,0,1} or integer.
 }
 
 ⍝ From http://dfns.dyalog.com/c_kball.htm
@@ -300,14 +382,13 @@ stdev ← {
 
 NormRand ← {                                 ⍝ Random numbers with a normal distribution
   depth←10*9                                 ⍝ randomness depth - can be larger from v14.0
-  x y←⊂[1+⍳⍴,⍵](?(2,⍵)⍴depth)÷depth          ⍝ two random variables within ]0;1]
-  ⍝ TODO: (x y) causes a bug in the line above
+  (x y)←⊂[1+⍳⍴,⍵](?(2,⍵)⍴depth)÷depth        ⍝ two random variables within ]0;1]
   ((¯2×⍟x)*0.5)×1○○2×y                       ⍝ Box-Muller distribution
 }
 
 ⍝ From http://dfns.dyalog.com/c_phinary.htm
 
-⍝ Loose comparison tolerance is needed here, why?
+⍝ TODO: Loose comparison tolerance is needed here, why?
 phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation of numbers ⍵.
   ⍺←1                                        ⍝ result formatted by default.
   P←(1+5*÷2)÷2                               ⍝ Phi.
@@ -343,7 +424,7 @@ phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation 
 ⍝ From http://dfns.dyalog.com/s_phinary.htm
 
 align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨  
-  
+
 ⍝ From http://dfns.dyalog.com/c_root.htm
 
 root ← { ⍺←2 ⋄ ⍵*÷⍺ }                        ⍝ ⍺'th root, default to sqrt.
@@ -360,7 +441,7 @@ realroots ← {                                ⍝ Real roots of quadratic.
 }
 
 ⍝ From http://dfns.dyalog.com/s_roots.htm
-  
+
 roots ← {                                    ⍝ Roots of quadratic.
   a b c←⍵                                    ⍝ coefficients.
   d←(b*2)-4×a×c                              ⍝ discriminant.
@@ -369,7 +450,7 @@ roots ← {                                    ⍝ Roots of quadratic.
 
 
 ⍝⍝ Complex number processing
-  
+
 ⍝ From http://dfns.dyalog.com/c_polar.htm
 
 polar ← {                                    ⍝ Polar from/to cartesian coordinates.
@@ -401,7 +482,7 @@ polar ← {                                    ⍝ Polar from/to cartesian coord
   ⍺=+1:pol_car ⍵                             ⍝ polar from cartesian.
   ⍺=-1:car_pol ⍵                             ⍝ cartesian from polar.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/s_polar.htm
 
 rnd ← { (10*-⍺)×⌊0.5+⍵×10*⍺ }
@@ -411,7 +492,7 @@ poly ← { 2 1∘.○(○2÷⍵)×(⍳⍵)-⍳1 }
 ⍝ From http://dfns.dyalog.com/c_xtimes.htm
 
 xtimes ← { ⎕IO←0                             ⍝ Fast multi-digit product using FFT.
-  m←0  
+  m←0
   xroots    ← {×\1,1↓(⍵÷2)⍴¯1*2÷⍵}
   cube      ← {⍵⍴⍨2⍴⍨⌊2⍟⍴⍵}
   extend    ← {(2*⌈2⍟¯1+(⍴⍺)+⍴⍵)↑¨⍺ ⍵}

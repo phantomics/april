@@ -196,7 +196,7 @@
                                             (list alpha))
                                   :populator (build-populator omega))))
       (if (and (= 0 (size output)) (arrayp omega)
-               (arrayp (row-major-aref omega 0)))
+               (< 0 (size omega)) (arrayp (row-major-aref omega 0)))
           (array-setting-meta output :empty-array-prototype
                               (make-prototype-of (row-major-aref omega 0)))
           output))))
@@ -381,7 +381,9 @@
 (defun enclose-array (index-origin axes)
   "Wrapper for [⊂ enclose]."
   (lambda (omega &optional alpha)
-    (if alpha (partitioned-enclose alpha omega *last-axis*)
+    (if alpha (let ((output (partitioned-enclose alpha omega *last-axis*)))
+                (if (not (and (vectorp output) (= 0 (length output))))
+                    output (array-setting-meta output :empty-array-prototype (vector))))
         (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
                                               (if (arrayp (first axes))
                                                   (first axes)
@@ -498,15 +500,18 @@
   "Wraps (aops:permute) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
-        omega (progn (if alpha (if (not (arrayp alpha))
-                                   (setq alpha (- alpha index-origin))
+        omega (permute-axes
+               omega (if alpha (if (not (arrayp alpha)) (- alpha index-origin)
                                    (if (vectorp alpha)
                                        (if (> (length alpha) (rank omega))
-                                           (error "Length of left argument to ⍉ must be equal to rank of right argument.")
-                                           (loop :for a :across alpha :for ax :from 0
-                                              :do (setf (aref alpha ax) (- a index-origin))))
-                                       (error "Left argument to ⍉ must be a scalar or vector."))))
-                     (permute-axes omega alpha)))))
+                                           (error "Length of left argument to ⍉ ~a"
+                                                  "must be equal to rank of right argument.")
+                                           (if (= 0 index-origin)
+                                               alpha (let ((adjusted (make-array (length alpha))))
+                                                       (loop :for a :across alpha :for ax :from 0
+                                                             :do (setf (aref adjusted ax) (- a index-origin)))
+                                                       adjusted)))
+                                       (error "Left argument to ⍉ must be a scalar or vector."))))))))
 
 (defun expand-array (first-axis compress-mode index-origin axes)
   "Wrapper for (aplesque:expand) implementing [/ replicate] and [\ expand]."
@@ -514,12 +519,11 @@
     (let* ((axis (if (first axes) (- (first axes) index-origin)
                      (if first-axis *first-axis* *last-axis*)))
            (output (expand alpha omega axis :compress-mode compress-mode
-                           :populator (build-populator omega))))
+                                            :populator (build-populator omega))))
       (if (and (= 0 (size output)) (arrayp omega) (not (= 0 (size omega)))
                (arrayp (row-major-aref omega 0)))
           (array-setting-meta output :empty-array-prototype
-                              (make-prototype-of (funcall (if (= 0 (rank omega)) #'identity #'aref)
-                                                          (row-major-aref omega 0))))
+                              (make-prototype-of (row-major-aref omega 0)))
           output))))
 
 (defun matrix-inverse (omega)
@@ -1157,32 +1161,26 @@
                                            (apply-scalar (lambda (a) (- a index-origin)) right)))
                      (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
                                                   (cons indices-adjusted
-                                                        (loop :for i :below (1- (rank omega)) :collect nil)))))
+                                                        (loop :for i :below (1- (rank omega))
+                                                              :collect nil)))))
                      (out-sub-array (if alpha (funcall left-fn mod-array alpha)
-                                        (funcall left-fn mod-array)))
-                     (omega-msc (if (not (arrayp right)) ;; size of major cell in omega
-                                    1 (first (get-dimensional-factors (dims omega)))))
-                     (osa-msc (if (not (arrayp right)) ;; ... and in processed output
-                                  1 (first (get-dimensional-factors (dims out-sub-array))))))
-                (dotimes (i (size out-sub-array))
-                  (multiple-value-bind (major-cell remainder) (floor i osa-msc)
-                    (let ((omega-index (+ remainder
-                                          (* omega-msc (if (not (arrayp indices-adjusted))
-                                                           (if (vectorp omega) indices-adjusted major-cell)
-                                                           (aref indices-adjusted major-cell))))))
-                      (setf (row-major-aref omega-copy omega-index)
-                            (if (and (vectorp omega) (not (arrayp indices-adjusted)))
-                                (disclose out-sub-array)
-                                (row-major-aref out-sub-array i))))))
+                                        (funcall left-fn mod-array))))
+                (choose omega-copy (if (= 1 (rank omega)) (list indices-adjusted)
+                                       (cons indices-adjusted
+                                             (loop :for i :below (1- (rank omega)) :collect nil)))
+                        :modify-input t :set (funcall (if (and (not (arrayp right))
+                                                               (> 2 (rank omega))
+                                                               (not (= 0 (rank out-sub-array))))
+                                                          #'enclose #'identity)
+                                                      out-sub-array))
                 omega-copy))
           ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
           ;; left operand function as per choose or reach indexing
           (nth-value
-           1 (choose omega
-                     (if (not right-fn)
-                         (append (list (apply-scalar #'- right index-origin))
-                                 (loop :for i :below (- (rank omega) (array-depth right))
-                                       :collect nil)))
+           1 (choose omega (if (not right-fn)
+                               (append (list (apply-scalar #'- right index-origin))
+                                       (loop :for i :below (- (rank omega) (array-depth right))
+                                             :collect nil)))
                      :set (if (not left-fn) left)
                      :set-by (if (or left-fn right-fn)
                                  (lambda (old &optional new)

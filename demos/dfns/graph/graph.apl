@@ -1,4 +1,4 @@
-⍝⍝ Ported from http://dfns.dyalog.com/n_Graphs.htm into April APL
+⍝⍝ Ported from Dyalog's dfns at http://dfns.dyalog.com/n_Graphs.htm into April APL
 
 
 ⍝⍝ Graph processing
@@ -65,7 +65,7 @@ assign ← {                                   ⍝ Hungarian method cost assignm
 
   (⍴⍵)↑step0 ⍵                               ⍝ start with step 0.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/n_alists.htm
 
 gperm ← { (⊂⍵)⍳¨⍺[⍵] }                       ⍝ ⍵-permutation of vertices of graph ⍺.
@@ -108,7 +108,7 @@ search ← {                                   ⍝ Breadth-first search of graph
     (⍺,next)∇ next                           ⍝ advance wave of visited vertices.
   }⍵                                         ⍝ from starting vertex.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/n_path.htm
 
 path ← {                                       ⍝ Shortest path from/to ⍵ in graph ⍺.
@@ -125,7 +125,7 @@ path ← {                                       ⍝ Shortest path from/to ⍵ i
     (∪wave)∇ back@wave⊢⍵                       ⍝ advanced wave front
   }¯2+(⍳⍴⍺)∊fm                                 ⍝ null spanning tree
 }
-  
+
 ⍝ From http://dfns.dyalog.com/n_span.htm
 
 span ← {                                       ⍝ Breadth-first spanning tree for graph ⍺.
@@ -151,9 +151,9 @@ dfspan ← {                                   ⍝ Depth-first spanning tree: gr
   }                                          ⍝ :: tree ← vtx (vtx ∇∇) tree
   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
 }
-  
+
 ⍝ From http://dfns.dyalog.com/c_dsp.htm
-  
+
 dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
   $[(1=≡,⍵)∨0∊⍴⍵;⎕FMT ⍵;                     ⍝ simple or empty: char matrix
     ⍺←1 ⋄ top←'─'∘⍪⍣⍺                        ⍝ top '─' bar if ⍺
@@ -233,7 +233,7 @@ scc ← {                                      ⍝ Strongly connected components
 }
 
 ⍝ From http://dfns.dyalog.com/s_scc.htm
-  
+
 cond ← {                                     ⍝ Condensation of graph ⍵.
   c←scc ⍵                                    ⍝ strongly connected components
   v←{⊂⍵}⌸c                                   ⍝ component-grouped vertex indices
@@ -243,7 +243,7 @@ cond ← {                                     ⍝ Condensation of graph ⍵.
   g←m/¨⊂⍳⍴v                                  ⍝ condensed DAG
   g v                                        ⍝ ... and contracted vertices
 }
-  
+
 ⍝ From http://dfns.dyalog.com/c_stdists.htm
 
 stdists ← {                                  ⍝ Spanning-tree path lengths.
@@ -256,7 +256,7 @@ stdists ← {                                  ⍝ Spanning-tree path lengths.
     (⍺+1)∇ ∆next ∆dvec                       ⍝ examine rest of tree
   }(⍵⍳¯1)(⍵⊢¨¯1)                             ⍝ starting vertex and initial distances
 }
-  
+
 ⍝ From http://dfns.dyalog.com/n_stpath.htm
 
 stpath ← {                                   ⍝ Path through spanning tree ⍺ to vertex ⍵.
@@ -282,7 +282,7 @@ stpaths ← {                                  ⍝ Spanning tree paths.
     paths ∇ indx                             ⍝ advance to next tree level.
   }root                                      ⍝ index of starting vertex.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/c_X.htm
 
 X ← {                                        ⍝ Exact cover: Knuth's Algorithm X.
@@ -307,7 +307,7 @@ X ← {                                        ⍝ Exact cover: Knuth's Algorith
   z≡0:0                                      ⍝ failure: 0
   (-+/~⍺)↓z                                  ⍝ without dummy rows.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/s_X.htm
 
 sudokuMatrix ← {                             ⍝ Matrix for ⍵ ⍵-Sudoku puzzle.
@@ -344,8 +344,8 @@ queensX ← {                                  ⍝ Exact cover N-Queens.
   d←~(⍳1↓⍴m)∊⍳2×⍴du                          ⍝ mask of required cols.
   ⍵ ⍵⍴d X m                                  ⍝ exact cover - matrix of queens.
 }
-  
-  
+
+
 ⍝⍝ Weighted graph processing
 
 wcost ← {                                    ⍝ Cost vector for path ⍵ through weighted graph ⍺.
@@ -357,7 +357,7 @@ wcost ← {                                    ⍝ Cost vector for path ⍵ thro
     indx⊃,⍺⊃costs                            ⍝ ... associated cost.
   }/⍵                                        ⍝ pairwise along path.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/c_wpath.htm
 
 wpath ← {                                    ⍝ Quickest path fm/to ⍵ in weighted graph ⍺.
@@ -386,7 +386,7 @@ wpath ← {                                    ⍝ Quickest path fm/to ⍵ in we
     (∪wave)∇ new                             ⍝ wave spreads to adjacent vertices
   }tree cost                                 ⍝ initial spanning tree and cost vectors
 }
-  
+
 ⍝ From http://dfns.dyalog.com/n_wspan.htm
 
 wspan ← {                                    ⍝ Spanning tree for weighted graph ⍺ from ⍵.
@@ -403,14 +403,13 @@ wspan ← {                                    ⍝ Spanning tree for weighted gr
     cvec←⊃,/mask/¨accm                       ⍝ cost vector
     next←mask/¨adjv                          ⍝ next vertices to visit
     back←⊃,/⍺+0×next                         ⍝ back links to parent node
-    ⍝ decr←(⍒cvec)I⊢                         ⍝ TODO: fix bug with this original line
-    decr←{(⍒cvec)I ⍵}                        ⍝ in decreasing order of cost
+    decr←(⍒cvec)I⊢                           ⍝ in decreasing order of cost
     wave←decr↑,/next                         ⍝ vertex wave front
     new←back cvec decr⍨@wave¨⍵               ⍝ successor tree & cost
     (∪wave)∇ new                             ⍝ wave spreads to adjacent vertices
   }tree cost                                 ⍝ initial spanning tree and cost vectors
 }
-  
+
 ⍝ From http://dfns.dyalog.com/s_wmst.htm
 
 wmst ← {                                     ⍝ Minimum Spanning Tree for wu-graph ⍺.

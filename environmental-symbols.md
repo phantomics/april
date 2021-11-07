@@ -43,6 +43,7 @@ These symbols represent standard functions available within April. Currently, th
 |`⎕TS` |Timestamp          |Evaluates to the current APL timestamp: a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
 |`⎕NS` |Create Namespace   |Return an empty namespace.|
 |`⎕CS` |Set Namespace Point|Set the starting point for namespace paths within a scope.|
+'`⎕UCS`|Unicode Convert    |Convert unicode characters into integers and vice versa.|
 |`⎕FMT`|Format             |Create a character matrix containing the printed representation of an array.|
 
 ### April's Unique System Functions

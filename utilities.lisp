@@ -1052,7 +1052,7 @@ It remains here as a standard against which to compare methods for composing APL
               (error "Not a valid namespace."))))))
 
 (defun coerce-or-get-type (array &optional type-index)
-  "Create an array with a numerically designated type holding the contents of the given array."
+  "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕DT."
   (let ((types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
                  (-3 (unsigned-byte 7)) (3 (unsigned-byte 8)) (-4 (unsigned-byte 15))
                  (4 (unsigned-byte 16)) (-5 (unsigned-byte 31)) (5 (unsigned-byte 32))
@@ -1071,6 +1071,13 @@ It remains here as a standard against which to compare methods for composing APL
                                                                    (row-major-aref array i)))
                            output)))
         (loop :for item :in types :when (equalp (element-type array) (second item)) :return (first item)))))
+
+(defun scalar-code-char (input) ;; TODO: add left arg? 'UTF-8', 16 or 32
+  "Convert Unicode characters into integers and vice versa. Used to implement ⎕UCS."
+  (if (characterp input) (char-code input)
+      (if (and (arrayp input) (eql 'character (element-type input)))
+          (apply-scalar #'char-code input)
+          (apply-scalar #'code-char input))))
 
 (defun output-value (space form &optional properties closure-meta)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."

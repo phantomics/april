@@ -53,7 +53,7 @@
                                                                  (if (symbolp s)
                                                                      (intern (string s) "KEYWORD")))))))))))
 
-(defun proc-value (this-item &optional properties idiom space)
+(defun process-value (this-item &optional properties idiom space)
   "Process a value token."
   (cond ((eq :empty-array this-item)
          ;; process the empty vector expressed by the [⍬ zilde] character
@@ -348,16 +348,22 @@
                                                        :space space :params params)
                                           :space space :params params))
             ((and (listp (first tokens)) (eq :axes (caar tokens))) ;; if axes like [2] are encountered
+             ;; (print (list :ee elements axes left (first tokens) (second tokens)))
              (if elements
                  ;; if elements are present, recurse and process the items after the axes as another
                  ;; vector for the axes to be applied to
                  (if left (values (build-value nil :axes axes :space space :axes-last t
                                                    :left left :params params :elements elements)
                                   tokens)
-                     (if axes (build-value nil :elements (cons (build-value tokens :space space
-                                                                                   :params params)
-                                                               elements)
-                                               :axes axes)
+                     (if axes (if (and (listp (second tokens)) (eq :fn (caadr tokens)))
+                                  ;; account for cases like ↓[1]'abcde'[2 2⍴2 3]
+                                  (build-value tokens :space space :params params
+                                               :elements (list (build-value nil :space space :params params
+                                                                                :elements elements :axes axes)))
+                                  (build-value nil :elements (cons (build-value tokens :space space
+                                                                                       :params params)
+                                                                   elements)
+                                                   :axes axes))
                          (build-value (rest tokens) :elements elements :space space :params params
                                                     :axes (cons (build-axes (cdar tokens)
                                                                             :space space :params params)
@@ -379,7 +385,7 @@
                                        (not (member (caar tokens) '(:fn :op :st :pt :axes)))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
-                                       (proc-value (first tokens) params *april-idiom* space))))
+                                       (process-value (first tokens) params *april-idiom* space))))
                  ;; (print (list :fv is-closure left first-value tokens elements axes))
                  ;; if a value element is confirmed, add it to the list of elements and recurse
                  (if first-value
@@ -991,7 +997,10 @@
                (if symbols-list
                    (progn (loop :for symbol :in symbols-list
                                 :do (let ((insym (intern (string symbol) space)))
-                                      (if (is-workspace-function symbol)
+                                      (if (and (is-workspace-function symbol)
+                                               (not (getf (getf params :special) :closure-meta)))
+                                          ;; unbind the symbol as for a function if this
+                                          ;; variable assignment is made at the top level
                                           (fmakunbound insym))
                                       (if (and (not (boundp insym))
                                                (not (member symbol (getf (rest (getf (getf params :special)
