@@ -44,7 +44,7 @@ cfract ← {                                   ⍝ Continued fraction approximat
     ⍵=1:⍺                                    ⍝ whole number: finished.
     n r←0 ⍵⊤⍺                                ⍝ next term and remainder.
     n,⍵∇r                                    ⍝ next term and cf of remainder.
-  }/⌊(1000×⎕CT)+⍵ 1÷1∨⍵                      ⍝ whole number ratio.
+  }/⌊(1×⎕CT)+⍵ 1÷1∨⍵                      ⍝ whole number ratio.
 } ⍝ TODO: the 1000×⎕CT should not be necessary
 
 ⍝ From http://dfns.dyalog.com/c_colsum.htm
@@ -247,21 +247,21 @@ xTo ← {                                      ⍝ Sequence ⍺ .. ⍵
 
 ⍝ From http://dfns.dyalog.com/n_abc.htm
 
-bp ← {⊃(⍺<⍵)(⍺>⍵)}
+bp ← {⊃(⍺<⍵)(⍺>⍵)}                           ⍝ Boolean pair (2-vector)
 
-xd ← {×⍺-⍵}
+xd ← {×⍺-⍵}                                  ⍝ Signum difference
 
-bd ← {(⍺>⍵)-(⍺<⍵)}
+bd ← {(⍺>⍵)-(⍺<⍵)}                           ⍝ Boolean difference
 
-rg ← {(⍺[1]⍺⍺ ⍵)∧⍺[2]⍵⍵ ⍵}
+rg ← {(⍺[1]⍺⍺ ⍵)∧⍺[2]⍵⍵ ⍵}                   ⍝ Range operator
 
 xp ← {×/×⍵∘.-⍺}                              ⍝ Signum product
 
 xs ← {+/×⍵∘.-⍺}                              ⍝ Signum sum
 
-xm ← {-/⊃×⌿×⍺,.-⍉⍵}
+xm ← {-/↑×⌿×⍺,.-⍉⍵}                          ⍝ Max signum
 
-xr ← {d←⍉⊃+/×⍵,.-⍉⍺ ⋄ ((2∨.=|d)/d)←2 ⋄ 3⊥d}
+xr ← {d←⍉↑+/×⍵,.-⍉⍺ ⋄ ((2∨.=|d)/d)←2 ⋄ 3⊥d}  ⍝ Outside location
 
 ⍝ From http://dfns.dyalog.com/c_alt.htm
 
@@ -324,8 +324,8 @@ tryGJ ← { ⍺←⊢                                ⍝ gauss_jordan vs primiti
 hil ← {÷1+∘.+⍨(⍳⍵)-⎕IO}                      ⍝ order ⍵ Hilbert matrix.
 
 ⍝ From http://dfns.dyalog.com/c_invr.htm
-
-invr←{                                       ⍝ Approx inverse of real-valued function.
+⍝ TODO: why is a more generous ⎕CT needed here?
+invr←{ ⎕CT←1e¯14                             ⍝ Approx inverse of real-valued function.
   ⍝ 0::'no inverse'⎕SIGNAL ⎕EN               ⍝ pass back domain error.
   ⍺←1+⎕CT+0×⍵                                ⍝ initial guess - slightly more than 1.
   ∆x←⎕CT*÷2                                  ⍝ increment delta-x.
@@ -335,7 +335,7 @@ invr←{                                       ⍝ Approx inverse of real-valued
     ∇ ⍵-y×∆x÷y∆-y                            ⍝ refined estimate.
   }(⍵∘≡∘⍺⍺)⍺                                 ⍝ starting from best guess.
 }
-  
+
 ⍝ From http://dfns.dyalog.com/c_kcell.htm
 
 kcell ← {                                    ⍝ Relationship between point and k-cell.
@@ -387,7 +387,6 @@ NormRand ← {                                 ⍝ Random numbers with a normal 
 }
 
 ⍝ From http://dfns.dyalog.com/c_phinary.htm
-
 ⍝ TODO: Loose comparison tolerance is needed here, why?
 phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation of numbers ⍵.
   ⍺←1                                        ⍝ result formatted by default.
@@ -503,7 +502,7 @@ xtimes ← { ⎕IO←0                             ⍝ Fast multi-digit product 
   carry     ← {1↓+⌿1 0⌽0,0 10⊤⍵}
   (+/∧\0=t)↓t←carry⍣≡0,⌊0.5+9○⍺ rconvolve ⍵
 }
-  
+
 convolve ← { ⎕IO←0 ⋄ +⌿(-⍳⍴⍺)⌽⍺∘.×⍵,0×1↓⍺ }
 
 ⍝ From http://dfns.dyalog.com/c_xpower.htm

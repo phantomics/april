@@ -450,11 +450,13 @@
                               (error "Mismatched array sizes for scalar operation."))))))
           output))))
 
-(defun array-compare (item1 item2)
+(defun array-compare (item1 item2 &optional comparison-tolerance)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
   (if (not (arrayp item1))
       (if (not (arrayp item2))
-          (or (and (numberp item1)
+          (or (and comparison-tolerance (floatp item1) (floatp item2)
+                   (> comparison-tolerance (abs (- item1 item2))))
+              (and (numberp item1)
                    (numberp item2)
                    (= item1 item2))
               (and (characterp item1)
@@ -908,8 +910,12 @@
                                  interval-size current-interval partitions))
         ;; find the index where each partition begins in the input array and the length of each partition
         (loop :for pos :across positions :for p :from 0
-           :do (if (/= 0 current-interval)
-                   (incf interval-size))
+              :do (progn (if (/= 0 current-interval)
+                             (incf interval-size))
+                         ;; if a position lower than the current interval index is encountered,
+                         ;; decrement the current index to it, as for 1 1 1 2 1 1 2 1 1⊆⍳9
+                         (if (and current-interval (< 0 pos current-interval))
+                             (setq current-interval pos)))
            :when (or (< current-interval pos)
                      (and (= 0 pos) (/= 0 current-interval)))
            :do (setq r-indices (cons p r-indices)
@@ -921,6 +927,7 @@
             (push (- (length positions) (first r-indices))
                   r-intervals))
 
+
         (if (/= (length r-indices) (length r-intervals))
             (setq r-indices (rest r-indices)))
         ;; collect the indices and intervals into lists the right way around, dropping indices with 0-length
@@ -928,6 +935,7 @@
         (loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
            :do (push rint intervals)
                (push rind indices))
+        ;; (print (list :ii r-indices r-intervals indices intervals))
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
@@ -1061,9 +1069,10 @@
 
 (defun sprfact (n)
   "Top-level factorial-computing function."
-  (if (near-integerp n)
-      (isprfact (round (realpart n)))
-      (gamma (+ n 1))))
+  (if (= 0 n)
+      1 (if (near-integerp n)
+            (isprfact (round (realpart n)))
+            (gamma (+ n 1)))))
 
 (defun ibinomial (n k)
   "Find a binomial for integer parameters."
@@ -1144,7 +1153,6 @@
 
 (defun array-inner-product (alpha omega function1 function2 &optional function1-nonscalar)
   "Find the inner product of two arrays with two functions."
-  ;; (print (list :ip alpha omega))
   (let* ((adims (dims alpha)) (odims (dims omega)) (arank (rank alpha)) (orank (rank omega))
          (asegment (first (last adims)))
          (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
@@ -1162,7 +1170,6 @@
                                           :displaced-index-offset (* asegment avix)))))
         (if (and osegment (not (and (= osegment osize) (= 1 (rank omega)))))
             (dotimes (i osegment) (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
-        ;; (print (list :os osegment oholder))
         (setf (row-major-aref output x)
               (if (= 0 arank orank) (funcall function1 omega alpha)
                   (disclose (reduce-array (apply-scalar function1 (or oholder omega) (or adisp alpha)
@@ -2232,18 +2239,23 @@
                                    (cl-ppcre:split #\. number-string)))))))
            (more-strings (< (length segments) (length strings))))
       ;; TODO: provide for e-notation
+      ;; (print (list :sstr strings segments))
       (loop :for i :from 0 :for s :in (if more-strings strings segments)
          :collect (if (> 0 precision)
                       (if (/= 0 (mod i 2))
                           (abs precision) (max (or (nth i segments) 0)
                                                (length (nth i strings))))
-                      (max (min (if (= 0 (mod i 2))
-                                    precision (- precision (- (max (or (nth (1- i) segments) 0)
-                                                                   (length (nth (1- i) strings)))
-                                                              (if (and (nth (1- i) strings)
-                                                                       (char= #\- (aref (nth (1- i) strings)
-                                                                                        0)))
-                                                                  1 0))))
+                      (max (min (+ (if (and (= 1 (- (length (nth i strings))
+                                                    precision))
+                                            (char= #\- (aref (nth i strings) 0)))
+                                       1 0) ;; add another allowed space if needed to accomodate a ¯
+                                   (if (= 0 (mod i 2))
+                                       precision (- precision (- (max (or (nth (1- i) segments) 0)
+                                                                      (length (nth (1- i) strings)))
+                                                                 (if (and (nth (1- i) strings)
+                                                                          (char= #\- (aref (nth (1- i) strings)
+                                                                                           0)))
+                                                                     1 0)))))
                                 (max (or (nth i segments) 0)
                                      (length (nth i strings))))
                            (or (nth i segments) 0)))))))

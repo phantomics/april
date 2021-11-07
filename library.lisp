@@ -35,6 +35,23 @@
             (if (and (< 0 method) (= 0 omega))
                 0 (/ omega))))))
 
+(defun apl-exp (omega)
+  (exp (if (typep omega 'double-float)
+           omega (coerce omega 'double-float))))
+
+(defun apl-expt (omega alpha)
+  (expt omega (if (not (and (or (not (integerp omega))
+                                (not (integerp alpha)))
+                            (not (typep alpha 'double-float))))
+                  alpha (coerce alpha 'double-float))))
+
+(defun apl-log (omega &optional alpha)
+  (if alpha (log omega (if (or (typep omega 'double-float)
+                               (typep alpha 'double-float))
+                           alpha (coerce alpha 'double-float)))
+      (log (if (typep omega 'double-float)
+               omega (coerce omega 'double-float)))))
+
 (defun complex-floor (number)
   "Find the floor of a complex number using Eugene McDonnell's algorithm."
   (let* ((r (realpart number))
@@ -230,6 +247,9 @@
   "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
   (if (not (arrayp omega))
       0 (array-depth omega)))
+
+(defun array-compare-wrap (comparison-tolerance)
+  (lambda (omega alpha) (array-compare omega alpha comparison-tolerance)))
 
 (defun find-first-dimension (omega)
   "Find the first dimension of an array. Used to implement [≢ first dimension]."

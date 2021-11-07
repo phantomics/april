@@ -354,14 +354,14 @@
                                                                      (7220  1 1 2 2 2 2 2 2 2 2)
                                                                      (8813  1 1 1 2 2 2 2 2 2 2)
                                                                      (9710  1 1 1 1 2 2 2 2 2 2)
-                                                                     (10000 1 1 1 1 1 2 2 2 2 2)
+                                                                     (10001 1 1 1 1 1 2 2 2 2 2)
                                                                      (9710  1 1 1 1 1 1 2 2 2 2)
                                                                      (8813  1 1 1 1 1 1 1 2 2 2)
                                                                      (7220  1 1 1 1 1 1 1 1 2 2)
                                                                      (4690  1 1 1 1 1 1 1 1 1 2)))
          (is "⌊10000×shannon¨'banana' 'orange'" #(14591 25849))
          (is "⌊10000×shannon ⎕A" 47004)
-         (is "shannon∘{⍳2*⍵}¨⍳10" #(1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0))
+         (is "⌊shannon∘{⍳2*⍵}¨⍳10" #(1 2 3 4 5 6 7 8 9 10))
          (is "'abba' subvec 'babba'" 1)
          (is "'abba' subvec 'abbas'" 1)
          (is "'abba' subvec 'baab'" 0)
@@ -472,9 +472,8 @@
          (is "⍕ss'Banana' 'ana' 'ANA'" "BANAANA")
          (is " ss(⍳10) (3 4 5) (88 99)" #(1 2 88 99 6 7 8 9 10))
          (is "⍕ss'b.bb' 'bb' 'zz'" "b.zz")
-         (is "↓disp ssmat(2 12⍴'Is you is oris you aint?')'is' 'was'"
-             #("Is you was or"
-               "was you aint?"))
+         (is "↓disp ssmat(2 12⍴'Is you is oris you aint?')'is' 'was'" #("Is you was or"
+                                                                        "was you aint?"))
          (is "ssmat (3 5⍴⍳15) (7 8 9) (70 80 90)" #2A((1 2 3 4 5) (6 70 80 90 10) (11 12 13 14 15)))
          (is "↓⍕ssmat (3 5⍴⍳15) (7 8 9) 'repl'" #(" 1  2  3  4  5  0"
                                                   " 6  r  e  p  l 10"
