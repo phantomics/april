@@ -704,7 +704,8 @@
                (if (or (integerp degrees) (= 1 (length degrees)))
                    (if (and (= 1 (rank input))
                             (= 0 (abs (disclose-unitary degrees))))
-                       (vector 0)
+                       (if (eql 'character (element-type input))
+                           " " (vector 0))
                        (let ((output (make-array (abs (disclose-unitary degrees))
                                                  :element-type (element-type input)
                                                  :initial-element (if (not populator)
@@ -715,7 +716,10 @@
                    (if (and (loop :for d :across degrees :always (= 0 d))
                             (= 0 (nth axis idims)))
                        (if (= 1 (rank input))
-                           (copy-array degrees)
+                           (if (eql 'character (element-type input))
+                               (make-array (length degrees) :element-type 'character
+                                           :initial-element #\ )
+                               (copy-array degrees))
                            (let ((output (make-array (loop :for d :in idims :for dx :from 0
                                                         :collect (if (= dx axis) (length degrees) d))
                                                      :element-type (element-type input)
@@ -935,7 +939,6 @@
         (loop :for rint :in r-intervals :for rind :in r-indices :when (/= 0 rint)
            :do (push rint intervals)
                (push rind indices))
-        ;; (print (list :ii r-indices r-intervals indices intervals))
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
@@ -2239,7 +2242,6 @@
                                    (cl-ppcre:split #\. number-string)))))))
            (more-strings (< (length segments) (length strings))))
       ;; TODO: provide for e-notation
-      ;; (print (list :sstr strings segments))
       (loop :for i :from 0 :for s :in (if more-strings strings segments)
          :collect (if (> 0 precision)
                       (if (/= 0 (mod i 2))
@@ -2283,11 +2285,9 @@
                      (concatenate 'string padding input padding))))
         ;; each layer of 0-rank enclosure adds 1 space of indentation
         ((= 0 (rank input))
-         ;; (print (list :rr (if (eq prepend t) t (1+ (or prepend 0)))))
-         ;; (princ #\Newline)
          (array-impress (aref input) :format format :segment segment :append append
-                        :unpadded collate :prepend (if (eq prepend t)
-                                                       t (1+ (or prepend 0)))))
+                                     :unpadded collate :prepend (if (eq prepend t)
+                                                                    t (1+ (or prepend 0)))))
         (t (let* ((idims (dims input))
                   ;; the x-offset and y-offset for each column and row; each array has an extra element to
                   ;; represent the total width and height of the output array

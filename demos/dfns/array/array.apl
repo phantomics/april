@@ -408,8 +408,8 @@ sam ← {                                      ⍝ Select and modify.
 saw ← {                                      ⍝ Function operand applied Simple-Array-Wise.
   ⍺←⊢                                        ⍝ default left arg.
   2≥|≡⍺ ⍵ ⍵:⍺ ⍺⍺ ⍵                           ⍝ Both simple: apply operand.
-  1≥|≡⍵:⍺ ∇¨⊂⍵                               ⍝ ⍵ simple: traverse ⍺.
-  2≥|≡⍺ 1:⍺∘∇¨⍵                              ⍝ ⍺ simple: traverse ⍵.
+  1≥|≡⍵    :⍺ ∇¨⊂⍵                           ⍝ ⍵ simple: traverse ⍺.
+  2≥|≡⍺ 1  :⍺∘∇¨⍵                            ⍝ ⍺ simple: traverse ⍵.
   ⍺ ∇¨⍵                                      ⍝ Both nested: traverse both.
 }
 
@@ -650,32 +650,63 @@ vtrim ← { ⎕IO←0                              ⍝ Trim trailing blanks from
 wrapnote ← {                                 ⍝ Wrap text paragraphs in note vector.
   ⍺←102                                      ⍝ by default: wrap to print width.
   ⍝ 0::'bad note'⎕SIGNAL 11                  ⍝ catchall for unexpected note format.
-  split←{{1↓¨(1,1↓⍵∊nls)⊂⍵}' ',⍵}     ⍝ partition at newline.
-  join←{¯1↓↑⍺{⍺,⍺⍺,⍵}/⍵,⊂''}          ⍝ collect with ⍺-separator.
-  jrgt←{fm=≢⍵}                        ⍝ line justified right?
-  jlft←{' '≠⊃⍵}                       ⍝ line justified left?
-  pics←{1∊'┌┬┐├┼┤└┴┘│─'∊⍵}            ⍝ line contains box-drawing chars?
-  and←{(⍺⍺ ⍵)∧⍵⍵ ⍵}                   ⍝ test combiner.
-  test←~∘pics and jlft and jrgt       ⍝ test for flowtext.
-  first←{(1+⍵⍳0)⊃⍵}∘(≢¨)              ⍝ length of first non-blank line.
-  spill←{⍵∨¯1⌽⍵}                      ⍝ include next item to right.
-  list←{squeeze dehyph' 'join ⍵}      ⍝ first enlist, then
-  fold←{split to wrap ⍵}              ⍝ re-wrap paragraph.
-  dehyph←{(~spill'- '⍷⍵)/⍵}           ⍝ re-join hyphen-separated words.
+  split←{{1↓¨(1,1↓⍵∊nls)⊂⍵}' ',⍵}            ⍝ partition at newline.
+  join←{¯1↓↑⍺{⍺,⍶,⍵}/⍵,⊂''}                  ⍝ collect with ⍺-separator.
+  jrgt←{fm=≢⍵}                               ⍝ line justified right?
+  jlft←{' '≠⊃⍵}                              ⍝ line justified left?
+  pics←{1∊'┌┬┐├┼┤└┴┘│─'∊⍵}                   ⍝ line contains box-drawing chars?
+  and←{(⍺⍺ ⍵)∧⍵⍵ ⍵}                          ⍝ test combiner.
+  test←~∘pics and jlft and jrgt              ⍝ test for flowtext.
+  first←{(1+⍵⍳0)⊃⍵}∘(≢¨)                     ⍝ length of first non-blank line.
+  spill←{⍵∨¯1⌽⍵}                             ⍝ include next item to right.
+  list←{squeeze dehyph' 'join ⍵}             ⍝ first enlist, then
+  fold←{split to wrap ⍵}                     ⍝ re-wrap paragraph.
+  dehyph←{(~spill'- '⍷⍵)/⍵}                  ⍝ re-join hyphen-separated words.
 
-  nls←⎕UCS 10 133                     ⍝ version-proof newlines.
-  nl←⊃nls∩⍵                           ⍝ newline separator.
-  to fm←2↑⍺,first 1↓split ⍵~'─'       ⍝ to and from notes width.
-  vex←split ⍵                         ⍝ line_vector notes to vec-of-vecs.
-  text←0,1↓spill test¨vex             ⍝ mask of lines of flowtext.
-  segs←1,1↓¯1⌽0 1⍷text                ⍝ partition at start of flowtext.
+  nls←⎕UCS 10 13 133                         ⍝ version-proof newlines.
+  nl←⊃nls∩⍵                                  ⍝ newline separator.
+  to fm←2↑⍺,first 1↓split ⍵~'─'              ⍝ to and from notes width.
+  vex←split ⍵                                ⍝ line_vector notes to vec-of-vecs.
+  text←0,1↓spill test¨vex                    ⍝ mask of lines of flowtext.
+  segs←1,1↓¯1⌽0 1⍷text                       ⍝ partition at start of flowtext.
 
-  vtrim nl join↑,/(segs⊂text){        ⍝ re-collect lines of notes.
-    0=⊃⍺:⍵                          ⍝ no flowtext here: continue.
-    flow rest←(1 0=⊂⍺)/¨⊂⍵          ⍝ separate flowtext from the rest.
-    vex←fold list flow              ⍝ refold paragraph.
-    wrp←to wrap' 'join vex          ⍝ re-re-wrap text.
-    new←split to justify wrp        ⍝ justify.
-    new,rest                        ⍝ re-collect segment.
-  }¨segs⊂vex                          ⍝ for each flowtext segment.
+  vtrim nl join↑,/(segs⊂text){               ⍝ re-collect lines of notes.
+    0=⊃⍺:⍵                                   ⍝ no flowtext here: continue.
+    flow rest←(1 0=⊂⍺)/¨⊂⍵                   ⍝ separate flowtext from the rest.
+    vex←fold list flow                       ⍝ refold paragraph.
+    wrp←to wrap' 'join vex                   ⍝ re-re-wrap text.
+    new←split to justify wrp                 ⍝ justify.
+    new,rest                                 ⍝ re-collect segment.
+  }¨segs⊂vex                                 ⍝ for each flowtext segment.
 }
+
+⍝ From http://dfns.dyalog.com/c_xtabs.htm
+
+xtabs ← { ⎕IO←0                              ⍝ Expand/compress HT chars.
+  ⍺←8                                        ⍝ default: 8-col tab stops.
+  ⍺=0:⍵                                      ⍝ ⍺=0: no-op.
+  chs←~⍵∊⎕UCS 10 13 133                      ⍝ characters within line.
+
+  ⍺>0:⍺{                                     ⍝ +ive ⍺: expand tabs → blanks.
+    tabs nabs←1 0=⊂⍵∊⎕UCS 9                  ⍝ masks of tabs and non-tabs.
+    sync←tabs≥chs                            ⍝ sync at tab and end of line.
+    segs←¯1+{⍵-¯1,¯1↓⍵}⍸sync                 ⍝ inter-tab segment lengths.
+    pads←0⌈⍺-⍺|(sync/tabs)/segs              ⍝ padding lengths.
+    (nabs+tabs\pads)/nabs\nabs/⍵             ⍝ padded char vector.
+  }⍵
+
+  ⍺<0:(-⍺){                                  ⍝ -ive ⍺: squeeze blanks → tabs.
+    bks nks←1 0=⊂⍵=' '                       ⍝ blanks and non-blanks
+    runs←{⍵{⍵-⌈\⍵×~⍺}+\⍵}                    ⍝ runs of adjacent 1s.
+    tabs←bks∧chs∧0=⍺|runs chs                ⍝ tab positions.
+    onoff←{(⍺≠⍵){≠\⍺\2≠/¯1,⍺/⍵}⍺-⍵}          ⍝ on where ⍺=1, off where ⍵=1.
+    pretab←⌽(⌽tabs)onoff⌽nks                 ⍝ blanks that precede tabs.
+    (pretab≤tabs)/(⎕UCS 9)@{tabs}⍵           ⍝ without tab-preceding blanks.
+  }⍵
+}
+
+⍝ From http://dfns.dyalog.com/s_xtabs.htm
+
+tabTrip ← {⍵≡⍕⍺ xtabs ⍕(-⍺)xtabs ⍵} ⍝ TODO: should the ⍕ be needed?
+
+tabTrips ← {∧/(0,⍳1+⍴⍵)tabTrip¨⊂⍵}

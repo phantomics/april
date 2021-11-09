@@ -54,6 +54,9 @@
                            alpha (coerce alpha 'double-float)))
       (log (if (typep omega 'double-float)
                omega (coerce omega 'double-float)))))
+#|
+
+Old complex floor implementation from APL wiki
 
 (defun complex-floor (number)
   "Find the floor of a complex number using Eugene McDonnell's algorithm."
@@ -64,39 +67,61 @@
          (y (mod i 1)))
     (+ b (if (> 1 (+ x y))
              0 (if (>= x y) 1 #C(0 1))))))
+|#
 
-(defun apl-floor (omega)
+(defun complex-floor (number comparison-tolerance)
+  "Find the floor of a complex number using Eugene McDonnell's algorithm."
+  (let* ((rfloor (floor (realpart number)))
+         (ifloor (floor (imagpart number)))
+         (rpart (- (realpart number) rfloor))
+         (ipart (- (+ (imagpart number)
+                      (* comparison-tolerance (abs (imagpart number))))
+                   ifloor)))
+    (if (> 1 (+ rpart ipart)) (complex rfloor ifloor)
+        (if (< rpart ipart) (complex rfloor (1+ ifloor))
+            (1+ (complex rfloor ifloor))))))
+
+(defun apl-floor (comparison-tolerance)
   "Find a number's floor using the complex floor algorithm if needed."
-  (if (complexp omega) (complex-floor omega)
-      (floor omega)))
+  (lambda (omega)
+    (if (complexp omega) (complex-floor omega comparison-tolerance)
+        (floor omega))))
 
-(defun apl-ceiling (omega)
+(defun apl-ceiling (comparison-tolerance)
   "Find a number's ceiling deriving from the complex floor algorithm if needed."
-  (if (complexp omega) (- (complex-floor (- omega)))
-      (ceiling omega)))
+  (lambda (omega)
+    (if (complexp omega) (- (complex-floor (- omega) comparison-tolerance))
+        (ceiling omega))))
 
-(defun apl-residue (omega alpha)
-  "Implementation of residue extended to complex numbers based on the complex-floor function"
-  (if (or (complexp omega) (complexp alpha))
-      (let ((ainput (complex (if (= 0 (realpart alpha))
-                                 1 (realpart alpha))
-                             (if (= 0 (imagpart alpha))
-                                 1 (imagpart alpha)))))
-        (- omega (* ainput (complex-floor (/ omega ainput)))))
-      (mod omega alpha)))
+(defun apl-residue (comparison-tolerance)
+  "Implementation of residue extended to complex numbers based on the complex-floor function."
+  (lambda (omega alpha)
+    (if (or (complexp omega) (complexp alpha))
+        (let ((ainput (complex (if (= 0 (realpart alpha))
+                                   1 (realpart alpha))
+                               (if (= 0 (imagpart alpha))
+                                   1 (imagpart alpha)))))
+          (- omega (* ainput (complex-floor (/ omega ainput) comparison-tolerance))))
+        (if (= 0 alpha)
+            omega (mod omega alpha)))))
 
-(defun apl-gcd (omega alpha)
+(defun apl-gcd (comparison-tolerance)
   "Implementation of greatest common denominator extended to complex numbers based on the complex-floor function."
-  (if (or (complexp omega) (complexp alpha))
-      (if (= 0 (apl-residue omega alpha))
-          alpha (apl-gcd alpha (apl-residue omega alpha)))
-      (funcall (apl-xcy #'gcd) omega alpha)))
+  (lambda (omega alpha)
+    (if (or (complexp omega) (complexp alpha))
+        (if (= 0 (identity (funcall (apl-residue comparison-tolerance)
+                          omega alpha)))
+            alpha (funcall (apl-gcd comparison-tolerance)
+                           alpha (funcall (apl-residue comparison-tolerance)
+                                          omega alpha)))
+        (funcall (apl-xcy #'gcd) omega alpha))))
 
-(defun apl-lcm (omega alpha)
+(defun apl-lcm (comparison-tolerance)
   "Implementation of lease common multiple extended to complex numbers based on the complex-floor function."
-  (if (or (complexp omega) (complexp alpha))
-      (* alpha (/ omega (apl-gcd omega alpha)))
-      (funcall (apl-xcy #'lcm) omega alpha)))
+  (lambda (omega alpha)
+    (if (or (complexp omega) (complexp alpha))
+        (* alpha (/ omega (funcall (apl-gcd comparison-tolerance) omega alpha)))
+        (funcall (apl-xcy #'lcm) omega alpha))))
 
 (defun without (omega alpha)
   "Remove elements in omega from alpha. Used to implement dyadic [~ without]."
@@ -252,6 +277,7 @@
       0 (array-depth omega)))
 
 (defun array-compare-wrap (comparison-tolerance)
+  "Wrap the array-compare function, providing a comparison tolerance."
   (lambda (omega alpha) (array-compare omega alpha comparison-tolerance)))
 
 (defun find-first-dimension (omega)
@@ -520,7 +546,7 @@
             (turn omega *last-axis*)))))
 
 (defun permute-array (index-origin)
-  "Wraps (aops:permute) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
+  "Wraps (aplesque:permute-axes) to permute an array, rearranging the axes in a given order or reversing them if no order is given. Used to implement monadic and dyadic [⍉ permute]."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
         omega (permute-axes
@@ -1142,8 +1168,6 @@
         (right-fn (if (functionp right) right)))
     (lambda (omega &optional alpha)
       (declare (ignorable alpha))
-      ;; (if (and left (not (functionp left)))
-      ;;     (setq left-fn-d nil left-fn-m nil))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
           ;; if the right operand is a function, collect the right argument's matching elements
           ;; into a vector, apply the left operand function to it and assign its elements to their
@@ -1199,19 +1223,32 @@
                 omega-copy))
           ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
           ;; left operand function as per choose or reach indexing
-          (nth-value
-           1 (choose omega (if (not right-fn)
-                               (append (list (apply-scalar #'- right index-origin))
+          (if right-fn (let ((selections (funcall right-fn omega))
+                             (output (make-array (dims omega))))
+                         (if (/= (size omega) (size selections))
+                             (error "Output of [@ at]'s right operand function must match ~n"
+                                    " the shape of the left argument.")
+                             (xdotimes output (i (size selections))
+                               (setf (row-major-aref output i)
+                                     (if (= 0 (row-major-aref selections i))
+                                         (row-major-aref omega i)
+                                         (if left-fn
+                                             (if alpha (funcall left-fn (row-major-aref omega i) alpha)
+                                                 (funcall left-fn (row-major-aref omega i)))
+                                             (if (not (arrayp left))
+                                                 left (if (= 0 (rank left))
+                                                          (disclose left)
+                                                          (row-major-aref left i))))))))
+                         output)
+              (nth-value
+               1 (choose omega (append (list (apply-scalar #'- right index-origin))
                                        (loop :for i :below (- (rank omega) (array-depth right))
-                                             :collect nil)))
-                     :set (if (not left-fn) left)
-                     :set-by (if (or left-fn right-fn)
-                                 (lambda (old &optional new)
-                                   (declare (ignorable new))
-                                   (if (and right-fn (= 0 (funcall right-fn old)))
-                                       old (if (not left-fn)
-                                               new (if alpha (funcall left-fn old alpha)
-                                                       (funcall left-fn old))))))))))))
+                                             :collect nil))
+                         :set (if (not left-fn) left)
+                         :set-by (if left-fn (lambda (old &optional new)
+                                               (declare (ignorable new))
+                                               (if alpha (funcall left-fn old alpha)
+                                                   (funcall left-fn old)))))))))))
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."

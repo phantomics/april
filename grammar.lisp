@@ -348,7 +348,6 @@
                                                        :space space :params params)
                                           :space space :params params))
             ((and (listp (first tokens)) (eq :axes (caar tokens))) ;; if axes like [2] are encountered
-             ;; (print (list :ee elements axes left (first tokens) (second tokens)))
              (if elements
                  ;; if elements are present, recurse and process the items after the axes as another
                  ;; vector for the axes to be applied to
@@ -386,7 +385,6 @@
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
                                        (process-value (first tokens) params *april-idiom* space))))
-                 ;; (print (list :fv is-closure left first-value tokens elements axes))
                  ;; if a value element is confirmed, add it to the list of elements and recurse
                  (if first-value
                      (if (and is-closure (listp first-value) (listp (first first-value))
@@ -434,7 +432,6 @@
                              (let ((preceding (build-value nil :elements elements :params params
                                                                :axes (if (not axes-last) axes)
                                                                :space space)))
-                               ;; (print (list :iii preceding tokens elements axes-last axes))
                                (multiple-value-bind (function remaining)
                                    ;; apply axes to the found function if they were encountered last,
                                    ;; as with 1 2 3∘.⌽[1]⊂2 3 4⍴⍳9
@@ -711,7 +708,6 @@
                                     (if (member assign-sym (getf closure-meta :lop-syms))
                                         :lateral (if (member assign-sym (getf closure-meta :pop-syms))
                                                      :pivotal)))))
-            ;; (print (list :fo found-operator params assign-sym))
             (if (and (listp found-operator) (eql 'olambda (first found-operator))
                      (member '⍶ (second found-operator)))
                 (push assign-sym (getf (rest (getf (getf params :special) :closure-meta)) :op-syms-lval)))
@@ -744,7 +740,6 @@
 
 (defun complete-value-assignment (tokens elements space params axes)
   "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
-  ;; (print (list :to tokens elements))
   (labels ((all-symbols-p (list) ;; check whether list contains all symbols or lists of symbols
              (if (listp list) (loop :for item :in list
                                     :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
@@ -891,7 +886,7 @@
              `(setq output-stream ,(intern value (package-name *package*)))
              (if (listp value)
                  (destructuring-bind (vector-symbol package-string symbol-string) value
-                   (if (and (eql 'avector vector-symbol) (stringp package-string)
+                   (if (and (eql 'avec vector-symbol) (stringp package-string)
                             (stringp symbol-string))
                        ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
                        ;; intern the symbol like (intern "OUT-STR" "APRIL")
@@ -960,7 +955,7 @@
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
-                                (second symbol) (if (and (listp symbol) (eql 'avector (first symbol)))
+                                (second symbol) (if (and (listp symbol) (eql 'avec (first symbol)))
                                                     (rest symbol)))))
                   (symbols-list (if (symbolp syms) (list syms)))
                   (set-symbol (if (and (symbolp syms) (member syms '(⍺ ⍶ ⍺⍺)))
@@ -977,7 +972,7 @@
                               (let ((out-list
                                       (loop :while valid :for i
                                               :in (if (and (not inner)
-                                                           (not (eql 'avector (first list))))
+                                                           (not (eql 'avec (first list))))
                                                       list (rest list))
                                             :collect (setq valid
                                                            (if (symbolp i)

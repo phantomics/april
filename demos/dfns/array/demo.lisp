@@ -613,4 +613,12 @@ ok
 
 ok")
          (is "''∘≡∘⍕∘vtrim¨ '' ' ' '  '" #(1 1 1))
-         (is "(⎕UCS 10)=vtrim 0 1 0 1 1 0 0 1 0 0\\⎕UCS 10" #(1 1 1 1))))
+         (is "(⎕UCS 10)=vtrim 0 1 0 1 1 0 0 1 0 0\\⎕UCS 10" #(1 1 1 1))
+         (is "noteSampleOutput≡⍕30 wrapnote noteSample" 1)
+         (provision "tabText←'whistles        far     and wee'")
+         (is "⍕((⎕UCS 9)'→'∘subs) ¯8 xtabs tabText" "whistles→far→and wee")
+         (is "⍕((⎕UCS 9)'→'∘subs) ¯4 xtabs tabText" "whistles→→far→→and→wee")
+         (is "tabTrips tabText" 1)
+         (is "tabTrips ,(6 35⍴↑,/(⍳20)↑¨'⎕'),⊃⌽⎕UCS 10" 1)
+         (is "(2/(⎕UCS 9) ' ')≡¯4 xtabs 10↑''" 1)
+         (is "∧/tabTrips¨1↓,\\10↑''" 1)))

@@ -36,6 +36,7 @@
 
 (defgeneric set-system-meta (idiom &rest pairs))
 (defmethod set-system-meta ((idiom idiom) &rest pairs)
+  "Set a property of the idiom's system."
   (loop :for (key value) :on pairs :by #'cddr
      :do (setf (getf (idiom-system idiom) key) value)))
 
@@ -544,9 +545,6 @@
              (numeric-string-p (item) (funcall (of-utilities idiom :format-number) item))
              (pjoin-char-p     (item) (funcall (of-utilities idiom :match-path-joining-character) item))
              (utoken-p         (item) (funcall (of-utilities idiom :match-uniform-token-character) item))
-             ;; (p-or-u-char-p (is-path uniform-char item)
-             ;;   (if is-path (funcall (of-utilities idiom :match-token-character) item)
-             ;;       (char= uniform-char item)))
              (p-or-u-char-p (is-path uniform-char)
                (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character) item))
                    (lambda (item) (char= uniform-char item))))

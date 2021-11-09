@@ -112,6 +112,19 @@
              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
                      package-symbol))))
 
+;; (defmacro run-demo-tests ()
+;;   "Run the tests for each April demo package."
+;;   (cons 'progn
+;;         (loop :for package-symbol :in *demo-packages*
+;;               :append (if (asdf:registered-system package-symbol)
+;;                           (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
+;;                             (if (fboundp run-function-symbol)
+;;                                 ;; (funcall (symbol-function run-function-symbol))
+;;                                 (list (list run-function-symbol))
+;;                                 ))
+;;                           (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+;;                                    package-symbol)))))
+
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
   (if (not (and (not (stringp item)) (arrayp item) (is-unitary item)
@@ -513,13 +526,13 @@
                               (if by (list :set-by by))))))
             (if (and (listp symbol) (eql 'symbol-function (first symbol)))
                 `(setf ,symbol ,value)
-                (let ((symbols (if (not (eql 'avector (first symbol)))
+                (let ((symbols (if (not (eql 'avec (first symbol)))
                                    symbol (rest symbol))))
                   ;; handle multiple assignments like a b c←1 2 3
                   (labels ((process-symbols (sym-list values)
                              (let ((this-val (gensym)))
                                `(let ((,this-val ,values))
-                                  ,@(loop :for sym :in (if (not (eql 'avector (first sym-list)))
+                                  ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                            sym-list (rest sym-list))
                                           :for sx :from 0
                                           :append (if (and (listp sym) (not (eql 'inws (first sym))))
@@ -582,7 +595,7 @@
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
 
-(defmacro avector (&rest items)
+(defmacro avec (&rest items)
   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
   (let ((type))
     (loop :for item :in items :while (not (eq t type))
@@ -739,7 +752,7 @@
                     (macro-function (first reference))
                     (not (member (first reference)
                                  ;; TODO: this will cause a problem if a function is passed and assigned
-                                 '(avector a-call apl-if a-out a-set))))))
+                                 '(avec a-call apl-if a-out a-set))))))
       reference))
 
 (defun extract-axes (process tokens &optional axes)
@@ -1103,7 +1116,7 @@ It remains here as a standard against which to compare methods for composing APL
                    (let ((initial (if (not (and (listp (first form))
                                                 (member (first form) '(inws inwsd))))
                                       (first form) (first form))))
-                     (if (member (first form) '(avector achoose inws inwsd))
+                     (if (member (first form) '(avec achoose inws inwsd))
                          form (if (not (or (numberp initial)
                                            (listp initial)
                                            (stringp initial)
@@ -1121,9 +1134,9 @@ It remains here as a standard against which to compare methods for composing APL
                                       (apply-props form (first properties))
                                       (mapcar #'apply-props form properties))
                                   (if (getf (first properties) :vector-axes)
-                                      (enclose-axes `(avector ,@(mapcar #'apply-props form properties))
+                                      (enclose-axes `(avec ,@(mapcar #'apply-props form properties))
                                                     (getf (first properties) :vector-axes))
-                                      `(avector ,@(mapcar #'apply-props form properties))))))
+                                      `(avec ,@(mapcar #'apply-props form properties))))))
                    (if (not (numberp form))
                        (apply-props form properties)
                        form))))))
@@ -1823,6 +1836,35 @@ It remains here as a standard against which to compare methods for composing APL
                                ,@items (finalize)
                                (setq prove:*enable-colors* t)
                                (format t "~%~%")))))))))
+
+;; (defmacro specify-demo (title params &rest sections)
+;;   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
+;;   (let ((params (rest params)))
+;;     `(progn (defmacro ,(intern "RUN-TESTS" (package-name *package*)) ()
+;;               '(progn
+;;                 (format t "~a ｢~a｣" ,title ,(package-name *package*))
+;;                 (princ #\Newline)
+;;                 ,@(if (getf params :description)
+;;                       `((princ ,(getf params :description))
+;;                         (princ #\Newline)
+;;                         (princ #\Newline)))
+;;                 ,@(if (assoc :tests sections)
+;;                       (let* ((test-count 0)
+;;                              (items (loop :for item :in (rest (assoc :tests sections))
+;;                                           :append (case (intern (string-upcase (first item)) "KEYWORD")
+;;                                                     (:provision `((format t "  ] ~a~%" ,(second item))
+;;                                                                   (april (with (:space ,(getf params :space)))
+;;                                                                          ,(second item))))
+;;                                                     (:is (incf test-count)
+;;                                                      `((format t "  _ ~a" ,(second item))
+;;                                                        (is (april (with (:space ,(getf params :space)))
+;;                                                                   ,(second item))
+;;                                                            ,(third item) :test #'equalp)))))))
+;;                         `((progn (setq prove:*enable-colors* nil)
+;;                                  (plan ,test-count)
+;;                                  ,@items (finalize)
+;;                                  (setq prove:*enable-colors* t)
+;;                                  (format t "~%~%"))))))))))
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools

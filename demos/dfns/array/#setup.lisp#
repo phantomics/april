@@ -5,7 +5,7 @@
 
 (april-create-workspace array-demo-space)
 
-(april (with (:space array-demo-space)
+(april (with (:space array-demo-space)x
              (:store-val (note-sample "
 Paragraphs  of  text  in  notes  such as these, may be wrapped to be more easily
 readable  in an edit window of a particular size. Such wrapping might be advant-
