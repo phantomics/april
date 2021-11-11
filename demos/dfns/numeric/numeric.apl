@@ -283,8 +283,8 @@ Cholesky ← {                                 ⍝ decomposition of a Hermitian 
   q←⌊n÷2
   X←(p,p)↑⍵⊣Y←(p,-q)↑⍵⊣Z←(-q,q)↑⍵
   L0←∇ X
-  L1←∇ Z-(T←(+⍉Y)+.×⌹X)+.×Y
-  ((p,n)↑L0)⍪(T+.×L0),L1
+  L1←∇ Z-(TT←(+⍉Y)+.×⌹X)+.×Y
+  ((p,n)↑L0)⍪(TT+.×L0),L1
 }
 
 ⍝ From http://dfns.dyalog.com/c_det.htm

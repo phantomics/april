@@ -102,28 +102,28 @@
   "Load the April demo packages."
   (loop :for package-symbol :in *demo-packages* :do (asdf:load-system package-symbol)))
 
-(defun run-demo-tests ()
-  "Run the tests for each April demo package."
-  (loop :for package-symbol :in *demo-packages*
-     :do (if (asdf:registered-system package-symbol)
-             (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
-               (if (fboundp run-function-symbol)
-                   (funcall (symbol-function run-function-symbol))))
-             (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
-                     package-symbol))))
-
-;; (defmacro run-demo-tests ()
+;; (defun run-demo-tests ()
 ;;   "Run the tests for each April demo package."
-;;   (cons 'progn
-;;         (loop :for package-symbol :in *demo-packages*
-;;               :append (if (asdf:registered-system package-symbol)
-;;                           (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
-;;                             (if (fboundp run-function-symbol)
-;;                                 ;; (funcall (symbol-function run-function-symbol))
-;;                                 (list (list run-function-symbol))
-;;                                 ))
-;;                           (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
-;;                                    package-symbol)))))
+;;   (loop :for package-symbol :in *demo-packages*
+;;      :do (if (asdf:registered-system package-symbol)
+;;              (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
+;;                (if (fboundp run-function-symbol)
+;;                    (funcall (symbol-function run-function-symbol))))
+;;              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+;;                      package-symbol))))
+
+(defmacro run-demo-tests ()
+  "Run the tests for each April demo package."
+  (cons 'progn
+        (loop :for package-symbol :in *demo-packages*
+              :append (if (asdf:registered-system package-symbol)
+                          (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
+                            (if (fboundp run-function-symbol)
+                                ;; (funcall (symbol-function run-function-symbol))
+                                (list (list run-function-symbol))
+                                ))
+                          (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+                                   package-symbol)))))
 
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
@@ -1228,9 +1228,12 @@ It remains here as a standard against which to compare methods for composing APL
 (defun build-variable-declarations (input-vars space)
   (declare (ignore space))
   "Create the set of variable declarations that begins April's compiled code."
-  (loop :for var-entry :in input-vars :collect (list `(inws ,(intern (lisp->camel-case (first var-entry))
-                                                                     *package-name-string*))
-                                                     (second var-entry))))
+  (loop :for var-entry :in input-vars
+        :collect (let ((symbol (lisp->camel-case (first var-entry))))
+                   ;; unbind functions assigned to input symbols within the workspace
+                   (fmakunbound (intern symbol space))
+                   (list `(inws ,(intern symbol *package-name-string*))
+                         (second var-entry)))))
 
 (defun build-compiled-code (exps workspace-symbols options system-vars vars-declared stored-refs space)
   "Return a set of compiled April expressions within the proper context."
@@ -1809,62 +1812,62 @@ It remains here as a standard against which to compare methods for composing APL
                                (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count))))))
 
-(defmacro specify-demo (title params &rest sections)
-  "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
-  (let ((params (rest params)))
-    `(progn (defun ,(intern "RUN-TESTS" (package-name *package*)) ()
-              (format t "~a ｢~a｣" ,title ,(package-name *package*))
-              (princ #\Newline)
-              ,@(if (getf params :description)
-                    `((princ ,(getf params :description))
-                      (princ #\Newline)
-                      (princ #\Newline)))
-              ,@(if (assoc :tests sections)
-                    (let* ((test-count 0)
-                           (items (loop :for item :in (rest (assoc :tests sections))
-                                     :append (case (intern (string-upcase (first item)) "KEYWORD")
-                                               (:provision `((format t "  ] ~a~%" ,(second item))
-                                                             (april (with (:space ,(getf params :space)))
-                                                                    ,(second item))))
-                                               (:is (incf test-count)
-                                                    `((format t "  _ ~a" ,(second item))
-                                                      (is (april (with (:space ,(getf params :space)))
-                                                                 ,(second item))
-                                                          ,(third item) :test #'equalp)))))))
-                      `((progn (setq prove:*enable-colors* nil)
-                               (plan ,test-count)
-                               ,@items (finalize)
-                               (setq prove:*enable-colors* t)
-                               (format t "~%~%")))))))))
-
 ;; (defmacro specify-demo (title params &rest sections)
 ;;   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
 ;;   (let ((params (rest params)))
-;;     `(progn (defmacro ,(intern "RUN-TESTS" (package-name *package*)) ()
-;;               '(progn
-;;                 (format t "~a ｢~a｣" ,title ,(package-name *package*))
-;;                 (princ #\Newline)
-;;                 ,@(if (getf params :description)
-;;                       `((princ ,(getf params :description))
-;;                         (princ #\Newline)
-;;                         (princ #\Newline)))
-;;                 ,@(if (assoc :tests sections)
-;;                       (let* ((test-count 0)
-;;                              (items (loop :for item :in (rest (assoc :tests sections))
-;;                                           :append (case (intern (string-upcase (first item)) "KEYWORD")
-;;                                                     (:provision `((format t "  ] ~a~%" ,(second item))
-;;                                                                   (april (with (:space ,(getf params :space)))
-;;                                                                          ,(second item))))
-;;                                                     (:is (incf test-count)
-;;                                                      `((format t "  _ ~a" ,(second item))
-;;                                                        (is (april (with (:space ,(getf params :space)))
-;;                                                                   ,(second item))
-;;                                                            ,(third item) :test #'equalp)))))))
-;;                         `((progn (setq prove:*enable-colors* nil)
-;;                                  (plan ,test-count)
-;;                                  ,@items (finalize)
-;;                                  (setq prove:*enable-colors* t)
-;;                                  (format t "~%~%"))))))))))
+;;     `(progn (defun ,(intern "RUN-TESTS" (package-name *package*)) ()
+;;               (format t "~a ｢~a｣" ,title ,(package-name *package*))
+;;               (princ #\Newline)
+;;               ,@(if (getf params :description)
+;;                     `((princ ,(getf params :description))
+;;                       (princ #\Newline)
+;;                       (princ #\Newline)))
+;;               ,@(if (assoc :tests sections)
+;;                     (let* ((test-count 0)
+;;                            (items (loop :for item :in (rest (assoc :tests sections))
+;;                                      :append (case (intern (string-upcase (first item)) "KEYWORD")
+;;                                                (:provision `((format t "  ] ~a~%" ,(second item))
+;;                                                              (april ;; (with (:space ,(getf params :space)))
+;;                                                                     ,(second item))))
+;;                                                (:is (incf test-count)
+;;                                                     `((format t "  _ ~a" ,(second item))
+;;                                                       (is (april ;; (with (:space ,(getf params :space)))
+;;                                                                  ,(second item))
+;;                                                           ,(third item) :test #'equalp)))))))
+;;                       `((progn (setq prove:*enable-colors* nil)
+;;                                (plan ,test-count)
+;;                                ;; ,@items
+;;                                (with-april-context ((:space ,(getf params :space)))
+;;                                  ,@items)
+;;                                (finalize)
+;;                                (setq prove:*enable-colors* t)
+;;                                (format t "~%~%")))))))))
+
+(defmacro specify-demo (title params &rest sections)
+  "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
+  (let ((params (rest params)))
+    `(defmacro ,(intern "RUN-TESTS" (package-name *package*)) ()
+       '(progn (format t "~a ｢~a｣" ,title ,(package-name *package*))
+         (princ #\Newline)
+         ,@(if (getf params :description)
+               `((format t "~a~%~%" ,(getf params :description))))
+         ,@(if (assoc :tests sections)
+               (let* ((test-count 0)
+                      (items (loop :for item :in (rest (assoc :tests sections))
+                                   :append (case (intern (string-upcase (first item)) "KEYWORD")
+                                             (:provision `((format t "  ] ~a~%" ,(second item))
+                                                           (april ,(second item))))
+                                             (:is (incf test-count)
+                                              `((format t "  _ ~a" ,(second item))
+                                                (is (april ,(second item))
+                                                    ,(third item) :test #'equalp)))))))
+                 `((setq prove:*enable-colors* nil)
+                   (plan ,test-count)
+                   (with-april-context ((:space ,(getf params :space)))
+                     ,@items)
+                   (finalize)
+                   (setq prove:*enable-colors* t)
+                   (format t "~%~%"))))))))
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools

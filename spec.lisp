@@ -1805,7 +1805,7 @@
   (for "Alphabetical and numeric vectors." "⎕pp←10 ⋄ ⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
   (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7))
   (for "Characters to unicode indices." "⎕ucs 'abcd'" #(97 98 99 100))
-  (for "Unicode indices to characters." "⎕ucs 13 133" #(#\Return #\Next-Line))
+  (for "Unicode indices to characters." "⎕ucs 13 10" #(#\Return #\Newline))
   (for "3D array formatted as matrix." "↓⎕fmt 2 3 3⍴⍳9" #("1 2 3"
                                                           "4 5 6"
                                                           "7 8 9"
@@ -2253,43 +2253,43 @@ c   2.56  3
  (arbitrary-test-set
   (with (:name :output-specification-tests)
         (:tests-profile :title "Output Specification Tests"))
-  ((progn (princ (format nil "λ Evaluation of ⍳ with specified index origin.~%"))
+  ((progn (format t "λ Evaluation of ⍳ with specified index origin.~%")
           (is (print-and-run (april (with (:state :index-origin 0)) "⍳9"))
               #(0 1 2 3 4 5 6 7 8) :test #'equalp))
    (let ((out-str (make-string-output-stream)))
-     (princ (format nil "λ Printed output at given precisions.~%"))
+     (format t "λ Printed output at given precisions.~%")
      (print-and-run (april-f (with (:state :print-to out-str :print-precision 3)) "○1 2 3"))
      (is (get-output-stream-string out-str)
          "3.14 6.28 9.42
 ")
-     (princ (format nil "~%"))
+     (format t "~%")
      (print-and-run (april-f (with (:state :print-to out-str :print-precision 6)) "○1 2 3"))
      (is (get-output-stream-string out-str)
          "3.14159 6.28319 9.42478
 ")
 
-     (princ (format nil "~%λ Output of function definition (just a newline).~%"))
+     (format t "~%λ Output of function definition (just a newline).~%")
      (print-and-run (april-f (with (:state :print-to out-str)) "{⍵+3}"))
      (is (get-output-stream-string out-str)
          "
 "))
-   (progn (princ (format nil "λ Floating-point comparisons with varying comparison tolerance.~%"))
+   (progn (format t "λ Floating-point comparisons with varying comparison tolerance.~%")
           (is (print-and-run (april-c "{G←1.00001<1.0001 ⋄ ⎕ct←0.0001 ⋄ H←G,1.00001<1.0001 ⋄ ⎕ct←⍵ ⋄ H}"
                                       double-float-epsilon))
               #*10))
-   (progn (princ (format nil "λ Output of one input and one declared variable with index origin set to 0.~%"))
+   (progn (format t "λ Output of one input and one declared variable with index origin set to 0.~%")
           (multiple-value-bind (out1 out2)
               (print-and-run (april (with (:state :count-from 0 :in ((a 3) (b 5)) :out (a c)))
                                     "c←a+⍳b"))
             (is out1 3)
-            (princ (format nil "~%"))
+            (format t "~%")
             (is out2 #(3 4 5 6 7) :test #'equalp)))
-   (progn (princ (format nil "λ Output of both value and APL-formatted value string.~%"))
+   (progn (format t "λ Output of both value and APL-formatted value string.~%")
           (multiple-value-bind (out1 out2)
               (print-and-run (april (with (:state :output-printed t)) "2 3⍴⍳9"))
             
             (is out1 #2A((1 2 3) (4 5 6)) :test #'equalp)
-            (princ (format nil "~%"))
+            (format t "~%")
             (is out2 "1 2 3
 4 5 6
 ")))
@@ -2298,38 +2298,38 @@ c   2.56  3
               "1 2 3
 4 5 6
 "))
-   (progn (princ (format nil "λ Output of three internally-declared variables.~%"))
+   (progn (format t "λ Output of three internally-declared variables.~%")
           (multiple-value-bind (out1 out2 out3)
               (print-and-run (april (with (:state :out (a b c)))
                                     "a←9+2 ⋄ b←5+3 ⋄ c←2×9"))
-            (princ (format nil "~%"))
+            (format t "~%")
             
             (is out1 11)
-            (princ (format nil "~%"))
+            (format t "~%")
             (is out2 8)
-            (princ (format nil "~%"))
+            (format t "~%")
             (is out3 18)))
-   (progn (princ (format nil "λ Output using ⎕← to specified output stream.~%"))
+   (progn (format t "λ Output using ⎕← to specified output stream.~%")
           (let* ((out-str (make-string-output-stream))
                  (vector (print-and-run (april (with (:state :print-to out-str))
                                                "a←1 2 3 ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 ⋄ 3+a"))))
 
             (is vector #(4 5 6) :test #'equalp)
 
-            (princ (format nil "~%"))
+            (format t "~%")
             
             (is (print-and-run (get-output-stream-string out-str))
                 "6 7 8
 3 4 5
 ")))
-   (progn (princ (format nil "λ Printed output of a variable assignment preceded by ⎕←.~%"))
+   (progn (format t "λ Printed output of a variable assignment preceded by ⎕←.~%")
           (let* ((out-str (make-string-output-stream))
                  (vector (print-and-run (april (with (:state :print-to out-str))
                                                "⎕←x←1 2 3"))))
             
             (is vector #(1 2 3) :test #'equalp)
             
-            (princ (format nil "~%"))
+            (format t "~%")
             
             (is (print-and-run (get-output-stream-string out-str))
                 "1 2 3
@@ -2338,37 +2338,37 @@ c   2.56  3
           (other-out-str (make-string-output-stream)))
      (print-and-run (april-f "a←1 2 3 ⋄ ⎕ost←('APRIL' 'OUT-STR') ⋄ ⎕←a+5 ⋄ ⎕←3 4 5 
 ⎕ost←('APRIL' 'OTHER-OUT-STR') ⋄ 3+a"))
-     (princ (format nil "~%~%"))
+     (format t "~%~%")
      (is (print-and-run (get-output-stream-string out-str))
          "6 7 8
 3 4 5
 " :test #'equalp)
-     (princ (format nil "~%"))
+     (format t "~%")
      (is (print-and-run (get-output-stream-string other-out-str))
          "4 5 6
 " :test #'equalp))
-   (progn (princ (format nil "λ Multi-line function with comment at end.~%"))
+   (progn (format t "λ Multi-line function with comment at end.~%")
           
           (is (print-and-run (april "fun←{
   5+⍵
   ⍝ comment
 }
 fun 3")) 8))
-   (progn (princ (format nil "λ Compact function calls.~%"))
+   (progn (format t "λ Compact function calls.~%")
           
           (is (print-and-run (april-c "{⍺×⍵}" 2 8)) 16)
           
-          (princ (format nil "~%"))
+          (format t "~%")
           
           (is (print-and-run (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10))
               #(8 8 8 8 8 8 0 0 0 0) :test #'equalp)
           
-          (princ (format nil "~%"))
+          (format t "~%")
           
           (is (print-and-run (april-c "⍴" 5 3))
               #(5 5 5) :test #'equalp)
           
-          (princ (format nil "~%"))
+          (format t "~%")
 
           (is (print-and-run (april-c (with (:state :count-from 0)) "{⍳⍵}" 7))
               #(0 1 2 3 4 5 6) :test #'equalp))

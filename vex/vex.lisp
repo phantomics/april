@@ -96,7 +96,7 @@
     (labels ((for-tests (tests &optional output)
                (if tests (for-tests (rest tests)
                                     (append output (if (not (eq :time mode))
-                                                       `((princ (format nil "  _ ~a" ,(cadr (first tests))))))
+                                                       `((format t "  _ ~a" ,(cadr (first tests)))))
                                             (cond ((and (eq :test mode)
                                                         (eql 'is (caar tests)))
                                                    `((is (,(intern (string-upcase symbol)
@@ -131,7 +131,7 @@
                                                            `((princ #\Newline))))))))
                    output)))
       (if tests (append (if (not (eq :time mode))
-                            `((princ ,(format nil "~%~a" heading))))
+                            `((format t "~%~a" ,heading)))
                         (for-tests tests))))))
 
 ;; TODO: this is also April-specific, move it into spec
@@ -143,7 +143,7 @@
                                                    ((string= "FOR-PRINTED" (string-upcase (first test-set)))
                                                     (if (eq :test mode) "⎕ Printed: " "⎕ ")))
                                 (second test-set)))
-                (princ (format nil "~%  _ ~a~%" ,(third test-set)))))
+                (format t "~%  _ ~a~%" ,(third test-set))))
           (list (cond ((and (eq :test mode)
                             (string= "FOR" (string-upcase (first test-set))))
                        `(is (,(intern (string-upcase symbol) (package-name *package*))
@@ -192,7 +192,7 @@
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
   "Process arbitrary tests within a spec containing expressions that are evaluated without being wrapped in an (april ...) form."
   (declare (ignore symbol mode))
-  (loop :for test :in test-set :append (append '((princ (format nil "~%")))
+  (loop :for test :in test-set :append (append '((format t "~%"))
                                                (list test))))
 
 (defmacro specify-vex-idiom (symbol &rest subspecs)
@@ -234,15 +234,15 @@
        :append (let* ((subspec (find name specs :test (lambda (id form)
                                                         (eq id (second (assoc :name (rest (second form)))))))))
                  (append (cond ((eq :demo mode)
-                                `((princ (format nil "~%~%∘○( ~a~%  ( ~a~%"
-                                                 ,(getf (rest (assoc :demo-profile (cdadr subspec)))
-                                                        :title)
-                                                 ,(getf (rest (assoc :demo-profile (cdadr subspec)))
-                                                        :description)))))
+                                `((format t "~%~%∘○( ~a~%  ( ~a~%"
+                                          ,(getf (rest (assoc :demo-profile (cdadr subspec)))
+                                                 :title)
+                                          ,(getf (rest (assoc :demo-profile (cdadr subspec)))
+                                                 :description))))
                                ((eq :test mode)
-                                `((princ (format nil "~%~%∘○( ~a )○∘~%"
-                                                 ,(getf (rest (assoc :tests-profile (cdadr subspec)))
-                                                        :title))))))
+                                `((format t "~%~%∘○( ~a )○∘~%"
+                                          ,(getf (rest (assoc :tests-profile (cdadr subspec)))
+                                                 :title)))))
                          (loop :for test-set :in (cddr subspec)
                             :append (funcall (cond ((or (string= "FUNCTIONS" (string-upcase (first subspec)))
                                                         (string= "OPERATORS" (string-upcase (first subspec)))
@@ -519,9 +519,9 @@
                                                 set set-name (if (< 1 set) "s" "")))
                                     set-index (1+ set-index)
                                     items (+ set items))))
-                  (princ (format nil "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
-                                 ,(string-upcase symbol)
-                                 output)))
+                  (format t "~%~a idiom ｢~a｣ with ~a.~%~%" ,(if extension "Extended" "Specified")
+                          ,(string-upcase symbol)
+                          output))
                 ,(format nil "Idiom ~a complete." (if extension "extension" "specification")))))))
 
 (defun derive-opglyphs (glyph-list &optional output)
@@ -879,16 +879,15 @@
                                     input-vars))
                    (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
                                                                  (string (idiom-name idiom))))
-                                    output-vars))
-                   (compiled-expressions 
-                     (process-lines (funcall (of-utilities idiom :prep-code-string) string)
-                                    space (list :call-scope (list :input-vars iv-list
-                                                                  :output-vars ov-list)))))
+                                    output-vars)))
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
                                                    system-to-use inline-arguments))
-                                        compiled-expressions)
+                                        (process-lines
+                                         (funcall (of-utilities idiom :prep-code-string) string)
+                                         space (list :call-scope (list :input-vars iv-list
+                                                                       :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
                                (if output-vars
                                    (list (cons 'values (mapcar (lambda (return-var)

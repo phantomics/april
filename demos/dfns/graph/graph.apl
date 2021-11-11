@@ -187,8 +187,8 @@ pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
 
 scc ← {                                      ⍝ Strongly connected components.
                                              ⍝ (Tarjan)
-  T←(3/⊂0⊣¨G←⍵),1 ⍬                          ⍝ state tuple T :: C L X x S
-  C L X x S←⍳⍴T                              ⍝ access names for items of tuple T
+  TT←(3/⊂0⊣¨G←⍵),1 ⍬                         ⍝ state tuple T :: C L X x S
+  C L X x S←⍳⍴TT                             ⍝ access names for items of tuple TT
 
   ⍝ put←{(⍹⊃⍵)⊣@(⊂⍶ ⍺)⊢⍵}                    ⍝ ⍹ at ⍺ in field ⍶ of ⍵
   put←{(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵}                       ⍝ ⍹ at ⍺ in field ⍶ of ⍵
@@ -222,7 +222,7 @@ scc ← {                                      ⍝ Strongly connected components
     ⊃vert/(⌽⍳⍴G),⊂⍵                          ⍝   for each vertex in G
   }                                          ⍝ :: T ← ∇ T
 
-  (∪⍳⊢)C⊃loop T                              ⍝ for each vertex
+  (∪⍳⊢)C⊃loop TT                             ⍝ for each vertex
 
   ⍝ T :: C L X x S                           ⍝ state tuple
   ⍝ C :: [x]                                 ⍝ connected components vector

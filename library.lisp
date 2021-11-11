@@ -105,6 +105,23 @@ Old complex floor implementation from APL wiki
         (if (= 0 alpha)
             omega (mod omega alpha)))))
 
+(defun apl-xcy (function)
+  "Return a function to find the greatest common denominator or least common multiple of fractional as well as whole numbers. If one or both arguments are floats, the result is coerced to a double float."
+  (lambda (omega alpha)
+    (if (and (integerp omega) (integerp alpha))
+        (funcall function omega alpha)
+        (let* ((float-input)
+               (omega (if (not (floatp omega))
+                          omega (setf float-input (rationalize omega))))
+               (alpha (if (not (floatp alpha))
+                          alpha (setf float-input (rationalize alpha)))))
+          (funcall (if (not float-input) #'identity (lambda (number)
+                                                      (if (not (typep number 'ratio))
+                                                          number (coerce number 'double-float))))
+                   (let ((d-product (* (denominator omega) (denominator alpha))))
+                     (/ (funcall function (* d-product omega) (* d-product alpha))
+                        d-product)))))))
+
 (defun apl-gcd (comparison-tolerance)
   "Implementation of greatest common denominator extended to complex numbers based on the complex-floor function."
   (lambda (omega alpha)
@@ -112,8 +129,15 @@ Old complex floor implementation from APL wiki
         (if (= 0 (identity (funcall (apl-residue comparison-tolerance)
                           omega alpha)))
             alpha (funcall (apl-gcd comparison-tolerance)
-                           alpha (funcall (apl-residue comparison-tolerance)
-                                          omega alpha)))
+                           alpha (let ((residue (funcall (apl-residue comparison-tolerance)
+                                                         omega alpha)))
+                                   (print (list :res residue))
+                                   (if (< (- comparison-tolerance)
+                                          (realpart residue)
+                                          comparison-tolerance)
+                                       residue (imagpart residue)
+                                       ;; 0
+                                       ))))
         (funcall (apl-xcy #'gcd) omega alpha))))
 
 (defun apl-lcm (comparison-tolerance)
@@ -148,23 +172,6 @@ Old complex floor implementation from APL wiki
                (if include (push element included))))
       (make-array (list (length included)) :element-type (element-type alpha)
                   :initial-contents (reverse included)))))
-
-(defun apl-xcy (function)
-  "Return a function to find the greatest common denominator or least common multiple of fractional as well as whole numbers. If one or both arguments are floats, the result is coerced to a double float."
-  (lambda (omega alpha)
-    (if (and (integerp omega) (integerp alpha))
-        (funcall function omega alpha)
-        (let* ((float-input)
-               (omega (if (not (floatp omega))
-                          omega (setf float-input (rationalize omega))))
-               (alpha (if (not (floatp alpha))
-                          alpha (setf float-input (rationalize alpha)))))
-          (funcall (if (not float-input) #'identity (lambda (number)
-                                                      (if (not (typep number 'ratio))
-                                                          number (coerce number 'double-float))))
-                   (let ((d-product (* (denominator omega) (denominator alpha))))
-                     (/ (funcall function (* d-product omega) (* d-product alpha))
-                        d-product)))))))
 
 (defun scalar-compare (comparison-tolerance)
   "Compare two scalar values as appropriate for APL."

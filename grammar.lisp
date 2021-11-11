@@ -12,8 +12,18 @@
       (let ((path-val (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                           (symbol-value (intern "*NS-POINT*" space))))
             ;; get the workspace path as set in the current context
-            (symbol (if (not (and (listp input-sym) (eql 'inwsd (first input-sym))))
-                        input-sym (second input-sym))))
+            (symbol (if (and (listp input-sym) (eql 'inwsd (first input-sym)))
+                        (second input-sym)
+                        ;; if something like (:pt (a (:op :pivotal #\.) b)) is found, correct it
+                        ;; TODO: can the (:op) form be decomposed further up the chain?
+                        (if (and (listp input-sym)
+                                 (eq :pt (first input-sym))
+                                 (listp (second input-sym))
+                                 (listp (second (second input-sym)))
+                                 (eq :op (first (second (second input-sym))))
+                                 (eq :pivotal (second (second (second input-sym)))))
+                            (list :pt (first (second input-sym)) (third (second input-sym)))
+                            input-sym))))
         (if path-val ;; if a context path is set, it must be prepended to the each path resolved
             (if (and (not (and (listp symbol) (member (first symbol) '(nspath :pt))))
                      (or (string= "_" (string symbol)) ;; these types of symbols don't get a path prepended
@@ -161,7 +171,7 @@
                                (error "A defined operator may not include both [⍶ left value] and~a"
                                       " [⍺⍺ left function] operands."))
                            (if (= 2 (length (intersection arg-symbols '(⍹ ⍵⍵))))
-                               (error "A defined operator may not include both [⍹ right value] and~⍺"
+                               (error "A defined operator may not include both [⍹ right value] and~a"
                                       " [⍵⍵ right function] operands."))
                            (if current-path (setf (getf (rest this-closure-meta) :ns-point)
                                                   current-path))
@@ -254,7 +264,7 @@
                     (error "A defined operator may not include both [⍶ left value] and~a"
                            " [⍺⍺ left function] operands."))
                 (if (= 2 (length (intersection arg-symbols '(⍹ ⍵⍵))))
-                    (error "A defined operator may not include both [⍹ right value] and~⍺"
+                    (error "A defined operator may not include both [⍹ right value] and~a"
                            " [⍵⍵ right function] operands."))
                 (if is-inline (if (or (not valence)
                                       (and is-pivotal (eq :pivotal valence))
@@ -507,7 +517,9 @@
 (defun build-function (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   (multiple-value-bind (function rest)
-      (if (getf params :ignore-patterns) (values nil nil)
+      ;; don't try function pattern matching if a function is already confirmed
+      ;; or if the :ignore-patterns option is set in the params
+      (if (or found-function (getf params :ignore-patterns)) (values nil nil)
           (match-function-patterns tokens space params))
     (if function (values function rest)
         (build-function-core tokens :axes axes :found-function found-function
@@ -943,7 +955,7 @@
                                   ;; TODO: make this work with an aliased ¨ operator
                                   prime-function
                                   (if (eql 'a-comp (first prime-function))
-                                      (if (eql '|¨| (second prime-function))
+                                      (if (string= "¨" (string (second prime-function)))
                                           (fourth prime-function)
                                           (error "Invalid operator-composed expression ~a"
                                                  "used for selective assignment."))))
