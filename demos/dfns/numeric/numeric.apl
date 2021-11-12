@@ -243,6 +243,7 @@ xTo ← {                                      ⍝ Sequence ⍺ .. ⍵
   from+step×(⍳size)-⎕IO                      ⍝ ⍺ thru ⍵ inclusive.
 }
 
+
 ⍝⍝ Real number processing
 
 ⍝ From http://dfns.dyalog.com/n_abc.htm
@@ -259,7 +260,7 @@ xp ← {×/×⍵∘.-⍺}                              ⍝ Signum product
 
 xs ← {+/×⍵∘.-⍺}                              ⍝ Signum sum
 
-xm ← {-/↑×⌿×⍺,.-⍉⍵}                          ⍝ Max signum
+xm ← {⌈/↑×⌿×⍺,.-⍉⍵}                          ⍝ Max signum
 
 xr ← {d←⍉↑+/×⍵,.-⍉⍺ ⋄ ((2∨.=|d)/d)←2 ⋄ 3⊥d}  ⍝ Outside location
 

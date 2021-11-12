@@ -53,16 +53,14 @@
  ;; utilities for compiling the language
  (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab) :test #'char=))
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
-            ;; :match-inline-newline-character (lambda (char) (member char '(#\⋄ #\◊) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
             (lambda (char)
               (or (digit-char-p char)
                   (not (loop :for c :across "._¯eEjJrR" :never (char= c char)))))
             :match-token-character
-            (lambda (char)
-              (or (alphanumericp char) ;; TODO: refine these criteria, ∇⍺⍵⍬ etc. can't be part of a name
-                  (not (loop :for c :across "._⎕∆⍙¯" :never (char= c char)))))
+            (lambda (char) (or (alphanumericp char)
+                               (not (loop :for c :across "._⎕∆⍙¯" :never (char= c char)))))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
             :match-uniform-token-character
