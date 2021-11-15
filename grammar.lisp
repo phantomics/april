@@ -1037,7 +1037,8 @@
         (let ((i-sym (intern (string symbol) space))
               (in-closure (getf (getf params :special) :closure-meta)))
           (if (boundp i-sym) (makunbound i-sym))
-          (if (not (member symbol '(⍺ ⍺⍺))) ;; don't bind assignments to argument symbols
+          (if (and (not in-closure)
+                   (not (member symbol '(⍺ ⍺⍺)))) ;; don't bind assignments to argument symbols
               (setf (symbol-function i-sym) #'dummy-nargument-function))
           (if (and (listp function) (symbolp symbol)
                    (member (first function) '(lambda a-comp))

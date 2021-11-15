@@ -310,7 +310,7 @@
      (meta (primary :implicit-args (index-origin)))
      (tests (is "⍴5?⍴⍳5" #(5))))
   (○ (has :titles ("Pi Times" "Circular"))
-     (ambivalent (scalar-function (λω (* pi omega)))
+     (ambivalent (scalar-function (λω (* omega (coerce pi 'double-float))))
                  (scalar-function (call-circular)))
      (meta (monadic :inverse (ac-wrap :m (scalar-function (λω (/ omega pi)))))
            (dyadic :inverse (ac-wrap :d (scalar-function (call-circular :inverse)))
@@ -1821,8 +1821,8 @@
   (for "Inverse subtraction."     "(3-⍣¯1⊢8),(3∘-⍣¯1⊢8),-∘3⍣¯1⊢8" #(-5 -5 11))
   (for "Inverse multiplication."  "(3×⍣¯1⊢8),(3∘×⍣¯1⊢8),×∘3⍣¯1⊢8" #(8/3 8/3 8/3))
   (for "Inverse division."        "(3÷⍣¯1⊢8),(3∘÷⍣¯1⊢8),÷∘3⍣¯1⊢8" #(3/8 3/8 24))
-  (for "Inverse exponents."  "⌊100×(3⋆⍣¯1⊢8),(3∘⋆⍣¯1⊢8),⋆∘3⍣¯1⊢8" #(189 189 200))
-  (for "Inverse logarithms." "⌊100×(3⍟⍣¯1⊢8),(3∘⍟⍣¯1⊢8),⍟∘3⍣¯1⊢8" #(656100 656100 114))
+  (for "Inverse exponents."  "⌊100×.0000001+(3⋆⍣¯1⊢8),(3∘⋆⍣¯1⊢8),⋆∘3⍣¯1⊢8" #(189 189 200))
+  (for "Inverse logarithms." "⌊100×.0000001+(3⍟⍣¯1⊢8),(3∘⍟⍣¯1⊢8),⍟∘3⍣¯1⊢8" #(656100 656100 114))
   (for "Inverse monadic scalar functions." "⌊1000×(+⍣¯1⊢5),(-⍣¯1⊢5),(÷⍣¯1⊢5),(⋆⍣¯1⊢5),⍟⍣¯1⊢5"
        #(5000 -5000 200 1609 148413))
   (for "Inverse circular ops."   "y←⍳12 ⋄ (5○⍨-y)=y∘○⍣¯1⊢5" #(1 1 1 1 1 1 1 1 1 1 1 1))
@@ -1860,7 +1860,7 @@
   (for "Inversion of variable-referenced function." "g←3∘× ⋄ g⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
-  (for "Even more complex function inverted." "{2*1+7-⍵}⍣¯1⊢64" 2.0)
+  (for "Even more complex function inverted." "⌈{2*1+7-⍵}⍣¯1⊢64" 2)
   (for "Dyadic arbitrary function inverted." "(3 {⍵+÷-⍺}⍣¯1⊢5), 3 {⍺+÷-⍵}⍣¯1⊢5" #(16/3 -1/2)))
 
  (test-set
@@ -1885,7 +1885,7 @@
        15)
   (for "Assignment of values within namespace using namespace point."
        "⎕CS _ ⋄ myns←⎕NS⍬ ⋄ myns.aa←⎕NS⍬ ⋄ ⎕CS myns.aa ⋄ bb←33 ⋄ gg←⎕NS⍬ ⋄ gg.hh←5 ⋄ gg.ii←6 
-    gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk← gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
+    gg.jj←{⍺×⍵} ⋄ ff←{⍵+5} ⋄ cc←22 ⋄ dd←ff bb+cc ⋄ gg.kk←gg.hh gg.jj gg.ii ⋄ ⎕CS _ ⋄ myns"
        '(:|aa| (:|dd| 60 :|cc| 22 :|ff| :FUNCTION
                          :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
   (for "Namespace points set in global and local scopes."
@@ -2239,13 +2239,13 @@ c   2.56  3
 ")
   (for-printed "Function name." "⎕pp←10 ⋄ fun←{⍵+5} ⋄ fun" "∇fun")
   (for-printed "Namespace with key/value pair count."
-               "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←3 ⋄ myns" "[ℕ𝕤.3]")
+               "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←3 ⋄ myns" "[Ns.3]")
   (for-printed "Array containing namespaces and other values."
                "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ 4 4⍴1 2 3 myns 'a'"
-               "1      2      3 [ℕ𝕤.2]
+               "1      2      3 [Ns.2]
      a 1      2 3     
-[ℕ𝕤.2]      a 1 2     
-3      [ℕ𝕤.2] a 1     
+[Ns.2]      a 1 2     
+3      [Ns.2] a 1     
 "))
  
  (arbitrary-test-set

@@ -48,7 +48,7 @@
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
-    "Macro that interns symbols in the current workspace; works in tandem with 𝕊 reader macro."
+    "Macro that interns symbols in the current workspace; works in tandem with ⊏ reader macro."
     (let* ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name)))
            (lex-space-name (concatenate 'string space-name "-LEX")))
       (labels ((replace-symbols (form &optional inside-function)
@@ -61,7 +61,7 @@
                                                     (if (and inside-function (not (eql 'inwsd (first item)))
                                                              (not (char= #\* (aref (string (second item)) 0))))
                                                         lex-space-name space-name)))
-                                      ;; don't lex-intern functions like #'𝕊|fn|
+                                      ;; don't lex-intern functions like #'⊏|fn|
                                       (replace-symbols item (and (not (eql 'function (first item)))
                                                                  (or inside-function
                                                                      (member (first item)
@@ -75,42 +75,32 @@
         (first body)))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
-(set-macro-character #\𝕊 (lambda (stream character)
+(set-macro-character #\⊏ (lambda (stream character)
                            (declare (ignore character))
                            (list 'inws (read stream t nil t))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
-(set-macro-character #\𝔻 (lambda (stream character)
+(set-macro-character #\⊑ (lambda (stream character)
                            (declare (ignore character))
                            (list 'inwsd (read stream t nil t))))
 
-;; printer extension to use the 𝕊 reader macro
+;; printer extension to use the ⊏ reader macro
 (set-pprint-dispatch '(cons (member inws))
                      #'(lambda (s list)
                          (if (and (symbolp (second list)) (not (third list)))
-                             (funcall (formatter "𝕊~W") s (second list))
+                             (funcall (formatter "⊏~W") s (second list))
                              (pprint-fill s list))))
 
-;; printer extension to use the 𝔻 reader macro
+;; printer extension to use the ⊑ reader macro
 (set-pprint-dispatch '(cons (member inwsd))
                      #'(lambda (s list)
                          (if (and (symbolp (second list)) (not (third list)))
-                             (funcall (formatter "𝔻~W") s (second list))
+                             (funcall (formatter "⊑~W") s (second list))
                              (pprint-fill s list))))
 
 (defun load-demos ()
   "Load the April demo packages."
   (loop :for package-symbol :in *demo-packages* :do (asdf:load-system package-symbol)))
-
-;; (defun run-demo-tests ()
-;;   "Run the tests for each April demo package."
-;;   (loop :for package-symbol :in *demo-packages*
-;;      :do (if (asdf:registered-system package-symbol)
-;;              (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
-;;                (if (fboundp run-function-symbol)
-;;                    (funcall (symbol-function run-function-symbol))))
-;;              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
-;;                      package-symbol))))
 
 (defmacro run-demo-tests ()
   "Run the tests for each April demo package."
@@ -1102,7 +1092,7 @@ It remains here as a standard against which to compare methods for composing APL
                  item (if (or (of-meta-hierarchy closure-meta :var-syms item)
                               (not (boundp (intern (string item) space))))
                           ;; if a symbol does not represent a lexical variable within the given scope,
-                          ;; it must be a dynamic variable so wrap it with 𝔻
+                          ;; it must be a dynamic variable so wrap it with ⊑
                           `(inws ,item) `(inwsd ,item))))
            (apply-props (item form-props)
              (let ((form-props (if (not (listp (first form-props)))
@@ -1811,37 +1801,6 @@ It remains here as a standard against which to compare methods for composing APL
         (values lexicons (list `(proclaim '(special ,@symbol-set))
                                (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count))))))
-
-;; (defmacro specify-demo (title params &rest sections)
-;;   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
-;;   (let ((params (rest params)))
-;;     `(progn (defun ,(intern "RUN-TESTS" (package-name *package*)) ()
-;;               (format t "~a ｢~a｣" ,title ,(package-name *package*))
-;;               (princ #\Newline)
-;;               ,@(if (getf params :description)
-;;                     `((princ ,(getf params :description))
-;;                       (princ #\Newline)
-;;                       (princ #\Newline)))
-;;               ,@(if (assoc :tests sections)
-;;                     (let* ((test-count 0)
-;;                            (items (loop :for item :in (rest (assoc :tests sections))
-;;                                      :append (case (intern (string-upcase (first item)) "KEYWORD")
-;;                                                (:provision `((format t "  ] ~a~%" ,(second item))
-;;                                                              (april ;; (with (:space ,(getf params :space)))
-;;                                                                     ,(second item))))
-;;                                                (:is (incf test-count)
-;;                                                     `((format t "  _ ~a" ,(second item))
-;;                                                       (is (april ;; (with (:space ,(getf params :space)))
-;;                                                                  ,(second item))
-;;                                                           ,(third item) :test #'equalp)))))))
-;;                       `((progn (setq prove:*enable-colors* nil)
-;;                                (plan ,test-count)
-;;                                ;; ,@items
-;;                                (with-april-context ((:space ,(getf params :space)))
-;;                                  ,@items)
-;;                                (finalize)
-;;                                (setq prove:*enable-colors* t)
-;;                                (format t "~%~%")))))))))
 
 (defmacro specify-demo (title params &rest sections)
   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."

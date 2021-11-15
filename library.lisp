@@ -42,18 +42,28 @@
 
 (defun apl-expt (omega alpha)
   "Exponent function that will always output a double-precision float as per APL standard."
-  (expt omega (if (not (and (or (not (integerp omega))
-                                (not (integerp alpha)))
-                            (not (typep alpha 'double-float))))
-                  alpha (coerce alpha 'double-float))))
+  ;; in the case of one non-natural argument, both must be coerced to floats to avoid trouble in ABCL
+  (expt (if (not (and (or (not (integerp omega))
+                          (not (integerp alpha)))
+                      (not (or (typep omega 'double-float)
+                               (typep omega '(complex double-float))))))
+            omega (coerce omega 'double-float))
+        (if (not (and (or (not (integerp omega))
+                          (not (integerp alpha)))
+                      (not (or (typep alpha 'double-float)
+                               (typep alpha '(complex double-float))))))
+            alpha (coerce alpha 'double-float))))
 
 (defun apl-log (omega &optional alpha)
   "Logarithm function that will always output a double-precision float as per APL standard."
-  (if alpha (log omega (if (or (typep omega 'double-float)
-                               (typep alpha 'double-float))
+  ;; like expt, both args must be coerced to doubles to avoid a problem in ABCL
+  (if alpha (log (if (typep omega 'double-float)
+                     omega (coerce omega 'double-float))
+                 (if (typep alpha 'double-float)
                            alpha (coerce alpha 'double-float)))
       (log (if (typep omega 'double-float)
                omega (coerce omega 'double-float)))))
+
 #|
 
 Old complex floor implementation from APL wiki
@@ -131,7 +141,6 @@ Old complex floor implementation from APL wiki
             alpha (funcall (apl-gcd comparison-tolerance)
                            alpha (let ((residue (funcall (apl-residue comparison-tolerance)
                                                          omega alpha)))
-                                   (print (list :res residue))
                                    (if (< (- comparison-tolerance)
                                           (realpart residue)
                                           comparison-tolerance)

@@ -205,7 +205,12 @@
              (if (characterp input)
                  #\  (if (not (arrayp input))
                          (let ((itype (type-of input)))
-                           (coerce 0 (if (eql 'ratio itype) 'integer itype)))
+                           ;; in ECL (and others?), the integer type of a scalar is that number alone,
+                           ;; i.e. (integer 2 2) for 2, so make sure the integer range starts with 0
+                           (coerce 0 (if (eql 'ratio itype) 'integer
+                                         (if (not (and (listp itype) (eql 'integer (first itype))))
+                                             itype (list 'integer (min 0 (second itype))
+                                                         (max 0 (third itype)))))))
                          (if (= 0 (size input))
                              (make-array (dims input))
                              (derive-element (row-major-aref input 0)))))))
@@ -989,11 +994,16 @@
             (xdotimes output (i (size output))
               (setf (row-major-aref output i) (disclose (copy-nested-array input)))))
         output)
+      ;; (print (list :aa input output-dims))
       (if (= 0 (length output-dims))
           (enclose (row-major-aref input 0))
           (let* ((input-length (array-total-size input))
                  (output-length (reduce #'* output-dims))
-                 (output (make-array output-dims :element-type (if populator t (element-type input)))))
+                 (output (make-array output-dims :element-type (if populator t (element-type input))
+                                                 ;; :initial-element (if (not populator)
+                                                 ;;                      (apl-array-prototype input))
+                                                 )))
+            ;; (print (list :oo output))
             ;; TODO: optimization caused problems due to type uncertainty; solution?
             ;; (optimize (safety 0) (speed 3))
             (if (or populator (< 0 (size input)))
@@ -1630,12 +1640,13 @@
           (let* ((type) (output)
                  (isize (size input)) (irank (rank input)) (total-size 0)
                  (input-vector (make-array (size input) :displaced-to input :element-type (element-type input)))
-                 (each-interval (make-array (size input) :element-type 'fixnum))
+                 (each-interval (make-array (size input) :element-type 'fixnum :initial-element 0))
                  (max-rank (loop :for i :across input-vector :maximizing (rank i)))
                  (orank (+ max-rank irank))
-                 (out-dims-vector (make-array max-rank :element-type 'fixnum))
+                 (out-dims-vector (make-array max-rank :element-type 'fixnum :initial-element 0))
                  (ifactors (get-dimensional-factors (dims input)))
-                 (ifactor-matrix (make-array (list isize (max 0 (1- max-rank))) :element-type 'fixnum))
+                 (ifactor-matrix (make-array (list isize (max 0 (1- max-rank)))
+                                             :element-type 'fixnum :initial-element 0))
                  (idims-holder (make-array max-rank :element-type 'fixnum :initial-element 0))
                  (odims-holder (make-array orank :element-type 'fixnum :fill-pointer 0))
                  (ofactors (make-array orank ;; :element-type 'fixnum
@@ -1702,7 +1713,7 @@
                                                                 ;; :element-type 'fixnum
                                                                 :displaced-index-offset axis)))
                       (rotate to-rotate (- irank axis)))))
-            
+
             ;; TODO: write case for sub-7-bit output where every element of the output is iterated over
             (ydotimes output (i total-size)
               (if (= 0 max-rank)
@@ -1760,7 +1771,6 @@
           input (make-array nil :initial-element input))
       (let* ((irank (rank input)) (idims (dims input)) (last-dim)
              (axis (if axis axis (1- irank))) (axis-dim (nth axis idims))
-             ;; (ocoords (loop :for i :below (1- irank) :collect 0))
              (odims (loop :for dim :in idims :for dx :from 0 :when (not (= dx axis)) :collect dim))
              (input-factors (make-array irank :element-type 'fixnum))
              (output-factors (make-array (1- irank) :element-type 'fixnum))
@@ -1920,7 +1930,7 @@
                  output))))))
 
 (defun turn (input axis &optional degrees)
-  "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
+  "Either reflect an array or rotate it a number of degrees along a given axis. Used to implement [⌽⊖ reflect/rotate]."
   (if (and degrees (not (or (is-unitary degrees)
                             (and (= (rank degrees) (1- (rank input)))
                                  (loop :for dd :in (dims degrees)
@@ -2145,9 +2155,9 @@
                                                        (or (= 1 (aref movement dim))
                                                            (oddp (aref idims dim))))
                                                   1 0)))))
-         (in-factors (make-array irank :element-type 'fixnum))
-         (out-factors (make-array wrank :element-type 'fixnum))
-         (win-factors (make-array wrank :element-type 'fixnum))
+         (in-factors (make-array irank :element-type 'fixnum :initial-element 0))
+         (out-factors (make-array wrank :element-type 'fixnum :initial-element 0))
+         (win-factors (make-array wrank :element-type 'fixnum :initial-element 0))
          (output (make-array output-dims))
          (last-dim))
     
@@ -2173,7 +2183,7 @@
                  last-dim d))
 
     (dotimes (o (size output)) ;; xdo
-      (let* ((acoords (make-array irank :element-type 'fixnum))
+      (let* ((acoords (make-array irank :element-type 'fixnum :initial-element 0))
              (oindices (let ((remaining o))
                          (loop :for of :across out-factors
                             :collect (multiple-value-bind (index remainder) (floor remaining of)
@@ -2264,12 +2274,12 @@
         ;; a function input produces an empty string, as does an empty array
         ((listp input)
          (if (not (keywordp (first input)))
-             (format nil "(𝕃.~d)" (length input))
+             (format nil "(L.~d)" (length input))
              (let ((pairs-count 0))
                (loop :for (key value) :on input :by #'cddr :while pairs-count
                      :do (if (keywordp key) (incf pairs-count) (setq pairs-count nil)))
-               (if pairs-count (format nil "[ℕ𝕤.~d]" pairs-count)
-                   (format nil "(𝕃.~d)" (length input))))))
+               (if pairs-count (format nil "[Ns.~d]" pairs-count)
+                   (format nil "(L.~d)" (length input))))))
         ((not (arrayp input))
          (if (characterp input) (string input)
              (funcall format input (funcall segment input))))

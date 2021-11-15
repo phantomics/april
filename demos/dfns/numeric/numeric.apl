@@ -44,8 +44,8 @@ cfract ← {                                   ⍝ Continued fraction approximat
     ⍵=1:⍺                                    ⍝ whole number: finished.
     n r←0 ⍵⊤⍺                                ⍝ next term and remainder.
     n,⍵∇r                                    ⍝ next term and cf of remainder.
-  }/⌊(1×⎕CT)+⍵ 1÷1∨⍵                      ⍝ whole number ratio.
-} ⍝ TODO: the 1000×⎕CT should not be necessary
+  }/⌊⎕CT+⍵ 1÷1∨⍵                             ⍝ whole number ratio.
+}
 
 ⍝ From http://dfns.dyalog.com/c_colsum.htm
 

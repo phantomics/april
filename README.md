@@ -623,8 +623,8 @@ If you just want to compile the code you enter into April without running it, us
 (IN-APRIL-WORKSPACE COMMON
   (LET* ((OUTPUT-STREAM *STANDARD-OUTPUT*))
     (DECLARE (IGNORABLE OUTPUT-STREAM))
-    (SYMBOL-MACROLET ((INDEX-ORIGIN 𝕊*INDEX-ORIGIN*)
-                      (PRINT-PRECISION 𝕊*PRINT-PRECISION*))
+    (SYMBOL-MACROLET ((INDEX-ORIGIN ⊏*INDEX-ORIGIN*)
+                      (PRINT-PRECISION ⊏*PRINT-PRECISION*))
       (APL-OUTPUT (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
                   :PRINT-PRECISION PRINT-PRECISION))))
 ```
