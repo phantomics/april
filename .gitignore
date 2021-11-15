@@ -12,6 +12,7 @@
 # Common Lisp compiled files
 *.FASL
 *.fasl
+*.fas
 *.lisp-temp
 *.dfsl
 *.pfsl
@@ -27,6 +28,7 @@
 *.sx32fsl
 *.wx64fsl
 *.wx32fsl
+*.abcl
 
 # Data files
 *ubyte
