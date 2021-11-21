@@ -415,6 +415,7 @@
                          (let ((fv-output (output-value space first-value (list nil)
                                                         (rest (getf (getf params :special) :closure-meta))
                                                         )))
+                           ;; (print (list :fvo fv-output))
                            (build-value (rest tokens)
                                         :elements (cons (if (not (and axes is-closure))
                                                             first-value fv-output)
@@ -427,6 +428,7 @@
                                                              :params params :space space
                                                              :valence :pivotal :axes axes)))
                            (if exp-operator
+                               ;; nil
                                (values nil (build-value tokens :elements elements :params params
                                                                :space space :axes axes)
                                        axes axes-last)
@@ -520,7 +522,7 @@
       ;; don't try function pattern matching if a function is already confirmed
       ;; or if the :ignore-patterns option is set in the params
       (if (or found-function (getf params :ignore-patterns)) (values nil nil)
-          (match-function-patterns tokens space params))
+          (match-function-patterns tokens axes space params))
     (if function (values function rest)
         (build-function-core tokens :axes axes :found-function found-function
                                     :initial initial :space space :params params))))
@@ -572,6 +574,12 @@
                 ;; necessary in cases like 3{1 2 ⍶ 4 5×⍵}9
                 (value-operand (or (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
                                                       :op-syms-lval (first tokens))
+                                   (and (symbolp (first tokens)) (not (getf params :special))
+                                        (boundp (intern (string (first tokens)) space))
+                                        (listp (symbol-value (intern (string (first tokens)) space)))
+                                        (member '⍶ (getf (rest (symbol-value (intern (string (first tokens))
+                                                                                     space)))
+                                                         :arg-syms)))
                                    ;; check closure metadata for cases
                                    ;; like (⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)3 3 3} 5
                                    (and (listp (first tokens)) (eq :op (caar tokens))
@@ -587,11 +595,15 @@
                (if value-operand
                    (multiple-value-bind (exp-value remaining)
                        (build-value (rest tokens) :space space :params params :left t)
+                     ;; (print (list :ev exp-value))
                      (if exp-value ;; TODO: write negative clause
                          (build-function
                           remaining :space space :params params :initial initial
                                     :found-function (compose-function-lateral
-                                                     exp-operator nil exp-value axes))))
+                                                     exp-operator nil exp-value axes))
+                         ;; (multiple-value-bind (exp-function remaining)
+                         ;;     (build-function (rest tokens) :space space :params params))
+                         ))
                    (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
                                  (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
                        ;; if a lateral operator is encountered followed by ←, the operator is being
@@ -607,7 +619,8 @@
                                                                           exp-operator fn-wrap nil axes)))
                              ;; if the operator was not followed by a function, check whether
                              ;; it's an overloaded lexical function and if so process it as such
-                             (let* ((fn-token (if (characterp (third (first tokens)))
+                             (let* ((fn-token (if (and (listp (first tokens))
+                                                       (characterp (third (first tokens))))
                                                   (list :fn (third (first tokens)))))
                                     (ol-function (if fn-token (proc-function fn-token params
                                                                              *april-idiom* space))))
@@ -721,7 +734,9 @@
                                         :lateral (if (member assign-sym (getf closure-meta :pop-syms))
                                                      :pivotal)))))
             (if (and (listp found-operator) (eql 'olambda (first found-operator))
-                     (member '⍶ (second found-operator)))
+                     (getf params :special) (member '⍶ (second found-operator)))
+                ;; if this operator is defined within a closure, add it to the
+                ;; list of operand symbols that take a left value
                 (push assign-sym (getf (rest (getf (getf params :special) :closure-meta)) :op-syms-lval)))
             (values `(setf ,(if (getf (getf params :special) :closure-meta)
                                 assign-symbol `(symbol-function ',assign-symbol))
@@ -975,7 +990,10 @@
                                                                      (member (first symbol)
                                                                              '(inws inwsd))))
                                            (resolve-path symbol *april-idiom* space params)
-                                           symbol))))
+                                           symbol)))
+                  (xfns-assigned (and (listp value) (eql 'a-call (first value))
+                                      (listp (second value)) (eql 'function (caadr value))
+                                      (eql 'external-workspace-function (cadadr value)))))
              (labels ((get-symbol-list (list &optional inner)
                         (let ((valid t))
                           (if (listp list)
@@ -1017,7 +1035,9 @@
                                           ;; compiler is at the top level; i.e. not within a
                                           ;; { function }, where bound variables are lexical
                                           (progn (proclaim (list 'special insym))
-                                                 (set insym nil)))))
+                                                 (if xfns-assigned (setf (symbol-function insym)
+                                                                         #'dummy-nargument-function)
+                                                     (set insym nil))))))
                           (if function
                               (if (listp syms) ;; handle namespace paths
                                   `(a-set ,symbol ,value :by (lambda (item item2)

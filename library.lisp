@@ -13,7 +13,9 @@
   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
   (lambda (omega alpha)
     (let ((omega (disclose-unitary omega))
-          (alpha (disclose-unitary alpha)))
+          (alpha (disclose-unitary alpha))
+          ;; (generator (random-state:make-generator :mersenne-twister-64))
+          )
       (if (or (not (integerp omega))
               (not (integerp alpha)))
           (error "Both arguments to ? must be single non-negative integers.")
@@ -22,6 +24,8 @@
               (let ((vector (count-to omega index-origin)))
                 ;; perform Knuth shuffle of vector
                 (loop :for i :from omega :downto 2 :do (rotatef (aref vector (random i))
+                                                                ;; (aref vector (random-state:random-int
+                                                                ;;               generator 0 i))
                                                                 (aref vector (1- i))))
                 (if (= alpha omega)
                     vector (make-array alpha :displaced-to vector :element-type (element-type vector)))))))))
@@ -137,16 +141,14 @@ Old complex floor implementation from APL wiki
   (lambda (omega alpha)
     (if (or (complexp omega) (complexp alpha))
         (if (= 0 (identity (funcall (apl-residue comparison-tolerance)
-                          omega alpha)))
+                                    omega alpha)))
             alpha (funcall (apl-gcd comparison-tolerance)
                            alpha (let ((residue (funcall (apl-residue comparison-tolerance)
                                                          omega alpha)))
                                    (if (< (- comparison-tolerance)
                                           (realpart residue)
                                           comparison-tolerance)
-                                       residue (imagpart residue)
-                                       ;; 0
-                                       ))))
+                                       residue (imagpart residue)))))
         (funcall (apl-xcy #'gcd) omega alpha))))
 
 (defun apl-lcm (comparison-tolerance)

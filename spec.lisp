@@ -51,7 +51,7 @@
                   :function-inversion-tests :namespace-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab) :test #'char=))
+ (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab #\　) :test #'char=))
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
@@ -182,7 +182,9 @@
                      ⎕ost output-stream ⎕ct *comparison-tolerance*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
           (:function ⎕ns make-namespace ⎕cs change-namespace ⎕dt coerce-or-get-type
-                     ⎕ucs scalar-code-char ⎕fmt (format-array-uncollated print-precision)))
+                     ⎕ucs scalar-code-char ⎕fmt (format-array-uncollated print-precision)
+                     ⎕xwv external-workspace-value ⎕xwf external-workspace-function
+                     ⎕xwo external-workspace-operator))
  
  ;; APL's set of functions represented by characters
  (functions

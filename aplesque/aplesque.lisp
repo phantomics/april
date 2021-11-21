@@ -207,10 +207,11 @@
                          (let ((itype (type-of input)))
                            ;; in ECL (and others?), the integer type of a scalar is that number alone,
                            ;; i.e. (integer 2 2) for 2, so make sure the integer range starts with 0
-                           (coerce 0 (if (eql 'ratio itype) 'integer
-                                         (if (not (and (listp itype) (eql 'integer (first itype))))
-                                             itype (list 'integer (min 0 (second itype))
-                                                         (max 0 (third itype)))))))
+                           (if (eql 'null itype)
+                               'null (coerce 0 (if (eql 'ratio itype) 'integer
+                                                   (if (not (and (listp itype) (eql 'integer (first itype))))
+                                                       itype (list 'integer (min 0 (second itype))
+                                                                   (max 0 (third itype))))))))
                          (if (= 0 (size input))
                              (make-array (dims input))
                              (derive-element (row-major-aref input 0)))))))
@@ -538,7 +539,7 @@
           (let* ((isize (size input)) (irank (rank input))
                  (rdiff (- irank (length dimensions)))
                  (idims (make-array irank :element-type (if (= 0 isize) t (list 'integer 0 isize))
-                                    :initial-contents (dims input))))
+                                          :initial-contents (dims input))))
             (if (< 0 rdiff)
                 (setq dimensions (make-array irank :element-type 'fixnum
                                              :initial-contents (loop :for x :below irank
@@ -994,16 +995,12 @@
             (xdotimes output (i (size output))
               (setf (row-major-aref output i) (disclose (copy-nested-array input)))))
         output)
-      ;; (print (list :aa input output-dims))
       (if (= 0 (length output-dims))
           (enclose (row-major-aref input 0))
           (let* ((input-length (array-total-size input))
                  (output-length (reduce #'* output-dims))
                  (output (make-array output-dims :element-type (if populator t (element-type input))
-                                                 ;; :initial-element (if (not populator)
-                                                 ;;                      (apl-array-prototype input))
-                                                 )))
-            ;; (print (list :oo output))
+                                                 :initial-element (apl-array-prototype input))))
             ;; TODO: optimization caused problems due to type uncertainty; solution?
             ;; (optimize (safety 0) (speed 3))
             (if (or populator (< 0 (size input)))
@@ -1654,7 +1651,9 @@
                  (array-prototypes)) ;; prototypes are assigned to this variable if they exist
             (dotimes (ix isize)
               (let* ((i (aref input-vector ix))
-                     (this-size (size i)) (this-rank (rank i)))
+                     (this-size (size i)) (this-rank (rank i))
+                     (this-type (if (arrayp i) (element-type i) (assign-element-type i))))
+                (setq type (if (not type) this-type (type-in-common type this-type)))
                 (if (= 0 this-size)
                     (if populator (let ((prototype (funcall populator i)))
                                     ;; measure the array prototype if one of the elements
@@ -1671,11 +1670,9 @@
                     (setf (aref each-interval ix) (+ this-size (aref each-interval (1- ix)))))
                 ;; find types and maximum dimensions for input sub-arrays
                 (loop :for d :in (dims i) :for dx :from 0
-                   :do (let ((dmix (+ dx (- max-rank this-rank)))
-                             (this-type (if (arrayp i) (element-type i) (type-of i))))
+                   :do (let ((dmix (+ dx (- max-rank this-rank))))
                          (setf (aref out-dims-vector dmix)
                                (max d (aref out-dims-vector dmix))
-                               type (if (not type) this-type (type-in-common type this-type))
                                (aref idims-holder dmix) d)))
                 ;; calculate dimensional factors for the appropriate row of the factor matrix
                 (loop :for r :from (- this-rank 2) :downto 0 :for i :from 0
@@ -1702,7 +1699,8 @@
             ;; create output array
             (setq output (make-array (loop :for d :across odims-holder :collect d)
                                      :element-type (or type t) :initial-element
-                                     (if (eql 'character type) #\ (coerce 0 (or type t)))))
+                                     (if (member type '(character standard-char))
+                                         #\  (coerce 0 (or type t)))))
             
             ;; rotate output array dimensional factors according to axis
             ;; algorithm: rotate last (vector length - x) elements y times
@@ -1822,7 +1820,7 @@
                        ;; throw an error in the case of an invalid axis
                        ((and (vectorp axis) (= 0 (size axis)))
                         (if (arrayp input)
-                            (make-array (append idims (list 1)):element-type (element-type input)
+                            (make-array (append idims (list 1)) :element-type (element-type input)
                                         :displaced-to (copy-nested-array input))
                             (vector input)))
                        ((and (vectorp axis)

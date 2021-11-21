@@ -5,6 +5,8 @@
 
 "Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with uses aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in library.lisp."
 
+(defvar *april-idiom*)
+
 (define-symbol-macro this-idiom *april-idiom*)
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (apply-scalar #'- (first axes) index-origin)))
@@ -22,7 +24,7 @@
 
 (defvar *april-parallel-kernel*)
 
-(defvar *demo-packages* '(april-demo.cnn april-demo.dfns.array
+(defvar *demo-packages* '(april-demo.cnn april-demo.dfns.array april-demo.dfns.tree
                           april-demo.dfns.graph april-demo.dfns.numeric))
 
 (defvar ∇ nil)
@@ -39,12 +41,38 @@
 (defvar *system-variables* '(:index-origin *index-origin* :print-precision *print-precision*
                              :comparison-tolerance *comparison-tolerance* :division-method *division-method*))
 
+(defun system-command-exists (command-string &optional prefix)
+  "Check for the existence of a shell command under the host operating system."
+  (if (not prefix) (setq prefix ""))
+  (= 0 (multiple-value-bind (1st 2nd error-code)
+	   (uiop:run-program (format nil "~acommand -v ~a" prefix command-string)
+			     :ignore-error-status t)
+	 (declare (ignore 1st 2nd))
+	 error-code)))
+
+(defun count-cpus ()
+  "Count the available threads in the system, accounting for different CL implementations."
+  (with-open-stream (cmd-out (make-string-output-stream))
+    (uiop:run-program
+     (case (uiop:operating-system)
+       ((:linux :linux-target)
+	(if (system-command-exists "nproc") "nproc" ""))
+       ((:bsd :freebsd :openbsd :netbsd)
+	(if (system-command-exists "sysctl") "sysctl -n hw.ncpu" ""))
+       ((:macosx :darwin)
+	(if (system-command-exists "sysctl") "sysctl -n hw.logicalcpu" ""))
+       ((:windows)
+        "echo %NUMBER_OF_PROCESSORS%"))
+     :output cmd-out)
+    (let ((output (get-output-stream-string cmd-out)))
+      (if (= 0 (length output))
+	  1 (read-from-string output)))))
+
 (defun make-threading-kernel-if-absent ()
   "Create a kernel for multithreaded executuion via lparallel if none is present."
   (if (not lparallel:*kernel*)
       (setq lparallel:*kernel* (setq *april-parallel-kernel*
-                                     (lparallel:make-kernel (max 1 (1- (cl-cpus:get-number-of-processors)))
-                                                            :name "april-language-kernel")))))
+                                     (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -498,11 +526,30 @@
           (if axes (enclose-axes symbol axes :set value :set-by by)
               (if (eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to))
                   (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
-                      (if namespace `(setf (getf ,(if (symbolp namespace)
-                                                      namespace (follow-path (first namespace) (rest namespace)))
-                                                 ,(intern (string symbol) "KEYWORD"))
-                                           ,set-to)
-                          `(setf ,symbol ,set-to))))))
+                      (let ((sym-package (package-name (symbol-package symbol))))
+                        (if (and (listp value) (eql 'a-call (first value))
+                                 (listp (second value)) (eql 'function (caadr value))
+                                 (member (cadadr value) '(external-workspace-function
+                                                          external-workspace-operator))
+                                 (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
+                                                             (length sym-package)))))
+                            (let ((args (gensym))
+                                  (other-space (concatenate 'string "APRIL-WORKSPACE-"
+                                                            (first (last value)))))
+                              `(setf (symbol-function ',symbol)
+                                     (lambda (&rest ,args)
+                                       (let ((,(intern "*INDEX-ORIGIN*" other-space)
+                                               ,(intern "*INDEX-ORIGIN*" sym-package)))
+                                         (apply ,value ,args)))
+                                     ,@(if (eql 'external-workspace-operator (cadadr value))
+                                           `((symbol-value ',symbol)
+                                             (symbol-value ',(intern (third value) other-space))))))
+                            (if namespace `(setf (getf ,(if (symbolp namespace)
+                                                            namespace (follow-path (first namespace)
+                                                                                   (rest namespace)))
+                                                       ,(intern (string symbol) "KEYWORD"))
+                                                 ,set-to)
+                                `(setf ,symbol ,set-to))))))))
         (if (and (listp symbol) (eql 'nspath (first symbol)))
             ;; handle assignments within namespaces, using process-path to handle the paths
             (let ((val (gensym)))
@@ -1082,6 +1129,21 @@ It remains here as a standard against which to compare methods for composing APL
           (apply-scalar #'char-code input)
           (apply-scalar #'code-char input))))
 
+(defun external-workspace-value (symbol-string &optional space-string)
+  (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
+    (if (boundp (intern symbol-string space))
+        (symbol-value (intern symbol-string space)))))
+
+(defun external-workspace-function (symbol-string &optional space-string)
+  (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
+    (if (fboundp (intern symbol-string space))
+        (symbol-function (intern symbol-string space)))))
+
+(defun external-workspace-operator (symbol-string &optional space-string)
+  (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
+    (if (fboundp (intern symbol-string space))
+        (symbol-function (intern symbol-string space)))))
+
 (defun output-value (space form &optional properties closure-meta)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
   (labels ((enclose-symbol (item)
@@ -1216,7 +1278,6 @@ It remains here as a standard against which to compare methods for composing APL
        ,function-clause ,variable-clause))
 
 (defun build-variable-declarations (input-vars space)
-  (declare (ignore space))
   "Create the set of variable declarations that begins April's compiled code."
   (loop :for var-entry :in input-vars
         :collect (let ((symbol (lisp->camel-case (first var-entry))))

@@ -5,7 +5,7 @@
 
 "A set of optimization patterns for April; these patterns are matched before more basic language structures are recognized by the compiler. Optimized code for common APL language idioms is implemented in this way."
 
-(defun match-function-patterns (tokens space params)
+(defun match-function-patterns (tokens axes space params)
   (match tokens
     ((list* (guard index (equalp index '(:fn #\⍳)))
             (guard reduce (equalp reduce '(:op :lateral #\/)))
@@ -14,7 +14,8 @@
      (let ((arg (gensym)) (var (gensym)))
        (values `(lambda (⍵ &optional ⍺)
                   (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 3) ⍺)
-                                      :space space :params (append (list :ignore-patterns t) params))
+                                      :axes axes :space space
+                                      :params (append (list :ignore-patterns t) params))
                         (funcall (lambda (,arg)
                                    (if (< ,arg 10000000) (iota-sum ,arg)
                                        (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var)))
@@ -23,11 +24,13 @@
     ((list* (guard ravel (equalp ravel '(:fn #\,)))
             (guard shape (equalp shape '(:fn #\⍴)))
             rest)
-     (values `(lambda (⍵ &optional ⍺)
-                (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
-                                    :space space :params (append (list :ignore-patterns t) params))
-                      (array-total-size ⍵)))
-             rest))
+     (if axes (values nil tokens)
+         (values `(lambda (⍵ &optional ⍺)
+                    (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
+                                        :axes axes :space space
+                                        :params (append (list :ignore-patterns t) params))
+                          (array-total-size ⍵)))
+                 rest)))
     ((list* (guard ravel (equalp ravel '(:fn #\,)))
             (guard rotate (or (equalp rotate '(:fn #\⌽))
                               (equalp rotate '(:fn #\⊖))))
@@ -35,7 +38,8 @@
             rest)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 3) ⍺)
-                                    :space space :params (append (list :ignore-patterns t) params))
+                                    :axes axes :space space
+                                    :params (append (list :ignore-patterns t) params))
                       (get-last-row-major ⍵)))
              rest))
     ((list* (guard shape (equalp shape '(:fn #\⍴)))
@@ -43,7 +47,8 @@
             rest)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
-                                    :space space :params (append (list :ignore-patterns t) params))
+                                    :axes axes :space space
+                                    :params (append (list :ignore-patterns t) params))
                       (get-rank ⍵)))
              rest))
     ((list* (guard ravel (equalp ravel '(:fn #\,))) ;; TODO: problem with this and display function
@@ -51,6 +56,7 @@
             rest)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
-                                    :space space :params (append (list :ignore-patterns t) params))
+                                    :axes axes :space space
+                                    :params (append (list :ignore-patterns t) params))
                       (n-rank-uniques ⍵)))
              rest))))

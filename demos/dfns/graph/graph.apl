@@ -1,6 +1,12 @@
 ⍝⍝ Ported from Dyalog's dfns at http://dfns.dyalog.com/n_Graphs.htm into April APL
 
 
+⍝⍝ External dependencies
+
+dsp  ← 'ARRAY-DEMO-SPACE' ⎕XWF 'dsp'
+pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
+
+
 ⍝⍝ Graph processing
 
 ⍝ From http://dfns.dyalog.com/c_assign.htm
@@ -152,36 +158,9 @@ dfspan ← {                                   ⍝ Depth-first spanning tree: gr
   ⍵(¯1 trav)¯2⊣¨⍺                            ⍝ depth-first traversal of graph ⍵
 }
 
-⍝ From http://dfns.dyalog.com/c_dsp.htm
-
-dsp ← { ⎕IO←1                                ⍝ Reduced version of disp.
-  $[(1=≡,⍵)∨0∊⍴⍵;⎕FMT ⍵;                     ⍝ simple or empty: char matrix
-    ⍺←1 ⋄ top←'─'∘⍪⍣⍺                        ⍝ top '─' bar if ⍺
-    $[1≥⍴⍴⍵;{                                ⍝ vector or scalar:
-        bars←2{⍪(⌊/≢¨⍺ ⍵)/'│'}/⍵,0           ⍝ inter-item '│' separators
-        join←{↑,/(⌈/≢¨⍵)↑¨⍵}                 ⍝ equalised rows cell-join
-        0 ¯1↓join top¨join¨↓⍉↑⍵ bars         ⍝ join with top and separators
-      }1 ∇¨⍵;                                ⍝ vector: formatted items
-      subs←⍺ ∇¨⍵                             ⍝ higher rank: formatted items
-      rs cs←+/¨1⊂↑⍴¨subs                     ⍝ numbers of rows and cols
-      dims←(mrs←⌈/rs)∘.,mcs←⌈/⍪⍉cs           ⍝ max dimensions per row & col
-      join←{↑⍺{⍺,⍶,⍵}/⍵}                     ⍝ ⍺-join of vector ⍵
-      rows←(mrs/¨'│')join¨↓dims↑¨subs        ⍝ complete rows with '│'-separated items
-      hzs←'┼'join mcs/¨'─'                   ⍝ inter-row horizontal '─┼─' separators
-      cells←{⍺⍪hzs⍪⍵}/rows                   ⍝ joined rows: array of 2D planes
-      gaps←(⌽⍳¯2+⍴⍴⍵)/¨' '                   ⍝ increasing cell gaps for higher ranks
-      cjoin←{↑⍪/(⊂⍺),⍶,⊂⍵}                   ⍝ vertical cell join with ⍺⍺ gap
-      top⊃↑{⍺ cjoin⌿⍵}/gaps,⊂cells           ⍝ cell-joining with increasing gaps
-   ]]
-}
-
 ⍝ From http://dfns.dyalog.com/s_scc.htm
 
 show ← {↑(⍕¨⍳⍴⍵),¨' → '∘,¨⍕¨⍵}
-
-pmat ← {                                     ⍝ Permutation matrix of ⍳⍵.
-  {1≥⍴⍵ : ↑,↓⍵ ⋄ ↑⍪/⍵,∘∇¨⍵∘~¨⍵}⍳⍵            ⍝ short vector: done, else items prefix sub-perms of remainder.
-}     
 
 ⍝ From http://dfns.dyalog.com/c_scc.htm
 

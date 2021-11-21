@@ -5,6 +5,6 @@
   (:export #:april #:april-f #:april-p #:april-c #:april-load
            #:with-april-context #:april-create-workspace #:april-clear-workspace)
   (:use #:cl #:aplesque #:vex #:alexandria #:array-operations #:lparallel #:decimals
-        #:cl-ppcre #:parse-number #:cl-cpus #:symbol-munger #:prove #:simple-date-time #:trivia)
+        #:cl-ppcre #:parse-number #:symbol-munger #:prove #:simple-date-time #:trivia)
   (:shadowing-import-from #:array-operations #:flatten)
   (:shadowing-import-from #:cl-ppcre #:split))

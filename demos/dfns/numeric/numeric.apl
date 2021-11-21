@@ -409,7 +409,7 @@ phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation 
       rgt←(¯1-⍳0⌈|⌊/⍵)∊⍵                     ⍝   ..      ..  right   ..
       $[rgt∧.=0;fmt lft;                     ⍝ all +ive: no phinary point.
         lft∧.=0;'0.',fmt rgt;                ⍝ all -ive: leading '0.'
-        (fmt lft),'.',fmt rgt                ⍝ both: point-separated digits. 
+        (fmt lft),'.',fmt rgt                ⍝ both: point-separated digits.
        ]
     }⍬{                                      ⍝ accumulated powers of phi.
       num=P+.*⍺:⍺                            ⍝ convergence: done.
