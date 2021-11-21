@@ -29,6 +29,7 @@
 *.wx64fsl
 *.wx32fsl
 *.abcl
+*.abcl-tmp
 
 # Data files
 *ubyte
