@@ -24,8 +24,13 @@
 
 (defvar *april-parallel-kernel*)
 
-(defvar *demo-packages* '(april-demo.cnn april-demo.dfns.array april-demo.dfns.tree
-                          april-demo.dfns.graph april-demo.dfns.numeric))
+(defvar *demo-packages*
+  (append #.(if (or (not (string= "Armed Bear Common Lisp" (lisp-implementation-type)))
+                    (with-open-stream (cmd-out (make-string-output-stream))
+                      (uiop:run-program "mvn -v" :output cmd-out :ignore-error-status t)
+                      (< 0 (length (get-output-stream-string cmd-out)))))
+                ''(april-demo.cnn) nil)
+          '(april-demo.dfns.array april-demo.dfns.tree april-demo.dfns.graph april-demo.dfns.numeric)))
 
 (defvar ∇ nil)
 (defvar ∇∇ nil)
