@@ -30,7 +30,9 @@
                       (uiop:run-program "mvn -v" :output cmd-out :ignore-error-status t)
                       (< 0 (length (get-output-stream-string cmd-out)))))
                 ''(april-demo.cnn) nil)
-          '(april-demo.dfns.array april-demo.dfns.tree april-demo.dfns.graph april-demo.dfns.numeric)))
+          '(april-demo.dfns.array #+(not abcl) april-demo.dfns.tree
+            ;; tree demo is disabled for ABCL because its large functions cannot be compiled
+            april-demo.dfns.graph april-demo.dfns.numeric)))
 
 (defvar ∇ nil)
 (defvar ∇∇ nil)
