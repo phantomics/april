@@ -3,10 +3,10 @@
 
 ⍝⍝ External dependencies
 
-disp     ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp'
-display  ← 'ARRAY-DEMO-SPACE' ⎕XWF 'display'
-pmat     ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
-foldl    ← 'ARRAY-DEMO-SPACE' ⎕XWO 'foldl'
+disp    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp'
+display ← 'ARRAY-DEMO-SPACE' ⎕XWF 'display'
+pmat    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
+foldl   ← 'ARRAY-DEMO-SPACE' ⎕XWO 'foldl'
 
 
 ⍝ From http://dfns.dyalog.com/c_avl.htm
@@ -46,26 +46,14 @@ avl ← { ⎕IO←0                                ⍝ Adelson-Velskii, Landis t
     (nkv nbal nsubs)(-nbal=0)                ⍝ height decrement if NEW balance is 0.
   }                                          ⍝ :: t ∇ k → t i
 
-  ⍝ TODO: this extra rrem function shouldn't be needed
-  rrem←{                                      ⍝ tree ⍺ without key ⍵.
-    ⍺≡0:0 0                                  ⍝ key not in tree: done.
-    ⍵≡⊃⊃⍺:rmnode ⍺                           ⍝ match: remove node.
-    dir obv←1 ¯1×-/⍋↑⍵(⊃⊃⍺)                  ⍝ natch: search direction and obverse.
-    kv obal(sub sib)←obv proj ⍺              ⍝ subtree to search and its sibling.
-    nsub inc←sub ∇ ⍵                         ⍝ new subtree and height increment.
-    new←obv proj kv obal(nsub sib)           ⍝ tree with node removed.
-    inc=0:new 0                              ⍝ no height decrement: done.
-    nkv nbal nsubs←obv balance new           ⍝ balanced tree.
-    (nkv nbal nsubs)(-nbal=0)                ⍝ height decrement if NEW balance is 0.
-  }                                          ⍝ :: t ∇ k → t i
-
+  ⍝ TODO: rm must be used in place of rem because rem is considered a function inside the closure
   rmnode←{                                   ⍝ node ⍵ removed.
     kv obal subs←⍵                           ⍝ subnodes.
     0∊subs:((subs⍳0)⊃⌽subs)¯1                ⍝ either sub null: the other.
     lft rgt←subs                             ⍝ left and right non-null subtrees.
     (sk sv)_ _←rgt limt ¯1                   ⍝ successor key=val.
-    rem inc←rgt rrem sk                       ⍝ right subtree with successor removed.
-    new←(sk sv)obal(lft rem)                 ⍝ target node replaced with successor.
+    rm inc←rgt rem sk                        ⍝ right subtree with successor removed.
+    new←(sk sv)obal(lft rm)                  ⍝ target node replaced with successor.
     inc=0:new 0                              ⍝ no height decrement: done.
     nkv nbal nsubs←¯1 balance new            ⍝ new balanced node.
     (nkv nbal nsubs)(-nbal=0)                ⍝ height decrement if NEW balance is 0.
@@ -280,7 +268,7 @@ sbst ← { ⎕IO←0                               ⍝ Simple Binary Search Tree
     (inf(lev 0))(s+1)∇ rgt                   ⍝ ++ right vine.         A   C   /
   }                                          ⍝ :: v ∇ t → v s                A
 
-  op←⍶ ⍝ op←⍺⍺{f←⍺⍺ ⋄ ⊃⎕CR'f'}0              ⍝ operand label.
+  op←⍶                                       ⍝ operand label.
 
   '∪'≡op:⊃⍺ put ⍵                            ⍝ insert/replace value in tree.
   '⍎'≡op:⊃⌽⍵ get ⍺ 0                         ⍝ search for value for key.
@@ -487,7 +475,7 @@ redblack ← { ⎕IO←0                           ⍝ Red-black trees.
   base←{⍺ ⍵}∘⍬                               ⍝ new child: node with null path.
   dblk←{⍺ ⍵}∘(,0)                            ⍝ double black node.
 
-  op←⍶ ⍝ ⍺⍺{f←⍺⍺ ⋄ ⊃⎕CR'f'}0              ⍝ operand label.
+  op←⍶                                       ⍝ operand label.
 
   '∪'≡op:root ⍺ ins ⍵                        ⍝ insert/replace value in tree.
   '~'≡op:root ⍺ rem ⍵ 0                      ⍝ remove key=value from tree.

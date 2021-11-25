@@ -31,7 +31,7 @@
  (system :output-printed nil
          :base-state '(:output-stream '*standard-output*)
          :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
-                               :comparison-tolerance double-float-epsilon)
+                               :comparison-tolerance double-float-epsilon :rngs '(:generators))
          :variables *system-variables*)
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
@@ -179,7 +179,7 @@
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕div *division-method*
-                     ⎕ost output-stream ⎕ct *comparison-tolerance*)
+                     ⎕ost output-stream ⎕ct *comparison-tolerance* ⎕rl *rngs*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
           (:function ⎕ns make-namespace ⎕cs change-namespace ⎕dt coerce-or-get-type
                      ⎕ucs scalar-code-char ⎕fmt (format-array-uncollated print-precision)
@@ -300,16 +300,9 @@
                 #(4 8 #C(12 1) #C(16 1) #C(21 1) #C(25 1) #C(29 2) #C(33 2) #C(38 2) #C(42 2) #C(46 3)
                   #C(50 3) #C(55 3) #C(58 4) #C(63 4) #C(67 4) #C(71 5) #C(75 5) #C(79 5) #C(84 5)))))
   (? (has :titles ("Random" "Deal"))
-     (ambivalent (scalar-function (λω (if (integerp omega)
-                                          (if (= 0 omega) (+ double-float-epsilon
-                                                             (random (- 1.0d0 (* 2 double-float-epsilon))))
-                                              (+ index-origin (random omega)))
-                                          (if (floatp omega)
-                                              (random omega)
-                                              (error "The right argument to ? can only contain ~a"
-                                                     "non-negative integers or floats.")))))
-                 (deal index-origin))
-     (meta (primary :implicit-args (index-origin)))
+     (ambivalent (apl-random index-origin rngs)
+                 (deal index-origin rngs))
+     (meta (primary :implicit-args (index-origin rngs)))
      (tests (is "⍴5?⍴⍳5" #(5))))
   (○ (has :titles ("Pi Times" "Circular"))
      (ambivalent (scalar-function (λω (* omega (coerce pi 'double-float))))
@@ -1772,6 +1765,8 @@
        #(#(-24 -36 -48) 0 #(48 60 72)))
   (for "Function containing multiple nested locally-scoped functions."
        "{aa←{⍵+5} ⋄ bb←{cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵} ⋄ 9 bb ⍵} 100" #(9 105))
+  (for "Dynamic aliasing of operator at top level." "key←⌸ ⋄ {(2|⍳≢⍵)⊢key ⍵}10 2⍴⍳20"
+       #3A(((1 2) (5 6) (9 10) (13 14) (17 18)) ((3 4) (7 8) (11 12) (15 16) (19 20))))
   (for "Aliasing of [/ reduce] operator." "{r←/ ⋄ rf←/[1] ⋄ (+rf ⍵),(+ r[1] ⍵),+ r ⍵} 3 3⍴⍳9"
        #(12 15 18 12 15 18 6 15 24))
   (for "Aliasing of [\\ scan] operator." "{s←\\ ⋄ sf←\\[1] ⋄ (+ sf ⍵),(+ s[1] ⍵),+ s ⍵} 3 4⍴⍳12"

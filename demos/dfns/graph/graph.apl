@@ -405,3 +405,6 @@ wmst ← {                                     ⍝ Minimum Spanning Tree for wu-
     (⍺,to)∇(fm@to⊢tree)(todo~to)             ⍝ vertices from G~T to T
   }(¯1⊣¨graph)(xvec~⍵)                       ⍝ initial tree and unconnected vertices
 }
+
+
+

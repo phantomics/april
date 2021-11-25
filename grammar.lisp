@@ -5,7 +5,7 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
-(defun resolve-path (input-sym idiom space properties)
+(defun resolve-path (input-sym space properties)
   "Generate an (nspath) namespace path form depending on the symbols found and the status of the workspace's namespace point, set using ⎕CS."
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
       input-sym ;; lexically-scoped symbols don't get the path prepended, as for {a←⍵ ⋄ a+3} 5
@@ -31,8 +31,8 @@
                          (member symbol *system-variables*)
                          (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                             :var-syms symbol)
-                         (member symbol (assoc :variable (idiom-symbols idiom)))
-                         (member symbol (assoc :constant (idiom-symbols idiom)))))
+                         (member symbol (assoc :variable (idiom-symbols *april-idiom*)))
+                         (member symbol (assoc :constant (idiom-symbols *april-idiom*)))))
                 symbol (if (and (listp symbol) (member (first symbol) '(nspath :pt)))
                            (cons 'nspath (append path-val (cons (intern (string (if (listp (second symbol))
                                                                                     (cadadr symbol)
@@ -63,7 +63,7 @@
                                                                  (if (symbolp s)
                                                                      (intern (string s) "KEYWORD")))))))))))
 
-(defun process-value (this-item &optional properties idiom space)
+(defun process-value (this-item &optional properties space)
   "Process a value token."
   (cond ((eq :empty-array this-item)
          ;; process the empty vector expressed by the [⍬ zilde] character
@@ -92,7 +92,7 @@
                                            (append current-path (rest this-item))))))
            (if (or (not nspath) (not (fboundp (intern nspath space)))
                    (getf properties :symbol-overriding))
-               (resolve-path this-item idiom space properties))))
+               (resolve-path this-item space properties))))
         ;; process symbol-referenced values
         ((and (symbolp this-item)
               (or (member this-item '(⍵ ⍺ ⍹ ⍶) :test #'eql)
@@ -124,18 +124,18 @@
                                      :var-syms this-item)
                   (getf properties :symbol-overriding))
               (not (member (intern (string-upcase this-item) *package-name-string*)
-                           (rest (assoc :function (idiom-symbols idiom)))))
+                           (rest (assoc :function (idiom-symbols *april-idiom*)))))
               (not (member this-item '(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql))
               (or (not (getf properties :type))
                   (eq :symbol (first (getf properties :type)))))
          (if (not (member (intern (string-upcase this-item) *package-name-string*)
-                          (rest (assoc :function (idiom-symbols idiom)))))
-             (resolve-path this-item idiom space properties)
+                          (rest (assoc :function (idiom-symbols *april-idiom*)))))
+             (resolve-path this-item space properties)
              (intern (string-upcase this-item))))
         ((and (symbolp this-item) (getf properties :match-all-syms))
          this-item)))
 
-(defun proc-function (this-item &optional properties idiom space)
+(defun proc-function (this-item &optional properties space)
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
@@ -147,8 +147,8 @@
                           (or (not (getf (getf properties :special) :exclude-symbolic))
                               ;; the :exclude-symbolic property prevents a
                               ;; symbolic function like ∘ from matching
-                              (not (of-lexicons idiom fn :functions-symbolic)))
-                          (of-lexicons idiom fn :functions)
+                              (not (of-lexicons *april-idiom* fn :functions-symbolic)))
+                          (of-lexicons *april-idiom* fn :functions)
                           (or (not (getf properties :glyph))
                               (and (char= fn (aref (string (getf properties :glyph)) 0)))))
                      fn)
@@ -223,16 +223,15 @@
                                       :fn-syms this-item)
                    (if (eql '⍺ this-item) this-item (list 'inws this-item)))
                   ((member (intern (string-upcase this-item) *package-name-string*)
-                           (rest (assoc :function (idiom-symbols idiom))))
-                   (let ((idiom-function-object (getf (rest (assoc :function (idiom-symbols idiom)))
+                           (rest (assoc :function (idiom-symbols *april-idiom*))))
+                   (let ((idiom-function-object (getf (rest (assoc :function (idiom-symbols *april-idiom*)))
                                                       (intern (string-upcase this-item)
                                                               *package-name-string*))))
                      (if (listp idiom-function-object)
                          idiom-function-object (list 'function idiom-function-object)))))))))
 
-(defun proc-operator (this-item &optional properties idiom space)
+(defun proc-operator (this-item &optional properties space)
   "Process an operator token."
-  (declare (ignore idiom))
   (if (listp this-item)
       (if (and (eq :op (first this-item))
                (not (listp (first (last this-item))))
@@ -394,7 +393,7 @@
                                        (not (member (caar tokens) '(:fn :op :st :pt :axes)))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
-                                       (process-value (first tokens) params *april-idiom* space))))
+                                       (process-value (first tokens) params space))))
                  ;; if a value element is confirmed, add it to the list of elements and recurse
                  (if first-value
                      (if (and is-closure (listp first-value) (listp (first first-value))
@@ -413,9 +412,8 @@
                              (build-value (cons (first first-value) (rest tokens))
                                           :elements elements :params params :space space :axes axes))
                          (let ((fv-output (output-value space first-value (list nil)
-                                                        (rest (getf (getf params :special) :closure-meta))
-                                                        )))
-                           ;; (print (list :fvo fv-output))
+                                                        (rest (getf (getf params :special)
+                                                                    :closure-meta)))))
                            (build-value (rest tokens)
                                         :elements (cons (if (not (and axes is-closure))
                                                             first-value fv-output)
@@ -428,7 +426,6 @@
                                                              :params params :space space
                                                              :valence :pivotal :axes axes)))
                            (if exp-operator
-                               ;; nil
                                (values nil (build-value tokens :elements elements :params params
                                                                :space space :axes axes)
                                        axes axes-last)
@@ -504,7 +501,7 @@
                                           ;; handle n-argument functions with arguments passed
                                           ;; in axis format as for fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]
                                           (let* ((first-fn (proc-function (first tokens) params
-                                                                          *april-idiom* space))
+                                                                          space))
                                                  (fn-form (if first-fn
                                                               (if (symbolp (first tokens))
                                                                   `(a-call #',first-fn ,@(first axes))
@@ -595,15 +592,11 @@
                (if value-operand
                    (multiple-value-bind (exp-value remaining)
                        (build-value (rest tokens) :space space :params params :left t)
-                     ;; (print (list :ev exp-value))
                      (if exp-value ;; TODO: write negative clause
                          (build-function
                           remaining :space space :params params :initial initial
                                     :found-function (compose-function-lateral
-                                                     exp-operator nil exp-value axes))
-                         ;; (multiple-value-bind (exp-function remaining)
-                         ;;     (build-function (rest tokens) :space space :params params))
-                         ))
+                                                     exp-operator nil exp-value axes))))
                    (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
                                  (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
                        ;; if a lateral operator is encountered followed by ←, the operator is being
@@ -623,7 +616,7 @@
                                                        (characterp (third (first tokens))))
                                                   (list :fn (third (first tokens)))))
                                     (ol-function (if fn-token (proc-function fn-token params
-                                                                             *april-idiom* space))))
+                                                                             space))))
                                (if ol-function (build-function (rest tokens)
                                                                :space space :params params
                                                                :found-function (build-call-form
@@ -648,7 +641,7 @@
                (if (and (listp (first tokens)) (eq :fn (caar tokens))
                         (characterp (cadar tokens)) (char= #\← (cadar tokens)))
                    (values nil tokens)
-                   (let ((exp-function (proc-function (first tokens) params *april-idiom* space)))
+                   (let ((exp-function (proc-function (first tokens) params space)))
                      (if exp-function (build-function
                                        (rest tokens)
                                        :initial initial :space space :params params
@@ -715,7 +708,7 @@
                                                     axes)
                                         :initial initial :space space :params params)
           (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
-                                   *april-idiom* space)))
+                                   space)))
             ;; register an operator when found
             (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
                                                  :space space :params params :valence valence))))
@@ -724,20 +717,33 @@
       (if (not (and initial (listp (first tokens)) (eq :fn (caar tokens))
                     (characterp (cadar tokens)) (char= #\← (cadar tokens))))
           (values found-operator tokens)
-          (let* ((assign-symbol (proc-operator (second tokens) params *april-idiom* space))
+          (let* ((assign-symbol (if (getf (getf params :special) :closure-meta)
+                                    (proc-operator (second tokens) params space)
+                                    (list 'inwsd (second tokens))))
                  (assign-sym (if (and (listp assign-symbol)
                                       (member (first assign-symbol) '(inws inwsd)))
                                  (second assign-symbol)))
                  (closure-meta (rest (getf (getf params :special) :closure-meta)))
                  (operator-type (or (getf params :valence)
-                                    (if (member assign-sym (getf closure-meta :lop-syms))
-                                        :lateral (if (member assign-sym (getf closure-meta :pop-syms))
+                                    (if (or (member assign-sym (getf closure-meta :lop-syms))
+                                            (and (characterp found-operator)
+                                                 (of-lexicons *april-idiom* found-operator
+                                                              :operators-lateral)))
+                                        :lateral (if (or (member assign-sym (getf closure-meta :pop-syms))
+                                                         (and (characterp found-operator)
+                                                              (of-lexicons *april-idiom* found-operator
+                                                                           :operators-pivotal)))
                                                      :pivotal)))))
             (if (and (listp found-operator) (eql 'olambda (first found-operator))
                      (getf params :special) (member '⍶ (second found-operator)))
                 ;; if this operator is defined within a closure, add it to the
                 ;; list of operand symbols that take a left value
                 (push assign-sym (getf (rest (getf (getf params :special) :closure-meta)) :op-syms-lval)))
+            (if (and (characterp found-operator)
+                     (not (getf (getf params :special) :closure-meta)))
+                ;; assign operator metadata for aliased operators at the top level
+                (setf (symbol-value (intern (string assign-sym) space))
+                      (list :meta :valence operator-type)))
             (values `(setf ,(if (getf (getf params :special) :closure-meta)
                                 assign-symbol `(symbol-function ',assign-symbol))
                            ,(if (not (characterp found-operator))
@@ -989,7 +995,7 @@
                                   syms (if (or (symbolp symbol) (and (listp symbol)
                                                                      (member (first symbol)
                                                                              '(inws inwsd))))
-                                           (resolve-path symbol *april-idiom* space params)
+                                           (resolve-path symbol space params)
                                            symbol)))
                   (xfns-assigned (and (listp value) (eql 'a-call (first value))
                                       (listp (second value)) (eql 'function (caadr value))
@@ -1052,7 +1058,7 @@
 
 (defun compose-function-assignment (symbol function &key space params)
   "Compose a function assignment."
-  (let ((symbol (resolve-path symbol *april-idiom* space params)))
+  (let ((symbol (resolve-path symbol space params)))
     (if (symbolp symbol) ;; handle the case of a function assigned to a symbol like f←{⍵+1}
         (let ((i-sym (intern (string symbol) space))
               (in-closure (getf (getf params :special) :closure-meta)))
@@ -1136,7 +1142,13 @@
            (if (not (and (listp form) (eql 'inwsd (first form))))
                form (list 'function form))))
     (loop :for expr :in exprs
-          :collect (or (fnexp-backup (build-value expr :space space :params params)
-                                     :space space :params params)
+          :collect (or (multiple-value-bind (value remaining)
+                           (build-value expr :space space :params params)
+                         (if value (fnexp-backup value :space space :params params)
+                             (if (and remaining (listp remaining) (listp (first remaining))
+                                      (eq :fn (caar remaining)) (eq :pass (cadar remaining)))
+                                 ;; handle cases like fn←⍟.(≤∘0) where the
+                                 ;; first element is a value-right composition
+                                 (build-function remaining :initial t :space space :params params))))
                        (wrap-fn-sym (build-function expr :initial t :space space :params params))
                        (build-operator expr :initial t :space space :params params)))))

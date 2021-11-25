@@ -568,7 +568,14 @@
                                "                                   │       ┌[∘]"
                                "                                   └<15=15>┤   "
                                "                                           └[∘]"))
-         ;; random seed tests to be added
+         (provision "⎕rl ← 1")
+         (provision "vv  ← 100?100")
+         (provision "tt  ← tree vv")
+         (is "chk tt" #(1 100 5 8))
+         (is "vv ≡ vv get¨⊂tt" 1)
+         (is "(⍳⍴vv) ≡ vec tt" 1)
+         (provision "tt ← tree ⍳7")
+         (is "∧/⊃∘chk¨tt∘rem¨ ⍳7" 1)
          (is
           "↓disp 4 3⍴fmt∘tree¨kseq"
           #("┌───────────────────────────┬─────────────────────────────────┬─────────────────────────────────┐"
@@ -884,7 +891,18 @@
                                    "│ │   └4=4    │"
                                    "└─┴───────────┘"))
          (is "chk tree ⍳7" #(1 7 3 7))
-         ;; more stuff dependent on random seed for splay trees
+         (provision "⎕rl ← 7*5")
+         (provision "tt  ← tree 256?256")
+         (is "chk tt" #(1 256 9 17))
+         (provision "revt←{⊃⌽⍵ get ⍺}")
+         (provision "tt ← tt revt foldl 256?256")
+         (is "chk tt" #(1 256 15 34))
+         (provision "keys←16?256")
+         (is "keys dep¨⊂tt" #(10 9 12 6 14 11 10 9 31 13 10 27 20 13 21 29))
+         (provision "tt ← tt revt foldl 16/keys")
+         (is "keys dep¨⊂tt" #(7 5 6 5 7 5 4 6 4 2 4 5 2 3 3 1))
+         (is "chk tt" #(1 256 8 18))
+         (is "tt rem foldl 256?256" 0)
          (is "↓tfmt 'tea'" #("tea"))
          (is "↓tfmt 'hot' 'tea' 'coffee'" #("hot       "
                                             "·   tea   "
