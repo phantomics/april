@@ -1765,6 +1765,8 @@
        #(#(-24 -36 -48) 0 #(48 60 72)))
   (for "Function containing multiple nested locally-scoped functions."
        "{aa←{⍵+5} ⋄ bb←{cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵} ⋄ 9 bb ⍵} 100" #(9 105))
+  (for "Operator composition assigned as function with a right-value composition on the right."
+       "fn←÷@(≤∘4) ⋄ fn ⍳9" #(1 1/2 1/3 1/4 5 6 7 8 9))
   (for "Dynamic aliasing of operator at top level." "key←⌸ ⋄ {(2|⍳≢⍵)⊢key ⍵}10 2⍴⍳20"
        #3A(((1 2) (5 6) (9 10) (13 14) (17 18)) ((3 4) (7 8) (11 12) (15 16) (19 20))))
   (for "Aliasing of [/ reduce] operator." "{r←/ ⋄ rf←/[1] ⋄ (+rf ⍵),(+ r[1] ⍵),+ r ⍵} 3 3⍴⍳9"

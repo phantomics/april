@@ -743,7 +743,9 @@
                      (not (getf (getf params :special) :closure-meta)))
                 ;; assign operator metadata for aliased operators at the top level
                 (setf (symbol-value (intern (string assign-sym) space))
-                      (list :meta :valence operator-type)))
+                      (list :meta :valence operator-type)
+                      (symbol-function (intern (string assign-sym) space))
+                      #'dummy-nargument-function))
             (values `(setf ,(if (getf (getf params :special) :closure-meta)
                                 assign-symbol `(symbol-function ',assign-symbol))
                            ,(if (not (characterp found-operator))

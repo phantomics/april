@@ -235,12 +235,13 @@
                "                                                       630 ¯12600   56700  ¯88200  44100"))
          (is "⌊○invr ○ 2 3⍴⍳6" #2A((1 2 3) (4 5 6)))
          (is "⌊{⍵+⍵}invr 2 4 6" #(1 2 3))
-         ;; (is "⌊{2*⍵}invr 16" 4)
-         ;; (is "⌊{⍵*2}invr 49" 7)
+         ;; TODO: find why LW causes infinite loops with these tests
+         #+(not lispworks) (is "⌊{2*⍵}invr 16" 4)
+         #+(not lispworks) (is "⌊{⍵*2}invr 49" 7)
          (is "⌊{32+⍵×1.8} invr 212" 100)
          (is "⌊10000×(1∘○) invr (1∘○) 10" 685398)
-         ;; (is "⌊1000×**invr 1.23" 1230)
-         ;; (is "⌊1000×⍟⍟invr 1.23" 1230)
+         #+(not lispworks) (is "⌊1000×**invr 1.23" 1230)
+         #+(not lispworks) (is "⌊1000×⍟⍟invr 1.23" 1230)
          (is "⌊1000×!!invr 1.23" 1230) ;; this has an issue with ⎕CT
          (is "⌊1000×÷÷invr 1.23" 1230)
          (is "⌊1000×○○invr 1.23" 1230)

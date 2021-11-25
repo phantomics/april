@@ -30,8 +30,9 @@
                       (uiop:run-program "mvn -v" :output cmd-out :ignore-error-status t)
                       (< 0 (length (get-output-stream-string cmd-out)))))
                 ''(april-demo.cnn) nil)
-          '(april-demo.dfns.array #+(not abcl) april-demo.dfns.tree
-            ;; tree demo is disabled for ABCL because its large functions cannot be compiled
+          ;; tree demo is disabled for ABCL, Lispworks because its large functions cannot be
+          ;; compiled using the JVM, while the functions cause LispWorks to freeze
+          '(april-demo.dfns.array #+(not (or abcl lispworks)) april-demo.dfns.tree
             april-demo.dfns.graph april-demo.dfns.numeric)))
 
 (defvar ∇ nil)
