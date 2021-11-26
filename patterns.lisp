@@ -29,7 +29,7 @@
                     (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
                                         :axes axes :space space
                                         :params (append (list :ignore-patterns t) params))
-                          (array-total-size ⍵)))
+                          (size ⍵)))
                  rest)))
     ((list* (guard ravel (equalp ravel '(:fn #\,)))
             (guard rotate (or (equalp rotate '(:fn #\⌽))

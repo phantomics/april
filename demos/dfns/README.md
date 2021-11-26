@@ -4,8 +4,8 @@
 
 <!-- /TITLE -->
 
-This directory contains some of the curated utility functions from http://dfns.dyalog.com/ which have been translated to April APL.
+This directory contains some of the curated utility functions from http://dfns.dyalog.com/ which have been ported to April APL.
 
-### Getting started
+### Trying these functions
 
-`cd` into a subdirectory and evaluate the expressions in `usage.lisp`
+Each set of dfns occupies its own workspace, named as follows: the array processing functions in `/array` are located in `array-demo-space`, the graph processing functions in `/graph` are located in `graph-demo-space` and so on. All of these demo functions can be loaded by evaluating `(april:load-demos)`.

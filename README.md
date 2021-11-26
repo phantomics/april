@@ -26,8 +26,6 @@ For the time being, discussion of April and its development is happening on the 
 
 April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL) and LispWorks.
 
-**Note:** Some special configuration may be needed to use April with the LispWorks IDE due to the use of UTF-8 characters. [Click here for a guide to configuring LispWorks for compatibility with April.](./lispworks-howto.md) Currently April can only be used with the LispWorks IDE, not the CLI environment, as the LispWorks CLI edition does not support UTF-8.
-
 To install April with Quicklisp, evaluate:
 
 ```lisp
@@ -60,6 +58,10 @@ To complete the installation, just start a Common Lisp REPL and enter:
 ```
 
 This will download and install April's dependencies, and with that the package will be built and ready.
+
+## Compatibility with Common Lisp Implementations
+
+April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL and LispWorks but there are a few bugs present in all implementations but SBCL and CCL. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## APL Functions and Operators
 
@@ -926,7 +928,7 @@ The other major lexical difference between APL2-family languages and April is th
 
 Dyalog APL offers users the option of using multiple lexical modes, some of which are more similar to APL2. The variable controlling these modes is referred to as the "migration level." The implementation of migration levels in April is not planned at this time.
 
-## Tests and Demo
+## Tests, Demo and the Extended Demo Suite
 
 If you missed it earlier, you can run tests for the implemented APL functions and operators by entering:
 
@@ -940,7 +942,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of demo packages implementing useful APL functions. The demo packages are located in this repository's `/demos` folder, and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)`.
+April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)`. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
 
 
 ## Enabling APL Input in Emacs
