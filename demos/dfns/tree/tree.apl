@@ -7,6 +7,7 @@ disp    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp'
 display ← 'ARRAY-DEMO-SPACE' ⎕XWF 'display'
 pmat    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
 foldl   ← 'ARRAY-DEMO-SPACE' ⎕XWO 'foldl'
+traj    ← 'POWER-DEMO-SPACE' ⎕XWO 'traj'
 
 
 ⍝ From http://dfns.dyalog.com/c_avl.htm
@@ -484,14 +485,6 @@ redblack ← { ⎕IO←0                           ⍝ Red-black trees.
   '∊'≡op:vec ⍵                               ⍝ vector of key=value pairs.
   '?'≡op:4↑0 chk ⍵                           ⍝ tree stats: ok size mean_depth height.
 }
-  
-⍝ From http://dfns.dyalog.com/c_traj.htm
-
-traj ← {                                     ⍝ Function limit 'trajectory'.
-  ⍺←⍬                                        ⍝ Initial null history.
-  (⊂⍵)∊⍺:⍺                                   ⍝ Argument in history: finished.
-  (⍺,⊂⍵)∇ ⍺⍺ ⍵                               ⍝ Extended history with next argument.
-} ⍝ TODO: break out into its own space with other power operators
   
 ⍝ From http://dfns.dyalog.com/c_splay.htm
 

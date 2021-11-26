@@ -324,19 +324,6 @@ tryGJ ← { ⍺←⊢                                ⍝ gauss_jordan vs primiti
 
 hil ← {÷1+∘.+⍨(⍳⍵)-⎕IO}                      ⍝ order ⍵ Hilbert matrix.
 
-⍝ From http://dfns.dyalog.com/c_invr.htm
-⍝ TODO: why is a more generous ⎕CT needed here?
-invr←{ ⎕CT←1e¯14                             ⍝ Approx inverse of real-valued function.
-  ⍝ 0::'no inverse'⎕SIGNAL ⎕EN               ⍝ pass back domain error.
-  ⍺←1+⎕CT+0×⍵                                ⍝ initial guess - slightly more than 1.
-  ∆x←⎕CT*÷2                                  ⍝ increment delta-x.
-  -∘⍵∘⍺⍺{                                    ⍝ Newton-Raphson: find root of ⍺⍺(x)-⍵ = 0.
-    ⍵⍵ ⍵:⍵                                   ⍝ all items within ⎕ct of inverse: finished.
-    y y∆←⍺⍺¨0 ∆x+⊂⍵                          ⍝ f(x) f(x+∆x)
-    ∇ ⍵-y×∆x÷y∆-y                            ⍝ refined estimate.
-  }(⍵∘≡∘⍺⍺)⍺                                 ⍝ starting from best guess.
-}
-
 ⍝ From http://dfns.dyalog.com/c_kcell.htm
 
 kcell ← {                                    ⍝ Relationship between point and k-cell.
