@@ -1,4 +1,4 @@
-⍝⍝ Ported from Dyalog's dfns at http://dfns.dyalog.com/n_Graphs.htm into April APL
+⍝⍝ Ported from Dyalog's dfns at http://dfns.dyalog.com/n_contents.htm into April APL
 
 
 ⍝⍝ External dependencies
@@ -37,10 +37,10 @@ limit ← {                                    ⍝ Function power limit (fixpoin
 }
 
 ⍝ From http://dfns.dyalog.com/s_limit.htm
-
-⍝ AM  ← {(+/⍵)×÷⍴,⍵}                           ⍝ Arithmetic mean.
-⍝ GM  ← {(×/⍵)*÷⍴,⍵}                           ⍝ Geometric  mean.
-⍝ AGM ← {⍬⍴{(AM ⍵),GM ⍵}limit ⍵}               ⍝ Arithmetic-geometric mean.
+⍝⍝ TODO: the ⊢s below shouldn't be necessary
+AM  ← {(+/⍵)×÷⍴,⍵}                           ⍝ Arithmetic mean.
+GM  ← {(×/⍵)*÷⍴,⍵}                           ⍝ Geometric  mean.
+AGM ← {⍬⍴{(AM ⍵),GM ⍵}limit ⍵}               ⍝ Arithmetic-geometric mean.
 
 ArcTan ← {
   ⍝ Inverse trigonometric tangent - gqr 19-11-2002.
@@ -88,15 +88,15 @@ traj ← {                                     ⍝ Function limit 'trajectory'.
   ⍺←⍬                                        ⍝ Initial null history.
   (⊂⍵)∊⍺:⍺                                   ⍝ Argument in history: finished.
   (⍺,⊂⍵)∇ ⍺⍺ ⍵                               ⍝ Extended history with next argument.
-} ⍝ TODO: break out into its own space with other power operators
+}
 
 ⍝ From http://dfns.dyalog.com/s_traj.htm
 
-⍝ nr ← {                                       ⍝ Newton-Raphson.
-⍝   ⍺←⎕CT                                      ⍝ default increment.
-⍝   y ∆y←⍺⍺¨⍵+0 ⍺                              ⍝ f(⍵), f(⍵+∆)
-⍝   ⍵+(⍺×y)÷y-∆y                               ⍝ next estimate.
-⍝ }
+nr ← {                                       ⍝ Newton-Raphson.
+  ⍺←⎕CT                                      ⍝ default increment.
+  y ∆y←⍺⍺¨⍵+0 ⍺                              ⍝ f(⍵), f(⍵+∆)
+  ⍵+(⍺×y)÷y-∆y                               ⍝ next estimate.
+}
 
 traj2 ← { ¯1∘↓∘(,∘⊂∘⍺⍺∘⊃∘⌽⍨⍣(∊⍨∘⊂∘⊃∘⌽⍨)∘⊂)⍵ }
 
