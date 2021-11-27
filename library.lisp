@@ -15,8 +15,9 @@
       (if (= 0 item) (random-state:random-float generator double-float-epsilon
                                                 (- 1.0d0 double-float-epsilon))
           (random-state:random-int generator index-origin (1- (+ item index-origin))))
-      (if (floatp item) (random-state:random-float double-float-epsilon (- (coerce item 'double-float)
-                                                                           double-float-epsilon))
+      (if (floatp item) (random-state:random-float
+                         generator double-float-epsilon (- (coerce item 'double-float)
+                                                           double-float-epsilon))
           (error "The right argument to ? can only contain non-negative integers or floats."))))
 
 (defun apl-random (index-origin rngs)
@@ -62,6 +63,43 @@
         (if alpha (/ alpha omega)
             (if (and (< 0 method) (= 0 omega))
                 0 (/ omega))))))
+
+(defun sb-rationalize (x)
+  "This is a port of SBCL's rationalize function. It is needed for use in ABCL and ECL, whose (rationalize) implementations appear to simply pass through to (rational)."
+  (if (realp x)
+      (if (or (typep x 'single-float) (typep x 'double-float) (typep x 'long-float))
+          (multiple-value-bind (frac expo sign)
+              (integer-decode-float x)
+            (cond ((or (zerop frac) (>= expo 0))
+                   (if (minusp sign)
+                       (- (ash frac expo))
+                       (ash frac expo)))
+                  (t (let ((a (/ (- (* 2 frac) 1) (ash 1 (- 1 expo))))
+                           (b (/ (+ (* 2 frac) 1) (ash 1 (- 1 expo))))
+                           (p0 0)
+                           (q0 1)
+                           (p1 1)
+                           (q1 0))
+                       ;; expo < 0 and (2*m-1) and (2*m+1) are coprime to 2^(1-e),
+                       ;; so build the fraction up immediately, without having to do
+                       ;; a gcd.
+                       (do ((c (ceiling a) (ceiling a)))
+                           ((< c b)
+                            (let ((top (+ (* c p1) p0))
+                                  (bot (+ (* c q1) q0)))
+                              (/ (if (minusp sign) (- top)
+                                     top)
+                                 bot)))
+                         (let* ((k (- c 1))
+                                (p2 (+ (* k p1) p0))
+                                (q2 (+ (* k q1) q0)))
+                           (psetf a (/ (- b k))
+                                  b (/ (- a k)))
+                           (setf p0 p1
+                                 q0 q1
+                                 p1 p2
+                                 q1 q2)))))))
+          (if (rationalp x) x))))
 
 (defun apl-exp (omega)
   "Power of e function that will always output a double-precision float as per APL standard."
@@ -150,9 +188,11 @@ Old complex floor implementation from APL wiki
         (funcall function omega alpha)
         (let* ((float-input)
                (omega (if (not (floatp omega))
-                          omega (setf float-input (rationalize omega))))
+                          omega (setf float-input #+(or abcl ecl) (sb-rationalize omega)
+                                      #+(not (or abcl ecl)) (rationalize omega))))
                (alpha (if (not (floatp alpha))
-                          alpha (setf float-input (rationalize alpha)))))
+                          alpha (setf float-input #+(or abcl ecl) (sb-rationalize alpha)
+                                      #+(not (or abcl ecl)) (rationalize alpha)))))
           (funcall (if (not float-input) #'identity (lambda (number)
                                                       (if (not (typep number 'ratio))
                                                           number (coerce number 'double-float))))
