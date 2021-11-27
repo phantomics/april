@@ -65,7 +65,7 @@
                 0 (/ omega))))))
 
 (defun sb-rationalize (x)
-  "This is a port of SBCL's rationalize function. It is needed for use in ABCL and ECL, whose (rationalize) implementations appear to simply pass through to (rational)."
+  "This is a port of SBCL's (rationalize) function. It is needed for use in ABCL and ECL, whose (rationalize) implementations appear to simply pass through to (rational)."
   (if (realp x)
       (if (or (typep x 'single-float) (typep x 'double-float) (typep x 'long-float))
           (multiple-value-bind (frac expo sign)
@@ -87,7 +87,8 @@
                            ((< c b)
                             (let ((top (+ (* c p1) p0))
                                   (bot (+ (* c q1) q0)))
-                              (/ (if (minusp sign) (- top)
+                              (/ (if (minusp sign)
+                                     (- top)
                                      top)
                                  bot)))
                          (let* ((k (- c 1))
@@ -100,6 +101,15 @@
                                  p1 p2
                                  q1 q2)))))))
           (if (rationalp x) x))))
+
+(defun cmucl-complex-acos (z)
+  "This (acos) implementation is used for ECL, whose stock (acos) is different from other CLs."
+  (declare (number z))
+  (let ((sqrt-1+z (sqrt (+ 1 z)))
+        (sqrt-1-z (sqrt (- 1 z))))
+    (complex (* 2 (atan (realpart sqrt-1-z) (realpart sqrt-1+z)))
+             (asinh (imagpart (* (conjugate sqrt-1+z)
+                                 sqrt-1-z))))))
 
 (defun apl-exp (omega)
   "Power of e function that will always output a double-precision float as per APL standard."

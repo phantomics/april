@@ -10,7 +10,8 @@
                (lambda (x) (complex 0 x))
                #'conjugate #'identity (lambda (x) (- (sqrt (- (1+ (expt x 2))))))
                #'atanh #'acosh #'asinh (lambda (x) (if (= -1 x) 0 (* (1+ x) (sqrt (/ (1- x) (1+ x))))))
-               #'atan #'acos #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
+               #'atan #+ecl #'cmucl-complex-acos #+(not ecl) #'acos
+               #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
                #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
                #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
                #'realpart #'abs #'imagpart #'phase)))
@@ -89,7 +90,8 @@
                                (setq commented t)
                                (setf (row-major-aref out-string osindex) char
                                      osindex (1+ osindex)))))
-                out-string))
+                ;; return displaced string to save time processing blanks
+                (make-array osindex :element-type 'character :displaced-to out-string)))
             ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
             :process-axis-string
             (lambda (string)
