@@ -4,7 +4,9 @@
 
 <!-- /TITLE -->
 
-April has been tested with SBCL, CCL, ECL, ABCL and LispWorks. Its compatibility with these implementations is summarized thusly.
+April has been tested with SBCL, CCL, ECL, ABCL and LispWorks. Its compatibility with these implementations is summarized below.
+
+April's compatibility is tested by running the main test set, which is done by evaluating `(april (test))` and further by running the demo test sets, done by first loading the demo workspaces with `(load-demos)` and then running the tests with `(run-demo-tests)` within in the `april` package.
 
 ## SBCL and CCL
 
@@ -30,6 +32,6 @@ It's best to run ABCL with a larger heap size than the default if you expect to 
 
 ## LispWorks
 
-There is a problem either with LispWorks or the parse-number library that causes some irregularities when parsing numbers using big-E notation. This causes one of the main tests to fail. Try `(parse-number:parse-number "1e10" :float-format 'double-float)` and compare the result in LispWorks with other CL implementations. 
+LispWorks has a problem with double-precision floating point math that causes one of the main tests to fail. Compare `(expt 10.0d0 10)` in LispWorks and other CLs. This problem also appears to cause the failure of three tests from [the numeric function demo suite](./demo/dfns/numeric).
 
 LispWorks also tends to hang when running complex APL functions. This can be seen when running the demo tests. Sending an interrupt and selecting the "CONTINUE" option often allows it to continue. LispWorks seems to hang much more often than ECL does and it can be difficult for it to finish the demo test suites.
