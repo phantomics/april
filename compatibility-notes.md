@@ -16,7 +16,7 @@ At this time, SBCL and CCL are 100% compatible with April, and all array operati
 
 ECL has two issues working with April: first, ECL's implementation of `(acos)` works differently than other implementations; compare the output `(acos 2)` in ECL and others. This affects the performance of the `[○ circular]` function and causes the failure of one of April's main tests.
 
-Second, ECL has issues with `(rational)` and `(rationalize)`. Evaluating `(rationalize 2.3)` will have a much different outcome in ECL compared to other implementations. This will cause issues when taking the greatest common divisor or lowest common multiple of floats, as with `1∨1.5`. It results in the failure of two tests from [the numeric function demo suite](./demo/dfns/numeric).
+Second, ECL has issues with `(rational)` and `(rationalize)`. Evaluating `(rationalize 2.3)` will have a much different outcome in ECL compared to other implementations. This will cause issues when taking the greatest common divisor or lowest common multiple of floats, as with `1∨1.5`. It results in the failure of two tests from [the numeric function demo suite](./demos/dfns/numeric).
 
 ECL occasionally hangs when running complex functions. If this happens, sending an interrupt (C-c in Emacs+Slime) and selecting the `CONTINUE` option usually causes it to resume running the function.
 
@@ -26,12 +26,12 @@ ECL benefits from a larger heap size than the default when using complex functio
 
 ABCL has the same problem with `(rational)` and `(rationalize)` that ECL does. They appear to use the same algorithm for these functions.
 
-Additionally, ABCL is incapable of compiling functions beyond a certain size; this is a limitation of the JVM that ABCL's developers have no control over. As a result, some particularly large APL functions will not compile. Notably, some of the large functions present in [the tree function demo suite](./demo/dfns/tree) will not compiler under ABCL and this set of demos is this disabled under ABCL.
+Additionally, ABCL is incapable of compiling functions beyond a certain size; this is a limitation of the JVM that ABCL's developers have no control over. As a result, some particularly large APL functions will not compile. Notably, some of the large functions present in [the tree function demo suite](./demos/dfns/tree) will not compiler under ABCL and this set of demos is this disabled under ABCL.
 
 It's best to run ABCL with a larger heap size than the default if you expect to run large functions. A heap size of 5GB was used when running April's demo tests.
 
 ## LispWorks
 
-LispWorks has a problem with double-precision floating point math that causes one of the main tests to fail. Compare `(expt 10.0d0 10)` in LispWorks and other CLs. This problem also appears to cause the failure of three tests from [the numeric function demo suite](./demo/dfns/numeric).
+LispWorks has a problem with double-precision floating point math that causes one of the main tests to fail. Compare `(expt 10.0d0 10)` in LispWorks and other CLs. This problem also appears to cause the failure of three tests from [the numeric function demo suite](./demos/dfns/numeric).
 
 LispWorks also tends to hang when running complex APL functions. This can be seen when running the demo tests. Sending an interrupt and selecting the "CONTINUE" option often allows it to continue. LispWorks seems to hang much more often than ECL does and it can be difficult for it to finish the demo test suites.
