@@ -51,6 +51,8 @@
                              :comparison-tolerance *comparison-tolerance* :division-method *division-method*
                              :rngs *rngs*))
 
+(defvar *rng-names* #(:linear-congruence :mersenne-twister-64 :system))
+
 (defun system-command-exists (command-string &optional prefix)
   "Check for the existence of a shell command under the host operating system."
   (if (not prefix) (setq prefix ""))
@@ -544,25 +546,35 @@
                                (if (or (integerp ,valsym)
                                        (and (vectorp ,valsym) (= 1 (length ,valsym))))
                                    (let ((,seed (disclose-atom ,valsym)))
-                                     (if (not (integerp ,seed))
-                                         (error "Random seeds set by ⎕RL←X must be integers.")
+                                     (if (not (or (integerp ,seed)
+                                                  (and (vectorp ,seed) (= 0 (length ,seed)))))
+                                         (error "Random seeds set by ⎕RL←X must be integers or empty vectors.")
                                          (let ((,rngname (getf (rest ,symbol) :rng)))
                                            (setf (getf (rest ,symbol) ,rngname)
-                                                 (setf (getf (rest ,symbol) ,rngname)
-                                                       (random-state:make-generator
-                                                        ,rngname ,seed))))))
+                                                 (if (eq :system ,rngname)
+                                                       :system
+                                                       (if (and (vectorp ,seed) (= 0 (length ,seed)))
+                                                           (random-state:make-generator ,rngname)
+                                                           (random-state:make-generator
+                                                            ,rngname ,seed)))))))
                                    (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
                                        (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
-                                              (,rngname (case ,rngindex (0 :linear-congruence)
-                                                              (1 :mersenne-twister-64)
-                                                              (2 :system))))
-                                         (setf (getf (rest ,symbol) :rng)
-                                               ,rngname
-                                               (getf (rest ,symbol) ,rngname)
-                                               (setf (getf (rest ,symbol) ,rngname)
-                                                     (random-state:make-generator ,rngname ,seed)))
-                                         (error "The [⎕RL random link] value can only be set as an ~a"
-                                                "integer or a 2-element vector."))))))
+                                              (,rngname (aref *rng-names* ,rngindex)))
+                                         (if (not (or (integerp ,seed)
+                                                  (and (vectorp ,seed) (= 0 (length ,seed)))))
+                                             (error "Random seeds set by ⎕RL←X must be ~a"
+                                                    "integers or empty vectors.")
+                                             (setf (getf (rest ,symbol) :rng)
+                                                   ,rngname
+                                                   (getf (rest ,symbol) ,rngname)
+                                                   (if (eq :system ,rngname)
+                                                       :system
+                                                       (if (and (vectorp ,seed) (= 0 (length ,seed)))
+                                                           (random-state:make-generator ,rngname)
+                                                           (random-state:make-generator
+                                                            ,rngname ,seed))))))
+                                       (error "The [⎕RL random link] value can only be set as an ~a"
+                                              "integer or a 2-element vector.")))))
                           (let ((sym-package (package-name (symbol-package symbol))))
                             (if (and (listp value) (eql 'a-call (first value))
                                      (listp (second value)) (eql 'function (caadr value))
