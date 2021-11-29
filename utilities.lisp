@@ -607,34 +607,54 @@
                                    symbol (rest symbol))))
                   ;; handle multiple assignments like a b c←1 2 3
                   (labels ((process-symbols (sym-list values)
-                             (let ((this-val (gensym))
-                                   (assigning-xfns (and (listp values) (eql 'a-call (first values))
-                                                        (listp (second values))
-                                                        (eql 'function (caadr values))
-                                                        (member (cadadr values)
-                                                                '(external-workspace-function
-                                                                  external-workspace-operator)))))
+                             (let* ((this-val (gensym))
+                                    (assigning-xfns (and (listp values) (eql 'a-call (first values))
+                                                         (listp (second values))
+                                                         (eql 'function (caadr values))
+                                                         (member (cadadr values)
+                                                                 '(external-workspace-function
+                                                                   external-workspace-operator))))
+                                    (other-space (and assigning-xfns
+                                                      (concatenate 'string "APRIL-WORKSPACE-"
+                                                                   (first (last values)))))
+                                    (sym-package (and assigning-xfns
+                                                      (package-name (symbol-package (first sym-list))))))
                                `(let ((,this-val ,values))
                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                            sym-list (rest sym-list))
                                           :for sx :from 0
-                                          :append (if (and (listp sym) (not (eql 'inws (first sym))))
-                                                      (list (process-symbols
-                                                             sym `(if (not (vectorp ,this-val))
-                                                                      ,this-val (aref ,this-val ,sx))))
-                                                      (if (eql '⍺ sym)
-                                                          `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
-                                                                              (disclose ,this-val)
-                                                                              (aref ,this-val sx)))))
-                                                          (if (eql '⍵ sym)
-                                                              `(error "The [⍵ right argument] cannot ~a"
-                                                                      "have a default assignment.")
-                                                              `((setf ,(if assigning-xfns
-                                                                           `(symbol-function ',sym)
-                                                                           sym)
-                                                                      (if (not (vectorp ,this-val))
-                                                                          (disclose ,this-val)
-                                                                          (aref ,this-val ,sx))))))))
+                                          :append
+                                          (if (and (listp sym) (not (eql 'inws (first sym))))
+                                              (list (process-symbols
+                                                     sym `(if (not (vectorp ,this-val))
+                                                              ,this-val (aref ,this-val ,sx))))
+                                              (if (eql '⍺ sym)
+                                                  `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
+                                                                      (disclose ,this-val)
+                                                                      (aref ,this-val sx)))))
+                                                  (if (eql '⍵ sym)
+                                                      `(error "The [⍵ right argument] cannot ~a"
+                                                              "have a default assignment.")
+                                                      (if assigning-xfns
+                                                          ;; handle assignment of multiple functions
+                                                          ;; from another WS like fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
+                                                          (let ((args (gensym)))
+                                                            `((proclaim '(special ,sym))
+                                                              (setf (symbol-function ',sym)
+                                                                    (lambda (&rest ,args)
+                                                                      (let ,(loop :for (key val)
+                                                                                    :on *system-variables*
+                                                                                  :by #'cddr
+                                                                                  :collect
+                                                                                  (list (intern (string val)
+                                                                                                other-space)
+                                                                                        (intern (string val)
+                                                                                                sym-package)))
+                                                                        (apply (aref ,this-val ,sx)
+                                                                               ,args))))))
+                                                          `((setf ,sym (if (not (vectorp ,this-val))
+                                                                           (disclose ,this-val)
+                                                                           (aref ,this-val ,sx)))))))))
                                   ,this-val))))
                     (process-symbols symbols value))))))))
 
