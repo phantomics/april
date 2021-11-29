@@ -32,7 +32,8 @@
  (system :output-printed nil
          :base-state '(:output-stream '*standard-output*)
          :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
-                               :comparison-tolerance double-float-epsilon :rngs '(:generators))
+                               :comparison-tolerance double-float-epsilon
+                               :rngs '(:generators :rng :mersenne-twister-64))
          :variables *system-variables*)
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give

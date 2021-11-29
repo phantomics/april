@@ -469,3 +469,19 @@ subs ← {                                     ⍝ Vector substitution.
     ts↓↑,/{to,fs↓⍵}¨(lead,⍺)⊂fm,⍵            ⍝ cut and pasted new for old
   }⍤1⊢⍵                                      ⍝ apply to vectors
 }
+
+⍝ From http://dfns.dyalog.com/c_lcase.htm
+
+lcase ← {                                    ⍝ Lower-casification,
+  lc←'abcdefghijklmnopqrstuvwxyzåäöàæéñøü'   ⍝ (lower case alphabet)
+  uc←'ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖÀÆÉÑØÜ'   ⍝ (upper case alphabet)
+  (⍴⍵)⍴(lc,,⍵)[(uc,,⍵)⍳⍵]                    ⍝ ... of simple array.
+}
+
+⍝ From http://dfns.dyalog.com/c_ucase.htm
+
+ucase ← {                                    ⍝ Upper-casification,
+  lc←'abcdefghijklmnopqrstuvwxyzåäöàæéñøü'   ⍝ (lower case alphabet)
+  uc←'ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖÀÆÉÑØÜ'   ⍝ (upper case alphabet)
+  (⍴⍵)⍴(uc,,⍵)[(lc,,⍵)⍳⍵]                    ⍝ ... of simple array.
+}

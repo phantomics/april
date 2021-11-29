@@ -12,20 +12,28 @@
 (defun apl-random-process (item index-origin generator)
   "Core of (apl-random), randomizing an individual integer or float."
   (if (integerp item)
-      (if (= 0 item) (random-state:random-float generator double-float-epsilon
-                                                (- 1.0d0 double-float-epsilon))
-          (random-state:random-int generator index-origin (1- (+ item index-origin))))
-      (if (floatp item) (random-state:random-float
-                         generator double-float-epsilon (- (coerce item 'double-float)
-                                                           double-float-epsilon))
+      (if (= 0 item) (if (eq :system generator)
+                         (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
+                         (random-state:random-float generator double-float-epsilon
+                                                    (- 1.0d0 double-float-epsilon)))
+          (if (eq :system generator) (+ index-origin (random item))
+              (random-state:random-int generator index-origin (1- (+ item index-origin)))))
+      (if (floatp item)
+          (if (eq :system generator)
+              (random item)
+              (random-state:random-float
+               generator double-float-epsilon (- (coerce item 'double-float)
+                                                 double-float-epsilon)))
           (error "The right argument to ? can only contain non-negative integers or floats."))))
 
 (defun apl-random (index-origin rngs)
   "Randomize an array or scalar value. This must run synchronously over arrays without threading so that the same seed will produce the same output. Used to implement [? random]."
   (lambda (omega)
-    (let ((generator (or (getf (rest rngs) :mersenne-twister-64)
-                         (setf (getf (rest rngs) :mersenne-twister-64)
-                               (random-state:make-generator :mersenne-twister-64)))))
+    (let* ((gen-name (getf (rest rngs) :rng))
+           (generator (or (getf (rest rngs) gen-name)
+                          (setf (getf (rest rngs) gen-name)
+                                (if (eq :system gen-name)
+                                    :system (random-state:make-generator gen-name))))))
       (if (not (arrayp omega))
           (apl-random-process omega index-origin generator)
           (let ((output (make-array (dims omega) :element-type (element-type omega))))
@@ -37,11 +45,13 @@
 (defun deal (index-origin rngs)
   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
   (lambda (omega alpha)
-    (let ((omega (disclose-unitary omega))
-          (alpha (disclose-unitary alpha))
-          (generator (or (getf (rest rngs) :mersenne-twister-64)
-                         (setf (getf (rest rngs) :mersenne-twister-64)
-                               (random-state:make-generator :mersenne-twister-64)))))
+    (let* ((omega (disclose-unitary omega))
+           (alpha (disclose-unitary alpha))
+           (gen-name (getf (rest rngs) :rng))
+           (generator (or (getf (rest rngs) gen-name)
+                          (setf (getf (rest rngs) gen-name)
+                                (if (eq :system gen-name)
+                                    :system (random-state:make-generator gen-name))))))
       (if (or (not (integerp omega))
               (not (integerp alpha)))
           (error "Both arguments to ? must be single non-negative integers.")
@@ -49,9 +59,10 @@
               (error "The left argument to ? must be less than or equal to the right argument.")
               (let ((vector (count-to omega index-origin)))
                 ;; perform Knuth shuffle of vector
-                (loop :for i :from omega :downto 2 :do (rotatef (aref vector (random-state:random-int
-                                                                              generator 0 (1- i)))
-                                                                (aref vector (1- i))))
+                (loop :for i :from omega :downto 2
+                      :do (rotatef (aref vector (if (eq :system generator) (random i)
+                                                    (random-state:random-int generator 0 (1- i))))
+                                   (aref vector (1- i))))
                 (if (= alpha omega)
                     vector (make-array alpha :displaced-to vector :element-type (element-type vector)))))))))
 

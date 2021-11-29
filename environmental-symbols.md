@@ -16,6 +16,9 @@ These variables can be reassigned by the user; for instance, `⎕io←0` sets th
 |`⎕CT` |Comparison Tolerance|Difference between floating point numbers below which they are considered equal.|
 |`⎕PP` |Print Precision     |Precision at which decimal values are expressed for printing; default 10.|
 |`⎕DIV`|Division Method     |Defines how division by 0 is handled; may be 0 (default) or 1.|
+|`⎕RL` |Random Link         |Assign this variable to set a seed for the random number generator.*|
+
+####* Currently, only the Mersenne Twister RNG algorithm is supported.
 
 ### April's Unique System Variables
 
@@ -48,6 +51,9 @@ These symbols represent standard functions available within April. Currently, th
 
 ### April's Unique System Functions
 
-|Symbol|Name             |Description|
-|------|-----------------|-----------|
-|`⎕DT` |Coerce/Get Type  |Get a number representing the element type of an array or coerce an array to a particular element type.|
+|Symbol|Name                       |Description|
+|------|---------------------------|-----------|
+|`⎕DT` |Coerce/Get Type            |Get enumerated type of an array or coerce an array to an enumerated type.|
+|`⎕XWV`|External Workspace Value   |Fetch one or more values from another workspace.|
+|`⎕XWF`|External Workspace Function|Fetch one or more functions from another workspace.|
+|`⎕XWO`|External Workspace Operator|Fetch one or more operators from another workspace.|

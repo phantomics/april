@@ -3,9 +3,8 @@
 
 ⍝⍝ External dependencies
 
-disp    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp'
-display ← 'ARRAY-DEMO-SPACE' ⎕XWF 'display'
-subs    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'subs'
+disp display subs ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp' 'display' 'subs'
+ucase lcase ← 'ARRAY-DEMO-SPACE' ⎕XWF 'ucase' 'lcase'
 
 
 ⍝⍝ String processing
@@ -17,22 +16,6 @@ just ← {                                     ⍝ Justify text array.
   ⍺=¯1: ( +/∧\' '= ⍵)            ⌽⍵          ⍝ │left        │
   ⍺= 1: (-+/∧\' '=⌽⍵)            ⌽⍵          ⍝ │       right│
   (⌈0.5×( +/∧\' '= ⍵)-+/∧\' '=⌽⍵)⌽⍵          ⍝ │   centre   │
-}
-
-⍝ From http://dfns.dyalog.com/c_lcase.htm
-
-lcase ← {                                    ⍝ Lower-casification,
-  lc←'abcdefghijklmnopqrstuvwxyzåäöàæéñøü'   ⍝ (lower case alphabet)
-  uc←'ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖÀÆÉÑØÜ'   ⍝ (upper case alphabet)
-  (⍴⍵)⍴(lc,,⍵)[(uc,,⍵)⍳⍵]                    ⍝ ... of simple array.
-}
-
-⍝ From http://dfns.dyalog.com/c_ucase.htm
-
-ucase ← {                                    ⍝ Upper-casification,
-  lc←'abcdefghijklmnopqrstuvwxyzåäöàæéñøü'   ⍝ (lower case alphabet)
-  uc←'ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖÀÆÉÑØÜ'   ⍝ (upper case alphabet)
-  (⍴⍵)⍴(uc,,⍵)[(lc,,⍵)⍳⍵]                    ⍝ ... of simple array.
 }
 
 ⍝ From http://dfns.dyalog.com/n_mtrim.htm

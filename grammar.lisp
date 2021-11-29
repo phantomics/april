@@ -799,7 +799,13 @@
         (multiple-value-bind (function remaining)
             (if (or (= 1 (length tokens))
                     (and (= 2 (length tokens)) ;; check for trailing axes
-                         (listp (first tokens)) (eq :axes (caar tokens))))
+                         (listp (first tokens)) (eq :axes (caar tokens)))
+                    ;; don't do assign-by-function-result if the "values" being assigned are 
+                    ;; actually functions from another workspace as for fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
+                    (and (listp (first elements)) (eql 'a-call (caar elements))
+                         (listp (cadar elements)) (eql 'function (caadar elements))
+                         (member (second (cadar elements)) '(external-workspace-function
+                                                             external-workspace-operator))))
                 (values nil tokens)
                 (build-function tokens :space space :params params))
           (multiple-value-bind (symbol remaining2)
@@ -1001,7 +1007,8 @@
                                            symbol)))
                   (xfns-assigned (and (listp value) (eql 'a-call (first value))
                                       (listp (second value)) (eql 'function (caadr value))
-                                      (eql 'external-workspace-function (cadadr value)))))
+                                      (member (cadadr value) '(external-workspace-function
+                                                               external-workspace-operator)))))
              (labels ((get-symbol-list (list &optional inner)
                         (let ((valid t))
                           (if (listp list)
@@ -1046,7 +1053,7 @@
                                                  (if xfns-assigned (setf (symbol-function insym)
                                                                          #'dummy-nargument-function)
                                                      (set insym nil))))))
-                          (if function
+                          (if (and function (not xfns-assigned))
                               (if (listp syms) ;; handle namespace paths
                                   `(a-set ,symbol ,value :by (lambda (item item2)
                                                                (a-call ,function item item2)))
@@ -1149,7 +1156,7 @@
                          (if value (fnexp-backup value :space space :params params)
                              (if (and remaining (listp remaining) (listp (first remaining))
                                       (eq :fn (caar remaining)) (eq :pass (cadar remaining)))
-                                 ;; handle cases like fn←⍟.(≤∘0) where the
+                                 ;; handle cases like fn←~.(≤∘0) where the
                                  ;; first element is a value-right composition
                                  (build-function remaining :initial t :space space :params params))))
                        (wrap-fn-sym (build-function expr :initial t :space space :params params))

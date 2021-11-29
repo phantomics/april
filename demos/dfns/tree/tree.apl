@@ -3,11 +3,9 @@
 
 ⍝⍝ External dependencies
 
-disp    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp'
-display ← 'ARRAY-DEMO-SPACE' ⎕XWF 'display'
-pmat    ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
-foldl   ← 'ARRAY-DEMO-SPACE' ⎕XWO 'foldl'
-traj    ← 'POWER-DEMO-SPACE' ⎕XWO 'traj'
+disp display pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp' 'display' 'pmat'
+foldl             ← 'ARRAY-DEMO-SPACE' ⎕XWO 'foldl'
+traj              ← 'POWER-DEMO-SPACE' ⎕XWO 'traj'
 
 
 ⍝ From http://dfns.dyalog.com/c_avl.htm
