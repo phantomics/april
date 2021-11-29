@@ -16,9 +16,7 @@ These variables can be reassigned by the user; for instance, `⎕io←0` sets th
 |`⎕CT` |Comparison Tolerance|Difference between floating point numbers below which they are considered equal.|
 |`⎕PP` |Print Precision     |Precision at which decimal values are expressed for printing; default 10.|
 |`⎕DIV`|Division Method     |Defines how division by 0 is handled; may be 0 (default) or 1.|
-|`⎕RL` |Random Link         |Assign this variable to set a seed for the random number generator.*|
-
-####* Currently, only the Mersenne Twister RNG algorithm is supported.
+|`⎕RL` |Random Link         |Assign this variable to set the random number generator and/or seed to use.|
 
 ### April's Unique System Variables
 
@@ -46,7 +44,7 @@ These symbols represent standard functions available within April. Currently, th
 |`⎕TS` |Timestamp          |Evaluates to the current APL timestamp: a vector of 7 values expressing year, month, day, hour, minute, second and millisecond.|
 |`⎕NS` |Create Namespace   |Return an empty namespace.|
 |`⎕CS` |Set Namespace Point|Set the starting point for namespace paths within a scope.|
-'`⎕UCS`|Unicode Convert    |Convert unicode characters into integers and vice versa.|
+|`⎕UCS`|Unicode Convert    |Convert unicode characters into integers and vice versa.|
 |`⎕FMT`|Format             |Create a character matrix containing the printed representation of an array.|
 
 ### April's Unique System Functions
