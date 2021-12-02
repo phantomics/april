@@ -24,7 +24,7 @@ For the time being, discussion of April and its development is happening on the 
 
 ## Compatibility with Common Lisp Implementations
 
-April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but there are a few bugs present in all implementations but SBCL and CCL. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## Automatic Installation
 
