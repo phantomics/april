@@ -22,11 +22,13 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 For the time being, discussion of April and its development is happening on the `##phantomics` channel on irc.libera.chat.
 
+## Compatibility with Common Lisp Implementations
+
+April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but there are a few bugs present in all implementations but SBCL and CCL. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+
 ## Automatic Installation
 
-April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL), Allegro Common Lisp and LispWorks.
-
-To install April with Quicklisp, evaluate:
+April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. To install April with Quicklisp, evaluate:
 
 ```lisp
 (ql:quickload 'april)
@@ -58,10 +60,6 @@ To complete the installation, just start a Common Lisp REPL and enter:
 ```
 
 This will download and install April's dependencies, and with that the package will be built and ready.
-
-## Compatibility with Common Lisp Implementations
-
-April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL and LispWorks but there are a few bugs present in all implementations but SBCL and CCL. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## APL Functions and Operators
 
@@ -122,15 +120,6 @@ If you don't need to see the printout, you can use the plain `(april)` macro. Li
 
 You should use `(april)` if you're using April to do calculations inside of a larger program and don't need the printout. Otherwise, especially if you're working with large data sets, the system may consume significant resources printing out the results of calculations.
 
-Also note that if the output of an April expression is a single number, `(april-f)` will not print it since the Lisp representation of the number will look the same or very similar. For example:
-
-```lisp
-* (april-f "1+2")
-3
-```
-
-Since the result of 1+2 is 3, a single number, no value printout is provided.
-
 Setting state properties for the APL instance can be done like this:
 
 ```lisp
@@ -189,25 +178,6 @@ More APL expressions:
  6  7  8 5
 10 11 12 9
 #2A((2 3 4 1) (6 7 8 5) (10 11 12 9))
-```
-
-## Compact Function Calls: The (april-c) Macro
-
-Want to invoke April functions on some variables with less code? You can use the `(april-c)` macro. For example:
-
-```lisp
-* (april-c "{⍺×⍵}" 2 8)
-16
-
-* (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10)
-#(8 8 8 8 8 8 0 0 0 0)
-```
-
-After the string where the April function is written, pass the variables that will be input to the function and you'll receive the result with no need for a long `(with (:state ...))` clause. If you wish to pass parameters in a `(with)` clause, you can still do it with `(april-c)`.
-
-```lisp
-* (april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
-#(0 1 2 3 4 5 6)
 ```
 
 ### A note on escaping characters
@@ -327,6 +297,51 @@ Note that you must use backslashes to escape double quotes used within Lisp stri
 * (april "'''abc'''")
 "'abc'"
 ```
+
+## Compact Function Calls: The (april-c) Macro
+
+Want to invoke April functions on some variables with less code? You can use the `(april-c)` macro. For example:
+
+```lisp
+* (april-c "{⍺×⍵}" 2 8)
+16
+
+* (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10)
+#(8 8 8 8 8 8 0 0 0 0)
+```
+
+After the string where the April function is written, pass the variables that will be input to the function and you'll receive the result with no need for a long `(with (:state ...))` clause. If you wish to pass parameters in a `(with)` clause, you can still do it with `(april-c)`.
+
+```lisp
+* (april-c (with (:state :count-from 0)) "{⍳⍵}" 7)
+#(0 1 2 3 4 5 6)
+```
+
+The arguments passed to `(april-c)` are in the order `⍵ ⍺`. This may seem counterintuitive:
+
+```lisp
+* (april-c "{⍵-⍺}" 10 5)
+5
+```
+
+But keep in mind that a function must always have a right argument, but may or may not have a left argument. Therefore it's easier to remember that the first argument after the function string is always the right argument, and the second argument, if present, is the left argument.
+
+The `(april-c)` macro can also be used to compose inline operators with functions. For example:
+
+```lisp
+* (april-c "{⍺⍺/⍵}" #'+ #(1 2 3 4 5))
+15
+
+* (april-c "{⍵⍵ ⍺⍺/⍵}" #'+ #'- #(1 2 3 4 5))
+-15
+
+* (april-c "{⍵⍵ ⍺ ⍺⍺/⍵}" #'+ (scalar-function -) #(1 2 3 4 5) 3)
+#(-6 -9 -12) 
+```
+
+Note that in operators where a right operand is expected (i.e. those that contain a `⍵⍵` or `⍹` operand), two operands are expected following the code string. In an operator taking only a left operand, whose code doesn't include `⍵⍵` or `⍹`, one operand is expected following the code string. The arguments to `(april-c)` for an operator are in the order `⍺⍺/⍶ (⍵⍵/⍹ if present) ⍵ (⍺ if present)`. The left operand comes first in the arguments because all operators must have a left operand, but they may or may not have a right operand.
+
+Keep in mind that standard Common Lisp functions like `+` do not operate on entire arrays like APL functions do. In order to pass scalar functions into April via `(april-c)` that can be composed with operators and work as you expect scalar functions to when doing operations like `- 3 +/⍳5`, you must pass those functions' symbols through the `(scalar-function)` macro as seen above with `(scalar-function -)`.
 
 ## Parameter reference
 
