@@ -307,6 +307,12 @@
                    (follow-path space (rest path)
                                 (symbol-value (intern (string (first path)) space)))))))
 
+(let ((minimal-anchars (concatenate 'string "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                    "abcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑ"
+                                    "ÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ")))
+  (defun minimal-alphanumericp (character)
+    (not (null (position character minimal-anchars)))))
+
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (flet ((wrap-curried-axes (form)
@@ -788,7 +794,8 @@
                ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
                ;; by (format) so that the output string is of type 'character; this is also done for floats
                (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
-                  :do (if (alphanumericp (aref output i))
+                  :do (if #+allegro (minimal-alphanumericp (aref output i))
+                          #+(not allegro) (alphanumericp (aref output i))
                           (setq number-found t)
                           (setf (aref output (1- i)) #\ ))))
            output))
@@ -1335,15 +1342,20 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+    ;; (print (list :as arg-symbols))
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (progn) forms used to implement function variant implicit statements
         (cons 'progn form)
         (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      ;; the latter case wraps a user-defined operator
                      #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                          &optional ,(if (member '⍹ arg-symbols) '⍹ '⍵⍵))
+                                                          &optional ,(if (member '⍹ arg-symbols) '⍹
+                                                                         (if (member '⍵⍵ arg-symbols)
+                                                                             '⍵⍵ '_)))
                                                   (declare (ignorable ,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                                      ,(if (member '⍹ arg-symbols) '⍹ '⍵⍵)))
+                                                                      ,(if (member '⍹ arg-symbols) '⍹
+                                                                           (if (member '⍵⍵ arg-symbols)
+                                                                               '⍵⍵ '_))))
                                                   ,form)))
                  `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
                       (with (:meta :inverse (alambda ,(if arguments arguments `(⍵ &optional ⍺)) (with nil)
@@ -1513,8 +1525,7 @@ It remains here as a standard against which to compare methods for composing APL
         (let* ((found) (path-contents) (in-path) (new-tokens)
                (processed (loop :for rest-t :on tokens :by #'rest
                                 :collect (let ((i (first rest-t)))
-                                           (if (and (symbolp i) (not (loop :for c :across (string i)
-                                                                           :never (char= c #\.))))
+                                           (if (and (symbolp i) (position #\. (string i)))
                                                (setq found (process-split-sym i))
                                                (if (and (symbolp i) (is-product-operator (second rest-t))
                                                         (listp (third rest-t))

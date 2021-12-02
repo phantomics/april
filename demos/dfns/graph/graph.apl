@@ -3,9 +3,7 @@
 
 ⍝⍝ External dependencies
 
-⍝ dsp pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'dsp' 'pmat'
-dsp display pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'dsp' 'display' 'pmat'
-⍝ pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'pmat'
+dsp pmat ← 'ARRAY-DEMO-SPACE' ⎕XWF 'dsp' 'pmat'
 
 
 ⍝⍝ Graph processing

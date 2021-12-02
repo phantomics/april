@@ -57,20 +57,17 @@
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
-            (lambda (char)
-              (or (digit-char-p char)
-                  (not (loop :for c :across "._¯eEjJrR" :never (char= c char)))))
+            (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR")))
             :match-token-character
-            (lambda (char) (or (alphanumericp char)
-                               (not (loop :for c :across "._⎕∆⍙¯" :never (char= c char)))))
+            (lambda (char) (or #+allegro (minimal-alphanumericp char)
+                               #+(not allegro) (alphanumericp char)
+                               (position char "._⎕∆⍙¯")))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
-            :match-uniform-token-character
-            (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹∇⍬" :never (char= c char))))
+            :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬"))
             ;; match characters specifically representing function/operator arguments, this is needed
             ;; so ⍵.path.to will work
-            :match-arg-token-character
-            (lambda (char) (not (loop :for c :across "⍺⍵⍶⍹" :never (char= c char))))
+            :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹"))
             ;; match characters used to link parts of paths together like namespace.path.to,
             ;; this is needed so that ⍵.path.to will work
             :match-path-joining-character (lambda (char) (char= #\. char))
@@ -80,14 +77,14 @@
             ;; this code preprocessor removes comments: everything between a ⍝ and newline character
             :prep-code-string
             (lambda (string)
-              (let ((commented) (osindex 0)
+              (let ((commented) (osindex 0) (comment-char #\⍝)
                     (out-string (make-string (length string) :initial-element #\ )))
                 (loop :for char :across string
                    :do (if commented (if (member char '(#\Newline #\Return) :test #'char=)
                                          (setf commented nil
                                                (row-major-aref out-string osindex) char
                                                osindex (1+ osindex)))
-                           (if (char= char #\⍝)
+                           (if (char= char comment-char)
                                (setq commented t)
                                (setf (row-major-aref out-string osindex) char
                                      osindex (1+ osindex)))))
@@ -150,14 +147,27 @@
                 (let* ((form (if (not (and (= 1 (length form)) (characterp (first form))
                                            (of-lexicons this-idiom (first form) :functions)))
                                  form (list (build-call-form (first form)))))
-                       (final-form (if inline-arguments `(a-call ,(first (last form)) ,@inline-arguments)
+                       ;; operands for cases like (april-c "{⍵⍵ ⍺⍺/⍵}" #'+ #'- #(1 2 3 4 5))
+                       (operands (if (and inline-arguments (listp (first form)) (eql 'olambda (caar form)))
+                                     (cadar form)))
+                       (final-form (if inline-arguments
+                                       (if operands
+                                           `(a-call (a-comp :op ,(first (last form))
+                                                            ,(first inline-arguments)
+                                                            ,@(if (intersection operands '(⍵⍵ ⍹))
+                                                                  (list (second inline-arguments))))
+                                                    ,@(if (intersection operands '(⍵⍵ ⍹))
+                                                          (cddr inline-arguments)
+                                                          (rest inline-arguments)))
+                                           `(a-call ,(first (last form)) ,@inline-arguments))
                                        (first (last form)))))
                   (append (butlast form)
                           (list (append (list 'a-out final-form)
                                         (append (list :print-precision 'print-precision)
                                                 (if (getf state :print) (list :print-to 'output-stream))
                                                 (if (getf state :output-printed)
-                                                    (list :output-printed (getf state :output-printed))))))))))
+                                                    (list :output-printed
+                                                          (getf state :output-printed))))))))))
             :postprocess-value
             (lambda (form state)
               (append (list 'a-out form)
@@ -306,7 +316,10 @@
      (ambivalent (apl-random index-origin rngs)
                  (deal index-origin rngs))
      (meta (primary :implicit-args (index-origin rngs)))
-     (tests (is "⍴5?⍴⍳5" #(5))))
+     (tests (is "⍴5?⍴⍳5" #(5))
+            (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000" 1)
+            (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←7 0 ⋄ 10?⍵}¨10⍴1000" 1)
+            (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←⍬ 2 ⋄ 10?⍵}¨10⍴1000" 0)))
   (○ (has :titles ("Pi Times" "Circular"))
      (ambivalent (scalar-function (λω (* omega (coerce pi 'double-float))))
                  (scalar-function (call-circular)))
@@ -1633,7 +1646,7 @@
   (for "Selective assignment of elements within nested array by [⊃ pick] function."
        "{na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99" #(#(99 2 3 4) #(1 2 3 4) #(1 2 3 4)))
   (for "Selective assignment of matrix elements by [⍉ transpose] function."
-       "{mt←3 3⍴⍳9 ⋄ (1 1⍉mt)←⍵ ⋄ ⋄ mt} 0" #2A((0 2 3) (4 0 6) (7 8 0)))
+       "{mt←3 3⍴⍳9 ⋄ (1 1⍉mt)←⍵ ⋄ mt} 0" #2A((0 2 3) (4 0 6) (7 8 0)))
   (for "Selective assignment of matrix elements raveled by [↑ take] function."
        "{mt←3 4⍴⍳12 ⋄ (5↑,mt)←⍵ ⋄ mt} 0" #2A((0 0 0 0) (0 6 7 8) (9 10 11 12)))
   (for "Selective assignment of nested character vector elements enlisted by [/ compress] function."
@@ -2343,11 +2356,11 @@ c   2.56  3
      (is (print-and-run (get-output-stream-string out-str))
          "6 7 8
 3 4 5
-" :test #'equalp)
+" :test #'string=)
      (format t "~%")
      (is (print-and-run (get-output-stream-string other-out-str))
          "4 5 6
-" :test #'equalp))
+" :test #'string=))
    (progn (format t "λ Multi-line function with comment at end.~%")
           
           (is (print-and-run (april "fun←{
@@ -2372,7 +2385,19 @@ fun 3")) 8))
           (format t "~%")
 
           (is (print-and-run (april-c (with (:state :count-from 0)) "{⍳⍵}" 7))
-              #(0 1 2 3 4 5 6) :test #'equalp))
+              #(0 1 2 3 4 5 6) :test #'equalp)
+          
+          (format t "~%")
+
+          (format t "λ Compact operator-composed function calls.~%")
+
+          (is (print-and-run (april-c "{⍵⍵ ⍺⍺/⍵}" #'+ #'- #(1 2 3 4 5)))
+              -15 :test #'=)
+          
+          (format t "~%")
+
+          (is (print-and-run (april-c "{⍵⍵ ⍺ ⍺⍺/⍵}" #'+ (scalar-function -) #(1 2 3 4 5) 3))
+              #(-6 -9 -12) :test #'equalp))
    )))
 
 ;; create the common workspace and the space for unit tests
