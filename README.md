@@ -24,7 +24,7 @@ For the time being, discussion of April and its development is happening on the 
 
 ## Automatic Installation
 
-April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL) and LispWorks.
+April is supplied by the Quicklisp library manager, so the easiest way to install April is through Quicklisp. April depends on Common Lisp, ASDF and Quicklisp. It has been tested with Steel Bank Common Lisp (SBCL), Clozure Common Lisp (CCL), Embeddable Common Lisp (ECL), Armed Bear Common Lisp (ABCL), Allegro Common Lisp and LispWorks.
 
 To install April with Quicklisp, evaluate:
 

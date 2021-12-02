@@ -4,7 +4,7 @@
 
 <!-- /TITLE -->
 
-April has been tested with SBCL, CCL, ECL, ABCL and LispWorks. Its compatibility with these implementations is summarized below.
+April has been tested with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks. Its compatibility with these implementations is summarized below.
 
 April's compatibility is tested by running the main test set, which is done by evaluating `(april (test))` and further by running the demo test sets, done by first loading the demo workspaces with `(load-demos)` and then running the tests with `(run-demo-tests)` within in the `april` package.
 
@@ -44,7 +44,7 @@ Allegro CL fails 2 main tests because of a problem with its `(acosh)` function. 
 
 Allegro is affected by a significant bug in its `(alphanumericp)` function which matches many non-alphanumeric characters, including most special APL characters, which breaks April's parser. Currently, this is mitigated through the use of a special function called `(minimal-alphanumericp)` that replaces `(alphanumeric)` under Allegro CL. This function matches the same alphanumeric characters that LispWorks matches, meaning that it has the same narrow range of character support that LispWorks does. Therefore, non-Roman characters cannot be used in April variable names under Allegro CL.
 
-The supported variable name characters can be found by looking up the `minimal-alphanumericp` function in [utilities.lisp](./utilities.lisp).
+The supported variable name characters can be found by looking up the `(minimal-alphanumericp)` function in [utilities.lisp](./utilities.lisp).
 
 ## LispWorks
 
