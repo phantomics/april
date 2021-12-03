@@ -28,7 +28,7 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## Compatibility with Common Lisp Implementations
 
-April puts the numeric and array processing power of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+April puts the numeric and array processing capabilities of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## Automatic Installation
 
@@ -622,7 +622,7 @@ NIL
 * (april "addTen 1 2 3 4 5")
 ```
 
-You will get an error stating `The value #(1 2 3 4 5) is not of type NUMBER ...`. That's because in Lisp, you can't add 10 to the vector `#(1 2 3 4 5)`, which is what the function is attempting to do. Use caution when adding arbitrary Lisp functions into an April workspace.
+You will get an error stating something like `The value #(1 2 3 4 5) is not of type NUMBER ...`. That's because in Lisp, you can't add 10 to the vector `#(1 2 3 4 5)`, which is what the function is attempting to do. Use caution when adding arbitrary Lisp functions into an April workspace.
 
 If you want to store functions or variables with names that are read literally rather than being converted to camel case, you can do this by passing strings as the variable names. If a dash is found in such a string-expressed variable name it will cause an error. For example:
 
@@ -642,12 +642,15 @@ If you just want to compile the code you enter into April without running it, us
 ```lisp
 * (april (with (:compile-only)) "1+1 2 3")
 (IN-APRIL-WORKSPACE COMMON
-  (LET* ((OUTPUT-STREAM *STANDARD-OUTPUT*))
+  (LET ((OUTPUT-STREAM *STANDARD-OUTPUT*))
     (DECLARE (IGNORABLE OUTPUT-STREAM))
-    (SYMBOL-MACROLET ((INDEX-ORIGIN ⊏*INDEX-ORIGIN*)
-                      (PRINT-PRECISION ⊏*PRINT-PRECISION*))
-      (APL-OUTPUT (APL-CALL + (SCALAR-FUNCTION +) (AVECTOR 1 2 3) 1)
-                  :PRINT-PRECISION PRINT-PRECISION))))
+    (SYMBOL-MACROLET ((INDEX-ORIGIN ⊑*INDEX-ORIGIN*)
+                      (PRINT-PRECISION ⊑*PRINT-PRECISION*)
+                      (COMPARISON-TOLERANCE ⊑*COMPARISON-TOLERANCE*)
+                      (DIVISION-METHOD ⊑*DIVISION-METHOD*)
+                      (RNGS ⊑*RNGS*))
+      (A-OUT (A-CALL (APL-FN-S +) (AVEC 1 2 3) 1) :PRINT-PRECISION
+             PRINT-PRECISION))))
 ```
 
 ### (:print-tokens) parameter
@@ -961,7 +964,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the April package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
+April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the `april` package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 
