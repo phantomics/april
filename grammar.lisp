@@ -467,19 +467,28 @@
                                                                         :axes remaining-axes
                                                                         :axes-last raxes-last
                                                                         :space space :params params)))
-                                           (let ((value `(a-call ,(if (not (and (listp function)
-                                                                                (eql 'inwsd
-                                                                                     (first function))))
-                                                                      function `(function ,function))
-                                                                 ,preceding
-                                                                 ,@(if lval (list lval)))))
-                                             (if (and (listp function)
-                                                      (eql 'change-namespace (second function)))
-                                                 (set-namespace-point preceding space params))
-                                             (if (not remaining) value
-                                                 (build-value remaining :elements (list value) :space space 
-                                                                        :axes remaining-axes :params params
-                                                                        :axes-last raxes-last)))))
+                                           (if (and (not lval)
+                                                    (listp function)
+                                                    (member (first function) '(apl-fn apl-fn-s))
+                                                    (= 1 (length (string (second function))))
+                                                    (not (of-lexicons *april-idiom*
+                                                                      (aref (string (second function)) 0)
+                                                                      :functions-monadic)))
+                                               (error "The function ~a requires a left argument."
+                                                      (string (second function)))
+                                               (let ((value `(a-call ,(if (not (and (listp function)
+                                                                                    (eql 'inwsd
+                                                                                         (first function))))
+                                                                          function `(function ,function))
+                                                                     ,preceding
+                                                                     ,@(if lval (list lval)))))
+                                                 (if (and (listp function)
+                                                          (eql 'change-namespace (second function)))
+                                                     (set-namespace-point preceding space params))
+                                                 (if (not remaining) value
+                                                     (build-value remaining :elements (list value) :space space 
+                                                                            :axes remaining-axes :params params
+                                                                            :axes-last raxes-last))))))
                                      ;; the strangest part of (build-value), where
                                      ;; pivotal operators that begin with a value like +∘5 are matched
                                      (let ((exp-operator (build-operator (list (first tokens))
