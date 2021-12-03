@@ -28,7 +28,7 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## Compatibility with Common Lisp Implementations
 
-April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+April puts the numeric and array processing power of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## Automatic Installation
 
@@ -937,7 +937,7 @@ See a pattern? The functions not planned for implentation are all those that man
 
 ## Also Not Implemented
 
-APL's function editor system and control flow statements are not implemented; this type of functionality is also readily accessible through standard Common Lisp.
+APL's function editor system and control statements are not implemented; this type of functionality is also readily accessible through standard Common Lisp. Also, rather than using control statements like `:If`, April approaches the need for such structures with lexical statements like `$[]`.
 
 ## April's Lexicon Compared to Other APLs
 
@@ -961,8 +961,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)`. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
-
+April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the April package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 
