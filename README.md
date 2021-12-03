@@ -22,6 +22,10 @@ But no longer. Lisp is the great connector of the software world, digesting and 
 
 For the time being, discussion of April and its development is happening on the `##phantomics` channel on irc.libera.chat.
 
+## Support April's Development
+
+If you'd like to help provide for continuing work on April, you can [contribute through Patreon](https://www.patreon.com/lisp). April is making fast and steady progress toward the goal of being a powerful, full-featured and professional APL implementation, whose ease of extension and integration with other software offers game-changing advantages in the vector language field. Did you know that April's code at the beginning of December 2021 was over 95% different from its code at the beginning of September 2020?
+
 ## Compatibility with Common Lisp Implementations
 
 April puts the numeric and array processing faculties of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
