@@ -114,6 +114,50 @@
               (cdddr (first body)))
         (first body)))))
 
+;; (define-symbol-macro %in-function-p% nil)
+
+;; (let ((this-package (package-name *package*)))
+;;   (defmacro in-april-workspace (name &body body)
+;;     (let* ((workspace-name (string-upcase name))
+;;            (space-name (concatenate 'string "APRIL-WORKSPACE-" workspace-name))
+;;            (lex-space-name (concatenate 'string space-name "-LEX")))
+;;       `(symbol-macrolet ((+workspace-name+ ',(intern workspace-name this-package))
+;;                          (%workspace-package% ,space-name)
+;;                          (%workspace-package-lex% ,lex-space-name))
+;;          (make-threading-kernel-if-absent)
+;;          ;; I don't understand the make-threading-kernel-if-absent bit, sorry
+;;          ,@body))))
+
+;; (defun %get-workspace-package (env user)
+;;   (multiple-value-bind (package expandedp)
+;;       (macroexpand-1 '%workspace-package% env)
+;;     (if expandedp
+;;         package
+;;         (error "~a used outside of ~a" user 'in-april-workspace))))
+
+;; (defun %get-workspace-package-lex (env user)
+;;   (multiple-value-bind (package expandedp)
+;;       (macroexpand-1 '%workspace-package-lex% env)
+;;     (if expandedp
+;;         package
+;;         (error "~a used outside of ~a" user 'in-april-workspace))))
+
+;; (defun %in-function-p (env) (values (macroexpand-1 '%in-function-p% env)))
+
+;; (defmacro inwsd (symbol &environment env)
+;;   (check-type symbol symbol)
+;;   (intern (string symbol) (%get-workspace-package env 'inwsd)))
+
+;; (defmacro inws (symbol &environment env)
+;;   (check-type symbol symbol)
+;;   (let ((string (string symbol)))
+;;     (intern string
+;;             (if (and (%in-function-p env)
+;;                      (not (char= #\* (char string 0))))
+;;                 (%get-workspace-package-lex env 'inws)
+;;                 (%get-workspace-package env 'inws)))))
+
+
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\⊏ (lambda (stream character)
                            (declare (ignore character))
@@ -172,20 +216,22 @@
   (let* ((options (rest options))
          (system-vars (rest (assoc :sys-vars options)))
          (meta (rest (assoc :meta options))))
-    `(labels ((∇self ,params
-                (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
-                                         :collect var)))
-                (if (eq :get-metadata ,(first params))
-                    ,(cons 'list meta)
-                    (let ,(loop :for var :in system-vars :collect (list var var))
-                             (declare (ignorable ,@system-vars))
-                             ,@body))))
-       #'∇self)))
+    `(symbol-macrolet ((%in-function-p% t))
+       (labels ((∇self ,params
+                  (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
+                                              :collect var)))
+                  (if (eq :get-metadata ,(first params))
+                      ,(cons 'list meta)
+                      (let ,(loop :for var :in system-vars :collect (list var var))
+                        (declare (ignorable ,@system-vars))
+                        ,@body))))
+         #'∇self))))
 
 (defmacro olambda (params &body body)
   "Generate a lambda with a self-reference for use with APL's ∇∇ symbol for self-reference in a defined operator."
-  `(labels ((∇oself ,params ,@body))
-     #'∇oself))
+  `(symbol-macrolet ((%in-function-p% t))
+     (labels ((∇oself ,params ,@body))
+       #'∇oself)))
 
 (defmacro fn-meta (function &rest meta)
   "Wrap a function in another function so that it may carry metadata."
