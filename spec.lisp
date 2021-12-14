@@ -1527,7 +1527,6 @@
   (for "Two statements on one line separated by a [⋄ diamond] character."
        "a←9 ⋄ a×2 3 4" #(18 27 36))
   (for "Quote marks in string escaped using traditional double-quote method." "'''abc'''" "'abc'")
-  (for "Quote marks in string escaped with backslashes." "'\\'abc\\''" "'abc'")
   (for "Basic function definition and use, with comments delineated by the [⍝ lamp] character."
        "⍝ This code starts with a comment.
     f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
@@ -1853,6 +1852,7 @@
   (for "Inverse encode."   "1760 3 12⊤⍣¯1⊢2 0 10" 82)
   (for "Inverse decode."   "1760 3 12⊥⍣¯1⊢82" #(2 0 10))
   (for "Inverse composed decode extending left argument." "(2∘⊥)⍣¯1⊢5" #(1 0 1))
+  (for "Inverse composed decode extending left argument." "2⊥⍣¯1⊢0" #())
   (for "Inverse composed decode extending left argument with array as right argument."
        "(6∘⊥)⍣¯1⊢10 5 8 3" #2A((1 0 1 0) (4 5 2 3)))
   (for "Inversion of nested compound functions." "(3 +∘(2∘-)⍣1⊢5),3 +∘(2∘-)⍣¯1⊢5" #(0 0))

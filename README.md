@@ -292,7 +292,7 @@ In April, either single or double quotes can be used to enclose character string
 "ghijkl"
 ```
 
-Note that you must use backslashes to escape double quotes used within Lisp strings, making double quotes a less desirable choice unless you're loading April code from files using `(april-load)`. In order to escape quote characters within an April string, you can either enter a backslash before the quote character, as in Lisp and many other languages, or enter the quote character twice in the traditional APL style. For example:
+Note that you must use backslashes to escape double quotes used within Lisp strings, making double quotes a less desirable choice unless you're loading April code from files using `(april-load)`. In order to escape quote characters within an April string, enter the quote character twice. For example:
 
 ```lisp
 * (april "'\'abc'\'")
