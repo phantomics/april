@@ -2299,6 +2299,8 @@ c   2.56  3
             (is out1 3)
             (format t "~%")
             (is out2 #(3 4 5 6 7) :test #'equalp)))
+   (progn (format t "λ Output of function containing reference to input variable.~%")
+          (is (print-and-run (april (with (:state :in ((-a-b-c 10)))) "{ABC+⍵} 5")) 15))
    (progn (format t "λ Output of both value and APL-formatted value string.~%")
           (multiple-value-bind (out1 out2)
               (print-and-run (april (with (:state :output-printed t)) "2 3⍴⍳9"))
