@@ -90,18 +90,22 @@
   (defmacro in-april-workspace (name &body body)
     "Macro that interns symbols in the current workspace; works in tandem with ⊏ reader macro."
     (let* ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name)))
-           (lex-space-name (concatenate 'string space-name "-LEX")))
+           (lex-space-name (concatenate 'string space-name "-LEX"))
+           ;; build list of values assigned in the (april) call; these are stored as dynamic vars
+           (top-level-instrs (mapcar (lambda (item) (string (cadar item))) (cdadar body))))
       (labels ((replace-symbols (form &optional inside-function)
                  (loop :for item :in form :for ix :from 0
                        :collect (cond ((listp item)
                                        (if (and (second item) (not (third item))
                                                 (symbolp (second item)) (member (first item) '(inws inwsd)))
-                                           (intern (string (second item))
-                                                   (if (and inside-function
-                                                            (not (eql 'inwsd (first item)))
-                                                            (not (char= #\* (aref (string (second item))
-                                                                                  0))))
-                                                       lex-space-name space-name))
+                                           (let ((istring (string (second item))))
+                                             (intern (string (second item))
+                                                     (if (and inside-function
+                                                              (not (eql 'inwsd (first item)))
+                                                              (not (char= #\* (aref istring 0)))
+                                                              (loop :for str :in top-level-instrs
+                                                                    :never (string= str istring)))
+                                                         lex-space-name space-name)))
                                            ;; don't lex-intern functions like #'⊏|fn|
                                            (replace-symbols item (and (not (eql 'function (first item)))
                                                                       (or inside-function

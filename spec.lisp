@@ -1551,6 +1551,7 @@
        "a←9 10 11 ⋄ 1 2 a[2] 3 4 5 6[3]" 4)
   (for "Index of inline nested vector." "(1 2 3 4) 15[1]" #0A#(1 2 3 4))
   (for "Manifold left-associative indexing." "'a' 2[1] 2[1] 2[1] 2[1] 2[1]" #\a)
+  (for "Indexed item in vector." "la←5 6 7 ⋄ la[1 3] 'apple'" #(#(5 7) "apple"))
   (for "Function taking an index applied to indices of vector."
        "↓[1]'abcde'[2 2⍴2 3]" #("bb" "cc"))
   (for "Index of vector of strings." "'abc' 'def' 'ghi'[2]" #0A"def")

@@ -363,20 +363,28 @@
                  (if left (values (build-value nil :axes axes :space space :axes-last t
                                                    :left left :params params :elements elements)
                                   tokens)
-                     (if axes (if (and (listp (second tokens)) (eq :fn (caadr tokens)))
-                                  ;; account for cases like ↓[1]'abcde'[2 2⍴2 3]
-                                  (build-value tokens :space space :params params
-                                               :elements (list (build-value nil :space space :params params
-                                                                                :elements elements :axes axes)))
-                                  (build-value nil :elements (cons (build-value tokens :space space
-                                                                                       :params params)
-                                                                   elements)
-                                                   :axes axes))
-                         (build-value (rest tokens) :elements elements :space space :params params
-                                                    :axes (cons (build-axes (cdar tokens)
-                                                                            :space space :params params)
-                                                                axes)
-                                                    :axes-last t)))
+                     (if (or (and (listp (second tokens))
+                                  (member (caadr tokens) '(:fn :op)))
+                             ;; account for cases like ↓[1]'abcde'[2 2⍴2 3]
+                             (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
+                                                :fn-syms (second tokens))
+                             (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
+                                                :lop-syms (second tokens))
+                             (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
+                                                :pop-syms (second tokens)))
+                         (if axes (build-value tokens :space space :params params
+                                                      :elements (list (build-value
+                                                                       nil :space space :params params
+                                                                           :elements elements :axes axes)))
+                             (build-value (rest tokens) :elements elements :space space :params params
+                                                        :axes (cons (build-axes (cdar tokens)
+                                                                                :space space :params params)
+                                                                    axes)
+                                                        :axes-last t))
+                         (build-value nil :elements (cons (build-value tokens :space space
+                                                                              :params params)
+                                                          elements)
+                                          :axes axes)))
                  ;; if no elements preceded the axes, just pass the axes to the next
                  ;; level of recursion to be applied to the next element encountered
                  (build-value (rest tokens) :axes (cons (build-axes (cdar tokens)
