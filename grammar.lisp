@@ -843,13 +843,18 @@
                                  :space space :left t :params params))
               ;; TODO: account for stuff after the assigned symbol
               (if (or symbol function)
-                  (build-value remaining2
-                               :elements (list (compose-value-assignment
-                                                (or symbol function)
-                                                (build-value nil :axes axes :elements elements
-                                                                 :space space :params params)
-                                                :params params :space space :function (if symbol function)))
-                               :space space :params params))))))))
+                  (if (and symbol (listp symbol) (eql 'avec (first symbol))
+                           (not (all-symbols-p symbol)))
+                      ;; error occurs if an invalid strand assignment like ⎕←'hi' ⎕←'bye' is made
+                      (error "Invalid assignment.")
+                      (build-value remaining2
+                                   :elements (list (compose-value-assignment
+                                                    (or symbol function)
+                                                    (build-value nil :axes axes :elements elements
+                                                                     :space space :params params)
+                                                    :params params :space space
+                                                    :function (if symbol function)))
+                                   :space space :params params)))))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
   "Complete the composition of a branch statement, either creating or optionally moving to a branch within an APL expression."
