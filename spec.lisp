@@ -1835,10 +1835,10 @@
         (:tests-profile :title "Function Inversion Tests")
         (:demo-profile :title "Function Inversion Demos"
                        :description "Demos of the negative-indexed [⍣ power] operator that inverts simple functions passed to it."))
-  (for "Inverse addition."        "(3+⍣¯1⊢8),(3∘+⍣¯1⊢8),+∘3⍣¯1⊢8" #(5 5 5))
-  (for "Inverse subtraction."     "(3-⍣¯1⊢8),(3∘-⍣¯1⊢8),-∘3⍣¯1⊢8" #(-5 -5 11))
-  (for "Inverse multiplication."  "(3×⍣¯1⊢8),(3∘×⍣¯1⊢8),×∘3⍣¯1⊢8" #(8/3 8/3 8/3))
-  (for "Inverse division."        "(3÷⍣¯1⊢8),(3∘÷⍣¯1⊢8),÷∘3⍣¯1⊢8" #(3/8 3/8 24))
+  (for "Inverse addition."       "(3+⍣¯1⊢8),(3∘+⍣¯1⊢8),+∘3⍣¯1⊢8" #(5 5 5))
+  (for "Inverse subtraction."    "(3-⍣¯1⊢8),(3∘-⍣¯1⊢8),-∘3⍣¯1⊢8" #(-5 -5 11))
+  (for "Inverse multiplication." "(3×⍣¯1⊢8),(3∘×⍣¯1⊢8),×∘3⍣¯1⊢8" #(8/3 8/3 8/3))
+  (for "Inverse division."       "(3÷⍣¯1⊢8),(3∘÷⍣¯1⊢8),÷∘3⍣¯1⊢8" #(3/8 3/8 24))
   (for "Inverse exponents."  "⌊100×.0000001+(3⋆⍣¯1⊢8),(3∘⋆⍣¯1⊢8),⋆∘3⍣¯1⊢8" #(189 189 200))
   (for "Inverse logarithms." "⌊100×.0000001+(3⍟⍣¯1⊢8),(3∘⍟⍣¯1⊢8),⍟∘3⍣¯1⊢8" #(656100 656100 114))
   (for "Inverse monadic scalar functions." "⌊1000×(+⍣¯1⊢5),(-⍣¯1⊢5),(÷⍣¯1⊢5),(⋆⍣¯1⊢5),⍟⍣¯1⊢5"

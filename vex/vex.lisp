@@ -537,7 +537,11 @@
 
 (defun =vex-string (idiom &optional output special-precedent)
   "Parse a string of text, converting its contents into nested lists of Vex tokens."
-  (let ((string-found))
+  (let ((string-found) (olnchar) (symbols) (is-function-closure)
+        ;; the olnchar variable is needed to handle characters that may be functional or part
+        ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
+        ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
+        (uniform-char) (arg-rooted-path) (fix 0))
     (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
              (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
              (?numeric-character () (?satisfies (of-utilities idiom :match-numeric-character)))
@@ -623,7 +627,7 @@
                                                                            :never (char= char c))))
                                                            (incf dlb-overriding-balance)
                                                            (if (not (loop :for c :across dlbor-closing-chars
-                                                                       :never (char= char c)))
+                                                                          :never (char= char c)))
                                                                (decf dlb-overriding-balance))))
                                                    (incf char-index 1)
                                                    (< 0 balance)))))
@@ -646,11 +650,12 @@
                  (=destructure (_ _)
                      (=list (?satisfies (lambda (char)
                                           (loop :for i :across boundary-chars
-                                             :for x :from 0 :to chars-count :when (char= char i)
-                                             :do (setq errant-char i
-                                                       matching-char (aref boundary-chars (+ x chars-count))))
+                                                :for x :from 0 :to chars-count :when (char= char i)
+                                                :do (setq errant-char i
+                                                          matching-char (aref boundary-chars
+                                                                              (+ x chars-count))))
                                           errant-char))
-                            (=subseq (%any (?satisfies 'characterp))))
+                                      (=subseq (%any (?satisfies 'characterp))))
                    (error "Mismatched enclosing characters; each closing ~a must be preceded by an opening ~a."
                           errant-char matching-char))))
              (process-lines (lines &optional output meta)
@@ -666,8 +671,8 @@
                  (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
                                             input-string))
                         (each-axis-code (loop :for axis :in each-axis :collect
-                                             (let ((output (process-lines axis)))
-                                               (first output)))))
+                                                                      (let ((output (process-lines axis)))
+                                                                        (first output)))))
                    (cons :axes each-axis-code))))
              (handle-function (input-string)
                (destructuring-bind (content meta) (process-lines input-string)
@@ -682,109 +687,101 @@
                                 (format nil "~a~a" (getf special-precedent :overloaded-num-char)
                                         string)
                                 string))
-                 (values formatted is-symbol))))
-
-      (let ((olnchar) (symbols) (is-function-closure) (uniform-char) (arg-rooted-path))
-        ;; the olnchar variable is needed to handle characters that may be functional or part
-        ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
-        ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
-        (symbol-macrolet ((functional-character-matcher
-                           ;; this saves space below
-                           (let ((ix 0))
-                             (lambda (char)
-                               (if (and (> 2 ix)
-                                        (funcall (of-utilities idiom :match-overloaded-numeric-character) char))
-                                   (setq olnchar char))
-                               (if (and olnchar (= 2 ix)
-                                        (not (digit-char-p char)))
-                                   (setq olnchar nil))
-                               (incf ix 1)
-                               (and (not (< 2 ix))
-                                    (or (of-lexicons idiom char :functions)
-                                        (of-lexicons idiom char :operators)))))))
-          (=destructure (_ item _ break rest)
-              (=list (%any (?blank-character))
-                     (%or (=vex-closure "()" :transform-by nil :disallow-linebreaks "{}")
-                          (=vex-closure "[]" :transform-by (handle-axes))
-                          (=vex-closure "{}" :transform-by #'handle-function
-                                        :if-confirmed (lambda () (setq is-function-closure t)))
-                          (=vex-errant-closing-character ")]}([{")
-                          (=string #\' #\")
-                          (=transform (=subseq (%some (?satisfies functional-character-matcher)))
-                                      (lambda (string)
-                                        (let ((char (character string)))
-                                          (if (not olnchar)
-                                              (append (list (if (of-lexicons idiom char :statements)
-                                                                :st (if (of-lexicons idiom char :operators)
-                                                                        :op (if (of-lexicons idiom char
-                                                                                             :functions)
-                                                                                :fn))))
-                                                      (if (of-lexicons idiom char :operators)
-                                                          (list (if (of-lexicons idiom char :operators-pivotal)
-                                                                    :pivotal
-                                                                    (if (of-lexicons idiom char
-                                                                                     :operators-lateral)
-                                                                        :lateral :unitary))))
-                                                      (list char))))))
-                          (=transform (%and (?test (#'numeric-string-p)
-                                                   (=subseq (%some (?numeric-character))))
+                 (values formatted is-symbol)))
+             (functional-character-matcher (char)
+               (if (and (> 2 fix)
+                        (funcall (of-utilities idiom :match-overloaded-numeric-character)
+                                 char))
+                   (setq olnchar char))
+               (if (and olnchar (= 2 fix) (not (digit-char-p char)))
+                   (setq olnchar nil))
+               (incf fix 1)
+               (and (not (< 2 fix))
+                    (or (of-lexicons idiom char :functions)
+                        (of-lexicons idiom char :operators)))))
+      (=destructure (_ item _ break rest)
+          (=list (%any (?blank-character))
+                 (%or (=vex-closure "()" :transform-by nil :disallow-linebreaks "{}")
+                      (=vex-closure "[]" :transform-by (handle-axes))
+                      (=vex-closure "{}" :transform-by #'handle-function
+                                         :if-confirmed (lambda () (setq is-function-closure t)))
+                      (=vex-errant-closing-character ")]}([{")
+                      (=string #\' #\")
+                      (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
+                                  (lambda (string)
+                                    (let ((char (character string)))
+                                      (if (not olnchar)
+                                          (append (list (if (of-lexicons idiom char :statements)
+                                                            :st (if (of-lexicons idiom char :operators)
+                                                                    :op (if (of-lexicons idiom char
+                                                                                         :functions)
+                                                                            :fn))))
+                                                  (if (of-lexicons idiom char :operators)
+                                                      (list (if (of-lexicons idiom char :operators-pivotal)
+                                                                :pivotal
+                                                                (if (of-lexicons idiom char
+                                                                                 :operators-lateral)
+                                                                    :lateral :unitary))))
+                                                  (list char))))))
+                      (=transform (%and (?test (#'numeric-string-p)
                                             (=subseq (%some (?numeric-character))))
-                                      (lambda (string)
-                                        (or (funcall (of-utilities idiom :format-number)
-                                                     ;; if there's an overloaded token character passed in
-                                                     ;; the special precedent, prepend it to the token
-                                                     ;; being processed
-                                                     (if (getf special-precedent :overloaded-num-char)
-                                                         (format nil "~a~a" (getf special-precedent
-                                                                                  :overloaded-num-char)
-                                                                 string)
-                                                         string)))))
-                          ;; matches symbols like APL's ⍺, ∇∇, and ⍵⍵ that must be homogenous - however,
-                          ;; homogenous symbols on the list of argument symbols may be part of a larger
-                          ;; symbol that references a namespace path like ⍵.path.to
-                          (=transform (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
-                                                                 (lambda (c)
-                                                                   (if c (setq uniform-char (aref c 0)))))
-                                                     (=transform
-                                                      (=subseq (%any (?test (#'pjoin-char-p) (=element))))
-                                                      (lambda (c)
-                                                        (if (< 0 (length c)) (setq arg-rooted-path t))))
-                                                     (=subseq (%any (?test ((p-or-u-char-p
-                                                                             arg-rooted-path
-                                                                             uniform-char)))))))
-                                      (lambda (string)
-                                        (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                          (if is-symbol (push formatted symbols))
-                                          formatted)))
-                          (=transform (=subseq (%some (?token-character)))
-                                      (lambda (string)
-                                        (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                          (if is-symbol (push formatted symbols))
-                                          formatted)))
-                          ;; this last clause returns the remainder of the input in case the input has either no
-                          ;; characters or only blank characters before the first line break
-                          (=subseq (%any (?satisfies 'characterp))))
-                     (%any (?blank-character))
-                     (=subseq (%any (?newline-character)))
-                     (=subseq (%any (?satisfies 'characterp))))
-            (if (and (not output) (stringp item) (< 0 (length item))
-                     (funcall (of-utilities idiom :match-newline-character)
-                              (aref item 0)))
-                ;; if the string is passed back (minus any leading whitespace) because the string began with
-                ;; a line break, parse again omitting the line break character
-                (parse (subseq item 1) (=vex-string idiom nil special-precedent))
-                (if (and (= 0 (length break)) (< 0 (length rest)))
-                    (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
-                                                       (if item (list item)))
-                                             (append (if olnchar (list :overloaded-num-char olnchar))
-                                                     (list :symbols nil))))
-                    (list (if (or (not item)
-                                  (and (typep item 'sequence)
-                                       (= 0 (length item)) (not string-found)))
-                              ;; return nothing if only an empty sequence results from parsing
-                              ;; unless an explicit empty string was parsed
-                              output (cons item output))
-                          rest special-precedent)))))))))
+                                        (=subseq (%some (?numeric-character))))
+                                  (lambda (string)
+                                    (funcall (of-utilities idiom :format-number)
+                                             ;; if there's an overloaded token character passed in
+                                             ;; the special precedent, prepend it to the token
+                                             ;; being processed
+                                             (if (getf special-precedent :overloaded-num-char)
+                                                 (format nil "~a~a" (getf special-precedent
+                                                                          :overloaded-num-char)
+                                                         string)
+                                                 string))))
+                      ;; matches symbols like APL's ⍺, ∇∇, and ⍵⍵ that must be homogenous - however,
+                      ;; homogenous symbols on the list of argument symbols may be part of a larger
+                      ;; symbol that references a namespace path like ⍵.path.to
+                      (=transform (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
+                                                             (lambda (c)
+                                                               (if c (setq uniform-char (aref c 0)))))
+                                                 (=transform
+                                                  (=subseq (%any (?test (#'pjoin-char-p) (=element))))
+                                                  (lambda (c)
+                                                    (if (< 0 (length c)) (setq arg-rooted-path t))))
+                                                 (=subseq (%any (?test ((p-or-u-char-p
+                                                                         arg-rooted-path
+                                                                         uniform-char)))))))
+                                  (lambda (string)
+                                    (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                      (if is-symbol (push formatted symbols))
+                                      formatted)))
+                      (=transform (=subseq (%some (?token-character)))
+                                  (lambda (string)
+                                    (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                      (if is-symbol (push formatted symbols))
+                                      formatted)))
+                      ;; this last clause returns the remainder of the input in case the input has either no
+                      ;; characters or only blank characters before the first line break
+                      (=subseq (%any (?satisfies 'characterp))))
+                 (%any (?blank-character))
+                 (=subseq (%any (?newline-character)))
+                 (=subseq (%any (?satisfies 'characterp))))
+        (if (and (not output) (stringp item) (< 0 (length item))
+                 (funcall (of-utilities idiom :match-newline-character)
+                          (aref item 0)))
+            ;; if the string is passed back (minus any leading whitespace) because the string began with
+            ;; a line break, parse again omitting the line break character
+            (parse (subseq item 1) (=vex-string idiom nil special-precedent))
+            (if (and (= 0 (length break)) (< 0 (length rest)))
+                (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
+                                                   (if item (list item)))
+                                         (append (if olnchar (list :overloaded-num-char olnchar))
+                                                 (list :symbols nil))))
+                (list (if (or (not item)
+                              (and (typep item 'sequence)
+                                   (= 0 (length item)) (not string-found)))
+                          ;; return nothing if only an empty sequence results from parsing
+                          ;; unless an explicit empty string was parsed
+                          output (cons item output))
+                      rest special-precedent)))))))
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."

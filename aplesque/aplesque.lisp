@@ -20,9 +20,10 @@
   (and (arrayp array)
        (let ((type (element-type array)))
          (or (eql 'bit type)
-             (and (listp type)
-                  (eql 'unsigned-byte (first type))
-                  (> 7 (second type)))))))
+             #+clasp (member type '(ext:byte2 ext:integer2 ext:byte4 ext:integer4))
+             #+(not clasp) (and (listp type)
+                                (eql 'unsigned-byte (first type))
+                                (> 7 (second type)))))))
 
 (defmacro xdotimes (object clause &body body)
   "Macro to perform array operations in parallel provisioning threads according to the type of array being assigned to."
@@ -41,6 +42,11 @@
                ;; per thread; this prevents assignment collisions
                (let ((,iterations (if (eq 'bit ,eltype)
                                       *sub-7-bit-element-processing-register-size*
+                                      #+clasp (/ *sub-7-bit-element-processing-register-size*
+                                                 (case ,eltype ('ext:byte2 2) ('ext:integer2 2)
+                                                       ('ext:byte4 4) ('ext:integer4 4)
+                                                       ('ext:byte8 8) ('ext:integer8 8)))
+                                      #+(not clasp)
                                       (/ *sub-7-bit-element-processing-register-size* (second ,eltype)))))
                  (multiple-value-bind (,dividend ,remainder) (ceiling ,(second clause) ,iterations)
                    (pdotimes ,(list x dividend)

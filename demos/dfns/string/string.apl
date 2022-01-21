@@ -4,7 +4,7 @@
 ⍝⍝ External dependencies
 
 disp display subs ← 'ARRAY-DEMO-SPACE' ⎕XWF 'disp' 'display' 'subs'
-ucase lcase ← 'ARRAY-DEMO-SPACE' ⎕XWF 'ucase' 'lcase'
+ucase lcase       ← 'ARRAY-DEMO-SPACE' ⎕XWF 'ucase' 'lcase'
 
 
 ⍝⍝ String processing

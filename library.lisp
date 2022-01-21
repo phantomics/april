@@ -151,21 +151,6 @@
       (log (if (typep omega 'double-float)
                omega (coerce omega 'double-float)))))
 
-#|
-
-Old complex floor implementation from APL wiki
-
-(defun complex-floor (number)
-  "Find the floor of a complex number using Eugene McDonnell's algorithm."
-  (let* ((r (realpart number))
-         (i (imagpart number))
-         (b (+ (floor r) (* #C(0 1) (floor i))))
-         (x (mod r 1))
-         (y (mod i 1)))
-    (+ b (if (> 1 (+ x y))
-             0 (if (>= x y) 1 #C(0 1))))))
-|#
-
 (defun complex-floor (number comparison-tolerance)
   "Find the floor of a complex number using Eugene McDonnell's algorithm."
   (let* ((rfloor (floor (realpart number)))
@@ -225,15 +210,35 @@ Old complex floor implementation from APL wiki
   "Implementation of greatest common denominator extended to complex numbers based on the complex-floor function."
   (lambda (omega alpha)
     (if (or (complexp omega) (complexp alpha))
-        (if (= 0 (identity (funcall (apl-residue comparison-tolerance)
-                                    omega alpha)))
-            alpha (funcall (apl-gcd comparison-tolerance)
-                           alpha (let ((residue (funcall (apl-residue comparison-tolerance)
-                                                         omega alpha)))
-                                   (if (< (- comparison-tolerance)
-                                          (realpart residue)
-                                          comparison-tolerance)
-                                       residue (imagpart residue)))))
+        (if (= 0 (funcall (apl-residue comparison-tolerance)
+                          omega alpha))
+            alpha (if (or (not (integerp (realpart omega)))
+                          (not (integerp (realpart alpha))))
+                      (let* ((rlromega (rationalize (realpart omega)))
+                             (rliomega (rationalize (imagpart omega)))
+                             (oden (lcm (denominator rlromega)
+                                        (denominator rliomega)))
+                             (rlralpha (rationalize (realpart alpha)))
+                             (rlialpha (rationalize (imagpart alpha)))
+                             (aden (lcm (denominator rlralpha)
+                                        (denominator rlialpha))))
+                        (* 1.0d0 (/ (funcall (apl-gcd comparison-tolerance)
+                                             (complex (* (numerator rlromega)
+                                                         (/ oden (denominator rlromega)))
+                                                      (* (numerator rliomega)
+                                                         (/ oden (denominator rliomega))))
+                                             (complex (* (numerator rlralpha)
+                                                         (/ aden (denominator rlralpha)))
+                                                      (* (numerator rlialpha)
+                                                         (/ aden (denominator rlialpha)))))
+                                    (lcm oden aden))))
+                      (funcall (apl-gcd comparison-tolerance)
+                               alpha (let ((residue (funcall (apl-residue comparison-tolerance)
+                                                             omega alpha)))
+                                       (if (< (- comparison-tolerance)
+                                              (realpart residue)
+                                              comparison-tolerance)
+                                           residue (imagpart residue))))))
         (funcall (apl-xcy #'gcd) omega alpha))))
 
 (defun apl-lcm (comparison-tolerance)
