@@ -32,9 +32,9 @@
                 ''(april-demo.cnn) nil)
           ;; tree demo is disabled for ABCL, Lispworks because its large functions cannot be
           ;; compiled using the JVM, while the functions cause LispWorks to freeze
-          '(april-demo.dfns.array april-demo.dfns.string april-demo.dfns.power
-            #+(not (or abcl lispworks)) april-demo.dfns.tree
-            april-demo.dfns.graph april-demo.dfns.numeric)))
+          '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
+            #+(not (or abcl lispworks)) april-lib.dfns.tree
+            april-lib.dfns.graph april-lib.dfns.numeric)))
 
 (defvar ∇ nil)
 (defvar ∇∇ nil)
@@ -1349,7 +1349,6 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
-    ;; (print (list :as arg-symbols))
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (progn) forms used to implement function variant implicit statements
         (cons 'progn form)

@@ -895,7 +895,8 @@
                                   ;; if there is an explicit index to the left of the arrow,
                                   ;; grab the corresponding symbol unless the index is outside the
                                   ;; array's scope, in which case a (list) is returned so nothing is done
-                                  (if (< 0 branch-from (length (rest branch-to)))
+                                  (if (< 0 branch-from (1+ (length (rest branch-to))))
+                                      ;; TODO: should this be affected by ⎕IO?
                                       (list 'go (second (nth (1- branch-from) (rest branch-to))))
                                       (list 'list))
                                   ;; otherwise, there must be an expression to the left of the arrow, as with
