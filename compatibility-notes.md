@@ -38,6 +38,10 @@ Like ECL, ABCL's problems with `(rationalize)` have been mitigated for the time 
 
 It's best to run ABCL with a larger heap size than the default if you expect to run large functions. A heap size of 5GB was used when running April's demo tests.
 
+## Clasp
+
+Clasp and April are nearing full compatibility; currently there are bugs preventing the use of underscores to break up numbers as with `10_000`, and there are problems loading large APL files like those found in the `libraries/` subdirectory. The `random-state` library only gained compatibility with Clasp as of [this commit](https://github.com/Shinmera/random-state/commit/3e31e21ffde13555f73880e490e1f368d8cdbd58). Stay tuned for more updates.
+
 ## Allegro CL
 
 Allegro CL fails 2 main tests because of a problem with its `(acosh)` function. As a result, for example `¯6 ○ ¯2` produces a divide-by-zero error.
