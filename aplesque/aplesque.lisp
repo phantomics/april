@@ -1542,11 +1542,13 @@
                                   ;; values to set are not compatible
                                   (not modify-input)
                                   ;; the array may be changed in place only if the modify-input
-                                  ;; parameter is not set
-                                  (not (or (eq t (element-type input))
-                                           (and (not (arrayp set)) (typep set (element-type input)))
-                                           (and (arrayp set) (not (eq t set-type))
-                                                (typep input set-type)))))
+                                  ;; parameter is not set and the elements of the array to be
+                                  ;; assigned are compatible
+                                  (not (if (arrayp set) (subtypep (element-type set)
+                                                                  (element-type input))
+                                           (subtypep (upgraded-array-element-type
+                                                      (assign-element-type set))
+                                                     (element-type input)))))
                               ;; if setting is not being done (i.e. values are being retrieved)
                               ;; and only one index is being fetched, an output array isn't needed
                               (or set odims (< 1 (size rmindices)))))

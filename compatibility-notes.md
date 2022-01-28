@@ -30,7 +30,7 @@ ECL benefits from a larger heap size than the default when using complex functio
 
 ABCL passes all tests but special accomodations have been made for it to work.
 
-ABCL has the same problem with `(rationalize)` that ECL does. They appear to use the same algorithm for these functions.
+ABCL has the same problem with `(rationalize)` that ECL does; the function appears to be just a passthrough to `(rational)`.
 
 Additionally, ABCL is incapable of compiling functions beyond a certain size; this is a limitation of the JVM that ABCL's developers have no control over. As a result, some particularly large APL functions will not compile. Notably, some of the large functions present in [the tree function demo suite](./demos/dfns/tree) will not compiler under ABCL and this set of demos is this disabled under ABCL.
 

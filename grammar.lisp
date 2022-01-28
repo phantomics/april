@@ -1012,10 +1012,13 @@
                                           (error "Invalid operator-composed expression ~a"
                                                  "used for selective assignment."))))
                              (lambda (,item) ,selection-form)
-                             ,value ,assign-sym ,@(if selection-axes (list :axes selection-axes))
+                             ,value ,assign-sym
+                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
+                                             ',assign-sym)
+                             ,@(if selection-axes (list :axes selection-axes))
                              ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                                                                    (second (third selection-form)))))
-                            ,@(if function (list :by function)))
+                                                                    (second (third selection-form))))
+                             ,@(if function (list :by function))))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))

@@ -455,6 +455,26 @@ my-var-2 → myVar2
 my-var-∆ → myVar∆
 ```
 
+#### An important note about modifying arrays passed to April
+
+When passing array values into April via `:in` or direct function calls using `(april-c)`, be advised that assinging new values to their elements _may or may not_ destructively modify the original arrays. Whether destructive modification happens depends on whether the values assigned are compatible with the element type of the original arrays. Here is an example:
+
+```lisp
+(let ((a #(1 2 3)) (b #(2 3 4))
+      (c (make-array 3 :element-type '(unsigned-byte 4)
+                       :initial-contents '(7 8 9)))
+      (d (make-array 3 :element-type '(unsigned-byte 4)
+                       :initial-contents '(10 11 12))))
+  (april (with (:state :in ((a a) (b b) (c c) (d d))))
+         "a[1]←20 ⋄ (⊃b)←30 ⋄ c[1]←40 ⋄ (⊃d)←50")
+  (vector a b c d))
+
+#(#(20 2 3) #(30 3 4) #(7 8 9) #(10 11 12))
+```
+
+The first two T-type vectors are destructively modified since they are compatible with the elements being assigned. The second two vectors of 4-bit integers are copied and reassigned within the April invocation because they are not compatible with the values being assigned, and those the original arrays are left intact.
+
+
 #### :out
 
 Lists variables to be output when the code has finished evaluating. By default, the value of the last evaluated expression is passed back after an April evaluation is finished. For example:

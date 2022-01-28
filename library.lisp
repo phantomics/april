@@ -865,7 +865,8 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
-(defun assign-by-selection (prime-function function value omega &key (axes) (secondary-prime-fn))
+(defun assign-by-selection (prime-function function value omega
+                            &key (assign-sym) (axes) (secondary-prime-fn))
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
     (labels ((duplicate-t (array)
@@ -877,7 +878,18 @@
                              (duplicate-t (row-major-aref array i)))))
                  output)))
       (if (getf function-meta :selective-assignment-compatible)
-          (let* ((omega (duplicate-t omega))
+          (let* ((omega (if (and assign-sym
+                                 (if (arrayp value)
+                                     (and (or (not (getf function-meta :selective-assignment-enclosing))
+                                              (eq t (element-type omega)))
+                                          (subtypep (element-type value)
+                                                    (element-type omega)))
+                                     (subtypep (upgraded-array-element-type (assign-element-type value))
+                                               (element-type omega))))
+                            ;; array is duplicated if its element type is not a supertype of
+                            ;; the assigned array's type, or if an enclosed array is
+                            ;; being assigned and the array's type is not T
+                            omega (duplicate-t omega)))
                  (assign-array (if (not axes) omega (choose omega axes :reference t)))
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
@@ -1074,6 +1086,8 @@
   (lambda (omega &optional alpha)
     (let* ((keys (or alpha omega))
            (key-test #'equalp)
+           ;; (increment (/ (size keys) (first (dims keys))))
+           (increment (reduce #'* (rest (dims keys))))
            (indices-of (lambda (item vector)
                          (reverse (loop :for li :below (length vector)
                                      :when (funcall key-test item (aref vector li))
@@ -1086,6 +1100,13 @@
           (if (loop :for key :in key-list :never (funcall key-test item key))
               (push item key-list))
           (push i (gethash item key-table))))
+      ;; (dotimes (i (first (dims keys)))
+      ;;   (let ((item (make-array increment :element-type (element-type keys) :displaced-to keys
+      ;;                           :displaced-index-offset (* i increment))))
+      ;;     (if (loop :for key :in key-list :never (funcall key-test item key))
+      ;;         (push item key-list))
+      ;;     (push i (gethash item key-table))))
+      ;; (print (list :kk key-list increment))
       (let ((item-sets (loop :for key :in (reverse key-list)
                           :collect (funcall function
                                             (if alpha (choose omega
@@ -1093,6 +1114,7 @@
                                                                            (reverse (gethash key key-table)))
                                                                     elisions))
                                                 (let ((items (funcall indices-of key keys)))
+                                                  ;; (print (list :it items))
                                                   (make-array (length items)
                                                               :initial-contents (reverse items))))
                                             key))))
