@@ -644,6 +644,15 @@
                               enclosed)
                        (error "No closing ~a found for opening ~a."
                               (aref boundary-chars 1) (aref boundary-chars 0))))))
+             (=vex-errant-axis-separating-character ()
+               (let ((errant-char))
+                 (=destructure (_ _)
+                     (=list (?satisfies (lambda (char)
+                                          (if (funcall (of-utilities idiom :match-axis-separating-character)
+                                                       char)
+                                              (setq errant-char char))))
+                            (=subseq (%any (?satisfies 'characterp))))
+                   (error "Misplaced axis delimiter ~a." errant-char))))
              (=vex-errant-closing-character (boundary-chars)
                (let ((errant-char) (matching-char)
                      (chars-count (/ (length boundary-chars) 2)))
@@ -705,6 +714,7 @@
                       (=vex-closure "[]" :transform-by (handle-axes))
                       (=vex-closure "{}" :transform-by #'handle-function
                                          :if-confirmed (lambda () (setq is-function-closure t)))
+                      (=vex-errant-axis-separating-character)
                       (=vex-errant-closing-character ")]}([{")
                       (=string #\' #\")
                       (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))

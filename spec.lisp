@@ -75,6 +75,8 @@
             ;; depending on their context
             :match-overloaded-numeric-character (lambda (char) (char= #\. char))
             ;; this code preprocessor removes comments: everything between a ⍝ and newline character
+            :match-axis-separating-character (lambda (char) (char= #\; char))
+            ;; this code preprocessor removes comments: everything between a ⍝ and newline character
             :prep-code-string
             (lambda (string)
               (let ((commented) (osindex 0) (comment-char #\⍝)
