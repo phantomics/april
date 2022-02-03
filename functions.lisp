@@ -1,9 +1,9 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
-;;;; library.lisp
+;;;; functions.lisp
 
 (in-package #:april)
 
-"This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing."
+"This file contains the functions in April's 'standard library' that aren't provided by the aplesque package, mostly functions that are specific to the APL language and not generally applicable to array processing, as well as April-specific wrappers for aplesque functions."
 
 (defun binary-not (bit)
   "Flip a binary value. Used to implement [~ not]."
@@ -294,7 +294,7 @@
              omega alpha)))
 
 (defun count-to (index index-origin)
-  "Implementation of APL's ⍳ function."
+  "Implementation of APL's [⍳ index] function."
   (let ((index (disclose index)))
     (if (or (integerp index)
             (and (vectorp index)
