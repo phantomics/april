@@ -828,16 +828,16 @@ Source code from files can thus be loaded into any workspace.
 
 ## APL System Variables and Functions in April
 
-April makes available the following APL system variables and functions:
+April makes available the following APL system variables, constants and functions:
 
 ```
-⎕IO ⎕CT ⎕TS ⎕PP ⎕A ⎕D
+⎕IO ⎕CT ⎕PP ⎕DIV ⎕RL ⎕A ⎕D ⎕TS ⎕NS ⎕CS ⎕UCS ⎕FMT
 ```
 
 Additionally, April exposes this special system variable not found in other APL implementations:
 
 ```
-⎕OST
+⎕OST ⎕DT ⎕XWV ⎕XWF ⎕XWO
 ```
 
 [Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
@@ -932,6 +932,26 @@ In this code, the `OUT-STR` output stream is interned in the package `PKG-ONE`. 
 
 If you assign to `⎕ost` a vector of two strings, the first string is the name of a package and the second string is the name of a symbol belonging to that package. In this way, you can reference an output stream whose symbol is interned in a package other than the current one.
 
+## Referencing Variables, Functions and Operators in Another Workspace
+
+A difference between April and other APLs is the way in which workspaces are handled. Because April workspaces are modeled as Lisp software packages, it's possible to include things from one workspace in another in much the same way you do with Common Lisp's `(defpackage)` macro. In other APLs, a workspace is more akin to the complete application state of an APL interpreter, so sharing items between them is more complicated to implement.
+
+Below is an example of items shared between workspaces.
+
+```lisp
+* (april (with (:space first-space))
+         "V1←10 ⋄ V2←20 ⋄ Fn1←{10×⍺÷⍵} ⋄ Fn2←⍴∘,")
+...
+
+* (april (with (:space second-space))
+         "A B ← 'FIRST-SPACE' ⎕XWV 'V1' 'V2'
+          H I ← 'FIRST-SPACE' ⎕XWF 'Fn1' 'Fn2'
+          (H A B),I A B")
+#(1 1/2 2)
+```
+
+The `V1` and `V2` variables from `first-space` are referenced as `A` and `B` while the `Fn1` and `Fn2` variables are referenced as `H` and `I` respectively. Operators can also be referenced with `⎕XWO`.
+
 ## What's Not Planned for Implementation
 
 #### Functions:
@@ -984,7 +1004,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of demo packages implementing useful APL functions. The demo packages are located in (this repository's `/demos` folder)[/demos], and each package has its own set of tests. You can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the `april` package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
+April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libaries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each package has its own set of tests. Before running the demo tests the first time, you'll need to install the demo packages by evaluating `(install-demos)`. Afterward, you can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the `april` package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 

@@ -10,6 +10,8 @@ This is an ncurses demo using April. It gives a new perspective on the classic C
 
 For this demo to work, it must be run from the command line rather than through Emacs. The Common Lisp implementation you use must have QuickLisp loaded in its init file, which is provided for automatically when you install QuickLisp via the `quicklisp.lisp` file from [the QuickLisp site](https://www.quicklisp.org) and evaluate `(quicklisp::add-to-init-file)` after installation is complete. Your terminal emulator must support 256-color foregrounds and backgrounds for text - this means that as of this time, the classic xterm for *nix operating systems is not supported as it has limited options for background colors.
 
+Because this demo depends on external libraries, you'll need to install those via Quicklisp. The simplest way to do this is to evaluate `(april::install-demos)`.
+
 Provided that the above criteria are satisfied, all you need to do is load the `loader.lisp` file in this directory from the command line. Here's how it's done with SBCL:
 
 ```

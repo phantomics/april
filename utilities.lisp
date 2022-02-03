@@ -25,7 +25,8 @@
 (defvar *april-parallel-kernel*)
 
 (defvar *demo-packages*
-  (append #.(if (or (not (string= "Armed Bear Common Lisp" (lisp-implementation-type)))
+  (append '(april-demo.ncurses)
+          #.(if (or (not (string= "Armed Bear Common Lisp" (lisp-implementation-type)))
                     (with-open-stream (cmd-out (make-string-output-stream))
                       (uiop:run-program "mvn -v" :output cmd-out :ignore-error-status t)
                       (< 0 (length (get-output-stream-string cmd-out)))))
@@ -142,6 +143,10 @@
                          (if (and (symbolp (second list)) (not (third list)))
                              (funcall (formatter "⊑~W") s (second list))
                              (pprint-fill s list))))
+
+(defun install-demos ()
+  "Load April demo packages with their dependencies via Quicklisp."
+  (loop :for package-symbol :in *demo-packages* :do (ql:quickload package-symbol)))
 
 (defun load-demos ()
   "Load the April demo packages."
@@ -1228,6 +1233,7 @@ It remains here as a standard against which to compare methods for composing APL
           (apply-scalar #'code-char input))))
 
 (defun external-workspace-value (symbol-string &optional space-string)
+  "Import a value from an external workspace, implementing the ⎕XWV function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (flet ((process-string (string)
              (if (boundp (intern string space))
@@ -1235,9 +1241,11 @@ It remains here as a standard against which to compare methods for composing APL
       (if (stringp symbol-string)
           (process-string symbol-string)
           (if (vectorp symbol-string)
-              (apply #'vector (loop :for item :across symbol-string :collect (process-string item))))))))
+              (apply #'vector (loop :for item :across symbol-string
+                                    :collect (process-string item))))))))
       
 (defun external-workspace-function (symbol-string &optional space-string)
+  "Import a function from an external workspace, implementing the ⎕XWF function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (flet ((process-string (string)
              (if (fboundp (intern string space))
@@ -1245,9 +1253,11 @@ It remains here as a standard against which to compare methods for composing APL
       (if (stringp symbol-string)
           (process-string symbol-string)
           (if (vectorp symbol-string)
-              (apply #'vector (loop :for item :across symbol-string :collect (process-string item))))))))
+              (apply #'vector (loop :for item :across symbol-string
+                                    :collect (process-string item))))))))
 
 (defun external-workspace-operator (symbol-string &optional space-string)
+  "Import an operator from an external workspace, implementing the ⎕XWO function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (if (fboundp (intern symbol-string space))
         (symbol-function (intern symbol-string space)))))
