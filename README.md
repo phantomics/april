@@ -455,7 +455,7 @@ my-var-2 → myVar2
 my-var-∆ → myVar∆
 ```
 
-#### An important note about modifying arrays passed to April
+#### *An important note about modifying arrays passed to April*
 
 When passing array values into April via `:in` or direct function calls using `(april-c)`, be advised that assinging new values to their elements _may or may not_ destructively modify the original arrays. Whether destructive modification happens depends on whether the values assigned are compatible with the element type of the original arrays. Here is an example:
 
