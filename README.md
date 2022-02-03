@@ -345,7 +345,7 @@ The `(april-c)` macro can also be used to compose inline operators with function
 
 Note that in operators where a right operand is expected (i.e. those that contain a `⍵⍵` or `⍹` symbol), two operands are expected following the code string. In an operator taking only a left operand, whose code doesn't include `⍵⍵` or `⍹`, one operand is expected following the code string. The arguments to `(april-c)` for an operator are in the order `⍺⍺/⍶ (⍵⍵/⍹ if present) ⍵ (⍺ if present)`. The left operand comes first in the arguments because all operators must have a left operand, but they may or may not have a right operand.
 
-Keep in mind that standard Common Lisp functions like `+` do not operate on entire arrays like APL functions do. In order to pass scalar functions into April via `(april-c)` that can be composed with operators and work as you expect scalar functions to when doing operations like `- 3 +/⍳5`, you must pass those functions' symbols through the `(scalar-function)` macro as seen above with `(scalar-function -)`.
+Keep in mind that standard Common Lisp functions like `(+)` do not operate on entire arrays like APL functions do. In order to pass scalar functions into April via `(april-c)` that can be composed with operators and work as you expect scalar functions to when doing operations like `- 3 +/⍳5`, you must pass those functions' symbols through the `(scalar-function)` macro as seen above with `(scalar-function -)`.
 
 ## Parameter reference
 
