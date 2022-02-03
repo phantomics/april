@@ -518,9 +518,9 @@
                   uniform possible-depth))))
 
 (defun section (input dimensions &key (inverse) (populator))
-  "Take a subsection of an array of the same rank and given dimensions as per APL's ↑ function, or invert the function as per APL's ↓ function to take the elements of an array excepting a specific dimensional range."
+  "Take a subsection of an array of the same rank and given dimensions as per APL's [↑ take] function, or do the converse as per APL's [↓ drop] function to take the elements of an array excepting a specific dimensional range."
   (if (= 0 (rank input))
-      (if inverse (make-array 0)
+      (if inverse (make-array 0 :element-type (assign-element-type input))
           (let* ((prototype (apl-array-prototype input))
                  (output (make-array (loop :for i :in (array-to-list dimensions) :collect (abs i))
                                      :element-type (assign-element-type input)
@@ -556,7 +556,8 @@
                 (if (> 0 rdiff) (error "Too many subscripts (~w) for input array of rank ~w."
                                        (length dimensions) irank)))
             (if (and inverse (loop :for x :across dimensions :for y :in (dims input) :never (> y (abs x))))
-                (make-array (loop :for i :below irank :collect 0))
+                (make-array (loop :for i :below irank :collect 0)
+                            :element-type (element-type input))
                 (let* ((odims (loop :for odim :across dimensions :for idim :across idims
                                  :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
                        (osize (reduce #'* odims))
