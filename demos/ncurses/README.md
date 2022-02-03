@@ -16,4 +16,4 @@ Provided that the above criteria are satisfied, all you need to do is load the `
 sbcl --load loader.lisp
 ```
 
-The program will present a life playfield with boxes drawn around the cells and background shading indicating the current and past presence of cells. You can control and quit the program using simple key commands described at the bottom of the screen.
+The program will present a cellular playfield with boxes drawn around the cells and background shading indicating the current and past presence of cells. You can control and quit the program using simple key commands described at the bottom of the screen.

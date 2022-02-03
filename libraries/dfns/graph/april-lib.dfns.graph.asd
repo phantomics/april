@@ -1,7 +1,7 @@
 ;;;; april-lib.dfns.graph.asd
 
 (asdf:defsystem #:april-lib.dfns.graph
-  :description "April library containing graph tools from Dyalog dfns."
+  :description "April library implementing Dyalog graph function."
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :version "0.0.1"

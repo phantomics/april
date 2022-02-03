@@ -11,6 +11,7 @@
             (guard reduce (equalp reduce '(:op :lateral #\/)))
             (guard plus (equalp plus '(:fn #\+)))
             rest)
+     ;; match +/⍳X pattern (sum until)
      (let ((arg (gensym)) (var (gensym)))
        (values `(lambda (⍵ &optional ⍺)
                   (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 3) ⍺)
@@ -24,6 +25,7 @@
     ((list* (guard ravel (equalp ravel '(:fn #\,)))
             (guard shape (equalp shape '(:fn #\⍴)))
             rest)
+     ;; match ⍴,X pattern (array total size)
      (if axes (values nil tokens)
          (values `(lambda (⍵ &optional ⍺)
                     (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
@@ -36,6 +38,7 @@
                               (equalp rotate '(:fn #\⊖))))
             (guard disclose (equalp disclose '(:fn #\⊃)))
             rest)
+     ;; match ⊃⌽,X pattern (get last row-major element)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 3) ⍺)
                                     :axes axes :space space
@@ -45,6 +48,7 @@
     ((list* (guard shape (equalp shape '(:fn #\⍴)))
             (guard shape2 (equalp shape2 '(:fn #\⍴)))
             rest)
+     ;; match ⍴⍴X pattern (rank)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
                                     :axes axes :space space
@@ -54,6 +58,7 @@
     ((list* (guard ravel (equalp ravel '(:fn #\,))) ;; TODO: problem with this and display function
             (guard unique (equalp unique '(:fn #\∪)))
             rest)
+     ;; match ∪,X pattern (unique elements in any rank of array)
      (values `(lambda (⍵ &optional ⍺)
                 (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 2) ⍺)
                                     :axes axes :space space

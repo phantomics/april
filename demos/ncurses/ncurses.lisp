@@ -1,36 +1,36 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:AprilDemo.Ncurses -*-
 ;;;; ncurses.lisp
 
 (in-package #:april-demo.ncurses)
 
 "Demo ncurses application using April. Start this application by loading the loader.lisp file in this directory from the command line. Example for SBCL: sbcl --load loader.lisp"
 
-;; The main screen, we need a global so that we can access it from slime
+;; The main screen, set as a global so it may be accessed from Slime
 (defparameter *screen* nil)
 
+(defparameter *box-encodings* ;; Alternatives for the box character encoding
+  '(:regular
+    #2A((#\─ #\─ #\│ #\│ #\┌ #\┌ #\└ #\└ #\┐ #\┐ #\┘ #\┘)
+        (48  384 144 288 16  416 128 304 32  400 256 176))
+    :double-horizontal
+    #2A((#\═ #\═ #\│ #\│ #\╒ #\╒ #\╘ #\╘ #\╕ #\╕ #\╛ #\╛)
+        (48  384 144 288 16  416 128 304 32  400 256 176))
+    :double-vertical
+    #2A((#\─ #\─ #\║ #\║ #\╓ #\╓ #\╙ #\╙ #\╖ #\╖ #\╜ #\╜)
+        (48  384 144 288 16  416 128 304 32  400 256 176))))
+
 (defvar *glyphs* nil)
-(defvar *fg-colors* nil)
 (defvar *bg-colors* nil)
 
-#| Alternatives for the box character encoding
-
-#2A((#\─ #\─ #\│ #\│ #\┌ #\┌ #\└ #\└ #\┐ #\┐ #\┘ #\┘)
-    (48  384 144 288 16  416 128 304 32  400 256 176))
-
-#2A((#\═ #\─ #\║ #\│ #\┌ #\┌ #\╘ #\╘ #\╖ #\╖ #\┘ #\┘)
-    (48  384 144 288 16  416 128 304 32  400 256 176)))
-
-|#
-
 (april (with (:space ncurses-demo-space)
-             (:state :in ((encodings #2A((#\═ #\═ #\│ #\│ #\╒ #\╒ #\╘ #\╘ #\╕ #\╕ #\╛ #\╛)
-                                         (48  384 144 288 16  416 128 304 32  400 256 176))))))
+             (:state :in ((encodings (getf *box-encodings* :double-horizontal)))))
        "
 random ← {⎕IO-⍨?2⍴⍨|⍺ ⍵}
        ⍝ create a randomized binary matrix
 life   ← {⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}
        ⍝ the classic Conway's Game of Life function
 trace  ← {⍺[;1]⌷⍨⊂⍺[;2]{1⌈⍺{⍵×⍵≤⍴⍺}⍺⍳⍵}{2⊥,⍵}⌺3 3⊢⍵}
-       ⍝ use [⌺ stencil] to draw boxes around cells
+       ⍝ use [⌺ stencil] to draw boxes around cells according to matrix decoding maps
 
 GI ← 0   ⍝ generation index
 FB ← '━' ⍝ footer boundary character
@@ -52,8 +52,6 @@ I ← ⍬ ⍝ this variable holds the 5-iteration state history
 (defun build-screen (height width)
   (setf *glyphs* (make-array (* height width)
                              :element-type 'character :initial-element #\ )
-        *fg-colors* (make-array (* height width)
-                                :element-type '(unsigned-byte 8) :initial-element 15)
         *bg-colors* (make-array (* height width)
                                 :element-type '(unsigned-byte 8) :initial-element 232)))
 
@@ -68,7 +66,7 @@ I ← ⍬ ⍝ this variable holds the 5-iteration state history
                                 (-h height) (-w width))
                            :out (-m -b)))
                        "
-$[(M≡⍬)∨randomize∨~∧/H W=⍴M ;
+$[(M≡⍬)∨randomize∨⍲/H W=⍴M ;
     ⍝ if the program has been started or reset or the window dimensions have changed, then...
   M←H W⍴' ' ⋄ L←(H-3) random W ⋄ M[(H-3)+⍳3;]←FB⍪2 W↑$[38>W;tF;64>W;sF;W>89;lF;rF] ⋄ B←H W⍴232 ⋄ GI←0 ⋄ I←⍬ ;
     ⍝ initialize the matrix, generation index and history and create a random starting matrix;
@@ -80,7 +78,7 @@ B[⍳H-3;]←232+2×⊃+/I ⍝ sum iterations in history; 232 is the base termin
 M[⍳H-3;]←G trace L  ⍝ assign main display area containing box-traces of cells
 M[H;12+⍳9]←9↑⍕GI    ⍝ print generation number; supports up to 9 digits
 ")
-    (pdotimes (i (array-total-size glyphs))
+    (pdotimes (i (array-total-size glyphs)) ;; assign new vector contents in parallel
       (setf (aref *glyphs* i) (row-major-aref glyphs i)
             (aref *bg-colors* i) (row-major-aref colors i)))))
 
@@ -104,13 +102,8 @@ M[H;12+⍳9]←9↑⍕GI    ⍝ print generation number; supports up to 9 digits
                                                  (croatoan:exit-event-loop win event))))
 
     (render-screen t) ;; render initial state
+
     ;; Set *screen* to the initilized screen so that we can access it form
     ;; the swank thread and then enter the event-loop.
     (croatoan:run-event-loop (setf *screen* screen))
     (cl-user::quit)))
-
-;; (april-c "2∘⊥∘," #2A((1 0 0)
-;;                      (1 0 0)
-;;                      (0 0 0)))
-
-;; (april-c "{3 3⍴(9⍴2)⊤⍵}" 256)

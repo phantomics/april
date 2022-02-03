@@ -1,9 +1,9 @@
 ;;;; april-lib.dfns.power.asd
 
 (asdf:defsystem #:april-lib.dfns.power
-  :description "Demo of April used to implement Dyalog power operators"
+  :description "April library implementing Dyalog power operators."
   :author "Andrew Sengul"
-  :license  "Apache-2.0"
+  :license "Apache-2.0"
   :version "0.0.1"
   :serial t
   :depends-on ("april")

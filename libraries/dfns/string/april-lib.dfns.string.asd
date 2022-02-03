@@ -1,9 +1,9 @@
 ;;;; april-lib.dfns.string.asd
 
 (asdf:defsystem #:april-lib.dfns.string
-  :description "Demo of April used to implement Dyalog string functions"
+  :description "April library implementing Dyalog string functions."
   :author "Andrew Sengul"
-  :license  "Apache-2.0"
+  :license "Apache-2.0"
   :version "0.0.1"
   :serial t
   :depends-on ("april")

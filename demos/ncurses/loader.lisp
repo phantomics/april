@@ -1,3 +1,6 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:AprilDemo.Ncurses -*-
+;; loader.lisp
+
 ;; load croatoan and swank
 (eval-when (:compile-toplevel :execute :load-toplevel)
   (ql:quickload 'swank))
@@ -26,7 +29,7 @@
 ;; Initialize swank, setting dont-close will prevent the server from
 ;; shutting down in case slime disconnects. The default port is 4005,
 ;; one can specify a different one with :port.
-;; (swank:create-server :dont-close t)
+(swank:create-server :dont-close t)
 
 ;; Initialize screen and enter the event loop
 (main)

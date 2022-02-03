@@ -28,7 +28,7 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## Compatibility with Common Lisp Implementations
 
-April puts the numeric and array processing capabilities of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+April puts the numeric and array processing capabilities of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Clasp, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## Automatic Installation
 
@@ -455,7 +455,7 @@ my-var-2 → myVar2
 my-var-∆ → myVar∆
 ```
 
-**An important note about modifying arrays passed to April**
+#### **An important note about modifying arrays passed to April**
 
 When passing array values into April via `:in` or direct function calls using `(april-c)`, be advised that assinging new values to their elements _may or may not_ destructively modify the original arrays. Whether destructive modification happens depends on whether the values assigned are compatible with the element type of the original arrays. Here is an example:
 

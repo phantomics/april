@@ -8,4 +8,4 @@ This directory contains some of the curated utility functions from http://dfns.d
 
 ### Trying these functions
 
-Each set of dfns occupies its own workspace, named as follows: the array processing functions in `/array` are located in `array-demo-space`, the graph processing functions in `/graph` are located in `graph-demo-space` and so on. All of these demo functions can be loaded by evaluating `(april:load-demos)`.
+Each set of dfns occupies its own workspace, named as follows: the array processing functions in `/array` are located in `array-lib-space`, the graph processing functions in `/graph` are located in `graph-lib-space` and so on. All of these demo functions can be loaded by evaluating `(april:load-demos)`.

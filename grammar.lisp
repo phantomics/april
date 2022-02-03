@@ -135,7 +135,7 @@
         ((and (symbolp this-item) (getf properties :match-all-syms))
          this-item)))
 
-(defun proc-function (this-item &optional properties space)
+(defun process-function (this-item &optional properties space)
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
@@ -230,7 +230,7 @@
                      (if (listp idiom-function-object)
                          idiom-function-object (list 'function idiom-function-object)))))))))
 
-(defun proc-operator (this-item &optional properties space)
+(defun process-operator (this-item &optional properties space)
   "Process an operator token."
   (if (listp this-item)
       (if (and (eq :op (first this-item))
@@ -517,8 +517,8 @@
                                                    (not (characterp (cadar tokens)))))
                                           ;; handle n-argument functions with arguments passed
                                           ;; in axis format as for fn←{[x;y;z] x+y×z} ⋄ fn[4;5;6]
-                                          (let* ((first-fn (proc-function (first tokens) params
-                                                                          space))
+                                          (let* ((first-fn (process-function (first tokens) params
+                                                                             space))
                                                  (fn-form (if first-fn
                                                               (if (symbolp (first tokens))
                                                                   `(a-call #',first-fn ,@(first axes))
@@ -632,8 +632,8 @@
                              (let* ((fn-token (if (and (listp (first tokens))
                                                        (characterp (third (first tokens))))
                                                   (list :fn (third (first tokens)))))
-                                    (ol-function (if fn-token (proc-function fn-token params
-                                                                             space))))
+                                    (ol-function (if fn-token (process-function fn-token params
+                                                                                space))))
                                (if ol-function (build-function (rest tokens)
                                                                :space space :params params
                                                                :found-function (build-call-form
@@ -658,7 +658,7 @@
                (if (and (listp (first tokens)) (eq :fn (caar tokens))
                         (characterp (cadar tokens)) (char= #\← (cadar tokens)))
                    (values nil tokens)
-                   (let ((exp-function (proc-function (first tokens) params space)))
+                   (let ((exp-function (process-function (first tokens) params space)))
                      (if exp-function (build-function
                                        (rest tokens)
                                        :initial initial :space space :params params
@@ -724,8 +724,8 @@
                                                                                 :params params)
                                                     axes)
                                         :initial initial :space space :params params)
-          (let ((op (proc-operator (first tokens) (append params (if valence (list :valence valence)))
-                                   space)))
+          (let ((op (process-operator (first tokens) (append params (if valence (list :valence valence)))
+                                      space)))
             ;; register an operator when found
             (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
                                                  :space space :params params :valence valence))))
@@ -735,7 +735,7 @@
                     (characterp (cadar tokens)) (char= #\← (cadar tokens))))
           (values found-operator tokens)
           (let* ((assign-symbol (if (getf (getf params :special) :closure-meta)
-                                    (proc-operator (second tokens) params space)
+                                    (process-operator (second tokens) params space)
                                     (list 'inwsd (second tokens))))
                  (assign-sym (if (and (listp assign-symbol)
                                       (member (first assign-symbol) '(inws inwsd)))
