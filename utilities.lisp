@@ -314,11 +314,15 @@
                    (follow-path space (rest path)
                                 (symbol-value (intern (string (first path)) space)))))))
 
-(let ((minimal-anchars (concatenate 'string "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                    "abcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑ"
-                                    "ÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ")))
-  (defun minimal-alphanumericp (character)
-    (not (null (position character minimal-anchars)))))
+(defun is-alphanumeric (character)
+  "Consistently check whether a character is alphanumeric - needed since different CL implementations consider different sets of characters to be alphanumeric as per (alphanumericp)."
+  ;; to get an idea of the variance between alphanumeric sets in different CLs, try evaluating:
+  ;; (loop :for c :below (expt 2 16) :when (and (code-char c) (alphanumericp (code-char c))) :count c)
+  ;; this will show you the difference just in the UCS-2 set (characters in the 16-bit Unicode range)
+  (member (nth-value 1 (cl-unicode:general-category character))
+          '(cl-unicode-names::lu cl-unicode-names::ll cl-unicode-names::lt cl-unicode-names::lm
+            cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
+          :test #'eql))
 
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
@@ -801,8 +805,7 @@
                ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
                ;; by (format) so that the output string is of type 'character; this is also done for floats
                (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
-                  :do (if #+allegro (minimal-alphanumericp (aref output i))
-                          #+(not allegro) (alphanumericp (aref output i))
+                  :do (if (is-alphanumeric (aref output i))
                           (setq number-found t)
                           (setf (aref output (1- i)) #\ ))))
            output))

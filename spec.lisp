@@ -59,8 +59,7 @@
             :match-numeric-character
             (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR")))
             :match-token-character
-            (lambda (char) (or #+allegro (minimal-alphanumericp char)
-                               #+(not allegro) (alphanumericp char)
+            (lambda (char) (or (is-alphanumeric char)
                                (position char "._⎕∆⍙¯")))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols

@@ -46,14 +46,8 @@ Clasp and April are nearing full compatibility; currently are problems loading l
 
 Allegro CL fails 2 main tests because of a problem with its `(acosh)` function. As a result, for example `¯6 ○ ¯2` produces a divide-by-zero error.
 
-Allegro is affected by a significant bug in its `(alphanumericp)` function which matches many non-alphanumeric characters, including most special APL characters, which breaks April's parser. Currently, this is mitigated through the use of a special function called `(minimal-alphanumericp)` that replaces `(alphanumeric)` under Allegro CL. This function matches the same alphanumeric characters that LispWorks matches, meaning that it has the same narrow range of character support that LispWorks does. Therefore, non-Roman characters cannot be used in April variable names under Allegro CL.
-
-The supported variable name characters can be found by looking up the `(minimal-alphanumericp)` function in [utilities.lisp](./utilities.lisp).
-
 ## LispWorks
 
 LispWorks has a problem with double-precision floating point math that causes one of the main tests to fail. Compare `(expt 10.0d0 10)` in LispWorks and other CLs. This problem also appears to cause the failure of three tests from [the numeric function demo suite](./libraries/dfns/numeric).
 
 LispWorks also tends to hang when running complex APL functions. This can be seen when running the demo tests. Sending an interrupt and selecting the "CONTINUE" option often allows it to continue. LispWorks seems to hang much more often than ECL does and it can be difficult for it to finish the demo test suites.
-
-The `(alphanumericp)` function in LispWorks supports a very limited subset of alphanumeric characters; as a result, Greek, Russian, Asian, Middle-Eastern characters and other non-Roman characters cannot be used in the names of April variables under LispWorks.
