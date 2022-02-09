@@ -56,6 +56,10 @@
                (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
                             (teimgs (get-test-data)) (telabs (get-test-labels)))))
          "
+_trimgs ← trimgs
+_trlabs ← trlabs
+_teimgs ← teimgs
+_telabs ← telabs
 {
 epochs    ← 10
 batchSize ← 1
@@ -78,7 +82,7 @@ startTime ← timeFactors⊥¯4↑⎕ts
 (k1 b1 k2 b2 fc b) ← {
   t ← timeFactors⊥¯4↑⎕ts
 
-  (e k1 b1 k2 b2 fc b) ← train (0 0), ⍵, rate trimgs trlabs trainings
+  (e k1 b1 k2 b2 fc b) ← train (0 0), ⍵, rate _trimgs _trlabs trainings
 
   ⎕ ← 'Training epoch ',({⍵,⍨'0'⍴⍨(⍴⍕epochs)-⍴⍵}⍕index),' completed in ',formatElapsed t
   ⎕ ← 'Average error after training: ',(⍕e) ⋄ ⎕ ← '  '
@@ -90,7 +94,7 @@ startTime ← timeFactors⊥¯4↑⎕ts
 ⎕ ← 'Training complete, now running tests...'
 
 t       ← timeFactors⊥¯4↑⎕ts
-correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
+correct ← +/_telabs = _teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
 
 ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 ⎕ ← 'Recognition testing completed in ',formatElapsed t
