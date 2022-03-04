@@ -32,16 +32,15 @@ life   ← {⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}
 trace  ← {⍺[;1]⌷⍨⊂⍺[;2]{1⌈⍺{⍵×⍵≤⍴⍺}⍺⍳⍵}{2⊥,⍵}⌺3 3⊢⍵}
        ⍝ use [⌺ stencil] to draw boxes around cells according to matrix decoding maps
 
-GI ← 0   ⍝ generation index
-FB ← '━' ⍝ footer boundary character
-lF ← ↑'Press [G] to see the next generation, [R] to restart with a random matrix or [Q] to quit.' 'Generation:'
-   ⍝ long footer content
-rF ← ↑'Press [G] for the next generation, [R] to restart or [Q] to quit.' 'Generation:'
-   ⍝ regular footer content
-sF ← ↑'Next [G]eneration ⋄ [R]estart ⋄ [Q]uit.' 'Generation:'
-   ⍝ smaller footer content
-tF ← ↑'[G]enerate [R]estart [Q]uit' 'Generation:'
-   ⍝ tiny footer content
+F ← ,⊂↑'[G]enerate [R]estart [Q]uit' 'Generation:'
+F ,← ⊂↑'Next [G]eneration ⋄ [R]estart ⋄ [Q]uit.' 'Generation:'
+F ,← ⊂↑'Press [G] for the next generation, [R] to restart or [Q] to quit.' 'Generation:'
+F ,← ⊂↑'Press [G] to see the next generation, [R] to restart with a random matrix or [Q] to quit.' 'Generation:'
+  ⍝ variable footer width depending on content length
+
+GI ← 0      ⍝ generation index
+FB ← '━'    ⍝ footer boundary character
+FW ← ⊢/∘⍴¨F ⍝ vector of footer widths
 
 G ← ' ' {(⍺,0)⍪⍵[1;] {(⍪⍸×⍵),⍨⍪⍺⌷⍨⊂⍵~0} ⍵[2;] {⍺{⍵×⍵≤⍴⍺}⍺⍳⍵} {2⊥,(2 2⍴0)⍷3 3⍴(9⍴2)⊤⍵}¨⍳2*9} encodings
   ⍝ map of binary decodings of stencil matrices to box characters
@@ -53,22 +52,23 @@ I ← ⍬ ⍝ this variable holds the 5-iteration state history
   (setf *glyphs* (make-array (* height width)
                              :element-type 'character :initial-element #\ )
         *bg-colors* (make-array (* height width)
-                                :element-type '(unsigned-byte 8) :initial-element 232)))
+                                :element-type '(unsigned-byte 8) :initial-element 232))
+  :success)
 
 (defun render (height width &optional randomize)
-  (if (or (not *glyphs*)
-          (not (and (= height (first (array-dimensions *glyphs*)))
-                    (= width (second (array-dimensions *glyphs*))))))
-      (build-screen height width))
-  (multiple-value-bind (glyphs colors)
-      (april (with (:space ncurses-demo-space)
-                   (:state :in ((randomize (if randomize 1 0))
-                                (-h height) (-w width))
-                           :out (-m -b)))
-                       "
+  (let ((rebuilding (or (not *glyphs*)
+                        (not (and (= height (first (array-dimensions *glyphs*)))
+                                  (= width (second (array-dimensions *glyphs*))))))))
+    (if rebuilding (build-screen height width))
+    (multiple-value-bind (glyphs colors)
+        (april (with (:space ncurses-demo-space)
+                     (:state :in ((randomize (if randomize 1 0))
+                                  (-h height) (-w width))
+                             :out (-m -b)))
+               "
 $[(M≡⍬)∨randomize∨⍲/H W=⍴M ;
     ⍝ if the program has been started or reset or the window dimensions have changed, then...
-  M←H W⍴' ' ⋄ L←(H-3) random W ⋄ M[(H-3)+⍳3;]←FB⍪2 W↑$[38>W;tF;64>W;sF;W>89;lF;rF] ⋄ B←H W⍴232 ⋄ GI←0 ⋄ I←⍬ ;
+  M←H W⍴' ' ⋄ L←(H-3) random W ⋄ M[(H-3)+⍳3;]←FB⍪2 W↑⊃F[1⌈FW⍸W] ⋄ B←H W⍴232 ⋄ I GI←⍬ 0 ;
     ⍝ initialize the matrix, generation index and history and create a random starting matrix;
   L←life L ⋄ GI+←1]
     ⍝ otherwise, produce the next-generation binary matrix according to the life function
@@ -78,9 +78,11 @@ B[⍳H-3;]←232+2×⊃+/I ⍝ sum iterations in history; 232 is the base termin
 M[⍳H-3;]←G trace L  ⍝ assign main display area containing box-traces of cells
 M[H;12+⍳9]←9↑⍕GI    ⍝ print generation number; supports up to 9 digits
 ")
-    (pdotimes (i (array-total-size glyphs)) ;; assign new vector contents in parallel
-      (setf (aref *glyphs* i) (row-major-aref glyphs i)
-            (aref *bg-colors* i) (row-major-aref colors i)))))
+      (pdotimes (i (- (array-total-size glyphs) (* width 3 (if rebuilding 0 1))))
+        ;; assign new vector contents in parallel, not assigning the footer content
+        ;; unless the dimensions were just changed
+        (setf (aref *glyphs* i) (row-major-aref glyphs i)
+              (aref *bg-colors* i) (row-major-aref colors i))))))
 
 (defun initialize-screen (screen)
   (flet ((render-screen (&optional restarting)

@@ -940,14 +940,14 @@ Below is an example of items shared between workspaces.
 
 ```lisp
 * (april (with (:space first-space))
-         "V1←10 ⋄ V2←20 ⋄ Fn1←{10×⍺÷⍵} ⋄ Fn2←⍴∘,")
+         "V1←10 ⋄ V2←20 ⋄ F←{10×⍺÷⍵} ⋄ G←⍴∘,")
 ...
 
-* (april (with (:space second-space))
+* (april (with (:space second-space) (:compile-onl))
          "A B ← 'FIRST-SPACE' ⎕XWV 'V1' 'V2'
-          H I ← 'FIRST-SPACE' ⎕XWF 'Fn1' 'Fn2'
-          (H A B),I A B")
-#(1 1/2 2)
+          H I ← 'FIRST-SPACE' ⎕XWF 'F' 'G'
+          A B H I A B")
+#(5 5)
 ```
 
 The `V1` and `V2` variables from `first-space` are referenced as `A` and `B` while the `Fn1` and `Fn2` variables are referenced as `H` and `I` respectively. Operators can also be referenced with `⎕XWO`.

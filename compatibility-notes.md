@@ -4,7 +4,7 @@
 
 <!-- /TITLE -->
 
-April has been tested with SBCL, CCL, ECL, ABCL, Allegro CL and LispWorks. Its compatibility with these implementations is summarized below.
+April has been tested with SBCL, CCL, ECL, ABCL, Clasp, Allegro CL and LispWorks. Its compatibility with these implementations is summarized below.
 
 April's compatibility is tested by running the main test set, which is done by evaluating `(april (test))` and further by running the demo test sets, done by first loading the demo workspaces with `(load-demos)` and then running the tests with `(run-demo-tests)` within in the `april` package.
 

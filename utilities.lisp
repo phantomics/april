@@ -652,7 +652,19 @@
                                                       (concatenate 'string "APRIL-WORKSPACE-"
                                                                    (first (last values)))))
                                     (sym-package (and assigning-xfns
-                                                      (package-name (symbol-package (first sym-list))))))
+                                                      (package-name (symbol-package (first sym-list)))))
+                                    (values (if (or (not assigning-xfns)
+                                                    (not (listp values))
+                                                    (not (listp (third values)))
+                                                    (not (eql 'avec (first (third values)))))
+                                                ;; change (avec 'values') to (list 'values') so that
+                                                ;; the external item loaders can properly tell the difference
+                                                ;; between "abc" and (avec #\a #\b #\c) as arguments
+                                                values (cons (first values)
+                                                             (cons (second values)
+                                                                   (cons (cons 'list (rest (third values)))
+                                                                         (cdddr values))))))
+                                    )
                                `(let ((,this-val ,values))
                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                            sym-list (rest sym-list))
@@ -1236,25 +1248,27 @@ It remains here as a standard against which to compare methods for composing APL
   "Import a value from an external workspace, implementing the ⎕XWV function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (flet ((process-string (string)
-             (if (boundp (intern string space))
-                 (symbol-value (intern string space)))))
+             (let ((string (if (stringp string)
+                               string (string string))))
+               (if (boundp (intern string space))
+                   (symbol-value (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
-          (if (vectorp symbol-string)
-              (apply #'vector (loop :for item :across symbol-string
-                                    :collect (process-string item))))))))
+          (if (listp symbol-string)
+              (apply #'vector (mapcar #'process-string symbol-string)))))))
       
 (defun external-workspace-function (symbol-string &optional space-string)
   "Import a function from an external workspace, implementing the ⎕XWF function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (flet ((process-string (string)
-             (if (fboundp (intern string space))
-                 (symbol-function (intern string space)))))
+             (let ((string (if (stringp string)
+                               string (string string))))
+               (if (fboundp (intern string space))
+                   (symbol-function (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
-          (if (vectorp symbol-string)
-              (apply #'vector (loop :for item :across symbol-string
-                                    :collect (process-string item))))))))
+          (if (listp symbol-string)
+              (apply #'vector (mapcar #'process-string symbol-string)))))))
 
 (defun external-workspace-operator (symbol-string &optional space-string)
   "Import an operator from an external workspace, implementing the ⎕XWO function."
