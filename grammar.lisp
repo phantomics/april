@@ -248,7 +248,7 @@
                   ;; return the operator self-reference function
                   '∇oself (cond ((and valid-by-valence (getf properties :glyph))
                                  (if (char= op-symbol (aref (string (getf properties :glyph)) 0))
-                                     op-symbol))
+                                     (values op-symbol op-type)))
                                 (valid-by-valence op-symbol)))))
           (if (and (eql :op (first this-item))
                    (listp (first (last this-item)))
@@ -564,7 +564,6 @@
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :bf initial tokens))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (member (caar tokens) '(:fn :op :st :pt :axes)))
@@ -579,11 +578,10 @@
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-                 ;; (print (list :sf sub-function remaining (rest tokens)))
                  (if sub-function ;; catch errors like (2+) 5
                      (if remaining
                          ;; if something remains to the left, check whether it's a value,
-                         ;; otherwise function trains like (≠(⊢⍤/)⊢) will throw an error
+                         ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
                          (if (build-value remaining :space space :params params)
                              (error "Value to left of function statement.")
                              (values sub-function remaining))
@@ -627,47 +625,52 @@
                             remaining :space space :params params :initial initial
                                       :found-function (compose-function-lateral
                                                        exp-operator nil exp-value axes))))
-                     (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
-                                   (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
-                         ;; if a lateral operator is encountered followed by ←, the operator is being
-                         ;; assigned and the current form is not valid as a function, so return nil
-                         (multiple-value-bind (exp-function remaining)
-                             (build-function (rest tokens) :space space :params params)
-                           (if exp-function
-                               (let ((fn-wrap (if (not (and (listp exp-function)
-                                                            (eql 'inwsd (first exp-function))))
-                                                  exp-function `(function ,exp-function))))
-                                 (build-function remaining :space space :params params :initial initial
-                                                           :found-function (compose-function-lateral
-                                                                            exp-operator fn-wrap nil axes)))
-                               ;; if the operator was not followed by a function, check whether
-                               ;; it's an overloaded lexical function and if so process it as such
-                               (let* ((fn-token (if (and (listp (first tokens))
-                                                         (characterp (third (first tokens))))
-                                                    (list :fn (third (first tokens)))))
-                                      (ol-function (if fn-token (process-function fn-token params
-                                                                                  space))))
-                                 (if ol-function (build-function (rest tokens)
-                                                                 :space space :params params
-                                                                 :found-function (build-call-form
-                                                                                  ol-function :dyadic axes))
-                                     (multiple-value-bind (fn-as-val-tokens fnrem)
-                                         (build-value (rest tokens) :space space :params params)
-                                       (if (and (listp fn-as-val-tokens)
-                                                (listp (first fn-as-val-tokens))
-                                                (eq :fn (caar fn-as-val-tokens))
-                                                (eq :pass (cadar fn-as-val-tokens)))
-                                           (multiple-value-bind (val-fn remaining)
-                                               (build-function fn-as-val-tokens :space space :params params)
-                                             (values (compose-function-lateral exp-operator val-fn nil axes)
-                                                     remaining))
-                                           (if (and (listp fnrem) (listp (first fnrem))
-                                                    (eq :fn (caar fnrem))
-                                                    (eq :pass (cadar fnrem)))
+                     (if (not (rest tokens))
+                         (error "No function found to the left of lateral operator ~a." exp-operator)
+                         (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
+                                       (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
+                             ;; if a lateral operator is encountered followed by ←, the operator is being
+                             ;; assigned and the current form is not valid as a function, so return nil
+                             (multiple-value-bind (exp-function remaining)
+                                 (build-function (rest tokens) :space space :params params)
+                               (if exp-function
+                                   (let ((fn-wrap (if (not (and (listp exp-function)
+                                                                (eql 'inwsd (first exp-function))))
+                                                      exp-function `(function ,exp-function))))
+                                     (build-function
+                                      remaining :space space :params params :initial initial
+                                                :found-function (compose-function-lateral
+                                                                 exp-operator fn-wrap nil axes)))
+                                   ;; if the operator was not followed by a function, check whether
+                                   ;; it's an overloaded lexical function and if so process it as such
+                                   (let* ((fn-token (if (and (listp (first tokens))
+                                                             (characterp (third (first tokens))))
+                                                        (list :fn (third (first tokens)))))
+                                          (ol-function (if fn-token (process-function fn-token params
+                                                                                      space))))
+                                     (if ol-function (build-function
+                                                      (rest tokens)
+                                                      :space space :params params
+                                                      :found-function (build-call-form
+                                                                       ol-function :dyadic axes))
+                                         (multiple-value-bind (fn-as-val-tokens fnrem)
+                                             (build-value (rest tokens) :space space :params params)
+                                           (if (and (listp fn-as-val-tokens)
+                                                    (listp (first fn-as-val-tokens))
+                                                    (eq :fn (caar fn-as-val-tokens))
+                                                    (eq :pass (cadar fn-as-val-tokens)))
                                                (multiple-value-bind (val-fn remaining)
-                                                   (build-function fnrem :space space :params params)
+                                                   (build-function fn-as-val-tokens :space space :params params)
                                                  (values (compose-function-lateral exp-operator val-fn nil axes)
-                                                         remaining)))))))))))
+                                                         remaining))
+                                               (if (and (listp fnrem) (listp (first fnrem))
+                                                        (eq :fn (caar fnrem))
+                                                        (eq :pass (cadar fnrem)))
+                                                   (multiple-value-bind (val-fn remaining)
+                                                       (build-function fnrem :space space :params params)
+                                                     (values (compose-function-lateral exp-operator
+                                                                                       val-fn nil axes)
+                                                             remaining))))))))))))
                  (if (and (listp (first tokens)) (eq :fn (caar tokens))
                           (characterp (cadar tokens)) (char= #\← (cadar tokens)))
                      (values nil tokens)
@@ -738,8 +741,9 @@
                                                                                 :params params)
                                                     axes)
                                         :initial initial :space space :params params)
-          (let ((op (process-operator (first tokens) (append params (if valence (list :valence valence)))
-                                      space)))
+          (multiple-value-bind (op op-type)
+              (process-operator (first tokens) (append params (if valence (list :valence valence)))
+                                space)
             ;; register an operator when found
             (if op (build-operator (rest tokens) :axes axes :found-operator op :initial initial
                                                  :space space :params params :valence valence))))

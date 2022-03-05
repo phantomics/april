@@ -449,7 +449,7 @@
                                    :initial-contents (reverse indices)))))))
 
 (defun inverse-where-equal-to-one (omega index-origin)
-  "Return a binary matrix given a vector of coordinate sub-vectors or "
+  "Return a binary array given a vector of coordinate sub-vectors or indices indicating where values in the array are equal to 1."
   (let* ((is-scalar (not (arrayp (aref omega 0))))
          (rank (if is-scalar 1 (length (aref omega 0))))
          (dims (if is-scalar 0 (make-array rank :initial-element 0))))
