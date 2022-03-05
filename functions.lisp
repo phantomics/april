@@ -448,6 +448,26 @@
                                                                  t (list 'integer 0 (reduce #'max indices)))
                                    :initial-contents (reverse indices)))))))
 
+(defun inverse-where-equal-to-one (omega index-origin)
+  "Return a binary matrix given a vector of coordinate sub-vectors or "
+  (let* ((is-scalar (not (arrayp (aref omega 0))))
+         (rank (if is-scalar 1 (length (aref omega 0))))
+         (dims (if is-scalar 0 (make-array rank :initial-element 0))))
+    (loop :for o :across omega :do (if is-scalar
+                                       (if (arrayp o)
+                                           (error "All coordinate vectors in the argument to ⍸⍣¯1 ~a"
+                                                  "must be of the same length.")
+                                           (setf dims (max o dims)))
+                                       (if (or (not (arrayp o))
+                                               (/= rank (length o)))
+                                           (error "All coordinate vectors in the argument to ⍸⍣¯1 ~a"
+                                                  "must be of the same length.")
+                                           (loop :for oi :across o :for r :below rank
+                                                 :do (setf (aref dims r) (max oi (aref dims r)))))))
+    (let ((output (make-array (array-to-list dims) :element-type 'bit)))
+      (loop :for o :across omega :do (setf (varef output o index-origin) 1))
+      output)))
+
 (defun tabulate (omega)
   "Return a two-dimensional array of values from an array, promoting or demoting the array if it is of a rank other than two. Used to implement [⍪ table]."
   (if (not (arrayp omega))

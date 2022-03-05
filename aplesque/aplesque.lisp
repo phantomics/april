@@ -86,33 +86,36 @@
                 :collect (setq factor (if (= 0 dx) 1 (* factor last-index)))
                 :do (setq last-index d)))))
 
-(defun rmi-from-subscript-vector (array subscripts)
+(defun rmi-from-subscript-vector (array subscripts &optional offset)
   "Derive an array's row-major index from a vector of subscripts."
   (if (not (vectorp subscripts))
-      subscripts
+      (- subscripts (or offset 0))
       (let ((rank (rank array))
             (dims (reverse (dims array)))
             (length (length subscripts)))
         (cond ((/= length rank) (error "Wrong number of subscripts, ~W, for array of rank ~W." length rank))
-              ((= 1 rank) (aref subscripts 0))
+              ((= 1 rank) (- (aref subscripts 0)
+                             (or offset 0)))
               (t (let ((result 0) (factor 1) (simple-vector t))
                    (loop :for i :from (1- length) :downto 0 :while simple-vector
-                      :do (if (not (integerp (aref subscripts i)))
-                              (setq simple-vector nil)
-                              (if (<= (first dims) (aref subscripts i))
-                                  (error "Invalid index for dimension ~W." (1+ i))
-                                  (setq result (+ result (* factor (aref subscripts i)))
-                                        factor (* factor (first dims))
-                                        dims (rest dims)))))
+                         :do (let ((ss (- (aref subscripts i)
+                                          (or offset 0))))
+                               (if (not (integerp ss))
+                                   (setq simple-vector nil)
+                                   (if (> ss (first dims))
+                                       (error "Invalid index for dimension ~W." (1+ i))
+                                       (setq result (+ result (* factor ss))
+                                             factor (* factor (first dims))
+                                             dims (rest dims))))))
                    (if simple-vector result)))))))
 
-(defun varef (array subscripts)
+(defun varef (array subscripts &optional offset)
   "Reference an element in an array according to a vector of subscripts."
   (row-major-aref array (rmi-from-subscript-vector array subscripts)))
 
-(defun (setf varef) (new-value array subscripts)
+(defun (setf varef) (new-value array subscripts &optional offset)
   "Set an element in an array according to a vector of subscripts."
-  (setf (row-major-aref array (rmi-from-subscript-vector array subscripts))
+  (setf (row-major-aref array (rmi-from-subscript-vector array subscripts offset))
         new-value))
 
 (defun is-unitary (value)
