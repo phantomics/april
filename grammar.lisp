@@ -510,7 +510,14 @@
                                                                  :params params :space space)
                                                 space params nil)
                                              (cons (list :fn :pass composed) remaining))
-                                           preceding)))))
+                                           (if tokens
+                                               (if (and (listp (first tokens))
+                                                        (eq :op (caar tokens))
+                                                        (eq :lateral (cadar tokens)))
+                                                   (error
+                                                    "No function found to the left of lateral operator ~a."
+                                                    (third (first tokens))))
+                                               preceding))))))
                              (if axes (if (or (symbolp (first tokens))
                                               (and (listp (first tokens))
                                                    (eq :fn (caar tokens))
@@ -625,52 +632,50 @@
                             remaining :space space :params params :initial initial
                                       :found-function (compose-function-lateral
                                                        exp-operator nil exp-value axes))))
-                     (if (not (rest tokens))
-                         (error "No function found to the left of lateral operator ~a." exp-operator)
-                         (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
-                                       (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
-                             ;; if a lateral operator is encountered followed by ←, the operator is being
-                             ;; assigned and the current form is not valid as a function, so return nil
-                             (multiple-value-bind (exp-function remaining)
-                                 (build-function (rest tokens) :space space :params params)
-                               (if exp-function
-                                   (let ((fn-wrap (if (not (and (listp exp-function)
-                                                                (eql 'inwsd (first exp-function))))
-                                                      exp-function `(function ,exp-function))))
-                                     (build-function
-                                      remaining :space space :params params :initial initial
-                                                :found-function (compose-function-lateral
-                                                                 exp-operator fn-wrap nil axes)))
-                                   ;; if the operator was not followed by a function, check whether
-                                   ;; it's an overloaded lexical function and if so process it as such
-                                   (let* ((fn-token (if (and (listp (first tokens))
-                                                             (characterp (third (first tokens))))
-                                                        (list :fn (third (first tokens)))))
-                                          (ol-function (if fn-token (process-function fn-token params
-                                                                                      space))))
-                                     (if ol-function (build-function
-                                                      (rest tokens)
-                                                      :space space :params params
-                                                      :found-function (build-call-form
-                                                                       ol-function :dyadic axes))
-                                         (multiple-value-bind (fn-as-val-tokens fnrem)
-                                             (build-value (rest tokens) :space space :params params)
-                                           (if (and (listp fn-as-val-tokens)
-                                                    (listp (first fn-as-val-tokens))
-                                                    (eq :fn (caar fn-as-val-tokens))
-                                                    (eq :pass (cadar fn-as-val-tokens)))
+                     (if (not (and (listp (second tokens)) (eq :fn (caadr tokens))
+                                   (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
+                         ;; if a lateral operator is encountered followed by ←, the operator is being
+                         ;; assigned and the current form is not valid as a function, so return nil
+                         (multiple-value-bind (exp-function remaining)
+                             (build-function (rest tokens) :space space :params params)
+                           (if exp-function
+                               (let ((fn-wrap (if (not (and (listp exp-function)
+                                                            (eql 'inwsd (first exp-function))))
+                                                  exp-function `(function ,exp-function))))
+                                 (build-function
+                                  remaining :space space :params params :initial initial
+                                  :found-function (compose-function-lateral
+                                                   exp-operator fn-wrap nil axes)))
+                               ;; if the operator was not followed by a function, check whether
+                               ;; it's an overloaded lexical function and if so process it as such
+                               (let* ((fn-token (if (and (listp (first tokens))
+                                                         (characterp (third (first tokens))))
+                                                    (list :fn (third (first tokens)))))
+                                      (ol-function (if fn-token (process-function fn-token params
+                                                                                  space))))
+                                 (if ol-function (build-function
+                                                  (rest tokens)
+                                                  :space space :params params
+                                                  :found-function (build-call-form
+                                                                   ol-function :dyadic axes))
+                                     (multiple-value-bind (fn-as-val-tokens fnrem)
+                                         (build-value (rest tokens) :space space :params params)
+                                       (if (and (listp fn-as-val-tokens)
+                                                (listp (first fn-as-val-tokens))
+                                                (eq :fn (caar fn-as-val-tokens))
+                                                (eq :pass (cadar fn-as-val-tokens)))
+                                           (multiple-value-bind (val-fn remaining)
+                                               (build-function fn-as-val-tokens :space space :params params)
+                                             (values (compose-function-lateral exp-operator val-fn nil axes)
+                                                     remaining))
+                                           (if (and (listp fnrem) (listp (first fnrem))
+                                                    (eq :fn (caar fnrem))
+                                                    (eq :pass (cadar fnrem)))
                                                (multiple-value-bind (val-fn remaining)
-                                                   (build-function fn-as-val-tokens :space space :params params)
-                                                 (values (compose-function-lateral exp-operator val-fn nil axes)
-                                                         remaining))
-                                               (if (and (listp fnrem) (listp (first fnrem))
-                                                        (eq :fn (caar fnrem))
-                                                        (eq :pass (cadar fnrem)))
-                                                   (multiple-value-bind (val-fn remaining)
-                                                       (build-function fnrem :space space :params params)
-                                                     (values (compose-function-lateral exp-operator
-                                                                                       val-fn nil axes)
-                                                             remaining))))))))))))
+                                                   (build-function fnrem :space space :params params)
+                                                 (values (compose-function-lateral exp-operator
+                                                                                   val-fn nil axes)
+                                                         remaining)))))))))))
                  (if (and (listp (first tokens)) (eq :fn (caar tokens))
                           (characterp (cadar tokens)) (char= #\← (cadar tokens)))
                      (values nil tokens)
