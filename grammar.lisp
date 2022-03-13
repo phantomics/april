@@ -689,6 +689,7 @@
                            #|TODO: clause for overloaded operators like /|#))))))
           ;; this clause continues a function composition that started in previous iterations
           ((and initial (listp (first tokens)) (eq :fn (caar tokens))
+                (not (eq :no-assign initial))
                 (characterp (cadar tokens)) (char= #\← (cadar tokens)))
            ;; if a ← is encountered, this becomes a function assignment form
            (if (third tokens) (error "Nothing can follow a function assignment.")
@@ -937,8 +938,13 @@
                         (second tokens) (list :fn (third (second tokens))))))
     ;; if the next-token is ∘, it gets converted to its symbolic functional form;
     ;; this is needed to implement [∘. outer product]
+    ;; (print (list :nx next-token))
     (multiple-value-bind (left-function remaining)
-        (build-function (cons next-token (cddr tokens)) :space space :params params)
+        (if (equalp next-token '(:fn #\∘))
+            (values (build-function (list next-token) :space space :params params) (cddr tokens))
+            (build-function (cons next-token (cddr tokens)) :space space :params params))
+      ;; (build-function (cons next-token (cddr tokens)) :space space :params params)
+      ;; (print (list :l left-function))
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
               (build-value (rest tokens) :space space :params params :left t))

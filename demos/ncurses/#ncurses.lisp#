@@ -11,6 +11,20 @@
 (defvar *glyphs* nil)
 (defvar *bg-colors* nil)
 
+(extend-vex-idiom
+ april
+ (functions
+  (with (:name :extra-functions))
+  (⍛ (has :title "Add3")
+     (ambivalent
+      (scalar-function (λω (+ 3 omega)))
+      (scalar-function
+       (lambda (alpha omega)
+         (+ 3 alpha omega))))
+     (tests
+      (is "⍛77" 80)
+      (is "8⍛7" 18)))))
+
 (april (with (:space ncurses-demo-space))
        "
 random ← {⎕IO-⍨?2⍴⍨|⍺ ⍵}
