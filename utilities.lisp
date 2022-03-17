@@ -147,19 +147,17 @@
                              (pprint-fill s list))))
 
 (defun load-libs ()
-  "Load the April demo packages."
+  "Load the April library packages."
   (loop :for package-symbol :in *library-packages* :do (asdf:load-system package-symbol)))
 
 (defmacro run-lib-tests ()
-  "Run the tests for each April demo package."
+  "Run the tests for each April library package."
   (cons 'progn
         (loop :for package-symbol :in *library-packages*
               :append (if (asdf:registered-system package-symbol)
                           (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
                             (if (fboundp run-function-symbol)
-                                ;; (funcall (symbol-function run-function-symbol))
-                                (list (list run-function-symbol))
-                                ))
+                                (list (list run-function-symbol))))
                           (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
                                    package-symbol)))))
 
