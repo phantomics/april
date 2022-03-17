@@ -6,9 +6,13 @@
 
 This is a convolutional neural network algorithm implemented in APL. The code here is adapted from the original CNN in APL program written by Artem Shinkarov.
 
+### Installation
+
+To install the demo, evaluate `(ql:quickload 'april-demo.cnn)`. If this doesn't work, make sure that the top-level `/april` directory is present or linked within your `~/quicklisp/local-projects` directory.
+
 ### Getting started
 
-First, download the four files `train-images.idx3-ubyte`, `train-labels.idx1-ubyte`, `t10k-images.idx3-ubyte` and `t10k-labels.idx1-ubyte` into the `input` directory. The files can be found at [http://yann.lecun.com/exdb/mnist/](the MNIST database website).
+First, download the four files `train-images.idx3-ubyte`, `train-labels.idx1-ubyte`, `t10k-images.idx3-ubyte` and `t10k-labels.idx1-ubyte` into the `input` directory. The files can be found at [the MNIST database website](http://yann.lecun.com/exdb/mnist/).
 
 Next, evaluate:
 

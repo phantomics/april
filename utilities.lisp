@@ -30,12 +30,14 @@
                     (with-open-stream (cmd-out (make-string-output-stream))
                       (uiop:run-program "mvn -v" :output cmd-out :ignore-error-status t)
                       (< 0 (length (get-output-stream-string cmd-out)))))
-                ''(april-demo.cnn) nil)
-          ;; tree demo is disabled for ABCL, Lispworks because its large functions cannot be
-          ;; compiled using the JVM, while the functions cause LispWorks to freeze
-          '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
-            #+(not (or abcl lispworks)) april-lib.dfns.tree
-            april-lib.dfns.graph april-lib.dfns.numeric)))
+                ''(april-demo.cnn) nil)))
+
+(defvar *library-packages*
+  '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
+    ;; tree library is disabled for ABCL, Lispworks because its large functions cannot be
+    ;; compiled using the JVM, while the functions cause LispWorks to freeze
+    #+(not (or abcl lispworks)) april-lib.dfns.tree
+    april-lib.dfns.graph april-lib.dfns.numeric))
 
 (defvar ∇ nil)
 (defvar ∇∇ nil)
@@ -144,18 +146,14 @@
                              (funcall (formatter "⊑~W") s (second list))
                              (pprint-fill s list))))
 
-(defun install-demos ()
-  "Load April demo packages with their dependencies via Quicklisp."
-  (loop :for package-symbol :in *demo-packages* :do (ql:quickload package-symbol)))
-
-(defun load-demos ()
+(defun load-libs ()
   "Load the April demo packages."
-  (loop :for package-symbol :in *demo-packages* :do (asdf:load-system package-symbol)))
+  (loop :for package-symbol :in *library-packages* :do (asdf:load-system package-symbol)))
 
-(defmacro run-demo-tests ()
+(defmacro run-lib-tests ()
   "Run the tests for each April demo package."
   (cons 'progn
-        (loop :for package-symbol :in *demo-packages*
+        (loop :for package-symbol :in *library-packages*
               :append (if (asdf:registered-system package-symbol)
                           (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
                             (if (fboundp run-function-symbol)

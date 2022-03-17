@@ -6,6 +6,10 @@
 
 This is an ncurses demo using April. It gives a new perspective on the classic Conway's Game of Life function, leveraging the `[⌺ stencil]` operator, UTF-8 box drawing glyphs and terminal color codes to manifest the cell matrix in an interesting way.
 
+### Installation
+
+To install the demo, evaluate `(ql:quickload 'april-demo.ncurses)`. If this doesn't work, make sure that the top-level `/april` directory is present or linked within your `~/quicklisp/local-projects` directory.
+
 ### Running the demo
 
 For this demo to work, it must be run from the command line rather than through Emacs. The Common Lisp implementation you use must have QuickLisp loaded in its init file, which is provided for automatically when you install QuickLisp via the `quicklisp.lisp` file from [the QuickLisp site](https://www.quicklisp.org) and evaluate `(quicklisp::add-to-init-file)` after installation is complete. Your terminal emulator must support 256-color foregrounds and backgrounds for text - this means that as of this time, the classic xterm for *nix operating systems is not supported as it has limited options for background colors.
