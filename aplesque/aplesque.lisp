@@ -338,6 +338,16 @@
                             this-type))))
     type))
 
+(defun is-integer-array (array)
+  "Determine if an array is typed so as to hold only integers."
+  (let ((type (element-type array)))
+    (or (eql 'bit type)
+        (eql 'fixnum type)
+        (eql 'bignum type)
+        (eql 'integer (first type))
+        (eql 'unsigned-byte (first type))
+        (eql 'signed-byte (first type)))))
+
 (defun across (input function &key elements indices reverse-axes count ranges
                                 foreach finally (depth 0) (dimensions (dims input)))
   "Iterate across a range of elements in an array, with the option of specifying which elements within each dimension to process."

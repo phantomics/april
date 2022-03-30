@@ -36,11 +36,27 @@
                                     :system (random-state:make-generator gen-name))))))
       (if (not (arrayp omega))
           (apl-random-process omega index-origin generator)
-          (let ((output (make-array (dims omega) :element-type (element-type omega))))
-            (dotimes (i (size omega))
-              (setf (row-major-aref output i)
-                    (apl-random-process (row-major-aref omega i) index-origin generator)))
-            output)))))
+          (if (is-integer-array omega)
+              (let* ((zeroes-present nil))
+                ;; TODO: this is fast if a zero is encountered soon, but slow if not because
+                ;; it does not run in parallel, write loops running in parallel
+                (loop :for i :below (size omega) :while (not zeroes-present)
+                      :do (if (= 0 (row-major-aref omega i)) (setq zeroes-present t)))
+                (let ((output (make-array (dims omega)
+                                          :element-type (if zeroes-present 'double-float
+                                                            (element-type omega)))))
+                  (dotimes (i (size omega))
+                    (setf (row-major-aref output i)
+                          (funcall (if (not zeroes-present)
+                                       #'identity (lambda (e) (coerce e 'double-float)))
+                                   (apl-random-process (row-major-aref omega i)
+                                                       index-origin generator))))
+                  output))
+              (let ((output (make-array (dims omega) :element-type (element-type omega))))
+                (dotimes (i (size omega))
+                  (setf (row-major-aref output i)
+                        (apl-random-process (row-major-aref omega i) index-origin generator)))
+                output))))))
 
 (defun deal (index-origin rngs)
   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
