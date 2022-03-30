@@ -1496,8 +1496,9 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key (set) (set-by) (set-nil) (reference) (modify-input))
+(defun choose (input indices &key (set) (set-by) (set-nil) (reference) (modify-input) (sub-vector))
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
+  ;; (print (list :ch input))
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices
          (indices (loop :for i :in indices :collect i))
@@ -1644,12 +1645,18 @@
                                  (enclose (duplicate (row-major-aref input (row-major-aref rmindices 0)))))
                 (progn (xdotimes output (o (length rmindices))
                          (let ((i (aref rmindices o)))
+                           ;; (print (list :in input indices i))
                            (setf (row-major-aref output o)
-                                 (if (integerp i) (row-major-aref input i)
+                                 (if (integerp i)
+                                     ;; (if sub-vector (row-major-aref input i)
+                                     ;;     (if (vectorp input) (aref input i)
+                                     ;;         (error "Attempt to index an array of rank ~a with an integer."
+                                     ;;                (rank input))))
+                                     (row-major-aref input i)
                                      ;; the vectorp clause is only used when reach-indexing
                                      (if (vectorp i)
                                          (choose (disclose (varef input (disclose (aref i 0))))
-                                                 (rest (array-to-list i))))))))
+                                                 (rest (array-to-list i)) :sub-vector t))))))
                        output))))))
 
 (defun mix-arrays (axis input &key (populator))

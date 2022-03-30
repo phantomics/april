@@ -10,6 +10,11 @@
 
 (defvar *glyphs* nil)
 (defvar *bg-colors* nil)
+(defvar *color-depth*)
+
+(with-open-stream (cmd-out (make-string-output-stream))
+  (uiop:run-program "tput colors" :output cmd-out :ignore-error-status t)
+  (setq *color-depth* (read-from-string (get-output-stream-string cmd-out))))
 
 (april (with (:space ncurses-demo-space))
        "
@@ -79,16 +84,19 @@ M[H;12+⍳9]←9↑⍕GI    ⍝ print generation number; supports up to 9 digits
       (pdotimes (i (- (array-total-size glyphs) (* width 3 (if rebuilding 0 1))))
         ;; assign new vector contents in parallel, not assigning the footer content
         ;; unless the dimensions were just changed
-        (setf (aref *glyphs* i) (row-major-aref glyphs i)
-              (aref *bg-colors* i) (row-major-aref colors i))))))
+        (setf (aref *glyphs* i) (row-major-aref glyphs i))
+        (if (>= *color-depth* 256)
+            (setf (aref *bg-colors* i) (row-major-aref colors i)))))))
 
 (defun initialize-screen (screen)
   (flet ((render-screen (&optional restarting)
            (render (height screen) (width screen) restarting)
            (move screen 0 0)
            (loop :for char :across *glyphs* :for color :across *bg-colors*
-                 :do (croatoan:add-wide-char screen char :fgcolor '(:number 253)
-                                                         :bgcolor (list :number color)))))
+                 :do (if (< *color-depth* 256)
+                         (croatoan:add-wide-char screen char)
+                         (croatoan:add-wide-char screen char :fgcolor '(:number 253)
+                                                             :bgcolor (list :number color))))))
     
     (croatoan:submit (croatoan:bind screen #\r (lambda (win event)
                                                  (declare (ignore win event))
