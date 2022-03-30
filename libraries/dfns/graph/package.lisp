@@ -2,4 +2,4 @@
 ;;;; package.lisp
 
 (defpackage #:april-lib.dfns.graph
-  (:use #:cl #:april #:april.demo-definition-tools))
+  (:use #:cl #:april #:april.demo-definition-tools #:april-lib.dfns.array))

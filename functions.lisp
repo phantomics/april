@@ -401,7 +401,7 @@
                                 (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
                                 (loop :for dim :below (rank omega)
                                    :collect (if (member dim axis) (first coords))
-                                   :when (member dim axis) :do (setq coords (rest coords))))))
+                                      :when (member dim axis) :do (setq coords (rest coords))))))
           (or assigned-array assignment-output)))))
 
 (defun find-depth (omega)

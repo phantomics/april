@@ -14,7 +14,8 @@
 
 (with-open-stream (cmd-out (make-string-output-stream))
   (uiop:run-program "tput colors" :output cmd-out :ignore-error-status t)
-  (setq *color-depth* (read-from-string (get-output-stream-string cmd-out))))
+  (let ((count-string (read-from-string (get-output-stream-string cmd-out))))
+    (setq *color-depth* (if (integerp count-string) count-string 0))))
 
 (april (with (:space ncurses-demo-space))
        "

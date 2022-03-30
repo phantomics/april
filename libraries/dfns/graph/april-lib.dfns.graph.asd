@@ -5,7 +5,7 @@
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
-  :depends-on ("april")
+  :depends-on ("april" "april-lib.dfns.array")
   :components ((:file "package")
                (:file "setup")
                (:file "demo")))

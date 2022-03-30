@@ -1,7 +1,7 @@
-;;;; april-lib.dfns.power.asd
+;;;; april-lib.dfns.string.asd
 
-(asdf:defsystem #:april-lib.dfns.power
-  :description "April library implementing Dyalog power operators."
+(asdf:defsystem #:april-lib.dfns.string
+  :description "April library implementing Dyalog string functions."
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
