@@ -227,7 +227,7 @@ For the most part, April's syntax and functions follow standard APL conventions.
 #(1 3 5 7 9 11 13 15 17 19)
 ```
 
-The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the latter two examples above. April also allows you to use if-statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
+The biggest difference between April and other APLs lies in its implementation of the `→ branch` function, as shown in the third and fourth examples above. April also allows you to use if-statements and functions with any number of named arguments in the style of Arthur Whitney's k programming language.
 
 Because of April's nature as a compiler, user-defined operators use different symbols to refer to operands depending whether the operands are values or functions. The underlined characters `⍶` and `⍹` are used to refer to the operands as values, while the doubled characters `⍺⍺` and `⍵⍵` refer to the operands as functions. The presence of both `⍶` and `⍺⍺` or both `⍹` and `⍵⍵` in a defined operator will cause an error.
 
@@ -566,20 +566,6 @@ If you don't want to receive the Lisp value output by April and only want the fo
 ```
 
 This way, the formatted string will be the only returned value.
-
-#### :unformat-output
-
-APL and Common Lisp use different models for nested arrays. [Read more about it here.](#differences-between-apl-and-common-lisp-nested-array-models) If you'd like to receive nested array output from April where the nested arrays are not wrapped in 0-rank scalar arrays, you can use the `:unformat-output` sub-parameter. Here's an example of the difference this sub-parameter makes:
-
-```lisp
-* (april "2 2⍴⊂2 2⍴⍳4")
-#2A((#0A#2A((1 2) (3 4)) #0A#2A((1 2) (3 4)))
-    (#0A#2A((1 2) (3 4)) #0A#2A((1 2) (3 4))))
-
-* (april (with (:state :unformat-output t)) "2 2⍴⊂2 2⍴⍳4")
-#2A((#2A((1 2) (3 4)) #2A((1 2) (3 4))) (#2A((1 2) (3 4)) #2A((1 2) (3 4))))
-```
-
 
 ### (:space) parameter
 
@@ -1004,7 +990,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libaries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each package has its own set of tests. Before running the demo tests the first time, you'll need to install the demo packages by evaluating `(install-demos)`. Afterward, you can load the demos by evaluating `(load-demos)` and run the tests for each demo by evaluating `(run-demo-tests)` within the `april` package. The demo tests contain many complex functions that generate large arrays, giving the CPU a workout. On slower systems these tests may take some time to complete.
+April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libaries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each library package has its own set of tests. You can load the libraries by evaluating `(load-libs)` and run the tests for each demo by evaluating `(run-lib-tests)` within the `april` package. The library tests contain many complex functions that generate large arrays, giving the computer a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 

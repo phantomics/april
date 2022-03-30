@@ -417,8 +417,18 @@
                                      tokens)
                              ;; if no elements are present proceed as if this expression is not
                              ;; to the left of a function/operand, as for (×∘10)⍣¯1⊢100
-                             (build-value (cons (first first-value) (rest tokens))
-                                          :elements elements :params params :space space :axes axes))
+                             (let (
+                                   ;; (ll (build-function first-value ;(list (first first-value))
+                                   ;;                     :params params :space space :axes axes :initial t))
+                                   ;; (rst (build-value (rest tokens)
+                                   ;;                   :params params :space space))
+                                   )
+                               ;; (print (list :traced ll rst (rest tokens)))
+                               ;; (build-value (rest (first-value))
+                               ;;              :elements (list 'a-call ,ll ,rst)
+                               ;;              :params params :space space :axes axes)
+                               (build-value (cons (first first-value) (rest tokens))
+                                            :elements elements :params params :space space :axes axes)))
                          (let ((fv-output (output-value space first-value (list nil)
                                                         (rest (getf (getf params :special)
                                                                     :closure-meta)))))
@@ -571,6 +581,7 @@
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
+  ;; (print (list :aaa tokens found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (member (caar tokens) '(:fn :op :st :pt :axes)))
@@ -944,7 +955,7 @@
             (values (build-function (list next-token) :space space :params params) (cddr tokens))
             (build-function (cons next-token (cddr tokens)) :space space :params params))
       ;; (build-function (cons next-token (cddr tokens)) :space space :params params)
-      ;; (print (list :l left-function))
+      ;; (print (list :l left-function tokens remaining))
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
               (build-value (rest tokens) :space space :params params :left t))

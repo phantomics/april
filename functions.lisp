@@ -284,13 +284,20 @@
                              (lambda (a o) (declare (ignore a o)))))
              omega alpha)))
 
-(defun compare-by (symbol comparison-tolerance)
+(defun compare-by (symbol comparison-tolerance &optional or-equal)
   "Generate a comparison function using the [⎕CT comparison tolerance]."
   (lambda (omega alpha)
     (funcall (if (and (numberp alpha) (numberp omega))
                  (if (not (or (floatp alpha) (floatp omega)))
-                     (symbol-function symbol) (lambda (a o) (and (< comparison-tolerance (abs (- a o)))
-                                                                 (funcall (symbol-function symbol) a o)))))
+                     (symbol-function symbol)
+                     (lambda (a o)
+                       (case symbol
+                         (<  (< comparison-tolerance (- o a)))
+                         (>  (< comparison-tolerance (- a o)))
+                         (<= (or (> comparison-tolerance (abs (- a o)))
+                                 (< comparison-tolerance (- o a))))
+                         (>= (or (> comparison-tolerance (abs (- a o)))
+                                 (< comparison-tolerance (- a o))))))))
              omega alpha)))
 
 (defun count-to (index index-origin)
@@ -886,7 +893,7 @@
             (+ index (if ext-index 0 1)))))
 
 (defun assign-by-selection (prime-function function value omega
-                            &key (assign-sym) (axes) (secondary-prime-fn))
+                            &key assign-sym axes secondary-prime-fn by)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
     (labels ((duplicate-t (array)
@@ -922,7 +929,8 @@
                 (let* ((index-array (generate-index-array assign-array t))
                        (target-index-array (enclose-atom (funcall function index-array))))
                   (assign-by-vector assign-array index-array
-                                    (vectorize-assigned target-index-array value (size assign-array)))
+                                    (vectorize-assigned target-index-array value (size assign-array))
+                                    :by by)
                   assign-array)
                 (multiple-value-bind (index-array assignment-size)
                     (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
@@ -930,10 +938,11 @@
                                                             (not (arrayp value))))
                   (let ((target-index-array (enclose-atom (funcall function index-array))))
                     (assign-by-vector assign-array index-array
-                                      (vectorize-assigned target-index-array value assignment-size))
+                                      (vectorize-assigned target-index-array value assignment-size)
+                                      :by by)
                     omega))))
           (if (getf function-meta :selective-assignment-passthrough)
-              (assign-by-selection secondary-prime-fn function value omega :axes axes)
+              (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
               (error "This function cannot be used for selective assignment."))))))
 
 (defun vectorize-assigned (indices values vector-or-length)
@@ -960,20 +969,24 @@
                                          vector)))
                vector))))
 
-(defun assign-by-vector (array indices vector)
+(defun assign-by-vector (array indices vector &key by)
   "Assign elements of an array corresponding to an array of indices from a vector. For use with (assign-by-selection)."
   (dotimes (i (size array))
     (if (not (arrayp (row-major-aref array i)))
         (if (aref vector (row-major-aref indices i))
             (setf (row-major-aref array i)
-                  (aref vector (row-major-aref indices i))))
+                  (if by (funcall by (row-major-aref array i)
+                                  (aref vector (row-major-aref indices i)))
+                      (aref vector (row-major-aref indices i)))))
         (if (not (arrayp (row-major-aref indices i)))
             (if (aref vector (row-major-aref indices i))
                 (setf (row-major-aref array i)
-                      (aref vector (row-major-aref indices i))))
+                      (if by (funcall by (row-major-aref array i)
+                                      (aref vector (row-major-aref indices i)))
+                          (aref vector (row-major-aref indices i)))))
             (assign-by-vector (row-major-aref array i)
                               (row-major-aref indices i)
-                              vector)))))
+                              vector :by by)))))
 
 (defun operate-reducing (function axis index-origin &optional last-axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
