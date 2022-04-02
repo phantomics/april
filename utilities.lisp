@@ -325,28 +325,75 @@
             cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
           :test #'eql))
 
+#|
+
+(AMB-REF
+ (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
+          #'IDENTITY)
+ (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
+                                             :INVERSE
+          (ΛΩΑΧ
+           (TURN OMEGA *FIRST-AXIS*
+                 (APPLY-SCALAR #'- ALPHA)))))
+
+(LAMBDA (INDEX-ORIGIN &OPTIONAL AXES)
+  (IF (EQ :GET-METADATA INDEX-ORIGIN)
+      '(:AXES AXES :IMPLICIT-ARGS (INDEX-ORIGIN))
+      (AMB-REF
+       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
+                #'IDENTITY)
+       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
+                                                   :INVERSE
+                                                   (ΛΩΑΧ
+                                                    (TURN OMEGA *FIRST-AXIS*
+                                                          (APPLY-SCALAR #'- ALPHA)))))))
+
+(LAMBDA (INDEX-ORIGIN &OPTIONAL AXES)
+  (IF (EQ :GET-METADATA INDEX-ORIGIN)
+      '(:AXES AXES :IMPLICIT-ARGS (INDEX-ORIGIN))
+      (AMB-REF
+       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
+                #'IDENTITY)
+       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
+                                                   :INVERSE
+                                                   (ΛΩΑΧ
+                                                    (TURN OMEGA *FIRST-AXIS*
+                                                          (APPLY-SCALAR #'- ALPHA)))))))
+
+|#
+
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
-  (flet ((wrap-curried-axes (form)
-           (if (not axes) form `(λχ ,form ,@axes))))
-    (let ((args (gensym)) (reduced-args (gensym))
-          (m-meta (if (member (first fn-monadic) '(fn-meta scalar-function))
-                      (cddr fn-monadic)))
-          (d-meta (if (member (first fn-dyadic) '(fn-meta scalar-function))
-                      (cddr fn-dyadic))))
-      `(lambda (&rest ,args)
-         (if (eq :get-metadata (first ,args))
-             (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
-                 ,(if d-meta (cons 'list d-meta)))
-             (if (= 2 (length ,args))
-                 (if (null (second ,args)) (a-call ,(wrap-curried-axes fn-monadic) (first ,args))
-                     (a-call ,(wrap-curried-axes fn-dyadic) (first ,args) (second ,args)))
-                 (if (= 3 (length ,args))
-                     (if (null (second ,args))
-                         (let ((,reduced-args (cons (first ,args) (cddr ,args))))
-                           (apply ,(wrap-curried-axes fn-monadic) ,reduced-args))
-                         (apply ,(wrap-curried-axes fn-dyadic) ,args))
-                     (a-call ,(wrap-curried-axes fn-monadic) (first ,args)))))))))
+  (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
+        (m-meta (if (member (first fn-monadic) '(fn-meta scalar-function))
+                    (cddr fn-monadic)))
+        (d-meta (if (member (first fn-dyadic) '(fn-meta scalar-function))
+                    (cddr fn-dyadic))))
+    `(labels ((,this-fn (&rest ,args)
+                (if (and (eq :reassign-axes (first ,args))
+                         (not (third ,args)))
+                    ;; passing this option will return the core function again
+                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
+                    (lambda (&rest ,iargs)
+                      (apply #',this-fn (append (list :assign-axes (second ,args))
+                                                ,iargs)))
+                    (progn ,@(if axes `((if (eq :assign-axes (first ,args))
+                                            (setq ,axes (second ,args)
+                                                  ,args (cddr ,args)))))
+                           (if (eq :get-metadata (first ,args))
+                               (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
+                                   ,(if d-meta (cons 'list d-meta)))
+                               (if (= 2 (length ,args))
+                                   (if (null (second ,args))
+                                       (a-call ,fn-monadic (first ,args))
+                                       (a-call ,fn-dyadic (first ,args) (second ,args)))
+                                   (if (= 3 (length ,args))
+                                       (if (null (second ,args))
+                                           (let ((,reduced-args (cons (first ,args) (cddr ,args))))
+                                             (apply ,fn-monadic ,reduced-args))
+                                           (apply ,fn-dyadic ,args))
+                                       (a-call ,fn-monadic (first ,args)))))))))
+       #',this-fn)))
 
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
@@ -1953,7 +2000,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                             :monadic (second implementation)
                                                             (rest (assoc 'monadic spec-meta)))
                                                           ,(wrap-meta :dyadic (third implementation)
-                                                                      (rest (assoc 'dyadic spec-meta))))))
+                                                                      (rest (assoc 'dyadic spec-meta)))
+                                                          ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)

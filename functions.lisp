@@ -1245,8 +1245,8 @@
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
     (let* ((odims (dims omega)) (adims (dims alpha))
-           ;; (osize (size omega)) (asize (size alpha))
            (orank (rank omega)) (arank (rank alpha))
+           (fn-meta (funcall function :get-metadata))
            (rank (if (not (arrayp rank))
                      (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
                          (make-array 3 :initial-contents (list (max 0 (+ rank orank))
@@ -1273,36 +1273,43 @@
                       (make-array (subseq adims 0 arankdelta))))
            (adiv-dims (if adivs (subseq adims arankdelta)))
            (adiv-size (if alpha (reduce #'* adiv-dims))))
-      (flet ((generate-divs (div-array ref-array div-dims div-size)
-               (xdotimes div-array (i (size div-array))
-                 (setf (row-major-aref div-array i)
-                       (if (= 0 (rank div-array)) ref-array
-                           (if (not div-dims) (row-major-aref ref-array i)
-                               (make-array div-dims :element-type (element-type ref-array)
-                                           :displaced-to ref-array :displaced-index-offset (* i div-size))))))))
-        (if odivs (generate-divs odivs omega odiv-dims odiv-size))
-        (if alpha (progn (if adivs (generate-divs adivs alpha adiv-dims adiv-size))
-                         (if (not (or odivs adivs))
-                             ;; if alpha and omega are scalar, just call the function on them
-                             (funcall function omega alpha)
-                             (let ((output (make-array (dims (or odivs adivs)))))
-                               (dotimes (i (size output)) ;; xdo
-                                 (let ((this-odiv (if (not odivs)
-                                                      omega (if (= 0 (rank odivs))
-                                                                (aref odivs) (row-major-aref odivs i))))
-                                       (this-adiv (if (not adivs)
-                                                      alpha (if (= 0 (rank adivs))
-                                                                (aref adivs) (row-major-aref adivs i)))))
-                                   (setf (row-major-aref output i)
-                                         (disclose (funcall function this-odiv this-adiv)))))
-                               (mix-arrays (max (rank odivs) (rank adivs))
-                                           output))))
-            (if (not odivs) ;; as above for an omega value alone
-                (funcall function omega)
-                (let ((output (make-array (dims odivs))))
-                  (dotimes (i (size output)) ;; xdo
-                    (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
-                  (mix-arrays (rank output) output))))))))
+      ;; (print (list :fm fn-meta rank))
+      (if (and (getf fn-meta :on-axis)
+               (= 1 (if alpha ocrank omrank)))
+          (apply (if (eq :last (getf fn-meta :on-axis))
+                     function (funcall function :reassign-axes (list (rank omega))))
+                 omega (if alpha (list alpha)))
+          (flet ((generate-divs (div-array ref-array div-dims div-size)
+                   (xdotimes div-array (i (size div-array))
+                     (setf (row-major-aref div-array i)
+                           (if (= 0 (rank div-array)) ref-array
+                               (if (not div-dims) (row-major-aref ref-array i)
+                                   (make-array div-dims :element-type (element-type ref-array)
+                                                        :displaced-to ref-array
+                                                        :displaced-index-offset (* i div-size))))))))
+            (if odivs (generate-divs odivs omega odiv-dims odiv-size))
+            (if alpha (progn (if adivs (generate-divs adivs alpha adiv-dims adiv-size))
+                             (if (not (or odivs adivs))
+                                 ;; if alpha and omega are scalar, just call the function on them
+                                 (funcall function omega alpha)
+                                 (let ((output (make-array (dims (or odivs adivs)))))
+                                   (dotimes (i (size output)) ;; xdo
+                                     (let ((this-odiv (if (not odivs)
+                                                          omega (if (= 0 (rank odivs))
+                                                                    (aref odivs) (row-major-aref odivs i))))
+                                           (this-adiv (if (not adivs)
+                                                          alpha (if (= 0 (rank adivs))
+                                                                    (aref adivs) (row-major-aref adivs i)))))
+                                       (setf (row-major-aref output i)
+                                             (disclose (funcall function this-odiv this-adiv)))))
+                                   (mix-arrays (max (rank odivs) (rank adivs))
+                                               output))))
+                (if (not odivs) ;; as above for an omega value alone
+                    (funcall function omega)
+                    (let ((output (make-array (dims odivs))))
+                      (dotimes (i (size output)) ;; xdo
+                        (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
+                      (mix-arrays (rank output) output)))))))))
 
 (defun operate-atop (right-fn left-fn)
   "Generate a function applying two functions to a value in succession. Used to implement [⍤ atop]."
