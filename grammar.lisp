@@ -418,19 +418,18 @@
                              ;; if no elements are present proceed as if this expression is not
                              ;; to the left of a function/operand, as for (×∘10)⍣¯1⊢100
                              (let ((passed (build-function first-value :params params :space space
-                                                                       :axes axes :initial t)))
-
-                               ;; (print (list :traced ll (rest tokens)
-                               ;;              first-value elements tokens))
-                               
+                                                           :axes axes :initial t)))
                                (if passed
                                    (if elements
                                        (multiple-value-bind (lval remaining remaining-axes raxes-last)
                                            (build-value (rest tokens) :space space :params params :left t)
+                                         ;; look for a value on the left, as for {1 (3 {(⍹⊃⍵)@(⊂⍶ ⍺)⊢⍵} 4) ⍵}
                                          (if lval `(a-call ,passed ,(build-value
                                                                      nil :elements elements :axes axes
                                                                          :space space :params params)
                                                            ,@(if lval (list lval)))
+                                             ;; if no value on the left, a functional expression is likely
+                                             ;; as for ⍴(+/⊢⌺3 3) 2 2⍴255
                                              (build-value (rest tokens)
                                                           :elements `((a-call ,passed
                                                                               ,(build-value
@@ -439,6 +438,7 @@
                                                                                     :params params)))
                                                           :space space :params params)))
                                        (values nil (cons (list :fn :pass passed) (rest tokens))))
+                                   ;; default if no composed function was passed
                                    (build-value (cons (first first-value) (rest tokens))
                                                 :elements elements :params params :space space :axes axes))))
                          (let ((fv-output (output-value space first-value (list nil)
@@ -731,7 +731,6 @@
                            (multiple-value-bind (second-value second-val-remaining)
                                (if second-function (values nil nil)
                                    (build-value (rest tokens) :params params :space space :left t))
-                             (if (not second-value) (setq second-val-remaining nil))
                              ;; first function confirms an atop train like *÷
                              ;; second function confirms a three-element train like -÷,
                              ;; in either case what comes before may be a function of any complexity
