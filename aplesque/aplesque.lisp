@@ -1152,7 +1152,7 @@
                    (output (make-array (loop :for dim :in odims :for dx :from 0
                                           :when (/= dx axis) :collect dim
                                           :when (and window (= dx axis))
-                                          :collect (setq wsegment (- dim (1- window)))))))
+                                            :collect (setq wsegment (- dim (1- window)))))))
               (if (= 1 (first (last odims)))
                   (xdotimes output (i (size output))
                     (setf (row-major-aref output i)

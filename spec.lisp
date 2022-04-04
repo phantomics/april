@@ -1227,7 +1227,8 @@
                            #(6 7 8 9) #(7 8 9 10) #(8 9 10 11) #(9 10 11 12)))
             (is "⊃,/3 4+/¨⊂3 6⍴⍳9"
                 #2A((6 9 12 15 10 14 18) (24 18 12 6 25 20 15) (15 18 21 24 22 26 30)))
-            (is "⊃,/(⊂'abc') 'def' 'ghi'" #("abc" #\d #\e #\f #\g #\h #\i))))
+            (is "⊃,/(⊂'abc') 'def' 'ghi'" #("abc" #\d #\e #\f #\g #\h #\i))
+            (is "(×⌿,+⌿)+⌿(⍳2)∘.×⍬∘.×⍳4" #(1 1 1 1 0 0 0 0))))
   (⌿ (has :title "Reduce First")
      (lateral (lambda (operand &optional axes)
                 `(operate-reducing ,operand ,axes index-origin)))
