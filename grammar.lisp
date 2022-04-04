@@ -54,7 +54,7 @@
                                                                             (second symbol)))
                                                                 *package-name-string*)))
                                               (loop :for s :in (cddr symbol)
-                                                    :collect (if (and (listp s) (eq :axes (first s)))
+                                                    :collect (if (and (listp s) (eq :ax (first s)))
                                                                  (mapcar (lambda (item)
                                                                            (compile-form
                                                                             item :space space
@@ -158,7 +158,7 @@
                          ;; handle a (:fn)-enclosed operator form produced by build-value
                          fn
                          (let* ((polyadic-args (if (and (listp (first (last (first fn))))
-                                                        (eq :axes (caar (last (first fn)))))
+                                                        (eq :ax (caar (last (first fn)))))
                                                    (mapcar #'caar (cdar (last (first fn))))))
                                 (fn (if (not polyadic-args)
                                         fn (cons (butlast (first fn) 1)
@@ -356,7 +356,7 @@
                                           (build-value nil :elements elements :axes axes
                                                        :space space :params params)
                                           :space space :params params))
-            ((and (listp (first tokens)) (eq :axes (caar tokens))) ;; if axes like [2] are encountered
+            ((and (listp (first tokens)) (eq :ax (caar tokens))) ;; if axes like [2] are encountered
              (if elements
                  ;; if elements are present, recurse and process the items after the axes as another
                  ;; vector for the axes to be applied to
@@ -398,7 +398,7 @@
                (build-value (rest tokens) :space space :params params
                                           :left left :elements (cons stm elements))))
             (t (let* ((is-closure (and (first tokens) (listp (first tokens))
-                                       (not (member (caar tokens) '(:fn :op :st :pt :axes)))))
+                                       (not (member (caar tokens) '(:fn :op :st :pt :ax)))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
                                        (process-value (first tokens) params space))))
@@ -595,7 +595,7 @@
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
-                (not (member (caar tokens) '(:fn :op :st :pt :axes)))
+                (not (member (caar tokens) '(:fn :op :st :pt :ax)))
                 (or (not found-function)
                     (and (listp (caar tokens))
                          (not (setq first-function (build-function (first tokens)
@@ -627,7 +627,7 @@
                                (values sub-function remaining)))
                          (build-function (rest tokens) :found-function sub-function :space space
                                                        :initial initial :params params))))))
-          ((and (listp (first tokens)) (eq :axes (caar tokens)))
+          ((and (listp (first tokens)) (eq :ax (caar tokens)))
            (if found-function (values found-function tokens)
                (build-function (rest tokens) :axes (list (build-axes (cdar tokens) :space space :params params))
                                              :initial initial :space space :params params)))
@@ -777,7 +777,7 @@
 (defun build-operator (tokens &key axes found-operator initial space params valence)
   "Build an operator like @ (a lexical operator), {⍺⍺/⍵} (a defined operator) or an operator assignment like p←⍣."
   (if (not found-operator) ;; no operator has yet been registered
-      (if (and (listp (first tokens)) (eq :axes (caar tokens)))
+      (if (and (listp (first tokens)) (eq :ax (caar tokens)))
           ;; concatenate axes as they are found
           (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens) :space space
                                                                                 :params params)
@@ -876,7 +876,7 @@
         (multiple-value-bind (function remaining)
             (if (or (= 1 (length tokens))
                     (and (= 2 (length tokens)) ;; check for trailing axes
-                         (listp (first tokens)) (eq :axes (caar tokens)))
+                         (listp (first tokens)) (eq :ax (caar tokens)))
                     ;; don't do assign-by-function-result if the "values" being assigned are 
                     ;; actually functions from another workspace as for fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
                     (and (listp (first elements)) (eql 'a-call (caar elements))

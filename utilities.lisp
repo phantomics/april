@@ -923,7 +923,7 @@
                (if (or (not item) (eq :array (first (getf item-props :type))))
                    item (error "Invalid axis.")))))
     (if (and (listp (first tokens))
-             (eq :axes (caar tokens)))
+             (eq :ax (caar tokens)))
         (extract-axes process (rest tokens)
                       (cons (loop :for axis :in (cdar tokens)
                                :collect (if (= 1 (length axis))
@@ -1512,7 +1512,7 @@ It remains here as a standard against which to compare methods for composing APL
                                             (not (eql '⍺ d)))
                                    :do (setq agets-encountered nil))
                            (if agets-encountered ;; handle ⍺← implicit statements
-                               (push (list (list :axes (list processed-form)
+                               (push (list (list :ax (list processed-form)
                                                  (list (list (list :fn (list :meta :variant-niladic t
                                                                                    :parent form-meta)
                                                                    (implicit-statement-process
@@ -1529,8 +1529,8 @@ It remains here as a standard against which to compare methods for composing APL
                                (if (not guard-sym-index) (push processed-form processed)
                                    ;; handle guard composition
                                    (progn (setq guard-encountered t)
-                                          (push (list (list :axes (list (nthcdr (1+ guard-sym-index)
-                                                                                processed-form))
+                                          (push (list (list :ax (list (nthcdr (1+ guard-sym-index)
+                                                                              processed-form))
                                                             (list (loop :for e :in processed-form
                                                                         :for ex :from 0
                                                                         :while (< ex guard-sym-index)
@@ -1568,7 +1568,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                (setq found (process-split-sym i))
                                                (if (and (symbolp i) (is-product-operator (second rest-t))
                                                         (listp (third rest-t))
-                                                        (eq :axes (first (third rest-t))))
+                                                        (eq :ax (first (third rest-t))))
                                                    (setq found i)))))))
           (labels ((process-token-sets (rest-t rest-p)
                      (if rest-t
@@ -1587,7 +1587,7 @@ It remains here as a standard against which to compare methods for composing APL
                                       (progn (setq in-path t)
                                              (push pr path-contents)))
                                (if in-path (if (and (is-product-operator tk)
-                                                    (listp (second rest-t)) (eq :axes (caadr rest-t)))
+                                                    (listp (second rest-t)) (eq :ax (caadr rest-t)))
                                                (progn (push (second rest-t) path-contents)
                                                       (setq skip-next t))
                                                (progn (setq in-path nil)
@@ -1603,7 +1603,7 @@ It remains here as a standard against which to compare methods for composing APL
 
     (symbol-macrolet ((closure-meta (rest closure-meta-form)))
       (match tokens
-        ((list (guard axes-form (and (listp axes-form) (eq :axes (first axes-form))))
+        ((list (guard axes-form (and (listp axes-form) (eq :ax (first axes-form))))
                (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
                '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
          ;; handle function currying with axes, like ax←,[1.5]
@@ -1624,9 +1624,9 @@ It remains here as a standard against which to compare methods for composing APL
                                      #'dummy-nargument-function)))
                     (let ((each-axis (rest axes-form)))
                       ;; if the symbol is already bound as a regular function, unbind it
-                      (list (cons :axes (loop :for item :in each-axis
-                                              :collect (lexer-postprocess item idiom
-                                                                          space closure-meta-form)))
+                      (list (cons :ax (loop :for item :in each-axis
+                                            :collect (lexer-postprocess item idiom
+                                                                        space closure-meta-form)))
                             fn-form '(:fn #\←) symbol)))))
         ((list (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
                '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺ ⍺⍺ ⍵⍵))))))
@@ -1734,12 +1734,12 @@ It remains here as a standard against which to compare methods for composing APL
                tokens (list (first fn-form) (second fn-form)
                             (loop :for item :in form-content
                                   :collect (lexer-postprocess item idiom space form-meta))))))
-        ((list (guard axes-form (and (listp axes-form) (eq :axes (first axes-form))))
+        ((list (guard axes-form (and (listp axes-form) (eq :ax (first axes-form))))
                axes-of)
          ;; handle sets of axes like [1;2;3]
          (let ((each-axis (rest axes-form)))
            ;; if the symbol is already bound as a regular function, unbind it
-           (list (cons :axes (loop :for item :in each-axis
+           (list (cons :ax (loop :for item :in each-axis
                                    :collect (lexer-postprocess item idiom space closure-meta-form)))
                  axes-of)))
         ((guard list (and (listp list) (not (member (first list) '(inws inwsd)))))

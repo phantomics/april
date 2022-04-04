@@ -682,7 +682,7 @@
                         (each-axis-code (loop :for axis :in each-axis :collect
                                                                       (let ((output (process-lines axis)))
                                                                         (first output)))))
-                   (cons :axes each-axis-code))))
+                   (cons :ax each-axis-code))))
              (handle-function (input-string)
                (destructuring-bind (content meta) (process-lines input-string)
                  (list :fn (cons :meta meta) content)))
