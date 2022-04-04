@@ -325,43 +325,6 @@
             cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
           :test #'eql))
 
-#|
-
-(AMB-REF
- (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
-          #'IDENTITY)
- (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
-                                             :INVERSE
-          (ΛΩΑΧ
-           (TURN OMEGA *FIRST-AXIS*
-                 (APPLY-SCALAR #'- ALPHA)))))
-
-(LAMBDA (INDEX-ORIGIN &OPTIONAL AXES)
-  (IF (EQ :GET-METADATA INDEX-ORIGIN)
-      '(:AXES AXES :IMPLICIT-ARGS (INDEX-ORIGIN))
-      (AMB-REF
-       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
-                #'IDENTITY)
-       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
-                                                   :INVERSE
-                                                   (ΛΩΑΧ
-                                                    (TURN OMEGA *FIRST-AXIS*
-                                                          (APPLY-SCALAR #'- ALPHA)))))))
-
-(LAMBDA (INDEX-ORIGIN &OPTIONAL AXES)
-  (IF (EQ :GET-METADATA INDEX-ORIGIN)
-      '(:AXES AXES :IMPLICIT-ARGS (INDEX-ORIGIN))
-      (AMB-REF
-       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ON-AXIS T :INVERSE
-                #'IDENTITY)
-       (FN-META (ROTATE-ARRAY T INDEX-ORIGIN AXES) :ID 0 :ON-AXIS T
-                                                   :INVERSE
-                                                   (ΛΩΑΧ
-                                                    (TURN OMEGA *FIRST-AXIS*
-                                                          (APPLY-SCALAR #'- ALPHA)))))))
-
-|#
-
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
