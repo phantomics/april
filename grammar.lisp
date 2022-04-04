@@ -593,6 +593,7 @@
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
+  ;; (print (list :tt tokens axes found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (member (caar tokens) '(:fn :op :st :pt :ax)))
@@ -600,18 +601,20 @@
                     (and (listp (caar tokens))
                          (not (setq first-function (build-function (first tokens)
                                                                    :space space :params params))))))
+           ;; (print (list :ff found-function (first tokens)))
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
                ;; are no more components to the function, as with ⌽@(2∘|)⍳5
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-                 ;; (print (list :sf remaining sub-function (build-value remaining :space space :params params)))
+                 ;; (print (list :sf remaining sub-function))
                  (if sub-function ;; catch errors like (2+) 5
                      (if remaining
                          ;; if something remains to the left, check whether it's a value,
                          ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
                          (let ((left-val (build-value remaining :space space :params params)))
+                           (print (list :ll left-val))
                            (if left-val
                                ;; if the left value is actually a passed function, compose a function
                                ;; train as for 0 1 2 3 4 5 6 7 (⍳∘1>) 4
@@ -624,13 +627,17 @@
                                                    :space space :initial initial :params params))
                                     (rest tokens))
                                    (error "Value to left of function statement."))
-                               (values sub-function remaining)))
+                               (build-function remaining :found-function sub-function
+                                                         :space space :initial initial :params params)))
                          (build-function (rest tokens) :found-function sub-function :space space
                                                        :initial initial :params params))))))
           ((and (listp (first tokens)) (eq :ax (caar tokens)))
-           (if found-function (values found-function tokens)
-               (build-function (rest tokens) :axes (list (build-axes (cdar tokens) :space space :params params))
-                                             :initial initial :space space :params params)))
+           (if (and found-function (not initial))
+               (values found-function tokens)
+               (build-function (rest tokens) :axes (list (build-axes (cdar tokens)
+                                                                     :space space :params params))
+                                             :initial initial :space space :params params
+                                             :found-function found-function)))
           ((not found-function) ;; this is the beginning of the function composition
            (let* ((exp-operator (build-operator (list (first tokens))
                                                 :params params :space space :initial initial
@@ -730,13 +737,15 @@
           (t (let ((exp-operator (build-operator (list (first tokens))
                                                  :params params :space space :initial initial
                                                  :valence :pivotal :axes axes)))
+               ;; (print (list :ee exp-operator initial axes tokens))
                (if exp-operator ;; if a pivotal operator is present as for +.×
                    (complete-pivotal-match exp-operator tokens found-function
                                            nil space params initial)
                    (if initial ;; if the found-function begins a clause as with (-÷,)
                        (multiple-value-bind (first-function remaining)
                            (if first-function (values first-function (rest tokens))
-                               (build-function tokens :params params :space space))
+                               ;; axes will be passed in if found, as with (-,[0.5]÷) 1 2 3
+                               (build-function tokens :params params :space space :axes axes))
                          (multiple-value-bind (second-function second-remaining)
                              (build-function remaining :params params :space space)
                            (multiple-value-bind (second-value second-val-remaining)
@@ -759,10 +768,13 @@
                                      (values (or second-function second-value)
                                              second-val-remaining)
                                      (build-function second-val-remaining :space space :params params))
+                               ;; (print (list :ss found-function first-function second-function
+                               ;;                remaining second-val-remaining second-val-fn-remaining))
                                (if first-function
                                    (build-function
                                     (if second-function second-remaining
-                                        (if second-val-fn second-val-fn-remaining second-val-remaining))
+                                        (if second-val-fn second-val-fn-remaining
+                                            (if second-value second-val-remaining remaining)))
                                     :found-function
                                     (if (or second-function second-value second-val-fn)
                                         (compose-function-train found-function first-function
