@@ -1775,6 +1775,8 @@
   (for "Function applied to result of pivotal operator." "∊∘.+⍨10 2" #(20 12 12 4))
   (for "Function applied to invocation of train composition including operator."
        "⍴(+/⊢⌺3 3) 2 2⍴255" #(2 2 3))
+  (for "As previous but with more complex train." "⍴⍴∘+/3 3⍴1 2 3" #(3))
+  (for "Atop train including operator composition." "0 1 2 3 4 5 6 7 (⍳∘1>) 4" 6)
   (for "Lateral operator within a defined function." "fn←{÷ {⍺⍺ ⍵} 1+⍵} ⋄ - fn 2" -1/3)
   (for "Inline pivotal operator in parentheses with internal ⋄ breaks." "3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4" 3/4)
   (for "Inline lateral operator used with single-character function-referring operand."

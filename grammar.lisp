@@ -559,12 +559,12 @@
                                           (values nil tokens axes axes-last))
                                  (values nil tokens))))))))))
 
-(defun build-function (tokens &key axes found-function initial space params)
+(defun build-function (tokens &key axes found-function from-pivotal initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   (multiple-value-bind (function rest)
       ;; don't try function pattern matching if a function is already confirmed
       ;; or if the :ignore-patterns option is set in the params
-      (if (or found-function (getf params :ignore-patterns)) (values nil nil)
+      (if (or found-function from-pivotal (getf params :ignore-patterns)) (values nil nil)
           (match-function-patterns tokens axes space params))
     (if function (values function rest)
         (build-function-core tokens :axes axes :found-function found-function
@@ -974,7 +974,7 @@
     (multiple-value-bind (left-function remaining)
         (if (equalp next-token '(:fn #\∘))
             (values (build-function (list next-token) :space space :params params) (cddr tokens))
-            (build-function (cons next-token (cddr tokens)) :space space :params params))
+            (build-function (cons next-token (cddr tokens)) :space space :params params :from-pivotal t))
       ;; (build-function (cons next-token (cddr tokens)) :space space :params params)
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
