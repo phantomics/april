@@ -4,7 +4,16 @@
 (defpackage #:april
   (:export #:april #:april-f #:april-p #:april-c #:april-load
            #:with-april-context #:april-create-workspace #:april-clear-workspace)
-  (:use #:cl #:aplesque #:vex #:alexandria #:array-operations #:lparallel #:decimals
-        #:parse-number #:symbol-munger #:prove #:simple-date-time #:trivia #:random-state #:cl-unicode)
-  (:shadowing-import-from #:array-operations #:flatten)
-  (:shadowing-import-from #:cl-ppcre #:split #:regex-replace-all))
+  (:use #:cl #:aplesque #:vex)
+  (:shadowing-import-from #:array-operations #:flatten #:dims #:size #:rank #:element-type)
+  (:shadowing-import-from #:cl-ppcre #:split #:regex-replace-all)
+  (:shadowing-import-from #:prove #:plan #:is #:finalize)
+  (:shadowing-import-from #:alexandria #:iota #:copy-array)
+  (:shadowing-import-from #:lparallel #:pdotimes)
+  (:shadowing-import-from #:parse-number #:parse-number)
+  (:shadowing-import-from #:symbol-munger #:lisp->camel-case)
+  (:shadowing-import-from #:simple-date-time #:now #:year-of #:month-of #:day-of #:hour-of
+                          #:minute-of #:second-of #:millisecond-of)
+  (:shadowing-import-from #:trivia #:match #:guard)
+  (:shadowing-import-from #:random-state #:make-generator #:random-int #:random-float)
+  (:shadowing-import-from #:cl-unicode #:general-category))

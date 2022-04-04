@@ -109,7 +109,7 @@
                                              dims (rest dims))))))
                    (if simple-vector result)))))))
 
-(defun varef (array subscripts &optional offset)
+(defun varef (array subscripts)
   "Reference an element in an array according to a vector of subscripts."
   (row-major-aref array (rmi-from-subscript-vector array subscripts)))
 
