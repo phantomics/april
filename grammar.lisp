@@ -598,22 +598,33 @@
                 (not (member (caar tokens) '(:fn :op :st :pt :axes)))
                 (or (not found-function)
                     (and (listp (caar tokens))
-                         (multiple-value-bind (fn remaining)
-                             (build-function (first tokens) :space space :params params)
-                           (not (setq first-function fn))))))
+                         (not (setq first-function (build-function (first tokens)
+                                                                   :space space :params params))))))
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
                ;; are no more components to the function, as with ⌽@(2∘|)⍳5
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
+                 ;; (print (list :sf remaining sub-function (build-value remaining :space space :params params)))
                  (if sub-function ;; catch errors like (2+) 5
                      (if remaining
                          ;; if something remains to the left, check whether it's a value,
                          ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
-                         (if (build-value remaining :space space :params params)
-                             (error "Value to left of function statement.")
-                             (values sub-function remaining))
+                         (let ((left-val (build-value remaining :space space :params params)))
+                           (if left-val
+                               ;; if the left value is actually a passed function, compose a function
+                               ;; train as for 0 1 2 3 4 5 6 7 (⍳∘1>) 4
+                               (if (and (listp left-val) (listp (first left-val))
+                                        (eq :fn (caar left-val)) (eq :pass (cadar left-val)))
+                                   (values
+                                    (compose-function-train
+                                     sub-function (build-function
+                                                   (list left-val)
+                                                   :space space :initial initial :params params))
+                                    (rest tokens))
+                                   (error "Value to left of function statement."))
+                               (values sub-function remaining)))
                          (build-function (rest tokens) :found-function sub-function :space space
                                                        :initial initial :params params))))))
           ((and (listp (first tokens)) (eq :axes (caar tokens)))
