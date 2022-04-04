@@ -740,8 +740,11 @@
                          (multiple-value-bind (second-function second-remaining)
                              (build-function remaining :params params :space space)
                            (multiple-value-bind (second-value second-val-remaining)
+                               ;; build value of remaining if present; needed to compose
+                               ;; for example the left-hand 1 in 0 1 2 3 4 5 6 7 (1⍳⍨>) 4
                                (if second-function (values nil nil)
-                                   (build-value (rest tokens) :params params :space space :left t))
+                                   (build-value (or remaining (rest tokens))
+                                                :params params :space space :left t))
                              ;; first function confirms an atop train like *÷
                              ;; second function confirms a three-element train like -÷,
                              ;; in either case what comes before may be a function of any complexity
