@@ -1273,8 +1273,8 @@
                       (make-array (subseq adims 0 arankdelta))))
            (adiv-dims (if adivs (subseq adims arankdelta)))
            (adiv-size (if alpha (reduce #'* adiv-dims))))
-      (if nil; (and (getf fn-meta :on-axis)
-               ;(= 1 (if alpha ocrank omrank)))
+      (if (and (getf fn-meta :on-axis)
+               (= 1 (if alpha ocrank omrank)))
           ;; if the composed function is directly equivalent to a function that operates
           ;; across an axis, as ⊖⍤1 and ⌽⍤1 are to ⌽, just reassign the axis
           (apply (if (eq :last (getf fn-meta :on-axis))

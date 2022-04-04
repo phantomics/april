@@ -341,7 +341,6 @@
 
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
-  ;; (print (list :aa elements tokens))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (if elements (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
                                                (loop :for i :below (length elements) :collect nil)
@@ -403,7 +402,6 @@
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
                                        (process-value (first tokens) params space))))
-                 ;; (print (list :clo is-closure first-value elements left))
                  ;; if a value element is confirmed, add it to the list of elements and recurse
                  (if first-value
                      (if (and is-closure (listp first-value) (listp (first first-value))
@@ -595,7 +593,6 @@
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :aaa tokens found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (member (caar tokens) '(:fn :op :st :pt :axes)))
@@ -722,7 +719,6 @@
           (t (let ((exp-operator (build-operator (list (first tokens))
                                                  :params params :space space :initial initial
                                                  :valence :pivotal :axes axes)))
-               ;; (print (list :aa))
                (if exp-operator ;; if a pivotal operator is present as for +.×
                    (complete-pivotal-match exp-operator tokens found-function
                                            nil space params initial)
@@ -730,14 +726,11 @@
                        (multiple-value-bind (first-function remaining)
                            (if first-function (values first-function (rest tokens))
                                (build-function tokens :params params :space space))
-                         ;; (print (list :ii tokens first-function remaining))
                          (multiple-value-bind (second-function second-remaining)
                              (build-function remaining :params params :space space)
-                           ;; (print (list :bb second-remaining))
                            (multiple-value-bind (second-value second-val-remaining)
                                (if second-function (values nil nil)
                                    (build-value (rest tokens) :params params :space space :left t))
-                             ;; (print (list :cc second-value second-val-remaining))
                              (if (not second-value) (setq second-val-remaining nil))
                              ;; first function confirms an atop train like *÷
                              ;; second function confirms a three-element train like -÷,
@@ -753,8 +746,6 @@
                                      (values (or second-function second-value)
                                              second-val-remaining)
                                      (build-function second-val-remaining :space space :params params))
-                               ;; (print (list :fo found-function first-function second-function
-                               ;;              second-val-fn second-val-fn-remaining))
                                (if first-function
                                    (build-function
                                     (if second-function second-remaining
@@ -970,13 +961,11 @@
                         (second tokens) (list :fn (third (second tokens))))))
     ;; if the next-token is ∘, it gets converted to its symbolic functional form;
     ;; this is needed to implement [∘. outer product]
-    ;; (print (list :nx next-token))
     (multiple-value-bind (left-function remaining)
         (if (equalp next-token '(:fn #\∘))
             (values (build-function (list next-token) :space space :params params) (cddr tokens))
             (build-function (cons next-token (cddr tokens)) :space space :params params))
       ;; (build-function (cons next-token (cddr tokens)) :space space :params params)
-      ;; (print (list :l left-function tokens remaining))
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
               (build-value (rest tokens) :space space :params params :left t))
