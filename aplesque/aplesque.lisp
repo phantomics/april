@@ -1146,6 +1146,7 @@
                    (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank input))))))
                    (rlen (nth axis odims))
                    (increment (reduce #'* (nthcdr (1+ axis) odims)))
+                   (window (disclose-unitary window))
                    (window-reversed (and window (> 0 window)))
                    (window (if window (abs window)))
                    (wsegment)

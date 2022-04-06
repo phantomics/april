@@ -1378,7 +1378,8 @@
             (is "3 4⍴∘⍴2 4 5⍴9" #2A((2 4 5 2) (4 5 2 4) (5 2 4 5)))
             (is "(2 3 4 5∘+) 5" #(7 8 9 10))
             (is "qq←-∘⌽ ⋄ qq 3 3⍴⍳9" #2A((-3 -2 -1) (-6 -5 -4) (-9 -8 -7)))
-            (is "rr←-∘⌽[1] ⋄ rr 3 3⍴⍳9" #2A((-7 -8 -9) (-4 -5 -6) (-1 -2 -3)))))
+            (is "rr←-∘⌽[1] ⋄ rr 3 3⍴⍳9" #2A((-7 -8 -9) (-4 -5 -6) (-1 -2 -3)))
+            (is "+/∘(+/)¨4 5×⊂3 3⍴⍳9" #(180 225))))
   (⍤ (has :title "Rank / Atop")
      (pivotal (lambda (right left)
                 (let ((r (gensym)))
@@ -1777,6 +1778,7 @@
   (for "Function applied to invocation of train composition including operator."
        "⍴(+/⊢⌺3 3) 2 2⍴255" #(2 2 3))
   (for "As previous but with more complex train." "⍴⍴∘+/3 3⍴1 2 3" #(3))
+  (for "Another variation of the prior train." "⍴(⍴∘+/⊢)⌺3 3⊢2 2⍴255" #(2 2 3))
   (for "Two-element train including reduction composition." "(≠/⊢) 1 2 3 3 2 4" 0)
   (for "Atop train including operator composition." "0 1 2 3 4 5 6 7 (⍳∘1>) 4" 6)
   (for "Fork spelling of previous." "0 1 2 3 4 5 6 7 (1⍳⍨>) 4" 6)

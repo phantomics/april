@@ -1010,29 +1010,32 @@
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
-        omega (if (= 0 (size omega))
-                  (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
-                                            :when (/= dx (or axis (if (not last-axis)
-                                                                      0 (1- (rank omega)))))
-                                              :collect d))
-                         (empty-output (loop :for od :in output-dims :when (= 0 od) :do (return t)))
-                         (identity (getf (funcall function :get-metadata nil) :id)))
-                    (if output-dims ;; if reduction produces an empty array just return that array
-                        (if empty-output (make-array output-dims)
-                            (if identity
-                                (let ((output (make-array output-dims)))
-                                  ;; if reduction eliminates an empty axis to create a non-empty array,
-                                  ;; populate it with the function's identity value
-                                  (xdotimes output (i (size output))
-                                    (setf (row-major-aref output i)
-                                          (if (functionp identity) (funcall identity) identity)))
-                                  output)
-                                (error "The operand of [/ reduce] has no identity value.")))
-                        ;; if reduction produces a scalar, the result is the identity value
-                        (or (and identity (if (functionp identity) (funcall identity) identity))
-                            (error "The operand of [/ reduce] has no identity value."))))
-                  (reduce-array omega function (if (first axis) (- (first axis) index-origin))
-                                last-axis alpha)))))
+        (if alpha
+            (error "Left argument (window) passed to reduce-composed function when applied to scalar value.")
+            omega)
+        (if (= 0 (size omega))
+            (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
+                                      :when (/= dx (or axis (if (not last-axis)
+                                                                0 (1- (rank omega)))))
+                                        :collect d))
+                   (empty-output (loop :for od :in output-dims :when (= 0 od) :do (return t)))
+                   (identity (getf (funcall function :get-metadata nil) :id)))
+              (if output-dims ;; if reduction produces an empty array just return that array
+                  (if empty-output (make-array output-dims)
+                      (if identity
+                          (let ((output (make-array output-dims)))
+                            ;; if reduction eliminates an empty axis to create a non-empty array,
+                            ;; populate it with the function's identity value
+                            (xdotimes output (i (size output))
+                              (setf (row-major-aref output i)
+                                    (if (functionp identity) (funcall identity) identity)))
+                            output)
+                          (error "The operand of [/ reduce] has no identity value.")))
+                  ;; if reduction produces a scalar, the result is the identity value
+                  (or (and identity (if (functionp identity) (funcall identity) identity))
+                      (error "The operand of [/ reduce] has no identity value."))))
+            (reduce-array omega function (if (first axis) (- (first axis) index-origin))
+                          last-axis alpha)))))
 
 (defun operate-scanning (function axis index-origin &optional last-axis inverse)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
