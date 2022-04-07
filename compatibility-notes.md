@@ -40,7 +40,7 @@ It's best to run ABCL with a larger heap size than the default if you expect to 
 
 ## Clasp
 
-Clasp and April are nearing full compatibility; currently are problems loading large APL files like those found in the `libraries/` subdirectory caused by Clasp's limit on the number of returned values from a function. The `random-state` library only gained compatibility with Clasp as of [this commit](https://github.com/Shinmera/random-state/commit/3e31e21ffde13555f73880e490e1f368d8cdbd58), so random number generation will only with with that or more recent commits of `random-state`. All of April's main tests pass in Clasp as long as it and `random-state` are up to date, but the  Stay tuned for more updates.
+Clasp and April are nearing full compatibility; currently there are problems loading large APL files like those found in the `libraries/` subdirectory caused by Clasp's limit on the number of returned values from a function. The `random-state` library only gained compatibility with Clasp as of [this commit](https://github.com/Shinmera/random-state/commit/3e31e21ffde13555f73880e490e1f368d8cdbd58), so random number generation will only work with that or more recent commits of `random-state`. All of April's main tests pass in Clasp as long as it and `random-state` are up to date, but the  Stay tuned for more updates.
 
 ## Allegro CL
 
