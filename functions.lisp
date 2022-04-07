@@ -1141,14 +1141,15 @@
 (defun operate-commuting (operand)
   "Generate a function with reversed or mirrored arguments. Used to implement [⍨ commute]."
   (lambda (omega &optional alpha)
-    (if (eq :get-metadata omega)
-        (list :inverse (lambda (omega &optional alpha)
-                         (if (not alpha)
-                             (let* ((operand-meta (funcall operand :get-metadata nil))
-                                    (inverse-commuted (getf operand-meta :inverse-commuted)))
-                               (if inverse-commuted (funcall inverse-commuted omega)
-                                   (error "This commuted function cannot be inverted."))))))
-        (funcall operand (or alpha omega) omega))))
+    (if (not (functionp operand))
+        operand (if (eq :get-metadata omega)
+                    (list :inverse (lambda (omega &optional alpha)
+                                     (if (not alpha)
+                                         (let* ((operand-meta (funcall operand :get-metadata nil))
+                                                (inverse-commuted (getf operand-meta :inverse-commuted)))
+                                           (if inverse-commuted (funcall inverse-commuted omega)
+                                               (error "This commuted function cannot be inverted."))))))
+                    (funcall operand (or alpha omega) omega)))))
 
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."

@@ -24,6 +24,8 @@
           (error "Invalid argument to [○ circular]; the left argument must be an~a"
                  " integer between ¯12 and 12.")))))
 
+(defparameter *value-composable-lexical-operators* (list #\⍨))
+
 ;; top-level specification for the April language
 (specify-vex-idiom
  april
@@ -1300,7 +1302,9 @@
                 `(operate-commuting ,operand)))
      (tests (is "5-⍨10" 5)
             (is "+⍨10" 20)
-            (is "fn←{⍺+3×⍵} ⋄ 16 fn⍨8" 56)))
+            (is "fn←{⍺+3×⍵} ⋄ 16 fn⍨8" 56)
+            (is "(5⍨) 2 6" 5)
+            (is "7 (5⍨) 2 6" 5)))
   (⌸ (has :title "Key")
      (lateral (lambda (operand &optional axes)
                 (declare (ignore axes))
