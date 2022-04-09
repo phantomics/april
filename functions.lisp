@@ -1292,6 +1292,10 @@
                       (make-array (subseq adims 0 arankdelta))))
            (adiv-dims (if adivs (subseq adims arankdelta)))
            (adiv-size (if alpha (reduce #'* adiv-dims))))
+      (if (and alpha (eq :monadic (getf fn-meta :type)))
+          (error "Function composed with [⍤ rank] may not have a left argument."))
+      (if (and (not alpha) (eq :dyadic (getf fn-meta :type)))
+          (error "Function composed with [⍤ rank] must have a left argument."))
       (if (and (getf fn-meta :on-axis)
                (= 1 (if alpha ocrank omrank)))
           ;; if the composed function is directly equivalent to a function that operates

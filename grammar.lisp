@@ -593,7 +593,6 @@
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :tt tokens axes found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (member (caar tokens) '(:fn :op :st :pt :ax)))
@@ -601,20 +600,17 @@
                     (and (listp (caar tokens))
                          (not (setq first-function (build-function (first tokens)
                                                                    :space space :params params))))))
-           ;; (print (list :ff found-function (first tokens)))
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
                ;; are no more components to the function, as with ⌽@(2∘|)⍳5
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-                 ;; (print (list :sf remaining sub-function))
                  (if sub-function ;; catch errors like (2+) 5
                      (if remaining
                          ;; if something remains to the left, check whether it's a value,
                          ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
                          (let ((left-val (build-value remaining :space space :params params)))
-                           (print (list :ll left-val))
                            (if left-val
                                ;; if the left value is actually a passed function, compose a function
                                ;; train as for 0 1 2 3 4 5 6 7 (⍳∘1>) 4
@@ -740,7 +736,6 @@
           (t (let ((exp-operator (build-operator (list (first tokens))
                                                  :params params :space space :initial initial
                                                  :valence :pivotal :axes axes)))
-               ;; (print (list :ee exp-operator initial axes tokens))
                (if exp-operator ;; if a pivotal operator is present as for +.×
                    (complete-pivotal-match exp-operator tokens found-function
                                            nil space params initial)
@@ -771,8 +766,6 @@
                                      (values (or second-function second-value)
                                              second-val-remaining)
                                      (build-function second-val-remaining :space space :params params))
-                               ;; (print (list :ss found-function first-function second-function
-                               ;;                remaining second-val-remaining second-val-fn-remaining))
                                (if first-function
                                    (build-function
                                     (if second-function second-remaining
@@ -815,6 +808,7 @@
                  (assign-sym (if (and (listp assign-symbol)
                                       (member (first assign-symbol) '(inws inwsd)))
                                  (second assign-symbol)))
+                 (interned-sym (intern (string assign-sym) space))
                  (closure-meta (rest (getf (getf params :special) :closure-meta)))
                  (operator-type (or (getf params :valence)
                                     (if (or (member assign-sym (getf closure-meta :lop-syms))
@@ -825,7 +819,8 @@
                                                          (and (characterp found-operator)
                                                               (of-lexicons *april-idiom* found-operator
                                                                            :operators-pivotal)))
-                                                     :pivotal)))))
+                                                     :pivotal))))
+                 (operator-meta))
             (if (and (listp found-operator) (eql 'olambda (first found-operator))
                      (getf params :special) (member '⍶ (second found-operator)))
                 ;; if this operator is defined within a closure, add it to the
@@ -834,9 +829,9 @@
             (if (and (characterp found-operator)
                      (not (getf (getf params :special) :closure-meta)))
                 ;; assign operator metadata for aliased operators at the top level
-                (setf (symbol-value (intern (string assign-sym) space))
-                      (list :meta :valence operator-type)
-                      (symbol-function (intern (string assign-sym) space))
+                (setf (symbol-value interned-sym)
+                      (setf operator-meta (list :meta :valence operator-type))
+                      (symbol-function interned-sym)
                       #'dummy-nargument-function))
             (values `(setf ,(if (getf (getf params :special) :closure-meta)
                                 assign-symbol `(symbol-function ',assign-symbol))
@@ -862,7 +857,11 @@
                                                 (intern (format nil "APRIL-LEX-OP-~a" found-operator)
                                                         *package-name-string*))
                                                (if (eq :lateral operator-type)
-                                                   '(operand axes) '(right left)))))))
+                                                   '(operand axes) '(right left))))))
+                           ,@(if (not (getf (getf params :special) :closure-meta))
+                                 ;; assign operator metadata in output for operators defined at top level
+                                 `((symbol-value ',assign-symbol)
+                                   (quote ,(symbol-value interned-sym)))))
                     (cddr tokens))))))
 
 (defun complete-value-assignment (tokens elements space params axes)
