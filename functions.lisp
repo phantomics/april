@@ -12,7 +12,7 @@
 (defun apl-random-process (item index-origin generator)
   "Core of (apl-random), randomizing an individual integer or float."
   (if (integerp item)
-      (if (= 0 item) (if (eq :system generator)
+      (if (zerop item) (if (eq :system generator)
                          (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
                          (random-state:random-float generator double-float-epsilon
                                                     (- 1.0d0 double-float-epsilon)))
@@ -43,7 +43,7 @@
                 ;; it does not run in parallel, write loops running in parallel
                 (loop :for i :below (size omega) :while (or (not zeroes-present)
                                                             (not nonzeroes-present))
-                      :do (if (= 0 (row-major-aref omega i)) (setq zeroes-present t)
+                      :do (if (zerop (row-major-aref omega i)) (setq zeroes-present t)
                               (setq nonzeroes-present t)))
                 (let ((output (make-array (dims omega)
                                           :element-type (if (not nonzeroes-present)
@@ -87,10 +87,10 @@
 (defun apl-divide (method)
   "Generate a division function according to the [⎕DIV division method] in use."
   (lambda (omega &optional alpha)
-    (if (and alpha (= 0 omega) (= 0 alpha))
-        (if (= 0 method) 1 0)
+    (if (and alpha (zerop omega) (zerop alpha))
+        (if (zerop method) 1 0)
         (if alpha (/ alpha omega)
-            (if (and (< 0 method) (= 0 omega))
+            (if (and (< 0 method) (zerop omega))
                 0 (/ omega))))))
 
 (defun sb-rationalize (x)
@@ -197,12 +197,12 @@
   "Implementation of residue extended to complex numbers based on the complex-floor function."
   (lambda (omega alpha)
     (if (or (complexp omega) (complexp alpha))
-        (let ((ainput (complex (if (= 0 (realpart alpha))
+        (let ((ainput (complex (if (zerop (realpart alpha))
                                    1 (realpart alpha))
-                               (if (= 0 (imagpart alpha))
+                               (if (zerop (imagpart alpha))
                                    1 (imagpart alpha)))))
           (- omega (* ainput (complex-floor (/ omega ainput) comparison-tolerance))))
-        (if (= 0 alpha)
+        (if (zerop alpha)
             omega (mod omega alpha)))))
 
 (defun apl-xcy (function)
@@ -228,8 +228,8 @@
   "Implementation of greatest common denominator extended to complex numbers based on the complex-floor function."
   (lambda (omega alpha)
     (if (or (complexp omega) (complexp alpha))
-        (if (= 0 (funcall (apl-residue comparison-tolerance)
-                          omega alpha))
+        (if (zerop (funcall (apl-residue comparison-tolerance)
+                            omega alpha))
             alpha (if (or (not (integerp (realpart omega)))
                           (not (integerp (realpart alpha))))
                       (let* ((rlromega (rationalize (realpart omega)))
@@ -325,7 +325,7 @@
             (and (vectorp index)
                  (= 1 (length index))))
         (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
-          (if (= 0 index) (vector)
+          (if (zerop index) (vector)
               (let ((output (make-array index :element-type (list 'integer 0 (+ index-origin index)))))
                 (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
                 output)))
@@ -338,7 +338,7 @@
                                                  :element-type
                                                  (list 'integer 0 (+ index-origin (reduce #'max coords)))
                                                  :initial-contents
-                                                 (if (= 0 index-origin)
+                                                 (if (zerop index-origin)
                                                      coords (loop :for c :in coords
                                                                :collect (+ c index-origin)))))))
               output)
@@ -354,7 +354,7 @@
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
   (if (or (not (arrayp omega))
-          (= 0 (rank omega)))
+          (zerop (rank omega)))
       #() (if (and (listp (type-of omega))
                    (eql 'simple-array (first (type-of omega)))
                    (eq t (second (type-of omega)))
@@ -373,7 +373,7 @@
     (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
                                             (list alpha))
                                   :populator (build-populator omega))))
-      (if (and (= 0 (size output)) (arrayp omega)
+      (if (and (zerop (size output)) (arrayp omega)
                (< 0 (size omega)) (arrayp (row-major-aref omega 0)))
           (array-setting-meta output :empty-array-prototype
                               (make-prototype-of (row-major-aref omega 0)))
@@ -415,7 +415,7 @@
 
 (defun find-first-dimension (omega)
   "Find the first dimension of an array. Used to implement [≢ first dimension]."
-  (if (= 0 (rank omega))
+  (if (zerop (rank omega))
       1 (first (dims omega))))
 
 (defun membership (omega alpha)
@@ -451,7 +451,7 @@
   "Return a vector of coordinates from an array where the value is equal to one. Used to implement [⍸ where]."
   (let* ((indices) (match-count 0)
          (orank (rank omega)))
-    (if (= 0 orank)
+    (if (zerop orank)
         (if (= 1 omega) #(#()) #())
         (progn (across omega (lambda (index coords)
                                ;; (declare (dynamic-extent index coords))
@@ -573,7 +573,7 @@
                             :inverse inverse :populator (build-populator omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
-      (if (and (= 0 (size output)) (not inverse)
+      (if (and (zerop (size output)) (not inverse)
                (arrayp omega) (if (< 0 (size omega))
                                   (arrayp (row-major-aref omega 0))))
           (array-setting-meta output :empty-array-prototype
@@ -584,7 +584,7 @@
   "Wrapper for [⊂ enclose]."
   (lambda (omega &optional alpha)
     (if alpha (let ((output (partitioned-enclose alpha omega *last-axis*)))
-                (if (not (and (vectorp output) (= 0 (length output))))
+                (if (not (and (vectorp output) (zerop (length output))))
                     output (array-setting-meta output :empty-array-prototype (vector))))
         (if axes (re-enclose omega (aops:each (lambda (axis) (- axis index-origin))
                                               (if (arrayp (first axes))
@@ -606,7 +606,7 @@
                      ;; if this is the last level of nesting specified, fetch the element
                      (if (not (arrayp point))
                          (if (not (arrayp input))
-                             (if (= 0 point) input (error "Coordinates for a scalar can only be 0."))
+                             (if (zerop point) input (error "Coordinates for a scalar can only be 0."))
                              (aref input (- point index-origin)))
                          (if (vectorp point)
                              (apply #'aref input (loop :for p :across point :collect (- p index-origin)))
@@ -640,7 +640,7 @@
   "Return a vector of unique values in an array. Used to implement [∪ unique]."
   (if (not (arrayp omega))
       (vector omega)
-      (if (= 0 (rank omega))
+      (if (zerop (rank omega))
           (vector omega)
           (let ((vector (if (vectorp omega)
                             omega (re-enclose omega (make-array (max 0 (1- (rank omega)))
@@ -708,7 +708,7 @@
                                        (if (> (length alpha) (rank omega))
                                            (error "Length of left argument to ⍉ ~a"
                                                   "must be equal to rank of right argument.")
-                                           (if (= 0 index-origin)
+                                           (if (zerop index-origin)
                                                alpha (let ((adjusted (make-array (length alpha))))
                                                        (loop :for a :across alpha :for ax :from 0
                                                              :do (setf (aref adjusted ax) (- a index-origin)))
@@ -722,7 +722,7 @@
                      (if first-axis *first-axis* *last-axis*)))
            (output (expand alpha omega axis :compress-mode compress-mode
                                             :populator (build-populator omega))))
-      (if (and (= 0 (size output)) (arrayp omega) (not (= 0 (size omega)))
+      (if (and (zerop (size output)) (arrayp omega) (not (zerop (size omega)))
                (arrayp (row-major-aref omega 0)))
           (array-setting-meta output :empty-array-prototype
                               (make-prototype-of (row-major-aref omega 0)))
@@ -745,7 +745,7 @@
 
 (defun encode (omega alpha &optional inverse)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
-  (if (and (vectorp alpha) (= 0 (length alpha)))
+  (if (and (vectorp alpha) (zerop (length alpha)))
       #() (let* ((alpha (if (arrayp alpha)
                             alpha (if (not inverse)
                                       ;; if the encode is an inverted decode, extend a
@@ -756,7 +756,7 @@
                                             (dotimes (i (size omega))
                                               (setq max-omega (max max-omega (row-major-aref omega i))))
                                             (setq max-omega omega))
-                                        (if (= 0 max-omega) #()
+                                        (if (zerop max-omega) #()
                                             (make-array (1+ (floor (log max-omega) (log alpha)))
                                                         :initial-element alpha))))))
                  (odims (dims omega)) (adims (dims alpha))
@@ -779,9 +779,9 @@
                                base (* base (if (not (arrayp alpha))
                                                 alpha (row-major-aref alpha (+ (* index aseg-first)
                                                                                (floor a increment)))))
-                               component (if (= 0 base) value (nth-value 1 (floor value base)))
+                               component (if (zerop base) value (nth-value 1 (floor value base)))
                                value (- value component)
-                               element (if (= 0 last-base) 0 (floor component last-base))))
+                               element (if (zerop last-base) 0 (floor component last-base))))
                   (if output (setf (row-major-aref output (+ o (* osize (floor a aseg-last))
                                                              (* ofactor (mod a aseg-last))))
                                    element)
@@ -892,7 +892,7 @@
 (defun generate-index-array (array &optional scalar-assigned ext-index)
   "Given an array, generate an array of the same shape whose each cell contains its row-major index."
   (let* ((index (or ext-index -1))
-         (is-scalar (= 0 (rank array)))
+         (is-scalar (zerop (rank array)))
          (array (if (and is-scalar (not scalar-assigned))
                     (aref array) array))
          (output (make-array (dims array) :element-type (if (eq t (element-type array))
@@ -974,7 +974,7 @@
                  (if (not (arrayp (row-major-aref indices i)))
                      (setf (row-major-aref vector (row-major-aref indices i))
                            (if (not (arrayp values))
-                               values (if (= 0 (rank values))
+                               values (if (zerop (rank values))
                                           (aref values)
                                           (if (or (not (arrayp (row-major-aref values i)))
                                                   (= (size indices) (size values)))
@@ -1013,12 +1013,12 @@
         (if alpha
             (error "Left argument (window) passed to reduce-composed function when applied to scalar value.")
             omega)
-        (if (= 0 (size omega))
+        (if (zerop (size omega))
             (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
                                       :when (/= dx (or axis (if (not last-axis)
                                                                 0 (1- (rank omega)))))
                                         :collect d))
-                   (empty-output (loop :for od :in output-dims :when (= 0 od) :do (return t)))
+                   (empty-output (loop :for od :in output-dims :when (zerop od) :do (return t)))
                    (identity (getf (funcall function :get-metadata nil) :id)))
               (if output-dims ;; if reduction produces an empty array just return that array
                   (if empty-output (make-array output-dims)
@@ -1059,7 +1059,7 @@
                                        (base (+ (mod i increment)
                                                 (* increment rlen (floor i (* increment rlen))))))
                                    (setf (row-major-aref sao-copy (+ base (* increment vector-index)))
-                                         (if (/= 0 (mod vector-index 2))
+                                         (if (not (zerop (mod vector-index 2)))
                                              (apply-scalar (getf fn-meta :scan-alternating)
                                                            (row-major-aref
                                                             omega (+ base (* increment vector-index))))
@@ -1071,7 +1071,7 @@
                         (if inverse
                             (let ((original (disclose (row-major-aref
                                                        omega (+ base (* increment vector-index))))))
-                              (setq value (if (= 0 vector-index)
+                              (setq value (if (zerop vector-index)
                                               original
                                               (funcall function original
                                                        (disclose
@@ -1080,7 +1080,7 @@
                             ;; faster method for commutative functions
                             ;; NOTE: xdotimes will not work with this method
                             (if (or sao-copy (getf fn-meta :commutative))
-                                (setq value (if (= 0 vector-index)
+                                (setq value (if (zerop vector-index)
                                                 (row-major-aref omega base)
                                                 (funcall (if sao-copy (getf fn-meta :inverse-right)
                                                              function)
@@ -1099,8 +1099,8 @@
 (defun operate-each (operand)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (lambda (omega &optional alpha)
-    (let* ((oscalar (if (= 0 (rank omega)) omega))
-           (ascalar (if (= 0 (rank alpha)) alpha))
+    (let* ((oscalar (if (zerop (rank omega)) omega))
+           (ascalar (if (zerop (rank alpha)) alpha))
            (ouvec (if (= 1 (size omega)) omega))
            (auvec (if (= 1 (size alpha)) alpha))
            (odims (dims omega)) (adims (dims alpha))
@@ -1206,8 +1206,8 @@
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega)
-    (if (or (= 0 (size omega))
-            (= 0 (size alpha)))
+    (if (or (zerop (size omega))
+            (zerop (size alpha)))
         (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
             (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
             (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
@@ -1306,7 +1306,7 @@
           (flet ((generate-divs (div-array ref-array div-dims div-size)
                    (xdotimes div-array (i (size div-array))
                      (setf (row-major-aref div-array i)
-                           (if (= 0 (rank div-array)) ref-array
+                           (if (zerop (rank div-array)) ref-array
                                (if (not div-dims) (row-major-aref ref-array i)
                                    (make-array div-dims :element-type (element-type ref-array)
                                                         :displaced-to ref-array
@@ -1319,10 +1319,10 @@
                                  (let ((output (make-array (dims (or odivs adivs)))))
                                    (dotimes (i (size output)) ;; xdo
                                      (let ((this-odiv (if (not odivs)
-                                                          omega (if (= 0 (rank odivs))
+                                                          omega (if (zerop (rank odivs))
                                                                     (aref odivs) (row-major-aref odivs i))))
                                            (this-adiv (if (not adivs)
-                                                          alpha (if (= 0 (rank adivs))
+                                                          alpha (if (zerop (rank adivs))
                                                                     (aref adivs) (row-major-aref adivs i)))))
                                        (setf (row-major-aref output i)
                                              (disclose (funcall function this-odiv this-adiv)))))
@@ -1358,8 +1358,8 @@
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
               (let ((arg omega) (prior-arg omega))
-                (loop :for index :from 0 :while (or (= 0 index)
-                                                    (= 0 (funcall determinant prior-arg arg)))
+                (loop :for index :from 0 :while (or (zerop index)
+                                                    (zerop (funcall determinant prior-arg arg)))
                    :do (setq prior-arg arg
                              arg (if alpha (funcall function arg alpha)
                                      (funcall function arg))))
@@ -1390,7 +1390,7 @@
               (let ((true-indices (make-array (size omega) :initial-element 0))
                     (omega-copy (copy-array omega :element-type t)))
                 (dotimes (i (size omega)) ;; xdo
-                  (if (or (and right-fn (/= 0 (funcall right-fn (row-major-aref omega i))))
+                  (if (or (and right-fn (not (zerop (funcall right-fn (row-major-aref omega i)))))
                           (and (arrayp right)
                                (not (loop :for r :below (size right) :never (= (row-major-aref right r)
                                                                                (+ i index-origin))))))
@@ -1401,7 +1401,7 @@
                       (true-vector (make-array (loop :for i :across true-indices :summing i)
                                                :element-type (element-type omega))))
                   (dotimes (i (size omega))
-                    (if (/= 0 (row-major-aref true-indices i))
+                    (if (not (zerop (row-major-aref true-indices i)))
                         (progn (setf (row-major-aref true-vector tvix)
                                      (row-major-aref omega i))
                                (incf (row-major-aref true-indices i) tvix)
@@ -1409,7 +1409,7 @@
                   (let ((to-assign (if alpha (funcall left-fn true-vector alpha)
                                        (funcall left-fn true-vector))))
                     (dotimes (i (size omega)) ;; xdo 
-                      (if (/= 0 (row-major-aref true-indices i))
+                      (if (not (zerop (row-major-aref true-indices i)))
                           (setf (row-major-aref omega-copy i)
                                 (if (= 1 (length true-vector))
                                     ;; if there is only one true element the to-assign value is
@@ -1431,7 +1431,7 @@
                                              (loop :for i :below (1- (rank omega)) :collect nil)))
                         :modify-input t :set (funcall (if (and (not (arrayp right))
                                                                (> 2 (rank omega))
-                                                               (not (= 0 (rank out-sub-array))))
+                                                               (not (zerop (rank out-sub-array))))
                                                           #'enclose #'identity)
                                                       out-sub-array))
                 omega-copy))
@@ -1444,13 +1444,13 @@
                                     " the shape of the left argument.")
                              (xdotimes output (i (size selections))
                                (setf (row-major-aref output i)
-                                     (if (= 0 (row-major-aref selections i))
+                                     (if (zerop (row-major-aref selections i))
                                          (row-major-aref omega i)
                                          (if left-fn
                                              (if alpha (funcall left-fn (row-major-aref omega i) alpha)
                                                  (funcall left-fn (row-major-aref omega i)))
                                              (if (not (arrayp left))
-                                                 left (if (= 0 (rank left))
+                                                 left (if (zerop (rank left))
                                                           (disclose left)
                                                           (row-major-aref left i))))))))
                          output)

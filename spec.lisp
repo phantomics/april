@@ -107,7 +107,7 @@
                                                 (error "Each closing ~a must match with an opening ~a."
                                                        (nth mx delimiters) (nth (- 3 mx) delimiters)))
                                  (if (and (char= char #\;)
-                                          (= 0 (loop :for ncount :across nesting :summing ncount)))
+                                          (zerop (loop :for ncount :across nesting :summing ncount)))
                                      (setq indices (cons (1- charix) indices)))))))
                 (loop :for index :in (reverse (cons (length string) indices))
                    :counting index :into iix

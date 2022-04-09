@@ -122,7 +122,7 @@
                                                                (regex-replace-all
                                                                 "[\\n]" output
                                                                 ,(concatenate 'string '(#\Newline) "    "))))
-                                                       (if (or (= 0 (length output))
+                                                       (if (or (zerop (length output))
                                                                (not (char= #\Newline
                                                                            (aref output (1- (length
                                                                                              output))))))
@@ -162,7 +162,7 @@
                           (princ (concatenate 'string "    "
                                               (regex-replace-all "[\\n]" output
                                                                  ,(concatenate 'string '(#\Newline)  "    "))))
-                          (if (or (= 0 (length output))
+                          (if (or (zerop (length output))
                                   (not (char= #\Newline (aref output (1- (length output))))))
                               (princ #\Newline))))
                       ((and (eq :test mode)
@@ -185,7 +185,7 @@
                           (princ (concatenate 'string "    "
                                               (regex-replace-all "[\\n]" output
                                                                  ,(concatenate 'string '(#\Newline)  "    "))))
-                          (if (or (= 0 (length output))
+                          (if (or (zerop (length output))
                                   (not (char= #\Newline (aref output (1- (length output))))))
                               (princ #\Newline))))))))
 
@@ -507,14 +507,14 @@
                   (loop :for set-values :in sets
                         :do (destructuring-bind (set-name set) set-values
                               (setq output
-                                    (if (= 0 set) output
+                                    (if (zerop set) output
                                         (format nil "~a~a~a ~a~a"
                                                 output (if (and (< 0 items)
                                                                 (or (= set-index (1- (length sets)))
-                                                                    (= 0 (loop :for sx :from (1+ set-index)
-                                                                                 :to (1- (length sets))
-                                                                               :summing (second
-                                                                                         (nth sx sets))))))
+                                                                    (zerop (loop :for sx :from (1+ set-index)
+                                                                                   :to (1- (length sets))
+                                                                                 :summing (second
+                                                                                           (nth sx sets))))))
                                                            " and " (if (< 0 items) ", " ""))
                                                 set set-name (if (< 1 set) "s" "")))
                                     set-index (1+ set-index)
@@ -609,7 +609,7 @@
                                          (%some (?satisfies
                                                  (lambda (char)
                                                    (if (and disallow-linebreaks
-                                                            (= 0 dlb-overriding-balance)
+                                                            (zerop dlb-overriding-balance)
                                                             (funcall (of-utilities
                                                                       idiom :match-newline-character)
                                                                      char))
@@ -639,7 +639,7 @@
                                                 (if symbol-collector (funcall symbol-collector meta))
                                                 parsed))))
                             (?eq (aref boundary-chars 1)))
-                   (if (= 0 balance)
+                   (if (zerop balance)
                        (progn (if if-confirmed (funcall if-confirmed))
                               enclosed)
                        (error "No closing ~a found for opening ~a."
@@ -668,7 +668,7 @@
                    (error "Mismatched enclosing characters; each closing ~a must be preceded by an opening ~a."
                           errant-char matching-char))))
              (process-lines (lines &optional output meta)
-               (if (or (= 0 (length lines))
+               (if (or (zerop (length lines))
                        (loop :for c :across lines :always (char= c #\ )))
                    (list output meta)
                    (destructuring-bind (out remaining meta)
@@ -780,14 +780,14 @@
             ;; if the string is passed back (minus any leading whitespace) because the string began with
             ;; a line break, parse again omitting the line break character
             (parse (subseq item 1) (=vex-string idiom nil special-precedent))
-            (if (and (= 0 (length break)) (< 0 (length rest)))
+            (if (and (zerop (length break)) (< 0 (length rest)))
                 (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
                                                    (if item (list item)))
                                          (append (if olnchar (list :overloaded-num-char olnchar))
                                                  (list :symbols nil))))
                 (list (if (or (not item)
                               (and (typep item 'sequence)
-                                   (= 0 (length item)) (not string-found)))
+                                   (zerop (length item)) (not string-found)))
                           ;; return nothing if only an empty sequence results from parsing
                           ;; unless an explicit empty string was parsed
                           output (cons item output))
@@ -822,7 +822,7 @@
                  (loop :for c :across string-sym
                     :always (funcall (of-utilities idiom :match-token-character) c))))
              (process-lines (string &optional space params output)
-               (if (= 0 (length string))
+               (if (zerop (length string))
                    (funcall (of-utilities idiom :compile-form)
                             (reverse output) :space space :params params)
                    (let ((result (funcall (of-utilities idiom :lexer-postprocess)
