@@ -1882,7 +1882,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                `(lambda (&rest ,args)
                                                   (a-call ,fn-form (first ,args)
                                                           ,@(if (eq :dyadic type) `((second ,args)))))))
-                              (append form metadata (list :type type)))
+                              (append form metadata (list :valence type)))
                      `(fn-meta ,form ,@metadata))))
            (wrap-implicit (implicit-args optional-implicit-args primary-meta form)
              (let ((axis-arg (getf primary-meta :axes)))

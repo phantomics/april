@@ -5,16 +5,7 @@
 
 disp display pmat ← 'ARRAY-LIB-SPACE' ⎕XWF 'disp' 'display' 'pmat'
 foldl             ← 'ARRAY-LIB-SPACE' ⎕XWO 'foldl'
-⍝ traj              ← 'POWER-LIB-SPACE' ⎕XWO 'traj'
-
-
-⍝ From http://dfns.dyalog.com/c_traj.htm
-
-traj ← {                                     ⍝ Function limit 'trajectory'.
-  ⍺←⍬                                        ⍝ Initial null history.
-  (⊂⍵)∊⍺:⍺                                   ⍝ Argument in history: finished.
-  (⍺,⊂⍵)∇ ⍺⍺ ⍵                               ⍝ Extended history with next argument.
-}
+traj              ← 'POWER-LIB-SPACE' ⎕XWO 'traj'
 
 
 ⍝ From http://dfns.dyalog.com/c_avl.htm
