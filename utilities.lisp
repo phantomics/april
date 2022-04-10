@@ -325,6 +325,24 @@
             cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
           :test #'eql))
 
+(defmacro plain-ref (function &optional axes)
+  "Wrap a lexical function; this is needed to implement some meta-functionality."
+  ;; TODO: can the functionality here and in amb-ref be factored out and merged?
+  (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
+    `(labels ((,this-fn (&rest ,args)
+                (if (and (eq :reassign-axes (first ,args))
+                         (not (third ,args)))
+                    ;; passing this option will return the core function again
+                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
+                    (lambda (&rest ,iargs)
+                      (apply #',this-fn (append (list :assign-axes (second ,args))
+                                                ,iargs)))
+                    (progn ,@(if axes `((if (eq :assign-axes (first ,args))
+                                            (setq ,axes (second ,args)
+                                                  ,args (cddr ,args)))))
+                           (apply ,function ,args)))))
+       #',this-fn)))
+
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
@@ -1938,8 +1956,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                   (wrap-implicit implicit-args
                                                                  optional-implicit-args
                                                                  primary-metadata form))
-                                                (wrap-meta :monadic (second implementation)
-                                                           (rest (assoc 'monadic spec-meta)) t)))
+                                                `(plain-ref
+                                                  ,(wrap-meta :monadic (second implementation)
+                                                              (rest (assoc 'monadic spec-meta)) t)
+                                                  ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (dyadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-dyadic)
@@ -1951,8 +1971,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                   (wrap-implicit implicit-args
                                                                  optional-implicit-args
                                                                  primary-metadata form))
-                                                (wrap-meta :dyadic (second implementation)
-                                                           (rest (assoc 'dyadic spec-meta)) t)))
+                                                `(plain-ref
+                                                  ,(wrap-meta :dyadic (second implementation)
+                                                              (rest (assoc 'dyadic spec-meta)) t)
+                                                  ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (ambivalent (incf fn-count 2)
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)

@@ -1040,7 +1040,7 @@
   (⍀ (has :title "Expand First")
      (dyadic (expand-array t nil index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
-            (dyadic :on-axis :first))
+           (dyadic :on-axis :first))
      (tests (is "2⍀5" #(5 5))
             (is "2⍀1" #*11)
             (is "1 ¯2 3 ¯4 5⍀3" #(3 0 0 3 3 3 0 0 0 0 3 3 3 3 3))
