@@ -15,15 +15,19 @@
                #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
                #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
                #'realpart #'abs #'imagpart #'phase)))
+  ;; ECL defaults to C's standard acos thus its function must be specially assigned
   (defun call-circular (&optional inverse)
     (lambda (value function-index)
       (if (and (integerp function-index) (<= -12 function-index 12))
-          (funcall (aref circular-functions (+ 12 (funcall (if inverse #'- #'identity)
-                                                           function-index)))
-                   (* 1.0d0 value))
+          (let ((vector-index (+ 12 (funcall (if inverse #'- #'identity)
+                                             function-index))))
+            (funcall (aref circular-functions vector-index)
+                     ;; for some functions, double coercion is not needed
+                     (* value (if (member vector-index '(1 2 3 21 22 23) :test #'=)
+                                  1 1.0d0))))
           (error "Invalid argument to [○ circular]; the left argument must be an~a"
                  " integer between ¯12 and 12.")))))
-
+  
 (defparameter *value-composable-lexical-operators* (list #\⍨))
 
 ;; top-level specification for the April language
@@ -341,6 +345,7 @@
             (is "⌈1 2 3○○.5 2 .25" #(1 1 1))
             ;; omit asin and atanh from the tests below because they
             ;; are not consistent across CL implementations
+            (is "¯11 ¯10 ¯9 9 10 11○1" #(#C(0 1) 1 1 1 1 0))
             (is "⌊1000×⊃,/9 11○⊂(¯1 ¯7~⍨¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5"
                 #2A((0 1316 1316 1734 2095 1570 3141 0 2325 1064)
                     (0 -1444 1443 -1735 2079 0 0 0 754 1038)
