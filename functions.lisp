@@ -1010,11 +1010,14 @@
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha)
     (if (not (arrayp omega))
-        (if (eq :reassign-axis omega)
-            (operate-reducing function index-origin last-axis :axis alpha)
-            (if alpha (error "Left argument (window) passed to reduce-composed ~a"
-                             "function when applied to scalar value.")
-                omega))
+        (if (eq :get-metadata omega)
+            (list :on-axis (or axis (if last-axis :last :first))
+                  :valence :ambivalent)
+            (if (eq :reassign-axes omega)
+                (operate-reducing function index-origin last-axis :axis alpha)
+                (if alpha (error "Left argument (window) passed to reduce-composed ~a"
+                                 "function when applied to scalar value.")
+                    omega)))
         (if (zerop (size omega))
             (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
                                       :when (/= dx (or axis (if (not last-axis)
@@ -1045,8 +1048,9 @@
     (if (not (arrayp omega))
         (if (eq :get-metadata omega)
             (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
-                             (operate-scanning inverse-function index-origin last-axis t :axis axis)))
-            (if (eq :reassign-axis omega)
+                             (operate-scanning inverse-function index-origin last-axis t :axis axis))
+                  :valence :monadic)
+            (if (eq :reassign-axes omega)
                 (operate-scanning function index-origin last-axis inverse :axis alpha)
                 omega))
         (let* ((odims (dims omega))

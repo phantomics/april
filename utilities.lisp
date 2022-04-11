@@ -1143,6 +1143,7 @@ It remains here as a standard against which to compare methods for composing APL
   (let* ((axis (if (and (symbolp (first body))
                         (eq :axis (first body)))
                    (second body)))
+         ;; find axis specification if present
          (expanded (macroexpand (if (not axis) body (cddr body)))))
     (if (or (and (not (listp (first expanded)))
                  (or (not (symbolp (first expanded)))
@@ -1151,7 +1152,8 @@ It remains here as a standard against which to compare methods for composing APL
             (and (listp (first expanded))
                  (not (eql 'olambda (caar expanded)))))
         expanded (funcall (lambda (form)
-                            (if (not axis) form `(funcall ,form :reassign-axis ,axis)))
+                            (if (not axis) form `(funcall ,form :reassign-axes ,axis)))
+                          ;; compose axis reassignment for aliased operators with axes like rf←+/[1]
                           (cons 'funcall expanded)))))
 
 (defmacro apl-if (&rest each-clause)

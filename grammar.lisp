@@ -845,7 +845,7 @@
                                          '((declare (ignorable axes)))
                                          (if (eq :pivotal operator-type)
                                              '((declare (ignorable left right)))))
-                                   ,(multiple-value-bind (op-form op-supplemental-args)
+                                   ,(multiple-value-bind (op-form op-postargs)
                                         (apply (symbol-function
                                                 (intern (format nil "APRIL-LEX-OP-~a" found-operator)
                                                         *package-name-string*))
@@ -854,7 +854,7 @@
                                       (append op-form (if axes (if (listp (first axes))
                                                                    (list :axis (cons 'list (first axes)))
                                                                    `(:axis (list ,(first axes))))
-                                                          (if op-supplemental-args
+                                                          (if (member :axis op-postargs)
                                                               `(:axis (first axes))))))))
                            ,@(if (not (getf (getf params :special) :closure-meta))
                                  ;; assign operator metadata in output for operators defined at top level
