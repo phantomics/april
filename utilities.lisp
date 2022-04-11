@@ -1140,14 +1140,19 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro a-comp (symbol &rest body)
   "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
   (declare (ignore symbol))
-  (let ((expanded (macroexpand body)))
+  (let* ((axis (if (and (symbolp (first body))
+                        (eq :axis (first body)))
+                   (second body)))
+         (expanded (macroexpand (if (not axis) body (cddr body)))))
     (if (or (and (not (listp (first expanded)))
                  (or (not (symbolp (first expanded)))
                      (eql '∇oself (first expanded))
                      (fboundp (first expanded))))
             (and (listp (first expanded))
                  (not (eql 'olambda (caar expanded)))))
-        expanded (cons 'funcall expanded))))
+        expanded (funcall (lambda (form)
+                            (if (not axis) form `(funcall ,form :reassign-axis ,axis)))
+                          (cons 'funcall expanded)))))
 
 (defmacro apl-if (&rest each-clause)
   "Expands to an APL-style if-statement where clauses are evaluated depending on whether given expressions evaluate to 1 or 0."
