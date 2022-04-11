@@ -845,19 +845,21 @@
                                          '((declare (ignorable axes)))
                                          (if (eq :pivotal operator-type)
                                              '((declare (ignorable left right)))))
-                                   ,(if axes (apply (symbol-function
-                                                     (intern (format nil "APRIL-LEX-OP-~a" found-operator)
-                                                             *package-name-string*))
-                                                    (if (eq :lateral operator-type)
-                                                        (list 'operand (if (listp (first axes))
-                                                                           (cons 'list (first axes))
-                                                                           `(list ,(first axes))))
-                                                        (list 'right 'left)))
+                                   ,(if nil ; axes
                                         (apply (symbol-function
                                                 (intern (format nil "APRIL-LEX-OP-~a" found-operator)
                                                         *package-name-string*))
                                                (if (eq :lateral operator-type)
-                                                   '(operand axes) '(right left))))))
+                                                   '(operand)
+                                                   '(right left)))
+                                        (append (apply (symbol-function
+                                                        (intern (format nil "APRIL-LEX-OP-~a" found-operator)
+                                                                *package-name-string*))
+                                                       (if (eq :lateral operator-type)
+                                                           '(operand) '(right left)))
+                                                (if axes (if (listp (first axes))
+                                                             (list :axis (cons 'list (first axes)))
+                                                             `(:axis (list ,(first axes)))))))))
                            ,@(if (not (getf (getf params :special) :closure-meta))
                                  ;; assign operator metadata in output for operators defined at top level
                                  `((symbol-value ',assign-symbol)
@@ -1209,12 +1211,15 @@
       (append (list 'a-comp (intern (string operator)))
               (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator) *package-name-string*))
                        (or function value)
-                       `(list ,@(first axes))))
+                       ;; `(list ,@(first axes))
+                       )
+              (if axes (list :axis (cons 'list (first axes)))))
       `(a-comp :op ,(if (or (not (symbolp operator))
                             (eql '∇oself operator))
                         operator `(inws ,operator))
                ,(or function value)
-               ,@(if axes `((list ,@(first axes)))))))
+               ;; ,@(if axes `((list ,@(first axes))))
+               )))
   
 (defun compose-function-pivotal (operator function1 function2 value2)
   "Compose a function using a pivotal operator like [⍣ power]."
