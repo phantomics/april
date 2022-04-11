@@ -56,6 +56,10 @@
 
 (defvar *rng-names* #(:linear-congruence :mersenne-twister-64 :system))
 
+(defmacro series (&rest content)
+  "This macro aliases (progn) - it is a solution for macros like (iterate) that chew up (progns) found in April's generated code."
+  (cons 'progn content))
+
 (defun system-command-exists (command-string &optional prefix)
   "Check for the existence of a shell command under the host operating system."
   (if (not prefix) (setq prefix ""))
@@ -631,7 +635,7 @@
                                 (let ((args (gensym))
                                       (other-space (concatenate 'string "APRIL-WORKSPACE-"
                                                                 (first (last value)))))
-                                  `(progn
+                                  `(series
                                      (proclaim '(special ,symbol))
                                      (setf (symbol-function ',symbol)
                                            (lambda (&rest ,args)
@@ -760,12 +764,12 @@
                                                           n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ,(if print-to (let ((string-output `(progn (write-string ,printout ,print-to))))
-                       `(progn (if (arrayp ,result)
-                                   ,string-output (concatenate 'string ,string-output (list #\Newline)))
-                               ,@(if with-newline
-                                     `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
-                                           (write-char #\Newline ,print-to)))))))
+       ,(if print-to (let ((string-output `(series (write-string ,printout ,print-to))))
+                       `(series (if (arrayp ,result)
+                                    ,string-output (concatenate 'string ,string-output (list #\Newline)))
+                                ,@(if with-newline
+                                      `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
+                                            (write-char #\Newline ,print-to)))))))
        ,(if output-printed (if (eq :only output-printed) printout `(values ,result ,printout))
             result))))
 
@@ -950,7 +954,7 @@
                       (cons (loop :for axis :in (cdar tokens)
                                :collect (if (= 1 (length axis))
                                             (process-axis axis)
-                                            (cons 'progn (mapcar #'process-axis axis))))
+                                            (cons 'series (mapcar #'process-axis axis))))
                             axes))
         (values axes (first tokens)
                 (rest tokens)))))
@@ -1413,7 +1417,7 @@ It remains here as a standard against which to compare methods for composing APL
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (progn) forms used to implement function variant implicit statements
-        (cons 'progn form)
+        (cons 'series form)
         (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      ;; the latter case wraps a user-defined operator
                      #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
@@ -1504,7 +1508,7 @@ It remains here as a standard against which to compare methods for composing APL
                                 exps `((tagbody ,@(butlast (process-tags exps) 1))
                                        ,(first (last exps)))))))
                    (if (< 1 (length exps))
-                       (cons 'progn exps) (first exps)))))))
+                       (cons 'series exps) (first exps)))))))
 
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."

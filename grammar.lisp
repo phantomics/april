@@ -314,7 +314,7 @@
   (loop :for element :in elements
         :collect (let ((item-out (compile-form element :space space :params params)))
                    (if (= 1 (length element))
-                       (first item-out) (cons 'progn item-out)))))
+                       (first item-out) (cons 'series item-out)))))
 
 (defun set-namespace-point (path space params)
   "Set the namespace point to be used by the compiler; this point is prepended to all symbols or namespace segments."
@@ -1074,27 +1074,27 @@
                                          (setf selection-axes (third (third form)))
                                          (setf (third form) item)))))))
              (set-assn-sym selection-form)
-             `(progn (a-set ,assign-sym
-                            (assign-by-selection
-                             ,(if (or (symbolp prime-function)
-                                      (and (listp prime-function)
-                                           (member (first prime-function) '(inws apl-fn function))))
-                                  ;; TODO: make this work with an aliased ¨ operator
-                                  prime-function
-                                  (if (eql 'a-comp (first prime-function))
-                                      (if (string= "¨" (string (second prime-function)))
-                                          (fourth prime-function)
-                                          (error "Invalid operator-composed expression ~a"
-                                                 "used for selective assignment."))))
-                             (lambda (,item) ,selection-form)
-                             ,value ,assign-sym
-                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
-                                             ',assign-sym)
-                             ,@(if selection-axes (list :axes selection-axes))
-                             ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                                                                    (second (third selection-form))))
-                             ,@(if function (list :by function))))
-                     ,value))))
+             `(series (a-set ,assign-sym
+                             (assign-by-selection
+                              ,(if (or (symbolp prime-function)
+                                       (and (listp prime-function)
+                                            (member (first prime-function) '(inws apl-fn function))))
+                                   ;; TODO: make this work with an aliased ¨ operator
+                                   prime-function
+                                   (if (eql 'a-comp (first prime-function))
+                                       (if (string= "¨" (string (second prime-function)))
+                                           (fourth prime-function)
+                                           (error "Invalid operator-composed expression ~a"
+                                                  "used for selective assignment."))))
+                              (lambda (,item) ,selection-form)
+                              ,value ,assign-sym
+                              :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
+                                              ',assign-sym)
+                              ,@(if selection-axes (list :axes selection-axes))
+                              ,@(if possible-prime-passthrough (list :secondary-prime-fn
+                                                                     (second (third selection-form))))
+                              ,@(if function (list :by function))))
+                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
                                 (second symbol) (if (and (listp symbol) (eql 'avec (first symbol)))
@@ -1198,8 +1198,8 @@
             ;; handle the case of function assignment within a namespace like a.bc←{⍵+1}
             (let ((path-symbol (intern (format-nspath (rest symbol)) space)))
               (setf (symbol-function path-symbol) #'dummy-nargument-function)
-              `(progn (a-set ,symbol :function)
-                      (setf (symbol-function ',path-symbol) ,function)))))))
+              `(series (a-set ,symbol :function)
+                       (setf (symbol-function ',path-symbol) ,function)))))))
 
 (defun compose-function-lateral (operator function value axes)
   "Compose a function using a lateral operator like [/ reduce]."
