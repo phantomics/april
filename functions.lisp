@@ -1274,7 +1274,8 @@
   (lambda (omega &optional alpha)
     (let* ((odims (dims omega)) (adims (dims alpha))
            (orank (rank omega)) (arank (rank alpha))
-           (fn-meta (funcall function :get-metadata))
+           (fn-meta (funcall function :get-metadata alpha))
+           ;; if alpha is nil the monadic metadata will be fetched, otherwise the dyadic data will be
            (rank (if (not (arrayp rank))
                      (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
                          (make-array 3 :initial-contents (list (max 0 (+ rank orank))
