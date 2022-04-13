@@ -156,36 +156,35 @@
                           (not (getf properties :glyph)))
                      (if (eq :pass (second this-item))
                          ;; handle a (:fn)-enclosed operator form produced by build-value
-                         fn
-                         (let* ((polyadic-args (if (and (listp (first (last (first fn))))
-                                                        (eq :ax (caar (last (first fn)))))
-                                                   (mapcar #'caar (cdar (last (first fn))))))
-                                (fn (if (not polyadic-args)
-                                        fn (cons (butlast (first fn) 1)
-                                                 (rest fn))))
-                                (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇)
-                                                           (getf (cdadr this-item) :arg-syms)))
-                                (this-closure-meta (second this-item))
-                                (is-inline-operator (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇))))
-                           (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
-                               (error "A defined operator may not include both [⍶ left value] and~a"
-                                      " [⍺⍺ left function] operands."))
-                           (if (= 2 (length (intersection arg-symbols '(⍹ ⍵⍵))))
-                               (error "A defined operator may not include both [⍹ right value] and~a"
-                                      " [⍵⍵ right function] operands."))
-                           (if current-path (setf (getf (rest this-closure-meta) :ns-point)
-                                                  current-path))
-                           ;; if this is an inline operator, pass just that keyword back
-                           (if is-inline-operator :is-inline-operator
-                               (progn
-                                 (setf (getf (rest this-closure-meta) :var-syms)
-                                       (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
-                                 (output-function
-                                  (compile-form
-                                   fn :space space
+                         fn (let* ((polyadic-args (if (and (listp (first (last (first fn))))
+                                                           (eq :ax (caar (last (first fn)))))
+                                                      (mapcar #'caar (cdar (last (first fn))))))
+                                   (fn (if (not polyadic-args)
+                                           fn (cons (butlast (first fn) 1)
+                                                    (rest fn))))
+                                   (arg-symbols (intersection '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇)
+                                                              (getf (cdadr this-item) :arg-syms)))
+                                   (this-closure-meta (second this-item))
+                                   (is-inline-operator (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵ ∇∇))))
+                              (if (= 2 (length (intersection arg-symbols '(⍶ ⍺⍺))))
+                                  (error "A defined operator may not include both [⍶ left value] and~a"
+                                         " [⍺⍺ left function] operands."))
+                              (if (= 2 (length (intersection arg-symbols '(⍹ ⍵⍵))))
+                                  (error "A defined operator may not include both [⍹ right value] and~a"
+                                         " [⍵⍵ right function] operands."))
+                              (if current-path (setf (getf (rest this-closure-meta) :ns-point)
+                                                     current-path))
+                              ;; if this is an inline operator, pass just that keyword back
+                              (if is-inline-operator :is-inline-operator
+                                  (progn
+                                    (setf (getf (rest this-closure-meta) :var-syms)
+                                          (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
+                                    (output-function
+                                     (compile-form
+                                      fn :space space
                                       :params (list :special (list :closure-meta (second this-item))
                                                     :call-scope (getf properties :call-scope)))
-                                  polyadic-args (rest this-closure-meta)))))))))
+                                     polyadic-args (rest this-closure-meta)))))))))
             (if (eq :pt (first this-item))
                 (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                                :ns-point)
@@ -418,7 +417,8 @@
                              ;; if no elements are present proceed as if this expression is not
                              ;; to the left of a function/operand, as for (×∘10)⍣¯1⊢100
                              (let ((passed (build-function first-value :params params :space space
-                                                           :axes axes :initial t)))
+                                                                       :axes axes :initial t)))
+                               (reg-symfn-call passed space (getf (getf params :special) :closure-meta))
                                (if passed
                                    (if elements
                                        (multiple-value-bind (lval remaining remaining-axes raxes-last)
@@ -492,6 +492,9 @@
                                                                                        (first function))))
                                                                         function `(function ,function))
                                                                    ,preceding))))
+                                             (reg-symfn-call left-fn space
+                                                             (getf (getf params :special)
+                                                                   :closure-meta))
                                              (if (not remaining) value
                                                  (build-value remaining :elements (list value)
                                                                         :axes remaining-axes
@@ -511,7 +514,14 @@
                                                                                          (first function))))
                                                                           function `(function ,function))
                                                                      ,preceding
-                                                                     ,@(if lval (list lval)))))
+                                                                     ,@(if lval (list lval))))
+                                                     (fn-meta (if (and (listp function)
+                                                                       (eql 'alambda (first function)))
+                                                                  (rest (second (third function))))))
+                                                 ;; (print (list :ffm fn-meta))
+                                                 (reg-symfn-call function space
+                                                                 (getf (getf params :special)
+                                                                       :closure-meta))
                                                  (if (and (listp function)
                                                           (eql 'change-namespace (second function)))
                                                      (set-namespace-point preceding space params))
@@ -552,6 +562,8 @@
                                                               (if (symbolp (first tokens))
                                                                   `(a-call #',first-fn ,@(first axes))
                                                                   `(a-call ,first-fn ,@(first axes))))))
+                                            (reg-symfn-call first-fn space (getf (getf params :special)
+                                                                                 :closure-meta))
                                             (if fn-form (build-value (rest tokens)
                                                                      :elements (cons fn-form elements)
                                                                      :space space :params params)
@@ -618,9 +630,9 @@
                                         (eq :fn (caar left-val)) (eq :pass (cadar left-val)))
                                    (values
                                     (compose-function-train
-                                     sub-function (build-function
-                                                   (list left-val)
-                                                   :space space :initial initial :params params))
+                                     space sub-function
+                                     (build-function (list left-val)
+                                                     :space space :initial initial :params params))
                                     (rest tokens))
                                    (error "Value to left of function statement."))
                                (build-function remaining :found-function sub-function
@@ -773,11 +785,11 @@
                                             (if second-value second-val-remaining remaining)))
                                     :found-function
                                     (if (or second-function second-value second-val-fn)
-                                        (compose-function-train found-function first-function
+                                        (compose-function-train space found-function first-function
                                                                 (or second-function
                                                                     (if (not second-value) second-val-fn))
                                                                 second-value)
-                                        (compose-function-train found-function first-function))
+                                        (compose-function-train space found-function first-function))
                                     :initial initial :space space :params params)
                                    (values found-function tokens))))))
                        (values found-function tokens))))))))
@@ -1015,6 +1027,8 @@
   "Compose a value assignment like v←1 2 3."
   (cond ((eql 'to-output symbol)
          ;; a special case to handle ⎕← quad output
+         (reg-side-effect :print (getf (getf params :special) :closure-meta))
+         ;; register a side effect for printing
          `(a-out ,value :print-precision print-precision
                         :print-to output-stream :print-assignment t :with-newline t))
         ((eql 'output-stream symbol)
@@ -1158,7 +1172,11 @@
                               (if (listp syms) ;; handle namespace paths
                                   `(a-set ,symbol ,value :by (lambda (item item2)
                                                                (a-call ,function item item2)))
+                                  ;; handle assignment by function as with a+←10;
+                                  ;; note that this reassigns the variable at its top scope level
                                   (let ((assigned (gensym)))
+                                    (reg-side-effect (list :assign-dynamic (intern (string syms) space))
+                                                     (getf (getf params :special) :closure-meta))
                                     `(let ((,assigned (a-call ,function ,value ,symbol)))
                                        (if (boundp (quote (inwsd ,(intern (string syms)))))
                                            (setf (symbol-value (quote (inwsd ,(intern (string syms)))))
@@ -1177,7 +1195,7 @@
                    (not (member symbol '(⍺ ⍺⍺)))) ;; don't bind assignments to argument symbols
               (setf (symbol-function i-sym) #'dummy-nargument-function))
           (if (and (listp function) (symbolp symbol)
-                   (member (first function) '(lambda a-comp))
+                   (member (first function) '(alambda a-comp))
                    (member symbol (getf (rest (getf (getf params :special) :closure-meta)) :var-syms)))
               ;; for function assignments that aren't apparent to the lexer postprocessor like
               ;; fn←×∘3, it's necessary to remove their references as variables in the closure
@@ -1190,6 +1208,7 @@
                               (not (member symbol (getf (rest (getf (getf params :special) :closure-meta))
                                                         :fn-syms))))
                          (push symbol (getf (rest (getf (getf params :special) :closure-meta)) :fn-syms)))))
+          (reg-symfn-call function space (getf (getf params :special) :closure-meta))
           `(a-set ,(if (eql '⍺ symbol) ;; handle the ⍺←function case
                        symbol (if in-closure `(inws ,symbol)                    
                                   `(symbol-function '(inwsd ,symbol))))
@@ -1206,9 +1225,7 @@
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
               (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator) *package-name-string*))
-                       (or function value)
-                       ;; `(list ,@(first axes))
-                       )
+                       (or function value))
               (if axes (list :axis (cons 'list (first axes)))))
       `(a-comp :op ,@(if axes `(:axis (list ,@(first axes))))
                ,(if (or (not (symbolp operator))
@@ -1226,16 +1243,24 @@
                         operator `(inws ,operator))
                ,(or function2 value2) ,function1)))
 
-(defun compose-function-train (right center &optional left left-value)
+(defun compose-function-train (space right center &optional left left-value)
   "Compose a function train like (-,÷)."
-  (let ((omega (gensym)) (alpha (gensym))
+  (let ((omega (gensym)) (alpha (gensym)) (train-meta (list :meta))
         (right (if (not (and (listp right) (eql 'inwsd (first right))))
                    right `(function ,right)))
         (center (if (not (and (listp center) (eql 'inwsd (first center))))
                     center `(function ,center)))
         (left (if (not (and (listp left) (eql 'inwsd (first left))))
                   left `(function ,left))))
-    `(lambda (,omega &optional ,alpha)
+    (reg-symfn-call right space train-meta)
+    (reg-symfn-call center space train-meta)
+    (reg-symfn-call left space train-meta)
+    ;; (print (list :tt train-meta right center left))
+    `(alambda (,omega &optional ,alpha)
+         (with (:meta :side-effects ',(getf (rest train-meta) :side-effects)
+                      ,@(if (getf (rest train-meta) :symfns-called)
+                            (list :symfns-called
+                                  (list 'quote (getf (rest train-meta) :symfns-called))))))
        (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
                           ,@(if left-value (list left-value)
                                 (if left `((a-call ,left ,omega ,alpha)))))

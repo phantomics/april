@@ -58,7 +58,7 @@
 
 (defmacro series (&rest content)
   "This macro aliases (progn) - it is a solution for macros like (iterate) that chew up (progns) found in April's generated code."
-  (cons 'progn content))
+  `(let () ,@content))
 
 (defun system-command-exists (command-string &optional prefix)
   "Check for the existence of a shell command under the host operating system."
@@ -264,6 +264,39 @@
   "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
   (or (and (getf meta-form key) (member symbol (getf meta-form key) :test #'eql))
       (and (getf meta-form :parent) (of-meta-hierarchy (rest (getf meta-form :parent)) key symbol))))
+
+(defun reg-side-effect (item meta-form)
+  "Add a reference to a side effect to a closure metadata object."
+  (if meta-form (push item (getf (rest meta-form) :side-effects))))
+
+(defun reg-symfn-call (function space meta-form)
+  "Add a reference to a call to a symbolic function to a closure metadata object."
+  (if (and meta-form function (listp function))
+      (if (and (member (first function) '(inws inwsd))
+               (not (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
+          (push (intern (string (second function)) space)
+                (getf (rest meta-form) :symfns-called))
+          (if (eql 'alambda (first function))
+              (let ((fn-meta (rest (second (third function)))))
+                (loop :for sf :in (second (getf fn-meta :symfns-called))
+                      :do (push sf (getf (rest meta-form) :symfns-called)))
+                (loop :for se :in (second (getf fn-meta :side-effects))
+                      :do (reg-side-effect se meta-form)))
+              (if (eql 'a-comp (first function))
+                  (progn (reg-symfn-call (fourth function) space meta-form)
+                         (reg-symfn-call (fifth function) space meta-form)))))))
+
+(defun side-effect-free (function)
+  "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
+  (let ((fn-meta (handler-case (funcall function :get-metadata)
+                   (error () nil))))
+    (and fn-meta (or (member :side-effects fn-meta)
+                     (member :lexical-reference fn-meta))
+         (not (getf fn-meta :side-effects))
+         (or (not (getf fn-meta :symfns-called))
+             (loop :for fn :in (getf fn-meta :symfns-called)
+                   :always (or (not (fboundp fn))
+                               (side-effect-free (symbol-function fn))))))))
 
 (defmacro is-workspace-value (item)
   "Checks if a variable is present in the current workspace as a value."
@@ -1416,18 +1449,18 @@ It remains here as a standard against which to compare methods for composing APL
                                      :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (if (getf closure-meta :variant-niladic)
-        ;; produce the plain (progn) forms used to implement function variant implicit statements
+        ;; produce the plain (series) forms used to implement function variant implicit statements
         (cons 'series form)
         (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      ;; the latter case wraps a user-defined operator
                      #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                          &optional ,(if (member '⍹ arg-symbols) '⍹
-                                                                         (if (member '⍵⍵ arg-symbols)
-                                                                             '⍵⍵ '_)))
+                                                          &optional ,(if (member '⍹ arg-symbols)
+                                                                         '⍹ (if (member '⍵⍵ arg-symbols)
+                                                                                '⍵⍵ '_)))
                                                   (declare (ignorable ,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                                      ,(if (member '⍹ arg-symbols) '⍹
-                                                                           (if (member '⍵⍵ arg-symbols)
-                                                                               '⍵⍵ '_))))
+                                                                      ,(if (member '⍹ arg-symbols)
+                                                                           '⍹ (if (member '⍵⍵ arg-symbols)
+                                                                                  '⍵⍵ '_))))
                                                   ,form)))
                  `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
                       (with (:meta :inverse (alambda ,(if arguments arguments `(⍵ &optional ⍺)) (with nil)
@@ -1436,7 +1469,11 @@ It remains here as a standard against which to compare methods for composing APL
                                                        (invert-function (first form))
                                                        '(error "This function cannot be inverted."))
                                                    '(error "This function cannot be inverted as it ~a"
-                                                     "contains more than one statement.")))))
+                                                     "contains more than one statement.")))
+                                   :side-effects ',(getf closure-meta :side-effects)
+                                   ,@(if (getf closure-meta :symfns-called)
+                                         (list :symfns-called
+                                               (list 'quote (getf closure-meta :symfns-called))))))
                     ,@(if (not (or context-vars context-fns context-ops
                                    assigned-vars assigned-fns assigned-ops))
                           form `((f-lex ,(list (append context-vars context-fns context-ops)
@@ -1898,11 +1935,11 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((assignment-forms) (symbol-set)
         (fn-count 0) (op-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
-                        :functions-scalar-monadic nil :functions-scalar-dyadic nil
-                        :operators nil :operators-lateral nil :operators-pivotal nil
-                        :operators-unitary nil :statements nil)))
-    (flet ((wrap-meta (type form metadata &optional is-not-ambivalent)
-             (if (not metadata) form
+                        :functions-scalar-monadic nil :functions-scalar-dyadic nil :operators-lateral nil
+                        :operators-pivotal nil :operators-unitary nil :statements nil)))
+    (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
+             (if (not metadata)
+                 `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
                  (if (and (listp form) (eql 'scalar-function (first form)))
                      (funcall (if (not (and is-not-ambivalent (eql 'scalar-function (first form))))
                                   ;; enclose non-ambivalent scalar functions in an (a-call)
@@ -1911,8 +1948,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                `(lambda (&rest ,args)
                                                   (a-call ,fn-form (first ,args)
                                                           ,@(if (eq :dyadic type) `((second ,args)))))))
-                              (append form metadata (list :valence type)))
-                     `(fn-meta ,form ,@metadata))))
+                              (append form metadata (list :valence type :lexical-reference glyph)))
+                     `(fn-meta ,form ,@metadata ,@(list :valence type :lexical-reference glyph)))))
            (wrap-implicit (implicit-args optional-implicit-args primary-meta form)
              (let ((axis-arg (getf primary-meta :axes)))
                (if (not (or implicit-args optional-implicit-args axis-arg))
@@ -1968,7 +2005,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  optional-implicit-args
                                                                  primary-metadata form))
                                                 `(plain-ref
-                                                  ,(wrap-meta :monadic (second implementation)
+                                                  ,(wrap-meta glyph-char :monadic (second implementation)
                                                               (rest (assoc 'monadic spec-meta)) t)
                                                   ,(getf primary-metadata :axes))))
                                          assignment-forms))
@@ -1983,7 +2020,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  optional-implicit-args
                                                                  primary-metadata form))
                                                 `(plain-ref
-                                                  ,(wrap-meta :dyadic (second implementation)
+                                                  ,(wrap-meta glyph-char :dyadic (second implementation)
                                                               (rest (assoc 'dyadic spec-meta)) t)
                                                   ,(getf primary-metadata :axes))))
                                          assignment-forms))
@@ -2000,9 +2037,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  optional-implicit-args
                                                                  primary-metadata form))
                                                 `(amb-ref ,(wrap-meta
-                                                            :ambivalent (second implementation)
+                                                            glyph-char :ambivalent (second implementation)
                                                             (rest (assoc 'monadic spec-meta)))
-                                                          ,(wrap-meta :ambivalent (third implementation)
+                                                          ,(wrap-meta glyph-char :ambivalent
+                                                                      (third implementation)
                                                                       (rest (assoc 'dyadic spec-meta)))
                                                           ,(getf primary-metadata :axes))))
                                          assignment-forms))

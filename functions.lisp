@@ -741,7 +741,7 @@
 (defun matrix-divide (omega alpha)
   "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
   (array-inner-product (invert-matrix omega) alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-                       #'+))
+                       #'+ t))
 
 (defun encode (omega alpha &optional inverse)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
@@ -845,9 +845,9 @@
                                                                      (aref in-matrix i))))
     (let ((result (array-inner-product (invert-matrix (array-inner-product (or input-displaced
                                                                                (aops:permute '(1 0) input))
-                                                                           input #'* #'+))
+                                                                           input #'* #'+ t))
                                        (or input-displaced (aops:permute '(1 0) input))
-                                       #'* #'+)))
+                                       #'* #'+ t)))
       (if (= 1 (rank in-matrix))
           (make-array (size result) :element-type (element-type result) :displaced-to result)
           result))))
@@ -1040,6 +1040,7 @@
                   (or (and identity (if (functionp identity) (funcall identity) identity))
                       (error "The operand of [/ reduce] has no identity value."))))
             (reduce-array omega function (if (first axis) (- (first axis) index-origin))
+                          (side-effect-free function)
                           last-axis alpha)))))
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
@@ -1224,7 +1225,9 @@
                 (error "Left operand given to [. inner product] has no identity.")))
         (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
                            (error () nil))))
-          (array-inner-product omega alpha right left (not is-scalar))))))
+          (array-inner-product omega alpha right left (and (side-effect-free right)
+                                                           (side-effect-free left))
+                               (not is-scalar))))))
 
 (defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."

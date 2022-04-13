@@ -25,15 +25,20 @@
                                 (eql 'unsigned-byte (first type))
                                 (> 7 (second type)))))))
 
-(defmacro xdotimes (object clause &body body)
+(defmacro xdotimes (object clause-params &body body)
   "Macro to perform array operations in parallel provisioning threads according to the type of array being assigned to."
-  (let ((asym (gensym)) (eltype (gensym)) (free-threads (gensym))
-        (iterations (gensym)) (dividend (gensym)) (remainder (gensym))
-        (x (gensym)) (y (gensym)))
+  (let ((asym (gensym)) (eltype (gensym)) (free-threads (gensym)) (iterations (gensym))
+        (dividend (gensym)) (remainder (gensym)) (x (gensym)) (y (gensym))
+        (clause (subseq clause-params 0 2))
+        (params (cddr clause-params)))
     `(let* ((,asym ,object)
             (,eltype (element-type ,asym))
             (,free-threads (get-free-threads)))
        (if (or (not lparallel:*kernel*)
+               ;; implement explicit condition to determine whether operation
+               ;; should be run synchronously
+               ,@(if (getf params :synchronous-if)
+                     (list (getf params :synchronous-if)))
                (zerop ,free-threads))
            (dotimes ,clause ,@body)
            (if (sub-7-bit-integer-elements-p ,asym)
@@ -42,6 +47,8 @@
                ;; per thread; this prevents assignment collisions
                (let ((,iterations (if (eq 'bit ,eltype)
                                       *sub-7-bit-element-processing-register-size*
+                                      ;; Clasp uses symbols to indicate integer types rather
+                                      ;; than lists like (unsigned-byte 8)
                                       #+clasp (/ *sub-7-bit-element-processing-register-size*
                                                  (case ,eltype ('ext:byte2 2) ('ext:integer2 2)
                                                        ('ext:byte4 4) ('ext:integer4 4)
@@ -1138,7 +1145,7 @@
          (* (gamma (+ 1 k))
             (gamma (- n k -1))))))
 
-(defun reduce-array (input function axis &optional last-axis window)
+(defun reduce-array (input function axis threaded &optional last-axis window)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
   (if (zerop (rank input))
       input (let* ((odims (dims input))
@@ -1158,6 +1165,7 @@
                     (setf (row-major-aref output i)
                           (row-major-aref input i)))
                   (dotimes (i (size output)) ;; xdo
+                  ;; (xdotimes output (i (size output) :synchronous-if (not threaded)) ;; xdo
                     (declare (optimize (safety 1)))
                     (let ((value))
                       (flet ((process-item (ix)
@@ -1180,7 +1188,7 @@
                             (not (arrayp (aref output)))))
                   output (disclose output)))))
 
-(defun array-inner-product (alpha omega function1 function2 &optional function1-nonscalar)
+(defun array-inner-product (alpha omega function1 function2 threaded &optional function1-nonscalar)
   "Find the inner product of two arrays with two functions."
   (let* ((adims (dims alpha)) (odims (dims omega)) (arank (rank alpha)) (orank (rank omega))
          (asegment (first (last adims)))
@@ -1193,6 +1201,7 @@
          (output (make-array (append (butlast adims) (rest odims)))))
     ;; TODO: can't parallelize yet
     (dotimes (x (size output)) ;; xdo
+    ;; (xdotimes output (x (size output) :synchronous-if (not threaded))
       (let* ((avix (floor x ovectors))
              (ovix (mod x ovectors))
              (adisp (if adims (make-array asegment :displaced-to alpha :element-type (element-type alpha)
@@ -1202,8 +1211,8 @@
         (setf (row-major-aref output x)
               (if (= 0 arank orank) (funcall function1 omega alpha)
                   (disclose (reduce-array (apply-scalar function1 (or oholder omega) (or adisp alpha)
-                                              nil nil function1-nonscalar)
-                                function2 0))))))
+                                                        nil nil function1-nonscalar)
+                                function2 0 nil)))))) ;;TODO: currently the reduce-array is always singlethreaded
     (if (not (and (zerop (rank output))
                   (zerop (rank (aref output)))))
         output (disclose output))))
