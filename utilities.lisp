@@ -56,7 +56,7 @@
 
 (defvar *rng-names* #(:linear-congruence :mersenne-twister-64 :system))
 
-(defmacro series (&rest content)
+(defmacro aprgn (&rest content)
   "This macro aliases (progn) - it is a solution for macros like (iterate) that chew up (progns) found in April's generated code."
   `(let () ,@content))
 
@@ -668,7 +668,7 @@
                                 (let ((args (gensym))
                                       (other-space (concatenate 'string "APRIL-WORKSPACE-"
                                                                 (first (last value)))))
-                                  `(series
+                                  `(aprgn
                                      (proclaim '(special ,symbol))
                                      (setf (symbol-function ',symbol)
                                            (lambda (&rest ,args)
@@ -797,8 +797,8 @@
                                                           n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ,(if print-to (let ((string-output `(series (write-string ,printout ,print-to))))
-                       `(series (if (arrayp ,result)
+       ,(if print-to (let ((string-output `(aprgn (write-string ,printout ,print-to))))
+                       `(aprgn (if (arrayp ,result)
                                     ,string-output (concatenate 'string ,string-output (list #\Newline)))
                                 ,@(if with-newline
                                       `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
@@ -987,7 +987,7 @@
                       (cons (loop :for axis :in (cdar tokens)
                                :collect (if (= 1 (length axis))
                                             (process-axis axis)
-                                            (cons 'series (mapcar #'process-axis axis))))
+                                            (cons 'aprgn (mapcar #'process-axis axis))))
                             axes))
         (values axes (first tokens)
                 (rest tokens)))))
@@ -1449,8 +1449,8 @@ It remains here as a standard against which to compare methods for composing APL
                                      :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     (if (getf closure-meta :variant-niladic)
-        ;; produce the plain (series) forms used to implement function variant implicit statements
-        (cons 'series form)
+        ;; produce the plain (aprgn) forms used to implement function variant implicit statements
+        (cons 'aprgn form)
         (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
                      ;; the latter case wraps a user-defined operator
                      #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
@@ -1545,7 +1545,7 @@ It remains here as a standard against which to compare methods for composing APL
                                 exps `((tagbody ,@(butlast (process-tags exps) 1))
                                        ,(first (last exps)))))))
                    (if (< 1 (length exps))
-                       (cons 'series exps) (first exps)))))))
+                       (cons 'aprgn exps) (first exps)))))))
 
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
