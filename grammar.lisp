@@ -1255,7 +1255,6 @@
     (reg-symfn-call right space train-meta)
     (reg-symfn-call center space train-meta)
     (reg-symfn-call left space train-meta)
-    ;; (print (list :tt train-meta right center left))
     `(alambda (,omega &optional ,alpha)
          (with (:meta :side-effects ',(getf (rest train-meta) :side-effects)
                       ,@(if (getf (rest train-meta) :symfns-called)

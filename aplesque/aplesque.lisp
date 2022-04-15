@@ -1165,7 +1165,7 @@
                     (setf (row-major-aref output i)
                           (row-major-aref input i)))
                   (dotimes (i (size output)) ;; xdo
-                  ;; (xdotimes output (i (size output) :synchronous-if (not threaded)) ;; xdo
+                  ;;(xdotimes output (i (size output) :synchronous-if (not threaded)) ;; xdo
                     (declare (optimize (safety 1)))
                     (let ((value))
                       (flet ((process-item (ix)

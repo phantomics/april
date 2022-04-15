@@ -9,7 +9,7 @@
   (:use #:cl)
   (:shadowing-import-from #:maxpc #:parse #:=destructure #:=transform #:=list #:=element #:=subseq
                           #:?satisfies #:?eq #:?seq #:?test #:%any #:%some #:%or #:%and)
-  (:shadowing-import-from #:cl-ppcre #:split)
+  (:shadowing-import-from #:cl-ppcre #:split #:regex-replace-all)
   (:shadowing-import-from #:symbol-munger #:lisp->camel-case)
   (:shadowing-import-from #:prove #:plan #:is #:finalize))
 

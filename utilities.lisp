@@ -156,14 +156,17 @@
 
 (defmacro run-lib-tests ()
   "Run the tests for each April library package."
-  (cons 'progn
-        (loop :for package-symbol :in *library-packages*
-              :append (if (asdf:registered-system package-symbol)
-                          (let ((run-function-symbol (intern "RUN-TESTS" (string-upcase package-symbol))))
-                            (if (fboundp run-function-symbol)
-                                (list (list run-function-symbol))))
-                          (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
-                                   package-symbol)))))
+  `(if (loop :for i :in (list ,@(loop :for package-symbol :in *library-packages*
+                                      :append (if (asdf:registered-system package-symbol)
+                                                  (let ((run-function-symbol
+                                                          (intern "RUN-TESTS"
+                                                                  (string-upcase package-symbol))))
+                                                    (if (fboundp run-function-symbol)
+                                                        (list (list run-function-symbol))))
+                                                  (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+                                                          package-symbol))))
+             :always i)
+       "All tests passed." "Some tests failed."))
 
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
@@ -2081,7 +2084,7 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro specify-demo (title params &rest sections)
   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
-  (let ((params (rest params)))
+  (let ((params (rest params)) (tests-passed (gensym)))
     `(defmacro ,(intern "RUN-TESTS" (package-name *package*)) ()
        '(progn (format t "~a ｢~a｣" ,title ,(package-name *package*))
          (princ #\Newline)
@@ -2101,9 +2104,10 @@ It remains here as a standard against which to compare methods for composing APL
                    (plan ,test-count)
                    (with-april-context ((:space ,(getf params :space)))
                      ,@items)
-                   (finalize)
+                   (setq ,tests-passed (finalize))
                    (setq prove:*enable-colors* t)
-                   (format t "~%~%"))))))))
+                   (format t "~%~%")
+                   ,tests-passed)))))))
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
