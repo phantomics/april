@@ -57,17 +57,18 @@
                             (teimgs (get-test-data)) (telabs (get-test-labels)))))
          "
 {
+⎕←3 3 3
 epochs    ← 10
 batchSize ← 1
 trainings ← 5 ⍝ 1000
-tests     ← 10000
+tests     ← 5 ⍝ 10000
 rate      ← 0.05
-k1        ← 6 5 5⍴÷25
-b1        ← 6⍴÷6
-k2        ← 12 6 5 5⍴÷150
-b2        ← 12⍴÷12
-fc        ← 10 12 1 4 4⍴÷192
-b         ← 10⍴÷10
+k1        ← 6 5 5⍴÷25.0
+b1        ← 6⍴÷6.0
+k2        ← 12 6 5 5⍴÷150.0
+b2        ← 12⍴÷12.0
+fc        ← 10 12 1 4 4⍴÷192.0
+b         ← 10⍴÷10.0
 index     ← 1
 startTime ← timeFactors⊥¯4↑⎕ts
 

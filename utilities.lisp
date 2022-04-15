@@ -154,19 +154,27 @@
   "Load the April library packages."
   (loop :for package-symbol :in *library-packages* :do (asdf:load-system package-symbol)))
 
+;; creating (let) bindings in the macro below causes problems, so these dynamic vars are used
+(defvar *lib-tests-run*)
+(defvar *lib-tests-failed*)
+
 (defmacro run-lib-tests ()
   "Run the tests for each April library package."
-  `(if (loop :for i :in (list ,@(loop :for package-symbol :in *library-packages*
-                                      :append (if (asdf:registered-system package-symbol)
-                                                  (let ((run-function-symbol
-                                                          (intern "RUN-TESTS"
-                                                                  (string-upcase package-symbol))))
-                                                    (if (fboundp run-function-symbol)
-                                                        (list (list run-function-symbol))))
-                                                  (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
-                                                          package-symbol))))
-             :always i)
-       "All tests passed." "Some tests failed."))
+  `(progn (setf *lib-tests-run* (setf *lib-tests-failed* 0))
+          ,@(loop :for package-symbol :in *library-packages*
+                  :append (if (asdf:registered-system package-symbol)
+                              (let ((run-function-symbol
+                                      (intern "RUN-TESTS"
+                                              (string-upcase package-symbol))))
+                                (if (fboundp run-function-symbol)
+                                    `((,run-function-symbol)
+                                      (incf *lib-tests-run*
+                                            (getf prove.suite::*last-suite-report* :plan))
+                                      (incf *lib-tests-failed*
+                                            (getf prove.suite::*last-suite-report* :failed)))))
+                              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+                                      package-symbol)))
+          (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
@@ -296,6 +304,7 @@
     (and fn-meta (or (member :side-effects fn-meta)
                      (member :lexical-reference fn-meta))
          (not (getf fn-meta :side-effects))
+         (not (getf fn-meta :side-refs))
          (or (not (getf fn-meta :symfns-called))
              (loop :for fn :in (getf fn-meta :symfns-called)
                    :always (or (not (fboundp fn))
@@ -1418,6 +1427,7 @@ It remains here as a standard against which to compare methods for composing APL
 (defun output-function (form &optional arguments closure-meta)
   "Express an APL inline function like {⍵+5}."
   (let ((arg-symbols (getf closure-meta :arg-syms))
+        (side-refs)
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
                              :when (not (or (member sym '(⍺ nil))
                                             (member sym arguments)))
@@ -1451,6 +1461,19 @@ It remains here as a standard against which to compare methods for composing APL
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
         (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+    ;; lexical variable references inside a function are registered as side effects _unless_ there
+    ;; is a lexical assignment of the variable within the function; this is because lexical
+    ;; references to an outer scope are incompatible with multithreading
+    (loop :for (key value) :on *system-variables* :by #'cddr
+          :do (if (and (not (member value (getf closure-meta :var-syms)))
+                       (of-meta-hierarchy closure-meta :var-syms value))
+                  (push (list :dyn-mask value) side-refs)))
+    (loop :for vr :in (getf closure-meta :var-refs)
+          :do (if (member vr *system-variables*)
+                  (push (list :dyn-mask vr) side-refs)
+                  (if (and (not (member vr (getf closure-meta :var-syms)))
+                           (of-meta-hierarchy closure-meta :var-syms vr))
+                      (push (list :lex-ref vr) side-refs))))
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (aprgn) forms used to implement function variant implicit statements
         (cons 'aprgn form)
@@ -1474,6 +1497,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                    '(error "This function cannot be inverted as it ~a"
                                                      "contains more than one statement.")))
                                    :side-effects ',(getf closure-meta :side-effects)
+                                   :side-refs ',side-refs
                                    ,@(if (getf closure-meta :symfns-called)
                                          (list :symfns-called
                                                (list 'quote (getf closure-meta :symfns-called))))))

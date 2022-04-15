@@ -1145,105 +1145,6 @@
          (* (gamma (+ 1 k))
             (gamma (- n k -1))))))
 
-(defun reduce-array (input function axis threaded &optional last-axis window)
-  "Reduce an array along by a given function along a given dimension, optionally with a window interval."
-  (if (zerop (rank input))
-      input (let* ((odims (dims input))
-                   (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank input))))))
-                   (rlen (nth axis odims))
-                   (increment (reduce #'* (nthcdr (1+ axis) odims)))
-                   (window (disclose-unitary window))
-                   (window-reversed (and window (> 0 window)))
-                   (window (if window (abs window)))
-                   (wsegment)
-                   (output (make-array (loop :for dim :in odims :for dx :from 0
-                                          :when (/= dx axis) :collect dim
-                                          :when (and window (= dx axis))
-                                            :collect (setq wsegment (- dim (1- window)))))))
-              (if (= 1 (first (last odims)))
-                  (xdotimes output (i (size output))
-                    (setf (row-major-aref output i)
-                          (row-major-aref input i)))
-                  (dotimes (i (size output)) ;; xdo
-                  ;;(xdotimes output (i (size output) :synchronous-if (not threaded)) ;; xdo
-                    (declare (optimize (safety 1)))
-                    (let ((value))
-                      (flet ((process-item (ix)
-                               (let ((item (row-major-aref
-                                            input (+ (* ix increment)
-                                                     (if window (* rlen (floor i wsegment))
-                                                         (if (= 1 increment)
-                                                             0 (* (floor i increment)
-                                                                  (- (* increment rlen) increment))))
-                                                     (if (/= 1 increment) i
-                                                         (if window (if (>= 1 (rank input))
-                                                                        i (mod i wsegment))
-                                                             (* i rlen)))))))
-                                 (setq value (if (not value) item (funcall function value item))))))
-                        (if window-reversed (loop :for ix :below window :do (process-item ix))
-                            (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
-                      (setf (row-major-aref output i) value))))
-              (if (not (and (arrayp output)
-                            (zerop (rank output))
-                            (not (arrayp (aref output)))))
-                  output (disclose output)))))
-
-(defun array-inner-product (alpha omega function1 function2 threaded &optional function1-nonscalar)
-  "Find the inner product of two arrays with two functions."
-  (let* ((adims (dims alpha)) (odims (dims omega)) (arank (rank alpha)) (orank (rank omega))
-         (asegment (first (last adims)))
-         (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
-                       (first odims) (error "To find an inner product the last dimension of the left array ~w"
-                                            "must equal the first dimension of the right array.")))
-         (osize (size omega)) (ovectors (reduce #'* (rest odims)))
-         (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
-                                omega (make-array osegment :element-type (element-type omega)))))
-         (output (make-array (append (butlast adims) (rest odims)))))
-    ;; TODO: can't parallelize yet
-    (dotimes (x (size output)) ;; xdo
-    ;; (xdotimes output (x (size output) :synchronous-if (not threaded))
-      (let* ((avix (floor x ovectors))
-             (ovix (mod x ovectors))
-             (adisp (if adims (make-array asegment :displaced-to alpha :element-type (element-type alpha)
-                                          :displaced-index-offset (* asegment avix)))))
-        (if (and osegment (not (and (= osegment osize) (= 1 (rank omega)))))
-            (dotimes (i osegment) (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
-        (setf (row-major-aref output x)
-              (if (= 0 arank orank) (funcall function1 omega alpha)
-                  (disclose (reduce-array (apply-scalar function1 (or oholder omega) (or adisp alpha)
-                                                        nil nil function1-nonscalar)
-                                function2 0 nil)))))) ;;TODO: currently the reduce-array is always singlethreaded
-    (if (not (and (zerop (rank output))
-                  (zerop (rank (aref output)))))
-        output (disclose output))))
-
-(defun array-outer-product (omega alpha function)
-  "Find the outer product of two arrays with a function."
-  (let* ((ascalar (if (zerop (rank alpha)) (disclose alpha)))
-         (oscalar (if (zerop (rank omega)) (disclose omega)))
-         (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
-         (output (make-array (append adims odims))))
-    (dotimes (i (size output)) ;; xdo
-      (setf (row-major-aref output i)
-            (funcall function (or oscalar (disclose (row-major-aref omega (mod i osize))))
-                     (or ascalar (disclose (row-major-aref alpha (floor i osize)))))))
-    (funcall (if (zerop (rank output)) #'disclose #'identity)
-             output)))
-
-(defun inverse-outer-product (input function right-original &optional left-original)
-  "Find the inverse outer product of an array with a function and a given outer product argument."
-  (let* ((original (or left-original right-original))
-         (interval (reduce #'* (dims original)))
-         (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
-                                 (butlast (dims input) (rank original))))))
-    (dotimes (i (size output)) ;; xdo
-      (let ((input-index (* i (if left-original 1 interval))))
-        (setf (row-major-aref output i)
-              (nest (funcall function (disclose (row-major-aref input input-index))
-                             (disclose (row-major-aref original 0)))))))
-    (funcall (if (zerop (rank output)) #'disclose #'identity)
-             output)))
-
 (defun index-of (to-search set count-from)
   "Find occurrences of members of one set in an array and create a corresponding array with values equal to the indices of the found values in the search set, or one plus the maximum possible found item index if the item is not found in the search set."
   (let* ((original-set set)
@@ -1987,11 +1888,10 @@
                    (rlen (nth axis idims))
                    (increment (reduce #'* (nthcdr (1+ axis) idims)))
                    (vset-size (* increment (nth axis idims)))
-                   (output (make-array idims :element-type (element-type input)))
-                   (adjuster (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))))
+                   (output (make-array idims :element-type (element-type input))))
               (xdotimes output (i (size output))
                 (declare (optimize (safety 1)))
-                (let ((vindex (funcall adjuster
+                (let ((vindex (funcall (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))
                                        (mod (+ (floor i increment)
                                                (if (integerp degrees)
                                                    degrees (if (arrayp degrees)
@@ -2187,7 +2087,104 @@
     det ;; return determinant
     out-matrix))
 
-(defun stencil (input process window-dims movement)
+(defun reduce-array (input function axis threaded &optional last-axis window)
+  "Reduce an array along by a given function along a given dimension, optionally with a window interval."
+  (if (zerop (rank input))
+      input (let* ((odims (dims input))
+                   (axis (or axis (if (not last-axis) 0 (max 0 (1- (rank input))))))
+                   (rlen (nth axis odims))
+                   (increment (reduce #'* (nthcdr (1+ axis) odims)))
+                   (window (disclose-unitary window))
+                   (window-reversed (and window (> 0 window)))
+                   (window (if window (abs window)))
+                   (wsegment)
+                   (output (make-array (loop :for dim :in odims :for dx :from 0
+                                          :when (/= dx axis) :collect dim
+                                          :when (and window (= dx axis))
+                                            :collect (setq wsegment (- dim (1- window)))))))
+              (if (= 1 (first (last odims)))
+                  (xdotimes output (i (size output))
+                    (setf (row-major-aref output i)
+                          (row-major-aref input i)))
+                  (dotimes (i (size output))
+                    (declare (optimize (safety 1)))
+                    (let ((value))
+                      (flet ((process-item (ix)
+                               (let ((item (row-major-aref
+                                            input (+ (* ix increment)
+                                                     (if window (* rlen (floor i wsegment))
+                                                         (if (= 1 increment)
+                                                             0 (* (floor i increment)
+                                                                  (- (* increment rlen) increment))))
+                                                     (if (/= 1 increment) i
+                                                         (if window (if (>= 1 (rank input))
+                                                                        i (mod i wsegment))
+                                                             (* i rlen)))))))
+                                 (setq value (if (not value) item (funcall function value item))))))
+                        (if window-reversed (loop :for ix :below window :do (process-item ix))
+                            (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
+                      (setf (row-major-aref output i) value))))
+              (if (not (and (arrayp output)
+                            (zerop (rank output))
+                            (not (arrayp (aref output)))))
+                  output (disclose output)))))
+
+(defun array-inner-product (alpha omega function1 function2 &optional threaded function1-nonscalar)
+  "Find the inner product of two arrays with two functions."
+  (let* ((adims (dims alpha)) (odims (dims omega)) (arank (rank alpha)) (orank (rank omega))
+         (asegment (first (last adims)))
+         (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
+                       (first odims) (error "To find an inner product the last dimension of the left array ~w"
+                                            "must equal the first dimension of the right array.")))
+         (osize (size omega)) (ovectors (reduce #'* (rest odims)))
+         (output (make-array (append (butlast adims) (rest odims)))))
+    (xdotimes output (x (size output) :synchronous-if (not threaded))
+      (let* ((avix (floor x ovectors))
+             (ovix (mod x ovectors))
+             (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
+                                    omega (make-array osegment :element-type (element-type omega)))))
+             (adisp (if adims (make-array asegment :displaced-to alpha :element-type (element-type alpha)
+                                          :displaced-index-offset (* asegment avix)))))
+        (if (and osegment (not (and (= osegment osize) (= 1 (rank omega)))))
+            (dotimes (i osegment) (setf (aref oholder i) (row-major-aref omega (+ ovix (* i ovectors))))))
+        (setf (row-major-aref output x)
+              (if (= 0 arank orank) (funcall function1 omega alpha)
+                  (disclose (reduce-array (apply-scalar function1 (or oholder omega) (or adisp alpha)
+                                                        nil nil function1-nonscalar)
+                                function2 0 nil)))))) ;;TODO: currently the reduce-array is always singlethreaded
+    (if (not (and (zerop (rank output))
+                  (zerop (rank (aref output)))))
+        output (disclose output))))
+
+(defun array-outer-product (omega alpha function &optional threaded)
+  "Find the outer product of two arrays with a function."
+  (let* ((ascalar (if (zerop (rank alpha)) (disclose alpha)))
+         (oscalar (if (zerop (rank omega)) (disclose omega)))
+         (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
+         (output (make-array (append adims odims))))
+    ;; (dotimes (i (size output)) ;; xdo
+    (xdotimes output (i (size output) :synchronous-if (not threaded))
+      (setf (row-major-aref output i)
+            (funcall function (or oscalar (disclose (row-major-aref omega (mod i osize))))
+                     (or ascalar (disclose (row-major-aref alpha (floor i osize)))))))
+    (funcall (if (zerop (rank output)) #'disclose #'identity)
+             output)))
+
+(defun inverse-outer-product (input function right-original &optional threaded left-original)
+  "Find the inverse outer product of an array with a function and a given outer product argument."
+  (let* ((original (or left-original right-original))
+         (interval (reduce #'* (dims original)))
+         (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
+                                 (butlast (dims input) (rank original))))))
+    (xdotimes output (i (size output) :synchronous-if (not threaded))
+      (let ((input-index (* i (if left-original 1 interval))))
+        (setf (row-major-aref output i)
+              (nest (funcall function (disclose (row-major-aref input input-index))
+                             (disclose (row-major-aref original 0)))))))
+    (funcall (if (zerop (rank output)) #'disclose #'identity)
+             output)))
+
+(defun stencil (input process window-dims movement &optional threaded)
   "Apply a given function to sub-arrays of an array with specified dimensions sampled according to a given pattern of movement across the array."
   (let* ((irank (rank input))
          (idims (apply #'vector (dims input)))
@@ -2225,7 +2222,8 @@
                  (if (zerop dx) 1 (* last-dim (aref out-factors (- wrank dx))))
                  last-dim d))
 
-    (dotimes (o (size output)) ;; xdo
+    ;; (dotimes (o (size output)) ;; xdo
+    (xdotimes output (o (size output) :synchronous-if (not threaded))
       (let* ((acoords (make-array irank :element-type 'fixnum :initial-element 0))
              (oindices (let ((remaining o))
                          (loop :for of :across out-factors

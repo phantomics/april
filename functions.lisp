@@ -1074,7 +1074,8 @@
                                                  (row-major-aref
                                                   omega (+ base (* increment vector-index))))
                                    (row-major-aref omega (+ base (* increment vector-index)))))))))
-          (dotimes (i (size output)) ;; xdo
+          ;; (dotimes (i (size output)) ;; xdo
+          (xdotimes output (i (size output) :synchronous-if (side-effect-free function))
             (declare (optimize (safety 1)))
             (let ((value) (vector-index (mod (floor i increment) rlen))
                   (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
@@ -1133,6 +1134,8 @@
                                                       (disclose-any alpha)))
                                 (setf output (enclose (funcall operand omega alpha))))
                             (dotimes (i (size (if (or oscalar ouvec) alpha omega))) ;; xdo
+                            ;; (xdotimes output (i (size (if (or oscalar ouvec) alpha omega))
+                            ;;                     :synchronous-if (side-effect-free operand)) ;; xdo
                               (if output
                                   (setf (row-major-aref output i)
                                         (funcall operand (if (or oscalar ouvec) (disclose-any omega)
@@ -1208,10 +1211,12 @@
         (let* ((operand-meta (funcall operand :get-metadata nil))
                (operand-inverse (getf operand-meta :inverse)))
           (list :inverse-right (lambda (omega alpha)
-                                 (inverse-outer-product alpha operand-inverse omega))
+                                 (inverse-outer-product alpha operand-inverse omega
+                                                        (side-effect-free operand)))
                 :inverse (lambda (omega alpha)
-                           (inverse-outer-product omega operand-inverse nil alpha))))
-        (array-outer-product omega alpha operand))))
+                           (inverse-outer-product omega operand-inverse nil (side-effect-free operand)
+                                                  alpha))))
+        (array-outer-product omega alpha operand (side-effect-free operand)))))
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
@@ -1344,7 +1349,7 @@
                 (if (not odivs) ;; as above for an omega value alone
                     (funcall function omega)
                     (let ((output (make-array (dims odivs))))
-                      (dotimes (i (size output)) ;; xdo
+                      (xdotimes output (i (size output) :synchronous-if (side-effect-free function))
                         (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
                       (mix-arrays (rank output) output)))))))))
 
@@ -1402,14 +1407,13 @@
           (if right-fn
               (let ((true-indices (make-array (size omega) :initial-element 0))
                     (omega-copy (copy-array omega :element-type t)))
-                (dotimes (i (size omega)) ;; xdo
+                (xdotimes true-indices (i (size omega))
                   (if (or (and right-fn (not (zerop (funcall right-fn (row-major-aref omega i)))))
+                          (and (integerp right) (= i (- right index-origin)))
                           (and (arrayp right)
                                (not (loop :for r :below (size right) :never (= (row-major-aref right r)
                                                                                (+ i index-origin))))))
-                      (incf (row-major-aref true-indices i))
-                      (if (and (integerp right) (= i (- right index-origin)))
-                          (incf (row-major-aref true-indices i)))))
+                      (incf (row-major-aref true-indices i))))
                 (let ((tvix 0)
                       (true-vector (make-array (loop :for i :across true-indices :summing i)
                                                :element-type (element-type omega))))
@@ -1421,7 +1425,7 @@
                                (incf tvix))))
                   (let ((to-assign (if alpha (funcall left-fn true-vector alpha)
                                        (funcall left-fn true-vector))))
-                    (dotimes (i (size omega)) ;; xdo 
+                    (xdotimes omega-copy (i (size omega))
                       (if (not (zerop (row-major-aref true-indices i)))
                           (setf (row-major-aref omega-copy i)
                                 (if (= 1 (length true-vector))
@@ -1497,7 +1501,8 @@
                                   (make-array (length right-value) :element-type 'fixnum
                                               :initial-element 1)))))
             (mix-arrays (rank omega)
-                        (stencil omega left-function window-dims movement)))))))
+                        (stencil omega left-function window-dims movement
+                                 (side-effect-free left-function))))))))
 
 ;;; From this point are optimized implementations of APL idioms.
 
