@@ -536,6 +536,60 @@
                            new-layer)
                   uniform possible-depth))))
 
+(defun indexer-section (inverse dims dimensions output-shorter)
+  (let* ((isize (reduce #'* dims)) (irank (length dims))
+         (rdiff (- irank (length dimensions)))
+         (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
+                                  :initial-contents dims))
+         (odims (loop :for odim :across dimensions :for idim :across idims
+                      :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+         (osize (reduce #'* odims))
+         (last-dim)
+         (id-factors (make-array irank :element-type 'fixnum))
+         (od-factors (make-array irank :element-type 'fixnum)))
+    ;; generate dimensional factors vectors for input and output
+    (loop :for dx :below irank
+          :do (let ((d (aref idims (- irank 1 dx))))
+                (setf (aref id-factors (- irank 1 dx))
+                      (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
+                      last-dim d)))
+
+    (loop :for d :in (reverse odims) :for dx :from 0
+          :do (setf (aref od-factors (- irank 1 dx))
+                    (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+                    last-dim d))
+    (lambda (i)
+      (if output-shorter
+          ;; choose shorter path depending on whether input or output are larger, and
+          ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+          ;; to respect the segmentation of the elements
+          (let ((oindex 0) (remaining i) (valid t))
+            ;; calculate row-major offset for outer array dimensions
+            (loop :for i :from 0 :to (- irank 1) :while valid
+                  :for dim :across dimensions :for id :across idims :for od :in odims
+                  :for ifactor :across id-factors :for ofactor :across od-factors
+                  :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+                        (let ((adj-index (- index (if inverse (if (> 0 dim) 0 dim)
+                                                      (if (< 0 dim) 0 (+ dim id))))))
+                          (if (< -1 adj-index od)
+                              (progn (incf oindex (* ofactor adj-index))
+                                     (setq remaining remainder))
+                              (setq valid nil)))))
+            (if valid oindex))
+          (let ((iindex 0) (remaining i) (valid t))
+            ;; calculate row-major offset for outer array dimensions
+            (loop :for i :from 0 :to (- irank 1) :while valid
+                  :for dim :across dimensions :for id :across idims :for od :in odims
+                  :for ifactor :across id-factors :for ofactor :across od-factors
+                  :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                        (let ((adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
+                                                      (if (< 0 dim) 0 (+ dim id))))))
+                          (if (< -1 adj-index id)
+                              (progn (incf iindex (* ifactor adj-index))
+                                     (setq remaining remainder))
+                              (setq valid nil)))))
+            (if valid iindex))))))
+
 (defun section (input dimensions &key (inverse) (populator))
   "Take a subsection of an array of the same rank and given dimensions as per APL's [↑ take] function, or do the converse as per APL's [↓ drop] function to take the elements of an array excepting a specific dimensional range."
   (if (zerop (rank input))
@@ -578,26 +632,16 @@
                 (make-array (loop :for i :below irank :collect 0)
                             :element-type (element-type input))
                 (let* ((odims (loop :for odim :across dimensions :for idim :across idims
-                                 :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+                                    :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
                        (osize (reduce #'* odims))
-                       (last-dim) (fill-element (apl-array-prototype input))
-                       (id-factors (make-array irank :element-type 'fixnum))
-                       (od-factors (make-array irank :element-type 'fixnum))
+                       (indexer (indexer-section inverse (dims input) dimensions
+                                                 (and (< isize osize)
+                                                      (not (sub-7-bit-integer-elements-p input)))))
+                       (fill-element (apl-array-prototype input))
                        (output (make-array odims :element-type (if populator t (element-type input))
                                            :initial-element (if (and (not populator)
                                                                      (not (arrayp fill-element)))
                                                                 fill-element))))
-                  ;; generate dimensional factors vectors for input and output
-                  (loop :for dx :below irank
-                     :do (let ((d (aref idims (- irank 1 dx))))
-                           (setf (aref id-factors (- irank 1 dx))
-                                 (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
-                                 last-dim d)))
-
-                  (loop :for d :in (reverse odims) :for dx :from 0
-                     :do (setf (aref od-factors (- irank 1 dx))
-                               (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
-                               last-dim d))
 
                   ;; populate empty array elements if the array has a non-scalar prototype
                   (if populator (xdotimes output (i osize)
@@ -605,7 +649,7 @@
                       (if (arrayp fill-element)
                           (xdotimes output (i osize) (setf (row-major-aref output i)
                                                            (copy-nested-array fill-element)))))
-
+                  
                   (if (< 0 isize)
                       (if (and (< isize osize)
                                (not (sub-7-bit-integer-elements-p input)))
@@ -613,33 +657,13 @@
                           ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
                           ;; to respect the segmentation of the elements
                           (ydotimes output (i isize)
-                            (let ((oindex 0) (remaining i) (valid t))
-                              ;; calculate row-major offset for outer array dimensions
-                              (loop :for i :from 0 :to (- irank 1) :while valid
-                                 :for dim :across dimensions :for id :across idims :for od :in odims
-                                 :for ifactor :across id-factors :for ofactor :across od-factors
-                                 :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                                       (let ((adj-index (- index (if inverse (if (> 0 dim) 0 dim)
-                                                                     (if (< 0 dim) 0 (+ dim id))))))
-                                         (if (< -1 adj-index od)
-                                             (progn (incf oindex (* ofactor adj-index))
-                                                    (setq remaining remainder))
-                                             (setq valid nil)))))
-                              (if valid (setf (row-major-aref output oindex) (row-major-aref input i)))))
+                            (let ((to-set (funcall indexer i)))
+                              (if to-set (setf (row-major-aref output to-set)
+                                               (row-major-aref input i)))))
                           (xdotimes output (o osize)
-                            (let ((iindex 0) (remaining o) (valid t))
-                              ;; calculate row-major offset for outer array dimensions
-                              (loop :for i :from 0 :to (- irank 1) :while valid
-                                 :for dim :across dimensions :for id :across idims :for od :in odims
-                                 :for ifactor :across id-factors :for ofactor :across od-factors
-                                 :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                                       (let ((adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
-                                                                     (if (< 0 dim) 0 (+ dim id))))))
-                                         (if (< -1 adj-index id)
-                                             (progn (incf iindex (* ifactor adj-index))
-                                                    (setq remaining remainder))
-                                             (setq valid nil)))))
-                              (if valid (setf (row-major-aref output o) (row-major-aref input iindex)))))))
+                            (let ((to-set (funcall indexer o)))
+                              (if to-set (setf (row-major-aref output o)
+                                               (row-major-aref input to-set)))))))
                   output))))))
 
 (defun catenate (a1 a2 axis)
@@ -709,6 +733,42 @@
                             (if (is-unitary a2) a2 (array-promote (permute-axes a2 ipdims)))
                             0)
                   opdims)))
+
+(defun indexer-expand (degrees dims axis compress-mode)
+  (let* ((c-degrees (make-array (length degrees) :element-type 'fixnum :initial-element 0))
+         (positive-index-list (if (not compress-mode)
+                                  (loop :for degree :below (length degrees)
+                                        :when (< 0 (aref degrees degree)) :collect degree)))
+         (positive-indices (if positive-index-list (make-array (length positive-index-list)
+                                                               :element-type 'fixnum
+                                                               :initial-contents positive-index-list)))
+         (section-size (reduce #'* (loop :for d :in dims :for dx :from 0
+                                         :when (> dx axis) :collect d))))
+    (loop :for degree :across degrees :for dx :from 0
+          :summing (max (abs degree) (if compress-mode 0 1))
+            :into this-dim :do (setf (aref c-degrees dx) this-dim))
+    (let ((idiv-size (reduce #'* (loop :for d :in dims :for dx :from 0
+                                       :when (>= dx axis) :collect d)))
+          (odiv-size (reduce #'* (loop :for d :in dims :for dx :from 0
+                                       :when (> dx axis) :collect d :when (= dx axis)
+                                         :collect (aref c-degrees (1- (length degrees)))))))
+      (lambda (i)
+        ;; in compress-mode: degrees must = length of axis,
+        ;; zeroes are omitted from output, negatives add zeroes
+        ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
+        (if dims
+            (multiple-value-bind (oseg remainder) (floor i odiv-size)
+              (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
+                ;; dimension index
+                (let ((dx (loop :for d :across c-degrees :for di :from 0
+                                :when (> d oseg-index) :return di)))
+                  (if (< 0 (aref degrees dx))
+                      (+ element-index (* oseg idiv-size)
+                         (* section-size (if (not positive-indices)
+                                             dx (or (loop :for p :across positive-indices
+                                                          :for px :from 0 :when (= p dx)
+                                                          :return px)
+                                                    1)))))))))))))
 
 (defun expand (degrees input axis &key (compress-mode) (populator))
   "Expand an input array as per a vector of degrees, with the option to manifest zero values in the degree array as zeroes in the output in place of the original input values or to omit the corresponding values altogether if the :compress-mode option is used."
@@ -814,7 +874,8 @@
                                                                         :element-type 'fixnum
                                                                         :initial-contents positive-index-list)))
                   (section-size (reduce #'* (loop :for d :in (dims input) :for dx :from 0
-                                               :when (> dx axis) :collect d)))
+                                                  :when (> dx axis) :collect d)))
+                  (indexer (indexer-expand degrees (dims input) axis compress-mode))
                   (ex-dim))
              (declare (dynamic-extent ex-dim))
              (loop :for degree :across degrees :for dx :from 0
@@ -847,21 +908,9 @@
                                  value)))))
                    (if (sub-7-bit-integer-elements-p input)
                        (xdotimes output (i (size output))
-                         (multiple-value-bind (oseg remainder) (floor i odiv-size)
-                           (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
-                             ;; dimension index
-                             (let ((dx (loop :for d :across c-degrees :for di :from 0
-                                          :when (> d oseg-index) :return di)))
-                               (if (< 0 (aref degrees dx))
-                                   (setf (row-major-aref output i)
-                                         (row-major-aref
-                                          input (+ element-index (* oseg idiv-size)
-                                                   (* section-size (if (not positive-indices)
-                                                                       dx (or (loop :for p :across positive-indices
-                                                                                 :for px :from 0 :when (= p dx)
-                                                                                 :return px)
-                                                                              1)))
-                                                   ))))))))
+                         (let ((input-index (funcall indexer i)))
+                           (if input-index (setf (row-major-aref output i)
+                                                 (row-major-aref input input-index)))))
                        (ydotimes output (i (size input))
                          (let* ((iseg (floor i idiv-size))
                                 ;; input segment index
@@ -1910,30 +1959,77 @@
                       (row-major-aref input (funcall indexer i))))
               output)))
 
+(defun indexer-permute (idims odims alpha is-diagonal)
+  (let* ((irank (length idims))
+         (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
+         (id-factors (coerce (reverse (loop :for d :in (reverse idims)
+                                            :collect idfactor :do (setq idfactor (* d idfactor))))
+                             'vector))
+         (indices (if alpha (progn (if (vectorp alpha)
+                                       (loop :for i :across alpha :for id :in idims :for ix :from 0
+                                             :do (if (not (member i positions))
+                                                     ;; if a duplicate position is found,
+                                                     ;; a diagonal section is being performed
+                                                     (progn (push i positions)
+                                                            (push id idims-reduced)))
+                                                ;; collect possible diagonal indices into diagonal list
+                                                (if (assoc i diagonals)
+                                                    (push ix (rest (assoc i diagonals)))
+                                                    (push (list i ix) diagonals))
+                                             :collect i)
+                                       (progn (setq odims idims
+                                                    positions (cons alpha positions))
+                                              (list alpha))))
+                      (reverse (iota irank))))
+         ;; remove indices not being used for diagonal section from diagonal list
+         ;; the idims-reduced are a set of the original dimensions without dimensions being elided
+         ;; for diagonal section, used to get the initial output array used for diagonal section
+         (od-factors (make-array (length odims)))
+         (s-factors (make-array irank)))
+    (loop :for d :in (reverse odims) :for dx :from 0
+          :do (setf (aref od-factors (- (length odims) 1 dx)) odfactor
+                    odfactor (* d odfactor)))
+    (loop :for i :across id-factors :for ix :from 0
+          :do (setf (aref s-factors (nth ix indices)) i))
+    (lambda (i)
+      (if (not is-diagonal)
+          ;; handle regular permutation cases
+          (let* ((remaining i) (oindex 0))
+            (loop :for ix :in indices :for od :across od-factors :for s :across s-factors
+                  :collect (multiple-value-bind (index remainder) (floor remaining od)
+                             (incf oindex (* index s))
+                             (setq remaining remainder)))
+            oindex)
+          ;; handle diagonal array traversals
+          (let ((remaining i) (iindex 0))
+            (loop :for ox :from 0 :for of :across od-factors
+                  :do (multiple-value-bind (index remainder) (floor remaining of)
+                        (setq remaining remainder)
+                        (loop :for a :in indices :for ax :from 0 :when (= a ox)
+                              :do (incf iindex (* index (aref id-factors ax))))))
+            iindex)))))
+
 (defun permute-axes (omega alpha)
   "Permute an array according to a given new order of axes. If axis order indices are repeated, a diagonal traversal of the dimensions with repeated order indices is indicated."
   (let* ((idims (dims omega)) (irank (rank omega))
          (odims) (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
-         (id-factors (coerce (reverse (loop :for d :in (reverse idims)
-                                         :collect idfactor :do (setq idfactor (* d idfactor))))
-                             'vector))
          (indices (if alpha (progn (setq odims (loop :for i :below irank :collect nil))
                                    (if (vectorp alpha)
                                        (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                          :do (setf (nth i odims) (if (nth i odims)
-                                                                      (min (nth i odims)
-                                                                           (nth ix idims))
-                                                                      (nth ix idims)))
-                                          ;; if a duplicate position is found, a diagonal section
-                                          ;; is being performed
-                                            (if (not (member i positions))
-                                                (progn (push i positions)
-                                                       (push id idims-reduced)))
-                                          ;; collect possible diagonal indices into diagonal list
-                                            (if (assoc i diagonals)
-                                                (push ix (rest (assoc i diagonals)))
-                                                (push (list i ix) diagonals))
-                                          :collect i)
+                                             :do (setf (nth i odims) (if (nth i odims)
+                                                                         (min (nth i odims)
+                                                                              (nth ix idims))
+                                                                         (nth ix idims)))
+                                                 ;; if a duplicate position is found, a diagonal section
+                                                 ;; is being performed
+                                                 (if (not (member i positions))
+                                                     (progn (push i positions)
+                                                            (push id idims-reduced)))
+                                                 ;; collect possible diagonal indices into diagonal list
+                                                 (if (assoc i diagonals)
+                                                     (push ix (rest (assoc i diagonals)))
+                                                     (push (list i ix) diagonals))
+                                             :collect i)
                                        (progn (setq odims idims
                                                     positions (cons alpha positions))
                                               (list alpha))))
@@ -1943,32 +2039,11 @@
          ;; the idims-reduced are a set of the original dimensions without dimensions being elided
          ;; for diagonal section, used to get the initial output array used for diagonal section
          (odims (or odims (reverse idims)))
-         (od-factors (make-array (length odims)))
-         (s-factors (make-array irank))
+         (indexer (indexer-permute idims odims alpha (not (or (not alpha) (= irank (length positions))))))
          (output (make-array odims :element-type (element-type omega))))
-    (loop :for d :in (reverse odims) :for dx :from 0
-       :do (setf (aref od-factors (- (length odims) 1 dx)) odfactor
-                 odfactor (* d odfactor)))
-    (loop :for i :across id-factors :for ix :from 0
-          :do (setf (aref s-factors (nth ix indices)) i))
-    (if (or (not alpha) (= irank (length positions)))
-        ;; handle regular permutation cases
-        (xdotimes output (i (size output))
-          (let* ((remaining i) (oindex 0))
-            (loop :for ix :in indices :for od :across od-factors :for s :across s-factors
-               :collect (multiple-value-bind (index remainder) (floor remaining od)
-                          (incf oindex (* index s))
-                          (setq remaining remainder)))
-            (setf (row-major-aref output i) (row-major-aref omega oindex))))
-        ;; handle diagonal array traversals
-        (xdotimes output (i (size output))
-          (let ((remaining i) (iindex 0))
-            (loop :for ox :from 0 :for of :across od-factors
-               :do (multiple-value-bind (index remainder) (floor remaining of)
-                     (setq remaining remainder)
-                     (loop :for a :in indices :for ax :from 0 :when (= a ox)
-                        :do (incf iindex (* index (aref id-factors ax))))))
-            (setf (row-major-aref output i) (row-major-aref omega iindex)))))
+    (xdotimes output (i (size output))
+      (setf (row-major-aref output i)
+            (row-major-aref omega (funcall indexer i))))
     output))
 
 (defun invert-matrix (in-matrix)
