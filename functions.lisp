@@ -1074,7 +1074,7 @@
                                                  (row-major-aref
                                                   omega (+ base (* increment vector-index))))
                                    (row-major-aref omega (+ base (* increment vector-index)))))))))
-          (xdotimes output (i (size output) :synchronous-if (side-effect-free function))
+          (xdotimes output (i (size output) :synchronous-if (not (side-effect-free function)))
             (declare (optimize (safety 1)))
             (let ((value) (vector-index (mod (floor i increment) rlen))
                   (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
@@ -1350,7 +1350,7 @@
                     (if (not odivs) ;; as above for an omega value alone
                         (funcall function omega)
                         (let ((output (make-array (dims odivs))))
-                          (xdotimes output (i (size output) :synchronous-if (side-effect-free function))
+                          (xdotimes output (i (size output) :synchronous-if (not (side-effect-free function)))
                             (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
                           (mix-arrays (rank output) output))))))))))
 

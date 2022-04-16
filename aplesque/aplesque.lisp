@@ -2241,7 +2241,6 @@
          (oscalar (if (zerop (rank omega)) (disclose omega)))
          (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
          (output (make-array (append adims odims))))
-    ;; (dotimes (i (size output)) ;; xdo
     (xdotimes output (i (size output) :synchronous-if (not threaded))
       (setf (row-major-aref output i)
             (funcall function (or oscalar (disclose (row-major-aref omega (mod i osize))))
@@ -2301,7 +2300,6 @@
                  (if (zerop dx) 1 (* last-dim (aref out-factors (- wrank dx))))
                  last-dim d))
 
-    ;; (dotimes (o (size output)) ;; xdo
     (xdotimes output (o (size output) :synchronous-if (not threaded))
       (let* ((acoords (make-array irank :element-type 'fixnum :initial-element 0))
              (oindices (let ((remaining o))
