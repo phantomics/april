@@ -1896,9 +1896,9 @@
   (if (and degrees (not (or (is-unitary degrees)
                             (and (= (rank degrees) (1- (rank input)))
                                  (loop :for dd :in (dims degrees)
-                                    :for id :in (loop :for d :in (dims input) :for dx :from 0
-                                                   :when (/= dx axis) :collect d)
-                                    :always (= dd id))))))
+                                       :for id :in (loop :for d :in (dims input) :for dx :from 0
+                                                         :when (/= dx axis) :collect d)
+                                       :always (= dd id))))))
       (error "Invalid degree array; degree array must have same dimensions as input array excluding the ~a"
              "axis along which the input array is to be rotated."))
   (if (not (arrayp input))

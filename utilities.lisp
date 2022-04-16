@@ -1474,6 +1474,11 @@ It remains here as a standard against which to compare methods for composing APL
                   (if (and (not (member vr (getf closure-meta :var-syms)))
                            (of-meta-hierarchy closure-meta :var-syms vr))
                       (push (list :lex-ref vr) side-refs))))
+
+    ;; explicitly register a side effect in the case of [⎕RL random link] assignment
+    (if (member '*rngs* (getf closure-meta :var-syms))
+        (push :random-link-assignment (getf closure-meta :side-effects)))
+    
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (aprgn) forms used to implement function variant implicit statements
         (cons 'aprgn form)

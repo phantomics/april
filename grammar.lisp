@@ -523,7 +523,6 @@
                                                      (fn-meta (if (and (listp function)
                                                                        (eql 'alambda (first function)))
                                                                   (rest (second (third function))))))
-                                                 ;; (print (list :ffm fn-meta))
                                                  (reg-symfn-call function space
                                                                  (getf (getf params :special)
                                                                        :closure-meta))
