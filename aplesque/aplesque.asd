@@ -8,4 +8,5 @@
   :serial t
   :depends-on ("cl-ppcre" "alexandria" "array-operations" "parse-number" "symbol-munger" "lparallel")
   :components ((:file "package")
+               (:file "forms")
                (:file "aplesque")))
