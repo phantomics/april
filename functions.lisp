@@ -1074,7 +1074,8 @@
                                                  (row-major-aref
                                                   omega (+ base (* increment vector-index))))
                                    (row-major-aref omega (+ base (* increment vector-index)))))))))
-          (xdotimes output (i (size output) :synchronous-if (not (side-effect-free function)))
+          (xdotimes output (i (size output) :synchronous-if (or (not (side-effect-free function))
+                                                                sao-copy (getf fn-meta :commutative)))
             (declare (optimize (safety 1)))
             (let ((value) (vector-index (mod (floor i increment) rlen))
                   (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
