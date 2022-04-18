@@ -231,7 +231,7 @@
   "Wrapper for the choose function."
   (let ((indices-evaluated (gensym)))
     `(let ((,indices-evaluated ,indices))
-       (choose ,item ,indices-evaluated ,@rest-params))))
+       (choose (render-varrays ,item) ,indices-evaluated ,@rest-params))))
 
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
@@ -742,7 +742,7 @@
                                         (/= (length sym-list) (length (rest values))))
                                    (error "Attempted to assign a vector of values to a ~a"
                                           "vector of symbols of a different length."))
-                               `(let ((,this-val ,values))
+                               `(let ((,this-val (render-varrays ,values)))
                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                            sym-list (rest sym-list))
                                           :for sx :from 0
@@ -790,7 +790,7 @@
                                  `(string (quote ,(second form)))))
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
-    `(let* ((,result ,form)
+    `(let* ((,result (render-varrays ,form))
             (,printout ,(if (and (or print-to output-printed))
                             ;; don't print the results of assignment unless the :print-assignment option is set,
                             ;; as done when compiling a ⎕← expression
@@ -832,7 +832,7 @@
                                                                         (> 0 item))
                                                                     item (max 16 item))))))
     `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
-                 :element-type (quote ,type) :initial-contents (list ,@items))))
+                 :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items)))))
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
@@ -1015,6 +1015,10 @@
                                                              ix (1+ ix)))
             output))))
 
+(defun render-varrays (item)
+  (if (not (typep item 'varray))
+      item (render item)))
+
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
   (let ((arg-list (gensym "A")))
@@ -1027,7 +1031,8 @@
                                            :functions-scalar-monadic))))
           (axes-present (and (listp function) (eql 'apl-fn-s (first arguments))
                              (third function) (listp (third function))
-                             (eql 'apply-scalar (first (third function))))))
+                             (eql 'apply-scalar (first (third function)))))
+          (arguments (loop :for arg :in arguments :collect (list 'render-varrays arg))))
       (or (join-fns `(a-call ,function ,@arguments))
           (if (and (listp function)
                    (eql 'function (first function))
@@ -1259,7 +1264,9 @@ It remains here as a standard against which to compare methods for composing APL
               (if set `(let ((,to-set ,set))
                          (multiple-value-bind (,assignment-output ,assigned-array)
                              (achoose ,body (mapcar (lambda (array)
-                                                      (if array (apply-scalar #'- array index-origin)))
+                                                      (if array (apply-scalar #'- (render-varrays
+                                                                                   array)
+                                                                              index-origin)))
                                                     (list ,@axes))
                                       :set-nil ,set-nil :set ,to-set ,@(if set-by (list :set-by set-by))
                                       ;; setting the modify-input parameter so that the original value
@@ -1268,7 +1275,9 @@ It remains here as a standard against which to compare methods for composing APL
                                       :modify-input t)
                            (if ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
-                  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
+                  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
+                                                                                       array)
+                                                                                  index-origin)))
                                           (list ,@axes))
                             ,@(if reference (list :reference reference))))
               (rest axis-sets)))))

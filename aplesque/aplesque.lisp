@@ -1365,7 +1365,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key set set-by set-nil reference modify-input               )
+(defun choose (input indices &key set set-by set-nil reference modify-input)
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices

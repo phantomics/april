@@ -75,7 +75,7 @@
           (error "Both arguments to ? must be single non-negative integers.")
           (if (> alpha omega)
               (error "The left argument to ? must be less than or equal to the right argument.")
-              (let ((vector (count-to omega index-origin)))
+              (let ((vector (render-varrays (count-to omega index-origin))))
                 ;; perform Knuth shuffle of vector
                 (loop :for i :from omega :downto 2
                       :do (rotatef (aref vector (if (eq :system generator) (random i)
@@ -324,11 +324,13 @@
     (if (or (integerp index)
             (and (vectorp index)
                  (= 1 (length index))))
-        (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
-          (if (zerop index) (vector)
-              (let ((output (make-array index :element-type (list 'integer 0 (+ index-origin index)))))
-                (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
-                output)))
+        ;; (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
+        ;;   (if (zerop index) (vector)
+        ;;       (let ((output (make-array index :element-type (list 'integer 0 (+ index-origin index)))))
+        ;;         (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
+        ;;         output)))
+        (make-instance 'vvector-integer-progression :number (disclose-atom index)
+                                                    :origin index-origin)
         (if (vectorp index)
             (let ((output (make-array (array-to-list index))))
               (across output (lambda (elem coords)
@@ -923,7 +925,7 @@
                              (duplicate-t (row-major-aref array i)))))
                  output)))
       (if (getf function-meta :selective-assignment-compatible)
-          (let* ((omega (if (and assign-sym
+          (let* ((omega (if (and assign-sym (not (typep omega 'varray))
                                  (if (arrayp value)
                                      (and (or (not (getf function-meta :selective-assignment-enclosing))
                                               (eq t (element-type omega)))
@@ -934,7 +936,7 @@
                             ;; array is duplicated if its element type is not a supertype of
                             ;; the assigned array's type, or if an enclosed array is
                             ;; being assigned and the array's type is not T
-                            omega (duplicate-t omega)))
+                            omega (duplicate-t (render-varrays omega))))
                  (assign-array (if (not axes) omega (choose omega axes :reference t)))
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
@@ -1133,22 +1135,23 @@
                             (if output (setf (row-major-aref output 0)
                                              (funcall operand (disclose-any omega)
                                                       (disclose-any alpha)))
-                                (setf output (enclose (funcall operand omega alpha))))
+                                (setf output (enclose (render-varrays (funcall operand omega alpha)))))
                             (xdotimes output (i (size (if (or oscalar ouvec) alpha omega))
                                                 :synchronous-if (not threaded))
                               (if output
                                   (setf (row-major-aref output i)
-                                        (funcall operand (if (or oscalar ouvec) (disclose-any omega)
-                                                             (row-major-aref omega i))
-                                                 (if (or ascalar auvec)
-                                                     (disclose-any alpha)
-                                                     (row-major-aref alpha i))))
-                                  (setf output (funcall operand omega alpha)))))
+                                        (render-varrays
+                                         (funcall operand (if (or oscalar ouvec) (disclose-any omega)
+                                                              (row-major-aref omega i))
+                                                  (if (or ascalar auvec)
+                                                      (disclose-any alpha)
+                                                      (row-major-aref alpha i)))))
+                                  (setf output (render-varrays (funcall operand omega alpha))))))
                   ;; if 0-rank array is passed, disclose its content and enclose the result of the operation
                   (if oscalar (setq output (enclose (funcall operand (disclose-any oscalar))))
                       (xdotimes output (i (size omega) :synchronous-if (not threaded))
                         (setf (row-major-aref output i)
-                              (funcall operand (row-major-aref omega i))))))
+                              (render-varrays (funcall operand (row-major-aref omega i)))))))
               output))))))
 
 (defun operate-commuting (operand)
@@ -1247,7 +1250,7 @@
                                      fn-right fn-left
                                      fn-left temp))
                            (let* ((meta-right (if fn-right (apply fn-right :get-metadata
-                                                                  (if (or alpha (not fn-left))
+                                                                  (if (or alpha (not fn-left)) ; {⎕io←0 ⋄ scc ⍵} scg1
                                                                       (list nil)))))
                                   (meta-left (if fn-left (apply fn-left :get-metadata
                                                                 (if (or alpha (not fn-right))
@@ -1269,7 +1272,7 @@
                                               (if fn-right omega right)
                                               (if fn-left omega left)))))))
           (if (and fn-right fn-left)
-              (let ((processed (funcall fn-right omega)))
+              (let ((processed (render-varrays (funcall fn-right omega))))
                 (if alpha (funcall fn-left processed alpha)
                     (funcall fn-left processed)))
               (if alpha (error "This function does not take a left argument.")

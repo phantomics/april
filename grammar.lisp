@@ -604,8 +604,8 @@
                 (getf fn-meta :implicit-args)
                 (if (and axes (or (getf fn-meta :axes)
                                   (eq :dyadic args)))
-                    (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
-                              (cons 'list (first axes)))))))))
+                    (list (if is-scalar `(apply-scalar #'- (render-varrays ,(caar axes)) index-origin)
+                              (cons 'list (list (cons 'render-varrays (first axes)))))))))))
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."

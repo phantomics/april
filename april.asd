@@ -8,7 +8,7 @@
   :serial t
   :depends-on ("vex" "aplesque" "array-operations" "lparallel" "alexandria" "cl-ppcre" "random-state"
 	             "parse-number" "symbol-munger" "prove" "simple-date-time" "trivia"
-                     "cl-unicode")
+                     "cl-unicode" "varray")
   :components ((:file "package")
                (:file "utilities")
                (:file "functions")
