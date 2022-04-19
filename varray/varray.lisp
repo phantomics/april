@@ -30,8 +30,7 @@
 
 (defmethod render ((varray varray))
   (let ((indexer (indexer-of varray))
-        (output (make-array (shape-of varray)
-                            :element-type (etype-of varray))))
+        (output (make-array (shape-of varray) :element-type (etype-of varray))))
     (dotimes (i (array-total-size output))
       (setf (row-major-aref output i)
             (funcall indexer i)))
@@ -45,6 +44,12 @@
   ((base :accessor vader-base ; the array from which the array is derived
          :initform nil
          :initarg :base)))
+
+;; by default, get the array's stored shape
+(defmethod shape-of ((varray varray-derived))
+  (funcall (if (arrayp (vader-base varray))
+               #'array-dimensions #'varray-shape)
+           (vader-base varray)))
 
 (defmacro with-base-shape (base-shape array-symbol &body body)
   `(let ((,base-shape (shape-of (vader-base ,array-symbol))))
@@ -61,10 +66,10 @@
    (origin :accessor vvip-origin ; the origin point - by default, the index origin
            :initform 0
            :initarg :origin)
-   (factor :accessor vvip-factor ; multiplying factor of values
+   (factor :accessor vvip-factor ; factor of values
            :initform 1
            :initarg :factor)
-   (repeat :accessor vvip-repeat ; value repetition count
+   (repeat :accessor vvip-repeat ; instances of each value
            :initform 1
            :initarg :repeat)))
 
@@ -129,6 +134,14 @@
 (defmethod shape-of ((varray vader-turn))
   "The shape of a rotated array is the same as the original array."
   (get-or-assign-shape varray (shape-of (vader-base varray))))
+
+(defmethod indexer-of ((varray vader-turn))
+  "The shape of a rotated array is the same as the original array."
+  (indexer-turn (if (eq :last (vaturn-axis varray))
+                    (1- (length (shape-of varray)))
+                    (vaturn-axis varray))
+                (shape-of varray)
+                (vaturn-argument varray)))
 
 ;; a permuted array as from the [⍉ permute] function
 (defclass vader-permute (varray-derived)

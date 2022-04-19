@@ -97,7 +97,7 @@
                                                           :return px)
                                                     1)))))))))))))
 
-(defun indexer-turn (axis idims degrees)
+(defun indexer-turn (axis idims &optional degrees)
   "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
   (let* ((rlen (nth axis idims))
          (increment (reduce #'* (nthcdr (1+ axis) idims)))
@@ -107,13 +107,14 @@
          (* vset-size (floor i vset-size))
          (* increment (funcall (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))
                                (mod (+ (floor i increment)
-                                       (if (integerp degrees)
-                                           degrees (if (arrayp degrees)
-                                                       (row-major-aref
-                                                        degrees
-                                                        (+ (mod i increment)
-                                                           (* increment (floor i vset-size))))
-                                                       0)))
+                                       (if (not degrees)
+                                           0 (if (integerp degrees)
+                                                 degrees (if (arrayp degrees)
+                                                             (row-major-aref
+                                                              degrees
+                                                              (+ (mod i increment)
+                                                                 (* increment (floor i vset-size))))
+                                                             0))))
                                     rlen)))))))
 
 (defun indexer-permute (idims odims alpha is-diagonal)
