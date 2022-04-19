@@ -1011,6 +1011,8 @@
 (defun operate-reducing (function index-origin last-axis &key axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (if (not (arrayp omega))
         (if (eq :get-metadata omega)
             (list :on-axis (or axis (if last-axis :last :first))
@@ -1048,6 +1050,8 @@
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega &optional alpha) ;; alpha is only used to pass an axis reassignment
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (if (not (arrayp omega))
         (if (eq :get-metadata omega)
             (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
@@ -1112,6 +1116,8 @@
 (defun operate-each (operand)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
   (lambda (omega &optional alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (let* ((oscalar (if (zerop (rank omega)) omega))
            (ascalar (if (zerop (rank alpha)) alpha))
            (ouvec (if (= 1 (size omega)) omega))
@@ -1170,6 +1176,8 @@
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   (lambda (omega &optional alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (let* ((keys (or alpha omega))
            (key-test #'equalp)
            (increment (reduce #'* (rest (dims keys))))
@@ -1210,6 +1218,8 @@
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
   (lambda (omega alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
                (operand-inverse (getf operand-meta :inverse)))
@@ -1224,6 +1234,8 @@
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (if (or (zerop (size omega))
             (zerop (size alpha)))
         (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
@@ -1243,6 +1255,8 @@
         (fn-left (and (functionp left) left))
         (temp))
     (lambda (omega &optional alpha)
+      (setq omega (render-varrays omega)
+            alpha (render-varrays alpha))
       (if (eq :get-metadata omega)
           (list :inverse (lambda (omega &optional alpha)
                            (if (and fn-right fn-left)
@@ -1283,6 +1297,8 @@
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (let* ((odims (dims omega)) (adims (dims alpha))
            (orank (rank omega)) (arank (rank alpha))
            (fn-meta (funcall function :get-metadata alpha))
@@ -1367,6 +1383,8 @@
 (defun operate-to-power (fetch-determinant function)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha)
+    (setq omega (render-varrays omega)
+          alpha (render-varrays alpha))
     (if (eq omega :get-metadata)
         (list :inverse (let* ((determinant (funcall fetch-determinant))
                               (inverse-function (if (not (numberp determinant))
@@ -1405,6 +1423,8 @@
         (right-fn (if (functionp right) right)))
     (lambda (omega &optional alpha)
       (declare (ignorable alpha))
+      (setq omega (render-varrays omega)
+            alpha (render-varrays alpha))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
           ;; if the right operand is a function, collect the right argument's matching elements
           ;; into a vector, apply the left operand function to it and assign its elements to their
@@ -1489,6 +1509,7 @@
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (lambda (omega)
+    (setq omega (render-varrays omega))
     (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
                                    :collect (if (= i 0) index nil))))
       (if (not (or (and (< 2 (rank right-value))
