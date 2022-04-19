@@ -8,6 +8,9 @@
           :initform nil
           :initarg :shape)))
 
+(defun varrayp (item)
+  (typep item 'varray))
+
 ;; to get the element type of an array
 (defgeneric etype-of (varray))
 
@@ -139,8 +142,12 @@
 ;;                                           :collect (- b (abs d))))
 ;;                                   (vasec-argument varray))))
 
+(defclass vader-meta-scalar-pass (varray-derived) nil)
+
+(defmethod indexer-of ())
+
 ;; a rotated array as from the [⌽ rotate] function
-(defclass vader-turn (varray-derived)
+(defclass vader-turn (varray-derived vader-meta-scalar-pass)
   ((argument :accessor vaturn-argument
              :initform nil
              :initarg :argument)
