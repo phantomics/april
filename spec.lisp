@@ -100,19 +100,23 @@
             ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
             :process-axis-string
             (lambda (string)
-              (let ((indices) (last-index)
+              (let ((indices) (last-index) (quoted)
                     (nesting (vector 0 0 0))
-                    (delimiters '(#\[ #\( #\{ #\] #\) #\})))
+                    (delimiters '(#\[ #\( #\{ #\] #\) #\}))
+                    (quote-delimiters '(#\')))
                 (loop :for char :across string :counting char :into charix
-                   :do (let ((mx (length (member char delimiters))))
-                         (if (< 3 mx) (incf (aref nesting (- 6 mx)))
-                             (if (< 0 mx 4) (if (< 0 (aref nesting (- 3 mx)))
-                                                (decf (aref nesting (- 3 mx)))
-                                                (error "Each closing ~a must match with an opening ~a."
-                                                       (nth mx delimiters) (nth (- 3 mx) delimiters)))
-                                 (if (and (char= char #\;)
-                                          (zerop (loop :for ncount :across nesting :summing ncount)))
-                                     (setq indices (cons (1- charix) indices)))))))
+                   :do (if (member char quote-delimiters)
+                           (setq quoted (not quoted)))
+                       (if (not quoted)
+                           (let ((mx (length (member char delimiters))))
+                             (if (< 3 mx) (incf (aref nesting (- 6 mx)))
+                                 (if (< 0 mx 4) (if (< 0 (aref nesting (- 3 mx)))
+                                                    (decf (aref nesting (- 3 mx)))
+                                                    (error "Each closing ~a must match with an opening ~a."
+                                                           (nth mx delimiters) (nth (- 3 mx) delimiters)))
+                                     (if (and (char= char #\;)
+                                              (zerop (loop :for ncount :across nesting :summing ncount)))
+                                         (setq indices (cons (1- charix) indices))))))))
                 (loop :for index :in (reverse (cons (length string) indices))
                    :counting index :into iix
                    :collect (make-array (- index (if last-index 1 0)
