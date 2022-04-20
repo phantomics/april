@@ -32,13 +32,16 @@
   (varray-shape varray))
 
 (defmethod render ((varray varray))
-  (let ((indexer (indexer-of varray))
-        (output (make-array (shape-of varray) :element-type (etype-of varray))))
-    (dotimes (i (array-total-size output))
-      (setf (row-major-aref output i)
-            (funcall indexer i)))
-    output))
-
+  (let ((output-shape (shape-of varray))
+        (indexer (indexer-of varray)))
+    (if output-shape
+        (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
+          (dotimes (i (array-total-size output))
+            (setf (row-major-aref output i)
+                  (funcall indexer i)))
+          output)
+        (funcall indexer 1))))
+    
 ;; primal array - a virtual array defined wholly by its parameters, not derived from another array
 (defclass varray-primal (varray) nil)
 
@@ -49,9 +52,12 @@
          :initarg :base)))
 
 (defmethod base-shape-of ((varray varray-derived))
-  (funcall (if (arrayp (vader-base varray))
-               #'array-dimensions #'varray-shape)
-           (vader-base varray)))
+  (if (and (not (arrayp (vader-base varray)))
+           (not (varrayp (vader-base varray))))
+      nil
+      (funcall (if (arrayp (vader-base varray))
+                   #'array-dimensions #'shape-of)
+               (vader-base varray))))
 
 ;; the default shape of a derived array is the same as its base array
 (defmethod etype-of ((varray varray-derived))
@@ -60,12 +66,8 @@
       (etype-of (vader-base varray))))
 
 ;; the default shape of a derived array is the same as its base array
-(defmethod shape-of ((varray varray-derived))
-  (base-shape-of varray))
-
-;; (defmacro with-base-shape (base-shape array-symbol &body body)
-;;   `(let ((,base-shape (shape-of (vader-base ,array-symbol))))
-;;      ,@body))
+;; (defmethod shape-of ((varray varray-derived))
+;;   (base-shape-of varray))
 
 (defmacro get-or-assign-shape (object form)
   `(or (call-next-method) (setf (varray-shape ,object) ,form)))
@@ -144,10 +146,10 @@
 
 (defclass vader-meta-scalar-pass (varray-derived) nil)
 
-(defmethod indexer-of ())
+;; (defmethod indexer-of ())
 
 ;; a rotated array as from the [⌽ rotate] function
-(defclass vader-turn (varray-derived vader-meta-scalar-pass)
+(defclass vader-turn (varray-derived) ; vader-meta-scalar-pass)
   ((argument :accessor vaturn-argument
              :initform nil
              :initarg :argument)
@@ -155,18 +157,32 @@
          :initform :last
          :initarg :axis)))
 
+;; (defmethod shape-of ((varray vader-turn))
+;;   "The shape of a rotated array is the same as the original array."
+;;   (get-or-assign-shape varray (shape-of (vader-base varray))))
+
 (defmethod shape-of ((varray vader-turn))
   "The shape of a rotated array is the same as the original array."
-  (get-or-assign-shape varray (shape-of (vader-base varray))))
+  (get-or-assign-shape varray (base-shape-of varray)))1
 
 (defmethod indexer-of ((varray vader-turn))
-  "The shape of a rotated array is the same as the original array."
-  (index-base-array-with
-   varray (indexer-turn (if (eq :last (vaturn-axis varray))
-                            (1- (length (shape-of varray)))
-                            (vaturn-axis varray))
-                        (shape-of varray)
-                        (vaturn-argument varray))))
+  "Indexer for a rotated or flipped array."
+  (lambda (x)
+    (if (and (not (arrayp (vader-base varray)))
+             (not (varrayp (vader-base varray))))
+        (vader-base varray)
+        (funcall (if (varrayp (vader-base varray))
+                     (indexer-of (vader-base varray))
+                     (if (and (arrayp (vader-base varray))
+                              (< 0 (array-rank (vader-base varray))))
+                         (lambda (y) (row-major-aref (vader-base varray) y))
+                         (vader-base varray)))
+                 (funcall (indexer-turn (if (eq :last (vaturn-axis varray))
+                                            (1- (length (shape-of varray)))
+                                            (vaturn-axis varray))
+                                        (shape-of varray)
+                                        (vaturn-argument varray))
+                          x)))))
 
 ;; a permuted array as from the [⍉ permute] function
 (defclass vader-permute (varray-derived)
