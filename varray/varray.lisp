@@ -153,6 +153,9 @@
   ((argument :accessor vaturn-argument
              :initform nil
              :initarg :argument)
+   (index-origin :accessor vaturn-io
+                 :initform 1
+                 :initarg :index-origin)
    (axis :accessor vaturn-axis
          :initform :last
          :initarg :axis)))
@@ -163,7 +166,16 @@
 
 (defmethod shape-of ((varray vader-turn))
   "The shape of a rotated array is the same as the original array."
-  (get-or-assign-shape varray (base-shape-of varray)))1
+  (get-or-assign-shape varray (base-shape-of varray)))
+
+(defun arg-process (argument)
+  (if (or (listp argument) (numberp argument))
+      argument (if (varrayp argument)
+                   (render argument)
+                   ;(if (vectorp argument)
+                   ;    (coerce argument 'list)
+                   (if (arrayp argument)
+                       argument))))
 
 (defmethod indexer-of ((varray vader-turn))
   "Indexer for a rotated or flipped array."
@@ -179,9 +191,10 @@
                          (vader-base varray)))
                  (funcall (indexer-turn (if (eq :last (vaturn-axis varray))
                                             (1- (length (shape-of varray)))
-                                            (vaturn-axis varray))
+                                            (- (vaturn-axis varray)
+                                               (vaturn-io varray)))
                                         (shape-of varray)
-                                        (vaturn-argument varray))
+                                        (arg-process (vaturn-argument varray)))
                           x)))))
 
 ;; a permuted array as from the [⍉ permute] function
@@ -190,3 +203,6 @@
              :initform nil
              :initarg :argument)))
 
+;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?
+;; y←⍳12 ⋄ (5○⍨-y)=y∘○⍣¯1⊢5
+;; mscan ⍳10

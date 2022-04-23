@@ -1218,42 +1218,47 @@
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
   (lambda (omega alpha)
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
+    (let ((omega (render-varrays omega))
+          (alpha (render-varrays alpha))
+          (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
-               (operand-inverse (getf operand-meta :inverse)))
+               (operand-inverse (getf operand-meta :inverse))
+               (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
           (list :inverse-right (lambda (omega alpha)
-                                 (inverse-outer-product alpha operand-inverse omega
+                                 (inverse-outer-product alpha operand-irendering omega
                                                         (side-effect-free operand)))
                 :inverse (lambda (omega alpha)
-                           (inverse-outer-product omega operand-inverse nil (side-effect-free operand)
+                           (inverse-outer-product omega operand-irendering
+                                                  nil (side-effect-free operand)
                                                   alpha))))
-        (array-outer-product omega alpha operand (side-effect-free operand)))))
+        (array-outer-product omega alpha operand-rendering (side-effect-free operand))))))
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega)
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
-    (if (or (zerop (size omega))
-            (zerop (size alpha)))
-        (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
-            (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
-            (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
-                  (if (functionp identity) (funcall identity) identity))
-                (error "Left operand given to [. inner product] has no identity.")))
-        (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
-                           (error () nil))))
-          (array-inner-product omega alpha right left (and (side-effect-free right)
-                                                           (side-effect-free left))
-                               (not is-scalar))))))
+    (let ((omega (render-varrays omega))
+          (alpha (render-varrays alpha)))
+      (if (or (zerop (size omega))
+              (zerop (size alpha)))
+          (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
+              (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
+              (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
+                    (if (functionp identity) (funcall identity) identity))
+                  (error "Left operand given to [. inner product] has no identity.")))
+          (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
+                             (error () nil))))
+            (array-inner-product omega alpha right left (and (side-effect-free right)
+                                                             (side-effect-free left))
+                                 (not is-scalar)))))))
 
 (defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
-  (let ((fn-right (and (functionp right) right))
-        (fn-left (and (functionp left) left))
-        (temp))
+  (let* ((fn-right (and (functionp right) right))
+         (right (if fn-right right (render-varrays right)))
+         (fn-left (and (functionp left) left))
+         (left (if fn-left left (render-varrays left)))
+         (temp))
     (lambda (omega &optional alpha)
       (setq omega (render-varrays omega)
             alpha (render-varrays alpha))
@@ -1264,7 +1269,7 @@
                                      fn-right fn-left
                                      fn-left temp))
                            (let* ((meta-right (if fn-right (apply fn-right :get-metadata
-                                                                  (if (or alpha (not fn-left)) ; {⎕io←0 ⋄ scc ⍵} scg1
+                                                                  (if (or alpha (not fn-left))
                                                                       (list nil)))))
                                   (meta-left (if fn-left (apply fn-left :get-metadata
                                                                 (if (or alpha (not fn-right))
@@ -1419,8 +1424,10 @@
 
 (defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
-  (let ((left-fn (if (functionp left) left))
-        (right-fn (if (functionp right) right)))
+  (let ((left-fn (if (functionp left) (lambda (o &optional a)
+                                        (render-varrays (apply left o (if a (list a)))))))
+        (right-fn (if (functionp right) (lambda (o &optional a)
+                                          (render-varrays (apply right o (if a (list a))))))))
     (lambda (omega &optional alpha)
       (declare (ignorable alpha))
       (setq omega (render-varrays omega)
@@ -1530,7 +1537,7 @@
                         (stencil omega left-function window-dims movement
                                  (side-effect-free left-function))))))))
 
-;;; From this point are optimized implementations of APL idioms.
+;; From this point are optimized implementations of APL idioms.
 
 (defun iota-sum (n)
   "Fast implementation of +/⍳X."

@@ -895,7 +895,7 @@
                           nil index-origin axes)
                  (funcall (lambda (n io &optional axes)
                             (lambda (i a)
-                              (make-instance 'vader-turn :base i :argument (coerce a 'list)
+                              (make-instance 'vader-turn :base i :argument a :index-origin io
                                                          :axis (or (first axes) :last))))
                           nil index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
