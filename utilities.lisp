@@ -978,6 +978,8 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
+         (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
+                                                              arg `(render-varrays ,arg))))
          (axes-present (and (listp function) (eql 'apl-fn-s (first arguments))
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function))))))

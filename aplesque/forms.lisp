@@ -7,6 +7,7 @@
 
 (defun indexer-section (inverse dims dimensions output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
+  ;; (print (list :is inverse dims dimensions output-shorter))
   (let* ((isize (reduce #'* dims)) (irank (length dims))
          (rdiff (- irank (length dimensions)))
          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))

@@ -941,9 +941,10 @@
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
                  (assign-reference (disclose-atom (funcall function assign-array)))
-                 (value (funcall (if (getf function-meta :selective-assignment-enclosing)
-                                     #'enclose #'identity)
-                                 value)))
+                 (value (render-varrays
+                         (funcall (if (getf function-meta :selective-assignment-enclosing)
+                                      #'enclose #'identity)
+                                  value))))
             ;; TODO: this logic can be improved
             (if (arrayp value)
                 (let* ((index-array (generate-index-array assign-array t))
@@ -976,13 +977,14 @@
                  (if (not (arrayp (row-major-aref indices i)))
                      (setf (row-major-aref vector (row-major-aref indices i))
                            (if (not (arrayp values))
-                               values (if (zerop (rank values))
-                                          (aref values)
-                                          (if (or (not (arrayp (row-major-aref values i)))
-                                                  (= (size indices) (size values)))
-                                              (row-major-aref values i)
-                                              (error "Incompatible values to assign; nested array present ~a"
-                                                     " where scalar value expected.")))))
+                               values
+                               (if (zerop (rank values))
+                                   (aref values)
+                                   (if (or (not (arrayp (row-major-aref values i)))
+                                           (= (size indices) (size values)))
+                                       (row-major-aref values i)
+                                       (error "Incompatible values to assign; nested array present ~a"
+                                              " where scalar value expected.")))))
                      (vectorize-assigned (row-major-aref indices i)
                                          (if (arrayp values) (row-major-aref values i)
                                              values)
