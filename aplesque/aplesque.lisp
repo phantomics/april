@@ -215,7 +215,7 @@
                                    (recurse (1+ n))))))
           (recurse 0)))))
 
-(defun apl-array-prototype (array)
+(defun apl-array-prototype (array &optional is-first-element)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   (labels ((derive-element (input)
              (if (characterp input)
@@ -236,19 +236,22 @@
         (if (zerop (size array))
             (if (eql 'character (element-type array))
                 #\  (coerce 0 (element-type array)))
-            (let ((first-element (row-major-aref array 0)))
+            (let ((first-element (if is-first-element array (row-major-aref array 0))))
+              ;; (print (list :fe first-element))
               (if (not (arrayp first-element))
                   (derive-element first-element)
                   (funcall (if (< 0 (rank first-element))
                                #'identity (lambda (item) (make-array nil :initial-element item)))
                            (let ((first-element (if (< 0 (rank first-element))
                                                     first-element (aref first-element))))
-                             (if (and (arrayp first-element)
-                                      (zerop (size first-element)))
-                                 first-element
-                                 (make-array (dims first-element)
-                                             :element-type (element-type first-element)
-                                             :initial-element (derive-element first-element)))))))))))
+                             (if (not is-first-element)
+                                 (derive-element (print first-element))
+                                 (if (and (arrayp first-element)
+                                          (zerop (size first-element)))
+                                     first-element
+                                     (make-array (dims first-element)
+                                                 :element-type (element-type first-element)
+                                                 :initial-element (derive-element first-element))))))))))))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."

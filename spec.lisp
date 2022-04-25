@@ -656,7 +656,7 @@
                               (make-instance 'vader-section :base i :argument a :index-origin io
                                                             :axis (or (first axes) :last))))
                           nil index-origin axes))
-     (meta (primary :axes axes :implicit-args (index-origin))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λωχ (split-array omega *last-axis*)))
            (dyadic :on-axis :last :selective-assignment-compatible t))
      (tests (is "↑2" 2)

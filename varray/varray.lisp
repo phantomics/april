@@ -15,6 +15,8 @@
 ;; to get the element type of an array
 (defgeneric etype-of (array))
 
+(defgeneric prototype-of (array))
+
 ;; to get the shape of an array
 (defgeneric shape-of (array))
 
@@ -36,6 +38,14 @@
 (defmethod etype-of ((varray varray))
   t)
 
+;; the default element type is t
+(defmethod prototype-of ((item t))
+  (apl-array-prototype item))
+
+;; the default element type is t
+(defmethod prototype-of ((varray varray))
+  0)
+
 ;; by default, get the array's stored shape
 (defmethod shape-of ((_ t))
   (declare (ignore _))
@@ -53,7 +63,7 @@
   item)
 
 (defmethod indexer-of ((array array))
-  (if (= 0 (rank array))
+  (if (= 0 (array-rank array))
       array (lambda (index) (row-major-aref array index))))
 
 (defmethod render ((varray varray))
@@ -85,6 +95,12 @@
   (if (arrayp (vader-base varray))
       (array-element-type (vader-base varray))
       (etype-of (vader-base varray))))
+
+;; the default shape of a derived array is the same as its base array
+(defmethod prototype-of ((varray varray-derived))
+  (if (varrayp (vader-base varray))
+      (apl-array-prototype (funcall (indexer-of (vader-base varray)) 0))
+      (prototype-of (vader-base varray))))
 
 (defmethod shape-of ((varray varray-derived))
   "The default shape of a derived array is the same as the original array."
@@ -123,6 +139,10 @@
                           (+ (vvip-origin vvector)
                              (first (shape-of vvector))))))
 
+(defmethod prototype-of ((vvector vvector-integer-progression))
+  (declare (ignore vvector))
+  0)
+
 ;; the shape of an IP vector is its number times its repetition
 (defmethod shape-of ((vvector vvector-integer-progression))
   (get-or-assign-shape vvector (list (* (vvip-number vvector)
@@ -142,6 +162,20 @@
           :initarg :axis
           :documentation "The axis along which to transform."))
   (:documentation "Superclass of array transformations occuring along an axis."))
+
+(defclass vad-with-argument ()
+  ((%argument :accessor vad-argument
+              :initform :last
+              :initarg :argument
+              :documentation "Parameters passed to an array transformation as an argument."))
+  (:documentation "Superclass of array transformations occuring along an axis."))
+
+(defclass vad-invertable ()
+  ((%inverse :accessor vad-inverse
+             :initform :last
+             :initarg :inverse
+             :documentation "Parameters passed to an array transformation as an argument."))
+  (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
 
 ;; a reshaped array as with the [⍴ shape] function
 (defclass vader-reshape (varray-derived)
@@ -165,6 +199,14 @@
             :initform nil
             :initarg :inverse)))
 
+(defmethod prototype-of ((varray vader-section))
+  (let ((indexer (indexer-of (vader-base varray))))
+    ;; TODO: remove-enclose when [⍴ shape] is virtually implemented
+    (print (list :in indexer))
+    (apl-array-prototype (if (not (functionp indexer))
+                             indexer (aplesque::enclose
+                                      (funcall (indexer-of (vader-base varray)) 0))))))
+
 (defmethod shape-of ((varray vader-section))
   "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
   (let* ((argument (vasec-argument varray))
@@ -185,26 +227,34 @@
                                                                  1 (length argument)))
                                           :for d :from 0
                                           :collect (if (not (arrayp argument))
-                                                       (if (= 0 d) argument b)
+                                                       (if (zerop d) (abs argument)
+                                                           (nth b base-shape))
                                                        (if (< d (length argument))
                                                            (abs (aref argument d))
-                                                           b)))))))
+                                                           (nth b base-shape))))))))
 
 (defmethod indexer-of ((varray vader-section))
   "Indexer for a sectioned array."
   (lambda (index)
-    (let ((base-indexer (indexer-of (vader-base varray))))
+    (let ((base-indexer (indexer-of (vader-base varray)))
+          (arg (vasec-argument varray)))
       (if (not (functionp base-indexer))
-          (if (= 0 index) base-indexer (apl-array-prototype (vader-base varray)))
-          (funcall base-indexer
-                   (funcall (indexer-section (vasec-inverse varray)
-                                             (shape-of (vader-base varray))
-                                             ;; (if (arrayp (vasec-argument varray))
-                                             ;;     (vasec-argument varray)
-                                             ;;     (vector (vasec-argument varray)))
-                                             (coerce (shape-of varray) 'vector)
-                                             nil)
-                            index))))))
+          (if (= 0 index) (disclose base-indexer)
+              (apl-array-prototype (vader-base varray)))
+          (let ((indexed (funcall (indexer-section
+                                   (vasec-inverse varray)
+                                   (shape-of (vader-base varray))
+                                   (coerce (loop :for s :in (shape-of varray)
+                                                 :for a :from 0
+                                                 :collect (if (not (vectorp arg))
+                                                              (if (zerop a) arg s)
+                                                              (if (>= a (length arg))
+                                                                  s (aref arg a))))
+                                           'vector)
+                                   nil)
+                                  index)))
+            (if indexed (funcall base-indexer indexed)
+                (prototype-of (vader-base varray))))))))
 
 (defclass vader-meta-scalar-pass (varray-derived) nil)
 

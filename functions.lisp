@@ -544,9 +544,10 @@
   (lambda (omega) ; &optional axes)
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
-                omega :populator (lambda (item)
-                                   (let ((populator (build-populator item)))
-                                     (if populator (funcall populator)))))))
+                (render-varrays omega) ;; remove-render
+                :populator (lambda (item)
+                             (let ((populator (build-populator item)))
+                               (if populator (funcall populator)))))))
 
 (defun wrap-split-array (index-origin axes)
   "Wrapper for [↓ split]."
