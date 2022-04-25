@@ -215,7 +215,19 @@
                                    (recurse (1+ n))))))
           (recurse 0)))))
 
-(defun apl-array-prototype (array &optional is-first-element)
+(defun make-empty-array (array)
+  "Makes a prototype version of an array." ;; IPV-TODO: replace the below function with this?
+  (let* ((output-type (element-type array))
+         (output (make-array (dims array) :element-type output-type)))
+    (dotimes (i (size output))
+      (setf (row-major-aref output i)
+            (if (not (arrayp (row-major-aref array i)))
+                (if (member output-type '(character base-char))
+                    #\Space 0)
+                (make-empty-array (row-major-aref array i)))))
+    output))
+
+(defun apl-array-prototype (array)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   (labels ((derive-element (input)
              (if (characterp input)
@@ -236,22 +248,19 @@
         (if (zerop (size array))
             (if (eql 'character (element-type array))
                 #\  (coerce 0 (element-type array)))
-            (let ((first-element (if is-first-element array (row-major-aref array 0))))
-              ;; (print (list :fe first-element))
+            (let ((first-element (row-major-aref array 0)))
               (if (not (arrayp first-element))
                   (derive-element first-element)
                   (funcall (if (< 0 (rank first-element))
                                #'identity (lambda (item) (make-array nil :initial-element item)))
                            (let ((first-element (if (< 0 (rank first-element))
                                                     first-element (aref first-element))))
-                             (if (not is-first-element)
-                                 (derive-element (print first-element))
-                                 (if (and (arrayp first-element)
-                                          (zerop (size first-element)))
-                                     first-element
-                                     (make-array (dims first-element)
-                                                 :element-type (element-type first-element)
-                                                 :initial-element (derive-element first-element))))))))))))
+                             (if (and (arrayp first-element)
+                                      (zerop (size first-element)))
+                                 first-element
+                                 (make-array (dims first-element)
+                                             :element-type (element-type first-element)
+                                             :initial-element (derive-element first-element)))))))))))
 
 (defun assign-element-type (item)
   "Find a type suitable for an APL array to hold a given item."
@@ -1368,7 +1377,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key set set-by set-nil reference modify-input)
+(defun choose (input indices &key set set-by set-nil reference modify-input               )
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices

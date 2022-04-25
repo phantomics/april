@@ -555,7 +555,7 @@
 
 (defun section-array (index-origin &optional inverse axes)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
-  (lambda (omega alpha) ; &optional axes)
+  (lambda (omega alpha)
     (let* ((alpha (if (arrayp alpha)
                       alpha (vector alpha)))
            (output (section omega
@@ -941,7 +941,7 @@
                  (assign-array (if (not axes) omega (choose omega axes :reference t)))
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
-                 (assign-reference (disclose-atom (funcall function assign-array)))
+                 (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
                  (value (render-varrays
                          (funcall (if (getf function-meta :selective-assignment-enclosing)
                                       #'enclose #'identity)
@@ -949,7 +949,7 @@
             ;; TODO: this logic can be improved
             (if (arrayp value)
                 (let* ((index-array (generate-index-array assign-array t))
-                       (target-index-array (enclose-atom (funcall function index-array))))
+                       (target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
                   (assign-by-vector assign-array index-array
                                     (vectorize-assigned target-index-array value (size assign-array))
                                     :by by)
@@ -958,7 +958,7 @@
                     (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
                                                             (not (< 1 (size (disclose-atom assign-reference))))
                                                             (not (arrayp value))))
-                  (let ((target-index-array (enclose-atom (funcall function index-array))))
+                  (let ((target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
                     (assign-by-vector assign-array index-array
                                       (vectorize-assigned target-index-array value assignment-size)
                                       :by by)

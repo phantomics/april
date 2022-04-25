@@ -11,7 +11,11 @@
            #:array-impress #:matrix-print #:disclose-unitary #:apply-scalar #:reduce-array #:permute-axes
            #:get-first-or-disclose #:assign-element-type #:type-in-common #:initialize-for-environment
            #:array-outer-product #:inverse-outer-product #:copy-nested-array #:disclose #:xdotimes
-           #:ydotimes #:get-dimensional-factors #:is-integer-array #:apl-array-prototype)
+           #:ydotimes #:get-dimensional-factors #:is-integer-array
+
+           #:apl-array-prototype #:make-empty-array
+           ;; IPV-TODO: do these last 2 need to be exported?
+           )
   (:use #:cl)
   (:shadowing-import-from #:alexandria #:iota #:copy-array #:rotate)
   (:shadowing-import-from #:array-operations #:flatten #:dims #:size #:rank #:element-type #:split)
