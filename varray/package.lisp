@@ -2,7 +2,7 @@
 
 (defpackage #:varray
   (:use #:cl)
-  (:export #:varray #:etype-of #:shape-of #:indexer-of #:render
+  (:export #:varray #:varrayp #:etype-of #:shape-of #:indexer-of #:render
            #:vvector-integer-progression
            #:vader-section #:vader-turn)
   (:shadowing-import-from #:aplesque #:disclose #:assign-element-type #:apl-array-prototype)

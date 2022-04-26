@@ -544,14 +544,15 @@
   (lambda (omega) ; &optional axes)
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
-                (render-varrays omega) ;; remove-render
+                (render-varrays omega) ;; IPV-TODO: remove-render
                 :populator (lambda (item)
                              (let ((populator (build-populator item)))
                                (if populator (funcall populator)))))))
 
 (defun wrap-split-array (index-origin axes)
   "Wrapper for [↓ split]."
-  (lambda (omega) (split-array omega *last-axis*)))
+  (lambda (omega) (split-array (render-varrays omega) ;; IPV-TODO: remove-render
+                               *last-axis*)))
 
 (defun section-array (index-origin &optional inverse axes)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
@@ -1142,8 +1143,8 @@
               (if alpha (if (and (or oscalar ouvec)
                                  (or ascalar auvec))
                             (if output (setf (row-major-aref output 0)
-                                             (funcall operand (disclose-any omega)
-                                                      (disclose-any alpha)))
+                                             (render-varrays (funcall operand (disclose-any omega)
+                                                                      (disclose-any alpha))))
                                 (setf output (enclose (render-varrays (funcall operand omega alpha)))))
                             (xdotimes output (i (size (if (or oscalar ouvec) alpha omega))
                                                 :synchronous-if (not threaded))
@@ -1427,7 +1428,9 @@
 
 (defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
-  (let ((left-fn (if (functionp left) (lambda (o &optional a)
+  (let ((right (render-varrays right))
+        (left (render-varrays left))
+        (left-fn (if (functionp left) (lambda (o &optional a)
                                         (render-varrays (apply left o (if a (list a)))))))
         (right-fn (if (functionp right) (lambda (o &optional a)
                                           (render-varrays (apply right o (if a (list a))))))))
@@ -1435,6 +1438,7 @@
       (declare (ignorable alpha))
       (setq omega (render-varrays omega)
             alpha (render-varrays alpha))
+      ;; (print (list :rr right))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
           ;; if the right operand is a function, collect the right argument's matching elements
           ;; into a vector, apply the left operand function to it and assign its elements to their

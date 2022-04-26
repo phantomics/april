@@ -742,9 +742,16 @@
             (is "1 2↑2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8))))
             (is "2 2 2↑1 0 2⍴⍳30" #3A(((0 0) (0 0)) ((0 0) (0 0))))))
   (↓ (has :titles ("Split" "Drop"))
+     ;; (ambivalent (wrap-split-array index-origin axes)
+     ;;             (section-array index-origin t axes))
      (ambivalent (wrap-split-array index-origin axes)
-                 (section-array index-origin t axes))
-     (meta (primary :axes axes :implicit-args (index-origin))
+                 (funcall (lambda (n io &optional axes)
+                            (lambda (i a)
+                              (make-instance
+                               'vader-section :base i :argument a :index-origin io :inverse t
+                                              :axis (or (first axes) :last))))
+                          nil index-origin axes))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last
                     :inverse (λωχ (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                                                   (rank omega))
