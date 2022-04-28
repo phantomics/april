@@ -544,7 +544,7 @@
   (lambda (omega) ; &optional axes)
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
-                (render-varrays omega) ;; IPV-TODO: remove-render
+                (print (render-varrays omega)) ;; IPV-TODO: remove-render
                 :populator (lambda (item)
                              (let ((populator (build-populator item)))
                                (if populator (funcall populator)))))))
@@ -859,26 +859,28 @@
 (defun format-array (print-precision)
   "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)
-    (if (and alpha (not (integerp alpha)))
-        (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
-                            " the precision at which to print floating-point numbers.")))
-    (if (characterp omega)
-        omega (array-impress
-               omega :collate t
-                     :segment (lambda (number &optional segments)
-                                (count-segments number (if alpha (- alpha) print-precision)
-                                                segments))
-                     :format (lambda (number &optional segments rps)
-                               (print-apl-number-string number segments print-precision alpha rps))))))
+    (let ((omega (render-varrays omega)))
+      (if (and alpha (not (integerp alpha)))
+          (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
+                              " the precision at which to print floating-point numbers.")))
+      (if (characterp omega)
+          omega (array-impress
+                 omega :collate t
+                       :segment (lambda (number &optional segments)
+                                  (count-segments number (if alpha (- alpha) print-precision)
+                                                  segments))
+                       :format (lambda (number &optional segments rps)
+                                 (print-apl-number-string number segments print-precision alpha rps)))))))
 
 (defun format-array-uncollated (print-precision-default)
   "Generate a function using (aplesque:array-impress) to print an array in matrix form without collation. Used to implement ⎕FMT."
   (lambda (input &optional print-precision)
-    (let ((print-precision (or print-precision print-precision-default))
+    (let ((input (render-varrays input))
+          (print-precision (or print-precision print-precision-default))
           (is-not-nested t))
       (if (and print-precision (not (integerp print-precision)))
-          (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
-                              " the precision at which to print floating-point numbers.")))
+          (error "The left argument to ⍕ must be an integer specifying ~a"
+                 "the precision at which to print floating-point numbers."))
       ;; only right-indent if this is a nested array; this is important for box-drawing functions
       (if (arrayp input) (xdotimes input (x (size input))
                            (if (arrayp (row-major-aref input x))
@@ -943,10 +945,10 @@
                  ;; assign reference is used to determine the shape of the area to be assigned,
                  ;; which informs the proper method for generating the index array
                  (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
-                 (value (render-varrays
-                         (funcall (if (getf function-meta :selective-assignment-enclosing)
-                                      #'enclose #'identity)
-                                  value))))
+                 (value (funcall (if (getf function-meta :selective-assignment-enclosing)
+                                     #'enclose #'identity)
+                                 (render-varrays value))))
+            ;; (print (list :om omega value))
             ;; TODO: this logic can be improved
             (if (arrayp value)
                 (let* ((index-array (generate-index-array assign-array t))
@@ -1208,15 +1210,17 @@
               (push item key-list))
           (push i (gethash item key-table))))
       (let ((item-sets (loop :for key :in (reverse key-list)
-                          :collect (funcall function
-                                            (if alpha (choose omega
-                                                              (cons (apply #'vector
-                                                                           (reverse (gethash key key-table)))
-                                                                    elisions))
-                                                (let ((items (funcall indices-of key keys)))
-                                                  (make-array (length items)
-                                                              :initial-contents (reverse items))))
-                                            key))))
+                             :collect (render-varrays
+                                       (funcall function
+                                                (if alpha (choose omega
+                                                                  (cons (apply #'vector
+                                                                               (reverse
+                                                                                (gethash key key-table)))
+                                                                        elisions))
+                                                    (let ((items (funcall indices-of key keys)))
+                                                      (make-array (length items)
+                                                                  :initial-contents (reverse items))))
+                                                key)))))
         (mix-arrays 1 (apply #'vector item-sets))))))
 
 (defun operate-producing-outer (operand)
@@ -1373,14 +1377,15 @@
                                                               alpha (if (zerop (rank adivs))
                                                                         (aref adivs) (row-major-aref adivs i)))))
                                            (setf (row-major-aref output i)
-                                                 (disclose (funcall function this-odiv this-adiv)))))
+                                                 (disclose (render-varrays (funcall function this-odiv this-adiv))))))
                                        (mix-arrays (max (rank odivs) (rank adivs))
                                                    output))))
                     (if (not odivs) ;; as above for an omega value alone
                         (funcall function omega)
                         (let ((output (make-array (dims odivs))))
                           (xdotimes output (i (size output) :synchronous-if (not (side-effect-free function)))
-                            (setf (row-major-aref output i) (funcall function (row-major-aref odivs i))))
+                            (setf (row-major-aref output i)
+                                  (render-varrays (funcall function (row-major-aref odivs i)))))
                           (mix-arrays (rank output) output))))))))))
 
 (defun operate-atop (right-fn left-fn)
@@ -1438,7 +1443,6 @@
       (declare (ignorable alpha))
       (setq omega (render-varrays omega)
             alpha (render-varrays alpha))
-      ;; (print (list :rr right))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
           ;; if the right operand is a function, collect the right argument's matching elements
           ;; into a vector, apply the left operand function to it and assign its elements to their
@@ -1523,7 +1527,8 @@
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (lambda (omega)
-    (setq omega (render-varrays omega))
+    (setq omega (render-varrays omega)
+          right-value (render-varrays right-value))
     (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
                                    :collect (if (= i 0) index nil))))
       (if (not (or (and (< 2 (rank right-value))

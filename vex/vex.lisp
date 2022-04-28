@@ -813,6 +813,7 @@
                              "-WORKSPACE-" (if (not (second (assoc :space options)))
                                                "COMMON" (string-upcase (second (assoc :space options))))))
          (state-to-use) (system-to-use))
+
     (labels ((assign-from (source dest)
                (if (not source)
                    dest (progn (setf (getf dest (first source)) (second source))
@@ -889,7 +890,10 @@
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
-                                                   system-to-use inline-arguments))
+                                                   (append (if (assoc :unrendered options)
+                                                               (list :unrendered t))
+                                                           system-to-use)
+                                                   inline-arguments))
                                         (process-lines
                                          (funcall (of-utilities idiom :prep-code-string) string)
                                          space (list :call-scope (list :input-vars iv-list

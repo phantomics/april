@@ -217,15 +217,18 @@
 
 (defun make-empty-array (array)
   "Makes a prototype version of an array." ;; IPV-TODO: replace the below function with this?
-  (let* ((output-type (element-type array))
-         (output (make-array (dims array) :element-type output-type)))
-    (dotimes (i (size output))
-      (setf (row-major-aref output i)
-            (if (not (arrayp (row-major-aref array i)))
-                (if (member output-type '(character base-char))
-                    #\Space 0)
-                (make-empty-array (row-major-aref array i)))))
-    output))
+  (if (not (arrayp array))
+      (if (typep array 'character)
+          #\Space 0)
+      (let* ((output-type (element-type array))
+             (output (make-array (dims array) :element-type output-type)))
+        (dotimes (i (size output))
+          (setf (row-major-aref output i)
+                (if (not (arrayp (row-major-aref array i)))
+                    (if (member output-type '(character base-char))
+                        #\Space 0)
+                    (make-empty-array (row-major-aref array i)))))
+        output)))
 
 (defun apl-array-prototype (array)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
@@ -714,7 +717,7 @@
                                                            :element-type (element-type input)
                                                            :initial-element (if (not populator)
                                                                                 (apl-array-prototype input)))))
-                                   (if populator (xdotimes output (i (length output))
+                                   (if populator (xdotimes output (i (size output))
                                                    (setf (row-major-aref output i) (funcall populator))))
                                    output))))))
                (if (or (integerp degrees) (= 1 (length degrees)))
@@ -724,7 +727,7 @@
                                              :element-type (element-type input)
                                              :initial-element (if (not populator)
                                                                   (apl-array-prototype input)))))
-                     (if populator (xdotimes output (i (length output))
+                     (if populator (xdotimes output (i (size output))
                                      (setf (row-major-aref output i) (funcall populator))))
                      output)
                    (if (and (loop :for d :across degrees :always (zerop d))
@@ -735,7 +738,7 @@
                                                  :element-type (element-type input)
                                                  :initial-element (if (not populator)
                                                                       (apl-array-prototype input)))))
-                         (if populator (xdotimes output (i (length output))
+                         (if populator (xdotimes output (i (size output))
                                          (setf (row-major-aref output i) (funcall populator))))
                          output)
                        (error "An empty array can only be expanded to a single negative degree ~a"
@@ -1377,7 +1380,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key set set-by set-nil reference modify-input               )
+(defun choose (input indices &key set set-by set-nil reference modify-input)
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices

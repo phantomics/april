@@ -410,7 +410,7 @@ phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation 
 
 ⍝ From http://dfns.dyalog.com/s_phinary.htm
 
-align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨  
+align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨
 
 ⍝ From http://dfns.dyalog.com/c_root.htm
 

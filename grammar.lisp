@@ -1058,7 +1058,7 @@
            (if (and (listp var-sym) (eql 'nspath (first var-sym)))
                `(a-set ,var-sym ,value
                        ,@(if (third symbol) (list :axes (list (rest (third (third symbol)))))))
-               `(let ((,val ,value))
+               `(let ((,val (render-varrays ,value)))
                   (multiple-value-bind (,out1 ,out2)
                       ,(append symbol (list :set val :modify-input t)
                                (if function `(:set-by (lambda (item item2)

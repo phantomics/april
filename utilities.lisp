@@ -11,7 +11,11 @@
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *last-axis* (if axes (- (first axes) index-origin)
-                                     (max 0 (1- (rank omega)))))
+                                     (let ((rank (if (typep omega 'varray)
+                                                     (rank-of omega) ;; IPV-TODO: simplify this
+                                                     (rank omega))))
+                                       (max 0 (1- rank)))))
+  
 (define-symbol-macro *first-axis-or-nil* (if axes (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
@@ -229,9 +233,11 @@
 
 (defmacro achoose (item indices &rest rest-params)
   "Wrapper for the choose function."
-  (let ((indices-evaluated (gensym)))
+  (let ((indices-evaluated (gensym))
+        (item (if (symbolp item)
+                  item `(render-varrays ,item))))
     `(let ((,indices-evaluated ,indices))
-       (choose (render-varrays ,item) ,indices-evaluated ,@rest-params))))
+       (choose ,item ,indices-evaluated ,@rest-params))))
 
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
@@ -449,6 +455,7 @@
 
 (defun at-path (object path &key (value) (value-nil) (set-by))
   "Get or set values within a namespace (structured as a ptree), handling arrays within the namespace according to array indices within the namespace path or eliding arrays in the absence of specific coordinates."
+  (setf value (render-varrays value))
   (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
       (apply-scalar (lambda (item) (at-path item path))
                     object)
@@ -645,7 +652,7 @@
                                                                                        (rest namespace)))
                                                            ,(intern (string symbol) "KEYWORD"))
                                                      ,set-to)
-                                    `(setf ,symbol ,set-to)))))))))
+                                    `(setf ,symbol (render-varrays ,set-to))))))))))
         (if (and (listp symbol) (eql 'nspath (first symbol)))
             ;; handle assignments within namespaces, using process-path to handle the paths
             (let ((val (gensym)))
@@ -730,8 +737,8 @@
                                   ,this-val))))
                     (process-symbols symbols value))))))))
 
-(defmacro a-out (form &key (print-to) (output-printed)
-                             (print-assignment) (print-precision) (with-newline))
+(defmacro a-out (form &key (print-to) (output-printed) (unrendered)
+                        (print-assignment) (print-precision) (with-newline))
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym))
         ;; get the symbol referencing a function passed as the output
@@ -739,10 +746,11 @@
                                  `(string (quote ,(second form)))))
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
-    `(let* ((,result (render-varrays ,form))
+    ;; don't render if the (:unrendered) option has been passed
+    `(let* ((,result ,(if unrendered form `(render-varrays ,form)))
             (,printout ,(if (and (or print-to output-printed))
-                            ;; don't print the results of assignment unless the :print-assignment option is set,
-                            ;; as done when compiling a ⎕← expression
+                            ;; don't print the results of assignment unless the :print-assignment
+                            ;; option is set, as done when compiling a ⎕← expression
                             (or (and function-name-value
                                      `(concatenate 'string "∇" ,function-name-value))
                                 ;; if a bare function name is to be output, prefix it with ∇
@@ -978,11 +986,17 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
-                                                              arg `(render-varrays ,arg))))
-         (axes-present (and (listp function) (eql 'apl-fn-s (first arguments))
+         (scalar-axes-present
+           (and (listp function) (eql 'apl-fn-s (first function))
                             (third function) (listp (third function))
-                            (eql 'apply-scalar (first (third function))))))
+                            (eql 'apply-scalar (first (third function)))))
+         (axes-present (and (listp function) (eql 'apl-fn-s (first function))
+                            (third function) (listp (third function))
+                            (eql 'apply-scalar (first (third function)))))
+         
+         (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
+                                                                   (not (symbolp arg)))
+                                                              arg `(render-varrays ,arg)))))
     (or (join-fns `(a-call ,function ,@arguments))
         (if (and (listp function)
                  (eql 'function (first function))
@@ -998,9 +1012,10 @@
                                                                (list (intern (string (second function))
                                                                              "KEYWORD"))
                                                                (cddr function)))))))
-               `(let ((,arg-list (list ,@arguments ,@(if axes-present (list (third function))))))
+               `(let ((,arg-list (list ,@arguments ))) ;,@(if axes-present (list (third function))))))
                   (apply ,@(if is-scalar (list '#'apply-scalar))
-                         ,(if (not axes-present) function (butlast function 1))
+                         ,(if t ; (not axes-present)
+                              function (butlast function 1))
                          ,arg-list))))))
 
 (defun join-fns (form &optional wrap)
@@ -1217,9 +1232,9 @@ It remains here as a standard against which to compare methods for composing APL
               (if set `(let ((,to-set ,set))
                          (multiple-value-bind (,assignment-output ,assigned-array)
                              (achoose ,body (mapcar (lambda (array)
-                                                      (if array (apply-scalar #'- (render-varrays
-                                                                                   array)
-                                                                              index-origin)))
+                                                      (if array (apply-scalar
+                                                                 #'- (render-varrays array)
+                                                                 index-origin)))
                                                     (list ,@axes))
                                       :set-nil ,set-nil :set ,to-set ,@(if set-by (list :set-by set-by))
                                       ;; setting the modify-input parameter so that the original value
