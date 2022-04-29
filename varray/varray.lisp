@@ -12,58 +12,73 @@
 (defun varrayp (item)
   (typep item 'varray))
 
-;; to get the element type of an array
-(defgeneric etype-of (array))
+(defgeneric etype-of (varray)
+  (:documentation "Get the element type of an array."))
 
-(defgeneric prototype-of (array))
+(defgeneric prototype-of (varray)
+  (:documentation "Get the prototype of an array."))
 
-;; to get the shape of an array
-(defgeneric shape-of (array))
+(defgeneric shape-of (varray)
+  (:documentation "Get the shape of an array."))
 
-;; to get an indexing function for an array
-(defgeneric indexer-of (array))
+(defgeneric rank-of (varray)
+  (:documentation "Get the rank of an array."))
 
-;; to render an array into memory
-(defgeneric render (array))
+(defgeneric indexer-of (varray)
+  (:documentation "Get an indexing function for an array."))
 
-;; the default element type is t
-(defmethod etype-of ((item t))
-  (assign-element-type item))
+(defgeneric render (varray)
+  (:documentation "Render an array into memory."))
 
-;; the default element type is t
-(defmethod etype-of ((array array))
-  (array-element-type array))
-
-;; the default element type is t
-(defmethod etype-of ((varray varray))
-  t)
-
-;; the default element type is t
 (defmethod prototype-of ((item t))
-  (apl-array-prototype item))
+  "The prototype representation of an item is returned by the (apl-array-prototype) function."
+  (if (and (arrayp item)
+           (array-displacement item)
+           (listp (aref (array-displacement item) 0))
+           (member :empty-array-prototype (aref (array-displacement item) 0)))
+      (getf (aref (array-displacement item) 0) :empty-array-prototype)
+      (apl-array-prototype item)))
 
-;; the default element type is t
 (defmethod prototype-of ((varray varray))
+  "The default prototype for a virtual array is 0."
   0)
 
-;; by default, get the array's stored shape
+(defmethod etype-of ((varray varray))
+  "The default element type for a virtual array is T."
+  't)
+
+(defmethod etype-of ((array array))
+  "A literal array's element type is returned by the (array-element-type) function."
+  (array-element-type array))
+
 (defmethod shape-of ((_ t))
+  "Non-arrays have a nil shape."
   (declare (ignore _))
   nil)
 
-;; by default, get the array's stored shape
 (defmethod shape-of ((array array))
+  "Literal array shapes are given by (array-dimensions)."
   (array-dimensions array))
 
-;; by default, get the array's stored shape
 (defmethod shape-of ((varray varray))
+  "Virtual array shapes are referenced using the (varray-shape) method."
   (varray-shape varray))
 
-;; by default, get the array's stored shape
+(defmethod rank-of ((item t))
+  "Non-arrays have a rank of 0."
+  (declare (ignore item))
+  0)
+
+(defmethod rank-of ((array array))
+  "Literal array ranks are given by (array-rank)."
+  (array-rank array))
+
 (defmethod rank-of ((varray varray))
+  "A virtual array's rank is the length of its shape."
   (length (shape-of varray)))
 
 (defmethod indexer-of ((item t))
+  "The indexer for a non-array is its identity."
   item)
 
 (defmethod indexer-of ((array array))
@@ -125,14 +140,6 @@
   "The default shape of a derived array is the same as the original array."
   (get-or-assign-shape varray (shape-of (vader-base varray))))
 
-;; (defmacro index-base-array-with (varray this-indexer)
-;;   (let ((x (gensym)) (y (gensym)))
-;;     `(lambda (,x)
-;;        (funcall (if (typep (vader-base ,varray) 'varray)
-;;                     (indexer-of (vader-base ,varray))
-;;                     (lambda (,y) (row-major-aref (vader-base ,varray) ,y)))
-;;                 (funcall ,this-indexer ,x)))))
-
 (defclass vvector-integer-progression (varray-primal)
   ((%number :accessor vvip-number
             :initform 1
@@ -175,7 +182,7 @@
               (vvip-origin vvector))
            (vvip-factor vvector)))))
 
-;; superclasses encompassing array derivations supporting different types of parameters
+;; superclasses encompassing array derivations taking different types of parameters
 
 (defclass vad-on-axis ()
   ((%axis :accessor vads-axis
@@ -238,7 +245,8 @@
 (defmethod shape-of ((varray vader-reshape))
   "The shape of a reshaped array is simply its argument."
   (get-or-assign-shape
-   varray (let ((arg (vads-argument varray)))
+   varray (let ((arg (setf (vads-argument varray)
+                           (render (vads-argument varray)))))
             (if (vectorp arg)
                 (coerce arg 'list)
                 (list arg)))))
@@ -250,13 +258,18 @@
          (output-size (reduce #'* output-shape))
          (base-indexer (indexer-of (vader-base varray))))
     (lambda (index)
-      ;; (print (list :in input-size output-size))
       (if (zerop output-size)
           (prototype-of varray)
           (if (not (functionp base-indexer))
-              (disclose base-indexer)
-              (funcall base-indexer (if (not output-shape)
-                                        0 (mod index (max 1 input-size)))))))))
+              (funcall (if (not (and (arrayp (vads-argument varray))
+                                     (zerop (array-total-size (vads-argument varray)))))
+                           #'disclose #'identity)
+                       base-indexer)
+              (funcall (if (not (and (arrayp (vads-argument varray))
+                                     (zerop (array-total-size (vads-argument varray)))))
+                           #'identity #'enclose)
+                       (funcall base-indexer (if (not output-shape)
+                                                 0 (mod index (max 1 input-size))))))))))
   
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
@@ -273,7 +286,8 @@
   (get-or-assign-shape
    varray
    (let* ((arg-shape (shape-of (vads-argument varray)))
-          (arg-indexer (indexer-of (vads-argument varray)))
+          (arg-indexer (indexer-of (setf (vads-argument varray)
+                                         (render (vads-argument varray)))))
           (base-shape (copy-list (shape-of (vader-base varray))))
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
@@ -310,12 +324,12 @@
   (let* ((base-indexer (indexer-of (vader-base varray)))
          (iorigin (vads-io varray))
          (axis (vads-axis varray))
-         (arg-shape (shape-of (vads-argument varray)))
-         (arg-indexer (indexer-of (vads-argument varray)))
          (is-inverse (vads-inverse varray))
          (out-dims (if is-inverse (make-array (length (shape-of varray))
                                               :initial-element 0)
-                       (coerce (shape-of varray) 'vector))))
+                       (coerce (shape-of varray) 'vector)))
+         (arg-shape (shape-of (vads-argument varray)))
+         (arg-indexer (indexer-of (vads-argument varray))))
 
     (if (vectorp axis)
         (loop :for x :across axis :for ix :from 0

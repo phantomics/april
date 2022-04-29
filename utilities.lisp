@@ -201,6 +201,8 @@
        (labels ((∇self ,params
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
                                               :collect var)))
+                  ,@(loop :for var :in params :when (not (eql '&optional var))
+                          :collect `(setq ,var (render-varrays ,var)))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
                       (let ,(loop :for var :in system-vars :collect (list var var))
@@ -1279,7 +1281,8 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun coerce-or-get-type (array &optional type-index)
   "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕DT."
-  (let ((types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
+  (let ((array (render-varrays array))
+        (types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
                  (-3 (unsigned-byte 7)) (3 (unsigned-byte 8)) (-4 (unsigned-byte 15))
                  (4 (unsigned-byte 16)) (-5 (unsigned-byte 31)) (5 (unsigned-byte 32))
                  (-6 (unsigned-byte 63)) (6 (unsigned-byte 64))

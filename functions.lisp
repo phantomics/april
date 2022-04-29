@@ -542,12 +542,12 @@
 (defun mix-array (index-origin axes)
   "Wrapper for (aplesque:mix) used for [↑ mix]."
   (lambda (omega) ; &optional axes)
+    (let ((omega (render-varrays omega))) ;; IPV-TODO: remove-render
     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
                     (rank omega))
-                (print (render-varrays omega)) ;; IPV-TODO: remove-render
-                :populator (lambda (item)
-                             (let ((populator (build-populator item)))
-                               (if populator (funcall populator)))))))
+                omega :populator (lambda (item)
+                                   (let ((populator (build-populator item)))
+                                     (if populator (funcall populator))))))))
 
 (defun wrap-split-array (index-origin axes)
   "Wrapper for [↓ split]."
@@ -1018,7 +1018,8 @@
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha)
     (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
+          alpha (render-varrays alpha)
+          axis (if axis (list (render-varrays (first axis)))))
     (if (not (arrayp omega))
         (if (eq :get-metadata omega)
             (list :on-axis (or axis (if last-axis :last :first))
@@ -1067,6 +1068,7 @@
                 (operate-scanning function index-origin last-axis inverse :axis alpha)
                 omega))
         (let* ((odims (dims omega))
+               (axis (if axis (list (render-varrays (first axis)))))
                (axis (or (and (first axis) (- (first axis) index-origin))
                          (if (not last-axis) 0 (1- (rank omega)))))
                (rlen (nth axis odims))
