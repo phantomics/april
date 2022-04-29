@@ -7,4 +7,4 @@
            #:vader-shape #:vader-reshape #:vader-section #:vader-expand #:vader-turn)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary
                           #:assign-element-type #:type-in-common #:apl-array-prototype)
-  (:shadowing-import-from #:aplesque.forms #:indexer-section #:indexer-expand #:indexer-turn #:indexer-permute))
+  (:shadowing-import-from #:aplesque.forms #:indexer-sectxion #:indexer-expand #:indexer-turn #:indexer-permute))

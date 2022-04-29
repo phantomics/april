@@ -806,7 +806,7 @@
              (loop :for degree :across degrees :for dx :from 0
                 :summing (max (abs degree) (if compress-mode 0 1))
                 :into this-dim :do (setf (aref c-degrees dx) this-dim)
-                :finally (setq ex-dim this-dim))
+                   :finally (setq ex-dim this-dim))
              (let ((output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
                                           :collect (if (= index axis) ex-dim dim))
                                        :element-type (if (arrayp input)
@@ -834,6 +834,7 @@
                    (if (sub-7-bit-integer-elements-p input)
                        (xdotimes output (i (size output))
                          (let ((input-index (funcall indexer i)))
+                           ;; (print (list :iin input-index))
                            (if input-index (setf (row-major-aref output i)
                                                  (row-major-aref input input-index)))))
                        (ydotimes output (i (size input))

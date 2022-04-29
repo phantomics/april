@@ -43,13 +43,17 @@
   "The default prototype for a virtual array is 0."
   0)
 
-(defmethod etype-of ((varray varray))
-  "The default element type for a virtual array is T."
-  't)
+(defmethod etype-of ((item t))
+  "A literal array's element type is returned by the (array-element-type) function."
+  (assign-element-type item))
 
 (defmethod etype-of ((array array))
   "A literal array's element type is returned by the (array-element-type) function."
   (array-element-type array))
+
+(defmethod etype-of ((varray varray))
+  "The default element type for a virtual array is T."
+  't)
 
 (defmethod shape-of ((_ t))
   "Non-arrays have a nil shape."
@@ -106,8 +110,8 @@
                 output))
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
-                (setf (row-major-aref output i)
-                      (funcall indexer i)))
+                (let ((indexed (funcall indexer i)))
+                  (if indexed (setf (row-major-aref output i) indexed))))
               output))
         (funcall indexer 1))))
 
@@ -354,8 +358,137 @@
                           (funcall base-indexer indexed))
               (prototype-of (vader-base varray))))))))
 
+(defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
+  nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))
 
-(defclass vader-meta-scalar-pass (varray-derived) nil)
+(defmethod prototype-of ((varray vader-expand))
+  (let ((indexer (indexer-of (vader-base varray))))
+    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
+                                              indexer ;; ←← remove
+                                              (funcall (indexer-of (vader-base varray)) 0))))))
+
+(defmethod shape-of ((varray vader-expand))
+  "The shape of an expanded or compressed array."
+  ;; (print (list :vv (shape-of (vads-argument varray))))
+  (get-or-assign-shape
+   varray
+   (let* ((degrees-count (first (shape-of (vads-argument varray))))
+          (degrees (setf (vads-argument varray)
+                         (funcall (lambda (i)
+                                    (if (arrayp i)
+                                        i (vector i)))
+                                  (render (vads-argument varray)))))
+          (base-shape (copy-list (shape-of (vader-base varray))))
+          (base-rank (length base-shape))
+          (is-inverse (vads-inverse varray))
+          (axis (setf (vads-axis varray)
+                      (max 0 (- (if (eq :last (vads-axis varray))
+                                    base-rank (vads-axis varray))
+                                (vads-io varray))))))
+
+     ;; (print (list :br degrees-count is-inverse base-shape base-rank axis (vads-axis varray)
+     ;;              (vader-base varray)))
+     
+     (cond ((and base-shape (zerop (reduce #'* base-shape)))
+            ;; (print :ee)
+            (if is-inverse
+                (if (> axis (1- base-rank))
+                    (error "This array does not have an axis ~a." axis)
+                    (if (or (not (arrayp degrees))
+                            (or (not degrees-count)
+                                (= 1 degrees-count)))
+                        (loop :for d :in base-shape :for dx :from 0
+                              :collect (if (= dx axis) (* d (disclose-unitary degrees)) d))
+                        (if (not degrees-count)
+                            (loop :for d :below base-rank :for dx :from 0
+                                  :collect (if (= dx axis) 0 d))
+                            (if (and degrees-count (/= degrees-count (nth axis base-shape)))
+                                (error "Compression degrees must equal size of array in dimension to compress.")
+                                (let ((output-size (loop :for d :below degrees-count
+                                                         :summing (if (not (arrayp degrees))
+                                                                      degrees (aref degrees d)))))
+                                  (loop :for d :in base-shape :for dx :from 0
+                                        :collect (if (= dx axis) output-size d)))))))
+                (if (or (not degrees-count)
+                        (= 1 degrees-count)
+                        (not (arrayp degrees)))
+                    (list (if (and (= 1 base-rank)
+                                   (zerop (if (not (arrayp degrees))
+                                              degrees (aref degrees 0))))
+                              1 (abs (if (not (arrayp degrees))
+                                         degrees (aref degrees 0)))))
+                    (if (and (loop :for d :across degrees :always (zerop d))
+                             (zerop (nth axis base-shape)))
+                        (if (= 1 base-rank) (list degrees-count)
+                            (loop :for d :in base-shape :for dx :from 0
+                                  :collect (if (= dx axis) degrees-count d)))
+                        (error "An empty array can only be expanded to a single negative degree ~a"
+                               "or to any number of empty dimensions.")))))
+           ((and (not is-inverse)
+                 (or (and (not (arrayp degrees))
+                          (zerop degrees))
+                     (and degrees-count (= 1 degrees-count)
+                          (zerop (aref degrees 0)))))
+            ;; (print :ff)
+            (append (butlast base-shape) (list 0)))
+           ((and (not base-shape)
+                 (not (arrayp degrees)))
+            ;; (print :gg)
+            (setf (vads-argument varray) (list (abs degrees))))
+           ((and is-inverse base-shape degrees-count (< 1 degrees-count)
+                 (nth axis base-shape)
+                 (/= degrees-count (nth axis base-shape)))
+            (error "Attempting to replicate elements across array but ~a"
+                   "degrees are not equal to length of selected input axis."))
+           ((and (not is-inverse)
+                 base-shape (< 1 (reduce #'* base-shape))
+                 (nth axis base-shape)
+                 (/= (or (and (arrayp degrees)
+                              (loop :for degree :across degrees :when (< 0 degree)
+                                    :counting degree :into dcount :finally (return dcount)))
+                         degrees)
+                     (nth axis base-shape)))
+            (error "Attempting to expand elements across array but ~a"
+                   "positive degrees are not equal to length of selected input axis."))
+           (t (let* ((degrees (if (and (arrayp degrees)
+                                      (not (= 1 (length degrees))))
+                                 degrees (setf (vads-argument varray)
+                                               (make-array (or (nth axis base-shape) 1)
+                                                           :element-type 'fixnum
+                                                           :initial-element (disclose-unitary degrees)))))
+                    (c-degrees (make-array (length degrees)
+                                           :element-type 'fixnum :initial-element 0))
+                    (ex-dim))
+                ;; (print (list :gg degrees c-degrees))
+                (if t ;; (or (not (arrayp degrees))
+                    ;;     (= 1 degrees-count))
+                    ;; (setq ex-dim (* (nth axis base-shape)
+                    ;;                 (abs (disclose-unitary degrees))))
+                    (loop :for degree :across degrees :for dx :from 0
+                          :summing (max (abs degree) (if is-inverse 0 1)) :into this-dim
+                          :do (setf (aref c-degrees dx) this-dim)
+                          :finally (setq ex-dim this-dim)))
+                ;; (print (list :ee ex-dim))
+                (loop :for dim :in (or base-shape '(1)) :for index :from 0
+                      :collect (if (/= index axis) dim (* 1 ex-dim)))))))))
+
+(defmethod indexer-of ((varray vader-expand))
+  (let ((base-indexer (indexer-of (vader-base varray)))
+        (indexer (indexer-expand (coerce (vads-argument varray) 'vector)
+                                 (shape-of (vader-base varray))
+                                 (vads-axis varray)
+                                 (vads-inverse varray))))
+    ;; (PRINT (LIST :ss (shape-of varray)))
+    (lambda (index)
+      ;; (print (list :iin base-indexer (funcall indexer index) indexer))
+      (if (not (functionp base-indexer))
+          (if (funcall indexer index)
+              (disclose base-indexer))
+          (let ((indexed (funcall indexer index)))
+            (if indexed (funcall base-indexer indexed)))))))
+
+;; (defclass vader-meta-scalar-pass (varray-derived) nil)
 
 (defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument)
   nil (:documentation "A rotated array as from the [⌽ rotate] function."))

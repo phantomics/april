@@ -991,7 +991,13 @@
             (is "2 1 1 2 3 3 2⍉3 2 3 4 2 4 3⍴⍳1728"
                 #3A(((1 16) (602 617) (1203 1218)) ((385 400) (986 1001) (1587 1602))))))
   (/ (has :title "Replicate")
-     (dyadic (expand-array nil t index-origin axes))
+     (dyadic (expand-array nil t index-origin axes)
+             ;; (funcall (lambda (n io &optional axes)
+             ;;            (lambda (omega alpha)
+             ;;              (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+             ;;                                           :inverse t :axis (or (first axes) :last))))
+             ;;          nil index-origin axes)
+             )
      (meta (primary :axes axes :implicit-args (index-origin))
            (dyadic :on-axis :last
                    :inverse (λωαχ (if (is-unitary omega)
@@ -1053,7 +1059,13 @@
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
   (\\ (has :title "Expand")
-      (dyadic (expand-array nil nil index-origin axes))
+      (dyadic (expand-array nil nil index-origin axes)
+              ;; (funcall (lambda (n io &optional axes)
+              ;;           (lambda (omega alpha)
+              ;;             (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+              ;;                                          :axis (or (first axes) :last))))
+              ;;          nil index-origin axes)
+              )
       (meta (primary :axes axes :implicit-args (index-origin))
             (dyadic :on-axis :last))
       (tests (is "4\\2" #(2 2 2 2))
