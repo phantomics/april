@@ -834,7 +834,6 @@
                    (if (sub-7-bit-integer-elements-p input)
                        (xdotimes output (i (size output))
                          (let ((input-index (funcall indexer i)))
-                           ;; (print (list :iin input-index))
                            (if input-index (setf (row-major-aref output i)
                                                  (row-major-aref input input-index)))))
                        (ydotimes output (i (size input))

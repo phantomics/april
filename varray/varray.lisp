@@ -115,8 +115,7 @@
                                  (make-array (shape-of varray) :element-type (assign-element-type
                                                                               this-prototype)))))
                 output))
-            (let ((output (make-array (shape-of varray) :element-type (etype-of varray)
-                                      )))
+            (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               ;; (print (list :out output (etype-of varray)))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
@@ -373,20 +372,8 @@
 (defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))
 
-;; (defmethod prototype-of ((varray vader-expand))
-;;   (call-next-method)
-;;   ;; (prototype-of (vader-base varray))
-;;   ;; (let ((indexer (indexer-of (vader-base varray))))
-;;   ;;   (print (list :vb (vader-base varray)))
-;;   ;;   ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-;;   ;;   (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-;;   ;;                                             indexer ;; ←← remove
-;;   ;;                                             (funcall (indexer-of (vader-base varray)) 0)))))
-;;   )
-
 (defmethod shape-of ((varray vader-expand))
   "The shape of an expanded or compressed array."
-  ;; (print (list :vv (shape-of (vads-argument varray))))
   (get-or-assign-shape
    varray
    (let* ((degrees-count (first (shape-of (vads-argument varray))))
@@ -405,16 +392,8 @@
                                  (1- base-rank)
                                  (- (vads-axis varray)
                                     (vads-io varray)))))))
-
-     ;; (print (list :br degrees-count is-inverse base-shape base-rank axis (vads-axis varray)
-     ;;              (vader-base varray)))
-
-     ;; (print (list :va (vads-argument varray)))
-     
-     ;; (print (list :deg degrees))
      
      (cond ((and base-shape (zerop (reduce #'* base-shape)))
-            ;; (print :ee)
             (if is-inverse
                 (if (> axis (1- base-rank))
                     (error "This array does not have an axis ~a." axis)
@@ -453,7 +432,6 @@
                           (zerop degrees))
                      (and degrees-count (= 1 degrees-count)
                           (zerop (aref degrees 0)))))
-            ;; (print :ff)
             (append (butlast base-shape) (list 0)))
            ((and (not base-shape)
                  (not (arrayp degrees)))
@@ -482,35 +460,21 @@
                     (c-degrees (make-array (length degrees)
                                            :element-type 'fixnum :initial-element 0))
                     (ex-dim))
-                ;; (print (list :gg degrees c-degrees))
-                (if t ;; (or (not (arrayp degrees))
-                    ;;     (= 1 degrees-count))
-                    ;; (setq ex-dim (* (nth axis base-shape)
-                    ;;                 (abs (disclose-unitary degrees))))
-                    (loop :for degree :across degrees :for dx :from 0
-                          :summing (max (abs degree) (if is-inverse 0 1)) :into this-dim
-                          :do (setf (aref c-degrees dx) this-dim)
-                          :finally (setq ex-dim this-dim)))
-                ;; (print (list :ee ex-dim))
+                (loop :for degree :across degrees :for dx :from 0
+                      :summing (max (abs degree) (if is-inverse 0 1)) :into this-dim
+                      :do (setf (aref c-degrees dx) this-dim)
+                      :finally (setq ex-dim this-dim))
                 (loop :for dim :in (or base-shape '(1)) :for index :from 0
                       :collect (if (/= index axis) dim (* 1 ex-dim)))))))))
 
 (defmethod indexer-of ((varray vader-expand))
-  ;; (Print (list :eeo (vads-argument varray)
-  ;;              (vader-base varray)
-  ;;              (shape-of (vader-base varray))
-  ;;              (vads-axis varray)
-  ;;              (vads-inverse varray)))
-  ;; (print (vads-argument varray))
   (let* ((arg-vector (coerce (vads-argument varray) 'vector))
          (base-indexer (indexer-of (vader-base varray)))
          (indexer (if (< 0 (length arg-vector))
                       (indexer-expand arg-vector (shape-of (vader-base varray))
                                       (vads-axis varray)
                                       (vads-inverse varray)))))
-    ;; (PRINT (LIST :ss (shape-of varray)))
     (lambda (index)
-      ;; (print (list :iin base-indexer (funcall indexer index) indexer))
       (if (not (functionp base-indexer))
           (if (funcall indexer index)
               (disclose base-indexer))
@@ -543,10 +507,71 @@
       (if (not indexer)
           base-indexer (funcall base-indexer (funcall indexer index))))))
 
-;; a permuted array as from the [⍉ permute] function
-(defclass vader-permute (varray-derived)
-  ((argument :accessor vapermute-argument
-             :initform nil
-             :initarg :argument)))
+(defclass vader-permute (varray-derived vad-with-io vad-with-argument)
+  ((%is-diagonal :accessor vaperm-is-diagonal
+                 :initform nil
+                 :initarg :is-diagonal
+                 :documentation "Whether this permutation is diagonal."))
+  (:documentation "A permuted array as from the [⍉ permute] function."))
+
+(defmethod shape-of ((varray vader-permute))
+  "The shape of a permuted array."
+  ;; (print (list :vv (shape-of (vads-argument varray))))
+  (get-or-assign-shape
+   varray
+   (let* ((base-shape (shape-of (vader-base varray)))
+          (argument (setf (vads-argument varray)
+                          (render (vads-argument varray))))
+          (arg (if argument
+                   (if (vectorp argument)
+                       (coerce (loop :for a :across argument :collect (max 0 (- a (vads-io varray))))
+                               'vector)
+                       (- argument (vads-io varray)))))
+          (base-rank (length base-shape))
+          (odims) (positions) (diagonals))
+     ;; (print (list :ee odims argument (vader-base varray) (varray-shape varray)))
+     (if (not argument)
+         (reverse base-shape)
+         (progn (setf odims (loop :for i :below base-rank :collect nil))
+                (if (vectorp arg)
+                    (loop :for i :across arg :for id :in base-shape :for ix :from 0
+                          :do (setf (nth i odims) (if (nth i odims)
+                                                      (min (nth i odims)
+                                                           (nth ix base-shape))
+                                                      (nth ix base-shape)))
+                              ;; if a duplicate position is found, a diagonal section
+                              ;; is being performed
+                              (if (not (member i positions))
+                                  (push i positions))
+                              ;; collect possible diagonal indices into diagonal list
+                              (if (assoc i diagonals)
+                                  (push ix (rest (assoc i diagonals)))
+                                  (push (list i ix) diagonals)))
+                    (setf odims base-shape
+                          positions (cons arg positions)))
+                (setf (vaperm-is-diagonal varray)
+                      (= base-rank (length positions)))
+                (remove nil odims))))))
+
+(defmethod indexer-of ((varray vader-permute))
+  "Indexer for a rotated or flipped array."
+  (let* ((base-indexer (indexer-of (vader-base varray)))
+         (argument (vads-argument varray))
+         (indexer (if (functionp base-indexer)
+                      (indexer-permute (shape-of (vader-base varray))
+                                       (shape-of varray)
+                                       ;; (vads-argument varray)
+                                       (if argument
+                                           (if (vectorp argument)
+                                               (coerce (loop :for a :across argument
+                                                             :collect (max 0 (- a (vads-io varray))))
+                                                       'vector)
+                                               (- argument (vads-io varray))))
+                                       (not (or (not (vads-argument varray))
+                                                (vaperm-is-diagonal varray)))))))
+    (lambda (index)
+      (if (not indexer)
+          base-indexer (funcall base-indexer (funcall indexer index))))))
+
 
 ;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?
