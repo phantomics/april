@@ -34,8 +34,10 @@
   "The prototype representation of an item is returned by the (apl-array-prototype) function."
   (if (and (arrayp item)
            (array-displacement item)
+           (vectorp (array-displacement item))
            (listp (aref (array-displacement item) 0))
            (member :empty-array-prototype (aref (array-displacement item) 0)))
+      ;; if an empty array prototype has been stored, retrieve it
       (getf (aref (array-displacement item) 0) :empty-array-prototype)
       (apl-array-prototype item)))
 
@@ -89,13 +91,18 @@
   (if (= 0 (array-rank array))
       array (if (= 0 (array-total-size array))
                 (prototype-of array)
-                (lambda (index) (row-major-aref array index)))))
+                (lambda (index)
+                  (row-major-aref array index)))))
 
 (defmethod render ((item t))
   item)
 
 (defmethod render ((varray varray))
+  ;; (print :abc)
+  ;; (print (list :ss (shape-of varray)
+  ;;              (prototype-of varray)))
   (let ((output-shape (shape-of varray))
+        (prototype (prototype-of varray))
         (indexer (indexer-of varray)))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
@@ -108,10 +115,13 @@
                                  (make-array (shape-of varray) :element-type (assign-element-type
                                                                               this-prototype)))))
                 output))
-            (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
+            (let ((output (make-array (shape-of varray) :element-type (etype-of varray)
+                                      )))
+              ;; (print (list :out output (etype-of varray)))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
-                  (if indexed (setf (row-major-aref output i) indexed))))
+                  (if indexed (setf (row-major-aref output i) indexed)
+                      (setf (row-major-aref output i) prototype))))
               output))
         (funcall indexer 1))))
 
@@ -137,7 +147,8 @@
 ;; the default shape of a derived array is the same as its base array
 (defmethod prototype-of ((varray varray-derived))
   (if (varrayp (vader-base varray))
-      (apl-array-prototype (funcall (indexer-of (vader-base varray)) 0))
+      ;; (apl-array-prototype (funcall (indexer-of (vader-base varray)) 0))
+      (prototype-of (vader-base varray))
       (prototype-of (vader-base varray))))
 
 (defmethod shape-of ((varray varray-derived))
@@ -240,6 +251,7 @@
   nil (:documentation "A reshaped array as from the [⍴ reshape] function."))
 
 (defmethod prototype-of ((varray vader-reshape))
+  (shape-of (vader-base varray)) ;; must get shape so that base array can be rendered
   (let ((indexer (indexer-of (vader-base varray))))
     ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
     (aplesque::make-empty-array (disclose (if (not (functionp indexer))
@@ -251,7 +263,7 @@
   (get-or-assign-shape
    varray (let ((arg (setf (vads-argument varray)
                            (render (vads-argument varray)))))
-            (if (vectorp arg)
+            (if (typep arg 'sequence)
                 (coerce arg 'list)
                 (list arg)))))
 
@@ -361,12 +373,16 @@
 (defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))
 
-(defmethod prototype-of ((varray vader-expand))
-  (let ((indexer (indexer-of (vader-base varray))))
-    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-                                              indexer ;; ←← remove
-                                              (funcall (indexer-of (vader-base varray)) 0))))))
+;; (defmethod prototype-of ((varray vader-expand))
+;;   (call-next-method)
+;;   ;; (prototype-of (vader-base varray))
+;;   ;; (let ((indexer (indexer-of (vader-base varray))))
+;;   ;;   (print (list :vb (vader-base varray)))
+;;   ;;   ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+;;   ;;   (aplesque::make-empty-array (disclose (if (not (functionp indexer))
+;;   ;;                                             indexer ;; ←← remove
+;;   ;;                                             (funcall (indexer-of (vader-base varray)) 0)))))
+;;   )
 
 (defmethod shape-of ((varray vader-expand))
   "The shape of an expanded or compressed array."
@@ -377,18 +393,25 @@
           (degrees (setf (vads-argument varray)
                          (funcall (lambda (i)
                                     (if (arrayp i)
-                                        i (vector i)))
+                                        (if (< 0 (array-rank i))
+                                            i (vector (aref i)))
+                                        (vector i)))
                                   (render (vads-argument varray)))))
           (base-shape (copy-list (shape-of (vader-base varray))))
           (base-rank (length base-shape))
           (is-inverse (vads-inverse varray))
           (axis (setf (vads-axis varray)
-                      (max 0 (- (if (eq :last (vads-axis varray))
-                                    base-rank (vads-axis varray))
-                                (vads-io varray))))))
+                      (max 0 (if (eq :last (vads-axis varray))
+                                 (1- base-rank)
+                                 (- (vads-axis varray)
+                                    (vads-io varray)))))))
 
      ;; (print (list :br degrees-count is-inverse base-shape base-rank axis (vads-axis varray)
      ;;              (vader-base varray)))
+
+     ;; (print (list :va (vads-argument varray)))
+     
+     ;; (print (list :deg degrees))
      
      (cond ((and base-shape (zerop (reduce #'* base-shape)))
             ;; (print :ee)
@@ -434,7 +457,6 @@
             (append (butlast base-shape) (list 0)))
            ((and (not base-shape)
                  (not (arrayp degrees)))
-            ;; (print :gg)
             (setf (vads-argument varray) (list (abs degrees))))
            ((and is-inverse base-shape degrees-count (< 1 degrees-count)
                  (nth axis base-shape)
@@ -474,11 +496,18 @@
                       :collect (if (/= index axis) dim (* 1 ex-dim)))))))))
 
 (defmethod indexer-of ((varray vader-expand))
-  (let ((base-indexer (indexer-of (vader-base varray)))
-        (indexer (indexer-expand (coerce (vads-argument varray) 'vector)
-                                 (shape-of (vader-base varray))
-                                 (vads-axis varray)
-                                 (vads-inverse varray))))
+  ;; (Print (list :eeo (vads-argument varray)
+  ;;              (vader-base varray)
+  ;;              (shape-of (vader-base varray))
+  ;;              (vads-axis varray)
+  ;;              (vads-inverse varray)))
+  ;; (print (vads-argument varray))
+  (let* ((arg-vector (coerce (vads-argument varray) 'vector))
+         (base-indexer (indexer-of (vader-base varray)))
+         (indexer (if (< 0 (length arg-vector))
+                      (indexer-expand arg-vector (shape-of (vader-base varray))
+                                      (vads-axis varray)
+                                      (vads-inverse varray)))))
     ;; (PRINT (LIST :ss (shape-of varray)))
     (lambda (index)
       ;; (print (list :iin base-indexer (funcall indexer index) indexer))
@@ -487,8 +516,6 @@
               (disclose base-indexer))
           (let ((indexed (funcall indexer index)))
             (if indexed (funcall base-indexer indexed)))))))
-
-;; (defclass vader-meta-scalar-pass (varray-derived) nil)
 
 (defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument)
   nil (:documentation "A rotated array as from the [⌽ rotate] function."))

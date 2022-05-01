@@ -991,14 +991,13 @@
             (is "2 1 1 2 3 3 2⍉3 2 3 4 2 4 3⍴⍳1728"
                 #3A(((1 16) (602 617) (1203 1218)) ((385 400) (986 1001) (1587 1602))))))
   (/ (has :title "Replicate")
-     (dyadic (expand-array nil t index-origin axes)
-             ;; (funcall (lambda (n io &optional axes)
-             ;;            (lambda (omega alpha)
-             ;;              (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-             ;;                                           :inverse t :axis (or (first axes) :last))))
-             ;;          nil index-origin axes)
-             )
-     (meta (primary :axes axes :implicit-args (index-origin))
+     (dyadic ;; (expand-array nil t index-origin axes)
+             (funcall (lambda (n io &optional axes)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+                                                       :inverse t :axis (or (first axes) :last))))
+                      nil index-origin axes))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :last
                    :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
@@ -1040,8 +1039,13 @@
             (is "⍴2 3/[2]0 2 0⍴0" #(0 5 0))
             (is "⍴0/2 3 4⍴⍳9" #(2 3 0))))
   (⌿ (has :title "Replicate First")
-     (dyadic (expand-array t t index-origin axes))
-     (meta (primary :axes axes :implicit-args (index-origin))
+     (dyadic ;; (expand-array t t index-origin axes)
+             (funcall (lambda (n io &optional axes)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+                                                       :inverse t :axis (or (first axes) io))))
+                      nil index-origin axes))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first
                    :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
@@ -1059,14 +1063,13 @@
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
   (\\ (has :title "Expand")
-      (dyadic (expand-array nil nil index-origin axes)
-              ;; (funcall (lambda (n io &optional axes)
-              ;;           (lambda (omega alpha)
-              ;;             (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-              ;;                                          :axis (or (first axes) :last))))
-              ;;          nil index-origin axes)
-              )
-      (meta (primary :axes axes :implicit-args (index-origin))
+      (dyadic ;; (expand-array nil nil index-origin axes)
+              (funcall (lambda (n io &optional axes)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+                                                       :axis (or (first axes) :last))))
+                       nil index-origin axes))
+      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
             (dyadic :on-axis :last))
       (tests (is "4\\2" #(2 2 2 2))
              (is "3\\7" #(7 7 7))
@@ -1092,8 +1095,13 @@
              (is "⍴0 0 0\\0 0⍴0" #(0 3))
              (is "0 0 0 0\\3 0⍴0" #2A((0 0 0 0) (0 0 0 0) (0 0 0 0)))))
   (⍀ (has :title "Expand First")
-     (dyadic (expand-array t nil index-origin axes))
-     (meta (primary :axes axes :implicit-args (index-origin))
+     (dyadic ;; (expand-array t nil index-origin axes)
+             (funcall (lambda (n io &optional axes)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
+                                                       :axis (or (first axes) io))))
+                       nil index-origin axes))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first))
      (tests (is "2⍀5" #(5 5))
             (is "2⍀1" #*11)

@@ -81,31 +81,29 @@
           (odiv-size (reduce #'* (if dims (loop :for d :in dims :for dx :from 0
                                                 :when (> dx axis) :collect d :when (= dx axis)
                                                   :collect (aref c-degrees (1- (length degrees))))
-                                     ;; (loop :for d :across c-degrees :for dx :from 0
-                                     ;;       :collect (abs d))
-                                     ))))
+                                     (loop :for d :across c-degrees :for dx :from 0
+                                           :collect (abs d))))))
       ;; (print (list :eee dims idiv-size odiv-size c-degrees))
       (lambda (i)
         ;; in compress-mode: degrees must = length of axis,
         ;; zeroes are omitted from output, negatives add zeroes
         ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
-        ;; (print (list :ll i))
+        ;; (print (list :ll i odiv-size section-size))
         ;; (setq dims (list 3))
         ;; (setq odiv-size 6)
-        (if t ; dims
-            (multiple-value-bind (oseg remainder) (floor i odiv-size)
-              (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
-                ;; dimension index
-                (let ((dx (loop :for d :across c-degrees :for di :from 0
-                                :when (> d oseg-index) :return di)))
-                  ;; (print (list :dd dx oseg oseg-index section-size odiv-size))
-                  (if (< 0 (aref degrees dx))
-                      (+ element-index (* oseg idiv-size)
-                         (* section-size (if (not positive-indices)
-                                             dx (or (loop :for p :across positive-indices
-                                                          :for px :from 0 :when (= p dx)
-                                                          :return px)
-                                                    1)))))))))))))
+        (multiple-value-bind (oseg remainder) (floor i (max 1 odiv-size))
+          (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
+            ;; dimension index
+            (let ((dx (loop :for d :across c-degrees :for di :from 0
+                            :when (> d oseg-index) :return di)))
+              ;; (print (list :dd dx oseg oseg-index section-size odiv-size))
+              (if (< 0 (aref degrees dx))
+                  (+ element-index (* oseg idiv-size)
+                     (* section-size (if (not positive-indices)
+                                         dx (or (loop :for p :across positive-indices
+                                                      :for px :from 0 :when (= p dx)
+                                                      :return px)
+                                                1))))))))))))
 
 (defun indexer-turn (axis idims &optional degrees)
   "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."

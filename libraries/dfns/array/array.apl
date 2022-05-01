@@ -154,7 +154,7 @@ display ← { ⎕IO←0                            ⍝ Boxed display of array.
   deco←{⍺←type open ⍵ ⋄ ⍺,axes ⍵}            ⍝ type and axes vector
   axes←{(-2⌈⍴⍴⍵)↑1+×⍴⍵}                      ⍝ array axis types
   open←{(1⌈⍴⍵)⍴⍵}                            ⍝ exposure of null axes
-  trim←{(~1 1⍷∧⌿⍵=' ')/⎕←⍵}                    ⍝ removal of extra blank cols
+  trim←{(~1 1⍷∧⌿⍵=' ')/⍵}                    ⍝ removal of extra blank cols
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ simple scalar type
   type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
   line←{(49=⎕DT 1⍴⍵)⊃' -'}                   ⍝ underline for atom
