@@ -688,6 +688,7 @@
          (orank (1+ irank))
          (ipdims (coerce (loop :for i :below irank :collect (mod (- i axis) irank)) 'vector))
          (opdims (coerce (loop :for i :below orank :collect (mod (+ i axis) orank)) 'vector)))
+    (print (list :ll a1 a2))
     ;; a 1-element array argument to laminate is scaled to
     ;; match the other array's dimensions
     (permute-axes (catenate (if (is-unitary a1) a1 (array-promote (permute-axes a1 ipdims)))

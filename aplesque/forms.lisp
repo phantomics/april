@@ -62,42 +62,45 @@
             (if valid iindex))))))
 
 (defun indexer-expand (degrees dims axis compress-mode)
-  "Return indices of an array expanded as with the [/ compress] or [\ expand] functions."
-  ;; (print (list :iex degrees dims axis compress-mode))
-  (let* ((c-degrees (make-array (length degrees) :element-type 'fixnum :initial-element 0))
+  "Return indices of an array expanded as with the [/ compress] or [\\ expand] functions."
+  ;; TODO: more speedup is possible here in the case of a scalar degree argument
+  (let* ((oned (if (not (arrayp degrees)) degrees))
+         (degrees (if (arrayp degrees) degrees))
+         (c-degrees (if degrees (make-array (length degrees) :element-type 'fixnum :initial-element 0)))
          (positive-index-list (if (not compress-mode)
-                                  (loop :for degree :below (length degrees)
-                                        :when (< 0 (aref degrees degree)) :collect degree)))
+                                  (if oned (if (< 0 oned) (list 0))
+                                      (loop :for degree :below (length degrees)
+                                            :when (< 0 (aref degrees degree)) :collect degree))))
          (positive-indices (if positive-index-list (make-array (length positive-index-list)
                                                                :element-type 'fixnum
                                                                :initial-contents positive-index-list)))
          (section-size (reduce #'* (loop :for d :in dims :for dx :from 0
                                          :when (> dx axis) :collect d))))
-    (loop :for degree :across degrees :for dx :from 0
-          :summing (max (abs degree) (if compress-mode 0 1))
-            :into this-dim :do (setf (aref c-degrees dx) this-dim))
+    (if degrees (loop :for degree :across degrees :for dx :from 0
+                      :summing (max (abs degree) (if compress-mode 0 1))
+                        :into this-dim :do (setf (aref c-degrees dx) this-dim)))
     (let ((idiv-size (reduce #'* (loop :for d :in dims :for dx :from 0
                                        :when (>= dx axis) :collect d)))
           (odiv-size (reduce #'* (if dims (loop :for d :in dims :for dx :from 0
                                                 :when (> dx axis) :collect d :when (= dx axis)
-                                                  :collect (aref c-degrees (1- (length degrees))))
-                                     (loop :for d :across c-degrees :for dx :from 0
-                                           :collect (abs d))))))
-      ;; (print (list :eee dims idiv-size odiv-size c-degrees))
+                                                  :collect (if oned (* oned (nth axis dims))
+                                                               (aref c-degrees (1- (length degrees)))))
+                                     (or (and oned (list oned))
+                                         (loop :for d :across c-degrees :for dx :from 0
+                                               :collect (abs d)))))))
+      
       (lambda (i)
         ;; in compress-mode: degrees must = length of axis,
         ;; zeroes are omitted from output, negatives add zeroes
         ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
-        ;; (print (list :ll i odiv-size section-size))
-        ;; (setq dims (list 3))
-        ;; (setq odiv-size 6)
         (multiple-value-bind (oseg remainder) (floor i (max 1 odiv-size))
           (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
             ;; dimension index
-            (let ((dx (loop :for d :across c-degrees :for di :from 0
-                            :when (> d oseg-index) :return di)))
-              ;; (print (list :dd dx oseg oseg-index section-size odiv-size))
-              (if (< 0 (aref degrees dx))
+            (let ((dx (if oned (floor oseg-index (max 1 oned))
+                          (loop :for d :across c-degrees :for di :from 0
+                                :when (> d oseg-index) :return di))))
+              (if (if oned (< 0 oned)
+                      (< 0 (aref degrees dx)))
                   (+ element-index (* oseg idiv-size)
                      (* section-size (if (not positive-indices)
                                          dx (or (loop :for p :across positive-indices

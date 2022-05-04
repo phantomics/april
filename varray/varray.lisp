@@ -98,9 +98,6 @@
   item)
 
 (defmethod render ((varray varray))
-  ;; (print :abc)
-  ;; (print (list :ss (shape-of varray)
-  ;;              (prototype-of varray)))
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray)))
@@ -116,7 +113,6 @@
                                                                               this-prototype)))))
                 output))
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
-              ;; (print (list :out output (etype-of varray)))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
                   (if indexed (setf (row-major-aref output i) indexed)
@@ -285,7 +281,152 @@
                            #'identity #'enclose)
                        (funcall base-indexer (if (not output-shape)
                                                  0 (mod index (max 1 input-size))))))))))
-  
+
+(defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io)
+  ((%laminating :accessor vacat-laminating
+                :initform nil
+                :initarg :laminating
+                :documentation "Whether this catenation laminates arrays."))
+  (:documentation "A catenated array as from the [, catenate] function."))
+
+(defmethod etype-of ((varray vader-catenate))
+  (apply #'type-in-common (loop :for array :across (vader-base varray) :collect (etype-of array))))
+
+(defmethod prototype-of ((varray vader-catenate))
+  (let ((indexer (indexer-of (aref (vader-base varray) 0))))
+    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
+                                              indexer ;; ←← remove
+                                              (funcall indexer 0))))))
+
+(defmethod shape-of ((varray vader-catenate))
+  (get-or-assign-shape
+   varray
+   (let* ((ref-shape) (uneven)
+          (each-shape (loop :for a :across (vader-base varray)
+                            :collect (if (or (varrayp a) (arrayp a))
+                                         (shape-of a))))
+          (max-rank (reduce #'max (mapcar #'length each-shape)))
+          (axis (disclose-unitary (render (vads-axis varray))))
+          (axis (if (eq :last axis)
+                        (max 0 (1- max-rank))
+                        (- axis (vads-io varray))))
+          (to-laminate (setf (vacat-laminating varray)
+                             (or (typep axis 'ratio)
+                                 (and (floatp axis)
+                                      (< double-float-epsilon (nth-value 1 (floor axis)))))))
+          (axis (setf (vads-axis varray) (ceiling axis))))
+
+     (if to-laminate
+         (loop :for shape :in each-shape
+               :do (if shape (if ref-shape
+                                 (if (not (and (= (length shape)
+                                                  (length ref-shape))
+                                               (loop :for r :in ref-shape :for a :in shape
+                                                     :always (= a r))))
+                                     (error "Mismatched array dimensions for laminate operation."))
+                                 (setf ref-shape shape))))
+         (loop :for shape :in each-shape
+               :do (if (and shape (< (length ref-shape) (length shape)))
+                       (if (or (not ref-shape)
+                               (and (not uneven)
+                                    (setf uneven (= 1 (- (length shape)
+                                                         (length ref-shape))))))
+                           (if (destructuring-bind (longer-dims shorter-dims)
+                                   (funcall (if (>= (length ref-shape)
+                                                    (length shape))
+                                                #'identity #'reverse)
+                                            (list ref-shape shape))
+                                 (or (not shorter-dims)
+                                     (loop :for ld :in longer-dims :for ax :from 0
+                                           :always (if (< ax axis)
+                                                       (= ld (nth ax shorter-dims))
+                                                       (if (= ax axis)
+                                                           t (= ld (nth (1- ax) shorter-dims)))))))
+                               (setf ref-shape shape)
+                               (error "Mismatched array dimensions."))
+                           (error "Catenated arrays must be at most one rank apart."))
+                       (if (and shape (not (loop :for d :in shape
+                                                 :for s :in ref-shape :for dx :from 0
+                                                 :always (or (= d s) (= dx axis)))))
+                           (error "Mismatched array dimensions.")))))
+
+     ;; if all elements to be catenated are scalar as for 1,2,
+     ;; the output length is the same as the input length
+     (if (not ref-shape) (setf ref-shape (list (length (vader-base varray)))))
+     
+     (if to-laminate
+         (if (zerop max-rank) ;; the ref-shape can be left as is if all elements are scalar
+             ref-shape (loop :for dx :below (1+ (length ref-shape))
+                             :collect (if (< dx axis) (nth dx ref-shape)
+                                          (if (= dx axis) (length (vader-base varray))
+                                              (nth (1- dx) ref-shape)))))
+         (loop :for d :in ref-shape :for dx :from 0
+               :collect (if (/= dx axis)
+                            d (loop :for shape :in each-shape
+                                    :summing (if (or (not shape)
+                                                     (/= (length shape)
+                                                         (length ref-shape)))
+                                                 1 (nth axis shape)))))))))
+
+(defmethod indexer-of ((varray vader-catenate))
+  (let* ((out-shape (shape-of varray))
+         (to-laminate (vacat-laminating varray))
+         (axis (disclose-unitary (vads-axis varray)))
+         (ofactors (get-dimensional-factors out-shape))
+         (each-shape (loop :for a :across (vader-base varray)
+                           :collect (if (or (varrayp a) (arrayp a))
+                                        (shape-of a))))
+         (increments (loop :for shape :in each-shape
+                           :summing (if (or (not shape)
+                                            (< (length shape) (length out-shape)))
+                                        1 (nth axis shape))
+                             :into total :collect total))
+         (indexers (make-array (length (vader-base varray))
+                               :initial-contents (loop :for a :across (vader-base varray)
+                                                       :collect (indexer-of a))))
+         (ifactors (make-array (length (vader-base varray))
+                               :initial-contents (loop :for a :across (vader-base varray)
+                                                       :collect (if (or (arrayp a) (varrayp a))
+                                                                    (reverse (get-dimensional-factors
+                                                                              (shape-of a))))))))
+    
+    (lambda (orig-index)
+      (let ((remaining orig-index) (sum 0) (sub-indices) (array-index 0)
+            (axis-offset (abs (- axis (1- (length (shape-of varray))))))
+            (row-major-index) (source-array))
+        (loop :for ofactor :in ofactors :for fx :from 0
+              :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                    (setf remaining remainder)
+                    (push (if (/= fx axis)
+                              index (loop :for i :in increments :for ix :from 0
+                                          :while (>= index i)
+                                          :do (progn (incf sum i) (incf array-index))
+                                          :finally (return (- index sum))))
+                          sub-indices)))
+        
+        (setf source-array (aref (vader-base varray) array-index)
+              row-major-index
+              (if (or (arrayp source-array)
+                      (varrayp source-array))
+                  (if to-laminate
+                      (loop :for si :in sub-indices :for ix :from 0
+                            :summing (* si (or (nth (max 0 (if (< ix axis-offset)
+                                                               ix (1- ix)))
+                                                    (aref ifactors array-index))
+                                               1))
+                              :into rmi :finally (return rmi))
+                      (loop :for si :in (loop :for si :in sub-indices :for sx :from 0
+                                              :when (or (= (length out-shape)
+                                                           (length (shape-of source-array)))
+                                                        (/= sx axis-offset))
+                                                :collect si)
+                            :for df :in (aref ifactors array-index)
+                            :summing (* si df) :into rmi :finally (return rmi)))))
+        
+        (if (not (functionp (aref indexers array-index)))
+            (disclose (aref indexers array-index))
+            (funcall (aref indexers array-index) row-major-index))))))
+
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
@@ -382,8 +523,8 @@
                                     (if (arrayp i)
                                         (if (< 0 (array-rank i))
                                             i (vector (aref i)))
-                                        (vector i)))
-                                  (render (vads-argument varray)))))
+                                        i))
+                                  (disclose-unitary (render (vads-argument varray))))))
           (base-shape (copy-list (shape-of (vader-base varray))))
           (base-rank (length base-shape))
           (is-inverse (vads-inverse varray))
@@ -431,7 +572,9 @@
                  (or (and (not (arrayp degrees))
                           (zerop degrees))
                      (and degrees-count (= 1 degrees-count)
-                          (zerop (aref degrees 0)))))
+                          (if (not (arrayp degrees))
+                              (arrayp degrees)
+                              (zerop (aref degrees 0))))))
             (append (butlast base-shape) (list 0)))
            ((and (not base-shape)
                  (not (arrayp degrees)))
@@ -451,26 +594,22 @@
                      (nth axis base-shape)))
             (error "Attempting to expand elements across array but ~a"
                    "positive degrees are not equal to length of selected input axis."))
-           (t (let* ((degrees (if (and (arrayp degrees)
-                                      (not (= 1 (length degrees))))
-                                 degrees (setf (vads-argument varray)
-                                               (make-array (or (nth axis base-shape) 1)
-                                                           :element-type 'fixnum
-                                                           :initial-element (disclose-unitary degrees)))))
-                    (c-degrees (make-array (length degrees)
-                                           :element-type 'fixnum :initial-element 0))
-                    (ex-dim))
-                (loop :for degree :across degrees :for dx :from 0
-                      :summing (max (abs degree) (if is-inverse 0 1)) :into this-dim
-                      :do (setf (aref c-degrees dx) this-dim)
-                      :finally (setq ex-dim this-dim))
+           (t (let ((ex-dim))
+                (if (not (arrayp degrees))
+                    (setf ex-dim (* (abs degrees) (or (nth axis base-shape) 1)))
+                    (loop :for degree :across degrees :for dx :from 0
+                          :summing (max (abs degree) (if is-inverse 0 1)) :into this-dim
+                          :finally (setf ex-dim this-dim)))
                 (loop :for dim :in (or base-shape '(1)) :for index :from 0
                       :collect (if (/= index axis) dim (* 1 ex-dim)))))))))
 
 (defmethod indexer-of ((varray vader-expand))
-  (let* ((arg-vector (coerce (vads-argument varray) 'vector))
+  (let* ((arg-vector (if (typep (vads-argument varray) 'sequence)
+                         (coerce (vads-argument varray) 'vector)
+                         (vads-argument varray)))
          (base-indexer (indexer-of (vader-base varray)))
-         (indexer (if (< 0 (length arg-vector))
+         (indexer (if (or (integerp arg-vector)
+                          (< 0 (length arg-vector)))
                       (indexer-expand arg-vector (shape-of (vader-base varray))
                                       (vads-axis varray)
                                       (vads-inverse varray)))))
@@ -488,24 +627,23 @@
   (if (or (listp argument) (numberp argument))
       argument (if (varrayp argument)
                    (render argument) ;; TODO: eliminate forced render here
-                   
-                   ;(if (vectorp argument)
-                   ;    (coerce argument 'list)
                    (if (arrayp argument)
                        argument))))
 
 (defmethod indexer-of ((varray vader-turn))
   "Indexer for a rotated or flipped array."
   (let* ((base-indexer (indexer-of (vader-base varray)))
-         (indexer (if (functionp base-indexer)
+         (indexer (if (and (functionp base-indexer))
                       (indexer-turn (if (eq :last (vads-axis varray))
                                         (1- (length (shape-of varray)))
                                         (- (vads-axis varray) (vads-io varray)))
                                     (shape-of varray)
                                     (arg-process (vads-argument varray))))))
-    (lambda (index)
-      (if (not indexer)
-          base-indexer (funcall base-indexer (funcall indexer index))))))
+    (if (zerop (reduce #'+ (shape-of (vader-base varray))))
+        (lambda (index) (vader-base varray)) ;; handle the case of ⌽⍬
+        (lambda (index)
+          (if (not indexer)
+              base-indexer (funcall base-indexer (funcall indexer index)))))))
 
 (defclass vader-permute (varray-derived vad-with-io vad-with-argument)
   ((%is-diagonal :accessor vaperm-is-diagonal
@@ -556,7 +694,7 @@
 (defmethod indexer-of ((varray vader-permute))
   "Indexer for a rotated or flipped array."
   (let* ((base-indexer (indexer-of (vader-base varray)))
-         (argument (vads-argument varray))
+         (argument (render (vads-argument varray)))
          (indexer (if (functionp base-indexer)
                       (indexer-permute (shape-of (vader-base varray))
                                        (shape-of varray)

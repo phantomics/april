@@ -497,20 +497,22 @@
 
 (defun tabulate (omega)
   "Return a two-dimensional array of values from an array, promoting or demoting the array if it is of a rank other than two. Used to implement [⍪ table]."
-  (if (not (arrayp omega))
-      omega (if (vectorp omega)
-                (let ((output (make-array (list (length omega) 1) :element-type (element-type omega))))
-                  (loop :for i :below (length omega) :do (setf (row-major-aref output i) (aref omega i)))
-                  output)
-                (let ((o-dims (dims omega)))
-                  (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
-                              :element-type (element-type omega)
-                              :displaced-to (copy-nested-array omega))))))
+  (let ((omega (render-varrays omega)))
+    (if (not (arrayp omega))
+        omega (if (vectorp omega)
+                  (let ((output (make-array (list (length omega) 1) :element-type (element-type omega))))
+                    (loop :for i :below (length omega) :do (setf (row-major-aref output i) (aref omega i)))
+                    output)
+                  (let ((o-dims (dims omega)))
+                    (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
+                                :element-type (element-type omega)
+                                :displaced-to (copy-nested-array omega)))))))
 
 (defun ravel-array (index-origin axes)
   "Wrapper for aplesque [, ravel] function incorporating index origin from current workspace."
   (lambda (omega)
-    (ravel index-origin omega axes)))
+    (ravel index-origin (render-varrays omega)
+           (mapcar #'render-varrays axes))))
 
 (defun catenate-arrays (index-origin axes)
   "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
@@ -1020,39 +1022,40 @@
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha)
           axis (if axis (list (render-varrays (first axis)))))
-    (if (not (arrayp omega))
-        (if (eq :get-metadata omega)
-            (list :on-axis (or axis (if last-axis :last :first))
-                  :valence :ambivalent)
-            (if (eq :reassign-axes omega)
-                (operate-reducing function index-origin last-axis :axis alpha)
-                (if alpha (error "Left argument (window) passed to reduce-composed ~a"
-                                 "function when applied to scalar value.")
-                    omega)))
-        (if (zerop (size omega))
-            (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
-                                      :when (/= dx (or axis (if (not last-axis)
-                                                                0 (1- (rank omega)))))
-                                        :collect d))
-                   (empty-output (loop :for od :in output-dims :when (zerop od) :do (return t)))
-                   (identity (getf (funcall function :get-metadata nil) :id)))
-              (if output-dims ;; if reduction produces an empty array just return that array
-                  (if empty-output (make-array output-dims)
-                      (if identity
-                          (let ((output (make-array output-dims)))
-                            ;; if reduction eliminates an empty axis to create a non-empty array,
-                            ;; populate it with the function's identity value
-                            (xdotimes output (i (size output))
-                              (setf (row-major-aref output i)
-                                    (if (functionp identity) (funcall identity) identity)))
-                            output)
-                          (error "The operand of [/ reduce] has no identity value.")))
-                  ;; if reduction produces a scalar, the result is the identity value
-                  (or (and identity (if (functionp identity) (funcall identity) identity))
-                      (error "The operand of [/ reduce] has no identity value."))))
-            (reduce-array omega function (if (first axis) (- (first axis) index-origin))
-                          (side-effect-free function)
-                          last-axis alpha)))))
+    (let ((fn-rendered (lambda (o a) (render-varrays (funcall function o a)))))
+      (if (not (arrayp omega))
+          (if (eq :get-metadata omega)
+              (list :on-axis (or axis (if last-axis :last :first))
+                    :valence :ambivalent)
+              (if (eq :reassign-axes omega)
+                  (operate-reducing function index-origin last-axis :axis alpha)
+                  (if alpha (error "Left argument (window) passed to reduce-composed ~a"
+                                   "function when applied to scalar value.")
+                      omega)))
+          (if (zerop (size omega))
+              (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
+                                        :when (/= dx (or axis (if (not last-axis)
+                                                                  0 (1- (rank omega)))))
+                                          :collect d))
+                     (empty-output (loop :for od :in output-dims :when (zerop od) :do (return t)))
+                     (identity (getf (funcall function :get-metadata nil) :id)))
+                (if output-dims ;; if reduction produces an empty array just return that array
+                    (if empty-output (make-array output-dims)
+                        (if identity
+                            (let ((output (make-array output-dims)))
+                              ;; if reduction eliminates an empty axis to create a non-empty array,
+                              ;; populate it with the function's identity value
+                              (xdotimes output (i (size output))
+                                (setf (row-major-aref output i)
+                                      (if (functionp identity) (funcall identity) identity)))
+                              output)
+                            (error "The operand of [/ reduce] has no identity value.")))
+                    ;; if reduction produces a scalar, the result is the identity value
+                    (or (and identity (if (functionp identity) (funcall identity) identity))
+                        (error "The operand of [/ reduce] has no identity value."))))
+              (render-varrays (reduce-array omega fn-rendered (if (first axis) (- (first axis) index-origin))
+                                            (side-effect-free function)
+                                            last-axis alpha)))))))
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
@@ -1068,6 +1071,7 @@
                 (operate-scanning function index-origin last-axis inverse :axis alpha)
                 omega))
         (let* ((odims (dims omega))
+               (fn-rendered (lambda (o a) (render-varrays (funcall function o a))))
                (axis (if axis (list (render-varrays (first axis)))))
                (axis (or (and (first axis) (- (first axis) index-origin))
                          (if (not last-axis) 0 (1- (rank omega)))))
@@ -1098,7 +1102,7 @@
                                              omega (+ base (* increment vector-index))))))
                     (setq value (if (zerop vector-index)
                                     original
-                                    (funcall function original
+                                    (funcall fn-rendered original
                                              (disclose
                                               (row-major-aref
                                                omega (+ base (* increment (1- vector-index)))))))))
@@ -1108,7 +1112,7 @@
                       (setq value (if (zerop vector-index)
                                       (row-major-aref omega base)
                                       (funcall (if sao-copy (getf fn-meta :inverse-right)
-                                                   function)
+                                                   fn-rendered)
                                                (row-major-aref
                                                 output (+ base (* increment (1- vector-index))))
                                                (row-major-aref
@@ -1117,9 +1121,9 @@
                       (loop :for ix :from vector-index :downto 0
                             :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
                                   (setq value (if (not value) (disclose original)
-                                                  (funcall function value (disclose original))))))))
+                                                  (funcall fn-rendered value (disclose original))))))))
               (setf (row-major-aref output i) value)))
-          output))))
+          (render-varrays output)))))
 
 (defun operate-each (operand)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
@@ -1132,6 +1136,8 @@
            (auvec (if (= 1 (size alpha)) alpha))
            (odims (dims omega)) (adims (dims alpha))
            (orank (rank omega)) (arank (rank alpha))
+           (op-rendered (lambda (o &optional a)
+                          (render-varrays (apply operand o (if a (list a))))))
            (threaded (side-effect-free operand)))
       (flet ((disclose-any (item)
                (if (not (arrayp item))
@@ -1147,25 +1153,25 @@
               (if alpha (if (and (or oscalar ouvec)
                                  (or ascalar auvec))
                             (if output (setf (row-major-aref output 0)
-                                             (render-varrays (funcall operand (disclose-any omega)
+                                             (render-varrays (funcall op-rendered (disclose-any omega)
                                                                       (disclose-any alpha))))
-                                (setf output (enclose (render-varrays (funcall operand omega alpha)))))
+                                (setf output (enclose (render-varrays (funcall op-rendered omega alpha)))))
                             (xdotimes output (i (size (if (or oscalar ouvec) alpha omega))
                                                 :synchronous-if (not threaded))
                               (if output
                                   (setf (row-major-aref output i)
                                         (render-varrays
-                                         (funcall operand (if (or oscalar ouvec) (disclose-any omega)
-                                                              (row-major-aref omega i))
+                                         (funcall op-rendered (if (or oscalar ouvec) (disclose-any omega)
+                                                                  (row-major-aref omega i))
                                                   (if (or ascalar auvec)
                                                       (disclose-any alpha)
                                                       (row-major-aref alpha i)))))
-                                  (setf output (render-varrays (funcall operand omega alpha))))))
+                                  (setf output (render-varrays (funcall op-rendered omega alpha))))))
                   ;; if 0-rank array is passed, disclose its content and enclose the result of the operation
-                  (if oscalar (setq output (enclose (funcall operand (disclose-any oscalar))))
+                  (if oscalar (setq output (enclose (funcall op-rendered (disclose-any oscalar))))
                       (xdotimes output (i (size omega) :synchronous-if (not threaded))
                         (setf (row-major-aref output i)
-                              (render-varrays (funcall operand (row-major-aref omega i)))))))
+                              (render-varrays (funcall op-rendered (row-major-aref omega i)))))))
               output))))))
 
 (defun operate-commuting (operand)
@@ -1248,7 +1254,9 @@
   "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega)
     (let ((omega (render-varrays omega))
-          (alpha (render-varrays alpha)))
+          (alpha (render-varrays alpha))
+          (right-rendering (lambda (o a) (render-varrays (funcall right o a))))
+          (left-rendering (lambda (o a) (render-varrays (funcall left o a)))))
       (if (or (zerop (size omega))
               (zerop (size alpha)))
           (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
@@ -1258,8 +1266,9 @@
                   (error "Left operand given to [. inner product] has no identity.")))
           (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
                              (error () nil))))
-            (array-inner-product omega alpha right left (and (side-effect-free right)
-                                                             (side-effect-free left))
+            (array-inner-product omega alpha right-rendering left-rendering
+                                 (and (side-effect-free right)
+                                      (side-effect-free left))
                                  (not is-scalar)))))))
 
 (defun operate-beside (right left)
@@ -1531,25 +1540,26 @@
   (lambda (omega)
     (setq omega (render-varrays omega)
           right-value (render-varrays right-value))
-    (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
-                                   :collect (if (= i 0) index nil))))
-      (if (not (or (and (< 2 (rank right-value))
-                        (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
-                   (and (not left-function)
-                        (error "The left operand of [⌺ stencil] must be a function."))))
-          (let ((window-dims (if (not (arrayp right-value))
-                                 (vector right-value)
-                                 (if (= 1 (rank right-value))
-                                     right-value (choose right-value (iaxes right-value 0)))))
-                (movement (if (not (arrayp right-value))
-                              (vector 1)
-                              (if (= 2 (rank right-value))
-                                  (choose right-value (iaxes right-value 1))
-                                  (make-array (length right-value) :element-type 'fixnum
-                                              :initial-element 1)))))
-            (mix-arrays (rank omega)
-                        (stencil omega left-function window-dims movement
-                                 (side-effect-free left-function))))))))
+    (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
+      (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
+                                        :collect (if (= i 0) index nil))))
+        (if (not (or (and (< 2 (rank right-value))
+                          (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+                     (and (not left-function)
+                          (error "The left operand of [⌺ stencil] must be a function."))))
+            (let ((window-dims (if (not (arrayp right-value))
+                                   (vector right-value)
+                                   (if (= 1 (rank right-value))
+                                       right-value (choose right-value (iaxes right-value 0)))))
+                  (movement (if (not (arrayp right-value))
+                                (vector 1)
+                                (if (= 2 (rank right-value))
+                                    (choose right-value (iaxes right-value 1))
+                                    (make-array (length right-value) :element-type 'fixnum
+                                                                     :initial-element 1)))))
+              (mix-arrays (rank omega)
+                          (stencil omega left-fn-mod window-dims movement
+                                   (side-effect-free left-function)))))))))
 
 ;; From this point are optimized implementations of APL idioms.
 
