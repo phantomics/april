@@ -89,12 +89,15 @@
 
 (defmethod indexer-of ((array array))
   (if (= 0 (array-rank array))
-      array (if (= 0 (array-total-size array))
+      ;; array
+      (lambda (index) (row-major-aref array index))
+      (if (= 0 (array-total-size array))
                 (prototype-of array)
                 (lambda (index)
                   (row-major-aref array index)))))
 
 (defmethod render ((item t))
+  "Rendering a non-virtual array object simply returns the object."
   item)
 
 (defmethod render ((varray varray))
@@ -229,9 +232,8 @@
   0)
 
 (defmethod etype-of ((varray vader-shape))
-  (let ((shape (shape-of (vader-base varray)))
-        (type))
-    (apply #'type-in-common (loop :for dimension :in shape :collect (assign-element-type dimension)))))
+  (apply #'type-in-common (loop :for dimension :in (shape-of (vader-base varray))
+                                :collect (assign-element-type dimension))))
 
 (defmethod shape-of ((varray vader-shape))
   "The shape of a reshaped array is simply its argument."
@@ -427,6 +429,120 @@
             (disclose (aref indexers array-index))
             (funcall (aref indexers array-index) row-major-index))))))
 
+(defclass vader-mix (varray-derived vad-on-axis vad-with-io)
+  ((%shape-indices :accessor vamix-shape-indices
+                   :initform nil
+                   :initarg :shape-indices
+                   :documentation "Indices of shape dimensions."))
+  (:documentation "A mixed array as from the [↑ mix] function."))
+
+(defmethod prototype-of ((varray vader-mix))
+  "The prototype of a mixed array is the prototype of its first element."
+  (let ((indexer (indexer-of (vader-base varray))))
+    (prototype-of (if (not (functionp indexer))
+                      indexer (funcall (indexer-of (vader-base varray)) 0)))))
+
+(defmethod shape-of ((varray vader-mix))
+  (get-or-assign-shape
+   varray
+   (let* ((axis (vads-axis varray))
+          (base (vader-base varray))
+          (base-shape (shape-of base))
+          (base-indexer (indexer-of base))
+          (max-rank 0) (each-shape))
+     (if (not (functionp base-indexer))
+         base-shape ;; handle the ↑⍬ case
+         (progn
+           (loop :for ix :below (reduce #'* base-shape)
+                 :do (let ((member (funcall base-indexer ix)))
+                       (setf max-rank (max max-rank (length (shape-of member))))
+                       (push (shape-of member) each-shape)))
+           
+           (let ((out-shape) (shape-indices)
+                 (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
+             (loop :for shape :in each-shape
+                   :do (loop :for d :in shape :for dx :from 0 :do (setf (aref max-shape dx)
+                                                                        (max d (aref max-shape dx)))))
+
+             (setf axis (setf (vads-axis varray)
+                              (if (eq :last axis) (length base-shape)
+                                  (ceiling (- axis (vads-io varray))))))
+             
+             ;; push the outer shape elements to the complete shape
+             (loop :for odim :in base-shape :for ix :from 0
+                   :do (if (= ix axis)
+                           (loop :for ms :across max-shape :for mx :from 0
+                                 :do (push ms out-shape)
+                                     (push (+ mx (length base-shape)) shape-indices)))
+                       (push odim out-shape)
+                       (push ix shape-indices))
+             
+             (if (= axis (length base-shape)) ;; push the inner shape elements if for the last axis
+                 (loop :for ms :across max-shape :for mx :from 0
+                       :do (push ms out-shape)
+                           (push (+ mx (length base-shape)) shape-indices)))
+
+             (setf (vamix-shape-indices varray) (reverse shape-indices))
+             
+             ;; (print (list :si (reverse shape-indices)))
+             
+             (reverse out-shape)))))))
+
+(defmethod indexer-of ((varray vader-mix))
+  (let* (;; (base-shape (shape-of (vader-base varray)))
+         (oshape (shape-of varray))
+         (ofactors (get-dimensional-factors oshape))
+         (oindexer (indexer-of (vader-base varray)))
+         (dim-indices (vamix-shape-indices varray))
+         (orank (length (shape-of (vader-base varray))))
+         (outer-shape (loop :for i :in dim-indices :for s :in (shape-of varray)
+                            :when (> orank i) :collect s))
+         (inner-shape (loop :for i :in dim-indices :for s :in (shape-of varray)
+                            :when (<= orank i) :collect s))
+         (inner-rank (length inner-shape))
+         (iofactors (get-dimensional-factors outer-shape)))
+    (lambda (index)
+      ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
+      
+      (if (not oshape)
+          (if (not (functionp oindexer))
+              (disclose oindexer) ;; TODO: change indexer-of for rank 0 arrays to obviate this1
+              (funcall oindexer 0))
+          (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
+
+            (loop :for ofactor :in ofactors :for di :in dim-indices :for fx :from 0
+                  :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
+                        (setf remaining remainder)
+                        (if (> orank di) (push this-index outer-indices)
+                            (push this-index inner-indices))))
+
+            (let* ((inner-indices (reverse inner-indices))
+                   (oindex (loop :for i :in (reverse outer-indices)
+                                 :for f :in iofactors :summing (* i f)))
+                   (iarray (funcall oindexer oindex))
+                   (ishape (copy-list (shape-of iarray)))
+                   (iifactors (get-dimensional-factors ishape))
+                   (iindexer (indexer-of iarray))
+                   (irank (length ishape))
+                   (doffset (- inner-rank irank))
+                   (iindex 0))
+
+              (if (not (functionp iindexer))
+                  (if (zerop (reduce #'+ inner-indices)) iindexer)
+                  (progn (loop :for i :in inner-indices :for ix :from 0 :while iindex
+                               :do (if (< ix doffset) (if (not (zerop i))
+                                                          (setf iindex nil))
+                                       (if (< i (first ishape))
+                                           (progn (incf iindex (* i (first iifactors)))
+                                                  (setf ishape (rest ishape)
+                                                        iifactors (rest iifactors)))
+                                           (setf iindex nil))))
+                         
+                         ;; (print index)
+                         ;; (print (list :ia iarray iindex))
+                         
+                         (if iindex (funcall iindexer iindex))))))))))
+    
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 

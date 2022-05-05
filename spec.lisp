@@ -665,7 +665,11 @@
   (↑ (has :titles ("Mix" "Take"))
      ;; (ambivalent (mix-array index-origin axes)
      ;;             (section-array index-origin nil axes))
-     (ambivalent (mix-array index-origin axes)
+     (ambivalent (funcall (lambda (n io &optional axes)
+                            (lambda (i)
+                              (make-instance 'vader-mix :base i :index-origin io
+                                                        :axis (or (first axes) :last))))
+                          nil index-origin axes)
                  (funcall (lambda (n io &optional axes)
                             (lambda (i a)
                               (make-instance 'vader-section :base i :argument a :index-origin io
@@ -676,6 +680,7 @@
            (dyadic :on-axis :last :selective-assignment-compatible t))
      (tests (is "↑2" 2)
             (is "↑'a'" #\a)
+            (is "↑⍬" #())
             (is "⍴1↑⍳3" #*1)
             (is "↑⊂2 4" #(2 4))
             (is "↑(1)(1 2)(1 2 3)" #2A((1 0 0) (1 2 0) (1 2 3)))
