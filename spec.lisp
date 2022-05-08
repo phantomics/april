@@ -764,7 +764,12 @@
   (↓ (has :titles ("Split" "Drop"))
      ;; (ambivalent (wrap-split-array index-origin axes)
      ;;             (section-array index-origin t axes))
-     (ambivalent (wrap-split-array index-origin axes)
+     (ambivalent ;; (wrap-split-array index-origin axes)
+                 (funcall (lambda (n io &optional axes)
+                            (lambda (i)
+                              (make-instance
+                               'vader-split :base i :index-origin io :axis (or (first axes) :last))))
+                          nil index-origin axes)
                  (funcall (lambda (n io &optional axes)
                             (lambda (i a)
                               (make-instance

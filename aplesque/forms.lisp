@@ -5,6 +5,18 @@
 
 "A set of functions defining the forms of arrays produced by the Aplesque array processing functions."
 
+(defun indexer-split (axis orank input-factors output-factors)
+  (lambda (outer inner)
+    (let ((iindex 0) (remaining outer))
+      (loop :for ofactor :across output-factors :for ix :from 0
+            :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                  (if (= ix axis)
+                      (incf iindex (* inner (aref input-factors axis))))
+                  (incf iindex (* index (aref input-factors (+ ix (if (< ix axis) 0 1)))))
+                  (setq remaining remainder)))
+      (if (= axis orank) (incf iindex inner))
+      iindex)))
+
 (defun indexer-section (inverse dims dimensions output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter))
@@ -181,5 +193,6 @@
 
 ;; a sub-package of Aplesque that provides the array formatting functions
 (defpackage #:aplesque.forms
-  (:import-from :aplesque #:indexer-section #:indexer-expand #:indexer-turn #:indexer-permute)
-  (:export #:indexer-section #:indexer-expand #:indexer-turn #:indexer-permute))
+  (:import-from :aplesque #:indexer-split #:indexer-section #:indexer-expand
+                #:indexer-turn #:indexer-permute)
+  (:export #:indexer-split #:indexer-section #:indexer-expand #:indexer-turn #:indexer-permute))

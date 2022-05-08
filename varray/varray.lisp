@@ -27,6 +27,9 @@
 (defgeneric indexer-of (varray)
   (:documentation "Get an indexing function for an array."))
 
+(defgeneric sub-indexer-of (varray)
+  (:documentation "Get a sub-indexing function for an array."))
+
 (defgeneric render (varray)
   (:documentation "Render an array into memory."))
 
@@ -90,6 +93,7 @@
 (defmethod indexer-of ((array array))
   (if (= 0 (array-rank array))
       ;; array
+      ;; TODO: this causes tree printing test to fail
       (lambda (index) (row-major-aref array index))
       (if (= 0 (array-total-size array))
                 (prototype-of array)
@@ -104,9 +108,11 @@
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray)))
+    ;; (print (list :vv varray output-shape prototype))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
             (let ((this-prototype (prototype-of varray)))
+              ;; (print (list :aa))
               (let* ((out-meta (if (arrayp this-prototype)
                                    (make-array 1 :initial-contents
                                                (list (list :empty-array-prototype
@@ -118,10 +124,18 @@
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
-                  (if indexed (setf (row-major-aref output i) indexed)
+                  (if indexed (setf (row-major-aref output i)
+                                    (funcall (if (not (typep varray 'vad-subrendering))
+                                                 #'identity #'render)
+                                             indexed))
                       (setf (row-major-aref output i) prototype))))
               output))
-        (funcall indexer 1))))
+        (funcall (if (not (typep varray 'vad-subrendering))
+                     #'identity (lambda (item)
+                                  (if (and (not (shape-of item))
+                                           (not (or (arrayp item) (varrayp item))))
+                                      item (make-array nil :initial-element (render item)))))
+                 (funcall indexer 0)))))
 
 (defmacro get-or-assign-shape (object form)
   `(or (varray-shape ,object) (setf (varray-shape ,object) ,form)))
@@ -218,12 +232,16 @@
                   :documentation "Parameter specifying the index origin for an array operation."))
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
 
+(defclass vad-subrendering ()
+  nil (:documentation "Superclass of derived arrays containing sub-arrays to be rendered."))
+
 (defclass vad-invertable ()
   ((%inverse :accessor vads-inverse
              :initform nil
              :initarg :inverse
              :documentation "Parameters passed to an array transformation as an argument."))
   (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
+
 (defclass vader-shape (varray-derived)
   nil (:documentation "The shape of an array as from the [⍴ shape] function."))
 
@@ -281,8 +299,11 @@
               (funcall (if (not (and (arrayp (vads-argument varray))
                                      (zerop (array-total-size (vads-argument varray)))))
                            #'identity #'enclose)
-                       (funcall base-indexer (if (not output-shape)
-                                                 0 (mod index (max 1 input-size))))))))))
+                       (let ((indexed (funcall base-indexer
+                                               (if (not output-shape)
+                                                   0 (mod index (max 1 input-size))))))
+                         (if (not (typep indexed 'vad-subrendering))
+                             indexed (render indexed)))))))))
 
 (defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io)
   ((%laminating :accessor vacat-laminating
@@ -424,10 +445,11 @@
                                                 :collect si)
                             :for df :in (aref ifactors array-index)
                             :summing (* si df) :into rmi :finally (return rmi)))))
-        
         (if (not (functionp (aref indexers array-index)))
             (disclose (aref indexers array-index))
-            (funcall (aref indexers array-index) row-major-index))))))
+            (let ((indexed (funcall (aref indexers array-index) row-major-index)))
+              (if (not (typep indexed 'vad-subrendering))
+                  indexed (render indexed))))))))
 
 (defclass vader-mix (varray-derived vad-on-axis vad-with-io)
   ((%shape-indices :accessor vamix-shape-indices
@@ -538,11 +560,88 @@
                                                         iifactors (rest iifactors)))
                                            (setf iindex nil))))
                          
-                         ;; (print index)
-                         ;; (print (list :ia iarray iindex))
-                         
                          (if iindex (funcall iindexer iindex))))))))))
-    
+
+;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
+(defclass vader-subarray (varray-derived vad-subrendering)
+  ((%prototype :accessor vasv-prototype
+               :initform nil
+               :initarg :prototype
+               :documentation "Prototype value for subvector.")
+   (%indexer :accessor vasv-indexer
+             :initform nil
+             :initarg :indexer
+             :documentation "Indexer function for subvector."))
+  (:documentation "Subvector."))
+
+(defmethod prototype-of ((varray vader-subarray))
+  (vasv-prototype varray))
+
+(defmethod indexer-of ((varray vader-subarray))
+  (vasv-indexer varray))
+
+(defclass vader-split (varray-derived vad-on-axis vad-with-io vad-subrendering)
+  ((%determined :accessor vasplit-determined
+                :initform nil
+                :initarg :determined
+                :documentation "Whether array's shape is determined."))
+  (:documentation "A split array as from the [↓ split] function."))
+
+(defmethod etype-of ((varray vader-split))
+  "The [↓ split] function returns a nested array unless its argument is scalar."
+  (let ((base (vader-base varray)))
+    (if (or (arrayp base) (varrayp base))
+        t (assign-element-type base))))
+
+(defmethod shape-of ((varray vader-split))
+  (get-or-assign-shape
+   varray
+   (if (vasplit-determined varray)
+       (varray-shape varray)
+       (let* ((base-shape (shape-of (vader-base varray)))
+              (axis (setf (vads-axis varray)
+                          (if (eq :last (vads-axis varray))
+                              (max 0 (1- (length base-shape)))
+                              (- (disclose (render (vads-axis varray)))
+                                 (vads-io varray))))))
+         (setf (vasplit-determined varray) t)
+         (loop :for d :in base-shape :for ix :from 0 :when (not (= axis ix)) :collect d)))))
+
+(defmethod indexer-of ((varray vader-split))
+  (let* ((output-shape (shape-of varray))
+         (output-size (reduce #'* output-shape))
+         (axis (vads-axis varray))
+         (output-factors (get-dimensional-factors output-shape))
+         (base-shape (shape-of (vader-base varray)))
+         (base-indexer (indexer-of (vader-base varray)))
+         (base-factors (get-dimensional-factors base-shape))
+         (sv-factor (nth axis base-factors))
+         (core-indexer (indexer-split axis (length output-shape) (coerce base-factors 'vector)
+                                      (coerce output-factors 'vector)))
+         (offset-indexer (lambda (offset)
+                           (lambda (index) (funcall base-indexer (funcall core-indexer offset index)))))
+         (subvectors
+           (if (functionp base-indexer)
+               (make-array output-size :initial-contents
+                           (loop :for ix :below output-size
+                                 :collect (let* ((sub-indexer (funcall offset-indexer ix))
+                                                 (first-item (funcall sub-indexer 0))
+                                                 (prototype (if (not output-shape)
+                                                                (prototype-of (vader-base varray))
+                                                                (if (varrayp first-item)
+                                                                    (prototype-of first-item)
+                                                                    (apl-array-prototype first-item)))))
+                                            (make-instance
+                                             'vader-subarray :base (vader-base varray)
+                                                             :shape (if (nth axis base-shape)
+                                                                        (list (nth axis base-shape)))
+                                                             :indexer sub-indexer
+                                                             :prototype prototype)))))))
+    (lambda (index)
+      (if (and subvectors (functionp base-indexer))
+          (aref subvectors index)
+          base-indexer))))
+
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
@@ -756,7 +855,9 @@
                                     (shape-of varray)
                                     (arg-process (vads-argument varray))))))
     (if (zerop (reduce #'+ (shape-of (vader-base varray))))
-        (lambda (index) (vader-base varray)) ;; handle the case of ⌽⍬
+        (lambda (_)
+          (declare (ignore _))
+          (vader-base varray)) ;; handle the case of ⌽⍬
         (lambda (index)
           (if (not indexer)
               base-indexer (funcall base-indexer (funcall indexer index)))))))

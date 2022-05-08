@@ -1705,22 +1705,27 @@
         (xdotimes output (o (size output))
           (setf (row-major-aref output o) (make-array axis-dim :element-type (element-type input))))
 
-        (xdotimes output (o (size output))
-          ;; TODO: write case for parallelizing inner process in case lines are long and the
-          ;; containing output array is small
-          (symbol-macrolet ((output-element (row-major-aref output o)))
-            (dotimes (i (size (row-major-aref output o)))
-              (let ((iindex 0) (remaining o))
-                (loop :for ofactor :across output-factors :for ix :from 0
-                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                         (if (= ix axis)
-                             (incf iindex (* i (aref input-factors axis))))
-                         (incf iindex (* index (aref input-factors (+ ix (if (< ix axis) 0 1)))))
-                         (setq remaining remainder)))
-                (if (= axis (rank output)) (incf iindex i))
+        (let ((indexer (indexer-split axis (rank output) input-factors output-factors)))
+          (xdotimes output (o (size output))
+            ;; TODO: write case for parallelizing inner process in case lines are long and the
+            ;; containing output array is small
+            (symbol-macrolet ((output-element (row-major-aref output o)))
+              (dotimes (i (size (row-major-aref output o)))
+                ;; (let ((iindex 0) (remaining o))
+                ;;   (loop :for ofactor :across output-factors :for ix :from 0
+                ;;         :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                ;;               (if (= ix axis)
+                ;;                   (incf iindex (* i (aref input-factors axis))))
+                ;;               (incf iindex (* index (aref input-factors (+ ix (if (< ix axis) 0 1)))))
+                ;;               (setq remaining remainder)))
+                ;;   (if (= axis (rank output)) (incf iindex i))
+                ;;   (setf (row-major-aref output-element i)
+                ;;         (row-major-aref input iindex)))
                 (setf (row-major-aref output-element i)
-                      (row-major-aref input iindex))))))
-        output)))
+                      (row-major-aref input (funcall indexer o i)))
+
+                )))
+          output))))
 
 (defun ravel (count-from input &optional axes)
   "Produce a vector from the elements of a multidimensional array."
