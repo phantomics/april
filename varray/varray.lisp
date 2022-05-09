@@ -42,7 +42,9 @@
            (member :empty-array-prototype (aref (array-displacement item) 0)))
       ;; if an empty array prototype has been stored, retrieve it
       (getf (aref (array-displacement item) 0) :empty-array-prototype)
-      (apl-array-prototype item)))
+      (if (and (arrayp item) (zerop (array-rank item)))
+          (aplesque:make-empty-array (disclose item))
+          (apl-array-prototype item))))
 
 (defmethod prototype-of ((varray varray))
   "The default prototype for a virtual array is 0."
@@ -108,7 +110,6 @@
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray)))
-    ;; (print (list :vv varray output-shape prototype))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
             (let* ((out-meta (if (arrayp prototype)
@@ -155,8 +156,21 @@
       (etype-of (vader-base varray))))
 
 ;; the default shape of a derived array is the same as its base array
+;; (defmethod prototype-of ((varray varray-derived))
+;;   (prototype-of (vader-base varray)))
+
 (defmethod prototype-of ((varray varray-derived))
-  (prototype-of (vader-base varray)))
+  (let ((shape (shape-of varray)))
+    ;; (print (list :sh shape))
+    (if (and shape (loop :for dim :in shape :never (zerop dim)))
+        (let* ((indexer (indexer-of varray))
+               (indexed (if (not (functionp indexer))
+                            indexer (funcall indexer 0))))
+          (if indexed
+          ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+              (aplesque::make-empty-array (disclose indexed))
+              (prototype-of (vader-base varray))))
+        (prototype-of (vader-base varray)))))
 
 (defmethod shape-of ((varray varray-derived))
   "The default shape of a derived array is the same as the original array."
@@ -244,6 +258,24 @@
              :documentation "Parameters passed to an array transformation as an argument."))
   (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
 
+;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
+(defclass vader-subarray (varray-derived vad-subrendering)
+  ((%prototype :accessor vasv-prototype
+               :initform nil
+               :initarg :prototype
+               :documentation "Prototype value for subvector.")
+   (%indexer :accessor vasv-indexer
+             :initform nil
+             :initarg :indexer
+             :documentation "Indexer function for subvector."))
+  (:documentation "Subvector."))
+
+(defmethod prototype-of ((varray vader-subarray))
+  (vasv-prototype varray))
+
+(defmethod indexer-of ((varray vader-subarray))
+  (vasv-indexer varray))
+
 (defclass vader-shape (varray-derived)
   nil (:documentation "The shape of an array as from the [⍴ shape] function."))
 
@@ -266,14 +298,6 @@
 
 (defclass vader-reshape (varray-derived vad-with-argument)
   nil (:documentation "A reshaped array as from the [⍴ reshape] function."))
-
-(defmethod prototype-of ((varray vader-reshape))
-  (shape-of (vader-base varray)) ;; must get shape so that base array can be rendered
-  (let ((indexer (indexer-of (vader-base varray))))
-    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-                                              indexer ;; ←← remove
-                                              (funcall (indexer-of (vader-base varray)) 0))))))
 
 (defmethod shape-of ((varray vader-reshape))
   "The shape of a reshaped array is simply its argument."
@@ -316,12 +340,6 @@
 
 (defmethod etype-of ((varray vader-catenate))
   (apply #'type-in-common (loop :for array :across (vader-base varray) :collect (etype-of array))))
-
-(defmethod prototype-of ((varray vader-catenate))
-  (let ((indexer (indexer-of (aref (vader-base varray) 0))))
-    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-                                              indexer ;; ←← remove
-                                              (funcall indexer 0))))))
 
 (defmethod shape-of ((varray vader-catenate))
   (get-or-assign-shape
@@ -460,12 +478,6 @@
                    :documentation "Indices of shape dimensions."))
   (:documentation "A mixed array as from the [↑ mix] function."))
 
-(defmethod prototype-of ((varray vader-mix))
-  "The prototype of a mixed array is the prototype of its first element."
-  (let ((indexer (indexer-of (vader-base varray))))
-    (prototype-of (if (not (functionp indexer))
-                      indexer (funcall (indexer-of (vader-base varray)) 0)))))
-
 (defmethod shape-of ((varray vader-mix))
   (get-or-assign-shape
    varray
@@ -564,24 +576,6 @@
                          
                          (if iindex (funcall iindexer iindex))))))))))
 
-;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
-(defclass vader-subarray (varray-derived vad-subrendering)
-  ((%prototype :accessor vasv-prototype
-               :initform nil
-               :initarg :prototype
-               :documentation "Prototype value for subvector.")
-   (%indexer :accessor vasv-indexer
-             :initform nil
-             :initarg :indexer
-             :documentation "Indexer function for subvector."))
-  (:documentation "Subvector."))
-
-(defmethod prototype-of ((varray vader-subarray))
-  (vasv-prototype varray))
-
-(defmethod indexer-of ((varray vader-subarray))
-  (vasv-indexer varray))
-
 (defclass vader-split (varray-derived vad-on-axis vad-with-io vad-subrendering vad-maybe-shapeless)
   nil (:documentation "A split array as from the [↓ split] function."))
 
@@ -641,13 +635,6 @@
 
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
-
-(defmethod prototype-of ((varray vader-section))
-  (let ((indexer (indexer-of (vader-base varray))))
-    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-                                              indexer ;; ←← remove
-                                              (funcall (indexer-of (vader-base varray)) 0))))))
 
 (defmethod shape-of ((varray vader-section))
   "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
@@ -729,13 +716,6 @@
                  :documentation "Inner shape value for re-enclosed array."))
   (:documentation "A split array as from the [↓ split] function."))
 
-(defmethod prototype-of ((varray vader-enclose))
-  (shape-of (vader-base varray)) ;; must get shape so that base array can be rendered
-  (let ((indexer (indexer-of (vader-base varray))))
-    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
-                                              indexer ;; ←← remove
-                                              (funcall (indexer-of (vader-base varray)) 0))))))
 (defmethod etype-of ((varray vader-enclose))
   "The [↓ split] function returns a nested array unless its argument is scalar."
   (let ((base (vader-base varray)))
