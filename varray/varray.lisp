@@ -111,16 +111,14 @@
     ;; (print (list :vv varray output-shape prototype))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
-            (let ((this-prototype (prototype-of varray)))
-              ;; (print (list :aa))
-              (let* ((out-meta (if (arrayp this-prototype)
-                                   (make-array 1 :initial-contents
-                                               (list (list :empty-array-prototype
-                                                           (prototype-of varray))))))
-                     (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
-                                 (make-array (shape-of varray) :element-type (assign-element-type
-                                                                              this-prototype)))))
-                output))
+            (let* ((out-meta (if (arrayp prototype)
+                                 (make-array 1 :initial-contents
+                                             (list (list :empty-array-prototype
+                                                         (prototype-of varray))))))
+                   (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
+                               (make-array (shape-of varray) :element-type (assign-element-type
+                                                                            prototype)))))
+              output)
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
@@ -158,10 +156,7 @@
 
 ;; the default shape of a derived array is the same as its base array
 (defmethod prototype-of ((varray varray-derived))
-  (if (varrayp (vader-base varray))
-      ;; (apl-array-prototype (funcall (indexer-of (vader-base varray)) 0))
-      (prototype-of (vader-base varray))
-      (prototype-of (vader-base varray))))
+  (prototype-of (vader-base varray)))
 
 (defmethod shape-of ((varray varray-derived))
   "The default shape of a derived array is the same as the original array."
@@ -230,6 +225,13 @@
                   :initform 0
                   :initarg :index-origin
                   :documentation "Parameter specifying the index origin for an array operation."))
+  (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
+
+(defclass vad-maybe-shapeless ()
+  ((%determined :accessor vads-shapeset
+                :initform nil
+                :initarg :determined
+                :documentation "Whether array's shape is determined."))
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
 
 (defclass vad-subrendering ()
@@ -580,12 +582,8 @@
 (defmethod indexer-of ((varray vader-subarray))
   (vasv-indexer varray))
 
-(defclass vader-split (varray-derived vad-on-axis vad-with-io vad-subrendering)
-  ((%determined :accessor vasplit-determined
-                :initform nil
-                :initarg :determined
-                :documentation "Whether array's shape is determined."))
-  (:documentation "A split array as from the [↓ split] function."))
+(defclass vader-split (varray-derived vad-on-axis vad-with-io vad-subrendering vad-maybe-shapeless)
+  nil (:documentation "A split array as from the [↓ split] function."))
 
 (defmethod etype-of ((varray vader-split))
   "The [↓ split] function returns a nested array unless its argument is scalar."
@@ -596,7 +594,7 @@
 (defmethod shape-of ((varray vader-split))
   (get-or-assign-shape
    varray
-   (if (vasplit-determined varray)
+   (if (vads-shapeset varray)
        (varray-shape varray)
        (let* ((base-shape (shape-of (vader-base varray)))
               (axis (setf (vads-axis varray)
@@ -604,7 +602,7 @@
                               (max 0 (1- (length base-shape)))
                               (- (disclose (render (vads-axis varray)))
                                  (vads-io varray))))))
-         (setf (vasplit-determined varray) t)
+         (setf (vads-shapeset varray) t)
          (loop :for d :in base-shape :for ix :from 0 :when (not (= axis ix)) :collect d)))))
 
 (defmethod indexer-of ((varray vader-split))
@@ -638,9 +636,8 @@
                                                              :indexer sub-indexer
                                                              :prototype prototype)))))))
     (lambda (index)
-      (if (and subvectors (functionp base-indexer))
-          (aref subvectors index)
-          base-indexer))))
+      (if (not (and subvectors (functionp base-indexer)))
+          base-indexer (aref subvectors index)))))
 
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
@@ -724,6 +721,76 @@
                           (disclose base-indexer) ;; TODO: why is this disclose needed?
                           (funcall base-indexer indexed))
               (prototype-of (vader-base varray))))))))
+
+(defclass vader-enclose (varray-derived vad-on-axis vad-with-io vad-subrendering vad-maybe-shapeless)
+  ((%inner-shape :accessor vaenc-inner-shape
+                 :initform nil
+                 :initarg :inner-shape
+                 :documentation "Inner shape value for re-enclosed array."))
+  (:documentation "A split array as from the [↓ split] function."))
+
+(defmethod prototype-of ((varray vader-enclose))
+  (shape-of (vader-base varray)) ;; must get shape so that base array can be rendered
+  (let ((indexer (indexer-of (vader-base varray))))
+    ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+    (aplesque::make-empty-array (disclose (if (not (functionp indexer))
+                                              indexer ;; ←← remove
+                                              (funcall (indexer-of (vader-base varray)) 0))))))
+(defmethod etype-of ((varray vader-enclose))
+  "The [↓ split] function returns a nested array unless its argument is scalar."
+  (let ((base (vader-base varray)))
+    (if (or (arrayp base) (varrayp base))
+        t (assign-element-type base))))
+
+(defmethod shape-of ((varray vader-enclose))
+  (get-or-assign-shape
+   varray (if (vads-shapeset varray)
+              (varray-shape varray)
+              (let ((axis (setf (vads-axis varray)
+                                (if (vads-axis varray)
+                                    (apply-scalar #'- (disclose (render (vads-axis varray)))
+                                                  (vads-io varray))))))
+                (setf (vads-shapeset varray) t)
+                (if axis (let ((base-shape (shape-of (vader-base varray)))
+                               (outer-shape) (inner-shape))
+                           (loop :for d :in base-shape :for dx :from 0
+                                 :do (if (if (integerp axis) (not (= dx axis))
+                                             (loop :for a :across axis :never (= a dx)))
+                                         (push d outer-shape)
+                                         (push d inner-shape)))
+                           (setf (vaenc-inner-shape varray) (reverse inner-shape))
+                           (reverse outer-shape)))))))
+
+(defmethod indexer-of ((varray vader-enclose))
+  (let* ((output-shape (shape-of varray))
+         (output-size (reduce #'* output-shape))
+         (inner-shape (vaenc-inner-shape varray))
+         (inner-increment (reduce #'* inner-shape))
+         (axis (vads-axis varray))
+         (base-indexer (indexer-of (vader-base varray)))
+         (offset-indexer (lambda (offset)
+                           (lambda (index) (funcall base-indexer (+ index (* offset inner-increment))))))
+         (subvectors
+           (if (functionp base-indexer)
+               (make-array output-size :initial-contents
+                           (loop :for ix :below output-size
+                                 :collect (let* ((sub-indexer (funcall offset-indexer ix))
+                                                 (first-item (funcall sub-indexer 0))
+                                                 (prototype (if (not output-shape)
+                                                                (prototype-of (vader-base varray))
+                                                                (if (varrayp first-item)
+                                                                    (prototype-of first-item)
+                                                                    (apl-array-prototype first-item)))))
+                                            (make-instance
+                                             'vader-subarray :base (vader-base varray)
+                                                             :shape inner-shape
+                                                             :indexer sub-indexer
+                                                             :prototype prototype)))))))
+    (lambda (index)
+      (if (and axis (not inner-shape))
+          (funcall base-indexer index)
+          (if (not (and subvectors (functionp base-indexer)))
+              base-indexer (aref subvectors index))))))
 
 (defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))
