@@ -814,12 +814,12 @@
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      ;; (ambivalent (enclose-array index-origin axes)
      ;;             (enclose-array index-origin axes))
-     (ambivalent (enclose-array index-origin axes)
-                 ;; (funcall (lambda (n io &optional axes)
-                 ;;            (lambda (i)
-                 ;;              (make-instance
-                 ;;               'vader-enclose :base i :index-origin io :axis (first axes))))
-                 ;;          nil index-origin axes)
+     (ambivalent ;; (enclose-array index-origin axes)
+                 (funcall (lambda (n io &optional axes)
+                            (lambda (i)
+                              (make-instance
+                               'vader-enclose :base i :index-origin io :axis (first axes))))
+                          nil index-origin axes)
                  (enclose-array index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin)))
      (tests (is "⊂2" 2)

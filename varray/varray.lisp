@@ -110,6 +110,7 @@
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray)))
+    ;; (print (list :vv varray))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
             (let* ((out-meta (if (arrayp prototype)
@@ -123,8 +124,9 @@
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
+                  ;; (print (list :ind varray indexed prototype))
                   (if indexed (setf (row-major-aref output i)
-                                    (funcall (if (not (typep varray 'vad-subrendering))
+                                    (funcall (if (not (typep indexed 'vad-subrendering))
                                                  #'identity #'render)
                                              indexed))
                       (setf (row-major-aref output i) prototype))))
@@ -161,14 +163,17 @@
 
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
-    ;; (print (list :sh shape))
-    (if (and shape (loop :for dim :in shape :never (zerop dim)))
+    ;; (print (list :vd varray))
+    (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
         (let* ((indexer (indexer-of varray))
                (indexed (if (not (functionp indexer))
                             indexer (funcall indexer 0))))
+          ;; (print (list :in indexed (typep indexed 'varray) (type-of indexed)))
           (if indexed
-          ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-              (aplesque::make-empty-array (disclose indexed))
+              ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+              (if (typep indexed 'varray)
+                  (prototype-of indexed)
+                  (aplesque::make-empty-array (disclose indexed)))
               (prototype-of (vader-base varray))))
         (prototype-of (vader-base varray)))))
 
@@ -707,8 +712,11 @@
           (if indexed (if (not (functionp base-indexer))
                           (disclose base-indexer) ;; TODO: why is this disclose needed?
                           (funcall base-indexer indexed))
-              (prototype-of (vader-base varray))))))))
+              (if (shape-of varray)
+                  (prototype-of (vader-base varray)))
+              ))))))
 
+;; TODO: subrendering needed for vader-enclose?
 (defclass vader-enclose (varray-derived vad-on-axis vad-with-io vad-subrendering vad-maybe-shapeless)
   ((%inner-shape :accessor vaenc-inner-shape
                  :initform nil
@@ -742,35 +750,142 @@
                            (reverse outer-shape)))))))
 
 (defmethod indexer-of ((varray vader-enclose))
-  (let* ((output-shape (shape-of varray))
+  (let* ((base-shape (shape-of (vader-base varray)))
+         (base-rank (length base-shape))
+         (output-shape (shape-of varray))
          (output-size (reduce #'* output-shape))
          (inner-shape (vaenc-inner-shape varray))
-         (inner-increment (reduce #'* inner-shape))
          (axis (vads-axis varray))
+         ;; (outer-increment (if (not (or (and (numberp axis)
+         ;;                                    (= axis (1- (length base-shape))))
+         ;;                               (and (vectorp axis)
+         ;;                                    (loop :for a :across axis :when (= a (1- base-rank))
+         ;;                                          :return t))))
+         ;;                      1 (first (last base-shape))))
+         ;; (inner-increment (if (not (or (and (numberp axis)
+         ;;                                    (= axis (1- (length base-shape))))
+         ;;                               (and (vectorp axis)
+         ;;                                    (loop :for a :across axis :when (= a (1- base-rank))
+         ;;                                          :return t))))
+         ;;                      1 (reduce #'* inner-shape)))
+         ;; (inner-increment (if (not (or (and (numberp axis)
+         ;;                                    (= axis (1- (length base-shape))))
+         ;;                               (and (vectorp axis)
+         ;;                                    (loop :for a :across axis :when (= a (1- base-rank))
+         ;;                                          :return t))))
+         ;;                      1 (reduce #'* outer-shape)))
+         ;; (inner-in2 (lambda (i) (+ i (* (floor i (if (numberp axis)
+         ;;                                             (nth axis base-shape)
+         ;;                                             (nth (aref axis (1- (length axis)))
+         ;;                                                  base-shape)))
+         ;;                                (reduce #'* (if (numberp axis)
+         ;;                                                (list (nth axis base-shape))
+         ;;                                                (loop :for a :across axis
+         ;;                                                      :collect (nth x base-shape))))))))
+         (ofactors (get-dimensional-factors base-shape))
+         ;; (afactor (reduce #'* (loop :for of :in ofactors :for ix :from 0
+         ;;                            :when (if (numberp axis) (= axis ix)
+         ;;                                      (loop :for a :across axis :when (= a ix)
+         ;;                                            :return t))
+         ;;                              :collect of)))
+         ;; (afactor (reduce #'* (loop :for of :in base-shape :for ix :from 0
+         ;;                            :when (if (numberp axis) (/= axis ix)
+         ;;                                      (loop :for a :across axis :never (= a ix)))
+         ;;                              :collect of)))
+         ;; (first-inner (if (numberp axis) (zerop axis)
+         ;;                 (loop :for a :across axis :when (zerop a) :return t)))
+         ;; (last-inner (if (numberp axis) (= axis (1- base-rank))
+         ;;                 (loop :for a :across axis :when (= a (1- base-rank))
+         ;;                       :return t)))
          (base-indexer (indexer-of (vader-base varray)))
-         (offset-indexer (lambda (offset)
-                           (lambda (index) (funcall base-indexer (+ index (* offset inner-increment))))))
+         ;; (offset-indexer (lambda (offset)
+         ;;                   (lambda (index)
+         ;;                     (print (list :ff index offset (funcall inner-in2 (* index afactor))))
+         ;;                     (funcall base-indexer (+ (funcall inner-in2 (* index afactor))
+                                                      
+         ;;                                                            (* offset ;inner-increment
+         ;;                                                               ;; (if (= axis (1- (length base-shape)))
+         ;;                                                               ;;     inner-increment 1)
+         ;;                                                               (print inner-increment)
+         ;;                                                               ))))))
+         ;; (offset-indexer (lambda (offset)
+         ;;                   (lambda (index)
+         ;;                     (print (list :ff ;; last-inner
+         ;;                                  index offset (reduce #'* output-shape)
+         ;;                                  outer-increment
+         ;;                                  inner-increment
+         ;;                                  ))
+         ;;                     (funcall base-indexer (+ (* outer-increment
+         ;;                                                 (mod offset (first (last output-shape))))
+         ;;                                              (* (if first-inner
+         ;;                                                     (if (or (= 1 (length inner-shape))
+         ;;                                                             (loop :for is :across axis
+         ;;                                                                   :for ix :from 0
+         ;;                                                                   :always (= is ix)))
+         ;;                                                         1 (reduce #'* (rest inner-shape)))
+         ;;                                                     1 );(reduce #'* inner-shape))
+         ;;                                                 (first (last output-shape))
+         ;;                                                 (floor offset
+         ;;                                                        (first (last output-shape)))))))))
+         (outer-factors (get-dimensional-factors output-shape))
+         (inner-factors (get-dimensional-factors inner-shape))
+         (offset-indexer
+           (lambda (o)
+             (lambda (i)
+               (let ((orest o) (irest i) (index 0) (inner-dx 0) (outer-dx 0))
+                 (loop :for f :in ofactors :for fx :from 0
+                       :do (let ((in-outer (if (numberp axis) (/= fx axis)
+                                               (loop :for a :across axis :never (= fx a)))))
+                             (multiple-value-bind (factor remaining)
+                                 (if in-outer (floor orest (nth outer-dx outer-factors))
+                                     (floor irest (nth inner-dx inner-factors)))
+                               ;; (print (list :ff in-outer factor remaining))
+                               (if in-outer (progn (incf outer-dx) (setf orest remaining))
+                                   (progn (incf inner-dx) (setf irest remaining)))
+                               (incf index (* f factor)))))
+                 ;; (print (list :in index))
+                 (funcall base-indexer index)))))
          (subvectors
-           (if (functionp base-indexer)
+           (if nil ; (functionp base-indexer)
                (make-array output-size :initial-contents
                            (loop :for ix :below output-size
                                  :collect (let* ((sub-indexer (funcall offset-indexer ix))
                                                  (first-item (funcall sub-indexer 0))
                                                  (prototype (if (not output-shape)
-                                                                (prototype-of (vader-base varray))
+                                                                (aplesque::make-empty-array
+                                                                 (vader-base varray))
                                                                 (if (varrayp first-item)
                                                                     (prototype-of first-item)
                                                                     (apl-array-prototype first-item)))))
-                                            (make-instance
-                                             'vader-subarray :base (vader-base varray)
-                                                             :shape inner-shape
-                                                             :indexer sub-indexer
-                                                             :prototype prototype)))))))
+                                            (make-instance 'vader-subarray
+                                                           :base (vader-base varray)
+                                                           :shape inner-shape :indexer sub-indexer
+                                                           :prototype prototype)))))))
     (lambda (index)
-      (if (and axis (not inner-shape))
-          (funcall base-indexer index)
-          (if (not (and subvectors (functionp base-indexer)))
-              base-indexer (aref subvectors index))))))
+
+      ;; (if (not inner-shape)
+      ;;     (if axis (funcall base-indexer index)
+      ;;         (if (not output-shape)
+      ;;             (vader-base varray)))
+      ;;     (if (not (and subvectors (functionp base-indexer)))
+      ;;         base-indexer (aref subvectors index)))
+      ;; (print (list :iii index axis inner-shape (vader-base varray)))
+      (if (not inner-shape)
+          (if axis (if (not (functionp base-indexer))
+                       base-indexer (funcall base-indexer index))
+              (vader-base varray))
+          (if (not (functionp base-indexer))
+              base-indexer (let* ((sub-indexer (funcall offset-indexer index))
+                                  (first-item (funcall sub-indexer 0))
+                                  (prototype (if (not output-shape)
+                                                 (aplesque::make-empty-array
+                                                  (vader-base varray))
+                                                 (if (varrayp first-item)
+                                                     (prototype-of first-item)
+                                                     (apl-array-prototype first-item)))))
+                             (make-instance 'vader-subarray :prototype prototype
+                                            :base (vader-base varray)
+                                            :shape inner-shape :indexer sub-indexer)))))))
 
 (defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))

@@ -120,6 +120,68 @@
                                                       :return px)
                                                 1))))))))))))
 
+(defun indexer-enclose (axes input-dims)
+  (let ((axis-list (array-to-list axes))
+        (outer-dims) (inner-dims))
+    (dotimes (axis (length input-dims))
+      (if (find axis axis-list) (push axis inner-dims)
+          (push axis outer-dims)))
+    (setq inner-dims (reverse inner-dims)
+          outer-dims (reverse outer-dims))
+    ;; create a blank array of the outer dimensions containing blank arrays of the inner dimensions
+    (let* ((ocoords (loop :for d :in outer-dims :collect (nth d input-dims)))
+           (icoords (loop :for d :in inner-dims :collect (nth d input-dims)))
+           (infactors (get-dimensional-factors input-dims))
+           (inner-factors (get-dimensional-factors icoords))
+           (outer-factors (get-dimensional-factors ocoords)))
+      ;; iterate through the original array and for each element, apply the same separation
+      ;; to their coordinates that was done to the original array's dimensions and apply the two sets
+      ;; of coordinates to set each value in the nested output arrays to the corresponding values in
+      ;; the original array
+      (lambda (i)
+        (let* ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
+          (loop :for f :in infactors :for fx :from 0
+                :do (multiple-value-bind (factor remaining) (floor rest f)
+                      (setq rest remaining)
+                      (if (loop :for a :across axes :never (= fx a))
+                          (progn (incf outer-index (* factor (nth outer-dx outer-factors)))
+                                 (incf outer-dx))
+                          (progn (incf inner-index (* factor (nth inner-dx inner-factors)))
+                                 (incf inner-dx)))))
+          (list outer-index inner-index))))))
+
+(defun indexer-enclose2 (axes input-dims)
+  (let ((axis-list (array-to-list axes))
+        (outer-dims) (inner-dims))
+    (dotimes (axis (length input-dims))
+      (if (find axis axis-list) (push axis inner-dims)
+          (push axis outer-dims)))
+    (setq inner-dims (reverse inner-dims)
+          outer-dims (reverse outer-dims))
+    ;; create a blank array of the outer dimensions containing blank arrays of the inner dimensions
+    (let* ((ocoords (loop :for d :in outer-dims :collect (nth d input-dims)))
+           (icoords (loop :for d :in inner-dims :collect (nth d input-dims)))
+           (infactors (get-dimensional-factors input-dims))
+           (inner-factors (get-dimensional-factors icoords))
+           (outer-factors (get-dimensional-factors ocoords)))
+      ;; iterate through the original array and for each element, apply the same separation
+      ;; to their coordinates that was done to the original array's dimensions and apply the two sets
+      ;; of coordinates to set each value in the nested output arrays to the corresponding values in
+      ;; the original array
+      (lambda (o i)
+        (print (list :i infactors inner-factors outer-factors))
+        (let* ((rest i) (index 0) (inner-dx 0) (outer-dx 0) (irest i) (orest o))
+          (loop :for f :in infactors :for fx :from 0
+                :do (let ((in-outer (loop :for a :across axes :never (= fx a))))
+                      (multiple-value-bind (factor remaining)
+                          (if in-outer (floor orest (nth outer-dx outer-factors))
+                              (floor irest (nth inner-dx inner-factors)))
+                        (print (list :ff in-outer factor remaining))
+                        (if in-outer (progn (incf outer-dx) (setf orest remaining))
+                            (progn (incf inner-dx) (setf irest remaining)))
+                        (incf index (* f factor)))))
+          index)))))
+
 (defun indexer-turn (axis idims &optional degrees)
   "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
   (let* ((rlen (nth axis idims))

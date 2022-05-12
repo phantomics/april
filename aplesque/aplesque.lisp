@@ -1816,9 +1816,9 @@
           ((= (length axes) (rank input))
            ;; if the number of axes is the same as the input's rank, just pass it back
            input)
-          (t (let* ((outer-dims) (inner-dims)
-                    (input-dims (dims input))
-                    (axis-list (array-to-list axes)))
+          (t (let ((outer-dims) (inner-dims)
+                   (input-dims (dims input))
+                   (axis-list (array-to-list axes)))
                ;; otherwise, start by separating the dimensions of the original array into sets of dimensions
                ;; for the output array and each of its enclosed arrays
                (dotimes (axis (rank input))
@@ -1840,7 +1840,7 @@
                  ;; of coordinates to set each value in the nested output arrays to the corresponding values in
                  ;; the original array
                  (ydotimes (row-major-aref output 0) (i (size input))
-                   (let* ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
+                   (let ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
                      (loop :for f :in infactors :for fx :from 0
                         :do (multiple-value-bind (factor remaining) (floor rest f)
                               (setq rest remaining)
