@@ -9,6 +9,6 @@
            #:vader-turn #:vader-permute #:vader-expand)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
                           #:assign-element-type #:type-in-common #:apl-array-prototype
-                          #:apply-scalar)
+                          #:apply-scalar #:is-unitary #:enclose-atom)
   (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-section
                           #:indexer-expand #:indexer-turn #:indexer-permute))
