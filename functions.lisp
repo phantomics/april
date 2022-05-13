@@ -1514,7 +1514,7 @@
            (optimize (speed 3) (safety 0)))
   (let ((total 0))
     (declare (type fixnum total))
-    (loop :for i :of-type fixnum :from 0 :below n :do (incf total i))
+    (loop :for i :of-type fixnum :from 0 :to n :do (incf total i))
     total))
 
 (defun get-last-row-major (array)

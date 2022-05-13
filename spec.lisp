@@ -1218,6 +1218,7 @@
      (lateral (lambda (operand) (values `(operate-reducing ,operand index-origin t)
                                         '(:axis))))
      (tests (is "+/1 2 3 4 5" 15)
+	    (is "+/⍳5" 15)
             (is "⊢/⍳5" 5)
             (is "×/5" 5)
             (is "÷/5" 5)
