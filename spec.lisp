@@ -825,7 +825,7 @@
                                                             :base i :axis (first axes))))
                           nil index-origin axes)
                  )
-     (meta (primary :axes axes :implicit-args (index-origin))) ; :virtual-support t))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t))
      (tests (is "⊂2" 2)
             (is "(⊂2)=2" 1)
             (is "(⊂'a')='a'" 1)

@@ -219,14 +219,16 @@
   "Makes a prototype version of an array." ;; IPV-TODO: replace the below function with this?
   (if (not (arrayp array))
       (if (typep array 'character)
-          #\Space 0)
+          #\Space (if (typep array 'double-float)
+                      0.0d0 0))
       (let* ((output-type (element-type array))
              (output (make-array (dims array) :element-type output-type)))
         (dotimes (i (size output))
           (setf (row-major-aref output i)
                 (if (not (arrayp (row-major-aref array i)))
                     (if (member output-type '(character base-char))
-                        #\Space 0)
+                        #\Space (if (eql 'double-float output-type)
+                                    0.0d0 0))
                     (make-empty-array (row-major-aref array i)))))
         output)))
 

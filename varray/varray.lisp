@@ -12,6 +12,10 @@
 (defun varrayp (item)
   (typep item 'varray))
 
+(defun subrendering-p (item)
+  (and (typep item 'varray-derived)
+       (vader-subrendering item)))
+
 (defgeneric etype-of (varray)
   (:documentation "Get the element type of an array."))
 
@@ -106,11 +110,21 @@
   "Rendering a non-virtual array object simply returns the object."
   item)
 
+(defun subrendering-base (item)
+  (if (typep item 'varray-derived)
+      (or (subrendering-p (vader-base item))
+          (subrendering-base (vader-base item)))))
+
 (defmethod render ((varray varray))
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
-        (indexer (indexer-of varray)))
-    ;; (print (list :vv varray))
+        (indexer (indexer-of varray))
+        (to-subrender ;; (and (typep varray 'varray-derived)
+                      ;;      (subrendering-p (vader-base varray)))
+          (or (subrendering-p varray)
+              (subrendering-base varray))
+                      ))
+    ;; (print (list :vv varray prototype (subrendering-p (vader-base varray))))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
             (let* ((out-meta (if (arrayp prototype)
@@ -124,14 +138,15 @@
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
-                  ;; (print (list :ind varray indexed prototype))
+                  ;; (print (list :abc varray indexed prototype))
                   (if indexed (setf (row-major-aref output i)
-                                    (funcall (if (not (typep indexed 'vad-subrendering))
+                                    (funcall (if (and (not to-subrender)
+                                                      (not (subrendering-p indexed)))
                                                  #'identity #'render)
                                              indexed))
                       (setf (row-major-aref output i) prototype))))
               output))
-        (funcall (if (not (typep varray 'vad-subrendering))
+        (funcall (if (not (subrendering-p varray))
                      #'identity (lambda (item)
                                   (if (and (not (shape-of item))
                                            (not (or (arrayp item) (varrayp item))))
@@ -140,7 +155,7 @@
 
 (defmacro get-or-assign-shape (object form)
   `(or (varray-shape ,object) (setf (varray-shape ,object) ,form)))
-
+  
 (defclass varray-primal (varray) nil
   (:documentation "A primal array: a virtual array defined wholly by its parameters, not derived from another array."))
 
@@ -148,7 +163,11 @@
   ((%base :accessor vader-base
           :initform nil
           :initarg :base
-          :documentation "The array from which the array is derived."))
+          :documentation "The array from which the array is derived.")
+   (%subrendering :accessor vader-subrendering
+                  :initform nil
+                  :initarg :subrendering
+                  :documentation "Whether the array contains nested elements to be subrendered."))
   (:documentation "A derived array: virtual array derived from another array."))
 
 ;; the default shape of a derived array is the same as its base array
@@ -157,24 +176,24 @@
       (array-element-type (vader-base varray))
       (etype-of (vader-base varray))))
 
-;; the default shape of a derived array is the same as its base array
-;; (defmethod prototype-of ((varray varray-derived))
-;;   (prototype-of (vader-base varray)))
-
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
-    ;; (print (list :vd varray))
+    ;; (print (list :vd varray (vader-base varray) (subrendering-p (vader-base varray))))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
-        (let* ((indexer (indexer-of varray))
-               (indexed (if (not (functionp indexer))
-                            indexer (funcall indexer 0))))
-          ;; (print (list :in indexed (typep indexed 'varray) (type-of indexed)))
-          (if indexed
-              ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
-              (if (typep indexed 'varray)
-                  (prototype-of indexed)
-                  (aplesque::make-empty-array (disclose indexed)))
-              (prototype-of (vader-base varray))))
+        (if (subrendering-p (vader-base varray))
+            (aplesque::make-empty-array (disclose (render (vader-base varray))))
+            (if (subrendering-p varray)
+                (aplesque::make-empty-array (disclose (render (vader-base varray))))
+                (let* ((indexer (indexer-of varray))
+                       (indexed (if (not (functionp indexer))
+                                    indexer (funcall indexer 0))))
+                  ;; (print (list :in indexed (typep indexed 'varray) (type-of indexed)
+                  ;;              (if (varrayp indexed) (vader-base indexed))))
+                  ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
+                  (if indexed (if (typep indexed 'varray)
+                                  (prototype-of indexed)
+                                  (aplesque::make-empty-array (disclose indexed)))
+                      (prototype-of (vader-base varray))))))
         (prototype-of (vader-base varray)))))
 
 (defmethod shape-of ((varray varray-derived))
@@ -254,7 +273,11 @@
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
 
 (defclass vad-subrendering ()
-  nil (:documentation "Superclass of derived arrays containing sub-arrays to be rendered."))
+  ((%subrendering :accessor vader-subrendering
+                  :initform t
+                  :initarg :subrendering
+                  :documentation "Whether the array contains nested elements to be subrendered."))
+  (:documentation "Superclass of derived arrays containing sub-arrays to be rendered."))
 
 (defclass vad-invertable ()
   ((%inverse :accessor vads-inverse
@@ -264,7 +287,7 @@
   (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
 
 ;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
-(defclass vader-subarray (varray-derived vad-subrendering)
+(defclass vader-subarray (vad-subrendering varray-derived)
   ((%prototype :accessor vasv-prototype
                :initform nil
                :initarg :prototype
@@ -333,7 +356,7 @@
                        (let ((indexed (funcall base-indexer
                                                (if (not output-shape)
                                                    0 (mod index (max 1 input-size))))))
-                         (if (not (typep indexed 'vad-subrendering))
+                         (if (not (subrendering-p indexed))
                              indexed (render indexed)))))))))
 
 (defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io)
@@ -351,6 +374,9 @@
    varray
    (let* ((ref-shape) (uneven)
           (each-shape (loop :for a :across (vader-base varray)
+                            :do (if (or (subrendering-p a)
+                                        (subrendering-base a))
+                                    (setf (vader-subrendering varray) t))
                             :collect (if (or (varrayp a) (arrayp a))
                                          (shape-of a))))
           (max-rank (reduce #'max (mapcar #'length each-shape)))
@@ -364,6 +390,7 @@
                                       (< double-float-epsilon (nth-value 1 (floor axis)))))))
           (axis (setf (vads-axis varray) (ceiling axis))))
 
+     
      (if to-laminate
          (loop :for shape :in each-shape
                :do (if shape (if ref-shape
@@ -473,7 +500,7 @@
         (if (not (functionp (aref indexers array-index)))
             (disclose (aref indexers array-index))
             (let ((indexed (funcall (aref indexers array-index) row-major-index)))
-              (if (not (typep indexed 'vad-subrendering))
+              (if (not (subrendering-p indexed))
                   indexed (render indexed))))))))
 
 (defclass vader-mix (varray-derived vad-on-axis vad-with-io)
@@ -581,7 +608,7 @@
                          
                          (if iindex (funcall iindexer iindex))))))))))
 
-(defclass vader-split (varray-derived vad-on-axis vad-with-io vad-subrendering vad-maybe-shapeless)
+(defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:documentation "A split array as from the [↓ split] function."))
 
 (defmethod etype-of ((varray vader-split))
@@ -717,8 +744,8 @@
               ))))))
 
 ;; TODO: subrendering needed for vader-enclose?
-(defclass vader-enclose (varray-derived vad-on-axis vad-with-io vad-with-argument 
-                         vad-subrendering vad-maybe-shapeless)
+(defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
+                         vad-with-argument vad-maybe-shapeless)
   ((%inner-shape :accessor vaenc-inner-shape
                  :initform nil
                  :initarg :inner-shape
@@ -740,15 +767,13 @@
                                      (apply-scalar #'- (disclose (render (vads-axis varray)))
                                                    (vads-io varray)))))
                      (positions (if (vads-argument varray)
-                                    (enclose-atom (vads-argument varray))))
+                                    (enclose-atom (render (vads-argument varray)))))
                      (base-shape (shape-of (vader-base varray)))
                      (axis-size (if (and axis positions)
                                     (nth axis base-shape)
                                     (or (first (last base-shape)) 1)))
                      (input-offset 0) (intervals (list 0)))
 
-                ;; (print (list :pos positions base-shape))
-                
                 (if positions
                     (dotimes (i (if (is-unitary positions) (or (first (last base-shape)) 1)
                                     (length positions)))
