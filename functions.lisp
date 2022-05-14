@@ -321,7 +321,7 @@
 (defun count-to (index index-origin)
   "Implementation of APL's [⍳ index] function."
   (let ((index (disclose index)))
-    (if (or (integerp index)
+    (if (or (and (integerp index) (>= index 0))
             (and (vectorp index)
                  (= 1 (length index))))
         (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
@@ -342,7 +342,8 @@
                                                      coords (loop :for c :in coords
                                                                :collect (+ c index-origin)))))))
               output)
-            (error "The argument to [⍳ index] must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
+            (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.
+Received: ~A" index)))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
@@ -1508,14 +1509,25 @@
 
 ;;; From this point are optimized implementations of APL idioms.
 
+(declaim (ftype (function ((integer 0 10000000)) fixnum) fast-iota-sum-fixnum)
+	 (optimize (speed 3) (safety 0)))
+(defun fast-iota-sum-fixnum (n)
+  (if (oddp n)
+      ;; if n is odd, n+1 is even, so (n+1)/2 is a fixnum
+      (* n (the fixnum (/ (1+ n) 2)))
+      ;; if n is even, n+1 is odd which would cause (n+1)/2 to no longer be fixnum
+      ;; instead do n*(n/2)+(n/2) which is equivalent but all with fixnums
+    (let ((n/2 (the fixnum (/ n 2))))
+      (+ (* n n/2) n/2))))
+
+
 (defun iota-sum (n)
-  "Fast implementation of +/⍳X."
-  (declare (type (integer 0 10000000) n)
-           (optimize (speed 3) (safety 0)))
-  (let ((total 0))
-    (declare (type fixnum total))
-    (loop :for i :of-type fixnum :from 0 :to n :do (incf total i))
-    total))
+  (cond ((< n 0) (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
+	((<= n 1) n) ;; shortcut for 0 or 1
+	((<= n 10000000)
+	 (fast-iota-sum-fixnum n))
+	(t (* n (/ (1+ n) 2)))))
+
 
 (defun get-last-row-major (array)
   "Fast implementation of ⊃⌽,X."
