@@ -1509,25 +1509,26 @@ Received: ~A" index)))))
 
 ;;; From this point are optimized implementations of APL idioms.
 
-(declaim (ftype (function ((integer 0 10000000)) fixnum) fast-iota-sum-fixnum)
-	 (optimize (speed 3) (safety 0)))
-(defun fast-iota-sum-fixnum (n)
+(deftype fast-iota-sum-fixnum ()
+  "The largest integer that can be supplied to fast-iota-sum without causing a fixnum overflow"
+  '(integer 0 #.(isqrt (* 2 most-positive-fixnum))))
+
+(declaim (ftype (function (fast-iota-sum-fixnum) fixnum) fast-iota-sum))
+(defun fast-iota-sum (n)
+  "Fast version of iota-sum for integers of type fast-iota-sum-fixnum"
+  (declare (optimize (speed 3) (safety 0)))
   (if (oddp n)
-      ;; if n is odd, n+1 is even, so (n+1)/2 is a fixnum
       (* n (the fixnum (/ (1+ n) 2)))
-      ;; if n is even, n+1 is odd which would cause (n+1)/2 to no longer be fixnum
-      ;; instead do n*(n/2)+(n/2) which is equivalent but all with fixnums
     (let ((n/2 (the fixnum (/ n 2))))
       (+ (* n n/2) n/2))))
 
-
 (defun iota-sum (n)
+  "Fast implementation of +/⍳X."
   (cond ((< n 0) (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
 	((<= n 1) n) ;; shortcut for 0 or 1
-	((<= n 10000000)
-	 (fast-iota-sum-fixnum n))
+	((typep n 'fast-iota-sum-fixnum)
+	 (fast-iota-sum n))
 	(t (* n (/ (1+ n) 2)))))
-
 
 (defun get-last-row-major (array)
   "Fast implementation of ⊃⌽,X."
