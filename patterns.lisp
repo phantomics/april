@@ -18,7 +18,13 @@
                                       :axes axes :space space
                                       :params (append (list :ignore-patterns t) params))
                       (funcall (lambda (,arg)
+<<<<<<< Updated upstream
 				 (iota-sum ,arg))
+=======
+				 (if (vectorp ,arg)
+				     (iota-sum-array ,arg index-origin)
+				     (iota-sum ,arg index-origin)))
+>>>>>>> Stashed changes
                                  ⍵)))
                rest)))
     ((list* (guard ravel (equalp ravel '(:fn #\,)))

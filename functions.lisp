@@ -1522,6 +1522,7 @@ Received: ~A" index)))))
     (let ((n/2 (the fixnum (/ n 2))))
       (+ (* n n/2) n/2))))
 
+<<<<<<< Updated upstream
 (defun iota-sum (n)
   "Fast implementation of +/⍳X."
   (cond ((< n 0) (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
@@ -1529,6 +1530,36 @@ Received: ~A" index)))))
 	((typep n 'fast-iota-sum-fixnum)
 	 (fast-iota-sum n))
 	(t (* n (/ (1+ n) 2)))))
+=======
+(defun iota-sum (n index-origin)
+  "Fast implementation of +/⍳X."
+  (cond ((< n 0)
+	 (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
+	((= n 0) 0)
+	((= n 1) index-origin)
+	;; fast version only implemented for index-origin 0 and 1, 
+	((and (= index-origin 1) (typep n 'fast-iota-sum-fixnum))
+	 (fast-iota-sum n))
+	((and (= index-origin 0) (typep n 'fast-iota-sum-fixnum))
+	 (- (fast-iota-sum n) n))
+	(t (* n (/ (+ n index-origin index-origin -1) 2)))))
+
+(defun iota-sum-array (array index-origin)
+  (let* ((output (make-array (butlast (array-to-list array))))
+	 (last (aref array (1- (length array))))
+	 (last-sum (iota-sum last)))
+    (across
+     output
+     (lambda (elm coords)
+       (declare (ignore elm))
+       (setf (apply #'aref output coords)
+	     (concatenate 'vector
+			  (map 'vector (lambda (x)
+					 (* last (+ x index-origin)))
+			       coords)
+			  (vector last-sum)))))
+    output))
+>>>>>>> Stashed changes
 
 (defun get-last-row-major (array)
   "Fast implementation of ⊃⌽,X."
