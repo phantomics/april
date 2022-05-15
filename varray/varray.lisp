@@ -25,6 +25,9 @@
 (defgeneric shape-of (varray)
   (:documentation "Get the shape of an array."))
 
+(defgeneric size-of (varray)
+  (:documentation "Get the size of an array."))
+
 (defgeneric rank-of (varray)
   (:documentation "Get the rank of an array."))
 
@@ -78,6 +81,15 @@
 (defmethod shape-of ((varray varray))
   "Virtual array shapes are referenced using the (varray-shape) method."
   (varray-shape varray))
+  
+(defmethod size-of ((item t))
+  "Virtual array shapes are referenced using the (varray-shape) method."
+  (if (not (arrayp item))
+      1 (array-total-size item)))
+
+(defmethod size-of ((varray varray))
+  "Virtual array shapes are referenced using the (varray-shape) method."
+  (reduce #'* (shape-of varray)))
 
 (defmethod rank-of ((item t))
   "Non-arrays have a rank of 0."
@@ -119,12 +131,12 @@
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray))
-        (to-subrender ;; (and (typep varray 'varray-derived)
-                      ;;      (subrendering-p (vader-base varray)))
-          (or (subrendering-p varray)
-              (subrendering-base varray))
-                      ))
-    ;; (print (list :vv varray prototype (subrendering-p (vader-base varray))))
+        (to-subrender (or (subrendering-p varray)
+                          (subrendering-base varray))))
+    ;; (print (list :vv varray prototype
+    ;;              (etype-of varray)
+    ;;              (if (typep varray 'varray-derived)
+    ;;                  (subrendering-p (vader-base varray)))))
     (if output-shape
         (if (zerop (reduce #'* output-shape))
             (let* ((out-meta (if (arrayp prototype)
@@ -180,7 +192,11 @@
   (let ((shape (shape-of varray)))
     ;; (print (list :vd varray (vader-base varray) (subrendering-p (vader-base varray))))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
-        (if (subrendering-p (vader-base varray))
+        (if (and (not (or (typep varray 'vader-mix)
+                          (typep varray 'vader-catenate)))
+                 ;; TODO: functions that combine an array of arguments shouldn't have base subrendering
+                 ;; checked. Is there a better way to establish this rule?
+                 (subrendering-p (vader-base varray)))
             (aplesque::make-empty-array (disclose (render (vader-base varray))))
             (if (subrendering-p varray)
                 (aplesque::make-empty-array (disclose (render (vader-base varray))))
@@ -367,7 +383,9 @@
   (:documentation "A catenated array as from the [, catenate] function."))
 
 (defmethod etype-of ((varray vader-catenate))
-  (apply #'type-in-common (loop :for array :across (vader-base varray) :collect (etype-of array))))
+  (apply #'type-in-common (loop :for array :across (vader-base varray)
+                                :when (< 0 (size-of array))
+                                :collect (etype-of array))))
 
 (defmethod shape-of ((varray vader-catenate))
   (get-or-assign-shape
@@ -509,6 +527,12 @@
                    :initarg :shape-indices
                    :documentation "Indices of shape dimensions."))
   (:documentation "A mixed array as from the [↑ mix] function."))
+
+(defmethod etype-of ((varray vader-mix))
+  (let ((base-indexer (indexer-of (vader-base varray))))
+    (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
+                                  :when (< 0 (size-of (funcall base-indexer aix)))
+                                    :collect (etype-of (funcall base-indexer aix))))))
 
 (defmethod shape-of ((varray vader-mix))
   (get-or-assign-shape
@@ -857,8 +881,6 @@
                                                      (+ input-offset (mod i last-idim)
                                                         (* last-indim (floor i last-idim)))
                                                      (+ ivix (* iseg (+ input-offset oseg)))))))))))))
-
-    ;;(print (list :eo each-offset intervals section-size output-shape))
     
     (lambda (index)
       (if (vectorp intervals)
@@ -1041,7 +1063,6 @@
 
 (defmethod shape-of ((varray vader-permute))
   "The shape of a permuted array."
-  ;; (print (list :vv (shape-of (vads-argument varray))))
   (get-or-assign-shape
    varray
    (let* ((base-shape (shape-of (vader-base varray)))

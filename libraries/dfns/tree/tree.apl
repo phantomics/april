@@ -475,7 +475,7 @@ redblack ← { ⎕IO←0                           ⍝ Red-black trees.
   dblk←{⍺ ⍵}∘(,0)                            ⍝ double black node.
 
   op←⍶                                       ⍝ operand label.
-
+  
   '∪'≡op:root ⍺ ins ⍵                        ⍝ insert/replace value in tree.
   '~'≡op:root ⍺ rem ⍵ 0                      ⍝ remove key=value from tree.
   '⍎'≡op:⍵ get ⍺                             ⍝ search for value for key.
