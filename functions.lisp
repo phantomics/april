@@ -342,8 +342,7 @@
                                                      coords (loop :for c :in coords
                                                                :collect (+ c index-origin)))))))
               output)
-            (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.
-Received: ~A" index)))))
+            (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
@@ -1522,15 +1521,6 @@ Received: ~A" index)))))
     (let ((n/2 (the fixnum (/ n 2))))
       (+ (* n n/2) n/2))))
 
-<<<<<<< Updated upstream
-(defun iota-sum (n)
-  "Fast implementation of +/⍳X."
-  (cond ((< n 0) (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
-	((<= n 1) n) ;; shortcut for 0 or 1
-	((typep n 'fast-iota-sum-fixnum)
-	 (fast-iota-sum n))
-	(t (* n (/ (1+ n) 2)))))
-=======
 (defun iota-sum (n index-origin)
   "Fast implementation of +/⍳X."
   (cond ((< n 0)
@@ -1547,7 +1537,7 @@ Received: ~A" index)))))
 (defun iota-sum-array (array index-origin)
   (let* ((output (make-array (butlast (array-to-list array))))
 	 (last (aref array (1- (length array))))
-	 (last-sum (iota-sum last)))
+	 (last-sum (iota-sum last index-origin)))
     (across
      output
      (lambda (elm coords)
@@ -1559,7 +1549,6 @@ Received: ~A" index)))))
 			       coords)
 			  (vector last-sum)))))
     output))
->>>>>>> Stashed changes
 
 (defun get-last-row-major (array)
   "Fast implementation of ⊃⌽,X."
