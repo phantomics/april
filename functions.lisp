@@ -1527,11 +1527,10 @@
 	 (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
 	((= n 0) 0)
 	((= n 1) index-origin)
-	;; fast version only implemented for index-origin 0 and 1, 
-	((and (= index-origin 1) (typep n 'fast-iota-sum-fixnum))
-	 (fast-iota-sum n))
-	((and (= index-origin 0) (typep n 'fast-iota-sum-fixnum))
-	 (- (fast-iota-sum n) n))
+	((typep n 'fast-iota-sum-fixnum)
+	 (if (= index-origin 1)
+	     (fast-iota-sum n)
+	     (fast-iota-sum (1- n))))
 	(t (* n (/ (+ n index-origin index-origin -1) 2)))))
 
 (defun iota-sum-array (array index-origin)
