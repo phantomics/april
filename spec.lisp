@@ -568,8 +568,11 @@
             (is "(2 5⍴'RADIUS')⍸3 4 5⍴'BOXCAR'" #2A((0 1 0 0) (2 0 0 1) (0 0 2 0)))
             (is "(2 3 5⍴'ABCDEFHIJKLM')⍸3 3 5⍴'BOREAL'" #(1 2 1))))
   (\, (has :titles ("Ravel" "Catenate or Laminate"))
-      (ambivalent (ravel-array index-origin axes)
-                  ;; (catenate-arrays index-origin axes)
+      (ambivalent (funcall (lambda (n io &optional axes)
+                             (lambda (i)
+                               (make-instance 'vader-pare :base i :index-origin io
+                                                          :axis (first axes))))
+                           nil index-origin axes)
                   (funcall (lambda (n io &optional axes)
                              (lambda (i a)
                                (make-instance 'vader-catenate :base (vector a i) :index-origin io
@@ -639,16 +642,19 @@
              (is "(8+2 2 2⍴⍳8),[0.5]2 2 2⍴⍳8" #4A((((9 10) (11 12)) ((13 14) (15 16)))
                                                   (((1 2) (3 4)) ((5 6) (7 8)))))))
   (⍪ (has :titles ("Table" "Catenate First"))
-     (ambivalent #'tabulate ;; (catenate-on-first index-origin axes)
+     (ambivalent (funcall (lambda (n io &optional axes)
+                             (lambda (i)
+                               (make-instance 'vader-pare :base i :index-origin io
+                                                          :axis :tabulate)))
+                           nil index-origin axes)
                  (funcall (lambda (n io &optional axes)
                              (lambda (i a)
                                (make-instance 'vader-catenate :base (vector a i) :index-origin io
                                                               :axis (or (first axes) io))))
-                           nil index-origin axes)
-                 )
+                           nil index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first))
-     (tests (is "⍪4" 4)
+     (tests (is "⍪4" #2A((4)))
             (is "⍪'MAKE'" #2A((#\M) (#\A) (#\K) (#\E)))
             (is "⍪3 4⍴⍳9" #2A((1 2 3 4) (5 6 7 8) (9 1 2 3)))
             (is "⍪2 3 4⍴⍳24" #2A((1 2 3 4 5 6 7 8 9 10 11 12)
@@ -663,8 +669,6 @@
             (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
                                          (1 2 3 4 5 6 9 1 2 3)))))
   (↑ (has :titles ("Mix" "Take"))
-     ;; (ambivalent (mix-array index-origin axes)
-     ;;             (section-array index-origin nil axes))
      (ambivalent (funcall (lambda (n io &optional axes)
                             (lambda (i)
                               (make-instance 'vader-mix :base i :index-origin io
@@ -869,7 +873,14 @@
             (is "0 0 2 0 1⊂'abcdefg'" #(#() "cd" "efg"))
             (is "3⍴0 0 0 0⊂⍳3" #(#() #() #()))))
   (⊆ (has :titles ("Nest" "Partition"))
-     (ambivalent #'nest (partition-array-wrap index-origin axes))
+     ;; (ambivalent #'nest (partition-array-wrap index-origin axes))
+     (ambivalent #'nest
+                 (funcall (lambda (n io &optional axes)
+                            (lambda (i a)
+                              (make-instance 'vader-partition
+                                             :argument a :index-origin io :base i
+                                             :axis (or (first axes) :last))))
+                          nil index-origin axes))
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse #'identity)
            (dyadic :on-axis :last))

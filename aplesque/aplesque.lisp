@@ -949,6 +949,9 @@
         (loop :for rint :in r-intervals :for rind :in r-indices :when (not (zerop rint))
            :do (push rint intervals)
                (push rind indices))
+
+        (print (list :rrr intervals indices))
+        
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
