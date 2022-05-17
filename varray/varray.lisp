@@ -14,7 +14,7 @@
 
 (defun subrendering-p (item)
   (and (typep item 'varray-derived)
-       (vader-subrendering item)))
+       (vads-subrendering item)))
 
 (defgeneric etype-of (varray)
   (:documentation "Get the element type of an array."))
@@ -176,7 +176,7 @@
           :initform nil
           :initarg :base
           :documentation "The array from which the array is derived.")
-   (%subrendering :accessor vader-subrendering
+   (%subrendering :accessor vads-subrendering
                   :initform nil
                   :initarg :subrendering
                   :documentation "Whether the array contains nested elements to be subrendered."))
@@ -192,7 +192,9 @@
 
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
-    ;; (print (list :vd varray (vader-base varray) (subrendering-p (vader-base varray))))
+    ;; (print (list :vd varray (vader-base varray)
+    ;;              (subrendering-p varray)
+    ;;              (subrendering-p (vader-base varray))))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
         (if (and (not (or (typep varray 'vader-mix)
                           (typep varray 'vader-catenate)))
@@ -264,7 +266,7 @@
 
 (defclass vad-on-axis ()
   ((%axis :accessor vads-axis
-          :initform :last
+          :initform nil
           :initarg :axis
           :documentation "The axis along which to transform."))
   (:documentation "Superclass of array transformations occuring along an axis."))
@@ -291,7 +293,7 @@
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
 
 (defclass vad-subrendering ()
-  ((%subrendering :accessor vader-subrendering
+  ((%subrendering :accessor vads-subrendering
                   :initform t
                   :initarg :subrendering
                   :documentation "Whether the array contains nested elements to be subrendered."))
@@ -322,35 +324,146 @@
 (defmethod indexer-of ((varray vader-subarray))
   (vasv-indexer varray))
 
-(defclass vader-operate (varray-derived vad-on-axis vad-with-io)
+(defclass vader-operate (vad-subrendering varray-derived vad-on-axis vad-with-io)
   ((%function :accessor vaop-function
               :initform nil
               :initarg :function
               :documentation "Function to be applied to derived array element(s).")))
 
+;; (defmethod shape-of ((varray vader-operate))
+;;   (get-or-assign-shape
+;;    varray
+;;    (let ((shape) (sub-shape)
+;;          (axis (setf (vads-axis varray)
+;;                      (funcall (lambda (ax)
+;;                                 (if (numberp ax)
+;;                                     (- ax (vads-io varray))
+;;                                     (if (zerop (size-of ax))
+;;                                         ax (loop :for a :across ax
+;;                                                  :collect (- a (vads-io varray))))))
+;;                               (disclose (render (vads-axis varray)))))))
+;;      (flet ((shape-matches (a)
+;;               (loop :for s1 :in shape :for s2 :in (shape-of a)
+;;                     :always (= s1 s2))))
+;;        (loop :for a :across (vader-base varray)
+;;              :do (if (shape-of a)
+;;                      (if (not shape) (setf shape (shape-of a))
+;;                          (let ((rank (length (shape-of a))))
+;;                            (if (or (not (= rank (length shape)))
+;;                                    (not (shape-matches a)))
+;;                                (if axis t
+;;                                    (error "Mismatched array dimensions.")))))))
+;;        shape))))
+
 ;; (varray::render (make-instance 'vader-operate :base (vector 1 (april (with (:unrendered)) "⍳5")) :function #'+ :index-origin 1))
 ;; (varray::render (make-instance 'vader-operate :base #(1 #(1 2 3)) :function #'+ :index-origin 1))
+;; (varray::render (make-instance 'vader-operate :base (vector (april (with (:unrendered)) "10×⍳3") (april (with (:unrendered)) "3 3⍴⍳9")) :function #'+ :index-origin 1 :axis 1))
+;; (varray::render (make-instance 'vader-operate :base (vector (april (with (:unrendered)) "10×⍳3") (april (with (:unrendered)) "3 3⍴⍳9")) :function #'+ :index-origin 1 :axis 1))
 
 (defmethod shape-of ((varray vader-operate))
   (get-or-assign-shape
    varray
-   (let ((shape))
-     (loop :for a :across (vader-base varray)
-           :do (if (shape-of a)
-                   (if (not shape) (setf shape (shape-of a))
-                       (error "Mismatched array dimensions."))))
-     shape)))
+   (let ((shape) (sub-shape)
+         (axis (setf (vads-axis varray)
+                     (if (vads-axis varray)
+                         (funcall (lambda (ax)
+                                    (if (numberp ax)
+                                        (- ax (vads-io varray))
+                                        (if (zerop (size-of ax))
+                                            ax (loop :for a :across ax
+                                                     :collect (- a (vads-io varray))))))
+                                  (disclose (render (vads-axis varray))))))))
+     (flet ((shape-matches (a)
+              (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
+       ;; (print (list :ax axis))
+       (loop :for a :across (vader-base varray)
+             :do (if (shape-of a)
+                     (if (not shape) (setf shape (shape-of a))
+                         (let ((rank (length (shape-of a))))
+                           (if (or (not (= rank (length shape)))
+                                   (not (shape-matches a)))
+                               (if axis (if (= (length shape)
+                                               (if (numberp axis) 1 (length axis)))
+                                            (if (> rank (length shape))
+                                                (let ((ax-copy (if (listp axis) (copy-list axis)))
+                                                      (shape-copy (copy-list shape))
+                                                      (matching t))
+                                                  (loop :for d :in (shape-of a) :for ix :from 0
+                                                        :when (and (if ax-copy (= ix (first ax-copy))
+                                                                       (= ix axis)))
+                                                          :do (if (/= d (first shape-copy))
+                                                                  (setf matching nil))
+                                                              (setf ax-copy (rest ax-copy)
+                                                                    shape-copy (rest shape-copy)))
+                                                  (if matching (setf shape (shape-of a))
+                                                      (error "Mismatched array dimensions.")))
+                                                (if (= rank (length shape))
+                                                    (if (not (shape-matches a))
+                                                        (error "Mismatched array dimensions."))
+                                                    (error "Mismatched array dimensions.")))
+                                            (if (= rank (if (numberp axis) 1 (length axis)))
+                                                (if (not (shape-matches a))
+                                                    (or (and (numberp axis)
+                                                             (= a (nth axis shape)))
+                                                        (and (listp axis)
+                                                             (loop :for ax :in axis :for sh :in shape
+                                                                   :always (= sh (nth ax shape))))
+                                                        (error "Mismatched array dimensions.")))
+                                                (error "Mismatched array dimensions.")))
+                                   (error "Mismatched array dimensions.")))))))
+       shape))))
+
+;; (destructuring-bind (lowrank highrank &optional omega-lower)
+;;     (if (> orank arank) (list alpha omega) (list omega alpha t))
+;;   (if (loop :for a :across axes :for ax :from 0
+;;             :always (and (< a (rank highrank))
+;;                          (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
+;;       (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
+;;         (across highrank (lambda (elem coords)
+;;                            (loop :for a :across axes :for ax :from 0
+;;                                  :do (setf (nth ax lrc) (nth a coords)))
+;;                            (setf (apply #'aref output coords)
+;;                                  (nest (if omega-lower
+;;                                            (funcall function elem
+;;                                                     (apply #'aref
+;;                                                            lowrank lrc))
+;;                                            (funcall function
+;;                                                     (apply #'aref
+;;                                                            lowrank lrc)
+;;                                                     elem)))))))
+;;       (error "Incompatible dimensions or axes.")))
 
 (defmethod indexer-of ((varray vader-operate))
   (lambda (index)
-    (let ((result))
-      (loop :for a :across (vader-base varray)
-            :do (let ((item (if (not (shape-of a))
-                                a (funcall (indexer-of a) index))))
-                  (setf result (if (not result)
-                                   item (funcall (vaop-function varray)
-                                                 result item)))))
-      result)))
+    (let* ((result) (subarrays)
+           (out-shape (shape-of varray))
+           (out-rank (length out-shape))
+           (axis (vads-axis varray))
+           (shape-factors (if axis (coerce (get-dimensional-factors out-shape) 'vector))))
+      (loop :for a :across (vader-base varray) :for ix :from 0
+            :do (let* ((shape (shape-of a))
+                       (rank (length shape))
+                       (item (if shape (if (and axis (not (= rank out-rank)))
+                                           (funcall (indexer-of a)
+                                                    (if (numberp axis)
+                                                        (floor index (aref shape-factors axis))
+                                                        ))
+                                           (funcall (indexer-of a) index))
+                                 (if (not (varrayp a))
+                                     a (let ((indexer (indexer-of a)))
+                                         (if (not (functionp indexer))
+                                             indexer (funcall indexer 0)))))))
+                  (if (varrayp item)
+                      (push item subarrays)
+                      (setf result (if (not result)
+                                       item (funcall (vaop-function varray)
+                                                     result item))))))
+      
+      (if (and subarrays result) (push result subarrays))
+      (if (not subarrays)
+          result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
+                                               :function (vaop-function varray)
+                                               :index-origin (vads-io varray))))))
 
 (defclass vader-shape (varray-derived)
   nil (:documentation "The shape of an array as from the [⍴ shape] function."))
@@ -408,7 +521,7 @@
                              indexed (render indexed)))))))))
 
 ;; TODO: is subrendering needed here? Check render function
-(defclass vader-pare (vad-subrendering vader-reshape vad-on-axis vad-with-io)
+(defclass vader-pare (vader-reshape vad-on-axis vad-with-io)
   nil (:documentation "An array with a reduced shape as from the [, catenate] or [⍪ table] functions."))
 
 (defmethod shape-of ((varray vader-pare))
@@ -479,11 +592,15 @@
    varray
    (let* ((ref-shape) (uneven)
           (each-shape (loop :for a :across (vader-base varray)
-                            :do (if (or (subrendering-p a)
-                                        (subrendering-base a))
-                                    (setf (vader-subrendering varray) t))
-                            :collect (if (or (varrayp a) (arrayp a))
-                                         (shape-of a))))
+                            :collect (let ((shape (shape-of a)))
+                                       ;; (shape-of) must be called before checking whether an
+                                       ;; array subrenders since (shape-of) determines whether a
+                                       ;; catenated array subrenders
+                                       (if (or (subrendering-p a)
+                                               (subrendering-base a))
+                                           (setf (vads-subrendering varray) t))
+                                       (if (or (varrayp a) (arrayp a))
+                                           shape))))
           (max-rank (reduce #'max (mapcar #'length each-shape)))
           (axis (disclose-unitary (render (vads-axis varray))))
           (axis (if (eq :last axis)
