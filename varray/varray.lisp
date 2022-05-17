@@ -150,7 +150,7 @@
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
                 (let ((indexed (funcall indexer i)))
-                  ;; (print (list :abc varray indexed prototype))
+                  ;; (print (list :abc varray (shape-of varray) indexed prototype output))
                   (if indexed (setf (row-major-aref output i)
                                     (funcall (if (and (not to-subrender)
                                                       (not (subrendering-p indexed)))
@@ -1109,10 +1109,8 @@
                    (last-idim (or (first (last shape)) 1))
                    (this-size (reduce #'* shape)))
                (lambda (i)
-                 ;; (print (list :i i section-size this-size iseg last-idim input-offset))
                  (if (not (zerop this-size))
                      (let ((oseg (floor i iseg)) (ivix (mod i iseg)))
-                       ;; (print (list :oos oseg ivix))
                        (if (not (functionp base-indexer))
                            base-indexer (funcall base-indexer
                                                  (if (= 1 section-size)
@@ -1139,8 +1137,8 @@
           (if (not inner-shape)
               (if (vads-axis varray)
                   (if (not (functionp base-indexer))
-                                         base-indexer (funcall base-indexer index))
-                   (vader-base varray))
+                      base-indexer (funcall base-indexer index))
+                  (vader-base varray))
               (if (not (functionp base-indexer))
                   base-indexer (let* ((sub-indexer (funcall offset-indexer index))
                                       (first-item (funcall sub-indexer 0))
@@ -1174,105 +1172,125 @@
    varray
    (let* ((idims (shape-of (vader-base varray)))
           (arank (length idims))
-          (positions (setf (vads-argument varray)
-                           (funcall (lambda (i)
-                                      (if (not (arrayp i))
-                                          i (if (< 0 (array-rank i))
-                                                i (vector (aref i)))))
-                                    (disclose-unitary (render (vads-argument varray))))))
+          (positions (if (vads-argument varray)
+                         (setf (vads-argument varray)
+                               (funcall (lambda (i)
+                                          (if (not (arrayp i))
+                                              i (if (< 0 (array-rank i))
+                                                    i (vector (aref i)))))
+                                        (disclose-unitary (render (vads-argument varray)))))))
           (axis (setf (vads-axis varray)
-                      (max 0 (if (eq :last (vads-axis varray))
-                                 (1- arank)
-                                 (- (vads-axis varray)
-                                    (vads-io varray)))))))
-     (if (not (arrayp positions))
-         (if (< 1 (size-of (vader-base varray)))
-             (progn (setf (vapart-params varray)
-                          (list :partitions 1))
-                    (list 1)))
-         (let ((r-indices) (r-intervals) (indices) (intervals)
-               (interval-size 0)
-               (current-interval -1)
-               (partitions 0))
-           (declare (dynamic-extent r-indices r-intervals indices intervals
-                                    interval-size current-interval partitions))
-           ;; find the index where each partition begins in the input array and the length of each partition
-           (loop :for pos :across positions :for p :from 0
-                 :do (progn (if (not (zerop current-interval))
-                                (incf interval-size))
-                            ;; if a position lower than the current interval index is encountered,
-                            ;; decrement the current index to it, as for 1 1 1 2 1 1 2 1 1⊆⍳9
-                            (if (and current-interval (< 0 pos current-interval))
-                                (setq current-interval pos)))
-                 :when (or (< current-interval pos)
-                           (and (zerop pos) (not (zerop current-interval))))
-                   :do (setq r-indices (cons p r-indices)
-                             r-intervals (if (rest r-indices) (cons interval-size r-intervals)))
-                       (incf partitions (if (zerop pos) 0 1))
-                       (setq current-interval pos interval-size 0))
-           ;; add the last entry to the intervals provided the
-           ;; positions list didn't have a 0 value at the end
-           (if (not (zerop (aref positions (1- (length positions)))))
-               (push (- (length positions) (first r-indices))
-                     r-intervals))
-           
-           (if (/= (length r-indices) (length r-intervals))
-               (setq r-indices (rest r-indices)))
-           ;; collect the indices and intervals into lists the right way
-           ;; around, dropping indices with 0-length intervals
-           ;; corresponding to zeroes in the positions list
-           (loop :for rint :in r-intervals :for rind :in r-indices :when (not (zerop rint))
-                 :do (push rint intervals)
-                     (push rind indices))
-           
-           (setf (vapart-params varray)
-                 (list :partitions (or partitions 1)
-                       :intervals (coerce intervals 'vector)
-                       :indices (coerce indices 'vector)))
+                      (if (vads-axis varray)
+                          (max 0 (if (eq :last (vads-axis varray))
+                                     (1- arank)
+                                     (- (vads-axis varray)
+                                        (vads-io varray))))))))
+     (if (not positions)
+         (let ((base-type (etype-of (vader-base varray))))
+           (if (eq t base-type) ;; array is simple if not t-type
+               (let ((is-complex)
+                     (base-indexer (indexer-of (vader-base varray))))
+                 (if base-indexer
+                     (progn (loop :for i :below (size-of (vader-base varray))
+                                  :do (if (shape-of (funcall base-indexer i))
+                                          (setf is-complex t)))
+                            (if is-complex (shape-of (vader-base varray))))))))
+         (if (not (arrayp positions))
+             (if (< 1 (size-of (vader-base varray)))
+                 (progn (setf (vapart-params varray)
+                              (list :partitions 1))
+                        (list 1)))
+             (let ((r-indices) (r-intervals) (indices) (intervals)
+                   (interval-size 0)
+                   (current-interval -1)
+                   (partitions 0))
+               (declare (dynamic-extent r-indices r-intervals indices intervals
+                                        interval-size current-interval partitions))
+               ;; find the index where each partition begins in the
+               ;; input array and the length of each partition
+               (loop :for pos :across positions :for p :from 0
+                     :do (progn (if (not (zerop current-interval))
+                                    (incf interval-size))
+                                ;; if a position lower than the current interval index is encountered,
+                                ;; decrement the current index to it, as for 1 1 1 2 1 1 2 1 1⊆⍳9
+                                (if (and current-interval (< 0 pos current-interval))
+                                    (setq current-interval pos)))
+                     :when (or (< current-interval pos)
+                               (and (zerop pos) (not (zerop current-interval))))
+                       :do (setq r-indices (cons p r-indices)
+                                 r-intervals (if (rest r-indices) (cons interval-size r-intervals)))
+                           (incf partitions (if (zerop pos) 0 1))
+                           (setq current-interval pos interval-size 0))
+               ;; add the last entry to the intervals provided the
+               ;; positions list didn't have a 0 value at the end
+               (if (not (zerop (aref positions (1- (length positions)))))
+                   (push (- (length positions) (first r-indices))
+                         r-intervals))
+               
+               (if (/= (length r-indices) (length r-intervals))
+                   (setq r-indices (rest r-indices)))
+               ;; collect the indices and intervals into lists the right way
+               ;; around, dropping indices with 0-length intervals
+               ;; corresponding to zeroes in the positions list
+               (loop :for rint :in r-intervals :for rind :in r-indices
+                     :when (not (zerop rint))
+                       :do (push rint intervals)
+                           (push rind indices))
+               
+               (setf (vapart-params varray)
+                     (list :partitions (or partitions 1)
+                           :intervals (coerce intervals 'vector)
+                           :indices (coerce indices 'vector)))
 
-           (loop :for dim :in idims :for dx :below arank
-                 :collect (if (= dx axis) partitions dim)))))))
+               (loop :for dim :in idims :for dx :below arank
+                     :collect (if (= dx axis) partitions dim))))))))
 
 (defmethod indexer-of ((varray vader-partition))
-  (let* ((idims (shape-of (vader-base varray)))
-         (partitions (getf (vapart-params varray) :partitions))
-         (intervals (getf (vapart-params varray) :intervals))
-         (indices (getf (vapart-params varray) :indices))
-         (base-indexer (indexer-of (vader-base varray)))
-         (axis (vads-axis varray))
-         (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
-                                         :when (> dx axis) :collect d)))
-         (output-shape (shape-of varray))
-         (ofactors (get-dimensional-factors output-shape))
-         (ifactors (get-dimensional-factors idims))
-         (partition-indexer
-           (lambda (i focus)
-             (lambda (ix)
-               (let ((rest i) (input-index 0))
-                 (loop :for of :in ofactors :for if :in ifactors :for fx :from 0
-                       :do (multiple-value-bind (factor remaining) (floor rest of)
-                             (setq rest remaining)
-                             (incf input-index (* if (if (/= fx axis) factor
-                                                         (+ ix (if (not indices)
-                                                                   0 (aref indices focus))))))))
-                 (funcall base-indexer input-index))))))
-    
-    (lambda (index)
-      (if (not (functionp base-indexer))
-          base-indexer (let* ((focus (mod (floor index section-size) partitions))
-                              (sub-indexer (funcall partition-indexer index focus))
-                              (first-item (funcall sub-indexer 0))
-                              (prototype (if (not output-shape)
-                                             (aplesque::make-empty-array
-                                              (vader-base varray))
-                                             (if (varrayp first-item)
-                                                 (prototype-of first-item)
-                                                 (apl-array-prototype first-item)))))
-                         (make-instance 'vader-subarray
-                                        :prototype prototype :base (vader-base varray)
-                                        :shape (if (not intervals)
-                                                   idims (list (aref intervals focus)))
-                                        :indexer sub-indexer))))))
+  (if (not (or (vads-argument varray)
+               (vapart-params varray)))
+      (if (shape-of varray)
+          (indexer-of (vader-base varray))
+          (lambda (index)
+            (vader-base varray)))
+      (let* ((idims (shape-of (vader-base varray)))
+             (partitions (getf (vapart-params varray) :partitions))
+             (intervals (getf (vapart-params varray) :intervals))
+             (indices (getf (vapart-params varray) :indices))
+             (base-indexer (indexer-of (vader-base varray)))
+             (axis (vads-axis varray))
+             (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
+                                             :when (> dx axis) :collect d)))
+             (output-shape (shape-of varray))
+             (ofactors (get-dimensional-factors output-shape))
+             (ifactors (get-dimensional-factors idims))
+             (partition-indexer
+               (lambda (i focus)
+                 (lambda (ix)
+                   (let ((rest i) (input-index 0))
+                     (loop :for of :in ofactors :for if :in ifactors :for fx :from 0
+                           :do (multiple-value-bind (factor remaining) (floor rest of)
+                                 (setq rest remaining)
+                                 (incf input-index (* if (if (/= fx axis) factor
+                                                             (+ ix (if (not indices)
+                                                                       0 (aref indices focus))))))))
+                     (funcall base-indexer input-index))))))
+        
+        (lambda (index)
+          (if (not (functionp base-indexer))
+              base-indexer (let* ((focus (mod (floor index section-size) partitions))
+                                  (sub-indexer (funcall partition-indexer index focus))
+                                  (first-item (funcall sub-indexer 0))
+                                  (prototype (if (not output-shape)
+                                                 (aplesque::make-empty-array
+                                                  (vader-base varray))
+                                                 (if (varrayp first-item)
+                                                     (prototype-of first-item)
+                                                     (apl-array-prototype first-item)))))
+                             (make-instance 'vader-subarray
+                                            :prototype prototype :base (vader-base varray)
+                                            :shape (if (not intervals)
+                                                       idims (list (aref intervals focus)))
+                                            :indexer sub-indexer)))))))
 
 (defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))

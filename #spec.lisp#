@@ -874,11 +874,9 @@
             (is "3⍴0 0 0 0⊂⍳3" #(#() #() #()))))
   (⊆ (has :titles ("Nest" "Partition"))
      ;; (ambivalent #'nest (partition-array-wrap index-origin axes))
-     (ambivalent ;; #'nest
-                 (funcall (lambda (n io &optional axes)
+     (ambivalent (funcall (lambda (n io &optional axes)
                             (lambda (i)
-                              (make-instance 'vader-partition
-                                             :index-origin io :base i)))
+                              (make-instance 'vader-partition                              :index-origin io :base i)))
                           nil index-origin axes)
                  (funcall (lambda (n io &optional axes)
                             (lambda (i a)
