@@ -881,7 +881,7 @@
                                              :argument a :index-origin io :base i
                                              :axis (or (first axes) :last))))
                           nil index-origin axes))
-     (meta (primary :axes axes :implicit-args (index-origin))
+     (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse #'identity)
            (dyadic :on-axis :last))
      (tests (is "⊆⍳3" #0A#(1 2 3))

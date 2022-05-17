@@ -330,31 +330,6 @@
               :initarg :function
               :documentation "Function to be applied to derived array element(s).")))
 
-;; (defmethod shape-of ((varray vader-operate))
-;;   (get-or-assign-shape
-;;    varray
-;;    (let ((shape) (sub-shape)
-;;          (axis (setf (vads-axis varray)
-;;                      (funcall (lambda (ax)
-;;                                 (if (numberp ax)
-;;                                     (- ax (vads-io varray))
-;;                                     (if (zerop (size-of ax))
-;;                                         ax (loop :for a :across ax
-;;                                                  :collect (- a (vads-io varray))))))
-;;                               (disclose (render (vads-axis varray)))))))
-;;      (flet ((shape-matches (a)
-;;               (loop :for s1 :in shape :for s2 :in (shape-of a)
-;;                     :always (= s1 s2))))
-;;        (loop :for a :across (vader-base varray)
-;;              :do (if (shape-of a)
-;;                      (if (not shape) (setf shape (shape-of a))
-;;                          (let ((rank (length (shape-of a))))
-;;                            (if (or (not (= rank (length shape)))
-;;                                    (not (shape-matches a)))
-;;                                (if axis t
-;;                                    (error "Mismatched array dimensions.")))))))
-;;        shape))))
-
 ;; (varray::render (make-instance 'vader-operate :base (vector 1 (april (with (:unrendered)) "⍳5")) :function #'+ :index-origin 1))
 ;; (varray::render (make-instance 'vader-operate :base #(1 #(1 2 3)) :function #'+ :index-origin 1))
 ;; (varray::render (make-instance 'vader-operate :base (vector (april (with (:unrendered)) "10×⍳3") (april (with (:unrendered)) "3 3⍴⍳9")) :function #'+ :index-origin 1 :axis 1))
@@ -464,6 +439,65 @@
           result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                :function (vaop-function varray)
                                                :index-origin (vads-io varray))))))
+
+
+(defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
+  ((%function :accessor vasel-function
+              :initform nil
+              :initarg :function
+              :documentation "Function to be applied to derived array element(s).")
+   (%assign :accessor vasel-assign
+            :initform nil
+            :initarg :assign
+            :documentation "Item(s) to be assigned to selected indices in array.")))
+
+(defmethod shape-of ((varray vader-select))
+  (get-or-assign-shape
+   varray
+   (let* ((idims (shape-of (vader-base varray)))
+          (set (vasel-assign varray))
+          (indices (vads-argument varray))
+          (naxes (< 1 (length indices)))
+          (s 0) (sdims (if set (shape-of set))))
+     (if naxes (loop :for i :in indices :for d :in idims
+                     :append (let ((len (or (and (null i) (list d))
+                                            (and (integerp i) nil)
+                                            (and (arrayp i) (shape-of i)))))
+                               (if (and (not len) (not (integerp i)))
+                                   (error "Invalid index."))
+                               ;; collect output dimensions according to indices;
+                               ;; this is necessary even when setting values
+                               ;; compatible with the input array in order
+                               ;; to catch invalid indices
+                               (if (and len sdims (or (< 1 (length len))
+                                                      (/= (first len) (nth s sdims))))
+                                   (error "Invalid input."))
+                               ;; (if (and len (zerop (first len))) (setq empty-output t))
+                               (if len (incf s))
+                               len))
+         (if t ; (or set set-by) (dims input)
+             (let ((od (shape-of (or (first indices)
+                                     (vader-base varray)))))
+               ;; (if (and od (zerop (first od)))
+               ;;     (setq empty-output t))
+               od))))))
+
+(defmethod indexer-of ((varray vader-select))
+  (let ((indices (vads-argument varray))
+        (base-indexer (indexer-of (vader-base varray)))
+        (ofactors (get-dimensional-factors (shape-of varray)))
+        (ifactors (get-dimensional-factors (shape-of (vader-base varray)))))
+    (lambda (index)
+      (let ((remaining index) (oindex 0))
+        (loop :for ofactor :in ofactors :for ifactor :in ifactors
+              :for in :in indices :for fx :from 0
+              :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                    ;; (print (list :of ofactor index remainder))
+                    (incf oindex (* ifactor (if (not in)
+                                                index (aref in index))))
+                    (setf remaining remainder)))
+        (if (not (functionp base-indexer))
+            base-indexer (funcall base-indexer oindex))))))
 
 (defclass vader-shape (varray-derived)
   nil (:documentation "The shape of an array as from the [⍴ shape] function."))
