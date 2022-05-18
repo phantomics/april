@@ -351,9 +351,10 @@
     (or (eql 'bit type)
         (eql 'fixnum type)
         (eql 'bignum type)
-        (eql 'integer (first type))
-        (eql 'unsigned-byte (first type))
-        (eql 'signed-byte (first type)))))
+        (and (listp type)
+             (or (eql 'integer (first type))
+                 (eql 'unsigned-byte (first type))
+                 (eql 'signed-byte (first type)))))))
 
 (defun across (input function &key elements indices reverse-axes count ranges
                                 foreach finally (depth 0) (dimensions (dims input)))
