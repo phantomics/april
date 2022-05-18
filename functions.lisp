@@ -321,7 +321,7 @@
 (defun count-to (index index-origin)
   "Implementation of APL's [⍳ index] function."
   (let ((index (disclose index)))
-    (if (or (integerp index)
+    (if (or (and (integerp index) (>= index 0))
             (and (vectorp index)
                  (= 1 (length index))))
         (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
@@ -342,7 +342,7 @@
                                                      coords (loop :for c :in coords
                                                                :collect (+ c index-origin)))))))
               output)
-            (error "The argument to [⍳ index] must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
+            (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3.")))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
@@ -1508,14 +1508,46 @@
 
 ;;; From this point are optimized implementations of APL idioms.
 
-(defun iota-sum (n)
+(deftype fast-iota-sum-fixnum ()
+  "The largest integer that can be supplied to fast-iota-sum without causing a fixnum overflow"
+  '(integer 0 #.(isqrt (* 2 most-positive-fixnum))))
+
+(declaim (ftype (function (fast-iota-sum-fixnum) fixnum) fast-iota-sum))
+(defun fast-iota-sum (n)
+  "Fast version of iota-sum for integers of type fast-iota-sum-fixnum"
+  (declare (optimize (speed 3) (safety 0)))
+  (if (oddp n)
+      (* n (the fixnum (/ (1+ n) 2)))
+    (let ((n/2 (the fixnum (/ n 2))))
+      (+ (* n n/2) n/2))))
+
+(defun iota-sum (n index-origin)
   "Fast implementation of +/⍳X."
-  (declare (type (integer 0 10000000) n)
-           (optimize (speed 3) (safety 0)))
-  (let ((total 0))
-    (declare (type fixnum total))
-    (loop :for i :of-type fixnum :from 0 :below n :do (incf total i))
-    total))
+  (cond ((< n 0)
+	 (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
+	((= n 0) 0)
+	((= n 1) index-origin)
+	((typep n 'fast-iota-sum-fixnum)
+	 (if (= index-origin 1)
+	     (fast-iota-sum n)
+	     (fast-iota-sum (1- n))))
+	(t (* n (/ (+ n index-origin index-origin -1) 2)))))
+
+(defun iota-sum-array (array index-origin)
+  (let* ((output (make-array (butlast (array-to-list array))))
+	 (last (aref array (1- (length array))))
+	 (last-sum (iota-sum last index-origin)))
+    (across
+     output
+     (lambda (elm coords)
+       (declare (ignore elm))
+       (setf (apply #'aref output coords)
+	     (concatenate 'vector
+			  (map 'vector (lambda (x)
+					 (* last (+ x index-origin)))
+			       coords)
+			  (vector last-sum)))))
+    output))
 
 (defun get-last-row-major (array)
   "Fast implementation of ⊃⌽,X."

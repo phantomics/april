@@ -17,9 +17,10 @@
                   (if ⍺ ,(build-value `(⍵ ,@(subseq tokens 0 3) ⍺)
                                       :axes axes :space space
                                       :params (append (list :ignore-patterns t) params))
-                        (funcall (lambda (,arg)
-                                   (if (< ,arg 10000000) (iota-sum ,arg)
-                                       (loop :for ,var :from 0 :to (disclose ,arg) :summing ,var)))
+                      (funcall (lambda (,arg)
+				 (if (vectorp ,arg)
+				     (iota-sum-array ,arg index-origin)
+				     (iota-sum ,arg index-origin)))
                                  ⍵)))
                rest)))
     ((list* (guard ravel (equalp ravel '(:fn #\,)))
