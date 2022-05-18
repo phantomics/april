@@ -147,6 +147,8 @@
 
 [∘] Beside
 
+[⍛] Before
+
 [⍤] Rank / Atop
 
 [⍥] Over

@@ -1277,6 +1277,12 @@
                            (if fn-right omega right)
                            (if fn-left omega left))))))))
 
+(defun operate-before (right-fn left-fn)
+  "Generate a function by linking together two functions, where the left one is called first. Used to implement [⍛ reverse compose]."
+  (lambda (omega &optional alpha)
+    (if alpha (funcall right-fn omega (funcall left-fn alpha))
+        (error "Function composed with [⍛ reverse compose] must have a left argument."))))
+
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha)
