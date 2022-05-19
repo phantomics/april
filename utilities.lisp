@@ -999,7 +999,7 @@
          (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
                                                                    (not (symbolp arg)))
                                                               arg `(render-varrays ,arg)))))
-    (or (join-fns `(a-call ,function ,@arguments))
+    (or ;; (join-fns `(a-call ,function ,@arguments)) ;; TODO: scalars turned off for lazy impl, remove later
         (if (and (listp function)
                  (eql 'function (first function))
                  (eql 'change-namespace (second function)))

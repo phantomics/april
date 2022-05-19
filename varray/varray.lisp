@@ -423,8 +423,7 @@
                                    (funcall (vaop-function varray)
                                             (funcall base-indexer index)))))))
           (loop :for a :across (vader-base varray) :for ix :from 0
-                :do (let* (;; (a (disclose-unitary a))
-                           (shape (shape-of a))
+                :do (let* ((shape (shape-of a))
                            (size (size-of a))
                            (rank (length shape))
                            (item (if (and shape (< 1 size))
