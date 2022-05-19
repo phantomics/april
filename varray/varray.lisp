@@ -328,7 +328,11 @@
   ((%function :accessor vaop-function
               :initform nil
               :initarg :function
-              :documentation "Function to be applied to derived array element(s).")))
+              :documentation "Function to be applied to derived array element(s).")
+   (%sub-shape :accessor vaop-sub-shape
+               :initform nil
+               :initarg :sub-shape
+               :documentation "Shape of a lower-rank array to be combined with a higher-rank array along given axes.")))
 
 ;; (varray::render (make-instance 'vader-operate :base (vector 1 (april (with (:unrendered)) "⍳5")) :function #'+ :index-origin 1))
 ;; (varray::render (make-instance 'vader-operate :base #(1 #(1 2 3)) :function #'+ :index-origin 1))
@@ -350,7 +354,6 @@
                                   (disclose (render (vads-axis varray))))))))
      (flet ((shape-matches (a)
               (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
-       ;; (print (list :ax axis))
        (loop :for a :across (vader-base varray)
              :do (if (shape-of a)
                      (if (not shape) (setf shape (shape-of a))
@@ -363,6 +366,8 @@
                                                 (let ((ax-copy (if (listp axis) (copy-list axis)))
                                                       (shape-copy (copy-list shape))
                                                       (matching t))
+                                                  (if (not (vaop-sub-shape varray))
+                                                      (setf (vaop-sub-shape varray) shape))
                                                   (loop :for d :in (shape-of a) :for ix :from 0
                                                         :when (and (if ax-copy (= ix (first ax-copy))
                                                                        (= ix axis)))
@@ -388,58 +393,57 @@
                                    (error "Mismatched array dimensions.")))))))
        shape))))
 
-;; (destructuring-bind (lowrank highrank &optional omega-lower)
-;;     (if (> orank arank) (list alpha omega) (list omega alpha t))
-;;   (if (loop :for a :across axes :for ax :from 0
-;;             :always (and (< a (rank highrank))
-;;                          (= (nth a (dims highrank)) (nth ax (dims lowrank)))))
-;;       (let ((lrc (loop :for i :below (rank lowrank) :collect 0)))
-;;         (across highrank (lambda (elem coords)
-;;                            (loop :for a :across axes :for ax :from 0
-;;                                  :do (setf (nth ax lrc) (nth a coords)))
-;;                            (setf (apply #'aref output coords)
-;;                                  (nest (if omega-lower
-;;                                            (funcall function elem
-;;                                                     (apply #'aref
-;;                                                            lowrank lrc))
-;;                                            (funcall function
-;;                                                     (apply #'aref
-;;                                                            lowrank lrc)
-;;                                                     elem)))))))
-;;       (error "Incompatible dimensions or axes.")))
-
 (defmethod indexer-of ((varray vader-operate))
   (lambda (index)
     (let* ((result) (subarrays)
            (out-shape (shape-of varray))
+           (sub-shape (vaop-sub-shape varray))
            (out-rank (length out-shape))
            (axis (vads-axis varray))
-           (shape-factors (if axis (coerce (get-dimensional-factors out-shape) 'vector))))
-      (loop :for a :across (vader-base varray) :for ix :from 0
-            :do (let* ((shape (shape-of a))
-                       (rank (length shape))
-                       (item (if shape (if (and axis (not (= rank out-rank)))
-                                           (funcall (indexer-of a)
-                                                    (if (numberp axis)
-                                                        (floor index (aref shape-factors axis))
-                                                        ))
-                                           (funcall (indexer-of a) index))
-                                 (if (not (varrayp a))
-                                     a (let ((indexer (indexer-of a)))
-                                         (if (not (functionp indexer))
-                                             indexer (funcall indexer 0)))))))
-                  (if (varrayp item)
-                      (push item subarrays)
-                      (setf result (if (not result)
-                                       item (funcall (vaop-function varray)
-                                                     result item))))))
-      
+           (shape-factors (if axis (get-dimensional-factors out-shape t)))
+           (sub-factors (if axis (get-dimensional-factors sub-shape t))))
+      (if (= 1 (size-of (vader-base varray)))
+          (let ((base-indexer (indexer-of (aref (vader-base varray) 0))))
+            ;; (print (list :fn (funcall base-indexer index)))
+            (setf result (funcall (vaop-function varray)
+                                  (if (not (functionp base-indexer))
+                                      base-indexer (funcall base-indexer index)))))
+          (loop :for a :across (vader-base varray) :for ix :from 0
+                :do (let* ((shape (shape-of a))
+                           (rank (length shape))
+                           (item (if shape
+                                     (if (and axis (not (= rank out-rank)))
+                                         (funcall (indexer-of a)
+                                                  (if (numberp axis)
+                                                      (floor index (aref shape-factors axis))
+                                                      (let ((remaining index) (sub-index 0))
+                                                        (loop :for f :across shape-factors :for fx :from 0
+                                                              :do (multiple-value-bind (div remainder)
+                                                                      (floor remaining f)
+                                                                    (setf remaining remainder)
+                                                                    (loop :for ax :in axis :for ix :from 0
+                                                                          :when (= ax fx)
+                                                                            :do (incf sub-index
+                                                                                      (* (aref sub-factors ix)
+                                                                                         div)))))
+                                                        sub-index)))
+                                         (funcall (indexer-of a) index))
+                                     (if (not (varrayp a))
+                                         a (let ((indexer (indexer-of a)))
+                                             (if (not (functionp indexer))
+                                                 indexer (funcall indexer 0)))))))
+                      ;; (print (list :it item result))
+                      (if (varrayp item)
+                          (progn (setf (vads-subrendering varray) t)
+                                 (push item subarrays))
+                          (setf result (if (not result)
+                                           item (funcall (vaop-function varray)
+                                                         result item)))))))
       (if (and subarrays result) (push result subarrays))
       (if (not subarrays)
           result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                :function (vaop-function varray)
                                                :index-origin (vads-io varray))))))
-
 
 (defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
   ((%function :accessor vasel-function
@@ -485,11 +489,11 @@
 (defmethod indexer-of ((varray vader-select))
   (let ((indices (vads-argument varray))
         (base-indexer (indexer-of (vader-base varray)))
-        (ofactors (get-dimensional-factors (shape-of varray)))
-        (ifactors (get-dimensional-factors (shape-of (vader-base varray)))))
+        (ofactors (get-dimensional-factors (shape-of varray) t))
+        (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t)))
     (lambda (index)
       (let ((remaining index) (oindex 0))
-        (loop :for ofactor :in ofactors :for ifactor :in ifactors
+        (loop :for ofactor :across ofactors :for ifactor :across ifactors
               :for in :in indices :for fx :from 0
               :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                     ;; (print (list :of ofactor index remainder))
@@ -703,7 +707,7 @@
   (let* ((out-shape (shape-of varray))
          (to-laminate (vacat-laminating varray))
          (axis (disclose-unitary (vads-axis varray)))
-         (ofactors (get-dimensional-factors out-shape))
+         (ofactors (get-dimensional-factors out-shape t))
          (each-shape (loop :for a :across (vader-base varray)
                            :collect (if (or (varrayp a) (arrayp a))
                                         (shape-of a))))
@@ -725,7 +729,7 @@
       (let ((remaining orig-index) (sum 0) (sub-indices) (array-index 0)
             (axis-offset (abs (- axis (1- (length (shape-of varray))))))
             (row-major-index) (source-array))
-        (loop :for ofactor :in ofactors :for fx :from 0
+        (loop :for ofactor :across ofactors :for fx :from 0
               :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                     (setf remaining remainder)
                     (push (if (/= fx axis)
@@ -820,9 +824,8 @@
              (reverse out-shape)))))))
 
 (defmethod indexer-of ((varray vader-mix))
-  (let* (;; (base-shape (shape-of (vader-base varray)))
-         (oshape (shape-of varray))
-         (ofactors (get-dimensional-factors oshape))
+  (let* ((oshape (shape-of varray))
+         (ofactors (get-dimensional-factors oshape t))
          (oindexer (indexer-of (vader-base varray)))
          (dim-indices (vamix-shape-indices varray))
          (orank (length (shape-of (vader-base varray))))
@@ -831,7 +834,7 @@
          (inner-shape (loop :for i :in dim-indices :for s :in (shape-of varray)
                             :when (<= orank i) :collect s))
          (inner-rank (length inner-shape))
-         (iofactors (get-dimensional-factors outer-shape)))
+         (iofactors (get-dimensional-factors outer-shape t)))
     (lambda (index)
       ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
       
@@ -841,7 +844,7 @@
               (funcall oindexer 0))
           (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
 
-            (loop :for ofactor :in ofactors :for di :in dim-indices :for fx :from 0
+            (loop :for ofactor :across ofactors :for di :in dim-indices :for fx :from 0
                   :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
                         (setf remaining remainder)
                         (if (> orank di) (push this-index outer-indices)
@@ -849,7 +852,7 @@
 
             (let* ((inner-indices (reverse inner-indices))
                    (oindex (loop :for i :in (reverse outer-indices)
-                                 :for f :in iofactors :summing (* i f)))
+                                 :for f :across iofactors :summing (* i f)))
                    (iarray (funcall oindexer oindex))
                    (ishape (copy-list (shape-of iarray)))
                    (iifactors (get-dimensional-factors ishape))
@@ -898,13 +901,12 @@
   (let* ((output-shape (shape-of varray))
          (output-size (reduce #'* output-shape))
          (axis (vads-axis varray))
-         (output-factors (get-dimensional-factors output-shape))
          (base-shape (shape-of (vader-base varray)))
          (base-indexer (indexer-of (vader-base varray)))
-         (base-factors (get-dimensional-factors base-shape))
-         (sv-factor (nth axis base-factors))
-         (core-indexer (indexer-split axis (length output-shape) (coerce base-factors 'vector)
-                                      (coerce output-factors 'vector)))
+         (base-factors (get-dimensional-factors base-shape t))
+         (sv-factor (if (< 0 (length base-factors)) (aref base-factors axis)))
+         (core-indexer (indexer-split axis (length output-shape)
+                                      base-factors (get-dimensional-factors output-shape t)))
          (offset-indexer (lambda (offset)
                            (lambda (index) (funcall base-indexer (funcall core-indexer offset index)))))
          (subvectors
@@ -1077,8 +1079,8 @@
                    (max 0 (1- (length base-shape)))))
          (ofactors (get-dimensional-factors base-shape))
          (base-indexer (indexer-of (vader-base varray)))
-         (outer-factors (get-dimensional-factors output-shape))
-         (inner-factors (get-dimensional-factors inner-shape))
+         (outer-factors (get-dimensional-factors output-shape t))
+         (inner-factors (get-dimensional-factors inner-shape t))
          (intervals (vads-shapeset varray))
          (offset-indexer
            (lambda (o)
@@ -1088,8 +1090,8 @@
                        :do (let ((in-outer (if (numberp axis) (/= fx axis)
                                                (loop :for a :across axis :never (= fx a)))))
                              (multiple-value-bind (factor remaining)
-                                 (if in-outer (floor orest (nth outer-dx outer-factors))
-                                     (floor irest (nth inner-dx inner-factors)))
+                                 (if in-outer (floor orest (aref outer-factors outer-dx))
+                                     (floor irest (aref inner-factors inner-dx)))
                                (if in-outer (progn (incf outer-dx) (setf orest remaining))
                                    (progn (incf inner-dx) (setf irest remaining)))
                                (incf index (* f factor)))))
@@ -1261,13 +1263,13 @@
              (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
                                              :when (> dx axis) :collect d)))
              (output-shape (shape-of varray))
-             (ofactors (get-dimensional-factors output-shape))
-             (ifactors (get-dimensional-factors idims))
+             (ofactors (get-dimensional-factors output-shape t))
+             (ifactors (get-dimensional-factors idims t))
              (partition-indexer
                (lambda (i focus)
                  (lambda (ix)
                    (let ((rest i) (input-index 0))
-                     (loop :for of :in ofactors :for if :in ifactors :for fx :from 0
+                     (loop :for of :across ofactors :for if :across ifactors :for fx :from 0
                            :do (multiple-value-bind (factor remaining) (floor rest of)
                                  (setq rest remaining)
                                  (incf input-index (* if (if (/= fx axis) factor

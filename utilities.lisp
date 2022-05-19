@@ -74,7 +74,7 @@
 	   error-code)))
 
 (defun count-cpus ()
-  "Count the available threads in the system, accounting for different CL implementations."
+  "Count the available threads in the system, accounting for different operating systems."
   (with-open-stream (cmd-out (make-string-output-stream))
     (uiop:run-program
      (case (uiop:operating-system)
@@ -595,7 +595,7 @@
                           ;; handle random seed assignments
                           (let ((valsym (gensym)) (seed (gensym))
                                 (rngindex (gensym)) (rngname (gensym)))
-                            `(let ((,valsym ,value))
+                            `(let ((,valsym (render-varrays ,value)))
                                (if (or (integerp ,valsym)
                                        (and (vectorp ,valsym) (= 1 (length ,valsym))))
                                    (let ((,seed (disclose-atom ,valsym)))
@@ -1105,9 +1105,12 @@ It remains here as a standard against which to compare methods for composing APL
                 (lambda (&rest ,args)
                   (if (eq :get-metadata (first ,args))
                       ,(append '(list :scalar t))
-                      (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
-                                    (first ,args) (second ,args)
-                                    ,axes-sym))))
+                      ;; (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
+                      ;;               (first ,args) (second ,args)
+                      ;;               ,axes-sym)
+                      (render-varrays (a-call (apl-fn-s ,glyph)
+                                              (first ,args) (second ,args)
+                                              ,axes-sym)))))
         (cons 'apl-fn (cons glyph initial-args)))))
 
 (defun build-call-form (glyph-char &optional args axes)
@@ -1198,7 +1201,8 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro scalar-function (function &rest meta)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
-  (let ((args (gensym))
+  (let ((args (gensym)) (ax-sym (gensym))
+        (is-virtual (getf meta :va))
         (function (if (or (not (listp function))
                           (not (eql 'apl-fn (first function)))
                           (>= 2 (length function)))
@@ -1206,11 +1210,21 @@ It remains here as a standard against which to compare methods for composing APL
         (axes (and (listp function) (eql 'apl-fn (first function))
                    (third function))))
     `(lambda (&rest ,args)
-       (if (eq :get-metadata (first ,args))
-           ,(append '(list :scalar t) meta)
-           (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-                         (first ,args) (second ,args)
-                         ,@(if axes (list axes)))))))
+       (let ((,ax-sym (third ,args)))
+         (declare (ignorable ,ax-sym))
+         (if (eq :get-metadata (first ,args))
+             ,(append '(list :scalar t) meta)
+             ,(if is-virtual
+                  `(make-instance 'vader-operate
+                                  :base (coerce (if (not ,ax-sym)
+                                                    ,args (butlast ,args))
+                                                'vector)
+                                  :function ,(if (not (symbolp function)) function `(function ,function))
+                                  :index-origin 0 :axis ,ax-sym)
+                  `(apply-scalar ,(if (not (symbolp function)) function `(function ,function))
+                                 (first ,args) (second ,args)
+                                 ;; ,@(if axes (list axes))
+                                 ,ax-sym)))))))
 
 (defun validate-arg-unitary (value)
   "Verify that a form like (vector 5) represents a unitary value."

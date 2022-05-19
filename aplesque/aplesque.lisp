@@ -86,12 +86,21 @@
                                :element-type (element-type object) :displaced-to (copy-array displaced-to)))
                  (copy-array object))))
 
-(defun get-dimensional-factors (dimensions)
+(defun get-dimensional-factors (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."
   (let ((factor) (last-index))
-    (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
-                :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
-                :do (setq last-index d)))))
+    (if as-vector
+        (let* ((rank (length dimensions))
+               (output (make-array rank :element-type
+                                   (list 'integer 0 (reduce #'* (rest dimensions))))))
+          (loop :for d :in (reverse dimensions) :for dx :from 0
+                :do (setf factor (setf (aref output (- rank dx 1))
+                                       (if (zerop dx) 1 (* factor last-index)))
+                          last-index d))
+          output)
+        (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
+                       :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
+                       :do (setq last-index d))))))
 
 (defun rmi-from-subscript-vector (array subscripts &optional offset)
   "Derive an array's row-major index from a vector of subscripts."
@@ -485,6 +494,7 @@
                                            (across highrank (lambda (elem coords)
                                                               (loop :for a :across axes :for ax :from 0
                                                                     :do (setf (nth ax lrc) (nth a coords)))
+                                                              ;;(print (list :co coords lrc))
                                                               (setf (apply #'aref output coords)
                                                                     (nest (if omega-lower
                                                                               (funcall function elem
