@@ -1187,7 +1187,7 @@ It remains here as a standard against which to compare methods for composing APL
   "Expands to an APL-style if-statement where clauses are evaluated depending on whether given expressions evaluate to 1 or 0."
   (let ((condition (gensym)))
     (labels ((build-clauses (clauses)
-               `(let ((,condition (disclose-atom ,(first clauses))))
+               `(let ((,condition (disclose-atom (render-varrays ,(first clauses)))))
                   (if (not (is-unitary ,condition))
                       (error "Predicates within an [$ if] statement must be unitary or scalar.")
                       (if (not (zerop (disclose-atom ,condition)))
