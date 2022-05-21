@@ -1415,7 +1415,7 @@
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (if (eq omega :get-metadata)
-        (list :inverse (let* ((determinant (funcall fetch-determinant))
+        (list :inverse (let* ((determinant (render-varrays (funcall fetch-determinant)))
                               (inverse-function (if (not (numberp determinant))
                                                     (getf (if alpha (funcall function :get-metadata nil)
                                                               (funcall function :get-metadata))
@@ -1423,13 +1423,14 @@
                          (if (numberp determinant)
                              (operate-to-power (lambda () (- determinant)) function)
                              (operate-to-power fetch-determinant inverse-function))))
-        (let ((determinant (funcall fetch-determinant)))
+        (let ((determinant (render-varrays (funcall fetch-determinant))))
           (if (functionp determinant)
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
               (let ((arg omega) (prior-arg omega))
                 (loop :for index :from 0 :while (or (zerop index)
-                                                    (zerop (funcall determinant prior-arg arg)))
+                                                    (zerop (render-varrays
+                                                            (funcall determinant prior-arg arg))))
                    :do (setq prior-arg arg
                              arg (if alpha (funcall function arg alpha)
                                      (funcall function arg))))

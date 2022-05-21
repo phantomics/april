@@ -1062,7 +1062,8 @@
                   (multiple-value-bind (,out1 ,out2)
                       ,(append symbol (list :set val :modify-input t)
                                (if function `(:set-by (lambda (item item2)
-                                                        (a-call ,function item item2)))))
+                                                        (render-varrays
+                                                         (a-call ,function item item2))))))
                     (if ,out2 (setf ,var-sym ,out2))
                     ,out1)))))
         ((and (listp symbol) (eql 'a-call (first symbol)))

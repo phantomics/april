@@ -1220,7 +1220,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                     ,args (butlast ,args))
                                                 'vector)
                                   :function ,(if (not (symbolp function)) function `(function ,function))
-                                  :index-origin 0 :axis ,ax-sym)
+                                  :index-origin 0 :axis ,ax-sym :params (list ,@meta))
                   `(apply-scalar ,(if (not (symbolp function)) function `(function ,function))
                                  (first ,args) (second ,args)
                                  ;; ,@(if axes (list axes))
