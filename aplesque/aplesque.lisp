@@ -253,7 +253,7 @@
                                'null (coerce 0 (if (eql 'ratio itype) 'integer
                                                    (if (not (and (listp itype) (eql 'integer (first itype))))
                                                        itype (list 'integer (min 0 (second itype))
-                                                                   (max 0 (third itype))))))))
+                                                                   (max 0 (or (third itype) 0))))))))
                          (if (zerop (size input))
                              (make-array (dims input))
                              (derive-element (row-major-aref input 0)))))))
