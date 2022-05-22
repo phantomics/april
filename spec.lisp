@@ -1308,10 +1308,10 @@
             (is "5+(a b c)←1 2 3" #(6 7 8))))
   (→ (has :title "Branch") 
      (symbolic :special-lexical-form-branch)
-     (tests (is "x←1 ⋄ →1              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 105)
-            (is "x←1 ⋄ →1+1            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 35)
-            (is "x←1 ⋄ →2+3            ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
-            (is "x←1 ⋄ →0              ⋄ x×←11 ⋄ 1→⎕   ⋄ x×←3 ⋄ 2→⎕   ⋄ x×←5 ⋄ 3→⎕     ⋄ x×←7" 1155)
+     (tests (is "x←1 ⋄ →1              ⋄ x×←11 ⋄ 1  →⎕ ⋄ x×←3 ⋄ 2  →⎕ ⋄ x×←5 ⋄ 3    →⎕ ⋄ x×←7" 105)
+            (is "x←1 ⋄ →1+1            ⋄ x×←11 ⋄ 1  →⎕ ⋄ x×←3 ⋄ 2  →⎕ ⋄ x×←5 ⋄ 3    →⎕ ⋄ x×←7" 35)
+            (is "x←1 ⋄ →2+3            ⋄ x×←11 ⋄ 1  →⎕ ⋄ x×←3 ⋄ 2  →⎕ ⋄ x×←5 ⋄ 3    →⎕ ⋄ x×←7" 1155)
+            (is "x←1 ⋄ →0              ⋄ x×←11 ⋄ 1  →⎕ ⋄ x×←3 ⋄ 2  →⎕ ⋄ x×←5 ⋄ 3    →⎕ ⋄ x×←7" 1155)
             (is "x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
             (is "x←1 ⋄ (3-2)→two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 35)
             (is "x←1 ⋄ 3→one two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
@@ -1736,7 +1736,7 @@
        "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
                                       (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
   (for "Selection from within an array with spaces in axis specification."
-       "(3 4⍴⍳12)[ ;4 3 ]" #2A((4 3) (8 7) (12 11)))
+       "(3 4⍴⍳12)[;4 3]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
   (for "Another elided assignment." "a←2 3 4⍴⍳40 ⋄ a[1;;]←3 4⍴0 ⋄ a"
@@ -1822,11 +1822,11 @@
        "{A←'RANDOM' 'CHANCE' ⋄ ((A∊¨⊂'ND')/¨A)←⍵ ⋄ A} '*'"
        #(#(#\R #\A #\* #\* #\O #\M) #(#\C #\H #\A #\* #\C #\E)))
   (for "Selective assignment with bracket indexing of array to be assigned to."
-       "{A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ A} '*'"
-       #2A((#(#\R #\A #\N #\D #\* #\*) #(#\C #\H #\A #\N #\C #\E) #(#\R #\A #\N #\D #\* #\*))
-           (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))
-           (#(#\R #\A #\N #\D #\* #\*) #(#\C #\H #\A #\N #\C #\E) #(#\R #\A #\N #\D #\* #\*))
-           (#(#\C #\H #\A #\N #\* #\*) #(#\R #\A #\N #\D #\O #\M) #(#\C #\H #\A #\N #\* #\*))))
+       "{A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ ⍕¨A} '*'"
+       #2A(("RAND**" "CHANCE" "RAND**")
+           ("CHAN**" "RANDOM" "CHAN**")
+           ("RAND**" "CHANCE" "RAND**")
+           ("CHAN**" "RANDOM" "CHAN**")))
   (for "Selective assignment using aliased [⌷ index] function."
        "{e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9" #(1 2 5 4 5 6 7 8 9))
   (for "Print the result of a function applied to assignment." "⎕←⍴x←1 2 3 ⋄ x" #(1 2 3))
@@ -1839,7 +1839,7 @@
   (for "Alias of [× multiply], [⍴ shape] and [⍳ index] functions."
        "⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6" #2A((5 10 5 5 10 15) (10 5 10 20 25 30)))
   (for "Alias of [enclose ⊂] function with curried axes."
-       "{ea←⊂[2] ⋄ ea ⍵} 2 3 4⍴⍳9" #2A((#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3)) ; x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x
+       "{ea←⊂[2] ⋄ ea ⍵} 2 3 4⍴⍳9" #2A((#(1 5 9) #(2 6 1) #(3 7 2) #(4 8 3))
                                        (#(4 8 3) #(5 9 4) #(6 1 5) #(7 2 6))))
   (for "Inline pivotal operation-derived function expression."
        "1 2 3 (∘.+) 4 5 6" #2A((5 6 7) (6 7 8) (7 8 9)))

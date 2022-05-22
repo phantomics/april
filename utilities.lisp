@@ -588,156 +588,161 @@
                (set-to (if (not is-symbol-value) value `(duplicate ,value))))
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
           ;; present; ⍵-assignment is an error. This is handled below for strand assignments.
-          (if axes (enclose-axes symbol axes :set value :set-by by)
-              (if (eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to))
-                  (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
-                      (if (string= "*RNGS*" (string symbol))
-                          ;; handle random seed assignments
-                          (let ((valsym (gensym)) (seed (gensym))
-                                (rngindex (gensym)) (rngname (gensym)))
-                            `(let ((,valsym (render-varrays ,value)))
-                               (if (or (integerp ,valsym)
-                                       (and (vectorp ,valsym) (= 1 (length ,valsym))))
-                                   (let ((,seed (disclose-atom ,valsym)))
-                                     (if (not (or (integerp ,seed)
-                                                  (and (vectorp ,seed) (zerop (length ,seed)))))
-                                         (error "Random seeds set by ⎕RL←X must be integers or empty vectors.")
-                                         (let ((,rngname (getf (rest ,symbol) :rng)))
-                                           (setf (getf (rest ,symbol) ,rngname)
-                                                 (if (eq :system ,rngname)
-                                                       :system
-                                                       (if (and (vectorp ,seed) (zerop (length ,seed)))
-                                                           (random-state:make-generator ,rngname)
-                                                           (random-state:make-generator
-                                                            ,rngname ,seed)))))))
-                                   (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
-                                       (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
-                                              (,rngname (aref *rng-names* ,rngindex)))
-                                         (if (not (or (integerp ,seed)
-                                                  (and (vectorp ,seed) (zerop (length ,seed)))))
-                                             (error "Random seeds set by ⎕RL←X must be ~a"
-                                                    "integers or empty vectors.")
-                                             (setf (getf (rest ,symbol) :rng)
-                                                   ,rngname
-                                                   (getf (rest ,symbol) ,rngname)
-                                                   (if (eq :system ,rngname)
-                                                       :system
-                                                       (if (and (vectorp ,seed) (zerop (length ,seed)))
-                                                           (random-state:make-generator ,rngname)
-                                                           (random-state:make-generator
-                                                            ,rngname ,seed))))))
-                                       (error "The [⎕RL random link] value can only be set as an ~a"
-                                              "integer or a 2-element vector.")))))
-                          (let ((sym-package (package-name (symbol-package symbol))))
-                            (if (and (listp value) (eql 'a-call (first value))
-                                     (listp (second value)) (eql 'function (caadr value))
-                                     (member (cadadr value) '(external-workspace-function
-                                                              external-workspace-operator))
-                                     (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
-                                                                 (length sym-package)))))
-                                (let ((args (gensym))
-                                      (other-space (concatenate 'string "APRIL-WORKSPACE-"
-                                                                (first (last value)))))
-                                  `(aprgn
-                                     (proclaim '(special ,symbol))
-                                     (setf (symbol-function ',symbol)
-                                           (lambda (&rest ,args)
-                                             (let ,(loop :for (key val) :on *system-variables* :by #'cddr
-                                                         :collect (list (intern (string val) other-space)
-                                                                        (intern (string val) sym-package)))
-                                               (apply ,value ,args)))
-                                           ,@(if (eql 'external-workspace-operator (cadadr value))
-                                                 `((symbol-value ',symbol)
-                                                   (symbol-value ',(intern (third value) other-space)))))))
-                                (if namespace `(setf (getf ,(if (symbolp namespace)
-                                                                namespace (follow-path (first namespace)
-                                                                                       (rest namespace)))
-                                                           ,(intern (string symbol) "KEYWORD"))
-                                                     ,set-to)
-                                    `(setf ,symbol (render-varrays ,set-to))))))))))
-        (if (and (listp symbol) (eql 'nspath (first symbol)))
-            ;; handle assignments within namespaces, using process-path to handle the paths
-            (let ((val (gensym)))
-              `(let ((,val ,value))
-                 ,(if (= 3 (length symbol))
-                      `(setf ,(second symbol) ,(append (macroexpand (append symbol (if axes (list axes))))
-                                                       (list :value val :value-nil `(null ,val))
-                                                       (if by (list :set-by by))))
-                      (append (macroexpand (append symbol (if axes (list axes))))
-                              (list :value val :value-nil `(null ,val))
-                              (if by (list :set-by by))))))
-            (if (and (listp symbol) (eql 'symbol-function (first symbol)))
-                `(setf ,symbol ,value)
-                (let ((symbols (if (not (eql 'avec (first symbol)))
-                                   symbol (rest symbol))))
-                  ;; handle multiple assignments like a b c←1 2 3
-                  (labels ((process-symbols (sym-list values)
-                             (let* ((this-val (gensym))
-                                    (assigning-xfns (and (listp values) (eql 'a-call (first values))
-                                                         (listp (second values))
-                                                         (eql 'function (caadr values))
-                                                         (member (cadadr values)
-                                                                 '(external-workspace-function
-                                                                   external-workspace-operator))))
-                                    (other-space (and assigning-xfns
-                                                      (concatenate 'string "APRIL-WORKSPACE-"
-                                                                   (first (last values)))))
-                                    (sym-package (and assigning-xfns
-                                                      (package-name (symbol-package (first sym-list)))))
-                                    (values (if (or (not assigning-xfns)
-                                                    (not (listp values))
-                                                    (not (listp (third values)))
-                                                    (not (eql 'avec (first (third values)))))
-                                                ;; change (avec 'values') to (list 'values') so that
-                                                ;; the external item loaders can properly tell the difference
-                                                ;; between "abc" and (avec #\a #\b #\c) as arguments
-                                                values (cons (first values)
-                                                             (cons (second values)
-                                                                   (cons (cons 'list (rest (third values)))
-                                                                         (cdddr values)))))))
-                               (if (and (listp sym-list) (listp values)
-                                        (eql 'avec (first values))
-                                        (/= (length sym-list) (length (rest values))))
-                                   (error "Attempted to assign a vector of values to a ~a"
-                                          "vector of symbols of a different length."))
-                               `(let ((,this-val (render-varrays ,values)))
-                                  ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
-                                                           sym-list (rest sym-list))
-                                          :for sx :from 0
-                                          :append
-                                          (if (and (listp sym) (not (eql 'inws (first sym))))
-                                              (list (process-symbols
-                                                     sym `(if (not (vectorp ,this-val))
-                                                              ,this-val (aref ,this-val ,sx))))
-                                              (if (eql '⍺ sym)
+          (cond (axes (enclose-axes symbol axes :set value :set-by by))
+                ((eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to)))
+                ((eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment."))
+                ((string= "*RNGS*" (string symbol))
+                 (let ((valsym (gensym)) (seed (gensym))
+                       (rngindex (gensym)) (rngname (gensym)))
+                   `(let ((,valsym (render-varrays ,value)))
+                      (if (or (integerp ,valsym)
+                              (and (vectorp ,valsym) (= 1 (length ,valsym))))
+                          (let ((,seed (disclose-atom ,valsym)))
+                            (if (not (or (integerp ,seed)
+                                         (and (vectorp ,seed) (zerop (length ,seed)))))
+                                (error "Random seeds set by ⎕RL←X must be integers or empty vectors.")
+                                (let ((,rngname (getf (rest ,symbol) :rng)))
+                                  (setf (getf (rest ,symbol) ,rngname)
+                                        (if (eq :system ,rngname)
+                                            :system
+                                            (if (and (vectorp ,seed) (zerop (length ,seed)))
+                                                (random-state:make-generator ,rngname)
+                                                (random-state:make-generator
+                                                 ,rngname ,seed)))))))
+                          (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
+                              (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
+                                     (,rngname (aref *rng-names* ,rngindex)))
+                                (if (not (or (integerp ,seed)
+                                             (and (vectorp ,seed) (zerop (length ,seed)))))
+                                    (error "Random seeds set by ⎕RL←X must be ~a"
+                                           "integers or empty vectors.")
+                                    (setf (getf (rest ,symbol) :rng)
+                                          ,rngname
+                                          (getf (rest ,symbol) ,rngname)
+                                          (if (eq :system ,rngname)
+                                              :system
+                                              (if (and (vectorp ,seed) (zerop (length ,seed)))
+                                                  (random-state:make-generator ,rngname)
+                                                  (random-state:make-generator
+                                                   ,rngname ,seed))))))
+                              (error "The [⎕RL random link] value can only be set as an ~a"
+                                     "integer or a 2-element vector."))))))
+                (t (let ((sym-package (package-name (symbol-package symbol))))
+                     (if (and (listp value) (eql 'a-call (first value))
+                              (listp (second value)) (eql 'function (caadr value))
+                              (member (cadadr value) '(external-workspace-function
+                                                       external-workspace-operator))
+                              (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
+                                                          (length sym-package)))))
+                         (let ((args (gensym))
+                               (other-space (concatenate 'string "APRIL-WORKSPACE-"
+                                                         (first (last value)))))
+                           `(aprgn
+                             (proclaim '(special ,symbol))
+                             (setf (symbol-function ',symbol)
+                                   (lambda (&rest ,args)
+                                     (let ,(loop :for (key val) :on *system-variables* :by #'cddr
+                                                 :collect (list (intern (string val) other-space)
+                                                                (intern (string val) sym-package)))
+                                       (apply ,value ,args)))
+                                   ,@(if (eql 'external-workspace-operator (cadadr value))
+                                         `((symbol-value ',symbol)
+                                           (symbol-value ',(intern (third value) other-space)))))))
+                         (if namespace `(setf (getf ,(if (symbolp namespace)
+                                                         namespace (follow-path (first namespace)
+                                                                                (rest namespace)))
+                                                    ,(intern (string symbol) "KEYWORD"))
+                                              ,set-to)
+                             `(setf ,symbol (render-varrays ,set-to))))))))
+        (cond ((and (listp symbol) (eql 'nspath (first symbol)))
+               ;; handle assignments within namespaces, using process-path to handle the paths
+               (let ((val (gensym)))
+                 `(let ((,val ,value))
+                    ,(if (= 3 (length symbol))
+                         `(setf ,(second symbol)
+                                ,(append (macroexpand (append symbol (if axes (list axes))))
+                                         (list :value val :value-nil `(null ,val))
+                                         (if by (list :set-by by))))
+                         (append (macroexpand (append symbol (if axes (list axes))))
+                                 (list :value val :value-nil `(null ,val))
+                                 (if by (list :set-by by)))))))
+              ((and (listp symbol) (eql 'make-instance (first symbol))
+                    (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
+               ;; handle assignments within namespaces, using process-path to handle the paths
+               `(setf ,(getf (cddr symbol) :base)
+                      (render-varrays ,(append symbol (list :assign value)))))
+              ((and (listp symbol) (eql 'symbol-function (first symbol)))
+               `(setf ,symbol ,value))
+              (t (let ((symbols (if (not (eql 'avec (first symbol)))
+                                    symbol (rest symbol))))
+                   ;; handle multiple assignments like a b c←1 2 3
+                   (labels ((process-symbols (sym-list values)
+                              (let* ((this-val (gensym))
+                                     (assigning-xfns (and (listp values) (eql 'a-call (first values))
+                                                          (listp (second values))
+                                                          (eql 'function (caadr values))
+                                                          (member (cadadr values)
+                                                                  '(external-workspace-function
+                                                                    external-workspace-operator))))
+                                     (other-space (and assigning-xfns
+                                                       (concatenate 'string "APRIL-WORKSPACE-"
+                                                                    (first (last values)))))
+                                     (sym-package (and assigning-xfns
+                                                       (package-name (symbol-package (first sym-list)))))
+                                     (values (if (or (not assigning-xfns)
+                                                     (not (listp values))
+                                                     (not (listp (third values)))
+                                                     (not (eql 'avec (first (third values)))))
+                                                 ;; change (avec 'values') to (list 'values') so that
+                                                 ;; the external item loaders can properly tell the difference
+                                                 ;; between "abc" and (avec #\a #\b #\c) as arguments
+                                                 values (cons (first values)
+                                                              (cons (second values)
+                                                                    (cons (cons 'list (rest (third values)))
+                                                                          (cdddr values)))))))
+                                (if (and (listp sym-list) (listp values)
+                                         (eql 'avec (first values))
+                                         (/= (length sym-list) (length (rest values))))
+                                    (error "Attempted to assign a vector of values to a ~a"
+                                           "vector of symbols of a different length."))
+                                `(let ((,this-val (render-varrays ,values)))
+                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
+                                                            sym-list (rest sym-list))
+                                           :for sx :from 0
+                                           :append
+                                           (cond ((and (listp sym) (not (eql 'inws (first sym))))
+                                                  (list (process-symbols
+                                                         sym `(if (not (vectorp ,this-val))
+                                                                  ,this-val (aref ,this-val ,sx)))))
+                                                 ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
                                                                       (disclose ,this-val)
-                                                                      (aref ,this-val sx)))))
-                                                  (if (eql '⍵ sym)
-                                                      `(error "The [⍵ right argument] cannot ~a"
-                                                              "have a default assignment.")
-                                                      (if assigning-xfns
-                                                          ;; handle assignment of multiple functions
-                                                          ;; from another WS like fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
-                                                          (let ((args (gensym)))
-                                                            `((proclaim '(special ,sym))
-                                                              (setf (symbol-function ',sym)
-                                                                    (lambda (&rest ,args)
-                                                                      (let ,(loop :for (key val)
-                                                                                    :on *system-variables*
-                                                                                  :by #'cddr
-                                                                                  :collect
-                                                                                  (list (intern (string val)
-                                                                                                other-space)
-                                                                                        (intern (string val)
-                                                                                                sym-package)))
-                                                                        (apply (aref ,this-val ,sx)
-                                                                               ,args))))))
-                                                          `((setf ,sym (if (not (vectorp ,this-val))
-                                                                           (disclose ,this-val)
-                                                                           (aref ,this-val ,sx)))))))))
-                                  ,this-val))))
-                    (process-symbols symbols value))))))))
+                                                                      (aref ,this-val sx))))))
+                                                 ((eql '⍵ sym)
+                                                  `(error "The [⍵ right argument] cannot ~a"
+                                                          "have a default assignment."))
+                                                 (assigning-xfns
+                                                  ;; handle assignment of multiple functions
+                                                  ;; from another WS like fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
+                                                  (let ((args (gensym)))
+                                                    `((proclaim '(special ,sym))
+                                                      (setf (symbol-function ',sym)
+                                                            (lambda (&rest ,args)
+                                                              (let ,(loop :for (key val)
+                                                                            :on *system-variables*
+                                                                          :by #'cddr
+                                                                          :collect
+                                                                          (list (intern (string val)
+                                                                                        other-space)
+                                                                                (intern (string val)
+                                                                                        sym-package)))
+                                                                (apply (aref ,this-val ,sx)
+                                                                       ,args)))))))
+                                                  (t `((setf ,sym (if (not (vectorp ,this-val))
+                                                                      (disclose ,this-val)
+                                                                      (aref ,this-val ,sx)))))))
+                                   ,this-val))))
+                     (process-symbols symbols value))))))))
 
 (defmacro a-out (form &key (print-to) (output-printed) (unrendered)
                         (print-assignment) (print-precision) (with-newline))
@@ -1263,7 +1268,10 @@ It remains here as a standard against which to compare methods for composing APL
                                                                                        array)
                                                                                   index-origin)))
                                           (list ,@axes))
-                            ,@(if reference (list :reference reference))))
+                            ,@(if reference (list :reference reference)))
+                  ;; `(make-instance 'vader-select :base ,body
+                  ;;                               :argument (list ,@axes) :index-origin index-origin)
+                  )
               (rest axis-sets)))))
 
 (defun make-namespace (contents)
