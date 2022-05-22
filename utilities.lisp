@@ -1536,12 +1536,12 @@ It remains here as a standard against which to compare methods for composing APL
                                           (if (assoc (second sub-form) tags-matching)
                                               (list 'go (second (assoc (second sub-form) tags-matching))))
                                           (if (third sub-form)
-                                              `(let ((,branch-index ,(third sub-form)))
+                                              `(let ((,branch-index (render-varrays ,(third sub-form))))
                                                  (cond ,@(loop :for tag :in (second sub-form)
                                                             :counting tag :into tix
                                                             :collect `((= ,branch-index ,tix)
                                                                        (go ,tag)))))
-                                              `(let ((,branch-index ,(second sub-form)))
+                                              `(let ((,branch-index (render-varrays ,(second sub-form))))
                                                  (cond ,@(loop :for tag :in tags-matching
                                                             :when (and (listp tag)
                                                                        (member (second tag) tags-found))

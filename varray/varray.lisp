@@ -376,8 +376,10 @@
                                     (if (numberp ax)
                                         (- ax (vads-io varray))
                                         (if (zerop (size-of ax))
-                                            ax (loop :for a :across ax
-                                                     :collect (- a (vads-io varray))))))
+                                            ax (if (= 1 (length ax)) ;; disclose 1-item axis vectors
+                                                   (- (aref ax 0) (vads-io varray))
+                                                   (loop :for a :across ax
+                                                         :collect (- a (vads-io varray)))))))
                                   (disclose (render (vads-axis varray))))))))
      (flet ((shape-matches (a)
               (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
@@ -389,7 +391,6 @@
                                (= 1 (reduce #'* shape)))
                            (setf shape (shape-of a))
                            (let ((rank (length (shape-of a))))
-                             ;; (print (list :rr rank (length shape)))
                              (if (or (not (= rank (length shape)))
                                      (and (not (shape-matches a))
                                           (not (= 1 (size-of a)))))
@@ -399,6 +400,7 @@
                                                   (let ((ax-copy (if (listp axis) (copy-list axis)))
                                                         (shape-copy (copy-list shape))
                                                         (matching t))
+                                                    (print (list :sh shape))
                                                     (if (not (vaop-sub-shape varray))
                                                         (setf (vaop-sub-shape varray) shape))
                                                     (loop :for d :in (shape-of a) :for ix :from 0
@@ -417,11 +419,16 @@
                                               (if (= rank (if (numberp axis) 1 (length axis)))
                                                   (if (not (shape-matches a))
                                                       (or (and (numberp axis)
-                                                               (= a (nth axis shape)))
+                                                               (= (first (shape-of a))
+                                                                  (nth axis shape))
+                                                               (setf (vaop-sub-shape varray)
+                                                                     (shape-of a)))
                                                           (and (listp axis)
                                                                (loop :for ax :in axis :for sh :in shape
-                                                                     :always (= sh (nth ax shape))))
-                                                          (error "Mismatched array dimensions.")))
+                                                                     :always (= sh (nth ax shape)))
+                                                               (setf (vaop-sub-shape varray) shape))
+                                                          (error "Mismatched array dimensions."))
+                                                      (setf (vaop-sub-shape varray) (shape-of a)))
                                                   (error "Mismatched array dimensions.")))
                                      (error "Mismatched array dimensions."))))))))
        shape))))
@@ -433,7 +440,7 @@
          (axis (vads-axis varray))
          (shape-factors (if axis (get-dimensional-factors out-shape t)))
          (sub-factors (if axis (get-dimensional-factors sub-shape t))))
-    ;; (print (list :ba (vader-base varray)))
+    ;; (print (list :ba (vader-base varray) axis shape-factors sub-factors))
     (lambda (index)
       (let ((result) (subarrays) (sub-flag))
         (if (= 1 (size-of (vader-base varray)))
@@ -458,18 +465,19 @@
                                        (if (and axis (not (= rank out-rank)))
                                            (funcall (indexer-of a)
                                                     (if (numberp axis)
-                                                        (floor index (aref shape-factors axis))
+                                                        (mod (floor index (aref shape-factors axis))
+                                                             size)
                                                         (let ((remaining index) (sub-index 0))
                                                           (loop :for f :across shape-factors :for fx :from 0
                                                                 :do (multiple-value-bind (div remainder)
                                                                         (floor remaining f)
                                                                       (setf remaining remainder)
-                                                                      (loop :for ax :in axis :for ix :from 0
-                                                                            :when (= ax fx)
-                                                                              :do (incf sub-index
-                                                                                        (* (aref sub-factors
-                                                                                                 ix)
-                                                                                           div)))))
+                                                                      (loop :for ax :in axis
+                                                                            :for ix :from 0 :when (= ax fx)
+                                                                            :do (incf sub-index
+                                                                                      (* (aref sub-factors
+                                                                                               ix)
+                                                                                         div)))))
                                                           sub-index)))
                                            (funcall (indexer-of a) index))
                                        (if (not (varrayp a))
@@ -480,11 +488,13 @@
                                              (if (not (functionp indexer))
                                                  indexer (funcall indexer 0)))))))
                         (push item subarrays) ;; TODO: this list appending is wasteful for simple ops like 1+2
+                        ;; (print (list :su subarrays))
                         (if (or (arrayp item) (varrayp item))
                             (setf sub-flag t)
                             (setf result (if (not result)
                                              item (funcall (vaop-function varray)
                                                            result item)))))))
+        ;; (print (list :eee))
         (if (not sub-flag)
             result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                  :function (vaop-function varray)

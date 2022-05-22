@@ -1177,7 +1177,8 @@
                           (if (and function (not xfns-assigned))
                               (if (listp syms) ;; handle namespace paths
                                   `(a-set ,symbol ,value :by (lambda (item item2)
-                                                               (a-call ,function item item2)))
+                                                               (render-varrays
+                                                                (a-call ,function item item2))))
                                   ;; handle assignment by function as with a+←10;
                                   ;; note that this reassigns the variable at its top scope level
                                   (let ((assigned (gensym)))
