@@ -1210,8 +1210,13 @@
             (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
             (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
   (⊤ (has :title "Encode")
-     (dyadic #'encode)
-     (meta (dyadic :id 0 :inverse #'decode))
+     (dyadic ;; #'encode
+             (funcall (lambda (n)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-encode :base omega :argument alpha)))
+                      nil))
+     (meta (primary :virtual-support t)
+           (dyadic :id 0 :inverse #'decode))
      (tests (is "9⊤15" 6)
             (is "6 2 8⊤12" #(0 1 4))
             (is "1760 3 12⊤82" #(2 0 10))
@@ -1229,8 +1234,13 @@
             (is "(8 3⍴2 0 0 2 0 0 2 0 0 2 0 0 2 8 0 2 8 0 2 8 16 2 8 16)⊤83"
                 #2A((0 0 0) (1 0 0) (0 0 0) (1 0 0) (0 0 0) (0 1 0) (1 2 5) (1 3 3)))))
   (⊥ (has :title "Decode")
-     (dyadic #'decode)
-     (meta (dyadic :inverse (λωα (encode omega alpha :inverse))))
+     (dyadic ;; #'decode
+             (funcall (lambda (n)
+                        (lambda (omega alpha)
+                          (make-instance 'vader-decode :base omega :argument alpha)))
+                      nil))
+     (meta (primary :virtual-support t)
+           (dyadic :inverse (λωα (encode omega alpha :inverse))))
      (tests (is "14⊥7" 7)
             (is "6⊥12 50" 122)
             (is "10⊥2 6 7 1" 2671)
@@ -1736,7 +1746,7 @@
        "(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]" #4A((((1 2 3) (4 5 6)) ((7 8 9) (1 2 3)))
                                       (((10 11 12) (13 14 15)) ((16 17 18) (10 11 12)))))
   (for "Selection from within an array with spaces in axis specification."
-       "(3 4⍴⍳12)[;4 3]" #2A((4 3) (8 7) (12 11)))
+       "(3 4⍴⍳12)[ ; 4 3 ]" #2A((4 3) (8 7) (12 11)))
   (for "Elided assignment."
        "a←2 3 4⍴⍳9 ⋄ a[2;;3]←0 ⋄ a" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3)) ((4 5 0 7) (8 9 0 2) (3 4 0 6))))
   (for "Another elided assignment." "a←2 3 4⍴⍳40 ⋄ a[1;;]←3 4⍴0 ⋄ a"

@@ -1486,6 +1486,7 @@
          (set-by (or set-by (if set (lambda (a b) (declare (ignore a)) b)))))
     ;; if multiple axes have been passed, populate the vector of row-major indices
     (if naxes (axes-to-indices indices idims rmindices))
+    ;; (print (list :rr index-vector indices rmindices))
     (if empty-output output
         (if (or set set-by set-nil)
             (let ((pindices (if (and output indices) (make-array (size input) :initial-element 0))))

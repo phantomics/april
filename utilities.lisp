@@ -670,7 +670,8 @@
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
-                      (render-varrays ,(append symbol (list :assign value)))))
+                      (render-varrays ,(append symbol (list :assign value)
+                                               (if by (list :calling by))))))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
