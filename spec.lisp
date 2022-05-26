@@ -1768,11 +1768,11 @@
   (for "Choose indexing of nested array sub-coordinates."
        "(3 4⍴⍳9)[2 2⍴⊂(2 3)]" #2A((7 7) (7 7)))
   (for "Reach indexing of components within sub-vectors."
-       "(6⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[(2 1)(1 2)]" #(#0A"FEB" 1))
+       "(('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[(2 1)(1 2)]" #(#0A"FEB" 1))
   (for "Reach indexing of components within sub-arrays."
        "(2 3⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6))[((2 3)1)((1 1)2)]" #(#0A"JUN" 1))
   (for "Reach indexing assignment."
-       "toasn←(6⍴('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6)) ⋄ toasn[(2 1)(1 2)]←45 67 ⋄ toasn"
+       "toasn←(('JAN' 1)('FEB' 2)('MAR' 3)('APR' 4)('MAY' 5)('JUN' 6)) ⋄ toasn[(2 1)(1 2)]←45 67 ⋄ toasn"
        #(#("JAN" 45) #(67 2) #("MAR" 3) #("APR" 4) #("MAY" 5) #("JUN" 6)))
   (for "Reach indexing assignment compared to duplicate index assignment."
        "{n←v←3/⊂5⍴0 ⋄ n[(1 1)]←⍵ ⋄ v[(⊂1 1)]←⍵ ⋄ n,v} 5" #(5 #*00000 #*00000 #(5 0 0 0 0) #*00000 #*00000))
