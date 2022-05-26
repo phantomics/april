@@ -1265,13 +1265,13 @@ It remains here as a standard against which to compare methods for composing APL
                                       :modify-input t)
                            (if ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
-                  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
-                                                                                       array)
-                                                                                  index-origin)))
-                                          (list ,@axes))
-                            ,@(if reference (list :reference reference)))
-                  ;; `(make-instance 'vader-select :base ,body
-                  ;;                               :argument (list ,@axes) :index-origin index-origin)
+                  ;; `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
+                  ;;                                                                      array)
+                  ;;                                                                 index-origin)))
+                  ;;                         (list ,@axes))
+                  ;;           ,@(if reference (list :reference reference)))
+                  `(make-instance 'vader-select :base ,body
+                                                :argument (list ,@axes) :index-origin index-origin)
                   )
               (rest axis-sets)))))
 
