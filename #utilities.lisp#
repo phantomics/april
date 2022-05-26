@@ -1274,7 +1274,6 @@ It remains here as a standard against which to compare methods for composing APL
                                                 :argument (list ,@axes) :index-origin index-origin)
                   )
               (rest axis-sets)))))
-
 (defun make-namespace (contents)
   "Create a namespace. Used to implement ⎕NS. A namespace is just a plist, so this returns nil."
   (declare (ignore contents))
