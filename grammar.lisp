@@ -1052,7 +1052,7 @@
                        (error "Invalid assignment to ⎕OST.")))
                  (error "Invalid assignment to ⎕OST."))))
         ((and (listp symbol) (eql 'achoose (first symbol)))
-         ;; compose indexed assignments like x[;1 2 3]←5
+         ;; compose indexed assignments like x[;1 2 3]←5 ;; TO-DELETE once lazy impl finished
          (let ((val (gensym)) (var-sym (second symbol))
                (out1 (gensym)) (out2 (gensym)))
            (if (and (listp var-sym) (eql 'nspath (first var-sym)))
@@ -1066,6 +1066,15 @@
                                                          (a-call ,function item item2))))))
                     (if ,out2 (setf ,var-sym ,out2))
                     ,out1)))))
+        ((and (listp symbol) (eql 'make-virtual (first symbol))
+              (listp (getf (cddr symbol) :base))
+              (eql 'nspath (first (getf (cddr symbol) :base))))
+         ;; compose indexed namespace assignments like myns.aa.bb[2 4]←⎕NS⍬
+         (let ((val (gensym)) (var-sym (getf (cddr symbol) :base))
+               (out1 (gensym)) (out2 (gensym)))
+           `(a-set ,var-sym ,value
+                   ,@(if (getf (cddr symbol) :argument)
+                         (list :axes (getf (cddr symbol) :argument))))))
         ((and (listp symbol) (eql 'a-call (first symbol)))
          ;; compose selective assignments like (3↑x)←5
          (let* ((selection-form symbol)
@@ -1083,16 +1092,27 @@
                       ;; and fetch axes as well if present
                       (if (and (listp (third form))
                                (member (first (third form)) '(inws inwsd)))
-                          (progn (setf assign-sym (third form))
-                                 (setf (third form) item))
+                          (setf assign-sym (third form)
+                                (third form) item)
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
-                              (set-assn-sym (third form))
-                              (if (and (listp (third form))
+                              (set-assn-sym (third form))   ;; TODO: remove non-lazy logic here
+                              (if (and (listp (third form)) ;; once lazy impl is complete
                                        (eql 'achoose (first (third form))))
-                                  (progn (setf assign-sym (second (third form)))
-                                         (setf selection-axes (third (third form)))
-                                         (setf (third form) item)))))))
+                                  (setf assign-sym (second (third form))
+                                        selection-axes (third (third form))
+                                        (third form) item)
+                                  (if (and (listp (third form))
+                                           (eql 'make-virtual (first (third form))))
+                                      (setf assign-sym (getf (cddr (third form)) :base)
+                                            selection-axes
+                                            `(mapcar
+                                              (lambda (array)
+                                                (if array
+                                                    (apply-scalar #'- (render-varrays array)
+                                                                  index-origin)))
+                                              ,(getf (cddr (third form)) :argument))
+                                            (third form) item)))))))
              (set-assn-sym selection-form)
              `(aprgn (a-set ,assign-sym
                             (assign-by-selection

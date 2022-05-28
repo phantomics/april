@@ -241,6 +241,15 @@
     `(let ((,indices-evaluated ,indices))
        (choose ,item ,indices-evaluated ,@rest-params))))
 
+(defmacro make-virtual (type &rest params)
+  "Wrapper for the choose function."
+  (let ((indices (getf params :argument))
+        (indices-evaluated (gensym))
+        (base (getf params :base)))
+    (setf (getf params :argument) indices-evaluated)
+    `(let ((,indices-evaluated ,indices))
+       (make-instance ,type ,@params))))
+
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
   (declare (ignorable rest))
@@ -666,7 +675,7 @@
                          (append (macroexpand (append symbol (if axes (list axes))))
                                  (list :value val :value-nil `(null ,val))
                                  (if by (list :set-by by)))))))
-              ((and (listp symbol) (eql 'make-instance (first symbol))
+              ((and (listp symbol) (eql 'make-virtual (first symbol))
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
@@ -1265,13 +1274,13 @@ It remains here as a standard against which to compare methods for composing APL
                                       :modify-input t)
                            (if ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
-                  ;; `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
-                  ;;                                                                      array)
-                  ;;                                                                 index-origin)))
-                  ;;                         (list ,@axes))
-                  ;;           ,@(if reference (list :reference reference)))
-                  `(make-instance 'vader-select :base ,body
-                                                :argument (list ,@axes) :index-origin index-origin)
+                  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
+                                                                                       array)
+                                                                                  index-origin)))
+                                          (list ,@axes))
+                            ,@(if reference (list :reference reference)))
+                  ;; `(make-virtual 'vader-select :base ,body
+                  ;;                              :argument (list ,@axes) :index-origin index-origin)
                   )
               (rest axis-sets)))))
 

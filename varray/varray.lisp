@@ -224,6 +224,12 @@
   "The default shape of a derived array is the same as the original array."
   (get-or-assign-shape varray (shape-of (vader-base varray))))
 
+(defmethod base-indexer-of ((varray varray-derived))
+  "The default shape of a derived array is the same as the original array."
+  (let ((this-shape (shape-of varray)))
+    (indexer-of (vader-base varray)
+                (list :shape this-shape))))
+
 (defclass vvector-integer-progression (varray-primal)
   ((%number :accessor vvip-number
             :initform 1
@@ -309,6 +315,12 @@
              :initarg :inverse
              :documentation "Parameters passed to an array transformation as an argument."))
   (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
+
+(defclass vad-indefinite ()
+  nil (:documentation "Superclass of array transformations whose output is indefinite until each element of the input has been processed."))
+
+(defclass vad-limitable (vad-indefinite)
+  nil (:documentation "Superclass of indefinite array transformations whose output can be dimensionally limited to avoid needless computation."))
 
 ;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
 (defclass vader-subarray (vad-subrendering varray-derived)
@@ -551,21 +563,16 @@
                                    ;; this is necessary even when setting values
                                    ;; compatible with the input array in order
                                    ;; to catch invalid indices
-                                   ;; (if (and len sdims (or (< 1 (length len))
-                                   ;;                        (/= (first len) (nth s sdims))))
-                                   ;;     (error "Invalid input."))
-                                   ;; (if (and len (zerop (first len))) (setq empty-output t))
                                    (if len (incf s))
                                    len))
              (let ((od (shape-of (or (first indices)
                                      (vader-base varray)))))
-               ;; (print (list :sh s))
                od))))))
 
 (defmethod indexer-of ((varray vader-select) &optional params)
   (let* ((indices)
          (iarray-factors)
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (base-rank (length (shape-of (vader-base varray))))
          (set (vasel-assign varray))
          (set-indexer (indexer-of set))
@@ -616,7 +623,9 @@
                           ;; handle arrays as indices as for x[⍳3]
                           (if in (let ((matched-index) (sub-index 0))
                                    ;; (print (list :ii in))
-                                   (if (vectorp in)
+                                   (if (or (vectorp in)
+                                           (and (or (arrayp in) (varrayp in))
+                                                (not (shape-of in))))
                                        (multiple-value-bind (index remainder)
                                            (floor remaining (if set ifactor (aref ofactors ofix)))
                                          ;; (print (list :fl index remainder))
@@ -630,9 +639,6 @@
                                                                                   (vads-io varray)))
                                                                      (if afactor (incf oindex afactor))
                                                                      (setf matched-index i)))
-                                                       ;; (if (check-vindex index in)
-                                                       ;;     (setf oindex sub-indexed
-                                                       ;;           matched-index t))
                                                        (let ((match (check-vindex index in)))
                                                          (if match (setf oindex match
                                                                          matched-index t
@@ -641,20 +647,17 @@
                                                    ;; (print (list :af index afactor matched-index oindex))
                                                    (if (not matched-index) (setf valid nil)))
                                              (setf sub-index index))
-                                         ;; (print (list :oi oindex))
                                          (incf ofix)
                                          (setf remaining remainder))
+                                       
                                        (progn (loop :for iafactor :in (first iafactors)
                                                     :do (multiple-value-bind (index remainder)
                                                             (floor remaining (aref ofactors ofix))
-                                                          ;; (print (list :in index))
                                                           (incf sub-index (* iafactor index))
                                                           (incf ofix)
                                                           (setf remaining remainder)))
                                               (if (not (vectorp in))
                                                   (setf iafactors (rest iafactors)))))
-                                   ;; (print (list :si sub-index
-                                   ;;              (funcall (indexer-of in) sub-index)))
                                    (if (not matched-index)
                                        ;; adjust indices if the index was not an array as for x[⍳3]←5
                                        (let ((indexed (funcall (indexer-of in) sub-index)))
@@ -664,7 +667,6 @@
                               ;; handle elided indices
                               (multiple-value-bind (index remainder)
                                   (floor remaining (if set ifactor (aref ofactors ofix)))
-                                ;; (print (list :in index))
                                 (if set (if (or (not adims)
                                                 (< index (first adims)))
                                             (if afactor (incf oindex (* afactor index))
@@ -717,7 +719,6 @@
                                          ;; TODO: wrap this in disclose obj
                                          :index-origin (vads-io varray)
                                          :argument (rest (coerce (render oindex) 'list))
-                                         
                                          :assign (if (not (functionp assign-indexer))
                                                      assign-indexer (funcall assign-indexer
                                                                              assign-sub-index))
@@ -786,7 +787,7 @@
   (let* ((input-size (reduce #'* (shape-of (vader-base varray))))
          (output-shape (shape-of varray))
          (output-size (reduce #'* output-shape))
-         (base-indexer (indexer-of (vader-base varray))))
+         (base-indexer (base-indexer-of varray)))
     (lambda (index)
       (if (zerop output-size)
           (prototype-of varray)
@@ -1017,7 +1018,7 @@
   (:documentation "A mixed array as from the [↑ mix] function."))
 
 (defmethod etype-of ((varray vader-mix))
-  (let ((base-indexer (indexer-of (vader-base varray))))
+  (let ((base-indexer (base-indexer-of varray)))
     (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
                                   :when (and (functionp base-indexer)
                                              (< 0 (size-of (funcall base-indexer aix))))
@@ -1072,7 +1073,7 @@
 (defmethod indexer-of ((varray vader-mix) &optional params)
   (let* ((oshape (shape-of varray))
          (ofactors (get-dimensional-factors oshape t))
-         (oindexer (indexer-of (vader-base varray)))
+         (oindexer (base-indexer-of varray))
          (dim-indices (vamix-shape-indices varray))
          (orank (length (shape-of (vader-base varray))))
          (outer-shape (loop :for i :in dim-indices :for s :in (shape-of varray)
@@ -1148,7 +1149,7 @@
          (output-size (reduce #'* output-shape))
          (axis (vads-axis varray))
          (base-shape (shape-of (vader-base varray)))
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (base-factors (get-dimensional-factors base-shape t))
          (sv-factor (if (< 0 (length base-factors)) (aref base-factors axis)))
          (core-indexer (indexer-split axis (length output-shape)
@@ -1186,13 +1187,15 @@
    (let* ((arg-shape (shape-of (vads-argument varray)))
           (arg-indexer (indexer-of (setf (vads-argument varray)
                                          (render (vads-argument varray)))))
-          (base-shape (copy-list (shape-of (vader-base varray))))
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
           (axis (vads-axis varray))
+          ;; the shape of the base is only needed for [↓ drop]
+          (base-shape (copy-list (shape-of (vader-base varray))))
           (pre-shape (loop :for b :below (max (length base-shape)
                                               (if (not arg-shape) 1 (first arg-shape)))
                            :collect (or (nth b base-shape) 1))))
+     ;; (print (list :aa axis base-shape pre-shape axis arg-indexer))
 
      (if (vectorp axis)
          (loop :for x :across axis :for ix :from 0
@@ -1217,9 +1220,56 @@
      
      pre-shape)))
 
+(defmethod shape-of ((varray vader-section))
+  "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
+  (get-or-assign-shape
+   varray
+   (let* ((base (vader-base varray))
+          (arg-shape (shape-of (vads-argument varray)))
+          (arg-indexer (indexer-of (setf (vads-argument varray)
+                                         (render (vads-argument varray)))))
+          (is-inverse (vads-inverse varray))
+          (iorigin (vads-io varray))
+          (axis (vads-axis varray)))
+     ;; (print (list :aa axis  arg-indexer))
+
+     (if (and (not is-inverse)
+              (eq :last axis)
+              nil)
+         (if (functionp arg-indexer)
+             (loop :for a :below (first arg-shape)
+                   :collect (abs (funcall arg-indexer a)))
+             (list (abs arg-indexer)))
+         (let* ((base-shape (copy-list (shape-of base)))
+                ;; the shape of the base is only needed for [↓ drop]
+                (pre-shape (loop :for b :below (max (length base-shape)
+                                                    (if (not arg-shape) 1 (first arg-shape)))
+                                 :collect (or (nth b base-shape) 1))))
+           (if (vectorp axis)
+               (loop :for x :across axis :for ix :from 0
+                     :do (setf (nth (- x iorigin) pre-shape)
+                               (if is-inverse (- (nth (- x iorigin) pre-shape)
+                                                 (abs (funcall arg-indexer ix)))
+                                   (abs (funcall arg-indexer ix)))))
+               (if (eq :last axis)
+                   (if (functionp arg-indexer)
+                       (loop :for a :below (first arg-shape) :for ix :from 0
+                             :do (setf (nth ix pre-shape)
+                                       (if is-inverse (max 0 (- (nth ix pre-shape)
+                                                                (abs (funcall arg-indexer a))))
+                                           (abs (funcall arg-indexer a)))))
+                       (setf (first pre-shape)
+                             (if is-inverse (max 0 (- (first pre-shape) (abs arg-indexer)))
+                                 (abs arg-indexer))))
+                   (setf (nth (- axis iorigin) pre-shape)
+                         (if is-inverse (max 0 (- (nth (- axis iorigin) pre-shape)
+                                                  (abs arg-indexer)))
+                             (abs arg-indexer)))))
+           pre-shape)))))
+
 (defmethod indexer-of ((varray vader-section) &optional params)
   "Indexer for a sectioned array."
-  (let* ((base-indexer (indexer-of (vader-base varray)))
+  (let* ((base-indexer (base-indexer-of varray))
          (iorigin (vads-io varray))
          (axis (vads-axis varray))
          (is-inverse (vads-inverse varray))
@@ -1324,7 +1374,7 @@
          (axis (or (vads-axis varray)
                    (max 0 (1- (length base-shape)))))
          (ofactors (get-dimensional-factors base-shape))
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (outer-factors (get-dimensional-factors output-shape t))
          (inner-factors (get-dimensional-factors inner-shape t))
          (intervals (vads-shapeset varray))
@@ -1437,7 +1487,9 @@
          (let ((base-type (etype-of (vader-base varray))))
            (if (eq t base-type) ;; array is simple if not t-type
                (let ((is-complex)
-                     (base-indexer (indexer-of (vader-base varray))))
+                     (base-indexer ;; (base-indexer-of varray)
+                       (indexer-of (vader-base varray))
+                       ))
                  (if base-indexer
                      (progn (loop :for i :below (size-of (vader-base varray))
                                   :do (if (shape-of (funcall base-indexer i))
@@ -1497,14 +1549,14 @@
   (if (not (or (vads-argument varray)
                (vapart-params varray)))
       (if (shape-of varray)
-          (indexer-of (vader-base varray))
+          (base-indexer-of varray)
           (lambda (index)
             (vader-base varray)))
       (let* ((idims (shape-of (vader-base varray)))
              (partitions (getf (vapart-params varray) :partitions))
              (intervals (getf (vapart-params varray) :intervals))
              (indices (getf (vapart-params varray) :indices))
-             (base-indexer (indexer-of (vader-base varray)))
+             (base-indexer (base-indexer-of varray))
              (axis (vads-axis varray))
              (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
                                              :when (> dx axis) :collect d)))
@@ -1636,7 +1688,7 @@
   (let* ((arg-vector (if (typep (vads-argument varray) 'sequence)
                          (coerce (vads-argument varray) 'vector)
                          (vads-argument varray)))
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (indexer (if (or (integerp arg-vector)
                           (< 0 (length arg-vector)))
                       (indexer-expand arg-vector (shape-of (vader-base varray))
@@ -1661,7 +1713,7 @@
 
 (defmethod indexer-of ((varray vader-turn) &optional params)
   "Indexer for a rotated or flipped array."
-  (let* ((base-indexer (indexer-of (vader-base varray)))
+  (let* ((base-indexer (base-indexer-of varray))
          (indexer (if (and (functionp base-indexer))
                       (indexer-turn (if (eq :last (vads-axis varray))
                                         (1- (length (shape-of varray)))
@@ -1722,7 +1774,7 @@
 
 (defmethod indexer-of ((varray vader-permute) &optional params)
   "Indexer for a rotated or flipped array."
-  (let* ((base-indexer (indexer-of (vader-base varray)))
+  (let* ((base-indexer (base-indexer-of varray))
          (argument (render (vads-argument varray)))
          (indexer (if (functionp base-indexer)
                       (indexer-permute (shape-of (vader-base varray))
@@ -1740,6 +1792,33 @@
       (if (not indexer)
           base-indexer (funcall base-indexer (funcall indexer index))))))
 
+(defclass vader-grade (varray-derived vad-with-argument vad-with-io vad-invertable vad-indefinite)
+  nil (:documentation "An encoded array as from the [⊤ encode] function."))
+
+(defmethod etype-of ((varray vader-grade))
+  (let ((this-shape (first (shape-of varray))))
+    (list 'integer (vads-io varray)
+          (+ this-shape (vads-io varray)))))
+
+(defmethod shape-of ((varray vader-grade))
+  (get-or-assign-shape
+   varray (let ((base-shape (shape-of (vader-base varray))))
+            (if base-shape (list (first base-shape))
+                (error "The [⍋ grade] function cannot take a scalar argument.")))))
+
+(defmethod indexer-of ((varray vader-grade) &optional params)
+  (let* ((arg-rendered (render (vads-argument varray)))
+         (iorigin (vads-io varray))
+         (base-rendered (render (vader-base varray)))
+         (graded (if arg-rendered (grade (if (vectorp arg-rendered)
+                                             (index-of base-rendered arg-rendered iorigin)
+                                             (array-grade arg-rendered base-rendered))
+                                         iorigin (alpha-compare (if (vads-inverse varray)
+                                                                    #'> #'<)))
+                     (grade base-rendered iorigin (alpha-compare (if (vads-inverse varray)
+                                                                     #'>= #'<=))))))
+    (lambda (index) (aref graded index))))
+
 (defclass vader-encode (varray-derived vad-with-argument)
   nil (:documentation "An encoded array as from the [⊤ encode] function."))
 
@@ -1751,7 +1830,7 @@
   (let* ((adims (shape-of (vads-argument varray)))
          (out-dims (shape-of varray))
          (base-shape (shape-of (vader-base varray)))
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (arg-indexer (indexer-of (vads-argument varray)))
          (aifactors (get-dimensional-factors adims))
          (oifactors (get-dimensional-factors base-shape t))
@@ -1804,7 +1883,7 @@
          (adims (shape-of (vads-argument varray)))
          (osize (size-of (vader-base varray)))
          (asize (size-of (vads-argument varray)))
-         (base-indexer (indexer-of (vader-base varray)))
+         (base-indexer (base-indexer-of varray))
          (arg-indexer (indexer-of (vads-argument varray)))
          (ovector (or (first odims) 1))
          (afactors (make-array (if (and (< 1 osize) (and adims (< 1 (first (last adims)))))
