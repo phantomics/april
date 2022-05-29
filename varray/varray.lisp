@@ -229,7 +229,14 @@
   (let ((this-shape (shape-of varray)))
     (indexer-of (vader-base varray)
                 (list :shape-deriving (if (typep varray 'vader-reshape)
-                                          (shape-of varray))))))
+                                          (shape-of varray)
+                                          (if (and (typep varray 'vader-section)
+                                                   (= 1 (size-of (vads-argument varray))))
+                                              (funcall (lambda (item)
+                                                         (if (typep item 'sequence)
+                                                             (coerce item 'list)
+                                                             (list item)))
+                                                       (render (vads-argument varray)))))))))
 
 (defclass vvector-integer-progression (varray-primal)
   ((%number :accessor vvip-number
@@ -811,6 +818,7 @@
                           (if (compare cont-vector argument) (setq include nil)))
                       (if include (progn (push argument included)
                                          (incf count)))))
+                ;; (print (list :inc included derivative-count))
                 (setf (vads-content varray)
                       (make-array (length included) :element-type (etype-of argument)
                                                     :initial-contents (reverse included))))))))
@@ -923,8 +931,12 @@
           (funcall base-indexer index)
           (aref (vads-content varray) index)))))
 
-(defclass vader-membership (varray-derived vad-with-argument vad-limitable)
-  nil (:documentation "A membership array as from the [∊ membership] function."))
+(defclass vader-membership (varray-derived vad-with-argument)
+  ((%to-search :accessor vamem-to-search
+               :initform nil
+               :initarg :to-search
+               :documentation "Set of elements to be checked for membership in array."))
+  (:documentation "A membership array as from the [∊ membership] function."))
 
 (defmethod etype-of ((varray vader-membership))
   (declare (ignore varray))
@@ -940,30 +952,30 @@
                        (if (and (arrayp item1) (arrayp item2))
                            (array-compare item1 item2))))))
       
-      (if (not (vads-content varray))
+      (if (not (vamem-to-search varray))
           (let ((argument (render (vads-argument varray))))
             ;; TODO: possible to optimize this?
             (if (functionp base-indexer)
-                (setf (vads-content varray) argument)
+                (setf (vamem-to-search varray) argument)
                 (if (not (arrayp argument))
-                    (setf (vads-content varray)
+                    (setf (vamem-to-search varray)
                           (if (compare argument base-indexer) 1 0))
-                    (setf (vads-content varray)
+                    (setf (vamem-to-search varray)
                           (if (not (loop :for i :below (array-total-size argument)
                                          :never (compare base-indexer (row-major-aref argument i))))
                               1 0))))))
       (lambda (index)
-        (if (arrayp (vads-content varray))
+        (if (arrayp (vamem-to-search varray))
             (let ((found))
-              (loop :for ix :below (size-of (vads-content varray)) :while (not found)
+              (loop :for ix :below (size-of (vamem-to-search varray)) :while (not found)
                     :do (setq found (compare (funcall base-indexer index)
-                                             (row-major-aref (vads-content varray) ix))))
+                                             (row-major-aref (vamem-to-search varray) ix))))
               (if found 1 0))
             (if (functionp base-indexer)
-                (if (compare (vads-content varray)
+                (if (compare (vamem-to-search varray)
                              (funcall base-indexer index))
                     1 0)
-                (vads-content varray)))))))
+                (vamem-to-search varray)))))))
 
 ;; TODO: is subrendering needed here? Check render function
 (defclass vader-pare (vader-reshape vad-on-axis vad-with-io)
@@ -1395,7 +1407,8 @@
 
      (if (and (not is-inverse)
               (eq :last axis)
-              nil)
+              (typep (vader-base varray) 'vad-limitable)
+              (= 1 (size-of (vads-argument varray))))
          (if (functionp arg-indexer)
              (loop :for a :below (first arg-shape)
                    :collect (abs (funcall arg-indexer a)))
