@@ -47,7 +47,7 @@
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal :lexical-statements :general-tests
-                  :system-variable-function-tests :function-inversion-tests :namespace-tests
+                  :system-variable-function-tests :function-inversion-tests ;; :namespace-tests
                   :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -420,17 +420,19 @@
             (is "{⎕CT←0.0001 ⋄ (⍵≥1.0000000001),(⍵≥⍨1.0000000001),⍵≥1.01} 1.0" #*110)))
   (> (has :title "Greater")
      (dyadic (scalar-function (boolean-op (compare-by '> comparison-tolerance))
-                              :va t :binary-output t
-                              ))
+                              :va t :binary-output t))
      (meta (primary :implicit-args (comparison-tolerance) :virtual-support t)
            (dyadic :id 0))
      (tests (is "3>1 2 3 4 5" #*11000)))
   (≠ (has :titles ("Unique Mask" "Not Equal"))
-     (ambivalent #'unique-mask
+     (ambivalent ;; #'unique-mask
+                 (funcall (lambda (n)
+                            (lambda (omega) (make-instance 'vader-umask :base omega)))
+                          nil)
                  (scalar-function (boolean-op (λωα (not (funcall (scalar-compare comparison-tolerance)
                                                                  omega alpha))))
                                   :va t :binary-output t))
-     (meta (primary :implicit-args (comparison-tolerance))
+     (meta (primary :implicit-args (comparison-tolerance) :virtual-support t)
            (dyadic :id 0 :commutative t))
      (tests (is "≠2 4 7 4 6 8 3 5 2 4 2 5 6 7" #*11101111000000)
             (is "≠'ONE' 'TWO' 'ONE' 'THREE' 'TWO' 'THREE'" #*110100)
