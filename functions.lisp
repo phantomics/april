@@ -387,27 +387,43 @@
 (defun at-index (index-origin axes)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
   (lambda (omega alpha)
+    (setf omega (render-varrays omega))
     (if (not (arrayp omega))
         (if (and (numberp alpha)
                  (= index-origin alpha))
             omega (error "Invalid index."))
-        (multiple-value-bind (assignment-output assigned-array)
-            (choose omega (let ((coords (funcall (if (arrayp alpha) #'array-to-list #'list)
-                                                 (apply-scalar #'- alpha index-origin)))
-                                ;; the inefficient array-to-list is used here in case of nested
-                                ;; alpha arguments like (⊂1 2 3)⌷...
-                                (axis (if axes (if (vectorp (first axes))
-                                                   (loop :for item :across (first axes)
-                                                      :collect (- item index-origin))
-                                                   (if (integerp (first axes))
-                                                       (list (- (first axes) index-origin)))))))
-                            (if (not axis)
-                                ;; pad coordinates with nil elements in the case of an elided reference
-                                (append coords (loop :for i :below (- (rank omega) (length coords)) :collect nil))
-                                (loop :for dim :below (rank omega)
-                                   :collect (if (member dim axis) (first coords))
-                                      :when (member dim axis) :do (setq coords (rest coords))))))
-          (or assigned-array assignment-output)))))
+        (make-virtual
+         'vader-select
+         :base omega :index-origin index-origin
+         :argument (let ((alpha (render-varrays alpha))
+                         (axes (render-varrays axes))
+                         (axis (if axes (if (vectorp (first axes))
+                                            ;; the inefficient array-to-list is used here in case of nested
+                                            ;; alpha arguments like (⊂1 2 3)⌷...
+                                            (coerce (first axes) 'list)
+                                            (if (integerp (first axes))
+                                                (list (first axes)))))))
+                     ;; (print (list :ax axis coords))
+                     (if axis (let ((cx 0))
+                                (loop :for dim :below (length (shape-of omega))
+                                      :collect (if (member (+ dim index-origin) axis)
+                                                   (let ((c (if (not (arrayp alpha))
+                                                                alpha (if (zerop (rank alpha))
+                                                                          (aref alpha)
+                                                                          (aref alpha cx)))))
+                                                     (incf cx)
+                                                     c))))
+                         ;; pad coordinates with nil elements in the case of an elided reference
+                         (append (if (not (arrayp alpha))
+                                     (list alpha)
+                                     (if (zerop (rank alpha))
+                                         (list (aref alpha))
+                                         (loop :for a :across alpha :collect a)))
+                                 (loop :for i :below (- (length (shape-of omega))
+                                                        (if (or (not (arrayp alpha))
+                                                                (zerop (rank alpha)))
+                                                            1 (length alpha)))
+                                       :collect nil))))))))
 
 (defun find-depth (omega)
   "Find the depth of an array, wrapping (aplesque:array-depth). Used to implement [≡ depth]."
@@ -947,59 +963,59 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
-(defun assign-by-selection2 (prime-function function value omega
-                            &key assign-sym axes secondary-prime-fn by)
-  "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
-  (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    (labels ((duplicate-t (array)
-               (let ((output (make-array (dims array))))
-                 (dotimes (i (size array))
-                   (setf (row-major-aref output i)
-                         (if (not (arrayp (row-major-aref array i)))
-                             (row-major-aref array i)
-                             (duplicate-t (row-major-aref array i)))))
-                 output)))
-      (if (getf function-meta :selective-assignment-compatible)
-          (let* ((omega (if (and assign-sym (not (typep omega 'varray))
-                                 (if (arrayp value)
-                                     (and (or (not (getf function-meta :selective-assignment-enclosing))
-                                              (eq t (element-type omega)))
-                                          (subtypep (element-type value)
-                                                    (element-type omega)))
-                                     (subtypep (upgraded-array-element-type (assign-element-type value))
-                                               (element-type omega))))
-                            ;; array is duplicated if its element type is not a supertype of
-                            ;; the assigned array's type, or if an enclosed array is
-                            ;; being assigned and the array's type is not T
-                            omega (duplicate-t (render-varrays omega))))
-                 (assign-array (if (not axes) omega (choose omega axes :reference t)))
-                 ;; assign reference is used to determine the shape of the area to be assigned,
-                 ;; which informs the proper method for generating the index array
-                 (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
-                 (value (funcall (if (getf function-meta :selective-assignment-enclosing)
-                                     #'enclose #'identity)
-                                 (render-varrays value))))
-            ;; (print (list :om omega value))
-            ;; TODO: this logic can be improved
-            (if (arrayp value)
-                (let* ((index-array (generate-index-array assign-array t))
-                       (target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
-                  (assign-by-vector assign-array index-array
-                                    (vectorize-assigned target-index-array value (size assign-array))
-                                    :by by)
-                  assign-array)
-                (multiple-value-bind (index-array assignment-size)
-                    (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
-                                                            (not (< 1 (size (disclose-atom assign-reference))))
-                                                            (not (arrayp value))))
-                  (let ((target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
-                    (assign-by-vector assign-array index-array
-                                      (vectorize-assigned target-index-array value assignment-size)
-                                      :by by)
-                    omega))))
-          (if (getf function-meta :selective-assignment-passthrough)
-              (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
-              (error "This function cannot be used for selective assignment."))))))
+;; (defun assign-by-selection2 (prime-function function value omega
+;;                             &key assign-sym axes secondary-prime-fn by)
+;;   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
+;;   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
+;;     (labels ((duplicate-t (array)
+;;                (let ((output (make-array (dims array))))
+;;                  (dotimes (i (size array))
+;;                    (setf (row-major-aref output i)
+;;                          (if (not (arrayp (row-major-aref array i)))
+;;                              (row-major-aref array i)
+;;                              (duplicate-t (row-major-aref array i)))))
+;;                  output)))
+;;       (if (getf function-meta :selective-assignment-compatible)
+;;           (let* ((omega (if (and assign-sym (not (typep omega 'varray))
+;;                                  (if (arrayp value)
+;;                                      (and (or (not (getf function-meta :selective-assignment-enclosing))
+;;                                               (eq t (element-type omega)))
+;;                                           (subtypep (element-type value)
+;;                                                     (element-type omega)))
+;;                                      (subtypep (upgraded-array-element-type (assign-element-type value))
+;;                                                (element-type omega))))
+;;                             ;; array is duplicated if its element type is not a supertype of
+;;                             ;; the assigned array's type, or if an enclosed array is
+;;                             ;; being assigned and the array's type is not T
+;;                             omega (duplicate-t (render-varrays omega))))
+;;                  (assign-array (if (not axes) omega (choose omega axes :reference t)))
+;;                  ;; assign reference is used to determine the shape of the area to be assigned,
+;;                  ;; which informs the proper method for generating the index array
+;;                  (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
+;;                  (value (funcall (if (getf function-meta :selective-assignment-enclosing)
+;;                                      #'enclose #'identity)
+;;                                  (render-varrays value))))
+;;             ;; (print (list :om omega value))
+;;             ;; TODO: this logic can be improved
+;;             (if (arrayp value)
+;;                 (let* ((index-array (generate-index-array assign-array t))
+;;                        (target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
+;;                   (assign-by-vector assign-array index-array
+;;                                     (vectorize-assigned target-index-array value (size assign-array))
+;;                                     :by by)
+;;                   assign-array)
+;;                 (multiple-value-bind (index-array assignment-size)
+;;                     (generate-index-array assign-array (and (arrayp (disclose-atom assign-reference))
+;;                                                             (not (< 1 (size (disclose-atom assign-reference))))
+;;                                                             (not (arrayp value))))
+;;                   (let ((target-index-array (enclose-atom (render-varrays (funcall function index-array)))))
+;;                     (assign-by-vector assign-array index-array
+;;                                       (vectorize-assigned target-index-array value assignment-size)
+;;                                       :by by)
+;;                     omega))))
+;;           (if (getf function-meta :selective-assignment-passthrough)
+;;               (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
+;;               (error "This function cannot be used for selective assignment."))))))
 
 (defun assign-by-selection (prime-function function value omega
                             &key assign-sym axes secondary-prime-fn by)

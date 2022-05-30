@@ -117,6 +117,7 @@
             (row-major-aref array index)))
       (if (= 0 (array-total-size array))
           (prototype-of array)
+          ;; TODO: why does wrapping this in a (lambda) cause problems? like array-lib's (0↑⊂,⊂⍬) from 99
           (lambda (index)
             (if (< index (array-total-size array))
                 (row-major-aref array index))))))
@@ -341,6 +342,13 @@
                   :initarg :index-origin
                   :documentation "Parameter specifying the index origin for an array operation."))
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
+
+(defclass vad-with-ct ()
+  ((%comp-tolerance :accessor vads-ct
+                    :initform 0
+                    :initarg :comparison-tolerance
+                    :documentation "Parameter specifying the comparison tolerance for an array operation."))
+  (:documentation "Superclass of array transformations taking comparison tolerance as an implicit argument."))
 
 (defclass vad-maybe-shapeless ()
   ((%determined :accessor vads-shapeset
@@ -911,7 +919,7 @@
                     uniques)))
         (setf (vads-content varray) output)))
   (lambda (index) (aref (vads-content varray) index)))
-          
+
 (defclass vader-shape (varray-derived)
   nil (:documentation "The shape of an array as from the [⍴ shape] function."))
 
@@ -966,6 +974,138 @@
                                                    0 (mod index (max 1 input-size))))))
                          (if (not (subrendering-p indexed))
                              indexed (render indexed)))))))))
+
+(defclass vader-depth (varray-derived)
+  nil (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
+
+(defmethod prototype-of ((varray vader-depth))
+  (declare (ignore varray))
+  0)
+
+(defmethod etype-of ((varray vader-depth))
+  'fixnum)
+
+(defmethod shape-of ((varray vader-depth))
+  "The shape of a reshaped array is simply its argument."
+  (declare (ignore varray))
+  nil)
+
+(defun varray-depth (input &optional layer (uniform t) possible-depth)
+  "Find the maximum depth of nested arrays within an array."
+  (let ((shape (shape-of input))
+        (indexer (indexer-of input)))
+    (flet ((vap (item) (or (arrayp item) (varrayp item))))
+      (if (not (functionp indexer))
+          1 (let* ((first-level (not layer))
+                   (layer (if layer layer 1))
+                   (new-layer layer))
+              (dotimes (i (size-of input))
+                (let ((item (funcall indexer i)))
+                  (if (vap item)
+                      (multiple-value-bind (next-layer new-uniform new-possible-depth)
+                          (varray-depth item (1+ layer) uniform possible-depth)
+                        (setq new-layer (max new-layer next-layer)
+                              uniform new-uniform
+                              possible-depth new-possible-depth))
+                      (if (not possible-depth) (setq possible-depth new-layer)
+                          (if (/= layer possible-depth) (setq uniform nil))))))
+              (values (funcall (if (and first-level (not uniform)) #'- #'identity)
+                               new-layer)
+                      uniform possible-depth))))))
+
+(defmethod indexer-of ((varray vader-depth) &optional params)
+  "Index a reshaped array."
+  (let ((shape (or (shape-of (vader-base varray))
+                   (varrayp (vader-base varray))
+                   (arrayp (vader-base varray)))))
+    (if shape (lambda (index) (declare (ignore index))
+                (varray-depth (vader-base varray)))
+        (lambda (index) (declare (ignore index)) 0))))
+
+(defclass vader-first-dim (varray-derived)
+  nil (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
+
+(defmethod prototype-of ((varray vader-first-dim))
+  (declare (ignore varray))
+  0)
+
+(defmethod etype-of ((varray vader-first-dim))
+  (list 'integer 0 (first (shape-of (vader-base varray)))))
+
+(defmethod shape-of ((varray vader-first-dim))
+  "The shape of a reshaped array is simply its argument."
+  (declare (ignore varray))
+  nil)
+
+(defmethod indexer-of ((varray vader-first-dim) &optional params)
+  "Index a reshaped array."
+  (let ((dimension (first (shape-of (vader-base varray)))))
+    (lambda (index) (or dimension 1))))
+
+(defun varray-compare (item1 item2 &optional comparison-tolerance)
+  "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
+  (flet ((vap (item) (or (arrayp item) (varrayp item))))
+    (let ((shape1 (shape-of item1))
+          (shape2 (shape-of item2))
+          (indexer1 (indexer-of item1))
+          (indexer2 (indexer-of item2)))
+      (if (not shape1)
+          (if (not shape2)
+              (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
+                       (> comparison-tolerance (abs (- indexer1 indexer2))))
+                  (and (numberp indexer1)
+                       (numberp indexer2)
+                       (= item1 indexer2))
+                  (and (characterp indexer1)
+                       (characterp indexer2)
+                       (char= item1 indexer2))))
+          (if (and shape2 (= (length shape2) (length shape2))
+                   (if (and (loop :for d :below (length shape1)
+                                  :always (= (nth d shape1) (nth d shape2)))
+                            ;; compared arrays must be either character or non-character to match
+                            (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
+                                (if (not (member (etype-of item1) '(character base-char)))
+                                    (not (member (etype-of item2) '(character base-char)))
+                                    (member (etype-of item2) '(character base-char)))))
+                       (loop :for i :below (size-of item1)
+                             :always (array-compare (funcall indexer1 i)
+                                                    (funcall indexer2 i)))))
+              (let ((match t))
+                (dotimes (i (size-of item1))
+                  (let ((item (funcall indexer1 i))
+                        (alternate (funcall indexer2 i)))
+                    (setq match (and match (or (and (vap item) (vap alternate)
+                                                    (array-compare item alternate))
+                                               (and (numberp item) (numberp alternate)
+                                                    (= item alternate))
+                                               (and (characterp item) (characterp alternate)
+                                                    (char= item alternate)))))))
+                match))))))
+
+(defclass vader-compare (varray-derived vad-with-ct vad-invertable)
+  nil (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
+
+(defmethod prototype-of ((varray vader-compare))
+  (declare (ignore varray))
+  0)
+
+(defmethod etype-of ((varray vader-compare))
+  (declare (ignore varray))
+  'bit)
+
+(defmethod shape-of ((varray vader-compare))
+  "The shape of a comparison result is always nil."
+  (declare (ignore varray))
+  nil)
+
+(defmethod indexer-of ((varray vader-compare) &optional params)
+  "Index a reshaped array."
+  (let ((base-indexer (base-indexer-of varray)))
+    (lambda (index) (if (funcall (if (vads-inverse varray) #'not #'identity)
+                                 (varray-compare (funcall base-indexer 0)
+                                                 (funcall base-indexer 1)
+                                                 (vads-ct varray)))
+                        1 0))))
 
 (defclass vader-enlist (varray-derived vad-limitable)
   nil (:documentation "An array decomposed into a vector as from the [∊ enlist] function."))
@@ -1064,6 +1204,117 @@
                              (funcall base-indexer index))
                     1 0)
                 (vamem-to-search varray)))))))
+
+(defclass vader-where (varray-derived vad-with-io vad-limitable)
+  nil (:documentation "The coordinates of array elements equal to 1 as from the [⍸ where] function."))
+
+(defmethod etype-of ((varray vader-where))
+  (declare (ignore varray))
+  t)
+
+(defmethod prototype-of ((varray vader-where))
+  "Prototype is an array of zeroes with length equal to the base array's rank."
+  (make-array (length (shape-of (vader-base varray))) :element-type 'bit :initial-element 0))
+
+(defmethod shape-of ((varray vader-where))
+  (get-or-assign-shape
+   varray (let ((this-indexer (indexer-of varray))
+                (base-indexer (indexer-of (vader-base varray))))
+            (declare (ignore this-indexer))
+            (or (shape-of (vads-content varray))
+                (list (if (and (not (functionp base-indexer))
+                               (integerp base-indexer)
+                               (= 1 base-indexer))
+                          1 0))))))
+
+(defmethod indexer-of ((varray vader-where) &optional params)
+  (let* ((base-shape (shape-of (vader-base varray)))
+         (base-rank (length base-shape))
+         (maximum (if base-shape (reduce #'max base-shape)))
+         (factors (if base-shape (get-dimensional-factors base-shape t))))
+    (if (and maximum (not (vads-content varray)))
+        (let* ((derivative-count (if (getf params :shape-deriving)
+                                     (reduce #'* (getf params :shape-deriving))))
+               (base-indexer (indexer-of (vader-base varray)))
+               (output-length (if derivative-count (min derivative-count (first base-shape))
+                                  (first base-shape)))
+               (indices) (match-count 0))
+          (loop :for i :below (size-of (vader-base varray))
+                :while (or (not derivative-count) (< match-count derivative-count))
+                :do (let ((this-item (funcall base-indexer i)))
+                      (if (and (integerp this-item) (= 1 this-item))
+                          (progn (push i indices)
+                                 (incf match-count)))))
+          (let ((output (make-array match-count
+                                    :element-type (list 'integer 0 (size-of (vader-base varray))))))
+            (loop :for in :in indices :for ix :from (1- match-count) :downto 0
+                  :do (setf (aref output ix) in))
+            (setf (vads-content varray) output))))
+    (lambda (index)
+      (if (zerop base-rank) (make-array 0)
+          (if (= 1 base-rank)
+              (+ (vads-io varray) (aref (vads-content varray) index))
+              (let ((remaining (aref (vads-content varray) index))
+                    (output (make-array base-rank :initial-element 0
+                                                  :element-type (list 'integer 0 maximum))))
+                (loop :for f :across factors :for ix :from 0
+                      :do (multiple-value-bind (item remainder) (floor remaining f)
+                            (setf (aref output ix) (+ item (vads-io varray))
+                                  remaining remainder)))
+                output))))))
+
+(defclass vader-interval-index (varray-derived vad-with-io vad-with-argument)
+  nil (:documentation "Interval indices of value(s) as from the [⍸ interval index] function."))
+
+(defmethod etype-of ((varray vader-interval-index))
+  (list 'integer 0 (if (not (shape-of (vader-base varray)))
+                       1 (+ (vads-io varray)
+                            (reduce #'max (shape-of (vader-base varray)))))))
+
+(defmethod prototype-of ((varray vader-interval-index))
+  (declare (ignore varray))
+  0)
+
+(defmethod shape-of ((varray vader-interval-index))
+  (let ((arg-rank (length (shape-of (vads-argument varray))))
+        (base-shape (shape-of (vader-base varray))))
+    (if (not base-shape)
+        nil (butlast base-shape (1- arg-rank)))))
+
+(defmethod indexer-of ((varray vader-interval-index) &optional params)
+  (let* ((base-indexer (indexer-of (vader-base varray)))
+         (argument (render (vads-argument varray)))
+         (arg-shape (shape-of argument))
+         (base-rendered (if (second arg-shape)
+                            (render (vader-base varray))))
+         (arg-indexer (indexer-of argument))
+         (base-increment (if (second arg-shape)
+                             (/ (reduce #'* (shape-of base-rendered))
+                                (reduce #'* (shape-of varray)))))
+         (arg-span (if (second arg-shape)
+                       (/ (size-of argument) base-increment))))
+    (lambda (index)
+      (if (not (second arg-shape))
+          (let ((count 0)
+                (value (if (not (functionp base-indexer))
+                           base-indexer (funcall base-indexer index))))
+            (loop :for item :across argument :while (funcall (alpha-compare #'>) value item)
+                  :do (incf count))
+            count)
+          (let ((count 0)
+                (sub-base (make-array base-increment
+                                      :element-type (etype-of base-rendered)
+                                      :displaced-to base-rendered
+                                      :displaced-index-offset (* index base-increment))))
+            (loop :for ix :below arg-span
+                  :while (vector-grade
+                          (alpha-compare #'<)
+                          (make-array base-increment
+                                      :displaced-to argument :element-type (etype-of argument)
+                                      :displaced-index-offset (* ix base-increment))
+                          sub-base)
+                  :do (incf count))
+            count)))))
 
 ;; TODO: is subrendering needed here? Check render function
 (defclass vader-pare (vader-reshape vad-on-axis vad-with-io)
