@@ -175,9 +175,10 @@
                                       (incf *lib-tests-run*
                                             (getf prove.suite::*last-suite-report* :plan))
                                       (incf *lib-tests-failed*
-                                            (getf prove.suite::*last-suite-report* :failed)))))
+                                            (* 1/2 (getf prove.suite::*last-suite-report* :failed))))))
                               (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
                                       package-symbol)))
+          (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
 (defun disclose-atom (item)
@@ -617,7 +618,10 @@
                                             (if (and (vectorp ,seed) (zerop (length ,seed)))
                                                 (random-state:make-generator ,rngname)
                                                 (random-state:make-generator
-                                                 ,rngname ,seed)))))))
+                                                 ,rngname ,seed)))
+                                        (getf (rest ,symbol) :seed)
+                                        (if (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                            ,seed)))))
                           (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
                               (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
                                      (,rngname (aref *rng-names* ,rngindex)))
@@ -633,7 +637,10 @@
                                               (if (and (vectorp ,seed) (zerop (length ,seed)))
                                                   (random-state:make-generator ,rngname)
                                                   (random-state:make-generator
-                                                   ,rngname ,seed))))))
+                                                   ,rngname ,seed)))
+                                          (getf (rest ,symbol) :seed)
+                                          (if (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                              ,seed))))
                               (error "The [⎕RL random link] value can only be set as an ~a"
                                      "integer or a 2-element vector."))))))
                 (t (let ((sym-package (package-name (symbol-package symbol))))

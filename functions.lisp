@@ -13,9 +13,9 @@
   "Core of (apl-random), randomizing an individual integer or float."
   (if (integerp item)
       (if (zerop item) (if (eq :system generator)
-                         (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
-                         (random-state:random-float generator double-float-epsilon
-                                                    (- 1.0d0 double-float-epsilon)))
+                           (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
+                           (random-state:random-float generator double-float-epsilon
+                                                      (- 1.0d0 double-float-epsilon)))
           (if (eq :system generator) (+ index-origin (random item))
               (random-state:random-int generator index-origin (1- (+ item index-origin)))))
       (if (floatp item)

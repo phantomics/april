@@ -4,11 +4,12 @@
   (:use #:cl)
   (:export #:varray #:varrayp #:etype-of #:shape-of #:rank-of #:indexer-of #:render
            #:vapri-integer-progression #:vapri-coordinate-identity #:vader-operate
-           #:vader-select #:vader-without #:vader-umask #:vader-shape #:vader-reshape
+           #:vader-select #:vader-random #:vader-deal #:vader-without #:vader-umask
+           #:vader-shape #:vader-reshape
            #:vader-depth #:vader-first-dim #:vader-compare #:vader-enlist
-           #:vader-membership #:vader-where #:vader-interval-index #:vader-pare
+           #:vader-membership #:vader-find #:vader-where #:vader-interval-index #:vader-pare
            #:vader-catenate #:vader-mix
-           #:vader-split #:vader-section #:vader-enclose #:vader-partition
+           #:vader-split #:vader-section #:vader-enclose #:vader-partition #:vader-pick
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
            #:vader-expand #:vader-grade #:vader-encode #:vader-decode)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
