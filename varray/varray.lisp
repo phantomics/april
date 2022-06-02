@@ -523,7 +523,6 @@
          (sub-shape (vaop-sub-shape varray))
          (out-rank (length out-shape))
          (axis (vads-axis varray))
-         ;; (prototype (prototype-of varray))
          (shape-factors (if axis (get-dimensional-factors out-shape t)))
          (base-indexers (loop :for a :across (vader-base varray) :collect (indexer-of a)))
          (sub-factors (if axis (get-dimensional-factors sub-shape t))))
@@ -1094,22 +1093,13 @@
     (lambda (index)
       (if (zerop output-size)
           (prototype-of varray)
-          (if (functionp base-indexer)
-              (funcall (if ;; (not (and (arrayp (vads-argument varray))
-                           ;;           (zerop (array-total-size (vads-argument varray)))))
-                           t
-                           #'identity #'enclose)
-                       (let ((indexed (funcall base-indexer
-                                               (if (not output-shape)
-                                                   0 (mod index (max 1 input-size))))))
-                         (setf (vads-subrendering varray) t)
-                         ;; (print (list :iii indexed (subrendering-p indexed)))
-                         (if (not (subrendering-p indexed))
-                             indexed (render indexed))))
-              (funcall (if (not (and (arrayp (vads-argument varray))
-                                     (zerop (array-total-size (vads-argument varray)))))
-                           #'disclose #'identity)
-                       base-indexer))))))
+          (if (not (functionp base-indexer))
+              base-indexer
+              (let ((indexed (funcall base-indexer (if (not output-shape)
+                                                       0 (mod index (max 1 input-size))))))
+                (setf (vads-subrendering varray) t)
+                (if (not (subrendering-p indexed))
+                    indexed (render indexed))))))))
 
 (defclass vader-depth (varray-derived)
   nil (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
@@ -1394,7 +1384,6 @@
                                       (setf valid nil)
                                       (setf shape-ref (rest shape-ref))))
                               (setf remaining remainder)))
-                  
                   (if (not valid)
                       0 (progn
                           (loop :for it :below target-size :while valid
@@ -1548,7 +1537,7 @@
                                          (disclose (render (vads-axis varray))))
                                 (vads-axis varray)))))
             (if (not axis) (list (reduce #'* base-shape))
-                (if (eq :tabulate axis) ; ,⍉↑⍬(⍳26)
+                (if (eq :tabulate axis)
                     (list (or (first base-shape) 1)
                           (reduce #'* (rest base-shape)))
                     (if (numberp axis)
@@ -1619,8 +1608,6 @@
                                  (and (floatp axis)
                                       (< double-float-epsilon (nth-value 1 (floor axis)))))))
           (axis (setf (vads-axis varray) (ceiling axis))))
-
-     
      (if to-laminate
          (loop :for shape :in each-shape
                :do (if shape (if ref-shape
@@ -1815,20 +1802,11 @@
                      (iindexer (indexer-of indexed))
                      (sub-index (if (not (functionp iindexer))
                                     iindexer (funcall (indexer-of indexed) 0))))
-                (if (and (not (shape-of indexed))
-                         ;; (varrayp indexed)
-                         )
+                (if (and (not (shape-of indexed)))
                     (setf (vads-subrendering varray) t))
-                ;; (print (list :rr (render indexed)
-                ;;              (vads-subrendering varray)
-                ;;              (funcall (indexer-of indexed) 0)))
-                ;; indexed
-                sub-index
-                )
-              ;; (funcall oindexer 0)
-              )
+                sub-index))
+          
           (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
-
             (loop :for ofactor :across ofactors :for di :in dim-indices :for fx :from 0
                   :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
                         (setf remaining remainder)
@@ -1856,7 +1834,6 @@
                                                   (setf ishape (rest ishape)
                                                         iifactors (rest iifactors)))
                                            (setf iindex nil))))
-                         ;; (print (list :ii (vader-base varray)))
                          (if iindex (funcall iindexer iindex))))))))))
 
 (defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
@@ -1943,8 +1920,7 @@
           (pre-shape (loop :for b :below (max (length base-shape)
                                               (if (not arg-shape) 1 (first arg-shape)))
                            :collect (or (nth b base-shape) 1))))
-     ;; (print (list :aa axis base-shape pre-shape axis arg-indexer))
-
+     
      (if (vectorp axis)
          (loop :for x :across axis :for ix :from 0
                :do (setf (nth (- x iorigin) pre-shape)
@@ -1979,7 +1955,6 @@
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
           (axis (vads-axis varray)))
-     ;; (print (list :aa axis arg-indexer))
 
      (if (and (not is-inverse)
               (eq :last axis)
@@ -2046,13 +2021,9 @@
                                     out-dims nil)))
       (lambda (index)
         (let ((indexed (funcall indexer index)))
-          ;; (print (list :in indexed))
           (if indexed (if (not (functionp base-indexer))
                           (disclose base-indexer) ;; TODO: why is this disclose needed?
-                          (funcall base-indexer indexed))
-              ;; (if (shape-of varray)
-              ;;     (prototype-of (vader-base varray)))
-              ))))))
+                          (funcall base-indexer indexed))))))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
                          vad-with-argument vad-maybe-shapeless)
@@ -2300,8 +2271,7 @@
                (vapart-params varray)))
       (if (shape-of varray)
           (base-indexer-of varray)
-          (lambda (index)
-            (vader-base varray)))
+          (lambda (index) (vader-base varray)))
       (let* ((idims (shape-of (vader-base varray)))
              (partitions (getf (vapart-params varray) :partitions))
              (intervals (getf (vapart-params varray) :intervals))
@@ -2509,12 +2479,10 @@
             (setf (vapick-reference varray)
                   (let ((indexer (if (not (functionp base-indexer))
                                      base-indexer (funcall base-indexer 0))))
-                    ;; (print (list :in indexer))
                     (if (and (shape-of base) (not (shape-of indexer))
                              (or (arrayp indexer)
                                  (varrayp indexer)))
                         (setf (vads-subrendering varray) t))
-                    ;; (print (list :iin indexer (vader-base varray)))
                     indexer))))))
 
 (defmethod etype-of ((varray vader-pick))
@@ -2550,10 +2518,7 @@
   (if (not (vads-content varray))
       (let ((derivative-count (if (getf params :shape-deriving)
                                   (reduce #'* (getf params :shape-deriving))))
-            (contents (loop :for a :across (vader-base varray) :collect (render a)))
-            ;; (shapes (loop :for a :across (vader-base varray) :collect (shape-of a)))
-            ;; (indexers (loop :for a :across (vader-base varray) :collect (indexer-of a)))
-            )
+            (contents (loop :for a :across (vader-base varray) :collect (render a))))
         (if (not (loop :for a :across (vader-base varray) :always (not (second (shape-of a)))))
             (error "Arguments to [∩ intersection] must be vectors.")
             (let* ((match-count 0)
@@ -2603,7 +2568,6 @@
          (base-size (size-of (vader-base varray)))
          (base-rank (length base-shape))
          (base-indexer (indexer-of (vader-base varray))))
-    ;; (print (list :aa (vader-base varray) base-shape base-rank))
     (if (not (vauni-indices varray))
         (let ((derivative-count (if (getf params :shape-deriving)
                                     (reduce #'* (getf params :shape-deriving)))))
@@ -2620,8 +2584,6 @@
                                     (progn (push item uniques)
                                            (push ix indices)
                                            (incf unique-count)))))
-                    ;; (print (list :loop indices derivative-count))
-                    ;; (print (list :uni unique-count indices))
                     (setf (vauni-indices varray)
                           (make-array unique-count :element-type (list 'integer 0 base-size)
                                                    :initial-contents (reverse indices))))
@@ -2639,7 +2601,6 @@
                             :do (push ix indices)
                                 (push item uniques)
                                 (incf unique-count))
-                    ;; (print (list :iii indices))
                     (setf (vads-content varray) base
                           (vauni-indices varray)
                           (make-array unique-count :element-type (list 'integer 0 (first base-shape))
