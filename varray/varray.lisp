@@ -148,8 +148,9 @@
                                              (list (list :empty-array-prototype
                                                          (prototype-of varray))))))
                    (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
-                               (make-array (shape-of varray) :element-type (assign-element-type
-                                                                            prototype)))))
+                               (make-array (shape-of varray) :element-type ;; (assign-element-type
+                                                                           ;;  prototype)
+                                           (etype-of varray)))))
               output)
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
@@ -203,6 +204,7 @@
     ;;              (subrendering-p (vader-base varray))))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
         (if (and (not (or (typep varray 'vader-mix)
+                          ;; (typep varray 'vader-section)
                           (typep varray 'vader-expand)
                           (typep varray 'vader-catenate)))
                  ;; TODO: functions that combine an array of arguments shouldn't have base subrendering
@@ -214,6 +216,7 @@
                 (let* ((indexer (indexer-of varray))
                        (indexed (if (not (functionp indexer))
                                     indexer (funcall indexer 0))))
+                  ;; (print (list :aaa indexed varray))
                   ;; (print (list :in indexed (typep indexed 'varray) (type-of indexed)
                   ;;              (if (varrayp indexed) (vader-base indexed))))
                   ;; TODO: remove-disclose when [⍴ shape] is virtually implemented
@@ -520,6 +523,7 @@
          (sub-shape (vaop-sub-shape varray))
          (out-rank (length out-shape))
          (axis (vads-axis varray))
+         ;; (prototype (prototype-of varray))
          (shape-factors (if axis (get-dimensional-factors out-shape t)))
          (base-indexers (loop :for a :across (vader-base varray) :collect (indexer-of a)))
          (sub-factors (if axis (get-dimensional-factors sub-shape t))))
@@ -562,7 +566,8 @@
                                                                                                ix)
                                                                                          div)))))
                                                           sub-index)))
-                                           (funcall ai index))
+                                           (or (funcall ai index)
+                                               (prototype-of a)))
                                        (if (not (varrayp a))
                                            (if (not (and (arrayp a)
                                                          (= 1 (size-of a))))
@@ -570,6 +575,8 @@
                                            ;;(let ((indexer (indexer-of a)))
                                            (if (not (functionp ai))
                                                ai (funcall ai 0))))))
+                        ;; (print (list :a item))
+                        ;; (setf item (or item prototype)) ;; if item is nil, 
                         (push item subarrays) ;; TODO: this list appending is wasteful for simple ops like 1+2
                         ;; (print (list :su subarrays))
                         (if (or (arrayp item) (varrayp item))
@@ -1053,8 +1060,9 @@
   0)
 
 (defmethod etype-of ((varray vader-shape))
-  (apply #'type-in-common (loop :for dimension :in (shape-of (vader-base varray))
-                                :collect (assign-element-type dimension))))
+  (or (apply #'type-in-common (loop :for dimension :in (shape-of (vader-base varray))
+                                    :collect (assign-element-type dimension)))
+      t))
 
 (defmethod shape-of ((varray vader-shape))
   "The shape of a reshaped array is simply its argument."
@@ -1087,12 +1095,14 @@
       (if (zerop output-size)
           (prototype-of varray)
           (if (functionp base-indexer)
-              (funcall (if (not (and (arrayp (vads-argument varray))
-                                     (zerop (array-total-size (vads-argument varray)))))
+              (funcall (if ;; (not (and (arrayp (vads-argument varray))
+                           ;;           (zerop (array-total-size (vads-argument varray)))))
+                           t
                            #'identity #'enclose)
                        (let ((indexed (funcall base-indexer
                                                (if (not output-shape)
                                                    0 (mod index (max 1 input-size))))))
+                         (setf (vads-subrendering varray) t)
                          ;; (print (list :iii indexed (subrendering-p indexed)))
                          (if (not (subrendering-p indexed))
                              indexed (render indexed))))
@@ -1908,6 +1918,16 @@
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
   nil (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
+(defmethod prototype-of ((varray vader-section))
+  (let ((indexer (indexer-of varray))
+        (size (size-of varray))
+        (base-size (size-of (vader-base varray))))
+    (if (or (zerop size) (zerop base-size))
+        (prototype-of (vader-base varray))
+        (aplesque::make-empty-array (render (if (not (functionp indexer))
+                                                indexer (funcall indexer 0)))))))
+
+;; TODO: delete this duplicate
 (defmethod shape-of ((varray vader-section))
   "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
   (get-or-assign-shape
@@ -1959,7 +1979,7 @@
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
           (axis (vads-axis varray)))
-     ;; (print (list :aa axis  arg-indexer))
+     ;; (print (list :aa axis arg-indexer))
 
      (if (and (not is-inverse)
               (eq :last axis)
@@ -2026,11 +2046,12 @@
                                     out-dims nil)))
       (lambda (index)
         (let ((indexed (funcall indexer index)))
+          ;; (print (list :in indexed))
           (if indexed (if (not (functionp base-indexer))
                           (disclose base-indexer) ;; TODO: why is this disclose needed?
                           (funcall base-indexer indexed))
-              (if (shape-of varray)
-                  (prototype-of (vader-base varray)))
+              ;; (if (shape-of varray)
+              ;;     (prototype-of (vader-base varray)))
               ))))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
@@ -2500,10 +2521,15 @@
   (etype-of (fetch-reference varray (vader-base varray))))
 
 (defmethod prototype-of ((varray vader-pick))
-  (prototype-of (fetch-reference varray (vader-base varray))))
+  (prototype-of (identity (fetch-reference varray (vader-base varray)))))
 
 (defmethod shape-of ((varray vader-pick))
-  (shape-of (fetch-reference varray (vader-base varray))))
+  (print (shape-of (fetch-reference varray (vader-base varray)))))
+
+(defmethod shape-of ((varray vader-pick))
+  (let ((ref (fetch-reference varray (vader-base varray))))
+    (if (not (zerop (size-of (vader-base varray))))
+        (shape-of ref))))
 
 (defmethod indexer-of ((varray vader-pick) &optional params)
   (indexer-of (fetch-reference varray (vader-base varray)) params))

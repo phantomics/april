@@ -987,7 +987,7 @@
                             (lambda (omega alpha)
                               (make-instance 'vader-pick :base omega :argument alpha :index-origin io)))
                           nil index-origin))
-     (meta (primary :implicit-args (index-origin)) ; :virtual-support t)
+     (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
                                       (enclose omega)))
                     :selective-assignment-compatible t)
