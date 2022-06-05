@@ -738,10 +738,46 @@
                        #'invert-matrix #'left-invert-matrix)
                    omega))))
 
+(defun linear-regression/april (x y)
+  "linear regression for x on y, x and y must be equal length"
+  (april:april
+   (with (:state :in ((x x)
+		      (y y))))
+   "
+⎕←coef ← (⍉x) +.× x
+⎕←cons ← y +.× x
+⎕←cons ⌹ coef
+"))
+
+;; linear regression, least squares using matrix divide
+;; coef ← (⍉⍵) +.× ⍵
+;; cons ← ⍺ +.× ⍵
+;; cons ⌹ coef
+(defun linear-regression (omega alpha)
+  "Linear regression for coefficient matrix ⍵ and constants ⍺. Used to implement dyadic [⌹ Matrix Divide] for an overspecified system"
+  (let ((coef (array-inner-product (permute-axes omega nil)
+				   omega
+				   (lambda (a1 a2) (apply-scalar #'* a1 a2))
+				   #'+
+				   t))
+	(cons (array-inner-product alpha
+				   omega
+				   (lambda (a1 a2) (apply-scalar #'* a1 a2))
+				   #'+
+				   t)))
+    (matrix-divide coef cons)))
+
+
 (defun matrix-divide (omega alpha)
   "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
-  (array-inner-product (invert-matrix omega) alpha (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-                       #'+ t))
+  ;; if there are more rows than columns the system is over-specifed, use linear-regression
+  ;; TODO: what does dyalog do for (⍴⍴⍵) > 2?
+  (let ((rho (shape omega)))
+    (if (> (aref rho 0) (aref rho 1))
+	(linear-regression omega alpha)
+	(array-inner-product (invert-matrix omega) alpha
+			     (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
+			     #'+ t))))
 
 (defun encode (omega alpha &optional inverse)
   "Encode a number or array of numbers as per a given set of bases. Used to implement [⊤ encode]."
