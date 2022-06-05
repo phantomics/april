@@ -1097,7 +1097,7 @@
             (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))
 	    ;; linear regression tests
 	    (is "5 1 4 2 8 ⌹ 1,⍪⍳5 " #(19/10 7/10))
-	    (is "6 5 7 10 ⌹ 1,⍪⍳4" #(7/10 7/5))))
+	    (is "6 5 7 10 ⌹ 1,⍪⍳4" #(7/2 7/5))))
   (⊤ (has :title "Encode")
      (dyadic #'encode)
      (meta (dyadic :id 0 :inverse #'decode))
