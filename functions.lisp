@@ -738,17 +738,6 @@
                        #'invert-matrix #'left-invert-matrix)
                    omega))))
 
-(defun linear-regression/april (x y)
-  "linear regression for x on y, x and y must be equal length"
-  (april:april
-   (with (:state :in ((x x)
-		      (y y))))
-   "
-⎕←coef ← (⍉x) +.× x
-⎕←cons ← y +.× x
-⎕←cons ⌹ coef
-"))
-
 ;; linear regression, least squares using matrix divide
 ;; coef ← (⍉⍵) +.× ⍵
 ;; cons ← ⍺ +.× ⍵
