@@ -2920,6 +2920,64 @@
                                                               #'>= #'<=)))))
     (lambda (index) (aref (vads-content varray) index))))
 
+(defclass vader-matrix-inverse (varray-derived)
+  ((%cached :accessor vaminv-cached
+            :initform nil
+            :initarg :cached
+            :documentation "Cached inverse matrix elements."))
+  (:documentation "A matrix-inverse array as from the [⌹ matrix inverse] function."))
+
+(defmethod etype-of ((varray vader-matrix-inverse))
+  (declare (ignore varray))
+  t)
+
+(defmethod shape-of ((varray vader-matrix-inverse))
+  (indexer-of varray)
+  (shape-of (vaminv-cached varray)))
+
+(defmethod indexer-of ((varray vader-matrix-inverse) &optional params)
+  (let* ((content (if (shape-of (vader-base varray))
+                      (or (vaminv-cached varray)
+                          (setf (vaminv-cached varray)
+                                (funcall (if (and (= 2 (rank-of (vader-base varray)))
+                                                  (reduce #'= (shape-of (vader-base varray))))
+                                             #'invert-matrix #'left-invert-matrix)
+                                         (render (vader-base varray)))))))
+         (base-indexer (if (not content) (indexer-of (vader-base varray))))
+         (content-indexer (if content (indexer-of content))))
+    (lambda (index)
+      (if content (funcall content-indexer index)
+          (/ (if (not (functionp base-indexer))
+                 base-indexer (funcall base-indexer index)))))))
+
+(defclass vader-matrix-divide (varray-derived vad-with-argument)
+  ((%cached :accessor vamdiv-cached
+            :initform nil
+            :initarg :cached
+            :documentation "Cached divided matrix elements."))
+  (:documentation "A matrix-divided array as from the [⌹ matrix divide] function."))
+
+(defmethod etype-of ((varray vader-matrix-divide))
+  (declare (ignore varray))
+  t)
+
+(defmethod shape-of ((varray vader-matrix-divide))
+  (indexer-of varray)
+  (shape-of (vamdiv-cached varray)))
+
+(defmethod indexer-of ((varray vader-matrix-divide) &optional params)
+  (let* ((content (if (shape-of (vader-base varray))
+                      (or (vamdiv-cached varray)
+                          (setf (vamdiv-cached varray)
+                                (array-inner-product
+                                 (invert-matrix (render (vader-base varray)))
+                                 (render (vads-argument varray))
+                                 (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
+                                 #'+ t)))))
+         (content-indexer (indexer-of content)))
+    (lambda (index)
+      (funcall content-indexer index))))
+
 (defclass vader-encode (varray-derived vad-with-argument)
   nil (:documentation "An encoded array as from the [⊤ encode] function."))
 

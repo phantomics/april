@@ -1189,8 +1189,11 @@
             (is "{⍵[⍒⍵]}'abcABC012xyzXYZ789'" "zyxcbaZYXCBA987210")
             (is "(2 5⍴'ABCDEabcde')⍒'ACaEed'" #(5 4 6 2 3 1))))
   (⌹ (has :titles ("Matrix Inverse" "Matrix Divide"))
-     (ambivalent #'matrix-inverse #'matrix-divide)
-     (meta (monadic :inverse #'matrix-inverse))
+     (ambivalent ;; #'matrix-inverse #'matrix-divide
+                 (λω (make-instance 'vader-matrix-inverse :base omega))
+                 (λωα (make-instance 'vader-matrix-divide :base omega :argument alpha)))
+     (meta (primary :virtual-support t)
+           (monadic :inverse #'matrix-inverse))
      (tests (is "⌹3" 1/3)
             (is "⌹1 2 3 4" #(1/30 1/15 1/10 2/15))
             (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))

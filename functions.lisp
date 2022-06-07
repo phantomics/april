@@ -864,24 +864,6 @@
     ;; (print (list :af afactors))
     output))
 
-(defun left-invert-matrix (in-matrix)
-  "Perform left inversion of matrix. Used to implement [⌹ matrix inverse]."
-  (let* ((input (if (= 2 (rank in-matrix))
-                    in-matrix (make-array (list (length in-matrix) 1))))
-         (input-displaced (if (/= 2 (rank in-matrix))
-                              (make-array (list 1 (length in-matrix)) :element-type (element-type input)
-                                          :displaced-to input))))
-    (if input-displaced (xdotimes input (i (length in-matrix)) (setf (row-major-aref input i)
-                                                                     (aref in-matrix i))))
-    (let ((result (array-inner-product (invert-matrix (array-inner-product (or input-displaced
-                                                                               (aops:permute '(1 0) input))
-                                                                           input #'* #'+ t))
-                                       (or input-displaced (aops:permute '(1 0) input))
-                                       #'* #'+ t)))
-      (if (= 1 (rank in-matrix))
-          (make-array (size result) :element-type (element-type result) :displaced-to result)
-          result))))
-
 (defun format-array (print-precision)
   "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)

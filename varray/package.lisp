@@ -11,11 +11,12 @@
            #:vader-catenate #:vader-mix
            #:vader-split #:vader-section #:vader-enclose #:vader-partition #:vader-pick
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
-           #:vader-expand #:vader-grade #:vader-encode #:vader-decode)
+           #:vader-expand #:vader-grade #:vader-matrix-inverse #:vader-matrix-divide
+           #:vader-encode #:vader-decode)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
                           #:assign-element-type #:type-in-common #:apl-array-prototype
                           #:apply-scalar #:is-unitary #:enclose-atom #:array-compare
                           #:index-of #:alpha-compare #:grade #:array-grade #:vector-grade
-                          #:xdotimes)
+                          #:xdotimes #:invert-matrix #:left-invert-matrix #:array-inner-product)
   (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-section
                           #:indexer-expand #:indexer-turn #:indexer-permute))
