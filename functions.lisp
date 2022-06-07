@@ -320,34 +320,13 @@
 
 (defun count-to (index index-origin)
   "Implementation of APL's [⍳ index] function."
-  (let ((index (disclose index)))
+  (let ((index (disclose-atom (render-varrays index))))
     (if (or (integerp index)
             (and (vectorp index)
                  (= 1 (length index))))
-        (make-instance 'vapri-integer-progression :number (disclose-atom index)
-                                                  :origin index-origin)
+        (make-instance 'vapri-integer-progression :number index :origin index-origin)
         (make-instance 'vapri-coordinate-identity :shape (coerce index 'list)
-                       :origin index-origin)
-        ;; (let ((index (if (not (vectorp index)) index (row-major-aref index 0))))
-        ;;   (if (zerop index) (vector)
-        ;;       (let ((output (make-array index :element-type (list 'integer 0 (+ index-origin index)))))
-        ;;         (xdotimes output (i index) (setf (aref output i) (+ i index-origin)))
-        ;;         output)))
-        ;; (if (vectorp index)
-        ;;     (let ((output (make-array (array-to-list index))))
-        ;;       (across output (lambda (elem coords)
-        ;;                        (declare (ignore elem))
-        ;;                        (setf (apply #'aref output coords)
-        ;;                              (make-array (length index)
-        ;;                                          :element-type
-        ;;                                          (list 'integer 0 (+ index-origin (reduce #'max coords)))
-        ;;                                          :initial-contents
-        ;;                                          (if (zerop index-origin)
-        ;;                                              coords (loop :for c :in coords
-        ;;                                                        :collect (+ c index-origin)))))))
-        ;;       output)
-        ;;     (error "The argument to [⍳ index] must be an integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
-        )))
+                       :origin index-origin))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."

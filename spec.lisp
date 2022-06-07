@@ -487,9 +487,9 @@
      (ambivalent (λω (count-to omega index-origin))
                  ;; (λωα (index-of omega alpha index-origin))
                  (λωα (make-instance 'vader-index :base omega :argument alpha :index-origin index-origin)))
-     (meta (primary :implicit-args (index-origin))
+     (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λω (inverse-count-to omega index-origin))))
-     (tests (is "⍳5" #(1 2 3 4 5))
+     (tests (is "⍳5" #(1 2 3 4 5)) ; ⍳⍴⍳5 ; {(2|⍳≢⍵)⊢⌸⍵}10 2⍴⍳20
             (is "⍳0" #())
             (is "⍳⍴⍳5" #(1 2 3 4 5))
             (is "⍳2 3" #2A((#*11 #(1 2) #(1 3)) (#(2 1) #(2 2) #(2 3))))
@@ -545,14 +545,10 @@
             (is "(5 4) 1⌷5 5⍴⍳25" #(21 16))))
   (≡ (has :titles ("Depth" "Match"))
      (ambivalent ;; #'find-depth
-                 (lambda (omega)
-                   (make-instance 'vader-depth :base omega))
+                 (λω (make-instance 'vader-depth :base omega))
                  ;; (boolean-op (array-compare-wrap comparison-tolerance))
-                 (funcall (lambda (n ct)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-compare :base (vector omega alpha)
-                                             :comparison-tolerance ct)))
-                          nil comparison-tolerance))
+                 (λωα (make-instance 'vader-compare :base (vector omega alpha)
+                                                    :comparison-tolerance comparison-tolerance)))
      (meta (primary :implicit-args (comparison-tolerance)))
      (tests (is "≡1" 0)
             (is "≡⍳3" 1)
@@ -569,15 +565,11 @@
             (is "('a',⍬)≡1↑'amy'" 1)))
   (≢ (has :titles ("First Dimension" "Not Match"))
      (ambivalent ;; #'find-first-dimension
-                 (funcall (lambda (n)
-                            (lambda (omega) (make-instance 'vader-first-dim :base omega)))
-                          nil)
+                 (λω (make-instance 'vader-first-dim :base omega))
                  ;; (boolean-op (lambda (omega alpha) (not (array-compare omega alpha))))
-                 (funcall (lambda (n ct)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-compare :base (vector omega alpha)
-                                             :inverse t :comparison-tolerance ct)))
-                          nil comparison-tolerance))
+                 (λωα (make-instance
+                       'vader-compare :base (vector omega alpha) :inverse t 
+                                      :comparison-tolerance comparison-tolerance)))
      (meta (primary :implicit-args (comparison-tolerance) :virtual-support t))
      (tests (is "≢2" 1)
             (is "≢1 2 3" 3)
@@ -586,14 +578,9 @@
             (is "3≢1" 1)))
   (∊ (has :titles ("Enlist" "Membership"))
      (ambivalent ;; #'enlist
-                 (funcall (lambda (n)
-                            (lambda (omega) (make-instance 'vader-enlist :base omega)))
-                          nil)
+                 (λω (make-instance 'vader-enlist :base omega))
                  ;; #'membership
-                 (funcall (lambda (n)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-membership :base alpha :argument omega)))
-                          nil))
+                 (λωα (make-instance 'vader-membership :base alpha :argument omega)))
      (primary :virtual-support t)
      (tests (is "∊2" #(2))
             (is "∊2 2 2⍴⍳9" #(1 2 3 4 5 6 7 8))
@@ -611,10 +598,7 @@
             (is "1 2 3 4 8∊⍨3 3⍴⍳9" #2A((1 1 1) (1 0 0) (0 1 0)))))
   (⍷ (has :title "Find")
      (dyadic ;#'find-array 
-             (funcall (lambda (n)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-find :base omega :argument alpha)))
-                      nil))
+             (λωα (make-instance 'vader-find :base omega :argument alpha)))
      (meta (primary :virtual-support t))
      (tests (is "5⍷5" 1)
             (is "2⍷3 4⍴⍳9" #2A((0 1 0 0) (0 0 0 0) (0 0 1 0)))
@@ -622,16 +606,10 @@
                                              ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
   (⍸ (has :titles ("Where" "Interval Index"))
      (ambivalent ;; (λω (where-equal-to-one omega index-origin))
-                 (funcall (lambda (n io)
-                            (lambda (omega)
-                              (make-instance 'vader-where :base omega :index-origin io)))
-                           nil index-origin)
+                 (λω (make-instance 'vader-where :base omega :index-origin index-origin))
                  ;; #'interval-index
-                 (funcall (lambda (n io)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-interval-index
-                                             :base omega :argument alpha :index-origin io)))
-                          nil index-origin))
+                 (λωα (make-instance 'vader-interval-index
+                                     :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λω (inverse-where-equal-to-one omega index-origin))))
      (tests (is "⍸1" #(#()))
@@ -644,16 +622,11 @@
             (is "(2 5⍴'RADIUS')⍸3 4 5⍴'BOXCAR'" #2A((0 1 0 0) (2 0 0 1) (0 0 2 0)))
             (is "(2 3 5⍴'ABCDEFHIJKLM')⍸3 3 5⍴'BOREAL'" #(1 2 1))))
   (\, (has :titles ("Ravel" "Catenate or Laminate"))
-      (ambivalent (funcall (lambda (n io &optional axes)
-                             (lambda (i)
-                               (make-instance 'vader-pare :base i :index-origin io
-                                                          :axis (first axes))))
-                           nil index-origin axes)
-                  (funcall (lambda (n io &optional axes)
-                             (lambda (i a)
-                               (make-instance 'vader-catenate :base (vector a i) :index-origin io
-                                                              :axis (or (first axes) :last))))
-                           nil index-origin axes))
+      (ambivalent (λω (make-instance 'vader-pare :base omega :index-origin index-origin
+                                                 :axis (first axes)))
+                  (λωα (make-instance
+                        'vader-catenate :base (vector alpha omega) :index-origin index-origin
+                                        :axis (or (first axes) :last))))
       (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
             (dyadic :on-axis :last))
       (tests (is ",5" #(5))
@@ -718,16 +691,11 @@
              (is "(8+2 2 2⍴⍳8),[0.5]2 2 2⍴⍳8" #4A((((9 10) (11 12)) ((13 14) (15 16)))
                                                   (((1 2) (3 4)) ((5 6) (7 8)))))))
   (⍪ (has :titles ("Table" "Catenate First"))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                             (lambda (i)
-                               (make-instance 'vader-pare :base i :index-origin io
-                                                          :axis :tabulate)))
-                           nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                             (lambda (i a)
-                               (make-instance 'vader-catenate :base (vector a i) :index-origin io
-                                                              :axis (or (first axes) io))))
-                           nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-pare :base omega :index-origin index-origin
+                                                :axis :tabulate))
+                 (λωα (make-instance
+                       'vader-catenate :base (vector alpha omega) :index-origin index-origin
+                                       :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first))
      (tests (is "⍪4" #2A((4)))
@@ -745,16 +713,11 @@
             (is "(3 6⍴⍳6)⍪[2]3 4⍴⍳9" #2A((1 2 3 4 5 6 1 2 3 4) (1 2 3 4 5 6 5 6 7 8)
                                          (1 2 3 4 5 6 9 1 2 3)))))
   (↑ (has :titles ("Mix" "Take"))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (i)
-                              (make-instance 'vader-mix :base i :index-origin io
-                                                        :axis (or (first axes) :last))))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (i a)
-                              (make-instance 'vader-section :base i :argument a :index-origin io
-                                                            :axis (or (first axes) :last))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-mix :base omega :index-origin index-origin
+                                               :axis (or (first axes) :last)))
+                 (λωα (make-instance
+                       'vader-section :base omega :argument alpha 
+                                      :index-origin index-origin :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λωχ (split-array omega *last-axis*)))
            (dyadic :on-axis :last :selective-assignment-compatible t
@@ -846,17 +809,11 @@
   (↓ (has :titles ("Split" "Drop"))
      ;; (ambivalent (wrap-split-array index-origin axes)
      ;;             (section-array index-origin t axes))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (i)
-                              (make-instance
-                               'vader-split :base i :index-origin io :axis (or (first axes) :last))))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (i a)
-                              (make-instance
-                               'vader-section :base i :argument a :index-origin io :inverse t
-                                              :axis (or (first axes) :last))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-split :base omega :index-origin index-origin
+                                                 :axis (or (first axes) :last)))
+                 (λωα (make-instance
+                       'vader-section :base omega :argument alpha :index-origin index-origin
+                                      :inverse t :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last
                     :inverse (λωχ (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
@@ -896,16 +853,10 @@
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      ;; (ambivalent (enclose-array index-origin axes)
      ;;             (enclose-array index-origin axes))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (i)
-                              (make-instance 'vader-enclose :base i :index-origin io
-                                                            :axis (first axes))))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (i a)
-                              (make-instance 'vader-enclose :argument a :index-origin io
-                                                            :base i :axis (first axes))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-enclose :base omega :index-origin index-origin
+                                                   :axis (first axes)))
+                 (λωα (make-instance 'vader-enclose :argument alpha :index-origin index-origin
+                                                    :base omega :axis (first axes))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t))
      (tests (is "⊂2" 2)
             (is "(⊂2)=2" 1)
@@ -951,16 +902,10 @@
             (is "3⍴0 0 0 0⊂⍳3" #(#() #() #()))))
   (⊆ (has :titles ("Nest" "Partition"))
      ;; (ambivalent #'nest (partition-array-wrap index-origin axes))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (i)
-                              (make-instance 'vader-partition :index-origin io :base i)))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (i a)
-                              (make-instance 'vader-partition
-                                             :argument a :index-origin io :base i
-                                             :axis (or (first axes) :last))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-partition :index-origin index-origin :base omega))
+                 (λωα (make-instance 'vader-partition
+                                     :argument alpha :index-origin index-origin :base omega
+                                     :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse #'identity)
            (dyadic :on-axis :last))
@@ -981,12 +926,8 @@
                                           ((#(4 8) #(5 9) #(6 1) #(7 2)) (#(7) #(8) #(9) #(1)))))))
   (⊃ (has :titles ("Disclose" "Pick"))
      (ambivalent ;; #'get-first-or-disclose (pick index-origin)
-                 (funcall (lambda (n) (lambda (omega) (make-instance 'vader-pick :base omega)))
-                          nil)
-                 (funcall (lambda (n io)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-pick :base omega :argument alpha :index-origin io)))
-                          nil index-origin))
+                 (λω (make-instance 'vader-pick :base omega))
+                 (λωα (make-instance 'vader-pick :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
                                       (enclose omega)))
@@ -1010,10 +951,7 @@
             (is "4 (⊂1 3)⊃(5×⍳6)×6⍴⊂3 4⍴⍳12" 60)))
   (∩ (has :title "Intersection")
      (dyadic ;; #'array-intersection
-             (funcall (lambda (n)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-intersection :base (vector alpha omega))))
-                      nil))
+             (λωα (make-instance 'vader-intersection :base (vector alpha omega))))
      (meta (primary :virtual-support t))
      (tests (is "2∩⍳4" #(2))
             (is "4 5 6∩4" #(4))
@@ -1024,16 +962,9 @@
             (is "'abc'∩'c'" "c")))
   (∪ (has :titles ("Unique" "Union"))
      (ambivalent ;;#'unique
-                 (funcall (lambda (n)
-                            (lambda (omega)
-                              (make-instance 'vader-unique :base omega)))
-                          nil)
+                 (λω (make-instance 'vader-unique :base omega))
                  ;; #'array-union
-                 (funcall (lambda (n)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-union :base (vector alpha omega))))
-                          nil)
-                 )
+                 (λωα (make-instance 'vader-union :base (vector alpha omega))))
      (meta (primary :virtual-support t)
            (monadic) (dyadic :id #'vector))
      (tests (is "∪3" #(3))
@@ -1051,16 +982,10 @@
   (⌽ (has :titles ("Reverse" "Rotate"))
      ;; (ambivalent (rotate-array nil index-origin axes)
      ;;             (rotate-array nil index-origin axes))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (i)
-                              (make-instance 'vader-turn :base i :index-origin io
-                                                         :axis (or (first axes) :last))))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (i a)
-                              (make-instance 'vader-turn :base i :argument a :index-origin io
-                                                         :axis (or (first axes) :last))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-turn :base omega :index-origin index-origin
+                                                :axis (or (first axes) :last)))
+                 (λωα (make-instance 'vader-turn :base omega :argument alpha :index-origin index-origin
+                                                 :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last :inverse #'identity)
            (dyadic :id 0 :on-axis :last :inverse (λωαχ (turn omega *last-axis* (apply-scalar #'- alpha)))))
@@ -1074,16 +999,10 @@
   (⊖ (has :titles ("Reverse First" "Rotate First"))
      ;; (ambivalent (rotate-array t index-origin axes)
      ;;             (rotate-array t index-origin axes))
-     (ambivalent (funcall (lambda (n io &optional axes)
-                            (lambda (omega)
-                              (make-instance 'vader-turn :base omega :index-origin io
-                                                         :axis (or (first axes) io))))
-                          nil index-origin axes)
-                 (funcall (lambda (n io &optional axes)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-turn :base omega :argument alpha :index-origin io
-                                                         :axis (or (first axes) io))))
-                          nil index-origin axes))
+     (ambivalent (λω (make-instance 'vader-turn :base omega :index-origin index-origin
+                                                :axis (or (first axes) index-origin)))
+                 (λωα (make-instance 'vader-turn :base omega :argument alpha :index-origin index-origin
+                                                 :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :first :inverse #'identity)
            (dyadic :id 0 :on-axis :first :inverse (λωαχ (turn omega *first-axis* (apply-scalar #'- alpha)))))
@@ -1102,14 +1021,8 @@
   (⍉ (has :titles ("Transpose" "Permute"))
      (ambivalent ;; (permute-array index-origin)
                  ;; (permute-array index-origin)
-                 (funcall (lambda (n io)
-                            (lambda (omega)
-                              (make-instance 'vader-permute :base omega :index-origin io)))
-                          nil index-origin)
-                 (funcall (lambda (n io)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-permute :base omega :argument alpha :index-origin io)))
-                          nil index-origin))
+                 (λω (make-instance 'vader-permute :base omega :index-origin index-origin))
+                 (λωα (make-instance 'vader-permute :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (permute-array index-origin))
            (dyadic :inverse (permute-array index-origin)
@@ -1146,11 +1059,8 @@
                 #3A(((1 16) (602 617) (1203 1218)) ((385 400) (986 1001) (1587 1602))))))
   (/ (has :title "Replicate")
      (dyadic ;; (expand-array nil t index-origin axes)
-             (funcall (lambda (n io &optional axes)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-                                                       :inverse t :axis (or (first axes) :last))))
-                      nil index-origin axes))
+             (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
+                                               :inverse t :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :last
                    :inverse (λωαχ (if (is-unitary omega)
@@ -1194,11 +1104,8 @@
             (is "⍴0/2 3 4⍴⍳9" #(2 3 0))))
   (⌿ (has :title "Replicate First")
      (dyadic ;; (expand-array t t index-origin axes)
-             (funcall (lambda (n io &optional axes)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-                                                       :inverse t :axis (or (first axes) io))))
-                      nil index-origin axes))
+             (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
+                                               :inverse t :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first
                    :inverse (λωαχ (if (is-unitary omega)
@@ -1218,11 +1125,8 @@
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
   (\\ (has :title "Expand")
       (dyadic ;; (expand-array nil nil index-origin axes)
-              (funcall (lambda (n io &optional axes)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-                                                       :axis (or (first axes) :last))))
-                       nil index-origin axes))
+              (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
+                                                :axis (or (first axes) :last))))
       (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
             (dyadic :on-axis :last))
       (tests (is "4\\2" #(2 2 2 2))
@@ -1250,11 +1154,8 @@
              (is "0 0 0 0\\3 0⍴0" #2A((0 0 0 0) (0 0 0 0) (0 0 0 0)))))
   (⍀ (has :title "Expand First")
      (dyadic ;; (expand-array t nil index-origin axes)
-             (funcall (lambda (n io &optional axes)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-expand :base omega :argument alpha :index-origin io
-                                                       :axis (or (first axes) io))))
-                       nil index-origin axes))
+             (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
+                                               :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (dyadic :on-axis :first))
      (tests (is "2⍀5" #(5 5))
@@ -1267,15 +1168,9 @@
                  ;;                 (index-of omega alpha index-origin)
                  ;;                 (array-grade alpha omega))
                  ;;             index-origin (alpha-compare #'<)))
-                 (funcall (lambda (n io)
-                            (lambda (omega)
-                              (make-instance 'vader-grade :base omega :index-origin io)))
-                          nil index-origin)
-                 (funcall (lambda (n io)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-grade
-                                             :base omega :argument alpha :index-origin io)))
-                          nil index-origin))
+                 (λω (make-instance 'vader-grade :base omega :index-origin index-origin))
+                 (λωα (make-instance 'vader-grade
+                                     :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t))
      (tests ;; (is "⍋2" 1)
             (is "⍋8 3 4 9 1 5 2" #(5 7 2 3 6 1 4))
@@ -1293,17 +1188,9 @@
                  ;;                 (index-of omega alpha index-origin)
                  ;;                 (array-grade alpha omega))
                  ;;             index-origin (alpha-compare #'>)))
-                 (funcall (lambda (n io)
-                            (lambda (omega)
-                              (make-instance 'vader-grade :base omega :index-origin io
-                                                          :inverse t)))
-                          nil index-origin)
-                 (funcall (lambda (n io)
-                            (lambda (omega alpha)
-                              (make-instance 'vader-grade
-                                             :inverse t :base omega :argument alpha
-                                             :index-origin io)))
-                          nil index-origin))
+                 (λω (make-instance 'vader-grade :base omega :index-origin index-origin :inverse t))
+                 (λωα (make-instance 'vader-grade :index-origin index-origin
+                                                  :inverse t :base omega :argument alpha)))
      (meta (primary :implicit-args (index-origin) :virtual-support t))
      (tests ;; (is "⍒3" 1)
             (is "⍒6 1 8 2 4 3 9" #(7 3 1 5 6 4 2))
@@ -1324,10 +1211,7 @@
             (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
   (⊤ (has :title "Encode")
      (dyadic ;; #'encode
-             (funcall (lambda (n)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-encode :base omega :argument alpha)))
-                      nil))
+             (λωα (make-instance 'vader-encode :base omega :argument alpha)))
      (meta (primary :virtual-support t)
            (dyadic :id 0 :inverse #'decode))
      (tests (is "9⊤15" 6)
@@ -1348,10 +1232,7 @@
                 #2A((0 0 0) (1 0 0) (0 0 0) (1 0 0) (0 0 0) (0 1 0) (1 2 5) (1 3 3)))))
   (⊥ (has :title "Decode")
      (dyadic ;; #'decode
-             (funcall (lambda (n)
-                        (lambda (omega alpha)
-                          (make-instance 'vader-decode :base omega :argument alpha)))
-                      nil))
+             (λωα (make-instance 'vader-decode :base omega :argument alpha)))
      (meta (primary :virtual-support t)
            (dyadic :inverse (λωα (encode omega alpha :inverse))))
      (tests (is "14⊥7" 7)
