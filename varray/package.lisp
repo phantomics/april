@@ -5,7 +5,7 @@
   (:export #:varray #:varrayp #:etype-of #:shape-of #:rank-of #:indexer-of #:render
            #:vapri-integer-progression #:vapri-coordinate-identity #:vader-operate
            #:vader-select #:vader-random #:vader-deal #:vader-without #:vader-umask
-           #:vader-shape #:vader-reshape
+           #:vader-index #:vader-shape #:vader-reshape
            #:vader-depth #:vader-first-dim #:vader-compare #:vader-enlist
            #:vader-membership #:vader-find #:vader-where #:vader-interval-index #:vader-pare
            #:vader-catenate #:vader-mix

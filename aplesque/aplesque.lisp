@@ -1284,12 +1284,11 @@
                                                                             :element-type
                                                                             (element-type sub-array)
                                                                             :displaced-to sub-array))))
-                                            (print (list :re ref sub-array))
                                             (if (vector-grade (alpha-compare #'<) ref sub-array)
                                                 (incf match))))
                                         ref-cells)
                              match))
-                         (print sub-arrays)))
+                         sub-arrays))
             (error "Rank of left argument may not be greater than rank of right argument.")))))
 
 (defun rmi-convert (dims index)

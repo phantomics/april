@@ -1093,7 +1093,8 @@
                       (if (and (listp (third form))
                                (member (first (third form)) '(inws inwsd)))
                           (setf assign-sym (third form)
-                                (third form) item)
+                                ;; (third form) item
+                                )
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
                               (set-assn-sym (third form))   ;; TODO: remove non-lazy logic here
@@ -1101,7 +1102,8 @@
                                        (eql 'achoose (first (third form))))
                                   (setf assign-sym (second (third form))
                                         selection-axes (third (third form))
-                                        (third form) item)
+                                        ;; (third form) item
+                                        )
                                   (if (and (listp (third form))
                                            (eql 'make-virtual (first (third form))))
                                       (setf assign-sym (getf (cddr (third form)) :base)
@@ -1112,28 +1114,33 @@
                                                     (apply-scalar #'- (render-varrays array)
                                                                   index-origin)))
                                               ,(getf (cddr (third form)) :argument))
-                                            (third form) item)))))))
+                                            ;; (third form) item
+                                            )))))))
              (set-assn-sym selection-form)
-             `(aprgn (a-set ,assign-sym
-                            (assign-by-selection
-                             ,(if (or (symbolp prime-function)
-                                      (and (listp prime-function)
-                                           (member (first prime-function) '(inws apl-fn function))))
-                                  ;; TODO: make this work with an aliased ¨ operator
-                                  prime-function
-                                  (if (eql 'a-comp (first prime-function))
-                                      (if (string= "¨" (string (second prime-function)))
-                                          (fourth prime-function)
-                                          (error "Invalid operator-composed expression ~a"
-                                                 "used for selective assignment."))))
-                             (lambda (,item) ,selection-form)
-                             ,value ,assign-sym
-                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
-                                             ',assign-sym)
-                             ,@(if selection-axes (list :axes selection-axes))
-                             ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                                                                    (second (third selection-form))))
-                             ,@(if function (list :by function))))
+             ;; (print (list :sel selection-form item assign-sym))
+             (setf selection-form (subst item assign-sym selection-form :test #'equalp))
+             ;; (print (list :sel2 selection-form))
+             `(aprgn (setf ,assign-sym
+                           (assign-by-selection
+                            ,(if (or (symbolp prime-function)
+                                     (and (listp prime-function)
+                                          (member (first prime-function) '(inws apl-fn function))))
+                                 ;; TODO: make this work with an aliased ¨ operator
+                                 prime-function
+                                 (if (eql 'a-comp (first prime-function))
+                                     (if (string= "¨" (string (second prime-function)))
+                                         (fourth prime-function)
+                                         (error "Invalid operator-composed expression ~a"
+                                                "used for selective assignment."))))
+                            (lambda (,item) ,selection-form)
+                            ,value ,assign-sym
+                            :index-origin index-origin
+                            :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
+                                            ',assign-sym)
+                            ,@(if selection-axes (list :axes selection-axes))
+                            ,@(if possible-prime-passthrough (list :secondary-prime-fn
+                                                                   (second (third selection-form))))
+                            ,@(if function (list :by function))))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
