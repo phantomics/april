@@ -12,7 +12,11 @@
            #:vader-split #:vader-section #:vader-enclose #:vader-partition #:vader-pick
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
            #:vader-expand #:vader-grade #:vader-matrix-inverse #:vader-matrix-divide
-           #:vader-encode #:vader-decode)
+           #:vader-encode #:vader-decode
+
+           #:vader-composing #:op-compose
+           #:vacomp-each
+           )
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
                           #:assign-element-type #:type-in-common #:apl-array-prototype
                           #:apply-scalar #:is-unitary #:enclose-atom #:array-compare

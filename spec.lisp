@@ -1378,7 +1378,10 @@
             (is "{⍺×⍵+3}⍀3 4⍴⍳12" #2A((1 2 3 4) (8 18 30 44) (63 162 303 492)))
             (is "+⍀[2]3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))))
   (\¨ (has :title "Each")
-      (lateral (lambda (operand) `(operate-each ,operand)))
+      (lateral (lambda (operand)
+                 `(operate-each ,operand) ; {⎕io←0 ⋄ {⍵∘{ ⍺[0] }¨⊂0 1} ⎕←⍵} 3 4
+                 ;; `(op-compose 'vacomp-each ,operand)
+                 ))
       (tests (is "⍳¨1 2 3" #(#(1) #(1 2) #(1 2 3)))
              (is "⊃¨↓⍳5" 1)
              (is "(1∘=)¨⍬,1" #(1))

@@ -894,7 +894,8 @@
 
     ;; randomized array content is generated synchronously
     ;; and cached in case a random seed is in use
-    (if (and seed (not (varand-cached varray)))
+    (if (and t ; seed
+             (not (varand-cached varray)))
         (progn (setf (varand-cached varray)
                      (make-array (size-of (vader-base varray))
                                  :element-type (etype-of varray)))
@@ -2473,9 +2474,6 @@
                        :documentation "Index for assignment path."))
   (:documentation "An element from within an array as from the [⊃ disclose] or [⊃ pick] functions."))
 
-(defgeneric fetch-reference (varray base &optional path path-index)
-  (:documentation "Fetch the array targeted by an invocation of [⊃ disclose] or [⊃ pick]."))
-
 (defun get-path-value (varray index base)
   (if (numberp index)
       (- index (vads-io varray))
@@ -2490,6 +2488,9 @@
         (loop :for f :in factors :for s :below index-length
               :do (incf ix (* f (- (funcall iindexer s) (vads-io varray)))))
         ix)))
+
+(defgeneric fetch-reference (varray base &optional path path-index)
+  (:documentation "Fetch the array targeted by an invocation of [⊃ disclose] or [⊃ pick]."))
 
 (defmethod fetch-reference ((varray vader-pick) base &optional path path-index)
   (or (vapick-reference varray)
@@ -2523,7 +2524,9 @@
                                              path (1+ (or path-index 0)))))))
             (setf (vapick-reference varray)
                   (let ((indexer (if (not (functionp base-indexer))
-                                     base-indexer (funcall base-indexer 0))))
+                                     base-indexer (if (zerop (size-of base))
+                                                      (prototype-of base)
+                                                      (funcall base-indexer 0)))))
                     (if (and (shape-of base) (not (shape-of indexer))
                              (or (arrayp indexer)
                                  (varrayp indexer)))
@@ -2698,7 +2701,7 @@
                   (let ((uniques) (indices) (unique-count 0))
                     (loop :for ix :below base-size
                           :while (or (not derivative-count) (< unique-count derivative-count))
-                          :do (let ((item (funcall base-indexer ix)))
+                          :do (let ((item (render (funcall base-indexer ix))))
                                 (if (not (find item uniques :test #'array-compare))
                                     (progn (push item uniques)
                                            (push ix indices)
@@ -3031,6 +3034,7 @@
   nil (:documentation "A decoded array as from the [⊥ decode] function."))
 
 (defmethod etype-of ((varray vader-decode))
+  (declare (ignore varray))
   t)
 
 (defmethod shape-of ((varray vader-decode))
@@ -3092,4 +3096,137 @@
                                                                       (min i (1- av2)))))))
             result)))))
 
+(defclass vader-composing (varray-derived)
+  ((%left :accessor vacmp-left
+          :initform nil
+          :initarg :left
+          :documentation "Left function composed with operator.")
+   (%right :accessor vacmp-right
+           :initform nil
+           :initarg :right
+           :documentation "Right function composed with operator.")
+   (%omega :accessor vacmp-omega
+           :initform nil
+           :initarg :omega
+           :documentation "Right argument to composed function.")
+   (%alpha :accessor vacmp-alpha
+           :initform nil
+           :initarg :alpha
+           :documentation "Left argument to composed function."))
+  (:documentation "An array produced by an operator-composed function."))
+
+(defun op-compose (type left &optional right)
+  (lambda (omega &optional alpha)
+    (print (list :ll (funcall left 0)))
+    (if (eq :get-metadata omega)
+        (if (not right)
+            (funcall left :get-metadata))
+        (let ((out (make-instance type :left left :right right
+                                       :omega omega :alpha alpha)))
+          (print (list :mm (funcall (vacmp-left out) 0)))
+          out))))
+
+;; (defmacro op-compose (type left &optional right)
+;;   `(lambda (omega &optional alpha)
+;;      (if (eq :get-metadata omega)
+;;          (if (not right)
+;;              (funcall left :get-metadata))
+;;          (make-instance ,type :left ,left :right ,right
+;;                               :omega omega :alpha alpha))))
+
+(defclass vacomp-each (vad-subrendering vader-composing)
+  nil (:documentation "An each-composed array as with the [¨ each] operator."))
+
+(defmethod etype-of ((varray vacomp-each))
+  (declare (ignore varray))
+  ;; (print (list :tt (vacmp-omega varray)
+  ;;              (vacmp-alpha varray)
+  ;;              (etype-of (vacmp-omega varray))
+  ;;              (etype-of (vacmp-alpha varray))))
+  ;; (type-in-common (etype-of (vacmp-omega varray))
+  ;;                 (etype-of (vacmp-alpha varray)))
+  t
+  )
+
+(defmethod prototype-of ((varray vacomp-each))
+  0)
+
+(defmethod shape-of ((varray vacomp-each))
+  (get-or-assign-shape
+   varray
+   (let* ((oshape (shape-of (vacmp-omega varray)))
+          (ashape (shape-of (vacmp-alpha varray)))
+          (osize (reduce #'* oshape))
+          (asize (reduce #'* ashape)))
+     (if oshape (if (not ashape)
+                    oshape (if (= 1 osize)
+                               (if (zerop asize) oshape ashape)
+                               (if (or (= 1 asize)
+                                       (and (= (length oshape) (length ashape))
+                                            (loop :for o :in oshape :for a :in ashape
+                                                  :always (= o a))))
+                                   oshape (error "Shapes must match."))))
+         ashape))))
+
+(defmethod indexer-of ((varray vacomp-each) &optional params)
+  (let ((this-shape (shape-of varray))
+        (oshape (shape-of (vacmp-omega varray)))
+        (ashape (shape-of (vacmp-alpha varray)))
+        (oindexer (indexer-of (vacmp-omega varray)))
+        (aindexer (indexer-of (vacmp-alpha varray))))
+    ;; (print (list :rr (vacmp-omega varray)
+    ;;              (vacmp-alpha varray)
+    ;;              (render (vacmp-omega varray))
+    ;;              (render (vacmp-alpha varray))))
+    ;; (print (list :ll (funcall (vacmp-left varray) 0)))
+    (lambda (index)
+      ;; (print (list :oo oindexer aindexer oshape))
+      (if (vacmp-alpha varray)
+          (funcall (vacmp-left varray)
+                   (if (not (functionp oindexer))
+                       oindexer (funcall oindexer (if oshape index 0)))
+                   (if (not (functionp aindexer))
+                       aindexer (funcall aindexer (if ashape index 0))))
+          (funcall (vacmp-left varray)
+                   (if (not (functionp oindexer))
+                       oindexer (funcall oindexer (if oshape index 0))))))))
+
+
 ;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?
+
+#|
+(defvar cl-user::*item-val*)
+(setf cl-user::*item-val* 3)
+
+(defclass sample ()
+  ((%fn :accessor sample-fn
+        :initform nil
+        :initarg :fn)))
+
+(defgeneric caller (sample))
+
+(defmethod caller ((sample sample))
+  (lambda (value)
+    (print (list :oo (funcall (sample-fn sample) 0)))
+    (funcall (sample-fn sample) value)))
+
+(funcall (lambda (object)
+           (funcall (caller object) 5))
+         (symbol-macrolet ((item cl-user::*item-val*))
+           (let ((cl-user::*item-val* (symbol-value 'cl-user::*item-val*)))
+             (setf cl-user::*item-val* 5)
+             (make-instance 'sample :fn (progn (labels ((self (i) (+ i item)))
+                                                 #'self))))))
+
+
+(funcall (lambda (form)
+           (make-array (length form) :initial-contents form))
+         (symbol-macrolet ((item cl-user::*item-val*))
+           (let ((cl-user::*item-val* (symbol-value 'cl-user::*item-val*)))
+             (setf cl-user::*item-val* 5)
+             (let ((test (make-instance 'sample :fn (progn (labels ((self (i) (+ i item)))
+                                                             #'self)))))
+               (list (funcall (sample-fn test) 5)
+                     (funcall (caller test) 5))
+               ))))
+|#

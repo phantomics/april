@@ -1438,7 +1438,9 @@ It remains here as a standard against which to compare methods for composing APL
                                                                     (length membership))
                                                                  ref-symbols))))
                            `((,sym ,(if (not membership)
-                                        sym `(if (boundp ',dynamic-sym) (symbol-value ',dynamic-sym)))))))
+                                        sym `(if (boundp ',dynamic-sym) (symbol-value ',dynamic-sym)
+                                                 ;; ',dynamic-sym
+                                                 ))))))
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 

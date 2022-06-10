@@ -1146,14 +1146,7 @@
               (setf (row-major-aref output i) value)))
           (render-varrays output)))))
 
-(setf cl-user::*item-val* 3)
-(symbol-macrolet ((item cl-user::*item-val*))
-  (let ((cl-user::*item-val* (symbol-value 'cl-user::*item-val*)))
-    (setf cl-user::*item-val* 5)
-    (let ((bla (make-instance 'vacomp-each
-                              :left (progn (labels ((self (i) (+ i item)))
-                                             #'self)))))
-      (funcall (varray::vacmp-left bla) 5))))
+
 
 (defun operate-each (operand)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
