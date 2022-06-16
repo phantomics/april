@@ -97,31 +97,51 @@
       (setq lparallel:*kernel* (setq *april-parallel-kernel*
                                      (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
 
+(defmacro sub-lex (item) item)
+
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
     "Macro that interns symbols in the current workspace; works in tandem with ⊏ reader macro."
     (let* ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name)))
            (lex-space-name (concatenate 'string space-name "-LEX"))
            ;; build list of values assigned in the (april) call; these are stored as dynamic vars
-           (top-level-instrs (mapcar (lambda (item) (string (cadar item))) (cdadar body))))
+           (top-level-instrs (mapcar (lambda (item) (string (cadar item))) (cdadar body)))
+           (symacro-lex) (symacro-syms))
       (labels ((replace-symbols (form &optional inside-function)
                  (loop :for item :in form :for ix :from 0
-                       :collect (cond ((listp item)
-                                       (if (and (second item) (not (third item))
-                                                (symbolp (second item)) (member (first item) '(inws inwsd)))
-                                           (let ((istring (string (second item))))
-                                             (intern (string (second item))
-                                                     (if (and inside-function
-                                                              (not (eql 'inwsd (first item)))
-                                                              (not (char= #\* (aref istring 0)))
-                                                              (loop :for str :in top-level-instrs
-                                                                    :never (string= str istring)))
-                                                         lex-space-name space-name)))
-                                           ;; don't lex-intern functions like #'⊏|fn|
-                                           (replace-symbols item (and (not (eql 'function (first item)))
-                                                                      (or inside-function
-                                                                          (member (first item)
-                                                                                  '(alambda olambda)))))))
+                    :collect (cond ((listp item)
+                                    ;; assign sublexicon based on symbol macros for invocation
+                                    (when (and (not symacro-lex) (symbolp (first item))
+                                               (eql 'symbol-macrolet (first item)))
+                                      (setf symacro-lex (second item)
+                                            symacro-syms (loop :for i :below (length (second item))
+                                                            :collect (gensym))))
+                                    (when (and (symbolp (first item))
+                                               (eql 'sub-lex (first item)))
+                                      ;; replace sub-lex forms with sub-lexicon instance
+                                      (setf item `(let ,(loop :for l :in symacro-lex
+                                                           :for s :in symacro-syms
+                                                           :collect (list s (second l)))
+                                                    (symbol-macrolet
+                                                        ,(loop :for l :in symacro-lex
+                                                            :for s :in symacro-syms
+                                                            :collect (list (first l) s))
+                                                      ,(second item)))))
+                                    (if (and (second item) (not (third item))
+                                             (symbolp (second item)) (member (first item) '(inws inwsd)))
+                                        (let ((istring (string (second item))))
+                                          (intern (string (second item))
+                                                  (if (and inside-function
+                                                           (not (eql 'inwsd (first item)))
+                                                           (not (char= #\* (aref istring 0)))
+                                                           (loop :for str :in top-level-instrs
+                                                              :never (string= str istring)))
+                                                      lex-space-name space-name)))
+                                        ;; don't lex-intern functions like #'⊏|fn|
+                                        (replace-symbols item (and (not (eql 'function (first item)))
+                                                                   (or inside-function
+                                                                       (member (first item)
+                                                                               '(alambda olambda)))))))
                                       ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
                                        (list 'quote (intern (string-upcase name) this-package)))
                                       (t item)))))

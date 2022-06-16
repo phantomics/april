@@ -8,4 +8,6 @@
   :serial t
   :depends-on ("aplesque")
   :components ((:file "package")
+               (:file "setup")
+               (:file "combinatorics")
                (:file "varray")))

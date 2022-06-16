@@ -1379,8 +1379,8 @@
             (is "+⍀[2]3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))))
   (\¨ (has :title "Each")
       (lateral (lambda (operand)
-                 `(operate-each ,operand) ; {⎕io←0 ⋄ {⍵∘{ ⍺[0] }¨⊂0 1} ⎕←⍵} 3 4
-                 ;; `(op-compose 'vacomp-each ,operand)
+                 ;; `(operate-each ,operand) ; {⎕io←0 ⋄ {⍵∘{ ⍺[0] }¨⊂0 1} ⎕←⍵} 3 4
+                 `(op-compose 'vacomp-each (sub-lex ,operand))
                  ))
       (tests (is "⍳¨1 2 3" #(#(1) #(1 2) #(1 2 3)))
              (is "⊃¨↓⍳5" 1)
@@ -1551,8 +1551,9 @@
             (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14)
             (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
             (is "↓⍣2⊢2 2⍴⍳4" #0A#(#(1 2) #(3 4)))
-            (is "⌊1_000_000_000×2○⍣=1" 739085133)
-            (is "⌊100000×{⍵{2.0÷⍨⍵+⍺÷⍵}⍣≡⍵}123456789" 1111111106)))
+            ; (is "⌊1_000_000_000×2○⍣=1" 739085133)
+            ; (is "⌊100000×{⍵{2.0÷⍨⍵+⍺÷⍵}⍣≡⍵}123456789" 1111111106)
+            ))
   (@ (has :title "At")
      (pivotal (lambda (right left) `(operate-at ,right ,left index-origin)))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
