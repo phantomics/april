@@ -1085,7 +1085,7 @@
                                                      (and (listp prime-function)
                                                           (member (first prime-function) '(inws inwsd)))
                                                      (equalp prime-function '(apl-fn '⊢)))))
-                (selection-axes) (assign-sym)
+                (selection-axes) (assign-sym) (inverted-fn)
                 (item (gensym)))
            (labels ((set-assn-sym (form)
                       ;; get the symbol referencing the object to be reassigned,
@@ -1115,10 +1115,30 @@
                                                                   index-origin)))
                                               ,(getf (cddr (third form)) :argument))
                                             ;; (third form) item
-                                            )))))))
+                                            ))))))
+                    (reverse-asel-function (form &optional (wrap #'identity))
+                      (if (and (listp form) (eql 'a-call (first form)))
+                          ;; TODO: change the membership check to check metadata from spec
+                          (if (not (and (listp (second form))
+                                        (member (cadadr form) '(↑ ⊃ / \\ ⌷))))
+                              (funcall wrap form)
+                              (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
+                                (reverse-asel-function (third form)
+                                                       (lambda (item)
+                                                         (append (list 'a-call function-form
+                                                                       (funcall wrap item))
+                                                                 arg2-rest)))))
+                          ;; TODO: add argument-isolating form here for full lazy mode
+                          (funcall wrap (list 'identity form)))))
              (set-assn-sym selection-form)
              ;; (print (list :sel selection-form item assign-sym))
-             (setf selection-form (subst item assign-sym selection-form :test #'equalp))
+             (setf selection-form (subst item assign-sym selection-form :test #'equalp)
+                   inverted-fn (reverse-asel-function selection-form))
+             
+             ;;; PROVISIONAL
+             (setf prime-function (second inverted-fn))
+             ;;;
+             
              ;; (print (list :sel2 selection-form))
              `(aprgn (setf ,assign-sym
                            (assign-by-selection
@@ -1135,6 +1155,7 @@
                             (lambda (,item) ,selection-form)
                             ,value ,assign-sym
                             :index-origin index-origin
+                            :inverted (lambda (,item) ,inverted-fn)
                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
                                             ',assign-sym)
                             ,@(if selection-axes (list :axes selection-axes))

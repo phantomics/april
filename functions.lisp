@@ -925,7 +925,7 @@
             (+ index (if ext-index 0 1)))))
 
 (defun assign-by-selection (prime-function function value omega
-                            &key assign-sym axes secondary-prime-fn index-origin by)
+                            &key inverted assign-sym axes secondary-prime-fn index-origin by)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
     (labels ((duplicate-t (array)
@@ -941,8 +941,15 @@
             (:index (let ((base-object (funcall function omega)))
                       (setf (varray::vasel-assign base-object) value)
                       base-object))
-            (:pick (let ((base-object (funcall function omega)))
-                     (setf (varray::vapick-assign base-object) value)
+            (:pick (let ((base-object (funcall inverted omega)))
+                     (setf (varray::vapick-assign base-object) value
+                           (varray::vapick-selector base-object)
+                           ;; assign the selector if the omega is a virtual array, this excludes
+                           ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+                           ;; TODO: normalize this check for full lazy operation
+                           (when (typep (varray::vader-base base-object) 'varray::varray)
+                             (varray::vader-base base-object))
+                           (varray::vader-base base-object) omega)
                      base-object))
             (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
                                             :argument function)))

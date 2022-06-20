@@ -121,7 +121,8 @@
                                       ;; replace sub-lex forms with sub-lexicon instance
                                       (setf item `(let ,(loop :for l :in symacro-lex
                                                            :for s :in symacro-syms
-                                                           :collect (list s (second l)))
+                                                              :collect (list s (first l)))
+                                                    (declare (ignorable ,@symacro-syms))
                                                     (symbol-macrolet
                                                         ,(loop :for l :in symacro-lex
                                                             :for s :in symacro-syms

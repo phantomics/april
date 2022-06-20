@@ -1789,6 +1789,8 @@
        "x←4 5⍴⍳20 ⋄ (2 3↓x)←0 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 0 0) (16 17 18 0 0)))
   (for "Selective assignment of matrix portion to sub-matrix by [↓ drop] function."
        "x←4 5⍴⍳20 ⋄ (2 3↓x)←2 2⍴-⍳4 ⋄ x" #2A((1 2 3 4 5) (6 7 8 9 10) (11 12 13 -1 -2) (16 17 18 -3 -4)))
+  (for "Selective assignment of vector portion by successive [↓ drop] functions."
+       "x←⍳9 ⋄ (2↑4↓x)←99 ⋄ x" #(1 2 3 4 99 99 7 8 9))
   (for "Selective assignment of matrix element by [⊃ pick] function."
        "x←3 4⍴⍳12 ⋄ ((⊂2 3)⊃x)←50 ⋄ x" #2A((1 2 3 4) (5 6 50 8) (9 10 11 12)))
   (for "Selective assignment of an array by [⊃ pick] function."
