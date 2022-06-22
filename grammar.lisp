@@ -1028,6 +1028,23 @@
                                                  operator (or rfn-wrap right-value)
                                                  lfn-wrap left-value)))))))))
 
+;; (defun reverse-asel-function (form &optional (wrap #'identity))
+;;   (print (list :ff form))
+;;   (if (and (listp form) (eql 'a-call (first form)))
+;;       ;; TODO: change the membership check to check metadata from spec
+;;       (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
+;;         (if (not (and (listp (second form))
+;;                       (member (cadadr form) '(⊃ ⌷)))) ; ↑ ↓ / \\
+;;             (reverse-asel-function arg1 (lambda (item)
+;;                                           (funcall wrap (append (list 'a-call function-form item)
+;;                                                                 arg2-rest))))
+;;             (reverse-asel-function arg1 (lambda (item)
+;;                                           (append (list 'a-call function-form
+;;                                                         (funcall wrap item))
+;;                                                   arg2-rest)))))
+;;       ;; TODO: add argument-isolating form here for full lazy mode
+;;       (funcall wrap (list 'identity form))))
+
 (defun compose-value-assignment (symbol value &key function space params)
   "Compose a value assignment like v←1 2 3."
   (cond ((eql 'to-output symbol)
@@ -1117,23 +1134,50 @@
                                             ;; (third form) item
                                             ))))))
                     (reverse-asel-function (form &optional (wrap #'identity))
+                      ;; (print (list :ff form))
                       (if (and (listp form) (eql 'a-call (first form)))
-                          ;; TODO: change the membership check to check metadata from spec
-                          (if (not (and (listp (second form))
-                                        (member (cadadr form) '(↑ ⊃ / \\ ⌷))))
-                              (funcall wrap form)
-                              (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
-                                (reverse-asel-function (third form)
-                                                       (lambda (item)
-                                                         (append (list 'a-call function-form
-                                                                       (funcall wrap item))
-                                                                 arg2-rest)))))
+                          ;; TODO: functions cannot be IDed in cases like
+                          ;; {e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9 where a function is locally aliased
+                          (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
+                            ;(print (list :abc form params))
+                            (let* ((in-sym (if (listp function-form)
+                                               (find-symbol (format nil "APRIL-LEX-FN-~a"
+                                                                    (second function-form)))))
+                                   (fn-sym (if (fboundp in-sym)
+                                               (symbol-function in-sym)
+                                               (if (and (listp function-form)
+                                                        (member (first function-form)
+                                                                '(inws inwsd)))
+                                                   (let ((sym (find-symbol
+                                                               (string (second function-form))
+                                                               space)))
+                                                     ;; (print sym)
+                                                     (if (fboundp sym)
+                                                         (symbol-function sym))))))
+                                   (fn-meta (if fn-sym
+                                                (apply (apply fn-sym (cddr function-form))
+                                                       (cons :get-metadata
+                                                             (when arg2-rest (list nil)))))))
+                              ;(print (list :ccc fn-sym))
+                              (if (not (and fn-meta (getf fn-meta :lexical-reference)
+                                            (position (getf fn-meta :lexical-reference)
+                                                      "⊃⌷" :test #'char=))) ; ↑ ↓ / \\
+                                  (reverse-asel-function
+                                   arg1 (lambda (item)
+                                          (funcall wrap (append (list 'a-call function-form item)
+                                                                arg2-rest))))
+                                  (reverse-asel-function
+                                   arg1 (lambda (item)
+                                          (append (list 'a-call function-form (funcall wrap item))
+                                                  arg2-rest))))))
                           ;; TODO: add argument-isolating form here for full lazy mode
                           (funcall wrap (list 'identity form)))))
              (set-assn-sym selection-form)
              ;; (print (list :sel selection-form item assign-sym))
              (setf selection-form (subst item assign-sym selection-form :test #'equalp)
                    inverted-fn (reverse-asel-function selection-form))
+
+             (print (list :ii inverted-fn))
              
              ;;; PROVISIONAL
              (setf prime-function (second inverted-fn))
@@ -1151,7 +1195,8 @@
                                      (if (string= "¨" (string (second prime-function)))
                                          (fourth prime-function)
                                          (error "Invalid operator-composed expression ~a"
-                                                "used for selective assignment."))))
+                                                "used for selective assignment."))
+                                     #'identity))
                             (lambda (,item) ,selection-form)
                             ,value ,assign-sym
                             :index-origin index-origin

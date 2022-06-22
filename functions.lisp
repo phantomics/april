@@ -936,23 +936,40 @@
                              (row-major-aref array i)
                              (duplicate-t (row-major-aref array i)))))
                  output)))
-      (if (getf function-meta :selective-assignment-function)
-          (case (getf function-meta :selective-assignment-function)
-            (:index (let ((base-object (funcall function omega)))
-                      (setf (varray::vasel-assign base-object) value)
-                      base-object))
-            (:pick (let ((base-object (funcall inverted omega)))
-                     (setf (varray::vapick-assign base-object) value
-                           (varray::vapick-selector base-object)
-                           ;; assign the selector if the omega is a virtual array, this excludes
-                           ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-                           ;; TODO: normalize this check for full lazy operation
-                           (when (typep (varray::vader-base base-object) 'varray::varray)
-                             (varray::vader-base base-object))
-                           (varray::vader-base base-object) omega)
-                     base-object))
-            (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                            :argument function)))
+      (if (or (getf function-meta :selective-assignment-function)
+              (getf function-meta :selective-assignment-passthrough))
+          (if (getf function-meta :selective-assignment-passthrough)
+              (let* ((base-object (funcall inverted omega))
+                     (sub-base (varray::vader-base base-object)))
+                (typecase sub-base
+                  (vader-pick (setf (varray::vapick-assign sub-base) value
+                                    (varray::vapick-selector sub-base)
+                                    (when (typep (varray::vader-base base-object) 'varray::varray)
+                                      (varray::vader-base sub-base))
+                                    (varray::vader-base sub-base) omega)
+                   sub-base)
+                  (vader-select (setf (varray::vasel-assign sub-base) value)
+                   sub-base)
+                  (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                                  :argument inverted))))
+              (case (getf function-meta :selective-assignment-function)
+                (:index (let ((base-object (funcall function omega)))
+                          (setf (varray::vasel-assign base-object) value)
+                          base-object))
+                (:pick (let ((base-object (funcall inverted omega)))
+                         (setf (varray::vapick-assign base-object) value
+                               (varray::vapick-selector base-object)
+                               ;; assign the selector if the omega is a virtual array, this excludes
+                               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+                               ;; TODO: normalize this check for full lazy operation
+                               (when (typep (varray::vader-base base-object) 'varray::varray)
+                                 (varray::vader-base base-object))
+                               (varray::vader-base base-object) omega)
+                         base-object))
+                (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                                :argument ;; function
+                                                inverted
+                                                ))))
           (if (getf function-meta :selective-assignment-compatible)
               (let* ((omega (if (and assign-sym (not (typep omega 'varray))
                                      (if (arrayp value)

@@ -152,9 +152,7 @@
                                              (list (list :empty-array-prototype
                                                          (prototype-of varray))))))
                    (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
-                               (make-array (shape-of varray) :element-type ;; (assign-element-type
-                                                                           ;;  prototype)
-                                           (etype-of varray)))))
+                               (make-array (shape-of varray) :element-type (etype-of varray)))))
               output)
             (let ((output (make-array (shape-of varray) :element-type (etype-of varray))))
               (dotimes (i (array-total-size output))
@@ -689,8 +687,12 @@
          (set-indexer (indexer-of set))
          (idims (shape-of varray))
          (index-selector (when (functionp (vads-argument varray))
-                           (funcall (vads-argument varray)
-                                    (vader-base varray))))
+                           (funcall (lambda (item)
+                                      (funcall (if (typep item 'vader-identity)
+                                                   #'vader-base #'identity)
+                                               item))
+                                    (funcall (vads-argument varray)
+                                             (vader-base varray)))))
          (sub-shape (shape-of index-selector))
          (is-picking)
          (sub-selector (multiple-value-bind (sselector is-pick)
@@ -717,8 +719,7 @@
                                        (render item))))
           iarray-factors (reverse iarray-factors))
     ;; (print (list :arg (render (vader-base varray)) (vads-argument varray)))
-    ;; (if is-picking
-    ;;     sub-selector
+    
     (lambda (index)
       (let* ((remaining index) (oindex 0) (ofix 0) (valid t) 
              (adims (shape-of (vasel-assign varray)))
@@ -2142,11 +2143,10 @@
         (let ((indexed (funcall indexer index)))
           (if assigning (if (not layers-below) indexed
                             ;; handle the next layer, as for x←⍳9 ⋄ (2↑4↓x)←99 ⋄ x
+                            ;; (funcall base-indexer indexed)
                             (let ((inext (funcall base-indexer index)))
-                              ;; (print (list :ii index inext layers-below))
                               (when inext (if (eq :pick layers-below)
-                                              inext
-                                              (funcall indexer inext)))))
+                                              inext (funcall indexer inext)))))
               (when indexed (if (not (functionp base-indexer))
                                 (disclose base-indexer) ;; TODO: why is this disclose needed?
                                 (funcall base-indexer indexed)))))))))
@@ -3283,6 +3283,23 @@
                                                  arg-indexer (funcall arg-indexer
                                                                       (min i (1- av2)))))))
             result)))))
+
+(defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless)
+  nil (:metaclass va-class)
+  (:documentation "The identity of an array as from the [⊢ identity] function."))
+
+(defmethod etype-of ((varray vader-identity))
+  (etype-of (vader-base varray)))
+
+(defmethod shape-of ((varray vader-identity))
+  (if (vads-shapeset varray)
+      (varray-shape varray)
+      (let ((shape (shape-of (vader-base varray))))
+        (setf (vads-shapeset varray) t
+              (varray-shape varray) shape))))
+
+(defmethod indexer-of ((varray vader-identity) &optional params)
+  (indexer-of (vader-base varray)))
 
 (defclass vader-composing (varray-derived)
   ((%left  :accessor vacmp-left
