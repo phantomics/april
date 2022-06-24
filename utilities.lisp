@@ -99,6 +99,18 @@
 
 (defmacro sub-lex (item) item)
 
+(defmacro sub-aliasing (form)
+  (if (not (or (symbolp form)
+               (and (listp form)
+                    (member (first form) '(function)))))
+      form (let ((args (gensym)) (this-meta (gensym)))
+             `(lambda (&rest ,args)
+                (let ((,this-meta (apply ,form (cons :get-metadata (when (second ,args) (list nil))))))
+                  ;; pass the environment variables if this is a user-defined function
+                  (apply ,form (append ,args (when (not (second ,args)) (list nil))
+                                       (when (not (getf ,this-meta :lexical-reference))
+                                         (list (list :index-origin index-origin))))))))))
+
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
     "Macro that interns symbols in the current workspace; works in tandem with ⊏ reader macro."
@@ -127,7 +139,7 @@
                                                         ,(loop :for l :in symacro-lex
                                                             :for s :in symacro-syms
                                                             :collect (list (first l) s))
-                                                      ,(second item)))))
+                                                      (sub-aliasing ,(second item))))))
                                     (if (and (second item) (not (third item))
                                              (symbolp (second item)) (member (first item) '(inws inwsd)))
                                         (let ((istring (string (second item))))
@@ -218,17 +230,25 @@
   "Generate a lambda with a self-reference for use with APL's ∇ character for self-reference in a defn."
   (let* ((options (rest options))
          (system-vars (rest (assoc :sys-vars options)))
-         (meta (rest (assoc :meta options))))
+         (meta (rest (assoc :meta options)))
+         (space (second (assoc :space options)))
+         (env (gensym)) (vals-list))
     `(symbol-macrolet ((%in-function-p% t))
-       (labels ((∇self ,params
+       (labels ((∇self ,(append params (list env))
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
-                                              :collect var)))
+                                              :collect var)
+                                      ,env))
                   ,@(loop :for var :in params :when (not (eql '&optional var))
                           :collect `(setq ,var (render-varrays ,var)))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
-                      (let ,(loop :for var :in system-vars :collect (list var var))
-                        (declare (ignorable ,@system-vars))
+                      (let ,(if space
+                                (loop :for (key val) :on *system-variables* :by #'cddr
+                                      :collect (list (first (push (find-symbol (string val) space)
+                                                                  vals-list))
+                                                     `(or (getf ,env ,(intern (string key) "KEYWORD"))
+                                                          ,(find-symbol (string val) space)))))
+                        (declare (ignorable ,@vals-list))
                         ,@body))))
          #'∇self))))
 
@@ -1465,10 +1485,10 @@ It remains here as a standard against which to compare methods for composing APL
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 
-(defun output-function (form &optional arguments closure-meta)
+(defun output-function (form space &optional arguments closure-meta)
   "Express an APL inline function like {⍵+5}."
   (let ((arg-symbols (getf closure-meta :arg-syms))
-        (side-refs)
+        (side-refs) (var-refs)
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
                              :when (not (or (member sym '(⍺ nil))
                                             (member sym arguments)))
@@ -1511,7 +1531,8 @@ It remains here as a standard against which to compare methods for composing APL
                   (push (list :dyn-mask value) side-refs)))
     (loop :for vr :in (getf closure-meta :var-refs)
           :do (if (member vr *system-variables*)
-                  (push (list :dyn-mask vr) side-refs)
+                  (progn (push (list :dyn-mask vr) side-refs)
+                         (push (list 'inwsd vr) var-refs))
                   (if (and (not (member vr (getf closure-meta :var-syms)))
                            (of-meta-hierarchy closure-meta :var-syms vr))
                       (push (list :lex-ref vr) side-refs))))
@@ -1546,7 +1567,9 @@ It remains here as a standard against which to compare methods for composing APL
                                    :side-refs ',side-refs
                                    ,@(if (getf closure-meta :symfns-called)
                                          (list :symfns-called
-                                               (list 'quote (getf closure-meta :symfns-called))))))
+                                               (list 'quote (getf closure-meta :symfns-called)))))
+                            (:sys-vars ,@var-refs)
+                            (:space ,space))
                     ,@(if (not (or context-vars context-fns context-ops
                                    assigned-vars assigned-fns assigned-ops))
                           form `((f-lex ,(list (append context-vars context-fns context-ops)

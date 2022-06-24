@@ -131,7 +131,9 @@
                     (eq :symbol (first (getf properties :type)))))
            ;; store variable references; needed to assess presence of lexical variable references that
            ;; interfere with multithreading of functions
-           (if (and (not is-arg-symbol) (getf (getf properties :special) :closure-meta))
+           (if (and (not is-arg-symbol) (getf (getf properties :special) :closure-meta)
+                    (not (member this-item (getf (rest (getf (getf properties :special) :closure-meta))
+                                                 :var-refs))))
                (push this-item (getf (rest (getf (getf properties :special) :closure-meta)) :var-refs)))
            (if (not (member (intern (string-upcase this-item) *package-name-string*)
                             (rest (assoc :function (idiom-symbols *april-idiom*)))))
@@ -189,7 +191,7 @@
                                       fn :space space
                                       :params (list :special (list :closure-meta (second this-item))
                                                     :call-scope (getf properties :call-scope)))
-                                     polyadic-args (rest this-closure-meta)))))))))
+                                     space polyadic-args (rest this-closure-meta)))))))))
             (if (eq :pt (first this-item))
                 (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                                :ns-point)
@@ -277,7 +279,7 @@
                                                     :params (list :special
                                                                   (list :closure-meta (second this-item))
                                                                   :call-scope (getf properties :call-scope)))
-                                   nil (rest this-closure-meta)))))))
+                                   space nil (rest this-closure-meta)))))))
       (if (symbolp this-item)
           ;; if the operator is represented by a symbol, it is a user-defined operator
           ;; and the appropriate variable name should be verified in the workspace
@@ -1177,7 +1179,7 @@
              (setf selection-form (subst item assign-sym selection-form :test #'equalp)
                    inverted-fn (reverse-asel-function selection-form))
 
-             (print (list :ii inverted-fn))
+             ;; (print (list :ii inverted-fn))
              
              ;;; PROVISIONAL
              (setf prime-function (second inverted-fn))
@@ -1359,7 +1361,8 @@
          (with (:meta :side-effects ',(getf (rest train-meta) :side-effects)
                       ,@(if (getf (rest train-meta) :symfns-called)
                             (list :symfns-called
-                                  (list 'quote (getf (rest train-meta) :symfns-called))))))
+                                  (list 'quote (getf (rest train-meta) :symfns-called)))))
+               (:sys-vars index-origin))
        (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
                           ,@(if left-value (list left-value)
                                 (if left `((a-call ,left ,omega ,alpha)))))

@@ -1383,6 +1383,7 @@
             (is "+⍀[2]3 4⍴⍳12" #2A((1 3 6 10) (5 11 18 26) (9 19 30 42)))))
   (\¨ (has :title "Each")
       (lateral (lambda (operand)
+                 ;; (april (with (:space array-lib-space) (:unrendere)) "↓disp 1 0 1 /sam⊢{⊂'---'}¨ vex")
                  ;; `(operate-each ,operand) ; {⎕io←0 ⋄ {⍵∘{ ⍺[0] }¨⊂0 1} ⎕←⍵} 3 4
                  `(op-compose 'vacomp-each (sub-lex ,operand))
                  ))

@@ -944,9 +944,11 @@
                 (typecase sub-base
                   (vader-pick (setf (varray::vapick-assign sub-base) value
                                     (varray::vapick-selector sub-base)
-                                    (when (typep (varray::vader-base base-object) 'varray::varray)
+                                    (when (typep (varray::vader-base sub-base) 'varray::varray)
                                       (varray::vader-base sub-base))
                                     (varray::vader-base sub-base) omega)
+                   ;; (print (list :sb sub-base))
+                   ;; (setf sb sub-base)
                    sub-base)
                   (vader-select (setf (varray::vasel-assign sub-base) value)
                    sub-base)
@@ -1063,7 +1065,8 @@
 
 (defun operate-reducing (function index-origin last-axis &key axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha)
           axis (if axis (list (render-varrays (first axis)))))
@@ -1104,7 +1107,8 @@
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
-  (lambda (omega &optional alpha) ;; alpha is only used to pass an axis reassignment
+  (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
+    (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (if (not (arrayp omega))
@@ -1172,7 +1176,8 @@
 
 (defun operate-each (operand)
   "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (let* ((oscalar (if (zerop (rank omega)) omega))
@@ -1225,7 +1230,8 @@
 
 (defun operate-commuting (operand)
   "Generate a function with reversed or mirrored arguments. Used to implement [⍨ commute]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (if (not (functionp operand))
         operand (if (eq :get-metadata omega)
                     (list :inverse (lambda (omega &optional alpha)
@@ -1238,7 +1244,8 @@
 
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+      (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (let* ((keys (or alpha omega))
@@ -1282,7 +1289,8 @@
 
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
-  (lambda (omega alpha)
+  (lambda (omega alpha &optional environment)
+    (declare (ignore environment))
     (let ((omega (render-varrays omega))
           (alpha (render-varrays alpha))
           (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
@@ -1301,7 +1309,8 @@
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
-  (lambda (alpha omega)
+  (lambda (alpha omega &optional environment)
+    (declare (ignore environment))
     (let ((omega (render-varrays omega))
           (alpha (render-varrays alpha))
           (right-rendering (lambda (o a) (render-varrays (funcall right o a))))
@@ -1327,9 +1336,11 @@
          (fn-left (and (functionp left) left))
          (left (if fn-left left (render-varrays left)))
          (temp))
-    (lambda (omega &optional alpha)
+    (lambda (omega &optional alpha environment)
+      (declare (ignore environment))
       (setq omega (render-varrays omega)
-            alpha (render-varrays alpha))
+            alpha (if (not (listp alpha)) ;; rule out (:env) objects
+                      (render-varrays alpha)))
       (if (eq :get-metadata omega)
           (list :inverse (lambda (omega &optional alpha)
                            (if (and fn-right fn-left)
@@ -1369,7 +1380,8 @@
 
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (let* ((odims (dims omega)) (adims (dims alpha))
@@ -1450,13 +1462,15 @@
 
 (defun operate-atop (right-fn left-fn)
   "Generate a function applying two functions to a value in succession. Used to implement [⍤ atop]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (if alpha (funcall left-fn (funcall right-fn omega alpha))
         (funcall left-fn (funcall right-fn omega)))))
 
 (defun operate-to-power (fetch-determinant function)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
-  (lambda (omega &optional alpha)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore environment))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (if (eq omega :get-metadata)
@@ -1500,8 +1514,8 @@
                                         (render-varrays (apply left o (if a (list a)))))))
         (right-fn (if (functionp right) (lambda (o &optional a)
                                           (render-varrays (apply right o (if a (list a))))))))
-    (lambda (omega &optional alpha)
-      (declare (ignorable alpha))
+    (lambda (omega &optional alpha environment)
+      (declare (ignorable alpha environment))
       (setq omega (render-varrays omega)
             alpha (render-varrays alpha))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
@@ -1587,7 +1601,8 @@
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-  (lambda (omega)
+  (lambda (omega &optional alpha environment)
+    (declare (ignore alpha environment))
     (setq omega (render-varrays omega)
           right-value (render-varrays right-value))
     (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
