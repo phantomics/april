@@ -1111,18 +1111,14 @@
                       ;; and fetch axes as well if present
                       (if (and (listp (third form))
                                (member (first (third form)) '(inws inwsd)))
-                          (setf assign-sym (third form)
-                                ;; (third form) item
-                                )
+                          (setf assign-sym (third form))
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
                               (set-assn-sym (third form))   ;; TODO: remove non-lazy logic here
                               (if (and (listp (third form)) ;; once lazy impl is complete
                                        (eql 'achoose (first (third form))))
                                   (setf assign-sym (second (third form))
-                                        selection-axes (third (third form))
-                                        ;; (third form) item
-                                        )
+                                        selection-axes (third (third form)))
                                   (if (and (listp (third form))
                                            (eql 'make-virtual (first (third form))))
                                       (setf assign-sym (getf (cddr (third form)) :base)
@@ -1132,9 +1128,7 @@
                                                 (if array
                                                     (apply-scalar #'- (render-varrays array)
                                                                   index-origin)))
-                                              ,(getf (cddr (third form)) :argument))
-                                            ;; (third form) item
-                                            ))))))
+                                              ,(getf (cddr (third form)) :argument))))))))
                     (reverse-asel-function (form &optional (wrap #'identity))
                       ;; (print (list :ff form))
                       (if (and (listp form) (eql 'a-call (first form)))

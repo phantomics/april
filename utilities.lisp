@@ -104,12 +104,14 @@
                (and (listp form)
                     (member (first form) '(function)))))
       form (let ((args (gensym)) (this-meta (gensym)))
-             `(lambda (&rest ,args)
-                (let ((,this-meta (apply ,form (cons :get-metadata (when (second ,args) (list nil))))))
-                  ;; pass the environment variables if this is a user-defined function
-                  (apply ,form (append ,args (when (not (second ,args)) (list nil))
-                                       (when (not (getf ,this-meta :lexical-reference))
-                                         (list (list :index-origin index-origin))))))))))
+             `(if (not (functionp ,form))
+                  ,form (lambda (&rest ,args)
+                          (let ((,this-meta (apply ,form (cons :get-metadata
+                                                               (when (second ,args) (list nil))))))
+                            ;; pass the environment variables if this is a user-defined function
+                            (apply ,form (append ,args (when (not (second ,args)) (list nil))
+                                                 (when (not (getf ,this-meta :lexical-reference))
+                                                   (list (list :index-origin index-origin)))))))))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)

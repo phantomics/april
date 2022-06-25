@@ -77,7 +77,8 @@
   "Return indices of an array expanded as with the [/ compress] or [\\ expand] functions."
   ;; TODO: more speedup is possible here in the case of a scalar degree argument
   (let* ((oned (if (not (arrayp degrees)) degrees))
-         (degrees (if (arrayp degrees) degrees))
+         (degrees (if (arrayp degrees) degrees
+                      (if (integerp degrees) (vector degrees))))
          (d-count (length degrees))
          (c-degrees (if degrees (make-array d-count :element-type 'fixnum :initial-element 0)))
          (positive-index-list (if (not compress-mode)

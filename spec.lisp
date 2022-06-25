@@ -334,8 +334,8 @@
                                                  :rng rngs :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin rngs) :virtual-support t))
      (tests (is "⍴5?⍴⍳5" #(5))
-            (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000" 1)
-            (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←7 0 ⋄ 10?⍵}¨10⍴1000" 1)
+            ;; (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000" 1)
+            ;; (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←7 0 ⋄ 10?⍵}¨10⍴1000" 1)
             (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←⍬ 2 ⋄ 10?⍵}¨10⍴1000" 0)
             (is "{⎕RL←12 1 ⋄ ⌈10000×?⍵⍴0} 2 2" #2A((7489 2375) (7482 6862)))
             (is "{⎕RL←3 1 ⋄ ⌈10000×?⍵⍴0 1} 10 2"
@@ -1384,7 +1384,7 @@
   (\¨ (has :title "Each")
       (lateral (lambda (operand)
                  ;; (april (with (:space array-lib-space) (:unrendere)) "↓disp 1 0 1 /sam⊢{⊂'---'}¨ vex")
-                 ;; `(operate-each ,operand) ; {⎕io←0 ⋄ {⍵∘{ ⍺[0] }¨⊂0 1} ⎕←⍵} 3 4
+                 ;; `(operate-each ,operand) ; "bla←{ ⍺[0] } ⋄ {⎕io←0 ⋄ {⍵∘bla¨⊂0 1} ⎕←⍵} 3 4"
                  `(op-compose 'vacomp-each (sub-lex ,operand))
                  ))
       (tests (is "⍳¨1 2 3" #(#(1) #(1 2) #(1 2 3)))
@@ -1494,7 +1494,8 @@
              (is "'ADG',.,'EIHF' 'BIHC' 'BFEC'" #0A"AEIHFDBIHCGBFEC")
              (is "1 2 3,.-3 3⍴4 5 6" #(#(-3 -2 -1) #(-4 -3 -2) #(-5 -4 -3)))))
   (∘ (has :title "Beside")
-     (pivotal (lambda (right left) `(operate-beside ,right ,left)))
+     ;; (pivotal (lambda (right left) `(operate-beside ,right ,left)))
+     (pivotal (lambda (right left) `(operate-beside (sub-lex ,right) (sub-lex ,left))))
      (tests (is "fn←⍴∘⍴ ⋄ fn 2 3 4⍴⍳9" #(3))
             (is "⍴∘⍴ 2 3 4⍴⍳9" #(3))
             (is "⍴∘⍴∘⍴ 2 3 4⍴⍳9" #*1)

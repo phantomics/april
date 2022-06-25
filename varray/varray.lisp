@@ -186,6 +186,14 @@
           :initform nil
           :initarg :base
           :documentation "The array from which the array is derived.")
+   (%layer :accessor vader-layer
+           :initform 0
+           :initarg :layer
+           :documentation "The number of derived virtual arrays downstream of this array.")
+   ;; (%parallel :accessor vader-parallel
+   ;;            :initform t
+   ;;            :initarg :parallel
+   ;;            :documentation "Whether this array and derivative arrays can be indexed in parallel.")
    (%subrendering :accessor vads-subrendering
                   :initform nil
                   :initarg :subrendering
@@ -196,7 +204,11 @@
 (defmethod initialize-instance :around ((varray varray-derived) &key)
   "If the instance's base slot is already bound, it has been populated through one of he above type combinatorics and so should be returned with no changes."
   (if (not (slot-boundp varray '%base))
-      (call-next-method)))
+      (call-next-method))
+  
+  (if (typep (vader-base varray) 'varray-derived)
+      (setf (vader-layer varray) ;; count layers from a non-derived array
+            (1+ (vader-layer (vader-base varray))))))
 
 ;; the default shape of a derived array is the same as its base array
 (defmethod etype-of ((varray varray-derived))
@@ -937,12 +949,14 @@
                                (apl-random-process (funcall base-indexer i)
                                                    (vads-io varray) generator)))))
 
-    ;; (if seed (print (list seed (varand-cached varray))))
+    ;; (if t ; seed
+    ;;     (print (list seed (varand-cached varray))))
     
     (lambda (index)
       (if scalar-base (apl-random-process (funcall base-indexer index) (vads-io varray)
                                           generator)
-          (if seed (row-major-aref (varand-cached varray) index)
+          (if t ; seed
+              (row-major-aref (varand-cached varray) index)
               (apl-random-process (funcall base-indexer index) (vads-io varray)
                                   generator))))))
 
@@ -971,7 +985,12 @@
       (error "Both arguments to ? must be non-negative integers.")
       (let* ((arg-indexer (indexer-of (vads-argument varray)))
              (length (if (not (functionp arg-indexer))
-                         arg-indexer (funcall arg-indexer 0))))
+                         arg-indexer (funcall arg-indexer 0)))
+             (base-indexer (indexer-of (vader-base varray)))
+             (count (if (not (functionp base-indexer))
+                        base-indexer (funcall base-indexer 0)))
+             (vector (make-array count :element-type (etype-of varray))))
+        ;; (setf (vadeal-cached varray) vector)
         (if (integerp length)
             (list length)
             (error "Both arguments to ? must be non-negative integers.")))))
@@ -994,13 +1013,26 @@
     (setf (vadeal-cached varray) vector)
     (xdotimes vector (x (length vector))
       (setf (aref vector x) (+ x (vads-io varray))))
+
+    ;; (print (list :gen count generator))
     
     (loop :for i :from count :downto 2
-          :do (rotatef (aref vector (if (eq :system generator) (random i)
+          :do (rotatef (aref vector (if (eq :system generator)
+                                        (random i)
                                         (random-state:random-int generator 0 (1- i))))
                        (aref vector (1- i))))
     
-    (lambda (index) (aref (vadeal-cached varray) index))))
+    (lambda (index)
+      ;; (print (list :ii))
+      (aref (vadeal-cached varray) index))))
+
+;; (let ((sys (random-state:make-generator :mersenne-twister-64 50)))
+;;   (lparallel::pdotimes (x 5)
+;;     (let ((vector (make-array 1000 :element-type '(integer 0 1000))))
+;;       (loop :for i :from 200 :downto 2
+;;             :do (rotatef (aref vector (random-state:random-int sys 0 (1- i)))
+;;                          (aref vector 3)))
+;;       (print (length vector)))))
 
 (defclass vader-without (varray-derived vad-with-argument vad-limitable)
   nil
@@ -2549,12 +2581,14 @@
 
 (defmethod indexer-of ((varray vader-expand) &optional params)
   (let* ((assigning (getf params :for-selective-assign))
+         (arg-rendered (render (vads-argument varray)))
+         ;; TODO: why can't (vector item) be used below?
          (arg-vector (funcall (lambda (item)
                                 (if (not (typep item 'sequence))
                                     item (coerce item 'vector)))
-                              (render (vads-argument varray))))
+                              arg-rendered))
          (base-indexer (base-indexer-of varray))
-         (indexer (if (or (integerp arg-vector)
+         (indexer (if (or (integerp arg-rendered)
                           (< 0 (size-of arg-vector)))
                       (indexer-expand arg-vector (shape-of (vader-base varray))
                                       (vads-axis varray)
@@ -3385,7 +3419,6 @@
     ;;              (render (vacmp-alpha varray))))
     ;; (print (list :ll (funcall (vacmp-left varray) 0)))
     (lambda (index)
-      ;; (print (list :oo oindexer aindexer oshape))
       (if (vacmp-alpha varray)
           (funcall (vacmp-left varray)
                    (if (not (functionp oindexer))
