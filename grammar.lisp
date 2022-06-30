@@ -1030,23 +1030,6 @@
                                                  operator (or rfn-wrap right-value)
                                                  lfn-wrap left-value)))))))))
 
-;; (defun reverse-asel-function (form &optional (wrap #'identity))
-;;   (print (list :ff form))
-;;   (if (and (listp form) (eql 'a-call (first form)))
-;;       ;; TODO: change the membership check to check metadata from spec
-;;       (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
-;;         (if (not (and (listp (second form))
-;;                       (member (cadadr form) '(⊃ ⌷)))) ; ↑ ↓ / \\
-;;             (reverse-asel-function arg1 (lambda (item)
-;;                                           (funcall wrap (append (list 'a-call function-form item)
-;;                                                                 arg2-rest))))
-;;             (reverse-asel-function arg1 (lambda (item)
-;;                                           (append (list 'a-call function-form
-;;                                                         (funcall wrap item))
-;;                                                   arg2-rest)))))
-;;       ;; TODO: add argument-isolating form here for full lazy mode
-;;       (funcall wrap (list 'identity form))))
-
 (defun compose-value-assignment (symbol value &key function space params)
   "Compose a value assignment like v←1 2 3."
   (cond ((eql 'to-output symbol)

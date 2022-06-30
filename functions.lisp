@@ -326,7 +326,7 @@
                  (= 1 (length index))))
         (make-instance 'vapri-integer-progression :number index :origin index-origin)
         (make-instance 'vapri-coordinate-identity :shape (coerce index 'list)
-                       :origin index-origin))))
+                       :index-origin index-origin))))
 
 (defun inverse-count-to (vector index-origin)
   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."

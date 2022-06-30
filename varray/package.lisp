@@ -15,7 +15,7 @@
            #:vader-encode #:vader-decode #:vader-identity
 
            #:vader-composing #:op-compose
-           #:vacomp-each
+           #:vacomp-reduce #:vacomp-each
            )
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
                           #:assign-element-type #:type-in-common #:apl-array-prototype

@@ -108,8 +108,12 @@
                   ,form (lambda (&rest ,args)
                           (let ((,this-meta (apply ,form (cons :get-metadata
                                                                (when (second ,args) (list nil))))))
-                            ;; pass the environment variables if this is a user-defined function
-                            (apply ,form (append ,args (when (not (second ,args)) (list nil))
+                            ;; pass the environment variables if this is a user-defined function;
+                            ;; remember not to add the nil argument if an internal
+                            ;; variable state is being set
+                            (apply ,form (append ,args (when (and (not (second ,args))
+                                                                  (getf ,this-meta :lexical-reference))
+                                                         (list nil))
                                                  (when (not (getf ,this-meta :lexical-reference))
                                                    (list (list :index-origin index-origin)))))))))))
 
@@ -242,6 +246,7 @@
                                       ,env))
                   ,@(loop :for var :in params :when (not (eql '&optional var))
                           :collect `(setq ,var (render-varrays ,var)))
+                  ;; (print (list :par ,@(remove '&optional (append params (list env 'abc)))))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
                       (let ,(if space
@@ -1081,9 +1086,7 @@
                                                                (cddr function)))))))
                `(let ((,arg-list (list ,@arguments ))) ;,@(if axes-present (list (third function))))))
                   (apply ,@(if is-scalar (list '#'apply-scalar))
-                         ,(if t ; (not axes-present)
-                              function (butlast function 1))
-                         ,arg-list))))))
+                         ,function ,arg-list))))))
 
 (defun join-fns (form &optional wrap)
   "Compose multiple successive scalar functions into a larger scalar function. Used to expand (a-call)."
@@ -1273,23 +1276,56 @@ It remains here as a standard against which to compare methods for composing APL
                           (>= 2 (length function)))
                       function (list (first function) (second function))))
         (axes (and (listp function) (eql 'apl-fn (first function))
-                   (third function))))
+                   (third function)))
+        (fn-quoted (if (not (symbolp function)) function (list 'function function))))
     `(lambda (&rest ,args)
        (let ((,ax-sym (third ,args)))
          (declare (ignorable ,ax-sym))
-         (if (eq :get-metadata (first ,args))
-             ,(append '(list :scalar t) meta)
-             ,(if is-virtual
-                  `(make-instance 'vader-operate
-                                  :base (coerce (if (not ,ax-sym)
-                                                    ,args (butlast ,args))
-                                                'vector)
-                                  :function ,(if (not (symbolp function)) function `(function ,function))
-                                  :index-origin 0 :axis ,ax-sym :params (list ,@meta))
-                  `(apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-                                 (first ,args) (second ,args)
-                                 ;; ,@(if axes (list axes))
-                                 ,ax-sym)))))))
+         ;; (print (list :ff ',function))
+         (case (first ,args)
+           (:get-metadata ,(append '(list :scalar t) meta))
+           (:arg-vector (make-instance 'vader-operate
+                                       :base (second ,args) :index-origin 0 :params (list ,@meta)
+                                       :axis ,ax-sym :function ,fn-quoted))
+           (:call-scalar (apply ,fn-quoted (rest ,args)))
+           (t ,(if is-virtual
+                   `(make-instance 'vader-operate
+                                   ;; :base (coerce (if (not ,ax-sym) ,args (butlast ,args))
+                                   ;;               'vector)
+                                   ;; :base (reverse (if (not ,ax-sym) ,args (butlast ,args)))
+                                   :base (if (not ,ax-sym) ,args (butlast ,args))
+                                   :function ,fn-quoted :index-origin 0 :axis ,ax-sym
+                                   :params (list ,@meta))
+                   `(apply-scalar ,fn-quoted (first ,args) (second ,args)
+                                  ;; ,@(if axes (list axes))
+                                  ,ax-sym))))))))
+
+;; (defmacro scalar-function (function &rest meta)
+;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
+;;   (let ((args (gensym)) (ax-sym (gensym))
+;;         (is-virtual (getf meta :va))
+;;         (function (if (or (not (listp function))
+;;                           (not (eql 'apl-fn (first function)))
+;;                           (>= 2 (length function)))
+;;                       function (list (first function) (second function))))
+;;         (axes (and (listp function) (eql 'apl-fn (first function))
+;;                    (third function))))
+;;     `(lambda (&rest ,args)
+;;        (let ((,ax-sym (third ,args)))
+;;          (declare (ignorable ,ax-sym))
+;;          (if (eq :get-metadata (first ,args))
+;;              ,(append '(list :scalar t) meta)
+;;              ,(if is-virtual
+;;                   `(make-instance 'vader-operate
+;;                                   :base (coerce (if (not ,ax-sym)
+;;                                                     ,args (butlast ,args))
+;;                                                 'vector)
+;;                                   :function ,(if (not (symbolp function)) function `(function ,function))
+;;                                   :index-origin 0 :axis ,ax-sym :params (list ,@meta))
+;;                   `(apply-scalar ,(if (not (symbolp function)) function `(function ,function))
+;;                                  (first ,args) (second ,args)
+;;                                  ;; ,@(if axes (list axes))
+;;                                  ,ax-sym)))))))
 
 (defun validate-arg-unitary (value)
   "Verify that a form like (vector 5) represents a unitary value."
@@ -2051,6 +2087,8 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes is-virtual)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym)) (a (gensym))
+        (m-scalar (when (eq 'scalar-function (first fn-monadic)) '(:scalar t)))
+        (d-scalar (when (eq 'scalar-function (first fn-dyadic)) '(:scalar t)))
         (m-meta (if (member (first fn-monadic) '(fn-meta scalar-function))
                     (cddr fn-monadic)))
         (d-meta (if (member (first fn-dyadic) '(fn-meta scalar-function))
@@ -2069,8 +2107,8 @@ It remains here as a standard against which to compare methods for composing APL
                                             (setq ,axes (second ,args)
                                                   ,args (cddr ,args)))))
                            (if (eq :get-metadata (first ,args))
-                               (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
-                                   ,(if d-meta (cons 'list d-meta)))
+                               (if (= 1 (length ,args)) ,(if m-meta (cons 'list (append m-scalar m-meta)))
+                                   ,(if d-meta (cons 'list (append d-scalar d-meta))))
                                (if (= 2 (length ,args))
                                    (if (null (second ,args))
                                        (a-call ,fn-monadic (first ,args))
