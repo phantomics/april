@@ -40,7 +40,7 @@
   '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
     ;; tree library is disabled for ABCL, Lispworks because its large functions cannot be
     ;; compiled using the JVM, while the functions cause LispWorks to freeze
-    ;; #+(not (or abcl lispworks)) april-lib.dfns.tree
+    #+(not (or abcl lispworks)) april-lib.dfns.tree
     april-lib.dfns.graph april-lib.dfns.numeric))
 
 (defvar ∇ nil)
