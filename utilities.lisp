@@ -40,7 +40,7 @@
   '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
     ;; tree library is disabled for ABCL, Lispworks because its large functions cannot be
     ;; compiled using the JVM, while the functions cause LispWorks to freeze
-    #+(not (or abcl lispworks)) april-lib.dfns.tree
+    ;; #+(not (or abcl lispworks)) april-lib.dfns.tree
     april-lib.dfns.graph april-lib.dfns.numeric))
 
 (defvar ∇ nil)
@@ -115,7 +115,8 @@
                                                                   (getf ,this-meta :lexical-reference))
                                                          (list nil))
                                                  (when (not (getf ,this-meta :lexical-reference))
-                                                   (list (list :index-origin index-origin)))))))))))
+                                                   (list (list :fn-params
+                                                               :index-origin index-origin)))))))))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -253,7 +254,7 @@
                                 (loop :for (key val) :on *system-variables* :by #'cddr
                                       :collect (list (first (push (find-symbol (string val) space)
                                                                   vals-list))
-                                                     `(or (getf ,env ,(intern (string key) "KEYWORD"))
+                                                     `(or (getf (rest ,env) ,(intern (string key) "KEYWORD"))
                                                           ,(find-symbol (string val) space)))))
                         (declare (ignorable ,@vals-list))
                         ,@body))))
@@ -647,7 +648,10 @@
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
           ;; present; ⍵-assignment is an error. This is handled below for strand assignments.
           (cond (axes (enclose-axes symbol axes :set value :set-by by))
-                ((eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to)))
+                ((eql '⍺ symbol) `(or (and (or (not (listp ⍺))
+                                               (not (eql :fn-params (first ⍺))))
+                                           ⍺)
+                                      (setf ⍺ ,set-to)))
                 ((eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment."))
                 ((string= "*RNGS*" (string symbol))
                  (let ((valsym (gensym)) (seed (gensym))

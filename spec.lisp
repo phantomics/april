@@ -618,7 +618,7 @@
                                         :index-origin index-origin
                                         :axis (or (first axes) :last))))
       (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
-            (dyadic :on-axis :last))
+            (dyadic :on-axis :last :id #()))
       (tests (is ",5" #(5))
              (is ",3 4⍴⍳9" #(1 2 3 4 5 6 7 8 9 1 2 3))
              (is ",↓⍬,9" #(#(9)))
@@ -1338,7 +1338,8 @@
                 ;;          '(:axis))
                 (values `(op-compose 'vacomp-reduce :left (sub-lex ,operand)
                                                     :index-origin index-origin)
-                        '(:axis))))
+                        '(:axis))
+                ))
      (tests (is "+/1 2 3 4 5" 15)
             (is "⊢/⍳5" 5)
             (is "×/5" 5)

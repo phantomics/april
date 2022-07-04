@@ -283,7 +283,9 @@
 (defmethod base-indexer-of ((varray varray-derived) &optional params)
   "The default shape of a derived array is the same as the original array."
   (let ((this-shape (shape-of varray)))
-    (indexer-of (vader-base varray)
+    ;; (print (list :ti this-shape varray (vader-base varray)))
+    ;; (setf april::ccc varray)
+   (indexer-of (vader-base varray)
                 (append (list :shape-deriving (if (typep varray 'vader-reshape)
                                                   (shape-of varray)
                                                   (if (and (typep varray 'vader-section)
@@ -520,9 +522,12 @@
             (first-indexer (indexer-of (elt (vader-base varray) 0))))
         (if (zerop (reduce #'* first-shape))
             (prototype-of (render (elt (vader-base varray) 0)))
-            (prototype-of (apply-scalar (vaop-function varray)
-                                        (render (if (not (functionp first-indexer))
-                                                    first-indexer (funcall first-indexer 0)))))))
+            (if first-shape
+                (prototype-of (apply-scalar (vaop-function varray)
+                                            (render (if (not (functionp first-indexer))
+                                                        first-indexer (funcall first-indexer 0)))))
+                (prototype-of (render (if (not (functionp first-indexer))
+                                          first-indexer (funcall first-indexer 0)))))))
       (let ((pre-proto)
             (base-list (when (listp (vader-base varray))
                          (vader-base varray)))
@@ -1270,7 +1275,9 @@
           ;; if comparing individual vector elements
           (let ((base-index (if (not (functionp base-indexer))
                                 base-indexer (funcall base-indexer index))))
+            ;; (print (list :ind (vads-io varray) base-index (render base-index)))
             (loop :for a :across argument :while (not (varray-compare a base-index))
+                  ;; :do (print (list :lll a))
                   :counting a :into asum :finally (return (+ asum (vads-io varray)))))))))
 
 (defclass vader-shape (varray-derived)
@@ -1401,8 +1408,11 @@
           (shape2 (shape-of item2))
           (indexer1 (indexer-of item1))
           (indexer2 (indexer-of item2)))
+      ;; (print (list :sh shape1 shape2 indexer1 indexer2))
       (if (not shape1)
           (if (not shape2)
+              ;; (let ((indexer1 (if (functionp indexer1) (funcall indexer1 0) indexer1))
+              ;;       (indexer2 (if (functionp indexer2) (funcall indexer2 0) indexer2)))
               (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
                        (> comparison-tolerance (abs (- indexer1 indexer2))))
                   (and (numberp indexer1)
@@ -1817,8 +1827,7 @@
 (defmethod etype-of ((varray vader-catenate))
   (let ((base-indexer (indexer-of (vader-base varray)))
         (base-size (size-of (vader-base varray))))
-    (apply #'type-in-common (loop ;; :for array :across (vader-base varray)
-                                  :for i :below base-size
+    (apply #'type-in-common (loop :for i :below base-size
                                   :when (< 0 (size-of (funcall base-indexer i)))
                                     :collect (etype-of (funcall base-indexer i))))))
 
@@ -1981,12 +1990,13 @@
 
 (defmethod etype-of ((varray vader-mix))
   (let ((base-indexer (base-indexer-of varray)))
-    (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
-                                  :when (and (functionp base-indexer)
-                                             (< 0 (size-of (funcall base-indexer aix))))
-                                    :collect (etype-of (funcall base-indexer aix))
-                                  :when (not (functionp base-indexer))
-                                    :collect (assign-element-type base-indexer)))))
+    (or (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
+                                      :when (and (functionp base-indexer)
+                                                 (< 0 (size-of (funcall base-indexer aix))))
+                                        :collect (etype-of (funcall base-indexer aix))
+                                      :when (not (functionp base-indexer))
+                                        :collect (assign-element-type base-indexer)))
+        t)))
 
 (defmethod shape-of ((varray vader-mix))
   (get-or-assign-shape
@@ -2007,8 +2017,9 @@
            (let ((out-shape) (shape-indices)
                  (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
              (loop :for shape :in each-shape
-                   :do (loop :for d :in shape :for dx :from 0 :do (setf (aref max-shape dx)
-                                                                        (max d (aref max-shape dx)))))
+                   :do (loop :for d :in shape :for dx :from 0
+                             :do (setf (aref max-shape dx)
+                                       (max d (aref max-shape dx)))))
 
              (setf axis (setf (vads-axis varray)
                               (if (eq :last axis) (length base-shape)
@@ -2023,7 +2034,8 @@
                        (push odim out-shape)
                        (push ix shape-indices))
              
-             (when (= axis (length base-shape)) ;; push the inner shape elements if for the last axis
+             (when (= axis (length base-shape))
+               ;; push the inner shape elements if for the last axis
                (loop :for ms :across max-shape :for mx :from 0
                      :do (push ms out-shape)
                          (push (+ mx (length base-shape)) shape-indices)))
@@ -2034,6 +2046,8 @@
 
 (defmethod indexer-of ((varray vader-mix) &optional params)
   (let* ((oshape (shape-of varray))
+         ;; (base-shape (shape-of (vader-base varray)))
+         ;; (base-indexer (indexer-of (vader-base varray)))
          (ofactors (get-dimensional-factors oshape t))
          (oindexer (base-indexer-of varray))
          (dim-indices (vamix-shape-indices varray))
@@ -2044,9 +2058,10 @@
                             :when (<= orank i) :collect s))
          (inner-rank (length inner-shape))
          (iofactors (get-dimensional-factors outer-shape t)))
+    ;; (print (list :oo oshape base-shape))
     (lambda (index)
       ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
-      
+      ;; (print (list :in index oshape))
       (if (not oshape)
           (if (not (functionp oindexer))
               (disclose oindexer) ;; TODO: change indexer-of for rank 0 arrays to obviate this
@@ -2057,7 +2072,6 @@
                 (if (and (not (shape-of indexed)))
                     (setf (vads-subrendering varray) t))
                 sub-index))
-          
           (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
             (loop :for ofactor :across ofactors :for di :in dim-indices :for fx :from 0
                   :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
@@ -3455,8 +3469,12 @@
                                     :do (setf last-key a)))
                    #'this)
                  (if (eq :get-metadata omega)
-                     (if (not (getf args :right))
-                         (funcall (getf args :left) :get-metadata))
+                     (if (getf args :right)
+                         (append (list :operator-reference type)
+                                 (list :left-meta (funcall (getf args :left) :get-metadata))
+                                 (list :right-meta (funcall (getf args :right) :get-metadata)))
+                         (append (list :operator-reference type)
+                                 (funcall (getf args :left) :get-metadata)))
                      (let ((out (apply #'make-instance type :omega omega :alpha alpha args)))
                        out)))))
     #'this))
@@ -3470,7 +3488,11 @@
 ;;                               :omega omega :alpha alpha))))
 
 (defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io)
-  nil (:metaclass va-class)
+  ((%unitary :accessor vacred-unitary
+             :initform nil
+             :initarg :unitary
+             :documentation "Whether the array measures only one unit along the axis to be reduced."))
+  (:metaclass va-class)
   (:documentation "A reduce-composed array as with the [/ reduce] operator."))
 
 ;; (defmethod etype-of ((varray vacomp-re)))
@@ -3481,9 +3503,11 @@
 (defmethod shape-of ((varray vacomp-reduce))
   (get-or-assign-shape
    varray (let* ((base-shape (shape-of (vacmp-omega varray)))
+                 ;; (base-size (size-of (vacmp-omega varray)))
                  (window (when (vacmp-alpha varray)
                            (setf (vacmp-alpha varray)
                                  (disclose-unitary (render (vacmp-alpha varray))))))
+                 (window (if window (abs window)))
                  (axis (setf (vads-axis varray)
                              ;; TODO: what's sending an ⎕IO of 0 here for ⌊10000×+∘÷/40/1 ?
                              (max 0 (if (vads-axis varray)
@@ -3491,27 +3515,43 @@
                                         (1- (length base-shape))))))
                  (output))
             (loop :for b :in base-shape :for ix :from 0 :when (/= ix axis) :collect b
-                  :when (and window (= ix axis)) :collect (- b (1- window))))))
+                  :when (and (= ix axis) (= 1 b)) :do (setf (vacred-unitary varray) t)
+                    :when (and window (= ix axis)) :collect (- b (1- window))))))
 
-;; ⊃,/3 4+/¨⊂3 6⍴⍳9
-;; fn←{⍺+⍵} ⋄ fn/1 2 3 4 5
-;; ⊃,/3 4+/¨⊂3 6⍴⍳9
-;; (≠/⊢) 1 2 3 3 2 4
-;; {r←/ ⋄ rf←/[1] ⋄ (+rf ⍵),(+ r[1] ⍵),+ r ⍵} 3 3⍴⍳9
-;; fn←{⍺+⍵} ⋄ fn/1 2 3 4 5
-;; (⍳3){ g←{5+⍵} ⋄ b←-∘× ⋄ h←{12×$[~2|⍺;b/⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3
+;; md1 wpath 1 4
+;; factorial¨⍳10
+;; det 2 2⍴ 0 1, 1 0
+;; tryGJ ↑(1 1 2)(¯1 ¯2 3)(3 ¯7 4)
+;; fibonacci¨⍳10
+;; hex (1 2 3)(100 200 300)
+;; (april "{⎕IO←0 ⋄ {1 1 3⍳⌈/⍵}1 1 3} 5")
+
+;; md1 wpath 1 4
+;; stamps¨50 51 52 53
+
+;; ↑,/1⍴⊂⍬
 
 (defmethod indexer-of ((varray vacomp-reduce) &optional params)
-  ;; (defun reduce-array (input function axis threaded &optional last-axis window)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
-  (let ((irank (rank-of (vacmp-omega varray))))
+  ;; (setf april::mkk varray)
+  ;; (push (vacmp-omega varray) april::bbb)
+  (setf (vacmp-omega varray) (render (vacmp-omega varray)))
+  ;; (print (list :om (vacmp-omega varray) varray))
+  (let ((irank (rank-of (vacmp-omega varray)))
+        (osize (size-of (vacmp-omega varray))))
     ;; (print (list :ii irank (vads-axis varray)
     ;;              (vacmp-left varray)
     ;;              (funcall (vacmp-left varray) :get-metadata nil)))
-    (if (zerop irank)
-        (vacmp-omega varray)
+    ;; (print (list :ir irank osize (vacmp-omega varray)))
+    (if (or (> 2 osize) (vacred-unitary varray))
+        (if (zerop irank) (vacmp-omega varray)
+            ;; return just the omega indexer in cases like +/2 2 1⍴'a'
+            (if (zerop osize)
+                (let ((fn-meta (funcall (vacmp-left varray) :get-metadata nil)))
+                  (or (getf fn-meta :id)
+                      (error "Attempted to [/ reduce] with a function that has no identity value.")))
+                (indexer-of (vacmp-omega varray))))
         (let* ((odims (shape-of (vacmp-omega varray)))
-               (osize (size-of (vacmp-omega varray)))
                (axis (or (vads-axis varray) (1- (length odims))))
                (rlen (nth axis odims))
                (increment (reduce #'* (nthcdr (1+ axis) odims)))
@@ -3523,45 +3563,52 @@
                (out-dims (shape-of varray))
                (non-nested (not (eq t (etype-of (vacmp-omega varray)))))
                (fn-meta (funcall (vacmp-left varray) :get-metadata nil))
-               (scalar-fn (getf fn-meta :scalar))
+               (scalar-fn (and (getf fn-meta :scalar)
+                               (not (getf fn-meta :operator-reference))))
                (catenate-fn (and (getf fn-meta :lexical-reference)
+                                 (not (getf fn-meta :operator-reference))
                                  (member (getf fn-meta :lexical-reference) '(#\, #\⍪ #\∩) :test #'char=)))
                ;; TODO: create a better way to determine the catenate function
                )
-          ;; (print (list :axa axis))
+          ;; (print (list :fm fn-meta osize (vacmp-omega varray)))
+          ;; (print (list :axa varray))
           ;; (print (list :sc scalar-fn (vacmp-left varray)))
           (loop :for dim :in odims :for dx :from 0
                 :when (and window (= dx axis))
                   :do (setq wsegment (- dim (1- window))))
-          ;; (if (= 1 (first (last odims)))
-          ;;     (xdotimes output (i (size output))
-          ;;       (setf (row-major-aref output i)
-          ;;             (row-major-aref input i)))
           ;; (print (list :ws rlen (funcall (vacmp-left varray) :get-metadata nil)))
-          (lambda (i)
-            (declare (optimize (safety 1)))
-            (cond
-              ((zerop osize) (getf fn-meta :id)) ;; get function's identity for i.e. +/⍬
-              ((and (or scalar-fn (and catenate-fn (not window)))
-                    (not out-dims) (arrayp (vacmp-omega varray)))
-               ;; (print (list 12 (vacmp-omega varray)))
-               ;; reverse the argument vector in the case of a scalar function;
-               ;; this also applies in the case of the next two clauses
-               (funcall (vacmp-left varray)
-                        :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                             (vacmp-omega varray))))
-              ((and (or scalar-fn (and catenate-fn (not window)))
-                    (= axis (length out-dims))
-                    (arrayp (vacmp-omega varray)))
-               ;; (print (list 11 axis out-dims (vacmp-omega varray)))
+          (cond
+            ((and (or scalar-fn (and catenate-fn (not window)))
+                  (not out-dims) (arrayp (vacmp-omega varray)))
+             ;; (print (list 12 (vacmp-omega varray)))
+             ;; reverse the argument vector in the case of a scalar function;
+             ;; this also applies in the case of the next two clauses
+             (lambda (i)
+               (declare (optimize (safety 1)))
+               (let ((output (funcall (vacmp-left varray)
+                                      :arg-vector (funcall (if scalar-fn #'reverse #'identity)
+                                                           (vacmp-omega varray)))))
+                 ;; (print (list :rr (render output) output (shape-of output)))
+                 ;; pass the indexer through for a shapeless output as from +/⍳5;
+                 ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
+                 (if (shape-of output)
+                     output (funcall (indexer-of output) i)))))
+            ((and (or scalar-fn (and catenate-fn (not window)))
+                  (= axis (length out-dims))
+                  (arrayp (vacmp-omega varray)))
+             ;; (print (list 11 axis out-dims (vacmp-omega varray)))
+             (lambda (i)
+               (declare (optimize (safety 1)))
                (funcall (vacmp-left varray)
                         :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                              (make-array rlen :element-type (etype-of (vacmp-omega varray))
                                                               :displaced-to (vacmp-omega varray)
-                                                              :displaced-index-offset (* i rlen)))))
-              (t (let ((value (when (or scalar-fn catenate-fn) (make-array (or window rlen))))
+                                                              :displaced-index-offset (* i rlen))))))
+            (t (lambda (i)
+                 (declare (optimize (safety 1)))
+                 (let ((value (when (or scalar-fn catenate-fn) (make-array (or window rlen))))
                        (valix (when (or scalar-fn catenate-fn) 0)))
-                   ;; (print (list 13 axis out-dims (vacmp-omega varray)))
+                   ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
                    (flet ((process-item (ix)
                             (let ((item (funcall
                                          omega-indexer
@@ -3582,7 +3629,10 @@
                      ;; (print (list :win window window-reversed))
                      (if window-reversed (loop :for ix :below window :do (process-item ix))
                          (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
+                   ;; (print (list :ll value))
                    (when (or scalar-fn catenate-fn)
+                     ;; (print (list :bla value))
+                     ;; (push value april::bbb)
                      (setf value (funcall (vacmp-left varray)
                                           :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                                value))))
@@ -3620,7 +3670,7 @@
         (oindexer (indexer-of (vacmp-omega varray)))
         (aindexer (indexer-of (vacmp-alpha varray))))
     ;; (print (list :aa (vacmp-alpha varray)))
-    ;; (print (list :rr (vacmp-omega varray)
+    ;; (print (list :rr (vacmp-omega varray)))
     ;;              (vacmp-alpha varray)
     ;;              (render (vacmp-omega varray))
     ;;              (render (vacmp-alpha varray))))
