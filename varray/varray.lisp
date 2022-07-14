@@ -3664,6 +3664,8 @@
          ashape))))
 
 (defmethod indexer-of ((varray vacomp-each) &optional params)
+  ;; (setf (vacmp-omega varray) (render (vacmp-omega varray))
+  ;;       (vacmp-alpha varray) (render (vacmp-alpha varray)))
   (let ((this-shape (shape-of varray))
         (oshape (shape-of (vacmp-omega varray)))
         (ashape (shape-of (vacmp-alpha varray)))

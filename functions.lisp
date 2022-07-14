@@ -1095,7 +1095,8 @@
                               ;; populate it with the function's identity value
                               (xdotimes output (i (size output))
                                 (setf (row-major-aref output i)
-                                      (if (functionp identity) (funcall identity) identity)))
+                                      (enclose (if (functionp identity)
+                                                   (funcall identity) identity))))
                               output)
                             (error "The operand of [/ reduce] has no identity value.")))
                     ;; if reduction produces a scalar, the result is the identity value
@@ -1225,7 +1226,7 @@
                   (if oscalar (setq output (enclose (funcall op-rendered (disclose-any oscalar))))
                       (xdotimes output (i (size omega) :synchronous-if (not threaded))
                         (setf (row-major-aref output i)
-                              (render-varrays (funcall op-rendered (row-major-aref omega i)))))))
+                              (time (render-varrays (funcall op-rendered (row-major-aref omega i))))))))
               output))))))
 
 (defun operate-commuting (operand)
