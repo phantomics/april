@@ -36,7 +36,7 @@ acc ← { ⊃⍺⍺{(⊂⍺ ⍺⍺⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1�
 disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested array.
   ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
 
-  box←{ ⎕IO←0                                     ⍝ Recursive boxing of nested array.
+  box←{                                      ⍝ Recursive boxing of nested array.
     isor ⍵:⎕FMT⊂⍵                            ⍝ ⎕or: '∇name'.
     1=≡,⍵:dec open ⎕FMT dec open ⍵           ⍝ simple array: format.
     mat←matr 1/dec open ⍵                    ⍝ matrix of opened subarrays.
@@ -46,7 +46,7 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     (≢⍴⍵)gaps ⍵ plane subs                   ⍝ collection into single plane.
   }
 
-  aligned←{    ⎕IO←0                                 ⍝ Alignment and centring.
+  aligned←{                                  ⍝ Alignment and centring.
     rows cols←sepr⍴¨⍵                        ⍝ subarray dimensions.
     sizes←(⌈/rows)∘.,⌈⌿cols                  ⍝ aligned subarray sizes.
     ctd=0:sizes↑¨⍵                           ⍝ top-left alignment.
@@ -54,7 +54,7 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     v⊖¨h⌽¨sizes↑¨⍵                           ⍝ centred aligned subarrays.
   }
 
-  gaps←{     ⎕IO←0                                 ⍝ Gap-separated sub-planes.
+  gaps←{                                     ⍝ Gap-separated sub-planes.
     ⍺≤2:⍵                                    ⍝ lowish rank: done.
     subs←(⍺-1)∇¨⍵                            ⍝ sub-hyperplanes.
     width←⊃⌽⍴⊃subs                           ⍝ width of inter-plane gap.
@@ -62,27 +62,27 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     ↑{⍺⍪fill⍪⍵}/1 open subs                  ⍝ gap-separated planes.
   }
 
-  plane←{     ⎕IO←0                                  ⍝ Boxed rank-2 plane.
+  plane←{                                    ⍝ Boxed rank-2 plane.
     2<⍴⍴⍺:⍺ join ⍵                           ⍝ gap-separated sub-planes.
     odec←(dec shape ⍺)outer ⍵                ⍝ outer type and shape decoration.
     idec←inner ⍺                             ⍝ inner type and shape decorations.
     (odec,idec)collect ⍵                     ⍝ collected, formatted subarrays.
   }
 
-  join←{      ⎕IO←0                                  ⍝ Join of gap-separated sub-planes.
+  join←{                                     ⍝ Join of gap-separated sub-planes.
     sep←(≢⍵)÷1⌈≢⍺                            ⍝ sub plane separation.
     split←(0=sep|⍳≢⍵)⊂[0]⍵                   ⍝ separation along first axis.
     (⊂⍤¯1⊢⍺)plane¨split                      ⍝ sub-plane join.
   }
 
-  outer←{      ⎕IO←0                                 ⍝ Outer decoration.
+  outer←{                                    ⍝ Outer decoration.
     sizes←1 0{⊃↓(⍉⍣⍺)⍵}¨sepr⍴¨⍵              ⍝ row and col sizes of subarrays.
     sides←sizes/¨¨'│─'                       ⍝ vert and horiz cell sides.
     bords←dec↓¨'├┬'glue¨sides                ⍝ joined up outer borders.
     ↑,¨/('┌' '')⍺ bords'└┐'                  ⍝ vertical and horizontal borders.
   }
 
-  inner←{     ⎕IO←0                                  ⍝ Inner subarray decorations.
+  inner←{                                    ⍝ Inner subarray decorations.
     deco←{(type ⍵),1 shape ⍵}                ⍝ type and shape decorators.
     sepr deco¨matr dec open ⍵                ⍝ decorators: tt vv hh .
   }
@@ -94,20 +94,20 @@ disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested ar
     lft,top⍪↑⍪⌿,/boxes                       ⍝ completed collection.
   }
 
-  right←{     ⎕IO←0                                  ⍝ Border right each subarray.
+  right←{                                    ⍝ Border right each subarray.
     types←2⊥¨(⍳⍴⍵)=⊂¯1+⍴⍵                    ⍝ right border lower corner types.
     chars←'┼┤┴┘'[types]                      ⍝    ..     ..      ..      chars.
     rgt←{⍵,(-≢⍵)↑(≢⍵)1 1/'│',⍺}              ⍝ form right border.
     ((matr 1 open ⍺),¨chars)rgt¨⍵            ⍝ cells bordered right.
   }
 
-  lower←{     ⎕IO←0                                  ⍝ Border below each subarray.
+  lower←{                                    ⍝ Border below each subarray.
     split←{((¯2+1⊃⍴⍵)/'─')glue ⍺}            ⍝ decorators split with horiz line.
     bot←{⍵⍪(-1⊃⍴⍵)↑⍺ split ⍵}                ⍝ lower border.
     (matr↑,¨/⍺)bot¨matr ⍵                    ⍝ cells bordered below.
   }
 
-  type←{  ⎕IO←0                                    ⍝ Type decoration char.
+  type←{                                     ⍝ Type decoration char.
     dec<|≡⍵:'─'                              ⍝ nested: '─'
     isor ⍵:'∇'                               ⍝ ⎕or:    '∇'
     sst←{                                    ⍝ simple scalar type.

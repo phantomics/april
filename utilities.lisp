@@ -111,12 +111,24 @@
                             ;; pass the environment variables if this is a user-defined function;
                             ;; remember not to add the nil argument if an internal
                             ;; variable state is being set
+                            ;; ,(if (and (symbolp form)
+                            ;;           (string= "deco" (string form)))
+                            ;;      `(print (list :args ,args index-origin
+                            ;;                    (when (not (getf ,this-meta :lexical-reference))
+                            ;;                        (list (list :fn-params
+                            ;;                                    :index-origin index-origin))))))
                             (apply ,form (append ,args (when (and (not (second ,args))
-                                                                  (getf ,this-meta :lexical-reference))
+                                                                  ;; (getf ,this-meta :lexical-reference)
+                                                                  )
                                                          (list nil))
                                                  (when (not (getf ,this-meta :lexical-reference))
                                                    (list (list :fn-params
-                                                               :index-origin index-origin)))))))))))
+                                                               :index-origin index-origin
+                                                               ;; ,@(if (and (symbolp form)
+                                                               ;;            (string= "deco" (string form)))
+                                                               ;;       `(:test-param 12)
+                                                               ;;       )
+                                                               )))))))))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -245,6 +257,8 @@
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
                                               :collect var)
                                       ,env))
+                  ;; (print (list :eee ,env ,@(loop :for var :in params :when (not (eql '&optional var))
+                  ;;                                :collect var)))
                   ,@(loop :for var :in params :when (not (eql '&optional var))
                           :collect `(setq ,var (render-varrays ,var)))
                   ;; (print (list :par ,@(remove '&optional (append params (list env 'abc)))))
@@ -257,6 +271,8 @@
                                                      `(or (getf (rest ,env) ,(intern (string key) "KEYWORD"))
                                                           ,(find-symbol (string val) space)))))
                         (declare (ignorable ,@vals-list))
+                        (if (getf (rest ,env) :test-param)
+                            (print (list :env ,env)))
                         ,@body))))
          #'∇self))))
 
