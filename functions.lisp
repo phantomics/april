@@ -1226,7 +1226,7 @@
                   (if oscalar (setq output (enclose (funcall op-rendered (disclose-any oscalar))))
                       (xdotimes output (i (size omega) :synchronous-if (not threaded))
                         (setf (row-major-aref output i)
-                              (time (render-varrays (funcall op-rendered (row-major-aref omega i))))))))
+                              (render-varrays (funcall op-rendered (row-major-aref omega i)))))))
               output))))))
 
 (defun operate-commuting (operand)
