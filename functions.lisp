@@ -1290,8 +1290,8 @@
 
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
-  (lambda (omega alpha &optional environment)
-    (declare (ignore environment))
+  (lambda (omega alpha &optional environment blank)
+    (declare (ignore environment blank))
     (let ((omega (render-varrays omega))
           (alpha (render-varrays alpha))
           (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
@@ -1310,8 +1310,8 @@
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
-  (lambda (alpha omega &optional environment)
-    (declare (ignore environment))
+  (lambda (alpha omega &optional environment blank)
+    (declare (ignore environment blank))
     (let ((omega (render-varrays omega))
           (alpha (render-varrays alpha))
           (right-rendering (lambda (o a) (render-varrays (funcall right o a))))
@@ -1337,8 +1337,8 @@
          (fn-left (and (functionp left) left))
          (left (if fn-left left (render-varrays left)))
          (temp))
-    (lambda (omega &optional alpha environment)
-      (declare (ignore environment))
+    (lambda (omega &optional alpha environment blank)
+      (declare (ignore environment blank)) ;; blank allows the case of :get-metadata nil arguments
       (setq omega (render-varrays omega)
             alpha (if (not (listp alpha)) ;; rule out (:env) objects
                       (render-varrays alpha)))
@@ -1381,8 +1381,8 @@
 
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore environment))
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore environment blank))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (let* ((odims (dims omega)) (adims (dims alpha))
@@ -1463,15 +1463,15 @@
 
 (defun operate-atop (right-fn left-fn)
   "Generate a function applying two functions to a value in succession. Used to implement [⍤ atop]."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore environment))
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore environment blank))
     (if alpha (funcall left-fn (funcall right-fn omega alpha))
         (funcall left-fn (funcall right-fn omega)))))
 
 (defun operate-to-power (fetch-determinant function)
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore environment))
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore environment blank))
     (setq omega (render-varrays omega)
           alpha (render-varrays alpha))
     (if (eq omega :get-metadata)
@@ -1515,8 +1515,8 @@
                                         (render-varrays (apply left o (if a (list a)))))))
         (right-fn (if (functionp right) (lambda (o &optional a)
                                           (render-varrays (apply right o (if a (list a))))))))
-    (lambda (omega &optional alpha environment)
-      (declare (ignorable alpha environment))
+    (lambda (omega &optional alpha environment blank)
+      (declare (ignorable alpha environment blank))
       (setq omega (render-varrays omega)
             alpha (render-varrays alpha))
       (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
@@ -1602,8 +1602,8 @@
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore alpha environment))
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore alpha environment blank))
     (setq omega (render-varrays omega)
           right-value (render-varrays right-value))
     (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))

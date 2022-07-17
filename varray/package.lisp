@@ -17,6 +17,7 @@
            #:vader-composing #:op-compose
            #:vacomp-reduce #:vacomp-each
            )
+  (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors
                           #:assign-element-type #:type-in-common #:apl-array-prototype
                           #:apply-scalar #:is-unitary #:enclose-atom #:array-compare

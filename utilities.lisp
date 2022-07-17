@@ -111,24 +111,13 @@
                             ;; pass the environment variables if this is a user-defined function;
                             ;; remember not to add the nil argument if an internal
                             ;; variable state is being set
-                            ;; ,(if (and (symbolp form)
-                            ;;           (string= "deco" (string form)))
-                            ;;      `(print (list :args ,args index-origin
-                            ;;                    (when (not (getf ,this-meta :lexical-reference))
-                            ;;                        (list (list :fn-params
-                            ;;                                    :index-origin index-origin))))))
                             (apply ,form (append ,args (when (and (not (second ,args))
                                                                   ;; (getf ,this-meta :lexical-reference)
                                                                   )
                                                          (list nil))
                                                  (when (not (getf ,this-meta :lexical-reference))
                                                    (list (list :fn-params
-                                                               :index-origin index-origin
-                                                               ;; ,@(if (and (symbolp form)
-                                                               ;;            (string= "deco" (string form)))
-                                                               ;;       `(:test-param 12)
-                                                               ;;       )
-                                                               )))))))))))
+                                                               :index-origin index-origin)))))))))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -228,7 +217,7 @@
                                             (getf prove.suite::*last-suite-report* :plan))
                                       (incf *lib-tests-failed*
                                             (* 1/2 (getf prove.suite::*last-suite-report* :failed))))))
-                              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+                              (format t "~% Warning: library system ｢~a｣ not loaded. Did you evaluate (load-libs) before trying to run the library tests?~%"
                                       package-symbol)))
           (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
@@ -251,17 +240,17 @@
          (system-vars (rest (assoc :sys-vars options)))
          (meta (rest (assoc :meta options)))
          (space (second (assoc :space options)))
-         (env (gensym)) (vals-list))
+         (env (gensym)) (blank (gensym)) (vals-list))
     `(symbol-macrolet ((%in-function-p% t))
-       (labels ((∇self ,(append params (list env))
+       (labels ((∇self ,(append params (list env blank))
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
                                               :collect var)
-                                      ,env))
+                                      ,env ,blank))
                   ;; (print (list :eee ,env ,@(loop :for var :in params :when (not (eql '&optional var))
                   ;;                                :collect var)))
                   ,@(loop :for var :in params :when (not (eql '&optional var))
                           :collect `(setq ,var (render-varrays ,var)))
-                  ;; (print (list :par ,@(remove '&optional (append params (list env 'abc)))))
+                  ;; (print (list :par ,@(remove '&optional (append params (list env)))))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
                       (let ,(if space
@@ -737,7 +726,7 @@
                                                                                 (rest namespace)))
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
-                             `(setf ,symbol (render-varrays ,set-to))))))))
+                             `(setf ,symbol (render-varrays ,set-to :parallel t))))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                (let ((val (gensym)))
@@ -755,7 +744,8 @@
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
                       (render-varrays ,(append symbol (list :assign value)
-                                               (if by (list :calling by))))))
+                                               (if by (list :calling by)))
+                                      :parallel t)))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
@@ -790,7 +780,7 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values)))
+                                `(let ((,this-val (render-varrays ,values :parallel t)))
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
@@ -839,7 +829,7 @@
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
     ;; don't render if the (:unrendered) option has been passed
-    `(let* ((,result ,(if unrendered form `(render-varrays ,form)))
+    `(let* ((,result ,(if unrendered form `(render-varrays ,form :parallel t)))
             (,printout ,(if (and (or print-to output-printed))
                             ;; don't print the results of assignment unless the :print-assignment
                             ;; option is set, as done when compiling a ⎕← expression
@@ -1064,9 +1054,9 @@
                                                              ix (1+ ix)))
             output))))
 
-(defun render-varrays (item)
+(defun render-varrays (item &rest params)
   (if (not (typep item 'varray))
-      item (render item)))
+      item (apply #'render item params)))
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
