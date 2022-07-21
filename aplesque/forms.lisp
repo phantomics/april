@@ -41,11 +41,11 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
-    (lambda (i)
-      (if output-shorter
-          ;; choose shorter path depending on whether input or output are larger, and
-          ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
-          ;; to respect the segmentation of the elements
+    (if output-shorter
+        ;; choose shorter path depending on whether input or output are larger, and
+        ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+        ;; to respect the segmentation of the elements
+        (lambda (i)
           (let ((oindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
             (loop :for i :from 0 :to (- irank 1) :while valid
@@ -58,7 +58,8 @@
                               (progn (incf oindex (* ofactor adj-index))
                                      (setq remaining remainder))
                               (setq valid nil)))))
-            (if valid oindex))
+            (if valid oindex)))
+        (lambda (i)
           (let ((iindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
             (loop :for i :from 0 :to (- irank 1) :while valid
@@ -187,28 +188,27 @@
       (the (unsigned-byte 62)
            (+ (the (unsigned-byte 62) (mod i increment))
               (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
-              (the (unsigned-byte 62)
-                   (* increment
-                      (the fixnum
-                           (funcall (if degrees #'identity
-                                        (lambda (x)
-                                          (declare (type (unsigned-byte 62) x))
-                                          (abs (- x (1- rlen)))))
-                                    (mod (+ (floor i increment)
-                                            (the fixnum
-                                                 (if (not degrees)
-                                                     0 (if (integerp degrees)
-                                                           degrees
-                                                           (if (arrayp degrees)
-                                                               (row-major-aref
-                                                                degrees
-                                                                (+ (the (unsigned-byte 62)
-                                                                        (mod i increment))
-                                                                   (the (unsigned-byte 62)
-                                                                        (* increment
-                                                                           (floor i vset-size)))))
-                                                               0)))))
-                                         rlen))))))))))
+              (let ((degree (the fixnum
+                                 (if (not degrees)
+                                     0 (if (integerp degrees)
+                                           degrees
+                                           (if (arrayp degrees)
+                                               (row-major-aref
+                                                degrees
+                                                (+ (the (unsigned-byte 62)
+                                                        (mod i increment))
+                                                   (the (unsigned-byte 62)
+                                                        (* increment (floor i vset-size)))))
+                                               0))))))
+                (the (unsigned-byte 62)
+                     (* increment
+                        (the fixnum
+                             (funcall (if degrees #'identity
+                                          (lambda (x)
+                                            (declare (type (unsigned-byte 62) x))
+                                            (abs (- x (1- rlen)))))
+                                      (mod (the fixnum (+ degree (floor i increment)))
+                                           rlen)))))))))))
 
 (defun indexer-permute (idims odims alpha is-diagonal &optional is-inverse)
   "Return indices of an array permuted as with the [⍉ permute] function."
