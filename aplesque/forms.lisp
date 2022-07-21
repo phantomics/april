@@ -177,23 +177,38 @@
 
 (defun indexer-turn (axis idims &optional degrees)
   "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
-  (let* ((rlen (nth axis idims))
-         (increment (reduce #'* (nthcdr (1+ axis) idims)))
-         (vset-size (* increment (nth axis idims))))
+  (declare (optimize (speed 3) (safety 0)))
+  (let* ((axis (the (unsigned-byte 8) axis))
+         (rlen (the (unsigned-byte 62) (nth axis idims)))
+         (increment (the (unsigned-byte 62) (reduce #'* (nthcdr (1+ axis) idims))))
+         (vset-size (the (unsigned-byte 64) (* increment rlen))))
     (lambda (i)
-      (+ (mod i increment)
-         (* vset-size (floor i vset-size))
-         (* increment (funcall (if degrees #'identity (lambda (x) (abs (- x (1- rlen)))))
-                               (mod (+ (floor i increment)
-                                       (if (not degrees)
-                                           0 (if (integerp degrees)
-                                                 degrees (if (arrayp degrees)
-                                                             (row-major-aref
-                                                              degrees
-                                                              (+ (mod i increment)
-                                                                 (* increment (floor i vset-size))))
-                                                             0))))
-                                    rlen)))))))
+      (declare (type (unsigned-byte 62) i))
+      (the (unsigned-byte 62)
+           (+ (the (unsigned-byte 62) (mod i increment))
+              (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+              (the (unsigned-byte 62)
+                   (* increment
+                      (the fixnum
+                           (funcall (if degrees #'identity
+                                        (lambda (x)
+                                          (declare (type (unsigned-byte 62) x))
+                                          (abs (- x (1- rlen)))))
+                                    (mod (+ (floor i increment)
+                                            (the fixnum
+                                                 (if (not degrees)
+                                                     0 (if (integerp degrees)
+                                                           degrees
+                                                           (if (arrayp degrees)
+                                                               (row-major-aref
+                                                                degrees
+                                                                (+ (the (unsigned-byte 62)
+                                                                        (mod i increment))
+                                                                   (the (unsigned-byte 62)
+                                                                        (* increment
+                                                                           (floor i vset-size)))))
+                                                               0)))))
+                                         rlen))))))))))
 
 (defun indexer-permute (idims odims alpha is-diagonal &optional is-inverse)
   "Return indices of an array permuted as with the [⍉ permute] function."

@@ -222,9 +222,9 @@
                  (if (not (functionp indexer))
                      indexer (funcall indexer 0))))))
 
-(time (let ((vec (make-array '(300 300 300) :element-type '(unsigned-byte 8))))
-        (declare (optimize (speed 3) (safety 0)))
-        (xdotimes vec (i 27000000) (setf (row-major-aref vec i) (mod i 100))) :done))
+;; (time (let ((vec (make-array '(300 300 300) :element-type '(unsigned-byte 8))))
+;;         (declare (optimize (speed 3) (safety 0)))
+;;         (xdotimes vec (i 27000000) (setf (row-major-aref vec i) (mod i 100))) :done))
 
 (defmacro get-promised (object form)
   `(if ,object (force ,object)
@@ -3312,6 +3312,30 @@
                         (if (not indexer)
                             base-indexer (funcall base-indexer (funcall indexer index))))))))
 
+(defmethod indexer-of ((varray vader-turn) &optional params)
+  "Indexer for a rotated or flipped array."
+  (declare (ignore params) (optimize (speed 3) (safety 0)))
+  (get-promised (varray-indexer varray)
+                (let* ((base-indexer (base-indexer-of varray))
+                       (axis (the (unsigned-byte 8) (vads-axis varray)))
+                       (iorigin (the fixnum (vads-io varray)))
+                       (indexer (the function (if (and (functionp base-indexer))
+                                                  (indexer-turn (if (eq :last (vads-axis varray))
+                                                                    (1- (the (unsigned-byte 62)
+                                                                             (rank-of varray)))
+                                                                    (- axis iorigin))
+                                                                (shape-of varray)
+                                                                (arg-process (vads-argument varray)))))))
+                  (if (zerop (the (unsigned-byte 62)
+                                  (reduce #'+ (shape-of (vader-base varray)))))
+                      (lambda (_)
+                        (declare (ignore _))
+                        (vader-base varray)) ;; handle the case of ⌽⍬
+                      (lambda (index)
+                        (if (not indexer)
+                            base-indexer (funcall (the function base-indexer)
+                                                  (funcall indexer index))))))))
+
 ;; (defmethod initialize-instance :around ((varray vader-turn) &key)
 ;;   (let* ((default (call-next-method))
 ;;          (base (vader-base default)))
@@ -3598,8 +3622,8 @@
                                                            (floor i (or (first odims) 1)))))
                               (row-major-aref afactors (1+ i)))))))
      
-     (lambda (i)
-       (if (shape-of varray)
+     (if (shape-of varray)
+         (lambda (i)
            (let ((result 0))
              (loop :for index :below av2
                    :do (incf result (* (if (not (functionp base-indexer))
@@ -3609,7 +3633,8 @@
                                                                       osize)))
                                        (row-major-aref afactors
                                                        (+ index (* av2 (floor i out-section)))))))
-             result)
+             result))
+         (lambda (i)
            (let ((result 0) (factor 1))
              (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
                    :do (incf result (* factor (if (not (functionp base-indexer))
