@@ -582,8 +582,9 @@
   (multiple-value-bind (function rest)
       ;; don't try function pattern matching if a function is already confirmed
       ;; or if the :ignore-patterns option is set in the params
-      (if (or found-function from-pivotal (getf params :ignore-patterns)) (values nil nil)
-          (match-function-patterns tokens axes space params))
+      ;; (if (or found-function from-pivotal (getf params :ignore-patterns)) (values nil nil)
+      ;;     (match-function-patterns tokens axes space params))
+      (values nil nil)
     (if function (values function rest)
         (build-function-core tokens :axes axes :found-function found-function
                                     :initial initial :space space :params params))))
