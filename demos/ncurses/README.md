@@ -12,7 +12,7 @@ To install the demo, evaluate `(ql:quickload 'april-demo.ncurses)`. If this does
 
 ### Running the demo
 
-For this demo to work, it must be run from the command line rather than through Emacs. The Common Lisp implementation you use must have QuickLisp loaded in its init file, which is provided for automatically when you install QuickLisp via the `quicklisp.lisp` file from [the QuickLisp site](https://www.quicklisp.org) and evaluate `(quicklisp::add-to-init-file)` after installation is complete. Your terminal emulator must support 256-color foregrounds and backgrounds for text - this means that as of this time, the classic xterm for *nix operating systems is not supported as it has limited options for background colors.
+For this demo to work, it must be run from the command line rather than through Emacs. The Common Lisp implementation you use must have QuickLisp loaded in its init file, which is provided for automatically when you install QuickLisp via the `quicklisp.lisp` file from [the QuickLisp site](https://www.quicklisp.org) and evaluate `(quicklisp::add-to-init-file)` after installation is complete. Your terminal emulator must support 256-color foregrounds and backgrounds for text - this means that xterm has to be explicitely told to support 256 colors, because by default it supports 8. This can be done by prepending "TERM=xterm-256color" to the sbcl command.
 
 Because this demo depends on external libraries, you'll need to install those via Quicklisp. The simplest way to do this is to evaluate `(april::install-demos)`.
 
