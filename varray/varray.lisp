@@ -140,6 +140,89 @@
       (or (subrendering-p (vader-base item))
           (subrendering-base (vader-base item)))))
 
+;; (defmethod render ((varray varray) &rest params)
+;;   (declare (optimize (speed 3)))
+;;   (let ((output-shape (shape-of varray))
+;;         (prototype (prototype-of varray))
+;;         (indexer (indexer-of varray))
+;;         (to-subrender (or (subrendering-p varray)
+;;                           (subrendering-base varray))))
+;;      ;; (print (list :vv varray prototype
+;;     ;;              (etype-of varray)
+;;     ;;              (if (typep varray 'varray-derived)
+;;     ;;                  (subrendering-p (vader-base varray)))))
+;;     (if output-shape
+;;         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
+;;             (let* ((out-meta (if (arrayp prototype)
+;;                                  (make-array 1 :initial-contents
+;;                                              (list (list :empty-array-prototype
+;;                                                          (prototype-of varray))))))
+;;                    (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
+;;                                (make-array (shape-of varray) :element-type (etype-of varray)))))
+;;               output)
+;;             (let* ((output (make-array (shape-of varray) :element-type (etype-of varray)))
+;;                    (render-index
+;;                      (if to-subrender
+;;                          (lambda (i)
+;;                            (declare (type (unsigned-byte 62) i))
+;;                            (let ((indexed (funcall indexer i)))
+;;                              (setf (row-major-aref output i)
+;;                                    (if indexed (render indexed) prototype))))
+;;                          (lambda (i)
+;;                            (declare (type (unsigned-byte 62) i))
+;;                            (setf (row-major-aref output i)
+;;                                  (or (funcall indexer i) prototype))))))
+;;               ;; (dotimes (i (array-total-size output))
+;;               ;; (xdotimes output (i (array-total-size output))
+;;               ;;   (let ((indexed (funcall indexer i)))
+;;               ;;     ;; (print (list :abc varray (shape-of varray) indexed prototype output))
+;;               ;;     ;; (print (list :in indexed))
+;;               ;;     (if indexed (setf (row-major-aref output i)
+;;               ;;                       (funcall (if (and (not to-subrender)
+;;               ;;                                         (not (subrendering-p indexed)))
+;;               ;;                                    #'identity #'render)
+;;               ;;                                indexed))
+;;               ;;         (setf (row-major-aref output i) prototype))))
+;;               (if t ; (getf params :parallel)
+;;                   (xdotimes output (i (array-total-size output))
+;;                     (declare (type (unsigned-byte 62) i))
+;;                     (funcall render-index i)
+;;                     ;; (setf (row-major-aref output i) (aref vt 1))
+;;                     ;; (setf (row-major-aref output i) (aref vt (mod i 3)))
+;;                     ;; (setf (row-major-aref output i) prototype)
+;;                     )
+;;                   (dotimes (i (array-total-size output))
+;;                     (funcall render-index i)))
+;;               output))
+;;         (funcall (if (not (subrendering-p varray))
+;;                      (lambda (item)
+;;                        (let ((rendered (apply #'render item params)))
+;;                          (if (or (not (shape-of rendered))
+;;                                  (typep varray 'vader-mix)
+;;                                  (typep varray 'vader-pick))
+;;                              rendered (enclose rendered))))
+;;                      (lambda (item)
+;;                        (let ((rendered (render item)))
+;;                          ;; (print (list :rr rendered varray item))
+;;                          (if (and (zerop (rank-of rendered))
+;;                                   (or (not (arrayp rendered))
+;;                                       (typep varray 'vacomp-reduce)))
+;;                              rendered (enclose rendered)))))
+;;                  (if (not (functionp indexer))
+;;                      indexer (funcall indexer 0))))))
+
+(defun sub-byte-element-size (array)
+  "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
+  (and (arrayp array)
+       (let ((type (array-element-type array)))
+         (or (and (eql 'bit type) 1)
+             #+clasp (case type (ext:byte2 2)
+                           (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
+             #+(not clasp) (and (listp type)
+                                (eql 'unsigned-byte (first type))
+                                (> 7 (second type))
+                                (second type))))))
+
 (defmethod render ((varray varray) &rest params)
   (declare (optimize (speed 3)))
   (let ((output-shape (shape-of varray))
@@ -147,7 +230,7 @@
         (indexer (indexer-of varray))
         (to-subrender (or (subrendering-p varray)
                           (subrendering-base varray))))
-     ;; (print (list :vv varray prototype
+    ;; (print (list :vv varray prototype
     ;;              (etype-of varray)
     ;;              (if (typep varray 'varray-derived)
     ;;                  (subrendering-p (vader-base varray)))))
@@ -171,40 +254,58 @@
                          (lambda (i)
                            (declare (type (unsigned-byte 62) i))
                            (setf (row-major-aref output i)
-                                 (or (funcall indexer i) prototype))))))
-              ;; (dotimes (i (array-total-size output))
-              ;; (xdotimes output (i (array-total-size output))
-              ;;   (let ((indexed (funcall indexer i)))
-              ;;     ;; (print (list :abc varray (shape-of varray) indexed prototype output))
-              ;;     ;; (print (list :in indexed))
-              ;;     (if indexed (setf (row-major-aref output i)
-              ;;                       (funcall (if (and (not to-subrender)
-              ;;                                         (not (subrendering-p indexed)))
-              ;;                                    #'identity #'render)
-              ;;                                indexed))
-              ;;         (setf (row-major-aref output i) prototype))))
-              (let ( ;; (render-index
-                    ;;   (lambda (i)
-                    ;;     (declare (type integer i))
-                    ;;     (let ((indexed (funcall indexer i)))
-                    ;;       (if indexed (setf (row-major-aref output i)
-                    ;;                         (funcall (if (and (not to-subrender)
-                    ;;                                           (not (subrendering-p indexed)))
-                    ;;                                      #'identity #'render)
-                    ;;                                  indexed))
-                    ;;           (setf (row-major-aref output i) prototype)))))
-                    )
-                (if t ; (getf params :parallel)
-                    (xdotimes output (i (array-total-size output))
-                      (declare (type (unsigned-byte 62) i))
-                      (funcall render-index i)
-                      ;; (setf (row-major-aref output i) (aref vt 1))
-                      ;; (setf (row-major-aref output i) (aref vt (mod i 3)))
-                      ;; (setf (row-major-aref output i) prototype)
-                      )
-                    (dotimes (i (array-total-size output))
-                      (funcall render-index i)))
-                output)))
+                                 (or (funcall indexer i) prototype)))))
+                   (sbsize (sub-byte-element-size output))
+                   (sbesize (if sbsize (/ 64 sbsize) 1))
+                   (wcadj *workers-count*)
+                   (vsizeadj (ceiling (/ (size-of varray) sbesize)))
+                   (divisions (if (< wcadj vsizeadj) wcadj vsizeadj))
+                   (division-size (* sbesize (/ vsizeadj divisions)))
+                   (lpchannel (lparallel::make-channel))
+                   (process (lambda (index &optional parallel)
+                              (lambda ()
+                                (let* ((start-at (floor (* division-size index)))
+                                       (count (abs (- (if (< index (1- divisions))
+                                                          (floor (* division-size
+                                                                    (1+ index)))
+                                                          (size-of varray))
+                                                      start-at))))
+                                  ;; (print (list :sa start-at count))
+                                  (loop :for i :from start-at :to (1- (+ start-at count))
+                                        :do (funcall render-index i))
+                                  ;; (print (list :ee start-at division-size index))
+                                  ))))
+                   (threaded-count 0))
+              ;; (setf active-workers 0)
+              ;; (print (list :out (type-of output) ;; active-workers
+              ;;              divisions division-size sbesize sbsize))
+              (loop :for d :below divisions
+                    :do (if ;; (< *active-workers* *workers-count*)
+                            (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                  :never (null (lparallel.kernel::running-category worker)))
+                            (funcall (funcall process d))
+                            (progn ;; (incf *active-workers*)
+                                   (incf threaded-count)
+                                   (lparallel::submit-task lpchannel (funcall process d t)))
+                            ))
+              ;; (print threaded-count)
+              ;; (loop :for tc :below threaded-count :do (lparallel::receive-result lpchannel)
+              ;;                                         ;; (setf *active-workers*
+              ;;                                         ;;       (max 0 (1- *active-workers*)))
+              ;;       )
+              (loop :repeat threaded-count
+                :do (lparallel::receive-result lpchannel))
+              ;; (if t ; (getf params :parallel)
+              ;;     (xdotimes output (i (array-total-size output))
+              ;;       (declare (type (unsigned-byte 62) i))
+              ;;       (funcall render-index i)
+              ;;       ;; (setf (row-major-aref output i) (aref vt 1))
+              ;;       ;; (setf (row-major-aref output i) (aref vt (mod i 3)))
+              ;;       ;; (setf (row-major-aref output i) prototype)
+              ;;       )
+              ;;     (dotimes (i (array-total-size output))
+              ;;      (funcall render-index i)))
+              output))
         (funcall (if (not (subrendering-p varray))
                      (lambda (item)
                        (let ((rendered (apply #'render item params)))
@@ -221,6 +322,19 @@
                              rendered (enclose rendered)))))
                  (if (not (functionp indexer))
                      indexer (funcall indexer 0))))))
+
+(defun segment-length (size section-count)
+  "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
+  (let* ((section-count (min section-count size))
+         (division-size (/ size section-count))
+         (start-points (make-array (list section-count)))
+         (section-lengths (copy-array start-points)))
+    (dotimes (i section-count) (setf (aref start-points i) (floor (* i division-size))))
+    (dotimes (i section-count) (setf (aref section-lengths i)
+                                     (- (if (= i (1- section-count))
+                                            size (aref start-points (1+ i)))
+                                        (aref start-points i))))
+    (values start-points section-lengths)))
 
 ;; (time (let ((vec (make-array '(300 300 300) :element-type '(unsigned-byte 8))))
 ;;         (declare (optimize (speed 3) (safety 0)))
@@ -498,58 +612,59 @@
   (lambda (index) (make-instance 'vapri-coordinate-vector
                                  :reference varray :index index)))
 
-;; (defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
-;;   ((%reference :accessor vaxv-reference
-;;                :initform nil
-;;                :initarg :reference
-;;                :documentation "The array to which this axis vector belongs.")
-;;    (%axis :accessor vaxv-axis
-;;           :initform nil
-;;           :initarg :axis
-;;           :documentation "The axis along which the axis vector leads.")
-;;    (%window :accessor vaxv-window
-;;             :initform nil
-;;             :initarg :window
-;;             :documentation "The window of division along the axis.")
-;;    (%index :accessor vaxv-index
-;;            :initform nil
-;;            :initarg :index
-;;            :documentation "This axis vector's index within the reference array reduced along the axis."))
-;;   (:metaclass va-class)
-;;   (:documentation "A sub-vector along an axis of an array."))
+(defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
+  ((%reference :accessor vaxv-reference
+               :initform nil
+               :initarg :reference
+               :documentation "The array to which this axis vector belongs.")
+   (%axis :accessor vaxv-axis
+          :initform nil
+          :initarg :axis
+          :documentation "The axis along which the axis vector leads.")
+   (%window :accessor vaxv-window
+            :initform nil
+            :initarg :window
+            :documentation "The window of division along the axis.")
+   (%index :accessor vaxv-index
+           :initform nil
+           :initarg :index
+           :documentation "This axis vector's index within the reference array reduced along the axis."))
+  (:metaclass va-class)
+  (:documentation "A sub-vector along an axis of an array."))
 
-;; (defmethod etype-of ((varray vapri-axis-vector))
-;;   (etype-of (vaxv-reference varray)))
+(defmethod etype-of ((varray vapri-axis-vector))
+  (etype-of (vaxv-reference varray)))
 
-;; ;; (defmethod prototype-of ((varray vapri-axis-vector)))
+;; (defmethod prototype-of ((varray vapri-axis-vector)))
 
-;; (defmethod shape-of ((varray vapri-axis-vector))
-;;   (get-promised (varray-shape varray)
-;;                 (nth (vaxv-axis varray) (shape-of (vaxv-reference varray)))))
+(defmethod shape-of ((varray vapri-axis-vector))
+  (get-promised (varray-shape varray)
+                (list (or (vaxv-window varray)
+                          (nth (vaxv-axis varray) (shape-of (vaxv-reference varray)))))))
 
-;; (defmethod indexer-of ((varray vapri-axis-vector) &optional params)
-;;   (get-promised (varray-indexer varray)
-;;                 (let* ((axis (vaxv-axis varray))
-;;                        (window (vaxv-window varray))
-;;                        (wsegment)
-;;                        (ref-index (vaxv-index varray))
-;;                        (ref-indexer (indexer-of (vaxv-reference varray)))
-;;                        (irank (rank-of (vaxv-reference varray)))
-;;                        (idims (shape-of (vaxv-reference varray)))
-;;                        (rlen (nth axis idims))
-;;                        (increment (reduce #'* (nthcdr (1+ axis) idims))))
-;;                   (loop :for dim :in idims :for dx :from 0
-;;                         :when (and window (= dx axis))
-;;                           :do (setq wsegment (- dim (1- window))))
-;;                   (let ((to-add (+ (if window (* rlen (floor ref-index wsegment))
-;;                                        (if (= 1 increment)
-;;                                            0 (* (floor ref-index increment)
-;;                                                 (- (* increment rlen) increment))))
-;;                                    (if (/= 1 increment) ref-index
-;;                                        (if window (if (>= 1 irank) ref-index
-;;                                                       (mod ref-index wsegment))
-;;                                            (* ref-index rlen))))))
-;;                     (lambda (index) (funcall ref-indexer (+ to-add (* index increment))))))))
+(defmethod indexer-of ((varray vapri-axis-vector) &optional params)
+  (get-promised (varray-indexer varray)
+                (let* ((axis (vaxv-axis varray))
+                       (window (vaxv-window varray))
+                       (wsegment)
+                       (ref-index (vaxv-index varray))
+                       (ref-indexer (indexer-of (vaxv-reference varray)))
+                       (irank (rank-of (vaxv-reference varray)))
+                       (idims (shape-of (vaxv-reference varray)))
+                       (rlen (nth axis idims))
+                       (increment (reduce #'* (nthcdr (1+ axis) idims))))
+                  (loop :for dim :in idims :for dx :from 0
+                        :when (and window (= dx axis))
+                          :do (setq wsegment (- dim (1- window))))
+                  (let ((delta (+ (if window (* rlen (floor ref-index wsegment))
+                                      (if (= 1 increment)
+                                          0 (* (floor ref-index increment)
+                                               (- (* increment rlen) increment))))
+                                  (if (/= 1 increment) ref-index
+                                      (if window (if (>= 1 irank) ref-index
+                                                     (mod ref-index wsegment))
+                                          (* ref-index rlen))))))
+                    (lambda (index) (funcall ref-indexer (+ delta (* index increment))))))))
 
 ;; superclasses encompassing array derivations taking different types of parameters
 
@@ -3125,7 +3240,6 @@
                                                       (array-compare (first contents) c)))
                                     (progn (incf match-count)
                                            (list (first contents)))))))
-              ;; (print (list :ma matches (apply #'type-in-common matches) match-count))
               (setf (vads-content varray)
                     (make-array match-count :initial-contents matches
                                             :element-type (apply #'type-in-common
@@ -3264,8 +3378,8 @@
               (funcall base-indexer (aref (vauni-indices varray) index))
               (multiple-value-bind (count remainder) (floor index cell-size)
                 (row-major-aref (vads-content varray)
-                                (+ remainder (* cell-size
-                                                (aref (vauni-indices varray) count))))))))))
+                                (+ remainder (* cell-size (aref (vauni-indices varray)
+                                                                count))))))))))
 
 (defclass vader-union (varray-derived vad-limitable)
   nil (:metaclass va-class)
@@ -3842,6 +3956,8 @@
                                     (not (getf fn-meta :operator-reference))
                                     (member (getf fn-meta :lexical-reference)
                                             '(#\, #\⍪ #\∩) :test #'char=)))
+                  (ax-interval (or window rlen))
+                  (increment-diff (- (* increment rlen) increment))
                   ;; TODO: create a better way to determine the catenate function
                   )
              ;; (print (list :fm fn-meta osize (vacmp-omega varray)))
@@ -3857,20 +3973,24 @@
                 ;; (print (list 12 (vacmp-omega varray)))
                 ;; reverse the argument vector in the case of a scalar function;
                 ;; this also applies in the case of the next two clauses
+                ;; (print :ee)
                 (lambda (i)
                   (declare (optimize (safety 1)))
-                  (let ((output (funcall (vacmp-left varray)
-                                         :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                                              (vacmp-omega varray)))))
+                  (let* ((output (funcall (vacmp-left varray)
+                                          :arg-vector (funcall (if scalar-fn #'reverse #'identity)
+                                                               (vacmp-omega varray))))
+                         (out-indexer (indexer-of output)))
+                    ;; (princ "1 ")
                     ;; (print (list :rr (render output) output (shape-of output)))
                     ;; pass the indexer through for a shapeless output as from +/⍳5;
                     ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
                     (if (shape-of output)
-                        output (funcall (indexer-of output) i)))))
+                        output (funcall out-indexer i)))))
                ((and (or scalar-fn (and catenate-fn (not window)))
                      (= axis (length out-dims))
                      (arrayp (vacmp-omega varray)))
                 ;; (print (list 11 axis out-dims (vacmp-omega varray)))
+                ;; (print :ff)
                 (lambda (i)
                   (declare (optimize (safety 1)))
                   (funcall (vacmp-left varray)
@@ -3881,15 +4001,18 @@
                                                       :displaced-index-offset (* i rlen))))))
                (t (flet ((process-item (i ix delta)
                            (funcall omega-indexer (+ delta (* ix increment)))))
+                    ;; (print :gg)
+                    ;; (print (list :tt window (type-of (vacmp-omega varray))
+                    ;;              (vacmp-omega varray)
+                    ;;              (or scalar-fn catenate-fn)))
                     (if (or scalar-fn catenate-fn)
                         (lambda (i)
                           (declare (optimize (safety 1)))
                           (let ((valix 0)
-                                (value (make-array (or window rlen)))
+                                (value (make-array ax-interval))
                                 (delta (+ (if window (* rlen (floor i wsegment))
                                               (if (= 1 increment)
-                                                  0 (* (floor i increment)
-                                                       (- (* increment rlen) increment))))
+                                                  0 (* increment-diff (floor i increment))))
                                           (if (/= 1 increment) i
                                               (if window (if (>= 1 irank) i (mod i wsegment))
                                                   (* i rlen))))))
@@ -3899,10 +4022,10 @@
                             ;; (print (list :win window window-reversed))
                             (if window-reversed
                                 (loop :for ix :below window
-                                      :do (setf (aref value (- (or window rlen) (incf valix)))
+                                      :do (setf (aref value (- ax-interval (incf valix)))
                                                 (process-item i ix delta)))
-                                (loop :for ix :from (1- (or window rlen)) :downto 0
-                                      :do (setf (aref value (- (or window rlen) (incf valix)))
+                                (loop :for ix :from (1- ax-interval) :downto 0
+                                      :do (setf (aref value (- ax-interval (incf valix)))
                                                 (process-item i ix delta))))
                             ;; (print (list :ll value))
                             (setf value (funcall (vacmp-left varray)
@@ -3928,7 +4051,7 @@
                                                             (setq value (if (not value) item
                                                                             (funcall (vacmp-left varray)
                                                                                      value item)))))
-                                (loop :for ix :from (1- (or window rlen)) :downto 0
+                                (loop :for ix :from (1- ax-interval) :downto 0
                                       :do (let ((item (process-item i ix delta)))
                                             (setq value (if (not value) item
                                                             (funcall (vacmp-left varray)

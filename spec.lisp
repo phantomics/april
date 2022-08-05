@@ -1336,7 +1336,7 @@
   (/ (has :title "Reduce")
      (lateral (lambda (operand)
                 ;; (values `(operate-reducing ,operand index-origin t)
-                ;;           '(:axis))
+                ;;         '(:axis))
                 (values `(op-compose 'vacomp-reduce :left (sub-lex ,operand)
                                                     :index-origin index-origin)
                         '(:axis))
