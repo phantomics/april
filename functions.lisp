@@ -890,9 +890,10 @@
           (error "The left argument to ⍕ must be an integer specifying ~a"
                  "the precision at which to print floating-point numbers."))
       ;; only right-indent if this is a nested array; this is important for box-drawing functions
-      (if (arrayp input) (xdotimes input (x (size input))
-                           (if (arrayp (row-major-aref input x))
-                               (setf is-not-nested nil))))
+      (when (arrayp input)
+        (xdotimes input (x (size input))
+          (if (arrayp (row-major-aref input x))
+              (setf is-not-nested nil))))
       (funcall (lambda (output)
                  (if (/= 1 (rank output))
                      output (array-promote output)))
@@ -1526,8 +1527,7 @@
           (if right-fn
               (let ((true-indices (make-array (size omega) :initial-element 0))
                     (omega-copy (copy-array omega :element-type t)))
-                ;; (xdotimes true-indices (i (size omega))
-                (dotimes (i (size omega))
+                (xdotimes true-indices (i (size omega))
                   (if (or (and right-fn (not (zerop (funcall right-fn (row-major-aref omega i)))))
                           (and (integerp right) (= i (- right index-origin)))
                           (and (arrayp right)
@@ -1545,8 +1545,7 @@
                                (incf tvix))))
                   (let ((to-assign (if alpha (funcall left-fn true-vector alpha)
                                        (funcall left-fn true-vector))))
-                    ;; (xdotimes omega-copy (i (size omega))
-                    (dotimes (i (size omega))
+                    (xdotimes omega-copy (i (size omega))
                       (if (not (zerop (row-major-aref true-indices i)))
                           (setf (row-major-aref omega-copy i)
                                 (if (= 1 (length true-vector))
@@ -1580,8 +1579,7 @@
                          (if (/= (size omega) (size selections))
                              (error "Output of [@ at]'s right operand function must match ~n"
                                     " the shape of the left argument.")
-                             ;; (xdotimes output (i (size selections))
-                             (dotimes (i (size selections))
+                             (xdotimes output (i (size selections))
                                (setf (row-major-aref output i)
                                      (if (zerop (row-major-aref selections i))
                                          (row-major-aref omega i)

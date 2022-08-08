@@ -223,6 +223,35 @@
                                 (> 7 (second type))
                                 (second type))))))
 
+(defun system-command-exists (command-string &optional prefix)
+  "Check for the existence of a shell command under the host operating system."
+  (if (not prefix) (setq prefix ""))
+  (zerop (multiple-value-bind (1st 2nd error-code)
+	     (uiop:run-program (format nil "~acommand -v ~a" prefix command-string)
+			       :ignore-error-status t)
+	   (declare (ignore 1st 2nd))
+	   error-code)))
+
+(defun count-cpus ()
+  "Count the available threads in the system, accounting for different operating systems."
+  (with-open-stream (cmd-out (make-string-output-stream))
+    (uiop:run-program
+     (case (uiop:operating-system)
+       ((:linux :linux-target)
+	(if (system-command-exists "nproc") "nproc" ""))
+       ((:bsd :freebsd :openbsd :netbsd)
+	(if (system-command-exists "sysctl") "sysctl -n hw.ncpu" ""))
+       ((:macosx :darwin)
+	(if (system-command-exists "sysctl") "sysctl -n hw.logicalcpu" ""))
+       ((:windows)
+        "echo %NUMBER_OF_PROCESSORS%"))
+     :output cmd-out)
+    (let ((output (get-output-stream-string cmd-out)))
+      (if (zerop (length output))
+	  1 (read-from-string output)))))
+
+(defvar *workers-count* (count-cpus))
+
 (defmethod render ((varray varray) &rest params)
   (declare (optimize (speed 3)))
   (let ((output-shape (shape-of varray))
@@ -262,7 +291,7 @@
                    (divisions (if (< wcadj vsizeadj) wcadj vsizeadj))
                    (division-size (* sbesize (/ vsizeadj divisions)))
                    (lpchannel (lparallel::make-channel))
-                   (process (lambda (index &optional parallel)
+                   (process (lambda (index)
                               (lambda ()
                                 (let* ((start-at (floor (* division-size index)))
                                        (count (abs (- (if (< index (1- divisions))
@@ -281,30 +310,15 @@
               ;;              divisions division-size sbesize sbsize))
               (loop :for d :below divisions
                     :do (if ;; (< *active-workers* *workers-count*)
-                            (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                  :never (null (lparallel.kernel::running-category worker)))
+                         ;; (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                         ;;       :never (null (lparallel.kernel::running-category worker)))
+                         ;; t
+                         (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
-                            (progn ;; (incf *active-workers*)
-                                   (incf threaded-count)
-                                   (lparallel::submit-task lpchannel (funcall process d t)))
-                            ))
-              ;; (print threaded-count)
-              ;; (loop :for tc :below threaded-count :do (lparallel::receive-result lpchannel)
-              ;;                                         ;; (setf *active-workers*
-              ;;                                         ;;       (max 0 (1- *active-workers*)))
-              ;;       )
+                            (progn (incf threaded-count)
+                                   (lparallel::submit-task lpchannel (funcall process d)))))
               (loop :repeat threaded-count
                 :do (lparallel::receive-result lpchannel))
-              ;; (if t ; (getf params :parallel)
-              ;;     (xdotimes output (i (array-total-size output))
-              ;;       (declare (type (unsigned-byte 62) i))
-              ;;       (funcall render-index i)
-              ;;       ;; (setf (row-major-aref output i) (aref vt 1))
-              ;;       ;; (setf (row-major-aref output i) (aref vt (mod i 3)))
-              ;;       ;; (setf (row-major-aref output i) prototype)
-              ;;       )
-              ;;     (dotimes (i (array-total-size output))
-              ;;      (funcall render-index i)))
               output))
         (funcall (if (not (subrendering-p varray))
                      (lambda (item)
@@ -327,8 +341,8 @@
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
   (let* ((section-count (min section-count size))
          (division-size (/ size section-count))
-         (start-points (make-array (list section-count)))
-         (section-lengths (copy-array start-points)))
+         (start-points (make-array section-count))
+         (section-lengths (make-array section-count)))
     (dotimes (i section-count) (setf (aref start-points i) (floor (* i division-size))))
     (dotimes (i section-count) (setf (aref section-lengths i)
                                      (- (if (= i (1- section-count))
@@ -1358,7 +1372,8 @@
           (vector (make-array count :element-type (etype-of varray))))
      
      (setf (vadeal-cached varray) vector)
-     (xdotimes vector (x (length vector))
+     ;; (xdotimes vector (x (length vector))
+     (dotimes (x (length vector))
        (setf (aref vector x) (+ x (vads-io varray))))
 
      ;; (print (list :gen count generator))
@@ -3961,7 +3976,6 @@
                   ;; TODO: create a better way to determine the catenate function
                   )
              ;; (print (list :fm fn-meta osize (vacmp-omega varray)))
-             ;; (print (list :axa varray))
              ;; (print (list :sc scalar-fn (vacmp-left varray)))
              (loop :for dim :in odims :for dx :from 0
                    :when (and window (= dx axis))
@@ -3984,8 +3998,10 @@
                     ;; (print (list :rr (render output) output (shape-of output)))
                     ;; pass the indexer through for a shapeless output as from +/⍳5;
                     ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
-                    (if (shape-of output)
-                        output (funcall out-indexer i)))))
+                    ;; (if (shape-of output)
+                    ;;     output (funcall out-indexer i))
+                    (render output)
+                    )))
                ((and (or scalar-fn (and catenate-fn (not window)))
                      (= axis (length out-dims))
                      (arrayp (vacmp-omega varray)))
