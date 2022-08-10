@@ -1951,6 +1951,8 @@
        "(⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)6⊣¨⍺} 5" #(33 33 33))
   (for "More complex lateral operator use within function."
        "{ ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22" 1)
+  (for "Simplification of above lateral operator mechanic."
+       "{,/⍵}/3⍴⊂⍳3" #0A#0A#(1 2 3))
   (for "Compose operator composition within defined lateral operator."
        "÷{⍺⍺∘⌽⍵}⍳9" #(1/9 1/8 1/7 1/6 1/5 1/4 1/3 1/2 1))
   (for "Pivotal inline operator containing variable function/value ⍺ assignment."
