@@ -2086,6 +2086,7 @@
                                           :when (/= dx axis) :collect dim
                                           :when (and window (= dx axis))
                                             :collect (setq wsegment (- dim (1- window)))))))
+              ;; (print (list :d (dims output)))
               (if (= 1 (first (last odims)))
                   ;; (xdotimes output (i (size output))
                   (dotimes (i (size output))
@@ -2108,6 +2109,7 @@
                                  (setq value (if (not value) item (funcall function value item))))))
                         (if window-reversed (loop :for ix :below window :do (process-item ix))
                             (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
+                      ;; (print (list :vl value (type-of output)))
                       (setf (row-major-aref output i) value))))
               (if (not (and (arrayp output)
                             (zerop (rank output))

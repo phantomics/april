@@ -254,6 +254,7 @@
 
 (defmethod render ((varray varray) &rest params)
   (declare (optimize (speed 3)))
+  ;; (princ "1 ")
   (let ((output-shape (shape-of varray))
         (prototype (prototype-of varray))
         (indexer (indexer-of varray))
@@ -263,6 +264,8 @@
     ;;              (etype-of varray)
     ;;              (if (typep varray 'varray-derived)
     ;;                  (subrendering-p (vader-base varray)))))
+    ;; (if to-subrender (princ "7 "))
+    ;; (push (dissect:capture-environment) april::*stacks*)
     (if output-shape
         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
             (let* ((out-meta (if (arrayp prototype)
@@ -2374,19 +2377,22 @@
           (inner-rank (length inner-shape))
           (iofactors (get-dimensional-factors outer-shape t)))
      ;; (print (list :oo oshape base-shape))
-     (lambda (index)
-       ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
-       ;; (print (list :in index oshape))
-       (if (not oshape)
-           (if (not (functionp oindexer))
-               (disclose oindexer) ;; TODO: change indexer-of for rank 0 arrays to obviate this
+     
+     ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
+     ;; (print (list :in index oshape))
+     (if (not oshape)
+         (if (not (functionp oindexer))
+             (lambda (index) (disclose oindexer))
+             ;; TODO: change indexer-of for rank 0 arrays to obviate this
+             (lambda (index)
                (let* ((indexed (funcall oindexer 0))
                       (iindexer (indexer-of indexed))
                       (sub-index (if (not (functionp iindexer))
                                      iindexer (funcall (indexer-of indexed) 0))))
                  (if (and (not (shape-of indexed)))
                      (setf (vads-subrendering varray) t))
-                 sub-index))
+                 sub-index)))
+         (lambda (index)
            (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
              (loop :for ofactor :across ofactors :for di :in dim-indices :for fx :from 0
                    :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
@@ -3988,8 +3994,10 @@
                 ;; reverse the argument vector in the case of a scalar function;
                 ;; this also applies in the case of the next two clauses
                 ;; (print :ee)
+                ;; (setf (vads-subrendering varray) nil)
                 (lambda (i)
                   (declare (optimize (safety 1)))
+                  ;; (princ "5 ")
                   (let* ((output (funcall (vacmp-left varray)
                                           :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                                (vacmp-omega varray))))
@@ -3998,15 +4006,16 @@
                     ;; (print (list :rr (render output) output (shape-of output)))
                     ;; pass the indexer through for a shapeless output as from +/⍳5;
                     ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
-                    ;; (if (shape-of output)
-                    ;;     output (funcall out-indexer i))
-                    (render output)
+                    (if (shape-of output)
+                        output (funcall out-indexer i))
+                    ;; (render output)
                     )))
                ((and (or scalar-fn (and catenate-fn (not window)))
                      (= axis (length out-dims))
                      (arrayp (vacmp-omega varray)))
                 ;; (print (list 11 axis out-dims (vacmp-omega varray)))
                 ;; (print :ff)
+                ;; (setf (vads-subrendering varray) nil)
                 (lambda (i)
                   (declare (optimize (safety 1)))
                   (funcall (vacmp-left varray)
@@ -4072,8 +4081,6 @@
                                             (setq value (if (not value) item
                                                             (funcall (vacmp-left varray)
                                                                      value item))))))
-                            ;; (print (list :ll value))
-                            ;; (print (list :val value))
                             value))))))))))))
 
 ;; (flet ((process-item (ix)
