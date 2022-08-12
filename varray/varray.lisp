@@ -3097,7 +3097,8 @@
                                               base)))
               (if path-index (if (= path-index (1- path-length))
                                  (let ((indexer (if (not (functionp base-indexer))
-                                                    base-indexer (if (typep base 'vader-pick)
+                                                    ;; TODO: special mix case, generalize
+                                                    base-indexer (if (typep base 'vader-mix)
                                                                      (let ((bix (funcall base-indexer 0)))
                                                                        (if (not (arrayp bix))
                                                                            bix (row-major-aref
@@ -3112,7 +3113,7 @@
                   (setf (vapick-reference varray)
                         (if (= 1 path-length)
                             (let ((indexer (if (not (functionp base-indexer))
-                                               base-indexer (if (typep base 'vader-pick)
+                                               base-indexer (if (typep base 'vader-mix)
                                                                 (let ((bix (funcall base-indexer 0)))
                                                                   (if (not (arrayp bix))
                                                                       bix (row-major-aref bix path-value)))
@@ -3129,8 +3130,10 @@
                                      base-indexer (if (zerop (size-of base))
                                                       (prototype-of base)
                                                       (let ((bix (funcall base-indexer 0)))
+                                                        ;; (print (list :ba base bix))
                                                         (if (or (not (arrayp bix))
-                                                                (not (typep base 'vader-pick)))
+                                                                ;; TODO: special mix case, generalize
+                                                                (not (typep base 'vader-mix)))
                                                             bix (row-major-aref bix 0)))))))
                     ;; (print (list :in indexer base))
                     (when (and (shape-of base) (not (shape-of indexer))
