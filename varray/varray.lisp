@@ -312,10 +312,10 @@
               ;;              divisions division-size sbesize sbsize))
               (loop :for d :below divisions
                     :do (if ;; (< *active-workers* *workers-count*)
-                         ;; (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                         ;;       :never (null (lparallel.kernel::running-category worker)))
+                         (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                               :never (null (lparallel.kernel::running-category worker)))
                          ;; t
-                         (lparallel:kernel-worker-index)
+                         ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task lpchannel (funcall process d)))))
@@ -2325,8 +2325,9 @@
 
 (defmethod prototype-of ((varray vader-mix))
   (let ((base-indexer (base-indexer-of varray)))
-    (prototype-of (if (not (functionp base-indexer))
-                      base-indexer (funcall base-indexer 0)))))
+    (prototype-of (or (vamix-cached-elements varray)
+                      (if (not (functionp base-indexer))
+                          base-indexer (funcall base-indexer 0))))))
 
 (defmethod shape-of ((varray vader-mix))
   (get-promised
@@ -2342,15 +2343,12 @@
        ((not base-shape)
         (setf (vamix-cached-elements varray)
               (funcall base-indexer 0))
-        ;; (print (list :eoe (shape-of (vamix-cached-elements varray))))
         (shape-of (vamix-cached-elements varray)))
        (t
-        (if (typep base 'vacomp-reduce) (print :aa))
         (loop :for ix :below (reduce #'* base-shape)
               :do (let ((member (funcall base-indexer ix)))
                     (setf max-rank (max max-rank (length (shape-of member))))
                     (push (shape-of member) each-shape)))
-        (if (typep base 'vacomp-reduce) (print :ee))
         (let ((out-shape) (shape-indices)
               (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
           (loop :for shape :in each-shape
@@ -2361,8 +2359,6 @@
           (setf axis (setf (vads-axis varray)
                            (if (eq :last axis) (length base-shape)
                                (ceiling (- axis (vads-io varray))))))
-
-          (if (typep base 'vacomp-reduce) (print :dd))
           ;; push the outer shape elements to the complete shape
           (loop :for odim :in base-shape :for ix :from 0
                 :do (when (= ix axis)
@@ -2385,27 +2381,21 @@
 (defmethod indexer-of ((varray vader-mix) &optional params)
   (get-promised
    (varray-indexer varray)
-   (let* (;; (ee (if (typep (vader-base varray) 'vacomp-reduce) (print :cc)))
-          (oshape (shape-of varray))
+   (let* ((oshape (shape-of varray))
           (ofactors (get-dimensional-factors oshape t))
           (oindexer (base-indexer-of varray))
           (dim-indices (vamix-shape-indices varray))
           (orank (length (shape-of (vader-base varray))))
-          ;; (ee (if (typep (vader-base varray) 'vacomp-reduce) (print :dd)))
           (outer-shape (loop :for i :in dim-indices :for s :in oshape
                              :when (> orank i) :collect s))
           (inner-shape (loop :for i :in dim-indices :for s :in oshape
                              :when (<= orank i) :collect s))
           (inner-rank (length inner-shape))
           (iofactors (get-dimensional-factors outer-shape t)))
-     ;; (if (typep (vader-base varray) 'vacomp-reduce) (print :aa))
-     ;; (print (list :oo oshape (shape-of (vader-base varray))
-     ;;               (not (shape-of (vader-base varray)))))
-     
      ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
      (if (not oshape) ;; if the argument is a scalar
          (if (not (functionp oindexer)) ;; a scalar value like 5
-             (lambda (index) (disclose oindexer))
+             (lambda (i) (declare (ignore i)) (disclose oindexer))
              ;; TODO: change indexer-of for rank 0 arrays to obviate this
              (let* ((indexed (funcall oindexer 0))
                     (iindexer (indexer-of indexed))
@@ -2414,10 +2404,9 @@
                (if (and (typep (vader-base varray) 'varray)
                         (not (shape-of (vader-base varray))))
                    (indexer-of (vader-base varray))
-                   (lambda (index) sub-index))))
+                   (lambda (i) (declare (ignore i)) sub-index))))
          (if (not (shape-of (vader-base varray)))
              ;; pass through the indexer of enclosed arrays as for ↑⊂2 4
-             ;; (indexer-of (funcall oindexer 0))
              (indexer-of (vamix-cached-elements varray))
              (if (vamix-cached-elements varray)
                  (progn (print (list :ce (vamix-cached-elements varray)))
@@ -2445,9 +2434,6 @@
                               (irank (length ishape))
                               (doffset (- inner-rank irank))
                               (iindex 0))
-                         ;; (if (arrayp iarray)
-                         ;;     (print (list :ia iarray (type-of (vader-base varray))
-                         ;;                  (shape-of varray))))
                          (if (not (functionp iindexer))
                              (when (zerop (reduce #'+ inner-indices)) iindexer)
                              (progn (loop :for i :in inner-indices :for ix :from 0 :while iindex
@@ -4119,7 +4105,7 @@
                                             (setq value (if (not value) item
                                                             (funcall (vacmp-left varray)
                                                                      value item))))))
-                            ;; (print (list :val value (render value)))
+                            ;; (print (list :val value))
                             value))))))))))))
 
 ;; (flet ((process-item (ix)
