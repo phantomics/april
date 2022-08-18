@@ -929,16 +929,17 @@
   (if (varrayp object)
       (invert-assigned-varray (varray::vader-base object)
                               (typecase object
+                                (vader-identity order)
+                                ;; don't include identity, this is for assignment cases like
+                                ;; ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
                                 (vader-pick (append order (list object)))
+                                ;; pick is shifted to the end of the list
                                 (t (cons object order))))
       (let ((output))
         (loop :for o :in order
               :do (setf (varray::vader-base o) (or output object)
                         output o))
         (or output object))))
-
-;; x←3 3⍴⍳9 ⋄ (2 3⌷x)←33 ⋄ x
-;; x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x
 
 (defun assign-by-selection (prime-function function value omega
                             &key inverted assign-sym axes secondary-prime-fn index-origin by)
@@ -952,30 +953,31 @@
                              (row-major-aref array i)
                              (duplicate-t (row-major-aref array i)))))
                  output)))
-      (setf ggi (funcall function omega))
+      ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+      ;; (print (list :g ggi))
       ;; (print (list :fn function-meta))
       ;;(if t;(or (getf function-meta :selective-assignment-function)
       ;;  (getf function-meta :selective-assignment-passthrough))
       ;; (print (list :ba (invert-assigned-varray (funcall function omega))))
-      (if (getf function-meta :selective-assignment-passthrough)
-          (let* (;; (base-object (funcall inverted omega))
-                 (base-object (invert-assigned-varray (funcall function omega)))
-                 (sub-base (varray::vader-base base-object)))
-            (typecase sub-base
-              (vader-pick (setf (varray::vapick-assign sub-base) value
-                                (varray::vapick-selector sub-base)
-                                (when (typep (varray::vader-base sub-base) 'varray::varray)
-                                  (varray::vader-base sub-base))
-                                (varray::vader-base sub-base) omega)
-               ;; (print (list :sb sub-base))
-               ;; (setf sb sub-base)
-               sub-base)
-              (vader-select (setf (varray::vasel-assign sub-base) value)
-               sub-base)
-              (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                              :argument ;; inverted
-                                              function
-                                              ))))
+      (if t ; (getf function-meta :selective-assignment-passthrough)
+          ;; (let* (;; (base-object (funcall inverted omega))
+          ;;        (base-object (invert-assigned-varray (funcall function omega)))
+          ;;        (sub-base (varray::vader-base base-object)))
+          ;;   (typecase sub-base
+          ;;     (vader-pick (setf (varray::vapick-assign sub-base) value
+          ;;                       (varray::vapick-selector sub-base)
+          ;;                       (when (typep (varray::vader-base sub-base) 'varray::varray)
+          ;;                         (varray::vader-base sub-base))
+          ;;                       (varray::vader-base sub-base) omega)
+          ;;      ;; (print (list :sb sub-base))
+          ;;      ;; (setf sb sub-base)
+          ;;      sub-base)
+          ;;     (vader-select (setf (varray::vasel-assign sub-base) value)
+          ;;      sub-base)
+          ;;     (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+          ;;                                     :argument ;; inverted
+          ;;                                     function
+          ;;                                     ))))
           (let ((base-object (invert-assigned-varray (funcall function omega))))
             (typecase base-object
               (varray::vader-select
@@ -992,7 +994,7 @@
                      (varray::vader-base base-object) omega)
                base-object)
               (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                              :argument function
+                                              :argument (funcall function omega)
                                               ;; inverted
                                               ))))
           ;; (case (getf function-meta :selective-assignment-function)
