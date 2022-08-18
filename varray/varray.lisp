@@ -4025,7 +4025,7 @@
                      (= (- axis (vads-io varray))
                         (length out-dims))
                      (arrayp (vacmp-omega varray)))
-                (print (list 11 axis out-dims (vacmp-omega varray)))
+                ;; (print (list 11 axis out-dims (vacmp-omega varray)))
                 (lambda (i)
                   (declare (optimize (safety 1)))
                   (funcall (vacmp-left varray)

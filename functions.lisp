@@ -925,6 +925,21 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
+(defun invert-assigned-varray (object &optional order)
+  (if (varrayp object)
+      (invert-assigned-varray (varray::vader-base object)
+                              (typecase object
+                                (vader-pick (append order (list object)))
+                                (t (cons object order))))
+      (let ((output))
+        (loop :for o :in order
+              :do (setf (varray::vader-base o) (or output object)
+                        output o))
+        (or output object))))
+
+;; x←3 3⍴⍳9 ⋄ (2 3⌷x)←33 ⋄ x
+;; x←3 3⍴⍳9 ⋄ (1 2⌷x)←'a' ⋄ x
+
 (defun assign-by-selection (prime-function function value omega
                             &key inverted assign-sym axes secondary-prime-fn index-origin by)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
@@ -937,88 +952,117 @@
                              (row-major-aref array i)
                              (duplicate-t (row-major-aref array i)))))
                  output)))
-      (if (or (getf function-meta :selective-assignment-function)
-              (getf function-meta :selective-assignment-passthrough))
-          (if (getf function-meta :selective-assignment-passthrough)
-              (let* ((base-object (funcall inverted omega))
-                     (sub-base (varray::vader-base base-object)))
-                (typecase sub-base
-                  (vader-pick (setf (varray::vapick-assign sub-base) value
-                                    (varray::vapick-selector sub-base)
-                                    (when (typep (varray::vader-base sub-base) 'varray::varray)
-                                      (varray::vader-base sub-base))
-                                    (varray::vader-base sub-base) omega)
-                   ;; (print (list :sb sub-base))
-                   ;; (setf sb sub-base)
-                   sub-base)
-                  (vader-select (setf (varray::vasel-assign sub-base) value)
-                   sub-base)
-                  (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                                  :argument inverted))))
-              (case (getf function-meta :selective-assignment-function)
-                (:index (let ((base-object (funcall function omega)))
-                          (setf (varray::vasel-assign base-object) value)
-                          base-object))
-                (:pick (let ((base-object (funcall inverted omega)))
-                         (setf (varray::vapick-assign base-object) value
-                               (varray::vapick-selector base-object)
-                               ;; assign the selector if the omega is a virtual array, this excludes
-                               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-                               ;; TODO: normalize this check for full lazy operation
-                               (when (typep (varray::vader-base base-object) 'varray::varray)
-                                 (varray::vader-base base-object))
-                               (varray::vader-base base-object) omega)
-                         base-object))
-                (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                                :argument ;; function
-                                                inverted
-                                                ))))
-          (if (getf function-meta :selective-assignment-compatible)
-              (let* ((omega (if (and assign-sym (not (typep omega 'varray))
-                                     (if (arrayp value)
-                                         (and (or (not (getf function-meta
-                                                             :selective-assignment-enclosing))
-                                                  (eq t (element-type omega)))
-                                              (subtypep (element-type value)
-                                                        (element-type omega)))
-                                         (subtypep (upgraded-array-element-type (assign-element-type value))
-                                                   (element-type omega))))
-                                ;; array is duplicated if its element type is not a supertype of
-                                ;; the assigned array's type, or if an enclosed array is
-                                ;; being assigned and the array's type is not T
-                                omega (duplicate-t (render-varrays omega))))
-                     (assign-array (if (not axes) omega (choose omega axes :reference t)))
-                     ;; assign reference is used to determine the shape of the area to be assigned,
-                     ;; which informs the proper method for generating the index array
-                     (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
-                     (value (funcall (if (getf function-meta :selective-assignment-enclosing)
-                                         #'enclose #'identity)
-                                     (render-varrays value))))
-                ;; (print (list :om omega value))
-                ;; TODO: this logic can be improved
-                (if (arrayp value)
-                    (let* ((index-array (generate-index-array assign-array t))
-                           (target-index-array (enclose-atom (render-varrays (funcall function
-                                                                                      index-array)))))
-                      (assign-by-vector assign-array index-array
-                                        (vectorize-assigned target-index-array
-                                                            value (size assign-array))
-                                        :by by)
-                      assign-array)
-                    (multiple-value-bind (index-array assignment-size)
-                        (generate-index-array
-                         assign-array (and (arrayp (disclose-atom assign-reference))
-                                           (not (< 1 (size (disclose-atom assign-reference))))
-                                           (not (arrayp value))))
-                      (let ((target-index-array
-                              (enclose-atom (render-varrays (funcall function index-array)))))
-                        (assign-by-vector assign-array index-array
-                                          (vectorize-assigned target-index-array value assignment-size)
-                                          :by by)
-                        omega))))
-              (if (getf function-meta :selective-assignment-passthrough)
-                  (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
-                  (error "This function cannot be used for selective assignment.")))))))
+      (setf ggi (funcall function omega))
+      ;; (print (list :fn function-meta))
+      ;;(if t;(or (getf function-meta :selective-assignment-function)
+      ;;  (getf function-meta :selective-assignment-passthrough))
+      ;; (print (list :ba (invert-assigned-varray (funcall function omega))))
+      (if (getf function-meta :selective-assignment-passthrough)
+          (let* (;; (base-object (funcall inverted omega))
+                 (base-object (invert-assigned-varray (funcall function omega)))
+                 (sub-base (varray::vader-base base-object)))
+            (typecase sub-base
+              (vader-pick (setf (varray::vapick-assign sub-base) value
+                                (varray::vapick-selector sub-base)
+                                (when (typep (varray::vader-base sub-base) 'varray::varray)
+                                  (varray::vader-base sub-base))
+                                (varray::vader-base sub-base) omega)
+               ;; (print (list :sb sub-base))
+               ;; (setf sb sub-base)
+               sub-base)
+              (vader-select (setf (varray::vasel-assign sub-base) value)
+               sub-base)
+              (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                              :argument ;; inverted
+                                              function
+                                              ))))
+          (let ((base-object (invert-assigned-varray (funcall function omega))))
+            (typecase base-object
+              (varray::vader-select
+               (setf (varray::vasel-assign base-object) value)
+               base-object)
+              (varray::vader-pick
+               (setf (varray::vapick-assign base-object) value
+                     (varray::vapick-selector base-object)
+                     ;; assign the selector if the omega is a virtual array, this excludes
+                     ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+                     ;; TODO: normalize this check for full lazy operation
+                     (when (typep (varray::vader-base base-object) 'varray::varray)
+                       (varray::vader-base base-object))
+                     (varray::vader-base base-object) omega)
+               base-object)
+              (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                              :argument function
+                                              ;; inverted
+                                              ))))
+          ;; (case (getf function-meta :selective-assignment-function)
+          ;;   (:index (let ((base-object (funcall function omega)))
+          ;;             (setf (varray::vasel-assign base-object) value)
+          ;;             base-object))
+          ;;   (:pick (let (;; (base-object (funcall inverted omega))
+          ;;                (base-object (invert-assigned-varray (funcall function omega))))
+          ;;            (setf (varray::vapick-assign base-object) value
+          ;;                  (varray::vapick-selector base-object)
+          ;;                  ;; assign the selector if the omega is a virtual array, this excludes
+          ;;                  ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+          ;;                  ;; TODO: normalize this check for full lazy operation
+          ;;                  (when (typep (varray::vader-base base-object) 'varray::varray)
+          ;;                    (varray::vader-base base-object))
+          ;;                  (varray::vader-base base-object) omega)
+          ;;            base-object))
+          ;;   (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+          ;;                                   :argument function
+          ;;                                   ;; inverted
+          ;;                                   )))
+          )
+      )))
+
+;; (if (getf function-meta :selective-assignment-compatible)
+;;     (let* ((omega (if (and assign-sym (not (typep omega 'varray))
+;;                            (if (arrayp value)
+;;                                (and (or (not (getf function-meta
+;;                                                    :selective-assignment-enclosing))
+;;                                         (eq t (element-type omega)))
+;;                                     (subtypep (element-type value)
+;;                                               (element-type omega)))
+;;                                (subtypep (upgraded-array-element-type (assign-element-type value))
+;;                                          (element-type omega))))
+;;                       ;; array is duplicated if its element type is not a supertype of
+;;                       ;; the assigned array's type, or if an enclosed array is
+;;                       ;; being assigned and the array's type is not T
+;;                       omega (duplicate-t (render-varrays omega))))
+;;            (assign-array (if (not axes) omega (choose omega axes :reference t)))
+;;            ;; assign reference is used to determine the shape of the area to be assigned,
+;;            ;; which informs the proper method for generating the index array
+;;            (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
+;;            (value (funcall (if (getf function-meta :selective-assignment-enclosing)
+;;                                #'enclose #'identity)
+;;                            (render-varrays value))))
+;;       ;; (print (list :om omega value))
+;;       ;; TODO: this logic can be improved
+;;       (if (arrayp value)
+;;           (let* ((index-array (generate-index-array assign-array t))
+;;                  (target-index-array (enclose-atom (render-varrays (funcall function
+;;                                                                             index-array)))))
+;;             (assign-by-vector assign-array index-array
+;;                               (vectorize-assigned target-index-array
+;;                                                   value (size assign-array))
+;;                               :by by)
+;;             assign-array)
+;;           (multiple-value-bind (index-array assignment-size)
+;;               (generate-index-array
+;;                assign-array (and (arrayp (disclose-atom assign-reference))
+;;                                  (not (< 1 (size (disclose-atom assign-reference))))
+;;                                  (not (arrayp value))))
+;;             (let ((target-index-array
+;;                     (enclose-atom (render-varrays (funcall function index-array)))))
+;;               (assign-by-vector assign-array index-array
+;;                                 (vectorize-assigned target-index-array value assignment-size)
+;;                                 :by by)
+;;               omega))))
+;;     (if (getf function-meta :selective-assignment-passthrough)
+;;         (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
+;;         (error "This function cannot be used for selective assignment.")))
 
 (defun vectorize-assigned (indices values vector-or-length)
   "Generate a vector of assigned values for use by (assign-by-selection)."

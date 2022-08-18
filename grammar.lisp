@@ -1155,12 +1155,13 @@
              (set-assn-sym selection-form)
              ;; (print (list :sel selection-form item assign-sym))
              (setf selection-form (subst item assign-sym selection-form :test #'equalp)
-                   inverted-fn (reverse-asel-function selection-form))
+                   ;; inverted-fn (reverse-asel-function selection-form)
+                   )
 
              ;; (print (list :ii inverted-fn))
              
              ;;; PROVISIONAL
-             (setf prime-function (second inverted-fn))
+             ;; (setf prime-function (second inverted-fn))
              ;;;
              
              ;; (print (list :sel2 selection-form))
@@ -1180,7 +1181,7 @@
                             (lambda (,item) ,selection-form)
                             ,value ,assign-sym
                             :index-origin index-origin
-                            :inverted (lambda (,item) ,inverted-fn)
+                            ;;:inverted (lambda (,item) ,inverted-fn)
                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
                                             ',assign-sym)
                             ,@(if selection-axes (list :axes selection-axes))
