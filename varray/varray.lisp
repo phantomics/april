@@ -1155,30 +1155,46 @@
                        (setf (vads-subrendering varray) t))
                      indexed))
                (let ((index-shape (first (shape-of oindex))))
-                 ;; (PRINT (LIST :aaa oindex (= index-shape (length (shape-of (vader-base varray))))))
+                 ;; (PRINT (LIST :aaa oindex (= index-shape (length (shape-of (vader-base varray))))
+                 ;;              sub-base))
                  (setf (vads-subrendering varray) t)
                  (if set
                      (if valid
-                         (let* ((meta-indexer (indexer-of oindex))
-                                (meta-index (funcall meta-indexer 0))
-                                (assign-indexer (indexer-of (vasel-assign varray)))
-                                (sub-base (make-instance 'vader-select
-                                                         :base (vader-base varray)
-                                                         :index-origin (vads-io varray)
-                                                         :argument (if (numberp meta-index)
-                                                                       (list meta-index)
-                                                                       (coerce (render meta-index) 'list)))))
-                           ;; (print (list :vaa (vasel-assign varray)))
-                           (make-instance 'vader-select
-                                          :base (disclose (render sub-base))
-                                          ;; TODO: wrap this in disclose obj
-                                          :index-origin (vads-io varray)
-                                          :argument (rest (coerce (render oindex) 'list))
-                                          :assign (if (not (functionp assign-indexer))
-                                                      assign-indexer (funcall assign-indexer
-                                                                              assign-sub-index))
-                                          :assign-shape (vasel-assign-shape varray)
-                                          :calling (vasel-calling varray)))
+                         (if (typep oindex 'varray::varray)
+                             ;; in the case of an [¨ each]-composed assignment by selection
+                             ;; like {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
+                             (let ((sub-indexer (indexer-of (vader-base varray)))
+                                   (assign-indexer (indexer-of (vasel-assign varray))))
+                               (make-instance 'vader-select
+                                              :base (funcall sub-indexer index)
+                                              :index-origin (vads-io varray)
+                                              :argument oindex
+                                              :assign (if (not (functionp assign-indexer))
+                                                          assign-indexer (funcall assign-indexer
+                                                                                  assign-sub-index))
+                                              :assign-shape (vasel-assign-shape varray)
+                                              :calling (vasel-calling varray)))
+                             (let* ((meta-indexer (indexer-of oindex))
+                                    (meta-index (funcall meta-indexer 0))
+                                    (assign-indexer (indexer-of (vasel-assign varray)))
+                                    (sub-base (make-instance 'vader-select
+                                                             :base (vader-base varray)
+                                                             :index-origin (vads-io varray)
+                                                             :argument (if (numberp meta-index)
+                                                                           (list meta-index)
+                                                                           (coerce (render meta-index)
+                                                                                   'list)))))
+                               ;; (print (list :vaa (vasel-assign varray)))
+                               (make-instance 'vader-select
+                                              :base (disclose (render sub-base))
+                                              ;; TODO: wrap this in disclose obj
+                                              :index-origin (vads-io varray)
+                                              :argument (rest (coerce (render oindex) 'list))
+                                              :assign (if (not (functionp assign-indexer))
+                                                          assign-indexer (funcall assign-indexer
+                                                                                  assign-sub-index))
+                                              :assign-shape (vasel-assign-shape varray)
+                                              :calling (vasel-calling varray))))
                          (if (not (functionp base-indexer))
                              base-indexer (funcall base-indexer index)))
                      (if (and (numberp (funcall base-indexer 0))

@@ -1840,21 +1840,21 @@
        "{A←'STELLAR' ⋄ ((A∊'AEIOU')/A)←⍵ ⋄ A} '*'" #(#\S #\T #\* #\L #\L #\* #\R))
   (for "Multiple assignment with selective assignment in midstream."
        "a←⍳5 ⋄ b←(3⊃a)←30 ⋄ a b" #(#(1 2 30 4 5) 30))
-  ;; (for "Selective assignment with [¨ each]-composed [↑ take] function."
-  ;;      "{A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'"
-  ;;      #(#(#\* #\* #\N #\D #\O #\M) #(#\* #\* #\A #\N #\C #\E)))
-  ;; (for "Selective assignment with [¨ each]-composed [/ compress] function."
-  ;;      "{A←'RANDOM' 'CHANCE' ⋄ ((A='A')/¨A)←⍵ ⋄ A} '*'"
-  ;;      #(#(#\R #\* #\N #\D #\O #\M) #(#\C #\H #\* #\N #\C #\E)))
-  ;; (for "Selective assignment with [¨ each]-composed [⊃ pick] function."
-  ;;      "{A←'RANDOM' 'CHANCE' ⋄ ((A∊¨⊂'ND')/¨A)←⍵ ⋄ A} '*'"
-  ;;      #(#(#\R #\A #\* #\* #\O #\M) #(#\C #\H #\A #\* #\C #\E)))
-  ;; (for "Selective assignment with bracket indexing of array to be assigned to."
-  ;;      "{A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ ⍕¨A} '*'"
-  ;;      #2A(("RAND**" "CHANCE" "RAND**")
-  ;;          ("CHAN**" "RANDOM" "CHAN**")
-  ;;          ("RAND**" "CHANCE" "RAND**")
-  ;;          ("CHAN**" "RANDOM" "CHAN**")))
+  (for "Selective assignment with [¨ each]-composed [↑ take] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'"
+       #(#(#\* #\* #\N #\D #\O #\M) #(#\* #\* #\A #\N #\C #\E)))
+  (for "Selective assignment with [¨ each]-composed [/ compress] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ ((A='A')/¨A)←⍵ ⋄ A} '*'"
+       #(#(#\R #\* #\N #\D #\O #\M) #(#\C #\H #\* #\N #\C #\E)))
+  (for "Selective assignment with [¨ each]-composed [⊃ pick] function."
+       "{A←'RANDOM' 'CHANCE' ⋄ ((A∊¨⊂'ND')/¨A)←⍵ ⋄ A} '*'"
+       #(#(#\R #\A #\* #\* #\O #\M) #(#\C #\H #\A #\* #\C #\E)))
+  (for "Selective assignment with bracket indexing of array to be assigned to."
+       "{A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ ⍕¨A} '*'"
+       #2A(("RAND**" "CHANCE" "RAND**")
+           ("CHAN**" "RANDOM" "CHAN**")
+           ("RAND**" "CHANCE" "RAND**")
+           ("CHAN**" "RANDOM" "CHAN**")))
   (for "Selective assignment using aliased [⌷ index] function."
        "{e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9" #(1 2 5 4 5 6 7 8 9))
   (for "Print the result of a function applied to assignment." "⎕←⍴x←1 2 3 ⋄ x" #(1 2 3))
