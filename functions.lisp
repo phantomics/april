@@ -927,18 +927,25 @@
 
 (defun invert-assigned-varray (object &optional order)
   (if (varrayp object)
-      (invert-assigned-varray (varray::vader-base object)
+      (invert-assigned-varray (typecase object
+                                (vacomp-each (varray::vacmp-omega object))
+                                (t (varray::vader-base object)))
                               (typecase object
                                 (vader-identity order)
                                 ;; don't include identity, this is for assignment cases like
                                 ;; ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
+                                ;; (vader-select (append order (list object)))
                                 (vader-pick (append order (list object)))
                                 ;; pick is shifted to the end of the list
                                 (t (cons object order))))
       (let ((output))
         (loop :for o :in order
-              :do (setf (varray::vader-base o) (or output object)
-                        output o))
+              :do (typecase o
+                    (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
+                    (t (setf (varray::vader-base o) (or output object))))
+                  (setf output o)
+                  ;; (print (list :oo o))
+              )
         (or output object))))
 
 (defun assign-by-selection (prime-function function value omega
@@ -953,7 +960,7 @@
                              (row-major-aref array i)
                              (duplicate-t (row-major-aref array i)))))
                  output)))
-      ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+      (setf ggi (invert-assigned-varray (funcall function omega)))
       ;; (print (list :g ggi))
       ;; (print (list :fn function-meta))
       ;;(if t;(or (getf function-meta :selective-assignment-function)
