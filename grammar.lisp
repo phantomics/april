@@ -1182,12 +1182,13 @@
                             ,value ,assign-sym
                             :index-origin index-origin
                             ;;:inverted (lambda (,item) ,inverted-fn)
-                            :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
-                                            ',assign-sym)
-                            ,@(if selection-axes (list :axes selection-axes))
-                            ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                                                                   (second (third selection-form))))
-                            ,@(if function (list :by function))))
+                            ;; :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
+                            ;;                 ',assign-sym)
+                            ;; ,@(if selection-axes (list :axes selection-axes))
+                            ;; ,@(if possible-prime-passthrough (list :secondary-prime-fn
+                            ;;                                        (second (third selection-form))))
+                            ;; ,@(if function (list :by function))
+                            ))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))

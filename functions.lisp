@@ -926,199 +926,95 @@
             (+ index (if ext-index 0 1)))))
 
 (defun invert-assigned-varray (object &optional order)
+  "Generate the inverted deferred computation object that serves to verify indices in a selection array implementing assignment by selection, like the one expressed by {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99."
   (if (varrayp object)
       (invert-assigned-varray (typecase object
                                 (vacomp-each (varray::vacmp-omega object))
                                 (t (varray::vader-base object)))
                               (typecase object
                                 (vader-identity order)
-                                ;; don't include identity, this is for assignment cases like
-                                ;; ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
+                                ;; omit identity objects, this is for selective
+                                ;; assignment cases like ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
                                 (vader-select (append order (list object)))
                                 (vader-pick (append order (list object)))
-                                ;; pick is shifted to the end of the list
+                                ;; pick and select objects are shifted to the end of the list
                                 (t (cons object order))))
       (let ((output))
         ;; (print (list :or order))
         (loop :for o :in order
-              :do (typecase o
-                    (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
-                    (vader-select (setf (varray::vasel-selector o) (or output object)))
-                    (t (setf (varray::vader-base o) (or output object))))
-                  (setf output o)
-                  ;; (print (list :oo o))
-              )
+              :do (typecase o (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
+                            (vader-select (setf (varray::vasel-selector o) (or output object)))
+                            (t (setf (varray::vader-base o) (or output object))))
+                  (setf output o))
         (or output object))))
 
-(defun assign-by-selection (prime-function function value omega
-                            &key inverted assign-sym axes secondary-prime-fn index-origin by)
+(defun assign-by-selection (prime-function function value omega &key index-origin)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    ;; (labels ((duplicate-t (array)
-    ;;            (let ((output (make-array (dims array))))
-    ;;              (dotimes (i (size array))
-    ;;                (setf (row-major-aref output i)
-    ;;                      (if (not (arrayp (row-major-aref array i)))
-    ;;                          (row-major-aref array i)
-    ;;                          (duplicate-t (row-major-aref array i)))))
-    ;;              output)))
-      (setf ggi (invert-assigned-varray (funcall function omega)))
-      ;; (print (list :g ggi))
-      ;; (print (list :fn function-meta))
-      ;;(if t;(or (getf function-meta :selective-assignment-function)
-      ;;  (getf function-meta :selective-assignment-passthrough))
-      ;; (print (list :ba (invert-assigned-varray (funcall function omega))))
-      (if t ; (getf function-meta :selective-assignment-passthrough)
-          ;; (let* (;; (base-object (funcall inverted omega))
-          ;;        (base-object (invert-assigned-varray (funcall function omega)))
-          ;;        (sub-base (varray::vader-base base-object)))
-          ;;   (typecase sub-base
-          ;;     (vader-pick (setf (varray::vapick-assign sub-base) value
-          ;;                       (varray::vapick-selector sub-base)
-          ;;                       (when (typep (varray::vader-base sub-base) 'varray::varray)
-          ;;                         (varray::vader-base sub-base))
-          ;;                       (varray::vader-base sub-base) omega)
-          ;;      ;; (print (list :sb sub-base))
-          ;;      ;; (setf sb sub-base)
-          ;;      sub-base)
-          ;;     (vader-select (setf (varray::vasel-assign sub-base) value)
-          ;;      sub-base)
-          ;;     (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-          ;;                                     :argument ;; inverted
-          ;;                                     function
-          ;;                                     ))))
-          (let ((base-object (invert-assigned-varray (funcall function omega))))
-            (setf ggi base-object)
-            (typecase base-object
-              (varray::vader-select
-               (setf (varray::vasel-assign base-object) value)
-               ;; (print (list :ba base-object))
-               base-object)
-              (varray::vader-pick
-               (setf (varray::vapick-assign base-object) value
-                     (varray::vapick-selector base-object)
-                     ;; assign the selector if the omega is a virtual array, this excludes
-                     ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-                     ;; TODO: normalize this check for full lazy operation
-                     (when (typep (varray::vader-base base-object) 'varray::varray)
-                       (varray::vader-base base-object))
-                     (varray::vader-base base-object) omega)
-               base-object)
-              (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                              :selector (funcall function omega)
-                                              ))))
-          ;; (case (getf function-meta :selective-assignment-function)
-          ;;   (:index (let ((base-object (funcall function omega)))
-          ;;             (setf (varray::vasel-assign base-object) value)
-          ;;             base-object))
-          ;;   (:pick (let (;; (base-object (funcall inverted omega))
-          ;;                (base-object (invert-assigned-varray (funcall function omega))))
-          ;;            (setf (varray::vapick-assign base-object) value
-          ;;                  (varray::vapick-selector base-object)
-          ;;                  ;; assign the selector if the omega is a virtual array, this excludes
-          ;;                  ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-          ;;                  ;; TODO: normalize this check for full lazy operation
-          ;;                  (when (typep (varray::vader-base base-object) 'varray::varray)
-          ;;                    (varray::vader-base base-object))
-          ;;                  (varray::vader-base base-object) omega)
-          ;;            base-object))
-          ;;   (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-          ;;                                   :argument function
-          ;;                                   ;; inverted
-          ;;                                   )))
-          )
-      ))
+    ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+    (let ((base-object (invert-assigned-varray (funcall function omega))))
+      ;; (setf ggi base-object)
+      (typecase base-object
+        (varray::vader-select
+         (setf (varray::vasel-assign base-object) value)
+         ;; (print (list :ba base-object))
+         base-object)
+        (varray::vader-pick
+         (setf (varray::vapick-assign base-object) value
+               (varray::vapick-selector base-object)
+               ;; assign the selector if the omega is a virtual array, this excludes
+               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+               ;; TODO: normalize this check for full lazy operation
+               (when (typep (varray::vader-base base-object) 'varray::varray)
+                 (varray::vader-base base-object))
+               (varray::vader-base base-object) omega)
+         base-object)
+        (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                        :selector (funcall function omega)))))))
 
-;; (if (getf function-meta :selective-assignment-compatible)
-;;     (let* ((omega (if (and assign-sym (not (typep omega 'varray))
-;;                            (if (arrayp value)
-;;                                (and (or (not (getf function-meta
-;;                                                    :selective-assignment-enclosing))
-;;                                         (eq t (element-type omega)))
-;;                                     (subtypep (element-type value)
-;;                                               (element-type omega)))
-;;                                (subtypep (upgraded-array-element-type (assign-element-type value))
-;;                                          (element-type omega))))
-;;                       ;; array is duplicated if its element type is not a supertype of
-;;                       ;; the assigned array's type, or if an enclosed array is
-;;                       ;; being assigned and the array's type is not T
-;;                       omega (duplicate-t (render-varrays omega))))
-;;            (assign-array (if (not axes) omega (choose omega axes :reference t)))
-;;            ;; assign reference is used to determine the shape of the area to be assigned,
-;;            ;; which informs the proper method for generating the index array
-;;            (assign-reference (disclose-atom (render-varrays (funcall function assign-array))))
-;;            (value (funcall (if (getf function-meta :selective-assignment-enclosing)
-;;                                #'enclose #'identity)
-;;                            (render-varrays value))))
-;;       ;; (print (list :om omega value))
-;;       ;; TODO: this logic can be improved
-;;       (if (arrayp value)
-;;           (let* ((index-array (generate-index-array assign-array t))
-;;                  (target-index-array (enclose-atom (render-varrays (funcall function
-;;                                                                             index-array)))))
-;;             (assign-by-vector assign-array index-array
-;;                               (vectorize-assigned target-index-array
-;;                                                   value (size assign-array))
-;;                               :by by)
-;;             assign-array)
-;;           (multiple-value-bind (index-array assignment-size)
-;;               (generate-index-array
-;;                assign-array (and (arrayp (disclose-atom assign-reference))
-;;                                  (not (< 1 (size (disclose-atom assign-reference))))
-;;                                  (not (arrayp value))))
-;;             (let ((target-index-array
-;;                     (enclose-atom (render-varrays (funcall function index-array)))))
-;;               (assign-by-vector assign-array index-array
-;;                                 (vectorize-assigned target-index-array value assignment-size)
-;;                                 :by by)
-;;               omega))))
-;;     (if (getf function-meta :selective-assignment-passthrough)
-;;         (assign-by-selection secondary-prime-fn function value omega :axes axes :by by)
-;;         (error "This function cannot be used for selective assignment.")))
+;; (defun vectorize-assigned (indices values vector-or-length)
+;;   "Generate a vector of assigned values for use by (assign-by-selection)."
+;;   (let ((vector (if (arrayp vector-or-length) vector-or-length
+;;                     (make-array (list vector-or-length) :initial-element nil))))
+;;     (if (and (arrayp values)
+;;              (not (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
+;;         (error "Area of array to be reassigned does not match shape of values to be assigned.")
+;;         (progn (dotimes (i (size indices))
+;;                  (if (not (arrayp (row-major-aref indices i)))
+;;                      (setf (row-major-aref vector (row-major-aref indices i))
+;;                            (if (not (arrayp values))
+;;                                values
+;;                                (if (zerop (rank values))
+;;                                    (aref values)
+;;                                    (if (or (not (arrayp (row-major-aref values i)))
+;;                                            (= (size indices) (size values)))
+;;                                        (row-major-aref values i)
+;;                                        (error "Incompatible values to assign; nested array present ~a"
+;;                                               " where scalar value expected.")))))
+;;                      (vectorize-assigned (row-major-aref indices i)
+;;                                          (if (arrayp values) (row-major-aref values i)
+;;                                              values)
+;;                                          vector)))
+;;                vector))))
 
-(defun vectorize-assigned (indices values vector-or-length)
-  "Generate a vector of assigned values for use by (assign-by-selection)."
-  (let ((vector (if (arrayp vector-or-length) vector-or-length
-                    (make-array (list vector-or-length) :initial-element nil))))
-    (if (and (arrayp values)
-             (not (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
-        (error "Area of array to be reassigned does not match shape of values to be assigned.")
-        (progn (dotimes (i (size indices))
-                 (if (not (arrayp (row-major-aref indices i)))
-                     (setf (row-major-aref vector (row-major-aref indices i))
-                           (if (not (arrayp values))
-                               values
-                               (if (zerop (rank values))
-                                   (aref values)
-                                   (if (or (not (arrayp (row-major-aref values i)))
-                                           (= (size indices) (size values)))
-                                       (row-major-aref values i)
-                                       (error "Incompatible values to assign; nested array present ~a"
-                                              " where scalar value expected.")))))
-                     (vectorize-assigned (row-major-aref indices i)
-                                         (if (arrayp values) (row-major-aref values i)
-                                             values)
-                                         vector)))
-               vector))))
-
-(defun assign-by-vector (array indices vector &key by)
-  "Assign elements of an array corresponding to an array of indices from a vector. For use with (assign-by-selection)."
-  (dotimes (i (size array))
-    (if (not (arrayp (row-major-aref array i)))
-        (if (aref vector (row-major-aref indices i))
-            (setf (row-major-aref array i)
-                  (if by (funcall by (row-major-aref array i)
-                                  (aref vector (row-major-aref indices i)))
-                      (aref vector (row-major-aref indices i)))))
-        (if (not (arrayp (row-major-aref indices i)))
-            (if (aref vector (row-major-aref indices i))
-                (setf (row-major-aref array i)
-                      (if by (funcall by (row-major-aref array i)
-                                      (aref vector (row-major-aref indices i)))
-                          (aref vector (row-major-aref indices i)))))
-            (assign-by-vector (row-major-aref array i)
-                              (row-major-aref indices i)
-                              vector :by by)))))
+;; (defun assign-by-vector (array indices vector &key by)
+;;   "Assign elements of an array corresponding to an array of indices from a vector. For use with (assign-by-selection)."
+;;   (dotimes (i (size array))
+;;     (if (not (arrayp (row-major-aref array i)))
+;;         (if (aref vector (row-major-aref indices i))
+;;             (setf (row-major-aref array i)
+;;                   (if by (funcall by (row-major-aref array i)
+;;                                   (aref vector (row-major-aref indices i)))
+;;                       (aref vector (row-major-aref indices i)))))
+;;         (if (not (arrayp (row-major-aref indices i)))
+;;             (if (aref vector (row-major-aref indices i))
+;;                 (setf (row-major-aref array i)
+;;                       (if by (funcall by (row-major-aref array i)
+;;                                       (aref vector (row-major-aref indices i)))
+;;                           (aref vector (row-major-aref indices i)))))
+;;             (assign-by-vector (row-major-aref array i)
+;;                               (row-major-aref indices i)
+;;                               vector :by by)))))
 
 (defun operate-reducing (function index-origin last-axis &key axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."

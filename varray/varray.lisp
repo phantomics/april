@@ -122,23 +122,23 @@
       ;; array
       ;; TODO: this causes tree printing test to fail
       (lambda (index)
-        (if (< index (array-total-size array))
-            (row-major-aref array index)))
+        (when (< index (array-total-size array))
+          (row-major-aref array index)))
       (if (= 0 (array-total-size array))
           (prototype-of array)
           ;; TODO: why does wrapping this in a (lambda) cause problems? like array-lib's (0↑⊂,⊂⍬) from 99
           (lambda (index)
-            (if (< index (array-total-size array))
-                (row-major-aref array index))))))
+            (when (< index (array-total-size array))
+              (row-major-aref array index))))))
 
 (defmethod render ((item t) &rest params)
   "Rendering a non-virtual array object simply returns the object."
   item)
 
 (defun subrendering-base (item)
-  (if (typep item 'varray-derived)
-      (or (subrendering-p (vader-base item))
-          (subrendering-base (vader-base item)))))
+  (when (typep item 'varray-derived)
+    (or (subrendering-p (vader-base item))
+        (subrendering-base (vader-base item)))))
 
 (defun sub-byte-element-size (array)
   "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
@@ -350,12 +350,12 @@
 
 (defmethod initialize-instance :around ((varray varray-derived) &key)
   "If the instance's base slot is already bound, it has been populated through one of he above type combinatorics and so should be returned with no changes."
-  (if (not (slot-boundp varray '%base))
-      (call-next-method))
+  (when (not (slot-boundp varray '%base))
+    (call-next-method))
   
-  (if (typep (vader-base varray) 'varray-derived)
-      (setf (vader-layer varray) ;; count layers from a non-derived array
-            (1+ (vader-layer (vader-base varray))))))
+  (when (typep (vader-base varray) 'varray-derived)
+    (setf (vader-layer varray) ;; count layers from a non-derived array
+          (1+ (vader-layer (vader-base varray))))))
 
 (defmethod etype-of ((varray varray-derived))
   "The default shape of a derived array is the same as its base array."
