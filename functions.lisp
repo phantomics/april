@@ -934,7 +934,7 @@
                                 (vader-identity order)
                                 ;; don't include identity, this is for assignment cases like
                                 ;; ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
-                                ;; (vader-select (append order (list object)))
+                                (vader-select (append order (list object)))
                                 (vader-pick (append order (list object)))
                                 ;; pick is shifted to the end of the list
                                 (t (cons object order))))
@@ -943,7 +943,7 @@
         (loop :for o :in order
               :do (typecase o
                     (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
-                    ;; (vader-select (setf (varray::vasel-selector o) (or output object)))
+                    (vader-select (setf (varray::vasel-selector o) (or output object)))
                     (t (setf (varray::vader-base o) (or output object))))
                   (setf output o)
                   ;; (print (list :oo o))
