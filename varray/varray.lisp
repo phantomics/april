@@ -240,9 +240,9 @@
               ;;              divisions division-size sbesize sbsize))
               (loop :for d :below divisions
                     :do (if ;; (< *active-workers* *workers-count*)
-                         ;; (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                         ;;       :never (null (lparallel.kernel::running-category worker)))
-                         t
+                         (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                               :never (null (lparallel.kernel::running-category worker)))
+                         ;; t
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
@@ -1000,7 +1000,10 @@
           (set (vasel-assign varray))
           (set-indexer (indexer-of set))
           (idims (shape-of varray))
-          (index-selector (vasel-selector varray))
+          (selector-eindices (when (listp (vasel-selector varray))
+                               (vasel-selector varray)))
+          (eindexer (when selector-eindices (indexer-of (getf selector-eindices :ebase))))
+          (index-selector (when (not selector-eindices) (vasel-selector varray)))
           (sub-shape (shape-of index-selector))
           (is-picking)
           (sub-selector (multiple-value-bind (sselector is-pick)
@@ -1025,7 +1028,7 @@
                                     (render item)))
            iarray-factors (reverse iarray-factors))
      ;; (print (list :arg (render (vader-base varray)) (vads-argument varray)))
-     (flet ((check-vindex (ind vector-index)
+     (flet ((verify-vindex (ind vector-index)
               ;; (PRINT (LIST :III ind VECTOR-INDEX))
               (let ((vector-indexer (indexer-of vector-index)))
                 (loop :for v :below (size-of vector-index) :for ix :from 0
@@ -1079,7 +1082,7 @@
                                                                                    (vads-io varray)))
                                                                       (when afactor (incf oindex afactor))
                                                                       (setf matched-index i)))
-                                                        (let ((match (check-vindex index in)))
+                                                        (let ((match (verify-vindex index in)))
                                                           (when match (setf oindex match
                                                                             matched-index t
                                                                             assign-sub-index index))))
@@ -1130,7 +1133,7 @@
                                                                (setf oindex (funcall sub-selector valid))
                                                                (setf oindex (funcall sub-selector index)))))
                                               valid)))
-           ;; (print (list :val index valid oindex (shape-of oindex)))
+           ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
            ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
            ;;                        set-indexer)))
            (if (numberp oindex)
@@ -1152,7 +1155,34 @@
                                                      (vapick-assign index-selector) (vasel-assign varray)
                                                      (vapick-reference index-selector) indexed)
                                                index-selector)
-                                             (vasel-assign varray))
+                                             (if selector-eindices
+                                                 (let* ((bindex (if (not (functionp base-indexer))
+                                                                    base-indexer (funcall base-indexer index)))
+                                                        (assign-indexer (indexer-of (vasel-assign varray)))
+                                                        (eelement (when (not (arrayp bindex))
+                                                                    (funcall eindexer index))))
+                                                   (if eelement
+                                                       (if (loop :for e :across (getf selector-eindices
+                                                                                      :eindices)
+                                                                 :never (= e eelement))
+                                                           bindex (vasel-assign varray))
+                                                       (progn
+                                                         (setf (vads-subrendering varray) t)
+                                                         (make-instance
+                                                          'vader-select
+                                                          :base bindex :index-origin (vads-io varray)
+                                                          :assign (if (not (functionp assign-indexer))
+                                                                      assign-indexer
+                                                                      (funcall assign-indexer
+                                                                               assign-sub-index))
+                                                          :assign-shape (vasel-assign-shape varray)
+                                                          :calling (vasel-calling varray)
+                                                          :selector (list :eindices
+                                                                          (getf selector-eindices
+                                                                                :eindices)
+                                                                          :ebase (funcall eindexer
+                                                                                          index))))))
+                                                 (vasel-assign varray)))
                                          (funcall set-indexer oindex)))
                            (if (not (functionp base-indexer))
                                base-indexer (funcall base-indexer index)))

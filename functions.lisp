@@ -975,8 +975,8 @@
         ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
         ;; and a nested index array must be passed to the select object indexer for use indexing.
         (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                        :selector (if ivec (list :eindices ivec
-                                                                 :ebase (render-varrays base-object))
+                                        :selector (if ivec (list :eindices (render-varrays base-object)
+                                                                 :ebase ivec)
                                                       (funcall function omega))))))))
 
 ;; (defun vectorize-assigned (indices values vector-or-length)
