@@ -129,7 +129,7 @@
                                  q0 q1
                                  p1 p2
                                  q1 q2)))))))
-          (if (rationalp x) x))))
+          (when (rationalp x) x))))
 
 (defun cmucl-complex-acos (z)
   "This (acos) implementation is used for ECL, whose stock (acos) is different from other CLs."
@@ -275,8 +275,8 @@
                     o a)))
     (if (not (arrayp alpha))
         (setq alpha (vector alpha))
-        (if (not (vectorp alpha))
-            (error "The left argument to [~ without] must be a vector.")))
+        (when (not (vectorp alpha))
+          (error "The left argument to [~ without] must be a vector.")))
     (let ((included)
           (omega-vector (if (or (vectorp omega)(not (arrayp omega)))
                             (disclose omega)
@@ -286,9 +286,9 @@
          :do (let ((include t))
                (if (vectorp omega-vector)
                    (loop :for ex :across omega-vector
-                      :do (if (compare ex element) (setq include nil)))
-                   (if (compare omega-vector element) (setq include nil)))
-               (if include (push element included))))
+                         :do (when (compare ex element) (setq include nil)))
+                   (when (compare omega-vector element) (setq include nil)))
+               (when include (push element included))))
       (make-array (list (length included)) :element-type (element-type alpha)
                   :initial-contents (reverse included)))))
 
@@ -357,11 +357,10 @@
     (let ((output (reshape-to-fit omega (if (arrayp alpha) (array-to-list alpha)
                                             (list alpha))
                                   :populator (build-populator omega))))
-      (if (and (zerop (size output)) (arrayp omega)
-               (< 0 (size omega)) (arrayp (row-major-aref omega 0)))
-          (array-setting-meta output :empty-array-prototype
-                              (make-prototype-of (row-major-aref omega 0)))
-          output))))
+      (if (not (and (zerop (size output)) (arrayp omega)
+                    (< 0 (size omega)) (arrayp (row-major-aref omega 0))))
+          output (array-setting-meta output :empty-array-prototype
+                                     (make-prototype-of (row-major-aref omega 0)))))))
 
 (defun at-index (index-origin axes)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
@@ -535,9 +534,8 @@
             (if (and axes (> 0 *first-axis-or-nil*))
                 (error (format nil "Specified axis is less than ~a." index-origin))
                 (catenate alpha omega 0)))
-        (if (or (not axes)
-                (integerp (first axes)))
-            (catenate alpha omega (or *first-axis-or-nil* 0))))))
+        (when (or (not axes) (integerp (first axes)))
+          (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
 (defun mix-array (index-origin axes)
   "Wrapper for (aplesque:mix) used for [↑ mix]."
@@ -547,7 +545,7 @@
                     (rank omega))
                 omega :populator (lambda (item)
                                    (let ((populator (build-populator item)))
-                                     (if populator (funcall populator))))))))
+                                     (when populator (funcall populator))))))))
 
 (defun wrap-split-array (index-origin axes)
   "Wrapper for [↓ split]."
@@ -568,18 +566,18 @@
                                            (spec-axes (first axes)))
                                        (if (integerp spec-axes)
                                            (setf (aref dims (- spec-axes index-origin)) (aref alpha 0))
-                                           (if (vectorp spec-axes)
-                                               (loop :for ax :across spec-axes :for ix :from 0
-                                                  :do (setf (aref dims (- ax index-origin))
-                                                            (aref alpha ix)))))
+                                           (when (vectorp spec-axes)
+                                             (loop :for ax :across spec-axes :for ix :from 0
+                                                   :do (setf (aref dims (- ax index-origin))
+                                                             (aref alpha ix)))))
                                        dims)
                                 alpha)
                             :inverse inverse :populator (build-populator omega))))
       ;; if the resulting array is empty and the original array prototype was an array, set the
       ;; empty array prototype accordingly
       (if (and (zerop (size output)) (not inverse)
-               (arrayp omega) (if (< 0 (size omega))
-                                  (arrayp (row-major-aref omega 0))))
+               (arrayp omega) (when (< 0 (size omega))
+                                (arrayp (row-major-aref omega 0))))
           (array-setting-meta output :empty-array-prototype
                               (make-prototype-of (row-major-aref omega 0)))
           output))))
@@ -654,8 +652,8 @@
                                                                    :collect i))))))
             (let ((uniques) (unique-count 0))
               (loop :for item :across vector :when (not (find item uniques :test #'array-compare))
-                 :do (push item uniques)
-                    (incf unique-count))
+                    :do (push item uniques)
+                        (incf unique-count))
               (funcall (lambda (result) (if (vectorp omega) result (mix-arrays 1 result)))
                        (make-array unique-count :element-type (element-type vector)
                                    :initial-contents (reverse uniques))))))))
@@ -781,8 +779,8 @@
             (loop :for af :in aifactors :for of :across ofactors :for ix :from 0
                   :do (multiple-value-bind (index remainder) (floor remaining of)
                         (incf oix)
-                        (if (not (zerop ix))
-                            (setf afactor (+ afactor (* af index))))
+                        (when (not (zerop ix))
+                          (setf afactor (+ afactor (* af index))))
                         (setf remaining remainder)))
             (loop :for of :across oifactors
                   :do (multiple-value-bind (index remainder) (floor remaining (aref ofactors oix))
@@ -868,9 +866,9 @@
   "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)
     (let ((omega (render-varrays omega)))
-      (if (and alpha (not (integerp alpha)))
-          (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
-                              " the precision at which to print floating-point numbers.")))
+      (when (and alpha (not (integerp alpha)))
+        (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
+                            " the precision at which to print floating-point numbers.")))
       (if (characterp omega)
           omega (array-impress
                  omega :collate t
@@ -886,14 +884,14 @@
     (let ((input (render-varrays input))
           (print-precision (or print-precision print-precision-default))
           (is-not-nested t))
-      (if (and print-precision (not (integerp print-precision)))
-          (error "The left argument to ⍕ must be an integer specifying ~a"
-                 "the precision at which to print floating-point numbers."))
+      (when (and print-precision (not (integerp print-precision)))
+        (error "The left argument to ⍕ must be an integer specifying ~a"
+               "the precision at which to print floating-point numbers."))
       ;; only right-indent if this is a nested array; this is important for box-drawing functions
       (when (arrayp input)
         (xdotimes input (x (size input))
-          (if (arrayp (row-major-aref input x))
-              (setf is-not-nested nil))))
+          (when (arrayp (row-major-aref input x))
+            (setf is-not-nested nil))))
       (funcall (lambda (output)
                  (if (/= 1 (rank output))
                      output (array-promote output)))
@@ -908,8 +906,8 @@
   "Given an array, generate an array of the same shape whose each cell contains its row-major index."
   (let* ((index (or ext-index -1))
          (is-scalar (zerop (rank array)))
-         (array (if (and is-scalar (not scalar-assigned))
-                    (aref array) array))
+         (array (if (not (and is-scalar (not scalar-assigned)))
+                    array (aref array)))
          (output (make-array (dims array) :element-type (if (eq t (element-type array))
                                                             t (list 'integer 0 (size array))))))
     ;; TODO: can this be parallelized?
@@ -928,32 +926,35 @@
 (defun invert-assigned-varray (object &optional order)
   "Generate the inverted deferred computation object that serves to verify indices in a selection array implementing assignment by selection, like the one expressed by {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99."
   (if (varrayp object)
-      (invert-assigned-varray (typecase object
-                                (vacomp-each (varray::vacmp-omega object))
+      (invert-assigned-varray (typecase object (vacomp-each (varray::vacmp-omega object))
                                 (t (varray::vader-base object)))
-                              (typecase object
-                                (vader-identity order)
+                              (typecase object (vader-identity order)
                                 ;; omit identity objects, this is for selective
                                 ;; assignment cases like ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
                                 (vader-select (append order (list object)))
                                 (vader-pick (append order (list object)))
                                 ;; pick and select objects are shifted to the end of the list
                                 (t (cons object order))))
-      (let ((output))
-        ;; (print (list :or order))
+      (let ((output) (ivec))
         (loop :for o :in order
               :do (typecase o (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
                             (vader-select (setf (varray::vasel-selector o) (or output object)))
-                            (t (setf (varray::vader-base o) (or output object))))
+                            ;; in the case of an enlist object, generate the index array and pass it
+                            ;; back via the second value, needed for cases like
+                            ;; {names←'Kent' 'Alan' 'Ryan' ⋄ (('a'=∊names)/∊names)←⍵ ⋄ names} '*'
+                            (t (setf (varray::vader-base o)
+                                     (or output (if (not (typep o 'vader-enlist))
+                                                    object (setf ivec (generate-index-array object)))))))
                   (setf output o))
-        (or output object))))
+        (values (or output object) ivec))))
 
 (defun assign-by-selection (prime-function function value omega &key index-origin)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
     ;; (setf ggi (invert-assigned-varray (funcall function omega)))
-    (let ((base-object (invert-assigned-varray (funcall function omega))))
+    (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
       ;; (setf ggi base-object)
+      ;; (print (list :ren ivec (render-varrays base-object)))
       (typecase base-object
         (varray::vader-select
          (setf (varray::vasel-assign base-object) value)
@@ -969,8 +970,14 @@
                  (varray::vader-base base-object))
                (varray::vader-base base-object) omega)
          base-object)
+        ;; In the case of an index vector returned as the second value from invert-assigned-varray,
+        ;; assignment is being done according to processing of an enlist of the input array, thus
+        ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
+        ;; and a nested index array must be passed to the select object indexer for use indexing.
         (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                        :selector (funcall function omega)))))))
+                                        :selector (if ivec (list :eindices ivec
+                                                                 :ebase (render-varrays base-object))
+                                                      (funcall function omega))))))))
 
 ;; (defun vectorize-assigned (indices values vector-or-length)
 ;;   "Generate a vector of assigned values for use by (assign-by-selection)."
@@ -1055,7 +1062,8 @@
                     ;; if reduction produces a scalar, the result is the identity value
                     (or (and identity (if (functionp identity) (funcall identity) identity))
                         (error "The operand of [/ reduce] has no identity value."))))
-              (render-varrays (reduce-array omega fn-rendered (if (first axis) (- (first axis) index-origin))
+              (render-varrays (reduce-array omega fn-rendered (when (first axis)
+                                                                (- (first axis) index-origin))
                                             (side-effect-free function)
                                             last-axis alpha)))))))
 
@@ -1075,7 +1083,7 @@
                 omega))
         (let* ((odims (dims omega))
                (fn-rendered (lambda (o a) (render-varrays (funcall function o a))))
-               (axis (if axis (list (render-varrays (first axis)))))
+               (axis (when axis (list (render-varrays (first axis)))))
                (axis (or (and (first axis) (- (first axis) index-origin))
                          (if (not last-axis) 0 (1- (rank omega)))))
                (rlen (nth axis odims))

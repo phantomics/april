@@ -1834,8 +1834,8 @@
   (for "Selective assignment of matrix elements raveled by [↑ take] function."
        "{mt←3 4⍴⍳12 ⋄ (5↑,mt)←⍵ ⋄ mt} 0" #2A((0 0 0 0) (0 6 7 8) (9 10 11 12)))
   (for "Selective assignment of nested character vector elements enlisted by [/ compress] function."
-       "{names←'Kent' 'Allen' 'Ryan' ⋄ (('e'=∊names)/∊names)←⍵ ⋄ names} '*'"
-       #(#(#\K #\* #\n #\t) #(#\A #\l #\l #\* #\n) #(#\R #\y #\a #\n)))
+       "{names←'Kent' 'Alan' 'Ryan' ⋄ (('a'=∊names)/∊names)←⍵ ⋄ names} '*'"
+       #(#(#\K #\e #\n #\t) #(#\A #\l #\* #\n) #(#\R #\y #\* #\n)))
   (for "Selective assignment of string elements within string applied by [/ compress] function."
        "{A←'STELLAR' ⋄ ((A∊'AEIOU')/A)←⍵ ⋄ A} '*'" #(#\S #\T #\* #\L #\L #\* #\R))
   (for "Multiple assignment with selective assignment in midstream."

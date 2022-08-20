@@ -800,7 +800,7 @@
                                 (if axis (if (= (length shape)
                                                 (if (numberp axis) 1 (length axis)))
                                              (if (> rank (length shape))
-                                                 (let ((ax-copy (if (listp axis) (copy-list axis)))
+                                                 (let ((ax-copy (when (listp axis) (copy-list axis)))
                                                        (shape-copy (copy-list shape))
                                                        (matching t))
                                                    (when (not (vaop-sub-shape varray))
@@ -843,8 +843,8 @@
           (sub-shape (vaop-sub-shape varray))
           (out-rank (length out-shape))
           (axis (vads-axis varray))
-          (shape-factors (if axis (get-dimensional-factors out-shape t)))
-          (sub-factors (if axis (get-dimensional-factors sub-shape t)))
+          (shape-factors (when axis (get-dimensional-factors out-shape t)))
+          (sub-factors (when axis (get-dimensional-factors sub-shape t)))
           (base-size (if (listp (vader-base varray))
                          (length (vader-base varray))
                          (size-of (vader-base varray)))))
@@ -909,11 +909,8 @@
                                                  a (funcall ai 0))
                                              (if (not (functionp ai))
                                                  ai (funcall ai 0))))))
-                          ;; (print (list :ii item))
-                          ;; (setf item (or item prototype)) ;; if item is nil, 
                           (push item subarrays)
                           ;; TODO: this list appending is wasteful for simple ops like 1+2
-                          ;; (print (list :su subarrays))
                           (if (or (arrayp item) (varrayp item))
                               (setf sub-flag t)
                               (setf result (if (not result)
@@ -982,13 +979,13 @@
                                    :append (let ((len (or (and (null i) (list d))
                                                           (and (integerp i) nil)
                                                           (shape-of i))))
-                                             (if (and (not len) (not (integerp i)))
-                                                 (error "Invalid index."))
+                                             (when (and (not len) (not (integerp i)))
+                                               (error "Invalid index."))
                                              ;; collect output dimensions according to indices;
                                              ;; this is necessary even when setting values
                                              ;; compatible with the input array in order
                                              ;; to catch invalid indices
-                                             (if len (incf s))
+                                             (when len (incf s))
                                              len))
                        (shape-of (or (first indices)
                                      (vader-base varray)))))))))
@@ -1045,7 +1042,7 @@
        (lambda (index)
          (let* ((remaining index) (oindex 0) (ofix 0) (valid t) 
                 (adims (shape-of (vasel-assign varray)))
-                (afactors (if adims (get-dimensional-factors (vasel-assign-shape varray) t)))
+                (afactors (when adims (get-dimensional-factors (vasel-assign-shape varray) t)))
                 (choose-indexed) (assign-sub-index) (iafactors iarray-factors))
            ;; (print (list :cc indices ifactors ofactors afactors iarray-factors))
            
