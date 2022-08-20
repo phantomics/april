@@ -979,50 +979,6 @@
                                                                  :ebase ivec)
                                                       (funcall function omega))))))))
 
-;; (defun vectorize-assigned (indices values vector-or-length)
-;;   "Generate a vector of assigned values for use by (assign-by-selection)."
-;;   (let ((vector (if (arrayp vector-or-length) vector-or-length
-;;                     (make-array (list vector-or-length) :initial-element nil))))
-;;     (if (and (arrayp values)
-;;              (not (loop :for i :in (dims indices) :for v :in (dims values) :always (= i v))))
-;;         (error "Area of array to be reassigned does not match shape of values to be assigned.")
-;;         (progn (dotimes (i (size indices))
-;;                  (if (not (arrayp (row-major-aref indices i)))
-;;                      (setf (row-major-aref vector (row-major-aref indices i))
-;;                            (if (not (arrayp values))
-;;                                values
-;;                                (if (zerop (rank values))
-;;                                    (aref values)
-;;                                    (if (or (not (arrayp (row-major-aref values i)))
-;;                                            (= (size indices) (size values)))
-;;                                        (row-major-aref values i)
-;;                                        (error "Incompatible values to assign; nested array present ~a"
-;;                                               " where scalar value expected.")))))
-;;                      (vectorize-assigned (row-major-aref indices i)
-;;                                          (if (arrayp values) (row-major-aref values i)
-;;                                              values)
-;;                                          vector)))
-;;                vector))))
-
-;; (defun assign-by-vector (array indices vector &key by)
-;;   "Assign elements of an array corresponding to an array of indices from a vector. For use with (assign-by-selection)."
-;;   (dotimes (i (size array))
-;;     (if (not (arrayp (row-major-aref array i)))
-;;         (if (aref vector (row-major-aref indices i))
-;;             (setf (row-major-aref array i)
-;;                   (if by (funcall by (row-major-aref array i)
-;;                                   (aref vector (row-major-aref indices i)))
-;;                       (aref vector (row-major-aref indices i)))))
-;;         (if (not (arrayp (row-major-aref indices i)))
-;;             (if (aref vector (row-major-aref indices i))
-;;                 (setf (row-major-aref array i)
-;;                       (if by (funcall by (row-major-aref array i)
-;;                                       (aref vector (row-major-aref indices i)))
-;;                           (aref vector (row-major-aref indices i)))))
-;;             (assign-by-vector (row-major-aref array i)
-;;                               (row-major-aref indices i)
-;;                               vector :by by)))))
-
 (defun operate-reducing (function index-origin last-axis &key axis)
   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
   (lambda (omega &optional alpha environment)
