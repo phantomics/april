@@ -952,15 +952,15 @@
                             &key inverted assign-sym axes secondary-prime-fn index-origin by)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    (labels ((duplicate-t (array)
-               (let ((output (make-array (dims array))))
-                 (dotimes (i (size array))
-                   (setf (row-major-aref output i)
-                         (if (not (arrayp (row-major-aref array i)))
-                             (row-major-aref array i)
-                             (duplicate-t (row-major-aref array i)))))
-                 output)))
-      (setf ggi (invert-assigned-varray (funcall function omega)))
+    ;; (labels ((duplicate-t (array)
+    ;;            (let ((output (make-array (dims array))))
+    ;;              (dotimes (i (size array))
+    ;;                (setf (row-major-aref output i)
+    ;;                      (if (not (arrayp (row-major-aref array i)))
+    ;;                          (row-major-aref array i)
+    ;;                          (duplicate-t (row-major-aref array i)))))
+    ;;              output)))
+      ;; (setf ggi (invert-assigned-varray (funcall function omega)))
       ;; (print (list :g ggi))
       ;; (print (list :fn function-meta))
       ;;(if t;(or (getf function-meta :selective-assignment-function)
@@ -986,9 +986,11 @@
           ;;                                     function
           ;;                                     ))))
           (let ((base-object (invert-assigned-varray (funcall function omega))))
+            (setf ggi base-object)
             (typecase base-object
               (varray::vader-select
                (setf (varray::vasel-assign base-object) value)
+               ;; (print (list :ba base-object))
                base-object)
               (varray::vader-pick
                (setf (varray::vapick-assign base-object) value
@@ -1001,8 +1003,7 @@
                      (varray::vader-base base-object) omega)
                base-object)
               (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                              :argument (funcall function omega)
-                                              ;; inverted
+                                              :selector (funcall function omega)
                                               ))))
           ;; (case (getf function-meta :selective-assignment-function)
           ;;   (:index (let ((base-object (funcall function omega)))
@@ -1024,7 +1025,7 @@
           ;;                                   ;; inverted
           ;;                                   )))
           )
-      )))
+      ))
 
 ;; (if (getf function-meta :selective-assignment-compatible)
 ;;     (let* ((omega (if (and assign-sym (not (typep omega 'varray))

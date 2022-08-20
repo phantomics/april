@@ -946,7 +946,11 @@
    (%calling :accessor vasel-calling
              :initform nil
              :initarg :calling
-             :documentation "Function to be called on original and assigned index values."))
+             :documentation "Function to be called on original and assigned index values.")
+   (%selector :accessor vasel-selector
+              :initform nil
+              :initarg :selector
+              :documentation "Object implementing selection function for array."))
   (:metaclass va-class))
 
 (defmethod etype-of ((varray vader-select))
@@ -1006,8 +1010,9 @@
           (index-selector ;; (when (functionp (vads-argument varray))
                           ;;   (funcall (vads-argument varray)
                           ;;            (vader-base varray)))
-                          (when (typep (vads-argument varray) 'varray::varray)
-                            (vads-argument varray)))
+                          ;; (when (typep (vads-argument varray) 'varray::varray)
+                          ;;   (vads-argument varray))
+                          (vasel-selector varray))
           (sub-shape (shape-of index-selector))
           (is-picking)
           (sub-selector (multiple-value-bind (sselector is-pick)
@@ -1023,8 +1028,9 @@
                           sselector))
           (ofactors (if (not set) (get-dimensional-factors idims t)))
           (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t)))
-     ;; (setf april::ggg index-selector)
-     ;; (print (list :in indices ofactors ifactors))
+     ;; (if index-selector (setf april::ggg index-selector))
+     ;; (print (list :in indices ofactors ifactors
+     ;;              (vads-argument varray)))
      (setf indices (when (not index-selector)
                      (loop :for item :in (vads-argument varray)
                            :collect (let ((ishape (shape-of item)))
@@ -1167,12 +1173,13 @@
                                    (each-target (when (typep index-selector 'varray::vacomp-each)
                                                   (varray::vacmp-omega index-selector))))
                                ;; (print (list :eo oindex each-target (shape-of varray)))
-                               (when (typep each-target 'vader-select)
-                                 (setf april::ggg each-target))
+                               ;; (when (typep each-target 'vader-select)
+                               ;;   (setf april::ggg each-target))
                                (make-instance 'vader-select
                                               :base (funcall sub-indexer index)
                                               :index-origin (vads-io varray)
-                                              :argument oindex
+                                              ;; :argument oindex
+                                              :selector oindex
                                               :assign (if (not (functionp assign-indexer))
                                                           assign-indexer (funcall assign-indexer
                                                                                   assign-sub-index))
@@ -3119,7 +3126,7 @@
                'vader-select :base (funcall base-indexer index)
                              :index-origin (vads-io varray)
                              :assign (vapick-assign varray)
-                             :argument (vapick-selector varray))
+                             :selector (vapick-selector varray))
               (if (vapick-function varray)
                   (funcall (vapick-function varray)
                            (funcall base-indexer index) (vapick-assign varray))
@@ -3143,7 +3150,6 @@
       (shape-of (vader-base varray))
       (let* ((ref (fetch-reference varray (vader-base varray)))
              (this-indexer (indexer-of ref)))
-        ;; (print (list :iii this-indexer ref))
         (if (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
             (if (arrayp this-indexer)
                 (shape-of (row-major-aref this-indexer 0))
@@ -3178,8 +3184,7 @@
                        'vader-select :base (funcall base-indexer this-index)
                                      :index-origin (vads-io varray)
                                      :assign (vapick-assign varray)
-                                     :argument (lambda (i) (declare (ignore i))
-                                                 (vapick-selector varray)))
+                                     :selector (vapick-selector varray))
                       (make-instance
                        'vader-pick :base (funcall base-indexer this-index)
                                    :argument (vads-argument varray) :index-origin (vads-io varray)
@@ -3199,20 +3204,7 @@
             (indexer-of this-indexer)
             (if (not (arrayp this-indexer))
                 this-indexer (indexer-of (row-major-aref this-indexer
-                                                         (or (vads-argument varray) 0)))))
-        ;; (if (typep (vader-base varray) 'vader-mix)
-        ;;     )
-        ;; (if (not (varrayp this-indexer))
-        ;;     (indexer-of this-indexer)
-        ;;     ;; (let ((ii (indexer-of (indexer-of this-reference params))))
-        ;;     ;;   (print (list :i ii))
-        ;;     ;;   (if (not (functionp ii))
-        ;;     ;;       (print (indexer-of ii))
-        ;;     ;;       ;; (indexer-of (funcall (indexer-of ii) 0))
-        ;;     ;;       ii ; (indexer-of ii)
-        ;;     ;;       ))
-        ;;     (indexer-of this-reference params))
-        )))
+                                                         (or (vads-argument varray) 0))))))))
 
 ;; (let* ((this-reference (fetch-reference varray (vader-base varray)))
 ;;              ;; (this-indexer (indexer-of this-reference))
