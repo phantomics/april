@@ -1018,8 +1018,7 @@
           (sub-selector (multiple-value-bind (sselector is-pick)
                             (indexer-of index-selector
                                         (list :for-selective-assign
-                                              (or (if (vasel-assign varray)
-                                                      (shape-of (vasel-assign varray)))
+                                              (or (shape-of (vasel-assign varray))
                                                   t)
                                               :assigning set
                                               :toggle-toplevel-subrendering
@@ -1029,9 +1028,9 @@
           (ofactors (if (not set) (get-dimensional-factors idims t)))
           (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t)))
      ;; (if index-selector (setf april::ggg index-selector))
-     ;; (print (list :in indices ofactors ifactors
-     ;;              (vads-argument varray)))
-     (setf indices (when (not index-selector)
+     ;; (print (list :in indices ofactors ifactors (vads-argument varray)))
+     (setf indices (when ;; (vads-argument varray)
+                     (not index-selector)
                      (loop :for item :in (vads-argument varray)
                            :collect (let ((ishape (shape-of item)))
                                       (if (< 1 (length ishape))
@@ -1062,8 +1061,7 @@
                 (choose-indexed) (assign-sub-index) (iafactors iarray-factors))
            ;; (print (list :cc indices ifactors of actors iarray-factors))
            
-           (loop :for in :in indices :for ifactor :across ifactors :while (and (not index-selector)
-                                                                               (not choose-indexed))
+           (loop :for in :in indices :for ifactor :across ifactors :while (not choose-indexed)
                  :for ix :from 0 :while valid
                  :do (let ((afactor (if (and afactors (< ix (length afactors)))
                                         (aref afactors ix))))
@@ -1138,9 +1136,11 @@
 
            ;; index-selector is used in the case of assignment by selection,
            ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
-           (when index-selector (setf valid (setf oindex (funcall sub-selector index))))
+           (when index-selector (setf valid (or (typep index-selector 'vader-pick)
+                                                (setf oindex (funcall sub-selector index)))))
            ;; (print (list :val index valid oindex (shape-of oindex)))
-           ;; (if valid (print (list :oin oindex index afactors)))
+           ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
+           ;;                        set-indexer)))
            (if (numberp oindex)
                (if set (if valid (if (vasel-calling varray)
                                      (let ((original (if (not (functionp base-indexer))

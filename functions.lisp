@@ -939,9 +939,11 @@
                                 ;; pick is shifted to the end of the list
                                 (t (cons object order))))
       (let ((output))
+        ;; (print (list :or order))
         (loop :for o :in order
               :do (typecase o
                     (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
+                    ;; (vader-select (setf (varray::vasel-selector o) (or output object)))
                     (t (setf (varray::vader-base o) (or output object))))
                   (setf output o)
                   ;; (print (list :oo o))
@@ -960,7 +962,7 @@
     ;;                          (row-major-aref array i)
     ;;                          (duplicate-t (row-major-aref array i)))))
     ;;              output)))
-      ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+      (setf ggi (invert-assigned-varray (funcall function omega)))
       ;; (print (list :g ggi))
       ;; (print (list :fn function-meta))
       ;;(if t;(or (getf function-meta :selective-assignment-function)
