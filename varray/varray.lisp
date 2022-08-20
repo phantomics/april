@@ -240,9 +240,9 @@
               ;;              divisions division-size sbesize sbsize))
               (loop :for d :below divisions
                     :do (if ;; (< *active-workers* *workers-count*)
-                         (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                               :never (null (lparallel.kernel::running-category worker)))
-                         ;; t
+                         ;; (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                         ;;       :never (null (lparallel.kernel::running-category worker)))
+                         t
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
@@ -1009,10 +1009,11 @@
                                               (or (shape-of (vasel-assign varray)) t)
                                               :assigning set
                                               :toggle-toplevel-subrendering
-                                              (lambda (&optional abc) (setf (vads-subrendering varray) t))))
+                                              (lambda (&optional abc)
+                                                (setf (vads-subrendering varray) t))))
                           (when is-pick (setf is-picking t))
                           sselector))
-          (ofactors (if (not set) (get-dimensional-factors idims t)))
+          (ofactors (when (not set) (get-dimensional-factors idims t)))
           (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t)))
      ;; (if index-selector (setf april::ggg index-selector))
      ;; (print (list :in indices ofactors ifactors (vads-argument varray)))
@@ -1076,7 +1077,7 @@
                                                               :while (not matched-index)
                                                               :do (if (/= index (- (funcall sub-indexer i)
                                                                                    (vads-io varray)))
-                                                                      (if afactor (incf oindex afactor))
+                                                                      (when afactor (incf oindex afactor))
                                                                       (setf matched-index i)))
                                                         (let ((match (check-vindex index in)))
                                                           (when match (setf oindex match
@@ -1084,7 +1085,9 @@
                                                                             assign-sub-index index))))
                                                     ;; (print (list :mm matched-index))
                                                     ;; (print (list :af index afactor matched-index oindex))
-                                                    (if (not matched-index) (setf valid nil)))
+                                                    ;; (when (not matched-index) (setf valid nil))
+                                                    (setf valid matched-index)
+                                                    )
                                               (setf sub-index index))
                                           (incf ofix)
                                           (setf remaining remainder))
@@ -1121,9 +1124,12 @@
 
            ;; index-selector is used in the case of assignment by selection,
            ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
-           (when index-selector (setf valid (and (or valid (not (vads-argument varray)))
-                                                 (or (typep index-selector 'vader-pick)
-                                                     (setf oindex (funcall sub-selector index))))))
+           (when index-selector (setf valid (when (and (or valid (not (vads-argument varray)))
+                                                       (or (typep index-selector 'vader-pick)
+                                                           (if (numberp valid)
+                                                               (setf oindex (funcall sub-selector valid))
+                                                               (setf oindex (funcall sub-selector index)))))
+                                              valid)))
            ;; (print (list :val index valid oindex (shape-of oindex)))
            ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
            ;;                        set-indexer)))

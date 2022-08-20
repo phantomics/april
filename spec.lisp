@@ -1833,6 +1833,8 @@
        "{mt←3 3⍴⍳9 ⋄ (1 1⍉mt)←⍵ ⋄ mt} 10 20 30" #2A((10 2 3) (4 20 6) (7 8 30)))
   (for "Selective assignment of matrix elements raveled by [↑ take] function."
        "{mt←3 4⍴⍳12 ⋄ (5↑,mt)←⍵ ⋄ mt} 0" #2A((0 0 0 0) (0 6 7 8) (9 10 11 12)))
+  (for "Selective assignment of vector elements by take of sub-indices."
+       "{mt←⍳20 ⋄ (3↑mt[2×⍳8])←⍵ ⋄ mt} 99" #(1 99 3 99 5 99 7 8 9 10 11 12 13 14 15 16 17 18 19 20))
   (for "Selective assignment of nested character vector elements enlisted by [/ compress] function."
        "{names←'Kent' 'Alan' 'Ryan' ⋄ (('a'=∊names)/∊names)←⍵ ⋄ names} '*'"
        #(#(#\K #\e #\n #\t) #(#\A #\l #\* #\n) #(#\R #\y #\* #\n)))
