@@ -184,7 +184,9 @@
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
   (let ((output-shape (shape-of varray))
-        (prototype (prototype-of varray))
+        (prototype (let ((proto (prototype-of varray)))
+                     ;; a null-type prototype is nil
+                     (when (not (eql 'null proto)) proto)))
         (indexer (indexer-of varray))
         (to-subrender (or (subrendering-p varray)
                           (subrendering-base varray))))

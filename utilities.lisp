@@ -500,6 +500,7 @@
 
 (defmacro nspath (list &rest keys)
   "Macro to expedite the fetching of values from nested namespaces."
+  ;; (print (list :ll list keys))
   `(at-path ,(if (not (and (listp list) (eql 'fn-ref (first list))))
                  list (second list))
             ,(cons 'list (loop :for k :in keys
@@ -507,7 +508,11 @@
                                             `(mapcar (lambda (array)
                                                        (when array
                                                          (apply-scalar #'- array index-origin)))
-                                                     ,(cons 'list (first k))))))))
+                                                     ;; ,(cons 'list (first k))
+                                                     ;; ,(list 'list (cadr k))
+                                                     ,(if (eql 'list (first k))
+                                                          k (cons 'list (first k)))
+                                                     ))))))
 
 (defun format-nspath (items &optional output)
   "Create a string representation of a namespace path from the symbol list implementing that path."
