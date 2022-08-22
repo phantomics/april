@@ -1078,13 +1078,14 @@
                   (if (or sao-copy (getf fn-meta :commutative))
                       (setq value (if (zerop vector-index)
                                       (row-major-aref omega base)
-                                      (funcall (if sao-copy (getf fn-meta :inverse-right)
-                                                   fn-rendered)
-                                               (row-major-aref
-                                                output (+ base (* increment (1- vector-index))))
-                                               (row-major-aref
-                                                (or sao-copy omega)
-                                                (+ base (* increment vector-index))))))
+                                      (render-varrays
+                                       (funcall (if sao-copy (getf fn-meta :inverse-right)
+                                                    fn-rendered)
+                                                (row-major-aref
+                                                 output (+ base (* increment (1- vector-index))))
+                                                (row-major-aref
+                                                 (or sao-copy omega)
+                                                 (+ base (* increment vector-index)))))))
                       (loop :for ix :from vector-index :downto 0
                             :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
                                   (setq value (if (not value) (disclose original)

@@ -1284,7 +1284,7 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro scalar-function (function &rest meta)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
   (let ((args (gensym)) (ax-sym (gensym))
-        (is-virtual (getf meta :va))
+        ;; (is-virtual (getf meta :va))
         (function (if (or (not (listp function))
                           (not (eql 'apl-fn (first function)))
                           (>= 2 (length function)))
@@ -1301,17 +1301,14 @@ It remains here as a standard against which to compare methods for composing APL
                                        :base (second ,args) :index-origin 0 :params (list ,@meta)
                                        :axis ,ax-sym :function ,fn-quoted))
            (:call-scalar (apply ,fn-quoted (rest ,args)))
-           (t ,(if is-virtual
-                   `(make-instance 'vader-operate
-                                   ;; :base (coerce (if (not ,ax-sym) ,args (butlast ,args))
-                                   ;;               'vector)
-                                   ;; :base (reverse (if (not ,ax-sym) ,args (butlast ,args)))
-                                   :base (if (not ,ax-sym) ,args (butlast ,args))
-                                   :function ,fn-quoted :index-origin 0 :axis ,ax-sym
-                                   :params (list ,@meta))
-                   `(apply-scalar ,fn-quoted (first ,args) (second ,args)
-                                  ;; ,@(if axes (list axes))
-                                  ,ax-sym))))))))
+           (t (make-instance 'vader-operate
+                             :base (if (not ,ax-sym) ,args (butlast ,args))
+                             :function ,fn-quoted :index-origin 0 :axis ,ax-sym
+                             :params (list ,@meta))
+            ;; (apply-scalar ,fn-quoted (first ,args) (second ,args)
+            ;;                ;; ,@(if axes (list axes))
+            ;;                ,ax-sym)
+            ))))))
 
 ;; (defmacro scalar-function (function &rest meta)
 ;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."

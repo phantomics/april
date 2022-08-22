@@ -356,7 +356,7 @@
                   :initarg :subrendering
                   :documentation "Whether the array contains nested elements to be subrendered."))
   (:metaclass va-class)
-  (:documentation "A derived array: virtual array derived from another array."))
+  (:documentation "A derived array: a virtual array derived from another array."))
 
 (defmethod initialize-instance :around ((varray varray-derived) &key)
   "If the instance's base slot is already bound, it has been populated through one of he above type combinatorics and so should be returned with no changes."
