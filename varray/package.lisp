@@ -13,9 +13,9 @@
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
            #:vader-expand #:vader-grade #:vader-matrix-inverse #:vader-matrix-divide
            #:vader-encode #:vader-decode #:vader-identity
-
            #:vader-composing #:op-compose
            #:vacomp-reduce #:vacomp-each
+           #:inverse-count-to
            )
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force)
   (:shadowing-import-from #:aplesque #:enclose #:disclose #:disclose-unitary #:get-dimensional-factors

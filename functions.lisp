@@ -328,12 +328,12 @@
         (make-instance 'vapri-coordinate-identity :shape (coerce index 'list)
                        :index-origin index-origin))))
 
-(defun inverse-count-to (vector index-origin)
-  "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
-  (if (not (vectorp vector))
-      (error "Inverse [⍳ index] can only be invoked on a vector, at least for now.")
-      (if (loop :for e :across vector :for i :from index-origin :always (= e i))
-          (length vector) (error "The argument to inverse [⍳ index] is not an index vector."))))
+;; (defun inverse-count-to (vector index-origin)
+;;   "The [⍳ index] function inverted; it returns the length of a sequential integer array starting from the index origin or else throws an error."
+;;   (if (not (vectorp vector))
+;;       (error "Inverse [⍳ index] can only be invoked on a vector, at least for now.")
+;;       (if (loop :for e :across vector :for i :from index-origin :always (= e i))
+;;           (length vector) (error "The argument to inverse [⍳ index] is not an index vector."))))
 
 (defun shape (omega)
   "Get the shape of an array, implementing monadic [⍴ shape]."
@@ -865,7 +865,8 @@
 (defun format-array (print-precision)
   "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)
-    (let ((omega (render-varrays omega)))
+    (let ((omega (render-varrays omega))
+          (alpha (render-varrays alpha)))
       (when (and alpha (not (integerp alpha)))
         (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
                             " the precision at which to print floating-point numbers.")))
@@ -882,7 +883,8 @@
   "Generate a function using (aplesque:array-impress) to print an array in matrix form without collation. Used to implement ⎕FMT."
   (lambda (input &optional print-precision)
     (let ((input (render-varrays input))
-          (print-precision (or print-precision print-precision-default))
+          (print-precision (or (render-varrays print-precision)
+                               print-precision-default))
           (is-not-nested t))
       (when (and print-precision (not (integerp print-precision)))
         (error "The left argument to ⍕ must be an integer specifying ~a"

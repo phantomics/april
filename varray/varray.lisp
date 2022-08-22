@@ -235,9 +235,23 @@
                                                   (- total-size start-at))))
                                   (loop :for i :from start-at :to (1- (+ start-at count))
                                         :do (funcall render-index i))))))
+                   ;; (total-size (size-of varray))
+                   ;; (divisions (min total-size (max wcadj (ceiling (/ total-size sbesize)))))
+                   ;; (interval sbesize) ; (/ total-size sbesize *workers-count*))
+                   ;; (lpchannel (lparallel::make-channel))
+                   ;; (process (lambda (index)
+                   ;;            (lambda ()
+                   ;;              (let* ((start-intervals (ceiling (* interval index)))
+                   ;;                     (start-at (* sbesize index))
+                   ;;                     (count (if (< index (1- divisions))
+                   ;;                                sbesize (- total-size start-at))))
+                   ;;                ;; (print (list :sa start-at count total-size))
+                   ;;                ;; (error "true")
+                   ;;                (loop :for i :from start-at :to (1- (+ start-at count))
+                   ;;                      :do (funcall render-index i))))))
                    (threaded-count 0))
               ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)))
-              ;; (print (list :ss interval sbsize sbesize division-size :div divisions wcadj (size-of varray) division-size))
+              ;; (print (list :ss interval sbsize sbesize :div divisions wcadj (size-of varray)))
               ;; (setf active-workers 0)
               ;; (print (list :out (type-of output) (type-of varray)
               ;;              divisions division-size sbesize sbsize
@@ -246,11 +260,11 @@
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
                     :do (if (or (and (typep varray 'vader-composing)
-                                     (not (vacmp-threadable varray)))
-                                ;; don't thread when rendering the output of operators composed
-                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                      :never (null (lparallel.kernel::running-category worker))))
+                                      (not (vacmp-threadable varray)))
+                                 ;; don't thread when rendering the output of operators composed
+                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                       :never (null (lparallel.kernel::running-category worker))))
                          ;; t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
@@ -495,6 +509,24 @@
                                  (the (unsigned-byte 64)
                                       (+ origin (the (unsigned-byte 62) (floor index repeat))))))))))
 
+(defgeneric inverse-count-to (array index-origin)
+  (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
+
+(defmethod inverse-count-to ((item t) index-origin)
+  (if (and (vectorp item)
+           (loop :for v :across item :for i :from index-origin :always (and (numberp v)
+                                                                            (= v i))))
+      (length item)
+      (error "Attempted to invoke inverse [⍳ index] on something other than an integer progression vector.")))
+
+(defmethod inverse-count-to ((varray vapri-integer-progression) index-origin)
+  ;; TODO: this does not get invoked by for instance ⍳⍣¯1⊢⍳9 because of the identity varray
+  (if (and (= 1 (vapip-repeat varray))
+           (= 1 (vapip-factor varray))
+           (= index-origin (vapip-origin varray)))
+      (print (+ index-origin (vapip-number varray)))
+      (error "Attempted to invoke inverse [⍳ index] on an altered integer progression vector.")))
+      
 (defclass vapri-coordinate-vector (varray-primal)
   ((%reference :accessor vacov-reference
                :initform nil
@@ -2961,6 +2993,9 @@
                                  (1- base-rank)
                                  (- (vads-axis varray)
                                     (vads-io varray)))))))
+     ;; (print (list :va (vads-argument varray)))
+     ;; REDUCE SHAPE ERROR CAUSED HERE
+     ;; (error "true")
      (cond ((and base-shape (zerop (reduce #'* base-shape)))
             (if is-inverse
                 (if (> axis (1- base-rank))
@@ -3088,7 +3123,9 @@
                               (size-of (funcall (indexer-of index) 0))))
             (factors (get-dimensional-factors (shape-of base))))
         (loop :for f :in factors :for s :below index-length
-              :do (incf ix (* f (- (funcall iindexer s) (vads-io varray)))))
+              :do (incf ix (* f (- (if (not (functionp iindexer))
+                                       iindexer (funcall iindexer s))
+                                   (vads-io varray)))))
         ix)))
 
 (defgeneric fetch-reference (varray base &optional path path-index)

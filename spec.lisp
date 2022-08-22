@@ -44,12 +44,12 @@
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
- (profiles (:test ;:lexical-functions-scalar-numeric :lexical-functions-scalar-logical
-                  ;:lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  ;:lexical-operators-pivotal :lexical-statements :general-tests
-                  ;:system-variable-function-tests
-            :function-inversion-tests ;:namespace-tests
-            ;:printed-format-tests
+ (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
+                  :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
+                  :lexical-operators-pivotal :lexical-statements :general-tests
+                  :system-variable-function-tests
+            :function-inversion-tests :namespace-tests
+            :printed-format-tests
             )
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -1316,10 +1316,8 @@
                                "28.27433  3.14159  6.28319  9.42478"))
             (is "⍕'a'" #\a)))
   (⍎ (has :title "Evaluate")
-     (monadic (lambda (omega &optional alpha)
-                (declare (ignore alpha))
-                (eval (vex-program *april-idiom* `((state :print-output nil) (:space ,+workspace-name+))
-                                     (string omega)))))
+     (monadic (λω (eval (vex-program *april-idiom* `((state :print-output nil) (:space ,+workspace-name+))
+                                     (string (render-varrays omega))))))
      (meta (primary :implicit-args (+workspace-name+)))
      (tests (is "⍎'1+1'" 2)
             (is "⍎'5','+3 2 1'" #(8 7 6))
