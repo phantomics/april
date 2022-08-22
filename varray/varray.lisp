@@ -179,7 +179,7 @@
       (if (zerop (length output))
 	  1 (read-from-string output)))))
 
-(defvar *workers-count* (count-cpus))
+(defvar *workers-count* (max 1 (1- (count-cpus))))
 
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
@@ -221,30 +221,38 @@
                    (sbsize (sub-byte-element-size output))
                    (sbesize (if sbsize (/ 64 sbsize) 1))
                    (wcadj *workers-count*)
-                   (vsizeadj (ceiling (/ (size-of varray) sbesize)))
-                   (divisions (if (< wcadj vsizeadj) wcadj vsizeadj))
-                   (division-size (* sbesize (/ vsizeadj divisions)))
+                   (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
+                   (total-size (size-of varray))
+                   (interval (/ total-size sbesize *workers-count*))
                    (lpchannel (lparallel::make-channel))
                    (process (lambda (index)
                               (lambda ()
-                                (let* ((start-at (floor (* division-size index)))
-                                       (count (abs (- (if (< index (1- divisions))
-                                                          (floor (* division-size
-                                                                    (1+ index)))
-                                                          (size-of varray))
-                                                      start-at))))
-                                  ;; (print (list :sa start-at count))
+                                (let* ((start-intervals (ceiling (* interval index)))
+                                       (start-at (* sbesize start-intervals))
+                                       (count (if (< index (1- divisions))
+                                                  (* sbesize (- (ceiling (* interval (1+ index)))
+                                                                start-intervals))
+                                                  (- total-size start-at))))
                                   (loop :for i :from start-at :to (1- (+ start-at count))
                                         :do (funcall render-index i))))))
                    (threaded-count 0))
+              ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)))
+              ;; (print (list :ss interval sbsize sbesize division-size :div divisions wcadj (size-of varray) division-size))
               ;; (setf active-workers 0)
-              ;; (print (list :out (type-of output) ;; active-workers
-              ;;              divisions division-size sbesize sbsize))
+              ;; (print (list :out (type-of output) (type-of varray)
+              ;;              divisions division-size sbesize sbsize
+              ;;              (typep varray 'vader-composing)
+              ;;              (when (typep varray 'vader-composing)
+              ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if ;; (< *active-workers* *workers-count*)
-                         (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                               :never (null (lparallel.kernel::running-category worker)))
+                    :do (if (or (and (typep varray 'vader-composing)
+                                     (not (vacmp-threadable varray)))
+                                ;; don't thread when rendering the output of operators composed
+                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                      :never (null (lparallel.kernel::running-category worker))))
                          ;; t
+                         ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
@@ -1538,7 +1546,7 @@
   0)
 
 (defmethod etype-of ((varray vader-index))
-  (list 'integer 0 (1+ (first (last (shape-of (vads-argument varray)))))))
+  (list 'integer 0 (max 255 (1+ (first (last (shape-of (vads-argument varray))))))))
 
 (defmethod shape-of ((varray vader-index))
   (get-promised (varray-shape varray)
@@ -1556,8 +1564,8 @@
           (base (if major-cells-count (or (vaix-base-cache varray)
                                           (setf (vaix-base-cache varray)
                                                 (render (vader-base varray)))))))
-     (lambda (index)
-       (if major-cells-count ;; if comparing sub-arrays
+     (if major-cells-count ;; if comparing sub-arrays
+         (lambda (index)
            (let ((base-segment (make-array (rest (shape-of argument))
                                            :element-type (etype-of base) :displaced-to base
                                            :displaced-index-offset (* index arg-cell-size))))
@@ -1567,14 +1575,56 @@
                                                            :displaced-to argument
                                                            :element-type (etype-of argument)
                                                            :displaced-index-offset (* arg-cell-size a))))
-                   :counting a :into asum :finally (return (+ asum (vads-io varray)))))
-           ;; if comparing individual vector elements
+                   :counting a :into asum :finally (return (+ asum (vads-io varray))))))
+         ;; if comparing individual vector elements
+         (lambda (index)
            (let ((base-index (if (not (functionp base-indexer))
                                  base-indexer (funcall base-indexer index))))
-             ;; (print (list :ind (vads-io varray) base-index (render base-index)))
+             ;;(print (list :ind (vads-io varray) base-index (render base-index)))
+             ;; (sleep 0.001)
+             ;; (princ base-index) (princ " ")
              (loop :for a :across argument :while (not (varray-compare a base-index))
                    ;; :do (print (list :lll a))
                    :counting a :into asum :finally (return (+ asum (vads-io varray))))))))))
+
+;; (defmethod indexer-of ((varray vader-index) &optional params)
+;;   (get-promised
+;;    (varray-indexer varray)
+;;    (let* ((base-indexer (base-indexer-of varray))
+;;           (argument (or (vaix-set varray)
+;;                         (setf (vaix-set varray) (render (vads-argument varray)))))
+;;           (arg-cell-size (reduce #'* (rest (shape-of argument))))
+;;           (major-cells-count (if (/= 1 arg-cell-size) (first (shape-of argument))))
+;;           (base (if major-cells-count (or (vaix-base-cache varray)
+;;                                           (setf (vaix-base-cache varray)
+;;                                                 (render (vader-base varray))))))
+;;           (output (make-array (shape-of varray) :element-type (etype-of varray))))
+;;      (if major-cells-count ;; if comparing sub-arrays
+;;          (dotimes (index (size-of varray))
+;;            (let ((base-segment (make-array (rest (shape-of argument))
+;;                                            :element-type (etype-of base) :displaced-to base
+;;                                            :displaced-index-offset (* index arg-cell-size))))
+;;              (loop :for a :below major-cells-count
+;;                    :while (not (varray-compare base-segment
+;;                                                (make-array (rest (shape-of argument))
+;;                                                            :displaced-to argument
+;;                                                            :element-type (etype-of argument)
+;;                                                            :displaced-index-offset (* arg-cell-size a))))
+;;                    :counting a :into asum :finally (setf (row-major-aref output index)
+;;                                                          (+ asum (vads-io varray))))))
+;;          ;; if comparing individual vector elements
+;;          (dotimes (index (size-of varray))
+;;            (let ((base-index (if (not (functionp base-indexer))
+;;                                  base-indexer (funcall base-indexer index))))
+;;              ;;(print (list :ind (vads-io varray) base-index (render base-index)))
+;;              ;; (sleep 0.001)
+;;              ;; (princ base-index) (princ " ")
+;;              (loop :for a :across argument :while (not (varray-compare a base-index))
+;;                    ;; :do (print (list :lll a))
+;;                    :counting a :into asum :finally (setf (row-major-aref output index)
+;;                                                          (+ asum (vads-io varray)))))))
+;;      (print (list :out output (type-of output)))
+;;      (lambda (index) (row-major-aref output index)))))
 
 (defclass vader-shape (varray-derived)
   nil (:metaclass va-class)
@@ -3787,6 +3837,19 @@
 (defmethod indexer-of ((varray vader-identity) &optional params)
   (indexer-of (vader-base varray)))
 
+(defun side-effect-free (function)
+  "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
+  (let ((fn-meta (handler-case (funcall function :get-metadata)
+                   (error () nil))))
+    (and fn-meta (or (member :side-effects fn-meta)
+                     (member :lexical-reference fn-meta))
+         (not (getf fn-meta :side-effects))
+         (not (getf fn-meta :side-refs))
+         (or (not (getf fn-meta :symfns-called))
+             (loop :for fn :in (getf fn-meta :symfns-called)
+                   :always (or (not (fboundp fn))
+                               (side-effect-free (symbol-function fn))))))))
+
 (defclass vader-composing (varray-derived)
   ((%left  :accessor vacmp-left
            :initform nil
@@ -3803,7 +3866,11 @@
    (%alpha :accessor vacmp-alpha
            :initform nil
            :initarg :alpha
-           :documentation "Left argument to composed function."))
+           :documentation "Left argument to composed function.")
+   (%threadable :accessor vacmp-threadable
+                :initform t
+                :initarg :threadable
+                :documentation "Whether this operation is threadable; i.e. operand functions lack side effects."))
   (:metaclass va-class)
   (:documentation "An array produced by an operator-composed function."))
 
@@ -4069,13 +4136,15 @@
                       (oshape (shape-of (vacmp-omega varray)))
                       (ashape (shape-of (vacmp-alpha varray)))
                       (oindexer (indexer-of (vacmp-omega varray)))
-                      (aindexer (indexer-of (vacmp-alpha varray))))
+                      (aindexer (indexer-of (vacmp-alpha varray)))
+                      (threaded (side-effect-free (vacmp-left varray))))
                   ;; (print (list :aa (vacmp-alpha varray)))
                   ;; (print (list :rr (vacmp-omega varray)))
                   ;;              (vacmp-alpha varray)
                   ;;              (render (vacmp-omega varray))
                   ;;              (render (vacmp-alpha varray))))
                   ;; (print (list :ll (funcall (vacmp-left varray) 0)))
+                  (when (not threaded) (setf (vacmp-threadable varray) nil))
                   (lambda (index)
                     (if (vacmp-alpha varray)
                         (funcall (vacmp-left varray)
