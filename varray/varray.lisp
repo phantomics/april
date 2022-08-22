@@ -1587,45 +1587,6 @@
                    ;; :do (print (list :lll a))
                    :counting a :into asum :finally (return (+ asum (vads-io varray))))))))))
 
-;; (defmethod indexer-of ((varray vader-index) &optional params)
-;;   (get-promised
-;;    (varray-indexer varray)
-;;    (let* ((base-indexer (base-indexer-of varray))
-;;           (argument (or (vaix-set varray)
-;;                         (setf (vaix-set varray) (render (vads-argument varray)))))
-;;           (arg-cell-size (reduce #'* (rest (shape-of argument))))
-;;           (major-cells-count (if (/= 1 arg-cell-size) (first (shape-of argument))))
-;;           (base (if major-cells-count (or (vaix-base-cache varray)
-;;                                           (setf (vaix-base-cache varray)
-;;                                                 (render (vader-base varray))))))
-;;           (output (make-array (shape-of varray) :element-type (etype-of varray))))
-;;      (if major-cells-count ;; if comparing sub-arrays
-;;          (dotimes (index (size-of varray))
-;;            (let ((base-segment (make-array (rest (shape-of argument))
-;;                                            :element-type (etype-of base) :displaced-to base
-;;                                            :displaced-index-offset (* index arg-cell-size))))
-;;              (loop :for a :below major-cells-count
-;;                    :while (not (varray-compare base-segment
-;;                                                (make-array (rest (shape-of argument))
-;;                                                            :displaced-to argument
-;;                                                            :element-type (etype-of argument)
-;;                                                            :displaced-index-offset (* arg-cell-size a))))
-;;                    :counting a :into asum :finally (setf (row-major-aref output index)
-;;                                                          (+ asum (vads-io varray))))))
-;;          ;; if comparing individual vector elements
-;;          (dotimes (index (size-of varray))
-;;            (let ((base-index (if (not (functionp base-indexer))
-;;                                  base-indexer (funcall base-indexer index))))
-;;              ;;(print (list :ind (vads-io varray) base-index (render base-index)))
-;;              ;; (sleep 0.001)
-;;              ;; (princ base-index) (princ " ")
-;;              (loop :for a :across argument :while (not (varray-compare a base-index))
-;;                    ;; :do (print (list :lll a))
-;;                    :counting a :into asum :finally (setf (row-major-aref output index)
-;;                                                          (+ asum (vads-io varray)))))))
-;;      (print (list :out output (type-of output)))
-;;      (lambda (index) (row-major-aref output index)))))
-
 (defclass vader-shape (varray-derived)
   nil (:metaclass va-class)
   (:documentation "The shape of an array as from the [⍴ shape] function."))
