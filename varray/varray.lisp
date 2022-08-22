@@ -3438,22 +3438,24 @@
                (aref (aref (vads-content varray) 1)
                      (- index (length (aref (vads-content varray) 0))))))))))
 
-(defclass vader-turn-metaclass (va-class)
-  nil (:documentation "Metaclass for virtual array turn objects."))
+;; (defclass vader-turn-metaclass (va-class)
+;;   nil (:documentation "Metaclass for virtual array turn objects."))
 
-(defmethod closer-mop:validate-superclass ((class vader-turn-metaclass)
-                                           (superclass va-class))
-  t)
+;; (defmethod closer-mop:validate-superclass ((class vader-turn-metaclass)
+;;                                            (superclass va-class))
+;;   t)
 
-(defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument)
+(defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
   nil (:metaclass va-class)
   (:documentation "A rotated array as from the [⌽ rotate] function."))
 
-(defun arg-process (argument)
-  (if (or (listp argument) (numberp argument))
-      argument (if (varrayp argument)
-                   (render argument) ;; TODO: eliminate forced render here
-                   (when (arrayp argument) argument))))
+(defun arg-process (varray)
+  (let ((argument (vads-argument varray)))
+    (funcall (if (vads-inverse varray) #'- #'identity)
+             (if (or (listp argument) (numberp argument))
+                 argument (if (varrayp argument)
+                              (render argument) ;; TODO: eliminate forced render here
+                              (when (arrayp argument) argument))))))
 
 (defmethod indexer-of ((varray vader-turn) &optional params)
   "Indexer for a rotated or flipped array."
@@ -3486,7 +3488,7 @@
                                                                              (rank-of varray)))
                                                                     (- axis iorigin))
                                                                 (shape-of varray)
-                                                                (arg-process (vads-argument varray)))))))
+                                                                (arg-process varray))))))
                   (if (zerop (the (unsigned-byte 62)
                                   (reduce #'+ (shape-of (vader-base varray)))))
                       (lambda (_)
@@ -3659,19 +3661,37 @@
                        (content-indexer (indexer-of content)))
                   (lambda (index) (funcall content-indexer index)))))
 
-(defclass vader-encode (varray-derived vad-with-argument)
+(defclass vader-encode (varray-derived vad-with-argument vad-invertable)
   nil (:metaclass va-class)
   (:documentation "An encoded array as from the [⊤ encode] function."))
 
 (defmethod shape-of ((varray vader-encode))
-  (get-promised (varray-shape varray) (append (shape-of (vads-argument varray))
-                                              (shape-of (vader-base varray)))))
+  (get-promised (varray-shape varray)
+                (append (if (not (and (vads-inverse varray)
+                                      (not (shape-of (vads-argument varray)))))
+                            (shape-of (vads-argument varray))
+                            (let* ((base (render (vader-base varray)))
+                                   (max-base (when (not (shape-of base)) base))
+                                   (arg (render (vads-argument varray))))
+                              (when (not max-base)
+                                (setf max-base 0)
+                                (dotimes (i (size-of base))
+                                  (when (< max-base (row-major-aref base i))
+                                    (setf max-base (row-major-aref base i)))))
+                              (list (if (zerop max-base)
+                                        0 (1+ (floor (log max-base)
+                                                     (log (render (vads-argument varray)))))))))
+                        (shape-of (vader-base varray)))))
 
 (defmethod indexer-of ((varray vader-encode) &optional params)
   (get-promised
    (varray-indexer varray)
-   (let* ((adims (shape-of (vads-argument varray)))
-          (out-dims (shape-of varray))
+   (let* ((out-dims (shape-of varray))
+          (scalar-arg (not (shape-of (vads-argument varray))))
+          (adims (if (vads-inverse varray)
+                     (or (shape-of (vads-argument varray))
+                         (butlast out-dims (rank-of (vader-base varray))))
+                     (shape-of (vads-argument varray))))
           (base-shape (shape-of (vader-base varray)))
           (base-indexer (base-indexer-of varray))
           (arg-indexer (indexer-of (vads-argument varray)))
@@ -3694,15 +3714,17 @@
          (setf remaining index
                value (if (not (functionp base-indexer))
                          base-indexer (funcall base-indexer oindex)))
-         
-         (if (not (functionp arg-indexer))
+
+         ;; (print (list :aa arg-indexer value adims))
+         (if (and (not (vads-inverse varray)) (not (functionp arg-indexer)))
              (setf value (nth-value 1 (floor value arg-indexer)))
              (let ((last-base) (element) (aindex) (component 1)
-                   (index (floor index (aref ofactors 0))))
-               (loop :for b :from (1- (first adims)) :downto index
+                   (this-index (floor index (aref ofactors 0))))
+               (loop :for b :from (1- (first adims)) :downto this-index
                      :do (setq last-base base
                                aindex (+ afactor (* b (first aifactors)))
-                               base (* base (funcall arg-indexer aindex))
+                               base (* base (if (and scalar-arg (vads-inverse varray))
+                                                arg-indexer (funcall arg-indexer aindex)))
                                component (if (zerop base) value
                                              (nth-value 1 (floor value base)))
                                value (- value component)

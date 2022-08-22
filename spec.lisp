@@ -44,12 +44,12 @@
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
- (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
-                  :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
-                  :lexical-operators-pivotal :lexical-statements :general-tests
-                  :system-variable-function-tests
-            :function-inversion-tests :namespace-tests
-            :printed-format-tests
+ (profiles (:test ;:lexical-functions-scalar-numeric :lexical-functions-scalar-logical
+                  ;:lexical-functions-array :lexical-functions-special :lexical-operators-lateral
+                  ;:lexical-operators-pivotal :lexical-statements :general-tests
+                  ;:system-variable-function-tests
+            :function-inversion-tests ;:namespace-tests
+            ;:printed-format-tests
             )
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -709,7 +709,9 @@
                        'vader-section :base omega :argument alpha 
                                       :index-origin index-origin :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
-           (monadic :inverse (λωχ (split-array omega *last-axis*)))
+           (monadic :inverse (λω ;; (split-array omega *last-axis*)
+                                 (make-instance 'vader-split :base omega :index-origin index-origin
+                                                             :axis (or (first axes) :last))))
            (dyadic :on-axis :last :selective-assignment-compatible t
                    :selective-assignment-function t))
      (tests (is "↑2" 2)
@@ -806,9 +808,11 @@
                                       :inverse t :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last
-                    :inverse (λωχ (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
-                                                  (rank omega))
-                                              omega)))
+                    :inverse (λωχ ;; (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
+                                  ;;                 (rank omega))
+                                  ;;             omega)
+                                  (make-instance 'vader-mix :base omega :index-origin index-origin
+                                                            :axis (or (first axes) :last))))
            (dyadic :on-axis :last :selective-assignment-compatible t :selective-assignment-function t))
      (tests (is "↓5" 5)
             (is "↓'b'" #\b)
@@ -920,7 +924,8 @@
                  (λωα (make-instance 'vader-pick :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λωχ (if axes (error "Inverse [⊃ disclose] does not accept axis arguments.")
-                                      (enclose omega)))
+                                      ;; (enclose omega)
+                                      (make-instance 'vader-enclose :base omega :index-origin index-origin)))
                     :selective-assignment-compatible t)
            (dyadic :selective-assignment-compatible t :selective-assignment-enclosing t
                    :selective-assignment-function :pick))
@@ -979,7 +984,11 @@
                                                  :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last :inverse #'identity)
-           (dyadic :id 0 :on-axis :last :inverse (λωαχ (turn omega *last-axis* (apply-scalar #'- alpha)))))
+           (dyadic :id 0 :on-axis :last :inverse (λωαχ (make-instance 'vader-turn
+                                                                      :base omega :argument alpha
+                                                                      :index-origin index-origin
+                                                                      :inverse t
+                                                                      :axis (or (first axes) :last)))))
      (tests (is "⌽3" 3)
             (is "⌽1 2 3 4 5" #(5 4 3 2 1))
             (is "⌽3 4⍴⍳9" #2A((4 3 2 1) (8 7 6 5) (3 2 1 9)))
@@ -996,7 +1005,12 @@
                                                  :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :first :inverse #'identity)
-           (dyadic :id 0 :on-axis :first :inverse (λωαχ (turn omega *first-axis* (apply-scalar #'- alpha)))))
+           (dyadic :id 0 :on-axis :first :inverse (λωαχ (make-instance 'vader-turn
+                                                                       :base omega :argument alpha
+                                                                       :index-origin index-origin
+                                                                       :inverse t
+                                                                       :axis (or (first axes)
+                                                                                 index-origin)))))
      (tests (is "⊖4" 4)
             (is "⊖1 2 3 4 5" #(5 4 3 2 1))
             (is "⊖3 4⍴⍳9" #2A((9 1 2 3) (5 6 7 8) (1 2 3 4)))
@@ -1015,8 +1029,10 @@
                  (λω (make-instance 'vader-permute :base omega :index-origin index-origin))
                  (λωα (make-instance 'vader-permute :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
-           (monadic :inverse (permute-array index-origin))
-           (dyadic :inverse (permute-array index-origin)
+           (monadic :inverse (λω (make-instance 'vader-permute
+                                                :base omega :index-origin index-origin)))
+           (dyadic :inverse (λωα (make-instance 'vader-permute
+                                                :base omega :argument alpha :index-origin index-origin))
                    :selective-assignment-compatible t :selective-assignment-function t))
      (tests (is "⍉2" 2)
             (is "⍉2 3 4⍴⍳9" #3A(((1 4) (5 8) (9 3)) ((2 5) (6 9) (1 4))
@@ -1056,8 +1072,12 @@
            (dyadic :on-axis :last
                    :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
-                                      (funcall (expand-array nil t index-origin *last-axis*)
-                                               omega alpha)
+                                      ;; (funcall (expand-array nil t index-origin *last-axis*)
+                                      ;;          omega alpha)
+                                      (make-instance 'vader-expand
+                                                     :base omega :argument alpha
+                                                     :index-origin index-origin :inverse t
+                                                     :axis (or (first axes) :last))
                                       (error "Inverse [/ replicate] can only accept~a"
                                              " a scalar right argument.")))
                    :selective-assignment-compatible t :selective-assignment-function t))
@@ -1101,8 +1121,11 @@
            (dyadic :on-axis :first
                    :inverse (λωαχ (if (is-unitary omega)
                                       ;; TODO: this inverse functionality is probably not complete
-                                      (funcall (expand-array nil t index-origin *first-axis*)
-                                               omega alpha)
+                                      ;; (funcall (expand-array nil t index-origin *first-axis*)
+                                      ;;          omega alpha)
+                                      (make-instance 'vader-expand :base omega :argument alpha
+                                                                   :inverse t :index-origin index-origin
+                                                                   :axis (or (first axes) index-origin))
                                       (error "Inverse [/ replicate] can only accept~a"
                                              " a scalar right argument.")))))
      (tests (is "3⌿2" #(2 2 2))
@@ -1196,7 +1219,8 @@
                  (λω (make-instance 'vader-matrix-inverse :base omega))
                  (λωα (make-instance 'vader-matrix-divide :base omega :argument alpha)))
      (meta (primary :virtual-support t)
-           (monadic :inverse #'matrix-inverse))
+           (monadic :inverse ;; #'matrix-inverse
+                    (λω (make-instance 'vader-matrix-inverse :base omega))))
      (tests (is "⌹3" 1/3)
             (is "⌹1 2 3 4" #(1/30 1/15 1/10 2/15))
             (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
@@ -1207,7 +1231,8 @@
      (dyadic ;; #'encode
              (λωα (make-instance 'vader-encode :base omega :argument alpha)))
      (meta (primary :virtual-support t)
-           (dyadic :id 0 :inverse #'decode))
+           (dyadic :id 0 :inverse ;; #'decode
+                   (λωα (make-instance 'vader-decode :base omega :argument alpha))))
      (tests (is "9⊤15" 6)
             (is "6 2 8⊤12" #(0 1 4))
             (is "1760 3 12⊤82" #(2 0 10))
@@ -1228,7 +1253,8 @@
      (dyadic ;; #'decode
              (λωα (make-instance 'vader-decode :base omega :argument alpha)))
      (meta (primary :virtual-support t)
-           (dyadic :inverse (λωα (encode omega alpha :inverse))))
+           (dyadic :inverse (λωα ;; (encode omega alpha :inverse)
+                                 (make-instance 'vader-encode :base omega :argument alpha :inverse t))))
      (tests (is "14⊥7" 7)
             (is "6⊥12 50" 122)
             (is "10⊥2 6 7 1" 2671)
@@ -1258,7 +1284,8 @@
                       (make-instance 'vader-identity :base omega)))
      (meta (primary :virtual-support t)
            (monadic :inverse #'identity)
-           (dyadic :inverse (λωα (declare (ignore alpha)) omega)
+           (dyadic :inverse (λωα (declare (ignore alpha)) ;; omega
+                                 (make-instance 'vader-identity :base omega))
                    :selective-assignment-passthrough t))
      (tests (is "⊢77" 77)
             (is "55⊢77" 77)))
