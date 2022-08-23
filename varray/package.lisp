@@ -8,8 +8,7 @@
            #:vader-index #:vader-shape #:vader-reshape
            #:vader-depth #:vader-first-dim #:vader-compare #:vader-enlist
            #:vader-membership #:vader-find #:vader-where #:vader-inverse-where
-           #:vader-interval-index #:vader-pare
-           #:vader-catenate #:vader-mix
+           #:vader-interval-index #:vader-pare #:vader-catenate #:vader-mix
            #:vader-split #:vader-section #:vader-enclose #:vader-partition #:vader-pick
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
            #:vader-expand #:vader-grade #:vader-matrix-inverse #:vader-matrix-divide
