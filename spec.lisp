@@ -597,7 +597,9 @@
                  (λωα (make-instance 'vader-interval-index
                                      :base omega :argument alpha :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin) :virtual-support t)
-           (monadic :inverse (λω (inverse-where-equal-to-one omega index-origin))))
+           (monadic :inverse (λω ;; (inverse-where-equal-to-one omega index-origin)
+                                 (make-instance 'vader-inverse-where
+                                                :base omega :index-origin index-origin))))
      (tests (is "⍸1" #(#()))
             (is "⍸0" #())
             (is "⍸0 0 1 0 1 0 0 1 1 0" #(3 5 8 9))
