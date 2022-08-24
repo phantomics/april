@@ -49,18 +49,57 @@
 (defgeneric render (varray &rest params)
   (:documentation "Render an array into memory."))
 
+(defun apl-array-prototype2 (array)
+  "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
+  (labels ((derive-element (input)
+             (if (characterp input)
+                 #\  (if (not (arrayp input))
+                         (if (varrayp input)
+                             (prototype-of input)
+                             (let ((itype (type-of input)))
+                               ;; in ECL (and others?), the integer type of a scalar is that number alone,
+                               ;; i.e. (integer 2 2) for 2, so make sure the integer range starts with 0
+                               (if (eql 'null itype)
+                                   'null (coerce 0 (if (eql 'ratio itype) 'integer
+                                                       (if (not (and (listp itype) (eql 'integer (first itype))))
+                                                           itype (list 'integer (min 0 (second itype))
+                                                                       (max 0 (or (third itype) 0)))))))))
+                         (if (zerop (array-total-size input))
+                             (make-array (array-dimensions input))
+                             (derive-element (row-major-aref input 0)))))))
+    (if (not (arrayp array))
+        (if (varrayp array) (prototype-of array)
+            (derive-element array))
+        (if (zerop (array-total-size array))
+            (if (eql 'character (array-element-type array))
+                #\  (coerce 0 (array-element-type array)))
+            (let ((first-element (row-major-aref array 0)))
+              (if (not (arrayp first-element))
+                  (derive-element first-element)
+                  (funcall (if (< 0 (array-rank first-element))
+                               #'identity (lambda (item) (make-array nil :initial-element item)))
+                           (let ((first-element (if (< 0 (array-rank first-element))
+                                                    first-element (aref first-element))))
+                             (if (and (arrayp first-element)
+                                      (zerop (array-total-size first-element)))
+                                 first-element
+                                 (make-array (array-dimensions first-element)
+                                             :element-type (array-element-type first-element)
+                                             :initial-element (derive-element first-element)))))))))))
+
 (defmethod prototype-of ((item t))
   "The prototype representation of an item is returned by the (apl-array-prototype) function."
-  (if (and (arrayp item)
-           (array-displacement item)
-           (vectorp (array-displacement item))
-           (listp (aref (array-displacement item) 0))
-           (member :empty-array-prototype (aref (array-displacement item) 0)))
-      ;; if an empty array prototype has been stored, retrieve it
-      (getf (aref (array-displacement item) 0) :empty-array-prototype)
-      (if (and (arrayp item) (zerop (array-rank item)))
-          (aplesque:make-empty-array (disclose item))
-          (apl-array-prototype item))))
+  (if (listp item) ;; lists, used to implement things like namespaces, have a nil prototype
+      nil (if (and (arrayp item)
+                 (array-displacement item)
+                 (vectorp (array-displacement item))
+                 (listp (aref (array-displacement item) 0))
+                 (member :empty-array-prototype (aref (array-displacement item) 0)))
+            ;; if an empty array prototype has been stored, retrieve it
+            (getf (aref (array-displacement item) 0) :empty-array-prototype)
+            (if (and (arrayp item) (zerop (array-rank item)))
+                (aplesque:make-empty-array (disclose item))
+                (apl-array-prototype2 item)))))
 
 (defmethod prototype-of ((varray varray))
   "The default prototype for a virtual array is 0."
@@ -183,6 +222,7 @@
 
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
+  ;; (when (typep varray 'vader-identity) (print :ee))
   (let ((output-shape (shape-of varray))
         (prototype (let ((proto (prototype-of varray)))
                      ;; a null-type prototype is nil
@@ -190,6 +230,7 @@
         (indexer (indexer-of varray))
         (to-subrender (or (subrendering-p varray)
                           (subrendering-base varray))))
+    ;; (when (typep varray 'vader-identity) (print :ef))
     ;; (print (list :vv varray prototype
     ;;              (etype-of varray)
     ;;              (if (typep varray 'varray-derived)
@@ -202,8 +243,10 @@
                                  (make-array 1 :initial-contents
                                              (list (list :empty-array-prototype
                                                          (prototype-of varray))))))
+                   ;; a nil element type results in a t-type array;
+                   ;; nil types may occur from things like +/⍬
                    (output (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
-                               (make-array (shape-of varray) :element-type (etype-of varray)))))
+                               (make-array (shape-of varray) :element-type (or (etype-of varray) t)))))
               output)
             (let* ((output (make-array (shape-of varray) :element-type (etype-of varray)))
                    (render-index
@@ -216,6 +259,7 @@
                                    (if indexed (render indexed) prototype))))
                          (lambda (i)
                            (declare (type (unsigned-byte 62) i))
+                           ;; (print (list :ioi i varray))
                            (setf (row-major-aref output i)
                                  (or (funcall indexer i) prototype)))))
                    (sbsize (sub-byte-element-size output))
@@ -250,7 +294,10 @@
                    ;;                (loop :for i :from start-at :to (1- (+ start-at count))
                    ;;                      :do (funcall render-index i))))))
                    (threaded-count 0))
-              ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)))
+              ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
+              ;;              (vader-base varray)
+              ;;              (when (typep varray 'vad-with-argument)
+              ;;                (vads-argument varray))))
               ;; (print (list :ss interval sbsize sbesize :div divisions wcadj (size-of varray)))
               ;; (setf active-workers 0)
               ;; (print (list :out (type-of output) (type-of varray)
@@ -259,13 +306,13 @@
               ;;              (when (typep varray 'vader-composing)
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                         ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;           (not (vacmp-threadable varray)))
+                            ;;      ;; don't thread when rendering the output of operators composed
+                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;            :never (null (lparallel.kernel::running-category worker))))
+                         t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -396,8 +443,10 @@
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
     ;; (print (list :vd varray (vader-base varray)
+    ;;              ;; (print (prototype-of (vader-base varray)))
     ;;              (subrendering-p varray)
     ;;              (subrendering-p (vader-base varray))))
+    ;; (print (list :ba (vader-base varray)))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
         (if (and (not (or (typep varray 'vader-expand)
                           (typep varray 'vader-catenate)))
@@ -407,6 +456,7 @@
             (aplesque::make-empty-array (disclose (render (vader-base varray))))
             (if (subrendering-p varray)
                 (aplesque::make-empty-array (disclose (render (vader-base varray))))
+                ;; (prototype-of (disclose (render (vader-base varray))))
                 (let* ((indexer (indexer-of varray))
                        (indexed (if (not (functionp indexer))
                                     indexer (funcall indexer 0))))
@@ -528,7 +578,7 @@
   (if (and (= 1 (vapip-repeat varray))
            (= 1 (vapip-factor varray))
            (= index-origin (vapip-origin varray)))
-      (print (+ index-origin (vapip-number varray)))
+      (+ index-origin (vapip-number varray))
       (error "Attempted to invoke inverse [⍳ index] on an altered integer progression vector.")))
       
 (defclass vapri-coordinate-vector (varray-primal)
@@ -1761,6 +1811,9 @@
   nil (:metaclass va-class)
   (:documentation "A reshaped array as from the [⍴ reshape] function."))
 
+;; (defmethod prototype-of ((varray vader-reshape))
+;;   (prototype-of (vader-base varray)))
+
 (defmethod shape-of ((varray vader-reshape))
   "The shape of a reshaped array is simply its argument."
   (get-promised (varray-shape varray)
@@ -2305,6 +2358,16 @@
                                   :when (< 0 (size-of (funcall base-indexer i)))
                                     :collect (etype-of (funcall base-indexer i))))))
 
+(defmethod prototype-of ((varray vader-catenate))
+  ;; (prototype-of (aref (vader-base varray) 0))
+  ;; (print (list :va1 varray))
+  (call-next-method)
+  )
+
+;; (defmethod prototype-of ((varray vader-catenate))
+;;   ;; (print (list :va2 varray))
+;;   (print (prototype-of (print (aref (vader-base varray) 0)))))
+
 (defmethod shape-of ((varray vader-catenate))
   (get-promised
    (varray-shape varray)
@@ -2811,6 +2874,9 @@
   (:metaclass va-class)
   (:documentation "An enclosed or re-enclosed array as from the [⊂ enclose] function."))
 
+;; (defmethod prototype-of ((varray vader-enclose))
+;;   (apl-array-prototype2 (enclose (render (vader-base varray)))))
+
 (defmethod etype-of ((varray vader-enclose))
   (let ((base (vader-base varray)))
     (if (or (arrayp base) (varrayp base)
@@ -3181,6 +3247,7 @@
             (error "Attempting to expand elements across array but ~a"
                    "positive degrees are not equal to length of selected input axis."))
            (t (let ((ex-dim))
+                ;; (print (list :deg degrees))
                 (if (not (arrayp degrees))
                     (setf ex-dim (* (abs degrees) (or (nth axis base-shape) 1)))
                     (loop :for degree :across degrees :for dx :from 0
@@ -3203,13 +3270,13 @@
                                                     (vads-axis varray)
                                                     (vads-inverse varray)
                                                     assigning))))
-                  (lambda (index)
-                    (if (not (functionp base-indexer))
-                        (when (funcall indexer index)
-                          (disclose base-indexer))
-                        (let ((indexed (funcall indexer index)))
-                          (if assigning indexed
-                              (if indexed (funcall base-indexer indexed)))))))))
+                  (if (functionp base-indexer)
+                      (if assigning (lambda (index) (funcall indexer index))
+                          (lambda (index)
+                            (let ((indexed (funcall indexer index)))
+                              (when indexed (funcall base-indexer indexed)))))
+                      (lambda (index)
+                        (when (funcall indexer index) (disclose base-indexer)))))))
 
 (defclass vader-pick (varray-derived vad-with-argument vad-with-io)
   ((%reference :accessor vapick-reference
@@ -3261,7 +3328,6 @@
              (path-indexer (indexer-of path))
              (path-length (size-of path))
              (base-indexer (indexer-of base)))
-        ;; (print (list :pa path path-index))
         (if path
             (let ((path-value (get-path-value varray (if (not (functionp path-indexer))
                                                          path-indexer (funcall path-indexer
@@ -3738,6 +3804,10 @@
     (list 'integer (vads-io varray)
           (+ this-shape (vads-io varray)))))
 
+(defmethod prototype-of ((varray vader-grade))
+  (declare (ignore varray))
+  0)
+
 (defmethod shape-of ((varray vader-grade))
   (get-promised (varray-shape varray)
                 (let ((base-shape (shape-of (vader-base varray))))
@@ -4085,7 +4155,7 @@
    (progn
      ;; (if (not (vads-default-axis varray))
      ;;     (print (list :ty (type-of (vacmp-omega varray)))))
-     (setf (vacmp-omega varray) (render (vacmp-omega varray)))
+     ;; (setf (vacmp-omega varray) (render (vacmp-omega varray)))
      ;; (print (list :om (vacmp-omega varray) varray))
      (let ((irank (rank-of (vacmp-omega varray)))
            (osize (size-of (vacmp-omega varray))))
