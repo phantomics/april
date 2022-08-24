@@ -1811,8 +1811,8 @@
   nil (:metaclass va-class)
   (:documentation "A reshaped array as from the [⍴ reshape] function."))
 
-;; (defmethod prototype-of ((varray vader-reshape))
-;;   (prototype-of (vader-base varray)))
+(defmethod prototype-of ((varray vader-reshape))
+  (prototype-of (vader-base varray)))
 
 (defmethod shape-of ((varray vader-reshape))
   "The shape of a reshaped array is simply its argument."
@@ -3413,9 +3413,6 @@
   (if (vapick-assign varray)
       (prototype-of (vader-base varray))
       (prototype-of (fetch-reference varray (vader-base varray)))))
-
-;; (defmethod shape-of ((varray vader-pick))
-;;   (shape-of (fetch-reference varray (vader-base varray))))
 
 (defmethod shape-of ((varray vader-pick))
   (if (vapick-assign varray)
