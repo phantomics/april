@@ -957,13 +957,17 @@
       'bit t))
 
 (defmethod prototype-of ((varray vader-operate))
-  (if (or (and (varrayp (vader-base varray))
+  (if (or (and (not (listp (vader-base varray)))
                (= 1 (size-of (vader-base varray))))
-          (= 1 (length (vader-base varray))))
-      (let ((first-shape (shape-of (elt (vader-base varray) 0)))
-            (first-indexer (indexer-of (elt (vader-base varray) 0))))
+          (and (listp (vader-base varray))
+               (= 1 (length (vader-base varray)))))
+      (let* ((first-item (if (varrayp (vader-base varray))
+                             (funcall (indexer-of (vader-base varray)) 0)
+                             (elt (vader-base varray) 0)))
+             (first-shape (shape-of first-item))
+             (first-indexer (indexer-of first-item)))
         (if (zerop (reduce #'* first-shape))
-            (prototype-of (render (elt (vader-base varray) 0)))
+            (prototype-of (render first-item))
             (if first-shape
                 (prototype-of (apply-scalar (vaop-function varray)
                                             (render (if (not (functionp first-indexer))
@@ -975,11 +979,12 @@
                          (vader-base varray)))
             (base-size (if (listp (vader-base varray))
                            (length (vader-base varray))
-                           (size-of (vader-base varray)))))
+                           (size-of (vader-base varray))))
+            (base-indexer (indexer-of (vader-base varray))))
         ;; TODO: more optimization is possible here
         (loop :for i :below base-size ; :for item :across (vader-base varray)
               :do (let ((item (if base-list (first base-list)
-                                  (aref (vader-base varray) i))))
+                                  (funcall base-indexer i))))
                     ;; (print (list :it item))
                     (when (< 0 (size-of item))
                       (let ((this-indexer (indexer-of item)))
@@ -1081,23 +1086,14 @@
           (base-size (if (listp (vader-base varray))
                          (length (vader-base varray))
                          (size-of (vader-base varray)))))
-     ;; ;; (print (list :vb (vader-base varray)))
-     ;; (when (listp (vader-base varray))
-     ;;   (let* ((base-size (length (vader-base varray)))
-     ;;          (vector (make-array base-size)))
-     ;;     (loop :for a :in (vader-base varray) :for ix :from 0
-     ;;           :do ;; (setf (aref vector (- base-size ix 1)) a)
-     ;;               (setf (aref vector ix) a)
-     ;;           )
-     ;;     (setf (vader-base varray) vector)))
-     ;; (print (list :vb (vader-base varray)))
-     ;; (setf (vader-base varray) (coerce (vader-base varray) 'vector))
-     ;;(print (list :vv (vader-base varray)))
+     ;; (print (list :vb (vader-base varray) base-size))
      (cond
        ;; ((typep (vader-base varray) 'vapri-integer-progression)
        ;;  (setf result (loop :for i :below ())))
        ((= 1 base-size)
-        (let ((base-indexer (indexer-of (elt (vader-base varray) 0))))
+        (let ((base-indexer (indexer-of (if (varrayp (vader-base varray))
+                                            (funcall (indexer-of (vader-base varray)) 0)
+                                            (elt (vader-base varray) 0)))))
           (lambda (index)
             
             (if (not (functionp base-indexer))
@@ -1113,7 +1109,7 @@
             (varrayp (vader-base varray)))
         (let ((indexer (indexer-of (vader-base varray))))
           ;; (print (list :in indexer varray (funcall indexer 0)
-          ;;              (aref (vader-base varray) 0)))
+          ;;              (render (vader-base varray))))
           (lambda (index)
             (let ((result) (subarrays) (sub-flag))
               (loop :for ax :below (size-of (vader-base varray))
@@ -1128,6 +1124,7 @@
                                                  a (funcall ai 0))
                                              (if (not (functionp ai))
                                                  ai (funcall ai 0))))))
+                          ;; (print (list :aa a item))
                           (push item subarrays)
                           ;; TODO: this list appending is wasteful for simple ops like 1+2
                           (if (or (arrayp item) (varrayp item))
@@ -1135,7 +1132,7 @@
                               (setf result (if (not result)
                                                item (funcall (vaop-function varray)
                                                              result item))))))
-              ;; (print (list :eee))
+              ;; (print (list :eee sub-flag))
               (if (not sub-flag)
                   result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                        :function (vaop-function varray)
@@ -2485,7 +2482,8 @@
 ;;   )
 
 (defmethod prototype-of ((varray vader-catenate))
-  (prototype-of (aref (vader-base varray) 0)))
+  (let ((base-indexer (indexer-of (vader-base varray))))
+    (prototype-of (funcall base-indexer 0))))
 
 (defmethod shape-of ((varray vader-catenate))
   (get-promised
@@ -3652,8 +3650,8 @@
   (when (not (vader-content varray))
     (let ((derivative-count (if (getf params :shape-deriving)
                                 (reduce #'* (getf params :shape-deriving))))
-          (contents (loop :for a :across (vader-base varray) :collect (render a))))
-      (if (not (loop :for a :across (vader-base varray) :always (not (second (shape-of a)))))
+          (contents (loop :for a :across (render (vader-base varray)) :collect (render a))))
+      (if (not (loop :for a :in contents :always (not (second (shape-of a)))))
           (error "Arguments to [∩ intersection] must be vectors.")
           (let* ((match-count 0)
                  (matches (if (arrayp (first contents))
@@ -4313,8 +4311,6 @@
   (:metaclass va-class)
   (:documentation "A reduce-composed array as with the [/ reduce] operator."))
 
-;; (defmethod etype-of ((varray vacomp-re)))
-
 (defmethod prototype-of ((varray vacomp-reduce))
   0)
 
@@ -4349,6 +4345,10 @@
            :initform nil
            :initarg :delta
            :documentation "Delta for subarray to reduce.")
+   (%reverse :accessor vasbr-reverse
+             :initform nil
+             :initarg :reverse
+             :documentation "Is subarray to be traversed in reverse order?.")
    (%base-indexer :accessor vasbr-base-indexer
                   :initform nil
                   :initarg :base-indexer
@@ -4365,9 +4365,15 @@
 
 (defmethod indexer-of ((varray vader-subarray-reduce) &optional params)
   (declare (ignore params))
-  (lambda (index)
-    (funcall (vasbr-base-indexer varray) (+ (* index (vasv-index varray))
-                                            (vasbr-delta varray)))))
+  (if (vasbr-reverse varray)
+      (let ((this-length (1- (first (shape-of varray)))))
+        (lambda (index)
+          (funcall (vasbr-base-indexer varray) (+ (* (- this-length index)
+                                                     (vasv-index varray))
+                                                  (vasbr-delta varray)))))
+      (lambda (index)
+        (funcall (vasbr-base-indexer varray) (+ (* index (vasv-index varray))
+                                                (vasbr-delta varray))))))
 
 (defmethod indexer-of ((varray vacomp-reduce) &optional params)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
@@ -4478,14 +4484,27 @@
                             (setf value (funcall (vacmp-left varray)
                                                  :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                                       value)))
+                            value
 
+                            ;; ⊃,[1]/(⊂3 3)⍴¨⍳5 ⋄ -/3 4⍴⍳12 ⋄ 4,/⍳12 ⋄ ⊃,/3 4+/¨⊂3 6⍴⍳9
+                            ;; ∩/¨(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'
+                            ;; { ee ← +/ {5⍴⍵}¨ ⋄ ee ⍵} ⍳9
+                            ;; 3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9
+                            
+                            ;; (print (list :ren delta ax-interval
+                            ;;              window scalar-fn
+                            ;;              (render (make-instance
+                            ;;                       'vader-subarray-reduce
+                            ;;                       :delta delta :index increment
+                            ;;                       :base-indexer omega-indexer :reverse scalar-fn
+                            ;;                       :window window :shape (list ax-interval)))))
+                            
                             ;; (funcall (vacmp-left varray)
                             ;;          :arg-vector 
                             ;;          (make-instance
                             ;;           'vader-subarray-reduce
-                            ;;           :delta delta :index i :base-indexer omega-indexer
-                            ;;           :window window))
-                            ;; value
+                            ;;           :delta delta :index increment :base-indexer omega-indexer
+                            ;;           :window window :shape (list ax-interval) :reverse scalar-fn))
                             ))
                         (lambda (i) ;; in the case of other functions
                           (declare (optimize (safety 1)))
