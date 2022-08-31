@@ -1540,6 +1540,7 @@
 
 (defun apl-random-process (item index-origin generator)
   "Core of (apl-random), randomizing an individual integer or float."
+  (print (list :gen generator))
   (if (integerp item)
       (if (zerop item) (if (eq :system generator)
                            (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
@@ -1583,6 +1584,8 @@
 
      ;; (if t ; seed
      ;;     (print (list seed (varand-cached varray))))
+
+     (print (list :vr rngs (varand-cached varray) (vads-io varray)))
      
      (lambda (index)
        (if scalar-base (apl-random-process (funcall base-indexer index) (vads-io varray)

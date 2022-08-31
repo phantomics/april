@@ -19,7 +19,7 @@
 
 (april (with (:space ncurses-demo-space))
        "
-random ← {⎕IO-⍨?2⍴⍨|⍺ ⍵}
+random ← {⎕IO-⍨?⎕←2⍴⍨|⍺ ⍵}
        ⍝ create a randomized binary matrix
 life   ← {⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}
        ⍝ the classic Conway's Game of Life function
@@ -39,9 +39,9 @@ FW ← ⊢/∘⍴¨F ⍝ vector of footer widths
 charSets  ←  ,⊂'─  ─   │   │   ┌  ┌   └   └   ┐  ┐   ┘   ┘  '
 charSets ,←   ⊂'═  ═   │   │   ╒  ╒   ╘   ╘   ╕  ╕   ╛   ╛  '
 charSets ,←   ⊂'─  ─   ║   ║   ╓  ╓   ╙   ╙   ╖  ╖   ╜   ╜  '
-encInts   ←      48 384 144 288 16 416 128 304 32 400 256 176
+encInts   ←     48 384 144 288 16 416 128 304 32 400 256 176
 xChars    ← '┼╪╫'
-xDecInts  ←  68 69 257 261 321 324
+xDecInts  ← 68 69 257 261 321 324
 csIndex   ← 2 ⍝ the set of box-drawing characters to use
 decodings ← encInts⍪⍨{⍵⍴⍨1,⍴⍵} (csIndex⊃charSets)~' '
 
@@ -72,11 +72,11 @@ I ← ⍬ ⍝ the 5-iteration state history
                "
 $[(M≡⍬)∨randomize∨⍲/H W=⍴M ;
     ⍝ if the program has been started or reset or the window dimensions have changed, then...
-  M←H W⍴' ' ⋄ L←(H-3) random W ⋄ M[(H-3)+⍳3;]←FB⍪2 W↑⊃F[1⌈FW⍸W] ⋄ B←H W⍴232 ⋄ I GI←⍬ 0 ;
+  M←H W⍴' ' ⋄ L←(H-3) random W ⋄ M[(H-3)+⍳3;]←{⎕←⍴⍵ ⋄ ⎕←⍵}FB⍪2 W↑⊃F[1⌈FW⍸W] ⋄ B←H W⍴232 ⋄ I GI←⍬ 0 ;
     ⍝ initialize the matrix, generation index and history and create a random starting matrix;
   L←life L ⋄ GI+←1]
     ⍝ otherwise, produce the next-generation binary matrix according to the life function
-
+⎕←M ⋄ ⎕←⍕GI ⋄ ⎕←9↑⍕GI
 I←(5⌊1+≢I)↑I,⍨⊂L    ⍝ add latest iteration to history
 B[⍳H-3;]←232+2×⊃+/I ⍝ sum iterations in history; 232 is the base terminal background color
 M[⍳H-3;]←G trace L  ⍝ assign main display area containing box-traces of cells
