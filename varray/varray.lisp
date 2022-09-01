@@ -1006,6 +1006,8 @@
          (base-size (if (listp (vader-base varray))
                         (length (vader-base varray))
                         (size-of (vader-base varray))))
+         (base-indexer (if (not (listp (vader-base varray)))
+                           (indexer-of (vader-base varray))))
          (axis (setf (vads-axis varray)
                      (when (vads-axis varray)
                        (funcall (lambda (ax)
@@ -1022,10 +1024,12 @@
               (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
        (typecase (vader-base varray)
          (vapri-integer-progression nil)
-         (sequence
+         ((or varray sequence)
           (loop :for i :below base-size
-                :do (let ((a (if (vectorp (vader-base varray))
-                                 (aref (vader-base varray) i)
+                :do (let ((a (if ;; (vectorp (vader-base varray))
+                                 base-indexer
+                                 (funcall base-indexer i)
+                                 ;; (aref (vader-base varray) i)
                                  (when base-list (first base-list)))))
                       (when (shape-of a) ;; 1-element arrays are treated as scalars
                         (if (or (not shape)
@@ -1124,7 +1128,7 @@
                                                  a (funcall ai 0))
                                              (if (not (functionp ai))
                                                  ai (funcall ai 0))))))
-                          ;; (print (list :aa a item))
+                          ;; (print (list :aa a item (shape-of varray)))
                           (push item subarrays)
                           ;; TODO: this list appending is wasteful for simple ops like 1+2
                           (if (or (arrayp item) (varrayp item))
@@ -1540,7 +1544,6 @@
 
 (defun apl-random-process (item index-origin generator)
   "Core of (apl-random), randomizing an individual integer or float."
-  (print (list :gen generator))
   (if (integerp item)
       (if (zerop item) (if (eq :system generator)
                            (+ double-float-epsilon (random (- 1.0d0 (* 2 double-float-epsilon))))
@@ -1568,6 +1571,7 @@
                          (setf (getf (rest rngs) gen-name)
                                (if (eq :system gen-name)
                                    :system (random-state:make-generator gen-name)))))
+          ;; (generator :system)
           (seed (getf (rest rngs) :seed)))
 
      ;; randomized array content is generated synchronously
@@ -1585,7 +1589,7 @@
      ;; (if t ; seed
      ;;     (print (list seed (varand-cached varray))))
 
-     (print (list :vr rngs (varand-cached varray) (vads-io varray)))
+     ;; (print (list :vr rngs (varand-cached varray) (vads-io varray)))
      
      (lambda (index)
        (if scalar-base (apl-random-process (funcall base-indexer index) (vads-io varray)
@@ -4488,11 +4492,6 @@
                                                  :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                                       value)))
                             value
-
-                            ;; ⊃,[1]/(⊂3 3)⍴¨⍳5 ⋄ -/3 4⍴⍳12 ⋄ 4,/⍳12 ⋄ ⊃,/3 4+/¨⊂3 6⍴⍳9
-                            ;; ∩/¨(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'
-                            ;; { ee ← +/ {5⍴⍵}¨ ⋄ ee ⍵} ⍳9
-                            ;; 3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9
                             
                             ;; (print (list :ren delta ax-interval
                             ;;              window scalar-fn
