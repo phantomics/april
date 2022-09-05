@@ -338,13 +338,13 @@
               ;;              (when (typep varray 'vader-composing)
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                         ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;           (not (vacmp-threadable varray)))
+                            ;;      ;; don't thread when rendering the output of operators composed
+                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;            :never (null (lparallel.kernel::running-category worker))))
+                         t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -376,61 +376,6 @@
                              rendered (enclose rendered)))))
                  (if (not (functionp indexer))
                      indexer (funcall indexer 0))))))
-
-(defmethod render2 ((varray varray) &rest params)
-  ;; (declare (optimize (speed 3)))
-  (let ((output-shape (shape-of varray))
-        (generator (generator-of varray)))
-    ;; (when (typep varray 'vader-identity) (print :ef))
-    ;; (print (list :vv varray prototype
-    ;;              (etype-of varray)
-    ;;              (if (typep varray 'varray-derived)
-    ;;                  (subrendering-p (vader-base varray)))))
-    (if output-shape
-        (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
-            (make-array (shape-of varray) :element-type (or (etype-of varray) t))
-            (let* ((output (make-array (shape-of varray) :element-type (etype-of varray)))
-                   (render-index (lambda (i)
-                                   (declare (type (unsigned-byte 62) i))
-                                   ;; (print (list :ioi i varray))
-                                   (setf (row-major-aref output i)
-                                         (funcall generator i))))
-                   (sbsize (sub-byte-element-size output))
-                   (sbesize (if sbsize (/ 64 sbsize) 1))
-                   (wcadj *workers-count*)
-                   (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
-                   (total-size (size-of varray))
-                   (interval (/ total-size sbesize *workers-count*))
-                   (lpchannel (lparallel::make-channel))
-                   (process (lambda (index)
-                              (lambda ()
-                                (let* ((start-intervals (ceiling (* interval index)))
-                                       (start-at (* sbesize start-intervals))
-                                       (count (if (< index (1- divisions))
-                                                  (* sbesize (- (ceiling (* interval (1+ index)))
-                                                                start-intervals))
-                                                  (- total-size start-at))))
-                                  (loop :for i :from start-at :to (1- (+ start-at count))
-                                        :do (funcall render-index i))))))
-                   (threaded-count 0))
-              (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                         ;; t
-                         ;; (typep varray 'vacomp-each)
-                         ;; (lparallel:kernel-worker-index)
-                            (funcall (funcall process d))
-                            (progn (incf threaded-count)
-                                   (lparallel::submit-task lpchannel (funcall process d)))))
-              (loop :repeat threaded-count
-                :do (lparallel::receive-result lpchannel))
-              output))
-        ;; o-dim clause here
-        )))
 
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
@@ -1891,6 +1836,7 @@
            (let ((base-segment (make-array (rest (shape-of argument))
                                            :element-type (etype-of base) :displaced-to base
                                            :displaced-index-offset (* index arg-cell-size))))
+             ;; (print (list :ba base-segment))
              (loop :for a :below major-cells-count
                    :while (not (varray-compare base-segment
                                                (make-array (rest (shape-of argument))
@@ -1902,7 +1848,9 @@
          (lambda (index)
            (let ((base-index (if (not (functionp base-indexer))
                                  base-indexer (funcall base-indexer index))))
-             ;;(print (list :ind (vads-io varray) base-index (render base-index)))
+             ;; (print (list :ind (vads-io varray) ; base-index (render base-index)
+             ;;              argument))
+             ;; (setf april::it base-index)
              ;; (sleep 0.001)
              ;; (princ base-index) (princ " ")
              (loop :for a :across argument :while (not (varray-compare a base-index))
@@ -2047,43 +1995,32 @@
   (flet ((vap (item) (or (arrayp item) (varrayp item))))
     (let ((shape1 (shape-of item1))
           (shape2 (shape-of item2))
+          (rank1 (rank-of item1))
+          (rank2 (rank-of item2))
           (indexer1 (indexer-of item1))
           (indexer2 (indexer-of item2)))
       ;; (print (list :sh shape1 shape2 indexer1 indexer2))
-      (if (not shape1)
-          (if (not shape2)
-              ;; (let ((indexer1 (if (functionp indexer1) (funcall indexer1 0) indexer1))
-              ;;       (indexer2 (if (functionp indexer2) (funcall indexer2 0) indexer2)))
-              (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
-                       (> comparison-tolerance (abs (- indexer1 indexer2))))
-                  (and (numberp indexer1)
-                       (numberp indexer2)
-                       (= item1 indexer2))
-                  (and (characterp indexer1)
-                       (characterp indexer2)
-                       (char= item1 indexer2))))
-          (if (and shape2 (= (length shape2) (length shape2))
-                   (if (and (loop :for d :below (length shape1)
-                                  :always (= (nth d shape1) (nth d shape2)))
-                            ;; compared arrays must be either character or non-character to match
-                            (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
-                                (if (not (member (etype-of item1) '(character base-char)))
-                                    (not (member (etype-of item2) '(character base-char)))
-                                    (member (etype-of item2) '(character base-char)))))
-                       (loop :for i :below (size-of item1)
-                             :always (array-compare (funcall indexer1 i)
-                                                    (funcall indexer2 i)))))
-              (let ((match t))
-                (dotimes (i (size-of item1))
-                  (let ((item (funcall indexer1 i))
-                        (alternate (funcall indexer2 i)))
-                    (setq match (and match (or (and (vap item) (vap alternate)
-                                                    (array-compare item alternate))
-                                               (and (numberp item) (numberp alternate)
-                                                    (= item alternate))
-                                               (and (characterp item) (characterp alternate)
-                                                    (char= item alternate)))))))
-                match))))))
+      (if shape1 (and shape2 (= rank1 rank2)
+                      (loop :for d1 :in shape1 :for d2 :in shape2 :always (= d1 d2))
+                      ;; compared arrays must be either character or non-character to match
+                      (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
+                          (if (not (member (etype-of item1) '(character base-char)))
+                              (not (member (etype-of item2) '(character base-char)))
+                              (member (etype-of item2) '(character base-char))))
+                      (loop :for i :below (size-of item1)
+                            :always (varray-compare (funcall indexer1 i)
+                                                    (funcall indexer2 i))))
+          (when (not shape2)
+            ;; (let ((indexer1 (if (functionp indexer1) (funcall indexer1 0) indexer1))
+            ;;       (indexer2 (if (functionp indexer2) (funcall indexer2 0) indexer2)))
+            (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
+                     (> comparison-tolerance (abs (- indexer1 indexer2))))
+                (and (numberp indexer1)
+                     (numberp indexer2)
+                     (= item1 indexer2))
+                (and (characterp indexer1)
+                     (characterp indexer2)
+                     (char= item1 indexer2))))))))
 
 (defclass vader-compare (varray-derived vad-with-ct vad-invertable)
   nil (:metaclass va-class)
@@ -2689,18 +2626,31 @@
                                           (not (shape-of base-indexer)))))
                             base-indexer (indexer-of base-indexer)))
           (max-rank 0) (each-shape))
-     ;; (print (list :ba base-shape))
+     ;; (print (list :ba base-shape (render base) (shape-of base)))
      (cond
        ((and (not (functionp base-indexer))
              (not (arrayp base-indexer))
              (not (varrayp base-indexer)))
         ;; (print (list :bb base-indexer))
         base-shape) ;; handle the ↑⍬ case
+       ;; ((not base-shape)
+       ;;  ;; (print (list :bb base base-indexer))
+       ;;  (let ((indexed (funcall base-indexer 0)))
+       ;;    (loop :while (and (varrayp indexed) (or (not (shape-of indexed))
+       ;;                                            (and (= 1 (length (shape-of indexed)))
+       ;;                                                 (= 1 (first (shape-of indexed))))
+       ;;                                            ))
+       ;;          :do (setf indexed (funcall (indexer-of indexed) 0)))
+       ;;    (setf (vamix-cached-elements varray) indexed))
+       ;;  ;; (print (list :vv (vamix-cached-elements varray) (shape-of (vamix-cached-elements varray))
+       ;;  ;;              (render (vamix-cached-elements varray))))
+       ;;  ;; (setf (vamix-cached-elements varray)
+       ;;  ;;       (funcall base-indexer 0))
+       ;;  ;; (print (list :va (vamix-cached-elements varray)))
+       ;;  (shape-of (vamix-cached-elements varray)))
        ((not base-shape)
         ;; (print (list :bb base base-indexer))
-        (setf (vamix-cached-elements varray)
-              (funcall base-indexer 0))
-        ;; (print (list :va (vamix-cached-elements varray)))
+        (setf (vamix-cached-elements varray) (funcall base-indexer 0))
         (shape-of (vamix-cached-elements varray)))
        (t (loop :for ix :below (reduce #'* base-shape)
                 :do (let ((member (funcall base-indexer ix)))
@@ -2827,11 +2777,7 @@
          (loop :for d :in base-shape :for ix :from 0 :when (not (= axis ix)) :collect d)))))
 
 (defclass vader-subarray-split (vader-subarray)
-  ((%base-indexer :accessor vasbs-base-indexer
-                  :initform nil
-                  :initarg :base-indexer
-                  :documentation "Base indexer for split subarray.")
-   (%core-indexer :accessor vasbs-core-indexer
+  ((%core-indexer :accessor vasbs-core-indexer
                   :initform nil
                   :initarg :core-indexer
                   :documentation "Core indexer for split subarray."))
@@ -2847,9 +2793,9 @@
 
 (defmethod indexer-of ((varray vader-subarray-split) &optional params)
   (declare (ignore params))
-  (lambda (index)
-    (funcall (vasbs-base-indexer varray)
-             (funcall (vasbs-core-indexer varray) (vasv-index varray) index))))
+  (let ((base-indexer (indexer-of (vader-base varray))))
+    (lambda (index)
+      (funcall base-indexer (funcall (vasbs-core-indexer varray) (vasv-index varray) index)))))
 
 (defmethod indexer-of ((varray vader-split) &optional params)
   (get-promised
@@ -2868,7 +2814,7 @@
            (lambda (index)
              (make-instance 'vader-subarray-split
                             :base (vader-base varray) :shape (when sv-length (list sv-length))
-                            :index index :core-indexer core-indexer :base-indexer base-indexer
+                            :index index :core-indexer core-indexer
                             :prototype (when (not output-shape)
                                          (prototype-of (vader-base varray)))))))))
 
@@ -4355,11 +4301,7 @@
    (%reverse :accessor vasbr-reverse
              :initform nil
              :initarg :reverse
-             :documentation "Is subarray to be traversed in reverse order?.")
-   (%base-indexer :accessor vasbr-base-indexer
-                  :initform nil
-                  :initarg :base-indexer
-                  :documentation "Base indexer for split subarray."))
+             :documentation "Is subarray to be traversed in reverse order?."))
   (:metaclass va-class)
   (:documentation "An element of a split array as from the [↓ split] function."))
 
@@ -4372,15 +4314,15 @@
 
 (defmethod indexer-of ((varray vader-subarray-reduce) &optional params)
   (declare (ignore params))
-  (if (vasbr-reverse varray)
-      (let ((this-length (1- (first (shape-of varray)))))
+  (let ((base-indexer (indexer-of (vader-base varray))))
+    (if (vasbr-reverse varray)
+        (let ((this-length (1- (first (shape-of varray)))))
+          (lambda (index)
+            (funcall base-indexer (+ (* (- this-length index) (vasv-index varray))
+                                     (vasbr-delta varray)))))
         (lambda (index)
-          (funcall (vasbr-base-indexer varray) (+ (* (- this-length index)
-                                                     (vasv-index varray))
-                                                  (vasbr-delta varray)))))
-      (lambda (index)
-        (funcall (vasbr-base-indexer varray) (+ (* index (vasv-index varray))
-                                                (vasbr-delta varray))))))
+          (funcall base-indexer (+ (* index (vasv-index varray))
+                                   (vasbr-delta varray)))))))
 
 (defmethod indexer-of ((varray vacomp-reduce) &optional params)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
@@ -4505,7 +4447,7 @@
                             ;;          :arg-vector 
                             ;;          (make-instance
                             ;;           'vader-subarray-reduce
-                            ;;           :delta delta :index increment :base-indexer omega-indexer
+                            ;;           :delta delta :index increment :base omega
                             ;;           :window window :shape (list ax-interval) :reverse scalar-fn))
                             ))
                         (lambda (i) ;; in the case of other functions
@@ -4548,17 +4490,26 @@
                        (ashape (shape-of (vacmp-alpha varray)))
                        (osize (reduce #'* oshape))
                        (asize (reduce #'* ashape)))
+                  ;; (print (list :os oshape ashape (vacmp-omega varray) (vacmp-alpha varray)
+                  ;;              ;; (setf april::iio (vacmp-omega varray))
+                  ;;              osize asize
+                  ;;              ))
+                  ;; (print (list :oo oshape osize ashape asize (vacmp-alpha varray)
+                  ;;              ;; (render (vacmp-alpha varray))
+                  ;;              ))
                   (if oshape (if (not ashape)
                                  oshape (if (= 1 osize)
                                             (if (zerop asize) oshape ashape)
-                                            (if (or (= 1 asize)
-                                                    (and (= (length oshape) (length ashape))
-                                                         (loop :for o :in oshape :for a :in ashape
-                                                               :always (= o a))))
-                                                oshape (error "Shapes must match."))))
-                      ashape))))
+                                            ;; if one size is 0, the shape is 0
+                                            (if (zerop osize) (list 0)
+                                                (if (or (= 1 asize)
+                                                        (and (= (length oshape) (length ashape))
+                                                             (loop :for o :in oshape :for a :in ashape
+                                                                   :always (= o a))))
+                                                    oshape (error "Shapes must match.")))))
+                          ashape))))
 
-(defmethod indexer-of ((varray vacomp-each) &optional params)
+(Defmethod indexer-of ((varray vacomp-each) &optional params)
   (get-promised (varray-indexer varray)
                 (let ((this-shape (shape-of varray))
                       (oshape (shape-of (vacmp-omega varray)))
@@ -4570,8 +4521,10 @@
                   (lambda (index)
                     ;; (print (list :in index oindexer aindexer (vacmp-omega varray)
                     ;;              (vacmp-alpha varray) oindexer aindexer (funcall oindexer index)
-                    ;;              ;; (funcall aindexer index)
                     ;;              ))
+                    ;; (print (list :rr (shape-of varray)
+                    ;;              (vacmp-omega varray)
+                    ;;              (render (funcall oindexer (if oshape index 0)))))
                     (if (vacmp-alpha varray)
                         (funcall (vacmp-left varray)
                                  (if (not (functionp oindexer))
@@ -4581,6 +4534,162 @@
                         (funcall (vacmp-left varray)
                                  (if (not (functionp oindexer))
                                      oindexer (funcall oindexer (if oshape index 0)))))))))
+
+(defclass vacomp-produce (vad-subrendering vader-composing vad-with-io vad-with-default-axis)
+  nil (:metaclass va-class)
+  (:documentation "A reduce-composed array as with the [/ reduce] operator."))
+
+(defmethod prototype-of ((varray vacomp-produce))
+  (let ((this-indexer (indexer-of varray)))
+    (if (zerop (size-of varray))
+        ;; TODO: should prototype reflect both arguments?
+        (prototype-of (vacmp-alpha varray))
+        (prototype-of (funcall this-indexer 0)))))
+
+(defmethod shape-of ((varray vacomp-produce))
+  (get-promised (varray-shape varray)
+                (let ((left (vacmp-left varray))
+                      (adims (shape-of (vacmp-alpha varray)))
+                      (odims (shape-of (vacmp-omega varray))))
+                  (if (eq :outer left) (append adims odims)
+                      (append (butlast adims) (rest odims))))))
+
+(defclass vader-subarray-displaced (vader-subarray)
+  nil (:metaclass va-class)
+  (:documentation "An element of a split array as from the [↓ split] function."))
+
+(defmethod prototype-of ((varray vader-subarray-displaced))
+  (declare (ignore params))
+  (get-promised (varray-prototype varray)
+                (let ((first-item (funcall (indexer-of varray) 0)))
+                  (if (varrayp first-item) (prototype-of first-item)
+                      (apl-array-prototype first-item)))))
+
+(defmethod indexer-of ((varray vader-subarray-displaced) &optional params)
+  (declare (ignore params))
+  (let ((interval (or (first (shape-of varray)) 1))
+        (base-indexer (indexer-of (vader-base varray))))
+    (lambda (index)
+      (funcall base-indexer (+ index (* interval (vasv-index varray)))))))
+
+;; graph - stpaths¨g∘span¨⍳⍴g
+;; numeric:
+;; {1999 2000 2001} roman''
+;; (↑(3 2)(5 6)) xm ↑(6 8)(5 2)(4 4)(7 6)(3 5)(2 3)
+;; +kcell 1 0
+
+(defmethod indexer-of ((varray vacomp-produce) &optional params)
+  (let* ((omega (vacmp-omega varray))
+         (alpha (vacmp-alpha varray))
+         (osize (size-of omega)) (asize (size-of alpha))
+         (is-outer (eq :outer (vacmp-left varray)))
+         (oindexer (indexer-of omega))
+         (aindexer (indexer-of alpha))
+         (orank (rank-of omega)) (arank (rank-of alpha))
+         (oscalar (when (not (shape-of omega))
+                    (if (not (functionp oindexer))
+                        oindexer (funcall oindexer 0))))
+         (ascalar (when (not (shape-of alpha))
+                    (if (not (functionp aindexer))
+                        aindexer (funcall aindexer 0)))))
+    (if is-outer
+        (lambda (index)
+          ;; (print (list :ra (render (or oscalar (funcall oindexer (mod index osize))))
+          ;;              (render (or ascalar (funcall aindexer (floor index osize))))))
+          (funcall (vacmp-right varray) (or oscalar (funcall oindexer (mod index osize)))
+                   (or ascalar (funcall aindexer (floor index osize))))
+          ;; (make-instance 'vacomp-each :left (vacmp-right varray)
+          ;;                             :omega (or oscalar (funcall oindexer (mod index osize)))
+          ;;                             :alpha (or ascalar (funcall aindexer (floor index osize))))
+          )
+        (let* ((odims (shape-of omega))
+               (asegment (first (last (shape-of alpha))))
+               (osegment (if (not (and asegment (first odims) (/= asegment (first odims))))
+                             (first odims)
+                             (error "To find an inner product the last dimension of the left array ~w"
+                                    "must equal the first dimension of the right array.")))
+               (ashape (when asegment (list asegment)))
+               (oshape (when osegment (list osegment)))
+               (ovectors (reduce #'* (rest odims))))
+          ;; (print (list :om omega alpha (render omega) oshape ashape (shape-of varray)))
+          (if (or (zerop osize) (zerop asize))
+              (if (or (< 1 orank) (< 1 arank))
+                  (lambda (i) (declare (ignore i)) (vector))
+                  ;; inner product with an empty array of rank > 1 gives an empty vector
+                  (or (let ((identity (getf (funcall (vacmp-left varray) :get-metadata nil)
+                                            :id)))
+                        (lambda (i)
+                          (declare (ignore i))
+                          (if (functionp identity) (funcall identity) identity)))
+                      (error "Left operand given to [. inner product] has no identity.")))
+              (lambda (index)
+                (let* ((avix (floor index ovectors))
+                       (ovix (mod index ovectors)))
+                  ;; (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
+                  ;;                        omega (make-array osegment :element-type
+                  ;;                                          (element-type omega)))))
+                  ;; (adisp (make-instance 'vader-subarray-displaced
+                  ;;                       :base omega :index avix :shape (list asegment)))
+                  ;; (print (list :as ashape asegment))
+                  (if (= 0 orank arank)
+                      (funcall (vacmp-right varray) omega alpha)
+                      (make-instance
+                       'vader-pick
+                       :base (make-instance 'vacomp-reduce
+                                            :left (vacmp-left varray) :index-origin 1
+                                            :omega
+                                            (make-instance
+                                             'vacomp-each
+                                             :left (vacmp-right varray)
+                                             :omega (if (not (functionp oindexer))
+                                                        oindexer
+                                                        (make-instance
+                                                         'vader-subarray-reduce
+                                                         :delta ovix :index ovectors
+                                                         :base omega :shape oshape))
+                                             :alpha (if (not (functionp aindexer))
+                                                        aindexer
+                                                        (make-instance 'vader-subarray-displaced
+                                                                       :base alpha :index avix
+                                                                       :shape ashape)))
+                                            ;; (funcall (vacmp-right varray)
+                                            ;;          (if (not (functionp oindexer))
+                                            ;;              oindexer
+                                            ;;              (make-instance
+                                            ;;               'vader-subarray-reduce
+                                            ;;               :delta ovix :index ovectors
+                                            ;;               :base omega :shape oshape))
+                                            ;;          (if (not (functionp aindexer))
+                                            ;;              aindexer
+                                            ;;              (make-instance 'vader-subarray-displaced
+                                            ;;                             :base alpha :index avix :shape ashape)))
+
+                                            ))))))))))
+
+
+;; (print (render (make-instance 'vacomp-each
+;;                               :left (vacmp-right varray)
+;;                               :omega (if (not (functionp oindexer))
+;;                                 oindexer
+;;                                 (make-instance
+;;                                  'vader-subarray-reduce
+;;                                  :delta ovix :index ovectors
+;;                                  :base omega :shape oshape))
+;;                               :alpha (if (not (functionp aindexer))
+;;                                 aindexer
+;;                                 (make-instance 'vader-subarray-displaced
+;;                                                :base alpha :index avix :shape ashape)))))
+
+;; (+ (* index (vasv-index varray))
+;;    (vasbr-delta varray)))
+;; (if (= 0 arank orank) (funcall (vacmp-right varray) omega alpha)
+;;     (disclose (make-instance 'vacomp-reduce :left (sub-lex ,operand)
+;;                                             :index-origin index-origin
+;;                                             (vacmp-left varray)
+;;                                             :omega )
+;;               (apply-scalar function1 (or oholder omega) (or adisp alpha)
+;;                                           nil nil function1-nonscalar)
+;;               0 nil))
 
 ;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?
 

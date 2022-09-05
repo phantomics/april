@@ -1494,8 +1494,13 @@
                  (if (and (listp left)
                           (symbolp (second left))
                           (string= "∘" (string (second left))))
-                     `(operate-producing-outer ,right)
-                     `(operate-producing-inner ,right ,left))))
+                     ;; `(operate-producing-outer ,right)
+                     `(op-compose 'vacomp-produce :right (sub-lex ,right)
+                                                  :left :outer :index-origin index-origin)
+                     ;; `(operate-producing-inner ,right ,left)
+                     `(op-compose 'vacomp-produce :right (sub-lex ,right)
+                                                  :left (sub-lex ,left) :index-origin index-origin)
+                     )))
       (tests (is "3+.×5" 15)
              (is "2+.×3 4 5" 24)
              (is "2 3 4+.×8 15 21" 145)
@@ -1908,6 +1913,7 @@
        "(1 0 1∘/)¨⍳3" #(#*11 #(2 2) #(3 3)))
   (for "Pivotal composition composed across a vector followed by another lateral composition."
        "+/×⍤1¨1 0 ¯1" 0)
+  (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
