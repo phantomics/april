@@ -1288,24 +1288,24 @@
                       (render-varrays alpha)))
       (if (eq :get-metadata omega)
           (list :inverse (lambda (omega &optional alpha)
-                           (if (and fn-right fn-left)
-                               (setq temp fn-right
-                                     fn-right fn-left
-                                     fn-left temp))
-                           (let* ((meta-right (if fn-right (apply fn-right :get-metadata
-                                                                  (if (or alpha (not fn-left))
+                           (when (and fn-right fn-left)
+                             (setq temp fn-right
+                                   fn-right fn-left
+                                   fn-left temp))
+                           (let* ((meta-right (when fn-right (apply fn-right :get-metadata
+                                                                    (when (or alpha (not fn-left))
                                                                       (list nil)))))
-                                  (meta-left (if fn-left (apply fn-left :get-metadata
-                                                                (if (or alpha (not fn-right))
+                                  (meta-left (when fn-left (apply fn-left :get-metadata
+                                                                  (when (or alpha (not fn-right))
                                                                     (list nil)))))
-                                  (fn-right (if fn-right (or (getf meta-right
-                                                                   (if (or alpha (not fn-left))
-                                                                       :inverse :inverse-right))
-                                                             (getf meta-right :inverse))))
-                                  (fn-left (if fn-left (if (and alpha fn-right)
-                                                           fn-left
-                                                           (or (getf meta-left :inverse-right)
-                                                               (getf meta-left :inverse))))))
+                                  (fn-right (when fn-right (or (getf meta-right
+                                                                     (if (or alpha (not fn-left))
+                                                                         :inverse :inverse-right))
+                                                               (getf meta-right :inverse))))
+                                  (fn-left (when fn-left
+                                             (if (and alpha fn-right)
+                                                 fn-left (or (getf meta-left :inverse-right)
+                                                             (getf meta-left :inverse))))))
                              (if (and fn-right fn-left)
                                  (let ((processed (if alpha (funcall fn-right omega alpha)
                                                       (funcall fn-right omega))))
@@ -1322,6 +1322,94 @@
                   (funcall (or fn-right fn-left)
                            (if fn-right omega right)
                            (if fn-left omega left))))))))
+
+;; (defun operate-at-rank (rank function)
+;;   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
+;;   (lambda (omega &optional alpha environment blank)
+;;     (declare (ignore environment blank))
+;;     ;; (setq omega (render-varrays omega)
+;;     ;;       alpha (render-varrays alpha))
+;;     (let* ((rank (render-varrays rank))
+;;            (odims (shape-of omega)) (adims (shape-of alpha))
+;;            (orank (varray::rank-of omega)) (arank (varray::rank-of alpha))
+;;            (fn-meta (funcall function :get-metadata nil))
+;;            ;; if alpha is nil the monadic metadata will be fetched, otherwise the dyadic data will be
+;;            (rank (if (not (arrayp rank))
+;;                      (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
+;;                          (make-array 3 :initial-contents (list (max 0 (+ rank orank))
+;;                                                                (max 0 (+ rank (if alpha arank orank)))
+;;                                                                (max 0 (+ rank orank))))
+;;                          (make-array 3 :initial-element rank))
+;;                      (if (= 1 (size rank))
+;;                          (make-array 3 :initial-element (row-major-aref rank 0))
+;;                          (if (= 2 (size rank))
+;;                              (make-array 3 :initial-contents (list (aref rank 1) (aref rank 0) (aref rank 1)))
+;;                              (if (= 3 (size rank))
+;;                                  rank (when (or (< 1 (rank rank)) (< 3 (size rank)))
+;;                                         (error "Right operand of [⍤ rank] must be a scalar integer or ~a"
+;;                                                "integer vector no more than 3 elements long.")))))))
+;;            (ocrank (aref rank 2))
+;;            (acrank (aref rank 1))
+;;            (omrank (aref rank 0))
+;;            (orankdelta (- orank (if alpha ocrank omrank)))
+;;            (odivs (when (<= 0 orankdelta) (make-array (subseq odims 0 orankdelta))))
+;;            (odiv-dims (when odivs (subseq odims orankdelta)))
+;;            (odiv-size (when odivs (reduce #'* odiv-dims)))
+;;            (arankdelta (- arank acrank))
+;;            (adivs (when (and alpha (<= 0 arankdelta))
+;;                     (make-array (subseq adims 0 arankdelta))))
+;;            (adiv-dims (when adivs (subseq adims arankdelta)))
+;;            (adiv-size (when alpha (reduce #'* adiv-dims))))
+;;       (when (and alpha (eq :monadic (getf fn-meta :valence)))
+;;         (error "Function composed with [⍤ rank] may not have a left argument."))
+;;       (when (and (not alpha) (eq :dyadic (getf fn-meta :valence)))
+;;         (error "Function composed with [⍤ rank] must have a left argument."))
+;;       (if (eq omega :get-metadata)
+;;           (append fn-meta (list :composed-by #\⍤))
+;;           (if (and (getf fn-meta :on-axis)
+;;                    (= 1 (if alpha ocrank omrank)))
+;;               ;; if the composed function is directly equivalent to a function that operates
+;;               ;; across an axis, as ⊖⍤1 and ⌽⍤1 are to ⌽, just reassign the axis
+;;               (apply (if (eq :last (getf fn-meta :on-axis))
+;;                          function (funcall function :reassign-axes (list orank)))
+;;                      omega (when alpha (list alpha)))
+;;               (flet ((generate-divs (div-array ref-array div-dims div-size)
+;;                        (xdotimes div-array (i (size div-array))
+;;                          (setf (row-major-aref div-array i)
+;;                                (if (zerop (rank div-array)) ref-array
+;;                                    (if (not div-dims) (row-major-aref ref-array i)
+;;                                        (make-array div-dims :element-type (element-type ref-array)
+;;                                                             :displaced-to ref-array
+;;                                                             :displaced-index-offset (* i div-size))
+;;                                        (make-instance 'varray::vader-subarray-displaced
+;;                                                       :shape div-dims :index i :base ref-array)
+;;                                        ))))))
+;;                 (when odivs (generate-divs odivs omega odiv-dims odiv-size))
+;;                 (if alpha (progn (when adivs (generate-divs adivs alpha adiv-dims adiv-size))
+;;                                  (if (not (or odivs adivs))
+;;                                      ;; if alpha and omega are scalar, just call the function on them
+;;                                      (funcall function omega alpha)
+;;                                      (let ((output (make-array (dims (or odivs adivs)))))
+;;                                        (xdotimes output (i (size output))
+;;                                          (let ((this-odiv (if (not odivs)
+;;                                                               omega (if (zerop (rank odivs))
+;;                                                                         (aref odivs)
+;;                                                                         (row-major-aref odivs i))))
+;;                                                (this-adiv (if (not adivs)
+;;                                                               alpha (if (zerop (rank adivs))
+;;                                                                         (aref adivs)
+;;                                                                         (row-major-aref adivs i)))))
+;;                                            (setf (row-major-aref output i)
+;;                                                  (disclose (render-varrays (funcall function this-odiv this-adiv))))))
+;;                                        (mix-arrays (max (rank odivs) (rank adivs))
+;;                                                    output))))
+;;                     (if (not odivs) ;; as above for an omega value alone
+;;                         (funcall function omega)
+;;                         (let ((output (make-array (dims odivs))))
+;;                           (xdotimes output (i (size output) :synchronous-if (not (side-effect-free function)))
+;;                             (setf (row-major-aref output i)
+;;                                   (render-varrays (funcall function (row-major-aref odivs i)))))
+;;                           (mix-arrays (rank output) output))))))))))
 
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."

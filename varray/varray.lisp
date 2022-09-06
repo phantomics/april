@@ -344,7 +344,7 @@
                             ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
                             ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
                             ;;            :never (null (lparallel.kernel::running-category worker))))
-                         t
+                         ;;t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -4567,7 +4567,8 @@
 
 (defmethod indexer-of ((varray vader-subarray-displaced) &optional params)
   (declare (ignore params))
-  (let ((interval (or (first (shape-of varray)) 1))
+  (let ((interval ;; (or (first (shape-of varray)) 1)
+                  (reduce #'* (shape-of varray)))
         (base-indexer (indexer-of (vader-base varray))))
     (lambda (index)
       (funcall base-indexer (+ index (* interval (vasv-index varray)))))))
