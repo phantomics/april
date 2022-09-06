@@ -4567,17 +4567,10 @@
 
 (defmethod indexer-of ((varray vader-subarray-displaced) &optional params)
   (declare (ignore params))
-  (let ((interval ;; (or (first (shape-of varray)) 1)
-                  (reduce #'* (shape-of varray)))
+  (let ((interval (reduce #'* (shape-of varray)))
         (base-indexer (indexer-of (vader-base varray))))
     (lambda (index)
       (funcall base-indexer (+ index (* interval (vasv-index varray)))))))
-
-;; graph - stpaths¨g∘span¨⍳⍴g
-;; numeric:
-;; {1999 2000 2001} roman''
-;; (↑(3 2)(5 6)) xm ↑(6 8)(5 2)(4 4)(7 6)(3 5)(2 3)
-;; +kcell 1 0
 
 (defmethod indexer-of ((varray vacomp-produce) &optional params)
   (let* ((omega (vacmp-omega varray))
