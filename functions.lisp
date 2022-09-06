@@ -1208,25 +1208,49 @@
                                                 key)))))
         (mix-arrays 1 (apply #'vector item-sets))))))
 
+;; (defun operate-producing-outer (operand)
+;;   "Generate a function producing an outer product. Used to implement [∘. outer product]."
+;;   (lambda (omega alpha &optional environment blank)
+;;     (declare (ignore environment blank))
+;;     (let ((omega (render-varrays omega))
+;;           (alpha (render-varrays alpha))
+;;           (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
+;;     (if (eq :get-metadata omega)
+;;         (let* ((operand-meta (funcall operand :get-metadata nil))
+;;                (operand-inverse (getf operand-meta :inverse))
+;;                (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
+;;           (list :inverse-right (lambda (omega alpha)
+;;                                  (inverse-outer-product alpha operand-irendering omega
+;;                                                         (side-effect-free operand)))
+;;                 :inverse (lambda (omega alpha)
+;;                            (inverse-outer-product omega operand-irendering
+;;                                                   nil (side-effect-free operand)
+;;                                                   alpha))))
+;;         (array-outer-product omega alpha operand-rendering (side-effect-free operand))))))
+
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
   (lambda (omega alpha &optional environment blank)
     (declare (ignore environment blank))
-    (let ((omega (render-varrays omega))
-          (alpha (render-varrays alpha))
+    (let (;(omega (render-varrays omega))
+          ;;(alpha (render-varrays alpha))
           (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
                (operand-inverse (getf operand-meta :inverse))
                (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
           (list :inverse-right (lambda (omega alpha)
-                                 (inverse-outer-product alpha operand-irendering omega
+                                 (inverse-outer-product (render-varrays alpha) operand-irendering
+                                                        (render-varrays omega)
                                                         (side-effect-free operand)))
                 :inverse (lambda (omega alpha)
-                           (inverse-outer-product omega operand-irendering
+                           (inverse-outer-product (render-varrays omega) operand-irendering
                                                   nil (side-effect-free operand)
                                                   alpha))))
-        (array-outer-product omega alpha operand-rendering (side-effect-free operand))))))
+        ;; (array-outer-product omega alpha operand-rendering (side-effect-free operand))
+        (make-instance 'vacomp-produce :right operand :left :outer ;; :index-origin index-origin
+                       :omega omega :alpha alpha)
+        ))))
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
