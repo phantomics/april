@@ -1794,7 +1794,9 @@
   (for "Assignment from an array to an area of an array with the same shape."
        "x←8 8⍴0 ⋄ x[2+⍳3;3+⍳4]←3 4⍴⍳9 ⋄ x" #2A((0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0) (0 0 0 1 2 3 4 0)
                                                (0 0 0 5 6 7 8 0) (0 0 0 9 1 2 3 0) (0 0 0 0 0 0 0 0)
-                                               (0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0)))
+                                                                 (0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0)))
+  (for "Elided assignment of a matrix of values." "g←5 5⍴⍳9 ⋄ g[2 5;]←2 5⍴0 1 ⋄ g"
+       #2A((1 2 3 4 5) (0 1 0 1 0) (2 3 4 5 6) (7 8 9 1 2) (1 0 1 0 1)))
   (for "Elision and indexed array elements."
        "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
   (for "As above but more complex."

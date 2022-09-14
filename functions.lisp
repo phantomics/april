@@ -1594,7 +1594,8 @@
                                                         (loop :for i :below (1- (rank omega))
                                                               :collect nil)))))
                      (out-sub-array (if alpha (funcall left-fn mod-array alpha)
-                                        (funcall left-fn mod-array))) )
+                                        (funcall left-fn mod-array))))
+                
                 ;; (choose omega-copy (if (= 1 (rank omega)) (list indices-adjusted)
                 ;;                        (cons indices-adjusted
                 ;;                              (loop :for i :below (1- (rank omega)) :collect nil)))
@@ -1612,17 +1613,13 @@
                                                          (not (zerop (rank out-sub-array))))
                                                     #'enclose #'identity)
                                                 out-sub-array)
-                               ;; :assign alpha :calling left-fn
-                               ;; :selector (if ivec (list :eindices (render-varrays base-object)
-                               ;;                          :ebase ivec)
-                               ;;               (funcall function omega))
-                               :argument (if (= 1 (rank omega)) (list right)
-                                             (cons right
-                                                   (loop :for i :below (1- (rank omega))
-                                                         :collect nil))))
+                               :argument (cons right (loop :for i :below (1- (varray::rank-of omega))
+                                                           :collect nil)))
+                
                 ))
           ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
           ;; left operand function as per choose or reach indexing
+          
           (if right-fn (let ((selections (funcall right-fn omega))
                              (output (make-array (dims omega))))
                          (if (/= (size omega) (size selections))
@@ -1640,6 +1637,7 @@
                                                           (disclose left)
                                                           (row-major-aref left i))))))))
                          output)
+              
               ;; (nth-value
               ;;  1 (choose omega (append (list (apply-scalar #'- right index-origin))
               ;;                          (loop :for i :below (- (rank omega) (array-depth right))
@@ -1649,16 +1647,21 @@
               ;;                                  (declare (ignorable new))
               ;;                                  (if alpha (funcall left-fn old alpha)
               ;;                                      (funcall left-fn old))))))
+              
               (make-instance 'vader-select
-                             :base omega :index-origin index-origin :assign (when (not left-fn) left)
-                             ;; :selector (if ivec (list :eindices (render-varrays base-object)
-                             ;;                          :ebase ivec)
-                             ;;               (funcall function omega))
-                             :argument (cons right ; (list (apply-scalar #'- right index-origin))
-                                             (loop :for i :below (- (varray::rank-of omega)
-                                                                    (array-depth right))
-                                                   :collect nil)))
+                             :base omega :index-origin index-origin
+                             :calling left-fn :assign (if left-fn alpha left)
+                             :argument (cons right (loop :for i :below (- (varray::rank-of omega)
+                                                                          (array-depth right))
+                                                         :collect nil)))
+              
               )))))
+
+;; (april "2 2 2 2 2 2 6 6 6 6 6 7 7 7 7 7 7 7 11 11 11 11 11 11 27 27 27 27 40 40 40 40 44 44 44@3 8 12 28 41 45 12 16 32 45 49 8 12 13 17 33 46 50 12 16 17 21 37 50 28 32 33 37 41 45 46 50 45 49 50⊢51⍴1")
+
+;; (april "1 2@3 3⊢5⍴1")
+
+;; (april "x←8 8⍴0 ⋄ x[2+⍳3;3+⍳4]←3 4⍴⍳9 ⋄ x")
 
 ;; (defun operate-at (right left index-origin)
 ;;   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
