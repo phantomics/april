@@ -1550,112 +1550,118 @@
                       (render-varrays (apply right o (when a (list a))))))))
     (lambda (omega &optional alpha environment blank)
       (declare (ignorable alpha environment blank))
-      (setq omega (render-varrays omega)
-            alpha (render-varrays alpha))
-      (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
-          ;; if the right operand is a function, collect the right argument's matching elements
-          ;; into a vector, apply the left operand function to it and assign its elements to their
-          ;; proper places in the copied right argument array and return it
-          (if right-fn
-              (let ((true-indices (make-array (size omega) :initial-element 0))
-                    (omega-copy (copy-array omega :element-type t)))
-                (xdotimes true-indices (i (size omega))
-                  (if (or (and right-fn (not (zerop (funcall right-fn (row-major-aref omega i)))))
-                          (and (integerp right) (= i (- right index-origin)))
-                          (and (arrayp right)
-                               (not (loop :for r :below (size right) :never (= (row-major-aref right r)
-                                                                               (+ i index-origin))))))
-                      (incf (row-major-aref true-indices i))))
-                (let ((tvix 0)
-                      (true-vector (make-array (loop :for i :across true-indices :summing i)
-                                               :element-type (element-type omega))))
-                  (dotimes (i (size omega))
-                    (if (not (zerop (row-major-aref true-indices i)))
-                        (progn (setf (row-major-aref true-vector tvix)
-                                     (row-major-aref omega i))
-                               (incf (row-major-aref true-indices i) tvix)
-                               (incf tvix))))
-                  (let ((to-assign (if alpha (funcall left-fn true-vector alpha)
-                                       (funcall left-fn true-vector))))
-                    (xdotimes omega-copy (i (size omega))
-                      (if (not (zerop (row-major-aref true-indices i)))
-                          (setf (row-major-aref omega-copy i)
-                                (if (= 1 (length true-vector))
-                                    ;; if there is only one true element the to-assign value is
-                                    ;; the value to be assigned, not a vector of values to assign
-                                    (disclose to-assign)
-                                    (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
-                    omega-copy)))
-              (let* ((omega-copy (copy-array omega :element-type t))
-                     (indices-adjusted (if (not (arrayp right)) (- right index-origin)
-                                           (apply-scalar (lambda (a) (- a index-origin)) right)))
-                     (mod-array (choose omega (if (= 1 (rank omega)) (list indices-adjusted)
-                                                  (cons indices-adjusted
-                                                        (loop :for i :below (1- (rank omega))
-                                                              :collect nil)))))
-                     (out-sub-array (if alpha (funcall left-fn mod-array alpha)
-                                        (funcall left-fn mod-array))))
+      (let ((omega-r (render-varrays omega))
+            (alpha-r (render-varrays alpha)))
+        (if (and left-fn (or right-fn (or (vectorp right) (not (arrayp right)))))
+            ;; if the right operand is a function, collect the right argument's matching elements
+            ;; into a vector, apply the left operand function to it and assign its elements to their
+            ;; proper places in the copied right argument array and return it
+            (if right-fn
+                ;; (let ((true-indices (make-array (size omega-r) :initial-element 0))
+                ;;       (omega-copy (copy-array omega-r :element-type t)))
+                ;;   (xdotimes true-indices (i (size omega-r))
+                ;;     (if (or (and right-fn (not (zerop (funcall right-fn (row-major-aref omega-r i)))))
+                ;;             (and (integerp right) (= i (- right index-origin)))
+                ;;             (and (arrayp right)
+                ;;                  (not (loop :for r :below (size right) :never (= (row-major-aref right r)
+                ;;                                                                  (+ i index-origin))))))
+                ;;         (incf (row-major-aref true-indices i))))
+                ;;   (let ((tvix 0)
+                ;;         (true-vector (make-array (loop :for i :across true-indices :summing i)
+                ;;                                  :element-type (element-type omega-r))))
+                ;;     (dotimes (i (size omega-r))
+                ;;       (if (not (zerop (row-major-aref true-indices i)))
+                ;;           (progn (setf (row-major-aref true-vector tvix)
+                ;;                        (row-major-aref omega-r i))
+                ;;                  (incf (row-major-aref true-indices i) tvix)
+                ;;                  (incf tvix))))
+                ;;     (let ((to-assign (if alpha-r (funcall left-fn true-vector alpha-r)
+                ;;                          (funcall left-fn true-vector))))
+                ;;       (xdotimes omega-copy (i (size omega-r))
+                ;;         (if (not (zerop (row-major-aref true-indices i)))
+                ;;             (setf (row-major-aref omega-copy i)
+                ;;                   (if (= 1 (length true-vector))
+                ;;                       ;; if there is only one true element the to-assign value is
+                ;;                       ;; the value to be assigned, not a vector of values to assign
+                ;;                       (disclose to-assign)
+                ;;                       (row-major-aref to-assign (1- (row-major-aref true-indices i)))))))
+                ;;       omega-copy)))
+                (make-instance 'vader-select
+                               :base omega :index-origin index-origin
+                               :assign (or alpha :monadic) :calling left-fn :assign-if right-fn)
+                (let* ((mod-array (make-instance
+                                   'vader-select
+                                   :base omega :index-origin index-origin
+                                   :argument (cons right (loop :for i :below (1- (varray::rank-of omega))
+                                                               :collect nil))))
+                       (out-sub-array (if alpha (funcall left-fn mod-array alpha)
+                                          (funcall left-fn mod-array))))
+                  
+                  ;; (choose omega-copy (if (= 1 (rank omega-r)) (list indices-adjusted)
+                  ;;                        (cons indices-adjusted
+                  ;;                              (loop :for i :below (1- (rank omega-r)) :collect nil)))
+                  ;;         :modify-input t :set (funcall (if (and (not (arrayp right))
+                  ;;                                                (> 2 (rank omega-r))
+                  ;;                                                (not (zerop (rank out-sub-array))))
+                  ;;                                           #'enclose #'identity)
+                  ;;                                       out-sub-array))
+                  ;; omega-copy
+                  
+                  (make-instance 'vader-select
+                                 :base omega :index-origin index-origin
+                                 :assign (funcall (if (and (not (arrayp right))
+                                                           (> 2 (varray::rank-of omega))
+                                                           (not (zerop (varray::rank-of out-sub-array))))
+                                                      #'enclose #'identity)
+                                                  (render-varrays out-sub-array))
+                                 :argument (cons right (loop :for i :below (1- (varray::rank-of omega))
+                                                             :collect nil)))
+                  
+                  ))
+            ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
+            ;; left operand function as per choose or reach indexing
+            
+            (if right-fn
+                ;; (let ((selections (funcall right-fn omega-r))
+                ;;       (output (make-array (dims omega-r))))
+                ;;   (if (/= (size omega-r) (size selections))
+                ;;       (error "Output of [@ at]'s right operand function must match ~n"
+                ;;              " the shape of the left argument.")
+                ;;       (xdotimes output (i (size selections))
+                ;;         (setf (row-major-aref output i)
+                ;;               (if (zerop (row-major-aref selections i))
+                ;;                   (row-major-aref omega-r i)
+                ;;                   (if left-fn
+                ;;                       (if alpha-r (funcall left-fn (row-major-aref omega-r i) alpha-r)
+                ;;                           (funcall left-fn (row-major-aref omega-r i)))
+                ;;                       (if (not (arrayp left))
+                ;;                           left (if (zerop (rank left))
+                ;;                                    (disclose left)
+                ;;                                    (row-major-aref left i))))))))
+                ;;   output)
+
+                (make-instance 'vader-select
+                               :base omega :index-origin index-origin :assign-if right-fn
+                               :calling left-fn :assign (if left-fn alpha left))
                 
-                ;; (choose omega-copy (if (= 1 (rank omega)) (list indices-adjusted)
-                ;;                        (cons indices-adjusted
-                ;;                              (loop :for i :below (1- (rank omega)) :collect nil)))
-                ;;         :modify-input t :set (funcall (if (and (not (arrayp right))
-                ;;                                                (> 2 (rank omega))
-                ;;                                                (not (zerop (rank out-sub-array))))
-                ;;                                           #'enclose #'identity)
-                ;;                                       out-sub-array))
-                ;; omega-copy
+                ;; (nth-value
+                ;;  1 (choose omega-r (append (list (apply-scalar #'- right index-origin))
+                ;;                          (loop :for i :below (- (rank omega-r) (array-depth right))
+                ;;                                :collect nil))
+                ;;            :set (if (not left-fn) left)
+                ;;            :set-by (if left-fn (lambda (old &optional new)
+                ;;                                  (declare (ignorable new))
+                ;;                                  (if alpha-r (funcall left-fn old alpha-r)
+                ;;                                      (funcall left-fn old))))))
                 
                 (make-instance 'vader-select
                                :base omega :index-origin index-origin
-                               :assign (funcall (if (and (not (arrayp right))
-                                                         (> 2 (rank omega))
-                                                         (not (zerop (rank out-sub-array))))
-                                                    #'enclose #'identity)
-                                                out-sub-array)
-                               :argument (cons right (loop :for i :below (1- (varray::rank-of omega))
+                               :calling left-fn :assign (if left-fn alpha left)
+                               :argument (cons right (loop :for i :below (- (varray::rank-of omega)
+                                                                            (array-depth right))
                                                            :collect nil)))
                 
-                ))
-          ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
-          ;; left operand function as per choose or reach indexing
-          
-          (if right-fn (let ((selections (funcall right-fn omega))
-                             (output (make-array (dims omega))))
-                         (if (/= (size omega) (size selections))
-                             (error "Output of [@ at]'s right operand function must match ~n"
-                                    " the shape of the left argument.")
-                             (xdotimes output (i (size selections))
-                               (setf (row-major-aref output i)
-                                     (if (zerop (row-major-aref selections i))
-                                         (row-major-aref omega i)
-                                         (if left-fn
-                                             (if alpha (funcall left-fn (row-major-aref omega i) alpha)
-                                                 (funcall left-fn (row-major-aref omega i)))
-                                             (if (not (arrayp left))
-                                                 left (if (zerop (rank left))
-                                                          (disclose left)
-                                                          (row-major-aref left i))))))))
-                         output)
-              
-              ;; (nth-value
-              ;;  1 (choose omega (append (list (apply-scalar #'- right index-origin))
-              ;;                          (loop :for i :below (- (rank omega) (array-depth right))
-              ;;                                :collect nil))
-              ;;            :set (if (not left-fn) left)
-              ;;            :set-by (if left-fn (lambda (old &optional new)
-              ;;                                  (declare (ignorable new))
-              ;;                                  (if alpha (funcall left-fn old alpha)
-              ;;                                      (funcall left-fn old))))))
-              
-              (make-instance 'vader-select
-                             :base omega :index-origin index-origin
-                             :calling left-fn :assign (if left-fn alpha left)
-                             :argument (cons right (loop :for i :below (- (varray::rank-of omega)
-                                                                          (array-depth right))
-                                                         :collect nil)))
-              
-              )))))
+                ))))))
 
 ;; (april "2 2 2 2 2 2 6 6 6 6 6 7 7 7 7 7 7 7 11 11 11 11 11 11 27 27 27 27 40 40 40 40 44 44 44@3 8 12 28 41 45 12 16 32 45 49 8 12 13 17 33 46 50 12 16 17 21 37 50 28 32 33 37 41 45 46 50 45 49 50⊢51⍴1")
 

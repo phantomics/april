@@ -338,13 +338,13 @@
               ;;              (when (typep varray 'vader-composing)
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;           (not (vacmp-threadable varray)))
-                            ;;      ;; don't thread when rendering the output of operators composed
-                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;            :never (null (lparallel.kernel::running-category worker))))
-                         ;;t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                      (not (vacmp-threadable varray)))
+                                 ;; don't thread when rendering the output of operators composed
+                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                       :never (null (lparallel.kernel::running-category worker))))
+                         ;; t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -1132,14 +1132,14 @@
                                                        :params (vaop-params varray))))))))))
 
 (defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
-  ((%function :accessor vasel-function
-              :initform nil
-              :initarg :function
-              :documentation "Function to be applied to derived array element(s).")
-   (%assign :accessor vasel-assign
+  ((%assign :accessor vasel-assign
             :initform nil
             :initarg :assign
             :documentation "Item(s) to be assigned to selected indices in array.")
+   (%assign-if :accessor vasel-assign-if
+               :initform nil
+               :initarg :assign-if
+               :documentation "Function to select items to be assigned as for ⌽@(<∘5)⊢⍳9.")
    (%assign-shape :accessor vasel-assign-shape
                   :initform nil
                   :initarg :assign-shape
@@ -1204,7 +1204,7 @@
    (let* ((indices)
           (iarray-factors)
           (base-indexer (indexer-of (vader-base varray)))
-          (base-rank (length (shape-of (vader-base varray))))
+          (base-rank (rank-of (vader-base varray)))
           (set (vasel-assign varray))
           (set-indexer (indexer-of set))
           (idims (shape-of varray))
@@ -1271,10 +1271,9 @@
 
        (if (not set)
            (lambda (index)
-             (let* ((remaining index) (oindex 0) (ofix 0) (valid t)
-                    (choose-indexed) (assign-sub-index) (iafactors iarray-factors))
+             (let* ((remaining index) (oindex 0) (ofix 0) (valid t) (iafactors iarray-factors))
                (loop :for in :in indices :for ifactor :across ifactors
-                     :for ix :from 0 :while (and valid (not choose-indexed))
+                     :for ix :from 0 :while valid
                      :do (if (numberp in)
                              (incf oindex (* ifactor (- in (vads-io varray))))
                              (if in (let ((matched-index) (sub-index 0) (aindex index))
@@ -1282,9 +1281,8 @@
                                               (and (or (arrayp in) (varrayp in))
                                                    (not (shape-of in))))
                                           (multiple-value-bind (index remainder)
-                                              (floor remaining (if set ifactor
-                                                                   (if (zerop (length ofactors))
-                                                                       1 (aref ofactors ofix))))
+                                              (floor remaining (if (zerop (length ofactors))
+                                                                   1 (aref ofactors ofix)))
                                             (incf ofix)
                                             (setf sub-index index
                                                   remaining remainder))
@@ -1296,19 +1294,17 @@
                                                              (setf remaining remainder)))
                                                  (when (not (vectorp in))
                                                    (setf iafactors (rest iafactors)))))
-                                      (if (zerop (size-of in)) ;; the case of ⍬@⍬⊢1 2 3
-                                          (setf valid nil)
-                                          (when (not matched-index)
-                                            ;; adjust indices if the index was not an array as for x[⍳3]←5
-                                            (let* ((iindexer (indexer-of in))
-                                                   (indexed (if (not (functionp iindexer))
-                                                                iindexer (funcall iindexer sub-index))))
-                                              ;; (print (list :ind indexed))
-                                              (if (numberp indexed)
-                                                  (incf oindex (* ifactor (- indexed (vads-io varray))))
-                                                  (setf oindex indexed))))))
+                                      (when (not matched-index)
+                                        ;; adjust indices if the index was not an array as for x[⍳3]←5
+                                        (let* ((iindexer (indexer-of in))
+                                               (indexed (if (not (functionp iindexer))
+                                                            iindexer (funcall iindexer sub-index))))
+                                          ;; (print (list :ind indexed))
+                                          (if (numberp indexed)
+                                              (incf oindex (* ifactor (- indexed (vads-io varray))))
+                                              (setf oindex indexed)))))
                                  (multiple-value-bind (index remainder)
-                                     (floor remaining (if set ifactor (aref ofactors ofix)))
+                                     (floor remaining (aref ofactors ofix))
                                    (let ((indexed (when in (funcall (indexer-of in) index))))
                                      ;; if choose indexing is in use, set this object to subrender
                                      (when (or (not in) (numberp indexed))
@@ -1316,6 +1312,7 @@
                                    (incf ofix)
                                    (setf remaining remainder))))
                          (setf adims (rest adims)))
+               
                (if (numberp oindex)
                    (let ((indexed (if (not (functionp base-indexer))
                                       base-indexer (funcall base-indexer oindex))))
@@ -1324,7 +1321,6 @@
                      indexed)
                    (let ((index-shape (first (shape-of oindex))))
                      (setf (vads-subrendering varray) t)
-
                      (if (and (numberp (funcall base-indexer 0))
                               (= index-shape (length (shape-of (vader-base varray)))))
                          ;; if the length of the index vector is equal to the rank of the indexed array
@@ -1348,215 +1344,249 @@
                                           ;; TODO: wrap this in disclose obj
                                           :index-origin (vads-io varray)
                                           :argument (rest (coerce (render oindex) 'list)))))))))
-           
-           (lambda (index)
-             ;; (print (list :ii index))
-             (let* ((remaining index) (oindex 0) (ofix 0) (valid t)
-                    (tafix 0)
-                    (choose-indexed) (assign-sub-index) (iafactors iarray-factors))
-               (loop :for in :in indices :for ifactor :across ifactors
-                     :for ix :from 0 :while (and valid (not choose-indexed))
-                     :do (if (numberp in) ;; handle numeric indices as for x[1;2]
-                               (multiple-value-bind (index remainder) (floor remaining ifactor)
-                                 (when (/= index (- in (vads-io varray)))
-                                   (setf valid nil))
-                                 (incf ofix)
-                                 (setf remaining remainder))
-                               ;; handle arrays as indices as for x[⍳3]
-                               (if in (let ((matched-index) (sub-index 0) (aindex index))
-                                        ;; (print (list :ii in ofactors))
-                                        (if (or (and (vectorp in) (< 0 (length in)))
-                                                (and (or (arrayp in) (varrayp in))
-                                                     (not (shape-of in))))
-                                            (multiple-value-bind (index remainder)
-                                                (floor remaining ifactor)
-                                              ;; (print (list :fl index remainder in))
-                                              (let* ((sub-indexer (indexer-of in))
-                                                     (sub-indexed (funcall sub-indexer 0))
-                                                     (ssindexer (indexer-of sub-indexed))
-                                                     (ssindexed (when (functionp ssindexer)
-                                                                  (funcall ssindexer 0))))
-                                                (if (numberp sub-indexed)
-                                                    (let ((toindex)
-                                                          ;; (tafactor (or afactor 1))
-                                                          (tafactor (if (or (not afactors)
-                                                                            (zerop (length afactors)))
-                                                                        1 (aref afactors tafix))))
-                                                      (loop :for i :below (size-of in)
-                                                            ;; :while (not matched-index)
-                                                            :do (when (= index (- (funcall sub-indexer i)
-                                                                                  (vads-io varray)))
-                                                                  (setf matched-index i
-                                                                        ;; oindex i
-                                                                        toindex (+ oindex
-                                                                                   (* i tafactor))
-                                                                        )))
-                                                      (incf tafix)
-                                                      (when toindex (setf oindex toindex)))
-                                                    (if (and ssindexed (numberp ssindexed)
-                                                             (= base-rank (size-of sub-indexed)))
-                                                        ;; the case of g←6 6⍴0 ⋄ g[(3 3)(4 4)]←5
-                                                        ;; vectors the length of the base rank
-                                                        ;; select an element in the base
-                                                        (loop :for b :below (size-of in)
-                                                              :do (when (compare-path
-                                                                         aindex (funcall
-                                                                                 sub-indexer b))
-                                                                    (setf oindex aindex
-                                                                          matched-index t
-                                                                          assign-sub-index index)))
-                                                        ;; the case of toasn←(('JAN' 1)('FEB' 2)
-                                                        ;; toasn[(2 1)(1 2)]←45 67
-                                                        ;; reach indexing into subarrays of the base
-                                                        (let ((match (verify-vindex index in)))
-                                                          (when match (setf oindex match
+           (if (vasel-assign-if varray)
+               (let* ((assign-indexer (indexer-of (vasel-assign varray)))
+                      (mask (funcall (vasel-assign-if varray) (vader-base varray)))
+                      (mask-indexer (indexer-of mask)))
+                 (if (or adims (eq :monadic assign-indexer)) ;; TODO: optimize types for mask indices
+                     ;; the case of an array assigned depending on logical function result,
+                     ;; for example 10 11 12 13@(<∘5)⍳9
+                     (let ((mindices (make-array (shape-of (vader-base varray))
+                                                 :element-type 'fixnum :initial-element 0))
+                           (mindex 0))
+                       ;; create an index mask for the assignments where each nonzero number corresponds
+                       ;; to the index of the assigned value - 1
+                       (if (eq :monadic assign-indexer)
+                           (dotimes (i (size-of mask))
+                             (when (not (zerop (funcall mask-indexer i)))
+                               (setf (row-major-aref mindices i)
+                                     (1+ i))))
+                           (dotimes (i (size-of mask))
+                             (when (not (zerop (funcall mask-indexer i)))
+                               (setf (row-major-aref mindices i) (incf mindex)))))
+                       ;; (print (list :mm mindices))
+                       (if (eq :monadic assign-indexer)
+                           (let ((mindices (render (funcall (vasel-calling varray) mindices))))
+                             (lambda (index)
+                               (let ((this-mindex (row-major-aref mindices index)))
+                                 (if (zerop this-mindex) (funcall base-indexer index)
+                                     (funcall base-indexer (1- this-mindex))))))
+                           (lambda (index) 
+                             ;; the case of 10 11 12@(2∘|)⍳5
+                             (let ((this-mindex (row-major-aref mindices index)))
+                               (if (zerop this-mindex) (funcall base-indexer index)
+                                   (funcall assign-indexer (1- this-mindex)))))))
+                     (if (functionp assign-indexer)
+                         (lambda (index) ;; the case of (⊃⍳3)@(<∘5)⍳9 ; scalar (virtual) array assigned value
+                           (if (zerop (funcall mask-indexer index))
+                               (funcall assign-indexer 0) (funcall base-indexer index)))
+                         (lambda (index) ;; the case of 9@(<∘5)⍳9 ; scalar assigned value
+                           (if (not (zerop (funcall mask-indexer index)))
+                               assign-indexer (funcall base-indexer index))))))
+               (lambda (index)
+                 ;; (print (list :ii index))
+                 (let* ((remaining index) (oindex 0) (ofix 0) (valid t) (tafix 0)
+                        (assign-sub-index) (iafactors iarray-factors))
+                   (loop :for in :in indices :for ifactor :across ifactors
+                         :for ix :from 0 :while valid
+                         :do (if (numberp in) ;; handle numeric indices as for x[1;2]
+                                 (multiple-value-bind (index remainder) (floor remaining ifactor)
+                                   (when (/= index (- in (vads-io varray)))
+                                     (setf valid nil))
+                                   (incf ofix)
+                                   (setf remaining remainder))
+                                 ;; handle arrays as indices as for x[⍳3]
+                                 (if in (let ((matched-index) (sub-index 0) (aindex index))
+                                          ;; (print (list :ii in ofactors))
+                                          (if (or (and (vectorp in) (< 0 (length in)))
+                                                  (and (or (arrayp in) (varrayp in))
+                                                       (not (shape-of in))))
+                                              (multiple-value-bind (index remainder)
+                                                  (floor remaining ifactor)
+                                                ;; (print (list :fl index remainder in))
+                                                (let* ((sub-indexer (indexer-of in))
+                                                       (sub-indexed (funcall sub-indexer 0))
+                                                       (ssindexer (indexer-of sub-indexed))
+                                                       (ssindexed (when (functionp ssindexer)
+                                                                    (funcall ssindexer 0))))
+                                                  (if (numberp sub-indexed)
+                                                      (let ((toindex)
+                                                            (tafactor (if (or (not afactors)
+                                                                              (zerop (length afactors)))
+                                                                          1 (aref afactors tafix))))
+                                                        (loop :for i :below (size-of in)
+                                                              :do (when (= index (- (funcall sub-indexer i)
+                                                                                    (vads-io varray)))
+                                                                    (setf matched-index i
+                                                                          toindex (+ oindex
+                                                                                     (* i tafactor)))))
+                                                        (incf tafix)
+                                                        (when toindex (setf oindex toindex)))
+                                                      (if (and ssindexed (numberp ssindexed)
+                                                               (= base-rank (size-of sub-indexed)))
+                                                          ;; the case of g←6 6⍴0 ⋄ g[(3 3)(4 4)]←5
+                                                          ;; vectors the length of the base rank
+                                                          ;; select an element in the base
+                                                          (loop :for b :below (size-of in)
+                                                                :do (when (compare-path
+                                                                           aindex (funcall
+                                                                                   sub-indexer b))
+                                                                      (setf oindex aindex
                                                                             matched-index t
-                                                                            assign-sub-index index)))))
-                                                (setf valid matched-index))
-                                              (incf ofix)
-                                              (setf remaining remainder))
-                                            
-                                            (progn (loop :for iafactor :in (first iafactors)
-                                                         :do (multiple-value-bind (index remainder)
-                                                                 (floor remaining (aref ofactors ofix))
-                                                               (incf sub-index (* iafactor index))
-                                                               (incf ofix)
-                                                               (setf remaining remainder)))
-                                                   (when (not (vectorp in))
-                                                     (setf iafactors (rest iafactors)))))
-                                        (if (zerop (size-of in)) ;; the case of ⍬@⍬⊢1 2 3
-                                            (setf valid nil)
-                                            (when (not matched-index)
-                                              ;; adjust indices if the index was not an array as for x[⍳3]←5
-                                              (let* ((iindexer (indexer-of in))
-                                                     (indexed (if (not (functionp iindexer))
-                                                                  iindexer (funcall iindexer sub-index))))
-                                                ;; (print (list :ind indexed))
-                                                (if (numberp indexed)
-                                                    (incf oindex (* ifactor (- indexed (vads-io varray))))
-                                                    (setf oindex indexed))))))
-                                   ;; handle elided indices
-                                   (let ((tafactor (if (or (not afactors)
-                                                           (zerop (length afactors)))
-                                                       1 (aref afactors tafix))))
+                                                                            assign-sub-index index)))
+                                                          ;; the case of toasn←(('JAN' 1)('FEB' 2)
+                                                          ;; toasn[(2 1)(1 2)]←45 67
+                                                          ;; reach indexing into subarrays of the base
+                                                          (let ((match (verify-vindex index in)))
+                                                            (when match (setf oindex match
+                                                                              matched-index t
+                                                                              assign-sub-index index)))))
+                                                  (setf valid matched-index))
+                                                (incf ofix)
+                                                (setf remaining remainder))
+                                              
+                                              (progn (loop :for iafactor :in (first iafactors)
+                                                           :do (multiple-value-bind (index remainder)
+                                                                   (floor remaining (aref ofactors ofix))
+                                                                 (incf sub-index (* iafactor index))
+                                                                 (incf ofix)
+                                                                 (setf remaining remainder)))
+                                                     (when (not (vectorp in))
+                                                       (setf iafactors (rest iafactors)))))
+                                          (if (zerop (size-of in)) ;; the case of ⍬@⍬⊢1 2 3
+                                              (setf valid nil)
+                                              (when (not matched-index)
+                                                ;; adjust indices if the index was not an array as for x[⍳3]←5
+                                                (let* ((iindexer (indexer-of in))
+                                                       (indexed (if (not (functionp iindexer))
+                                                                    iindexer (funcall iindexer sub-index))))
+                                                  ;; (print (list :ind indexed))
+                                                  (if (numberp indexed)
+                                                      (incf oindex (* ifactor (- indexed (vads-io varray))))
+                                                      (setf oindex indexed))))))
+                                     ;; handle elided indices
                                      (multiple-value-bind (index remainder)
                                          (floor remaining ifactor)
                                        (if (or (not adims)
                                                (< index (first adims)))
-                                           (if tafactor (incf oindex (* tafactor index))
-                                               (incf oindex index))
+                                           (let ((tafactor (if (or (not afactors)
+                                                                   (zerop (length afactors)))
+                                                               1 (aref afactors tafix))))
+                                             
+                                             (if tafactor (incf oindex (* tafactor index))
+                                                 (incf oindex index)))
                                            (setf valid nil))
                                        (incf ofix)
                                        (incf tafix)
-                                       (setf remaining remainder)))))
-                           (setf adims (rest adims)))
-               ;; (print (list :aa index oindex index-selector set-indexer set valid))
+                                       (setf remaining remainder))))
+                             (setf adims (rest adims)))
+                   ;; (print (list :aa index oindex index-selector set-indexer set valid))
 
-               ;; index-selector is used in the case of assignment by selection,
-               ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
-               (when index-selector (setf valid (when (and (or valid (not (vads-argument varray)))
-                                                           (or (typep index-selector 'vader-pick)
-                                                               (if (numberp valid)
-                                                                   (setf oindex (funcall sub-selector valid))
-                                                                   (setf oindex (funcall sub-selector index)))))
-                                                  valid)))
-               ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
-               ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
-               ;;                        set-indexer)))
-               (if (numberp oindex)
-                   (if valid (if (vasel-calling varray)
-                                 (let ((original (if (not (functionp base-indexer))
-                                                     base-indexer (funcall base-indexer index))))
-                                   (funcall (vasel-calling varray)
-                                            original (if (functionp set-indexer)
-                                                         (funcall set-indexer oindex)
-                                                         (vasel-assign varray))))
-                                 (if (not (functionp set-indexer))
-                                     (if (and index-selector (typep index-selector 'vader-pick))
-                                         ;; build a pick array instance to derive from an indexed value,
-                                         ;; as for the case of {na←3⍴⊂⍳4 ⋄ (1↑⊃na)←⍵ ⋄ na} 99
-                                         (let ((indexed (if (not (functionp base-indexer))
-                                                            base-indexer (funcall base-indexer oindex))))
-                                           (setf (vads-subrendering varray) t
-                                                 (vader-base index-selector) indexed
-                                                 (vapick-assign index-selector) (vasel-assign varray)
-                                                 (vapick-reference index-selector) indexed)
-                                           index-selector)
-                                         (if selector-eindices
-                                             (let* ((bindex (if (not (functionp base-indexer))
-                                                                base-indexer (funcall base-indexer index)))
-                                                    (assign-indexer (indexer-of (vasel-assign varray)))
-                                                    (eelement (when (not (arrayp bindex))
-                                                                (funcall eindexer index))))
-                                               (if eelement
-                                                   (if (loop :for e :across (getf selector-eindices
-                                                                                  :eindices)
-                                                             :never (= e eelement))
-                                                       bindex (vasel-assign varray))
-                                                   (progn
-                                                     (setf (vads-subrendering varray) t)
-                                                     (make-instance
-                                                      'vader-select
-                                                      :base bindex :index-origin (vads-io varray)
-                                                      :assign (if (not (functionp assign-indexer))
-                                                                  assign-indexer
-                                                                  (funcall assign-indexer
-                                                                           assign-sub-index))
-                                                      :assign-shape (vasel-assign-shape varray)
-                                                      :calling (vasel-calling varray)
-                                                      :selector (list :eindices
-                                                                      (getf selector-eindices
-                                                                            :eindices)
-                                                                      :ebase (funcall eindexer
-                                                                                      index))))))
-                                             (vasel-assign varray)))
-                                     (funcall set-indexer oindex)))
-                       (if (not (functionp base-indexer))
-                           base-indexer (funcall base-indexer index)))
-                   
-                   (let ((index-shape (first (shape-of oindex))))
-                     (setf (vads-subrendering varray) t)
-                     (if valid
-                         (if (typep oindex 'varray::varray)
-                             ;; in the case of an [¨ each]-composed assignment by selection
-                             ;; like {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
-                             (let ((sub-indexer (indexer-of (vader-base varray)))
-                                   (assign-indexer (indexer-of (vasel-assign varray)))
-                                   (each-target (when (typep index-selector 'varray::vacomp-each)
-                                                  (varray::vacmp-omega index-selector))))
-                               (make-instance 'vader-select
-                                              :base (funcall sub-indexer index)
-                                              :index-origin (vads-io varray)
-                                              ;; :argument oindex
-                                              :selector oindex
-                                              :assign (if (not (functionp assign-indexer))
-                                                          assign-indexer (funcall assign-indexer
-                                                                                  assign-sub-index))
-                                              :assign-shape (vasel-assign-shape varray)
-                                              :calling (vasel-calling varray)))
-                             (let* ((meta-indexer (indexer-of oindex))
-                                    (meta-index (funcall meta-indexer 0))
-                                    (assign-indexer (indexer-of (vasel-assign varray)))
-                                    (sub-base (make-instance 'vader-select
-                                                             :base (vader-base varray)
-                                                             :index-origin (vads-io varray)
-                                                             :argument (if (numberp meta-index)
-                                                                           (list meta-index)
-                                                                           (coerce (render meta-index)
-                                                                                   'list)))))
-                               ;; (print (list :vaa (vasel-assign varray)))
-                               (make-instance 'vader-select
-                                              :base (disclose (render sub-base))
-                                              ;; TODO: wrap this in disclose obj
-                                              :index-origin (vads-io varray)
-                                              :argument (rest (coerce (render oindex) 'list))
-                                              :assign (if (not (functionp assign-indexer))
-                                                          assign-indexer (funcall assign-indexer
-                                                                                  assign-sub-index))
-                                              :assign-shape (vasel-assign-shape varray)
-                                              :calling (vasel-calling varray))))
-                         (if (not (functionp base-indexer))
-                             base-indexer (funcall base-indexer index))))))))))))
+                   ;; index-selector is used in the case of assignment by selection,
+                   ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
+                   (when index-selector
+                     (setf valid (when (and (or valid (not (vads-argument varray)))
+                                            (or (typep index-selector 'vader-pick)
+                                                (setf oindex (if (numberp valid)
+                                                                 (funcall sub-selector valid)
+                                                                 (funcall sub-selector index)))))
+                                   valid)))
+                   ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
+                   ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
+                   ;;                        set-indexer)))
+                   (if (numberp oindex)
+                       (if valid (if (vasel-calling varray)
+                                     (let ((original (if (not (functionp base-indexer))
+                                                         base-indexer (funcall base-indexer index))))
+                                       (funcall (vasel-calling varray)
+                                                original (if (functionp set-indexer)
+                                                             (funcall set-indexer oindex)
+                                                             (vasel-assign varray))))
+                                     (if (not (functionp set-indexer))
+                                         (if (and index-selector (typep index-selector 'vader-pick))
+                                             ;; build a pick array instance to derive from an indexed value,
+                                             ;; as for the case of {na←3⍴⊂⍳4 ⋄ (1↑⊃na)←⍵ ⋄ na} 99
+                                             (let ((indexed (if (not (functionp base-indexer))
+                                                                base-indexer (funcall base-indexer oindex))))
+                                               (setf (vads-subrendering varray) t
+                                                     (vader-base index-selector) indexed
+                                                     (vapick-assign index-selector) (vasel-assign varray)
+                                                     (vapick-reference index-selector) indexed)
+                                               index-selector)
+                                             (if selector-eindices
+                                                 (let* ((bindex (if (not (functionp base-indexer))
+                                                                    base-indexer (funcall base-indexer index)))
+                                                        (assign-indexer (indexer-of (vasel-assign varray)))
+                                                        (eelement (when (not (arrayp bindex))
+                                                                    (funcall eindexer index))))
+                                                   (if eelement
+                                                       (if (loop :for e :across (getf selector-eindices
+                                                                                      :eindices)
+                                                                 :never (= e eelement))
+                                                           bindex (vasel-assign varray))
+                                                       (progn
+                                                         (setf (vads-subrendering varray) t)
+                                                         (make-instance
+                                                          'vader-select
+                                                          :base bindex :index-origin (vads-io varray)
+                                                          :assign (if (not (functionp assign-indexer))
+                                                                      assign-indexer
+                                                                      (funcall assign-indexer
+                                                                               assign-sub-index))
+                                                          :assign-shape (vasel-assign-shape varray)
+                                                          :calling (vasel-calling varray)
+                                                          :selector (list :eindices
+                                                                          (getf selector-eindices
+                                                                                :eindices)
+                                                                          :ebase (funcall eindexer
+                                                                                          index))))))
+                                                 (vasel-assign varray)))
+                                         (funcall set-indexer oindex)))
+                           (if (not (functionp base-indexer))
+                               base-indexer (funcall base-indexer index)))
+                       
+                       (let ((index-shape (first (shape-of oindex))))
+                         (setf (vads-subrendering varray) t)
+                         (if valid
+                             (if (typep oindex 'varray::varray)
+                                 ;; in the case of an [¨ each]-composed assignment by selection
+                                 ;; like {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
+                                 (let ((sub-indexer (indexer-of (vader-base varray)))
+                                       (assign-indexer (indexer-of (vasel-assign varray)))
+                                       (each-target (when (typep index-selector 'varray::vacomp-each)
+                                                      (varray::vacmp-omega index-selector))))
+                                   (make-instance 'vader-select
+                                                  :base (funcall sub-indexer index)
+                                                  :index-origin (vads-io varray)
+                                                  :selector oindex
+                                                  :assign (if (not (functionp assign-indexer))
+                                                              assign-indexer (funcall assign-indexer
+                                                                                      assign-sub-index))
+                                                  :assign-shape (vasel-assign-shape varray)
+                                                  :calling (vasel-calling varray)))
+                                 (let* ((meta-indexer (indexer-of oindex))
+                                        (meta-index (funcall meta-indexer 0))
+                                        (assign-indexer (indexer-of (vasel-assign varray)))
+                                        (sub-base (make-instance 'vader-select
+                                                                 :base (vader-base varray)
+                                                                 :index-origin (vads-io varray)
+                                                                 :argument (if (numberp meta-index)
+                                                                               (list meta-index)
+                                                                               (coerce (render meta-index)
+                                                                                       'list)))))
+                                   ;; (print (list :vaa (vasel-assign varray)))
+                                   (make-instance 'vader-select
+                                                  :base (disclose (render sub-base))
+                                                  ;; TODO: wrap this in disclose obj
+                                                  :index-origin (vads-io varray)
+                                                  :argument (rest (coerce (render oindex) 'list))
+                                                  :assign (if (not (functionp assign-indexer))
+                                                              assign-indexer (funcall assign-indexer
+                                                                                      assign-sub-index))
+                                                  :assign-shape (vasel-assign-shape varray)
+                                                  :calling (vasel-calling varray))))
+                             (if (not (functionp base-indexer))
+                                 base-indexer (funcall base-indexer index)))))))))))))
 
 (defclass vader-random (varray-derived vad-with-rng vad-with-io)
   ((%cached :accessor varand-cached
