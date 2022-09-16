@@ -338,13 +338,13 @@
               ;;              (when (typep varray 'vader-composing)
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                         ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;           (not (vacmp-threadable varray)))
+                            ;;      ;; don't thread when rendering the output of operators composed
+                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;            :never (null (lparallel.kernel::running-category worker))))
+                         t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -427,8 +427,8 @@
   (:metaclass va-class)
   (:documentation "Superclass of derived arrays with cached dimensional factors."))
 
-(defclass varray-primal (varray) nil
-  (:metaclass va-class)
+(defclass varray-primal (varray)
+  nil (:metaclass va-class)
   (:documentation "A primal array: a virtual array defined wholly by its parameters, not derived from another array."))
 
 (defclass varray-derived (varray)
@@ -1155,10 +1155,11 @@
   (:metaclass va-class))
 
 (defmethod etype-of ((varray vader-select))
-  (if (vasel-assign varray)
-      (type-in-common (etype-of (vader-base varray))
-                      (etype-of (vasel-assign varray)))
-      (call-next-method)))
+  (if (vasel-calling varray)
+      t (if (vasel-assign varray)
+            (type-in-common (etype-of (vader-base varray))
+                            (etype-of (vasel-assign varray)))
+            (call-next-method))))
 
 (defmethod shape-of ((varray vader-select))
   (get-promised
@@ -1269,7 +1270,7 @@
        ;;              (vader-base varray) set))
        ;; (⊂4 5 2 6 3 7 1)⌷'MARANGA'  st←'aodjeignwug' ⋄ st[⍋st]  
 
-       (if (not set)
+       (if (not (or set (vasel-calling varray)))
            (lambda (index)
              (let* ((remaining index) (oindex 0) (ofix 0) (valid t) (iafactors iarray-factors))
                (loop :for in :in indices :for ifactor :across ifactors
@@ -1348,34 +1349,33 @@
                (let* ((assign-indexer (indexer-of (vasel-assign varray)))
                       (mask (funcall (vasel-assign-if varray) (vader-base varray)))
                       (mask-indexer (indexer-of mask)))
-                 (if (or adims (eq :monadic assign-indexer)) ;; TODO: optimize types for mask indices
+                 (if (vasel-calling varray)
+                     ;; TODO: optimize types for mask indices
                      ;; the case of an array assigned depending on logical function result,
                      ;; for example 10 11 12 13@(<∘5)⍳9
-                     (let ((mindices (make-array (shape-of (vader-base varray))
-                                                 :element-type 'fixnum :initial-element 0))
-                           (mindex 0))
+                     (let ((mindex 0)
+                           (mindices (make-array (shape-of (vader-base varray))
+                                                 :element-type 'fixnum :initial-element 0)))
                        ;; create an index mask for the assignments where each nonzero number corresponds
                        ;; to the index of the assigned value - 1
-                       (if (eq :monadic assign-indexer)
-                           (dotimes (i (size-of mask))
-                             (when (not (zerop (funcall mask-indexer i)))
-                               (setf (row-major-aref mindices i)
-                                     (1+ i))))
-                           (dotimes (i (size-of mask))
-                             (when (not (zerop (funcall mask-indexer i)))
-                               (setf (row-major-aref mindices i) (incf mindex)))))
-                       ;; (print (list :mm mindices))
-                       (if (eq :monadic assign-indexer)
-                           (let ((mindices (render (funcall (vasel-calling varray) mindices))))
-                             (lambda (index)
-                               (let ((this-mindex (row-major-aref mindices index)))
-                                 (if (zerop this-mindex) (funcall base-indexer index)
-                                     (funcall base-indexer (1- this-mindex))))))
-                           (lambda (index) 
-                             ;; the case of 10 11 12@(2∘|)⍳5
+                       (dotimes (i (size-of mask))
+                         (when (not (zerop (funcall mask-indexer i)))
+                           (setf (row-major-aref mindices i) (incf mindex))))
+                       ;; TODO: add case for scalar functions as with ÷@(≤∘5)⊢3 3⍴⍳9 so that
+                       ;; the function can work element by element instead of needing displacement
+                       (let ((displaced (make-array mindex :element-type (etype-of (vader-base varray)))))
+                         (setf mindex 0)
+                         (dotimes (i (size-of mindices))
+                           (let ((mi (row-major-aref mindices i)))
+                             (when (not (zerop mi))
+                               (setf (aref displaced (1- (incf mindex)))
+                                     (funcall base-indexer i)))))
+                         (let ((processed (render (funcall (vasel-calling varray) displaced
+                                                           (vasel-assign varray)))))
+                           (lambda (index) ;; the case of 10 11 12@(2∘|)⍳5
                              (let ((this-mindex (row-major-aref mindices index)))
                                (if (zerop this-mindex) (funcall base-indexer index)
-                                   (funcall assign-indexer (1- this-mindex)))))))
+                                   (aref processed (1- this-mindex))))))))
                      (if (functionp assign-indexer)
                          (lambda (index) ;; the case of (⊃⍳3)@(<∘5)⍳9 ; scalar (virtual) array assigned value
                            (if (zerop (funcall mask-indexer index))
@@ -1553,8 +1553,8 @@
                                  ;; like {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
                                  (let ((sub-indexer (indexer-of (vader-base varray)))
                                        (assign-indexer (indexer-of (vasel-assign varray)))
-                                       (each-target (when (typep index-selector 'varray::vacomp-each)
-                                                      (varray::vacmp-omega index-selector))))
+                                       (each-target (when (typep index-selector 'vacomp-each)
+                                                      (vacmp-omega index-selector))))
                                    (make-instance 'vader-select
                                                   :base (funcall sub-indexer index)
                                                   :index-origin (vads-io varray)
@@ -4295,6 +4295,9 @@
   nil (:metaclass va-class)
   (:documentation "The identity of an array as from the [⊢ identity] function."))
 
+(defmethod prototype-of ((varray vader-identity))
+  (prototype-of (vader-base varray)))
+
 (defmethod etype-of ((varray vader-identity))
   (etype-of (vader-base varray)))
 
@@ -4773,6 +4776,196 @@
 
                                             ))))))))))
 
+(defclass vacomp-stencil (vad-subrendering vader-composing vad-with-io)
+  ((%win-dims :accessor vacst-win-dims
+              :initform nil
+              :initarg :win-dims
+              :documentation "Dimensions for windows within stencil.")
+   (%movement :accessor vacst-movement
+              :initform nil
+              :initarg :movement
+              :documentation "Stencil's movement parameters.")
+   (%in-factors :accessor vacst-in-factors
+                :initform nil
+                :initarg :in-factors
+                :documentation "Dimensional factors for stencil input.")
+   (%out-factors :accessor vacst-out-factors
+                 :initform nil
+                 :initarg :out-factors
+                 :documentation "Dimensional factors for stencil output.")
+   (%win-factors :accessor vacst-win-factors
+                 :initform nil
+                 :initarg :win-factors
+                 :documentation "Dimensional factors for stencil window."))
+  (:metaclass va-class)
+  (:documentation "A stencil-composed array as with the [⌺ stencil] operator."))
+
+(defmethod prototype-of ((varray vacomp-stencil))
+  (let ((this-indexer (indexer-of varray)))
+    (if t ; (zerop (size-of varray))
+        ;; TODO: should prototype reflect both arguments?
+        (prototype-of (vacmp-omega varray))
+        ;; (prototype-of (funcall this-indexer 0))
+        )))
+
+(defmethod shape-of ((varray vacomp-stencil))
+  (get-promised
+   (varray-shape varray)
+   (let* ((right-value (render (vacmp-right varray)))
+          (left-function (vacmp-left varray))
+          (omega-shape (shape-of (vacmp-omega varray)))
+          (omega-rank (rank-of (vacmp-omega varray))))
+     (flet ((get-row (matrix index)
+              (let ((row-length (first (last (shape-of matrix)))))
+                (coerce (loop :for x :below row-length
+                              :collect (row-major-aref matrix (+ x (* index row-length))))
+                        'vector))))
+       (if (not (or (and (< 2 (rank-of right-value))
+                         (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+                    (and (not left-function)
+                         (error "The left operand of [⌺ stencil] must be a function."))))
+           (let ((idims (shape-of (vacmp-omega varray)))
+                 (window-dims (if (not (arrayp right-value))
+                                  (vector right-value)
+                                  (if (= 1 (rank-of right-value))
+                                      right-value (get-row right-value 0))))
+                 (movement (if (not (arrayp right-value))
+                               (vector 1)
+                               (if (= 2 (rank-of right-value)) (get-row right-value 1)
+                                   (make-array (length right-value) :element-type 'fixnum
+                                                                    :initial-element 1)))))
+             (setf (vacst-movement varray) movement
+                   (vacst-win-dims varray) (if (= omega-rank (length window-dims))
+                                               window-dims (coerce
+                                                            (loop :for s :in omega-shape :for i :from 0
+                                                                  :collect (if (>= i (length window-dims))
+                                                                               s (aref window-dims i)))
+                                                            'vector)))
+             (print (list :wd window-dims (vacst-win-dims varray) omega-rank))
+             (loop :for dim :below (length window-dims)
+                   :collect (ceiling (- (/ (nth dim idims) (aref movement dim))
+                                        (if (and (evenp (aref window-dims dim))
+                                                 (or (= 1 (aref movement dim))
+                                                     (oddp (nth dim idims))))
+                                            1 0))))))))))
+
+(defclass vader-stencil-window (varray-derived)
+  ((%index :accessor vastw-index
+           :initform nil
+           :initarg :index
+           :documentation "Index of stencil window."))
+  (:metaclass va-class)
+  (:documentation "A stencil window, part of a stencil array produced by [⌺ stencil]."))
+
+(defmethod prototype-of ((varray vader-stencil-window))
+  (prototype-of (vacmp-omega (vader-base varray))))
+
+(defmethod indexer-of ((varray vader-stencil-window) &optional params)
+  (let ((base-indexer (indexer-of (vacmp-omega (vader-base varray))))
+        (idims (apply #'vector (shape-of (vacmp-omega (vader-base varray)))))
+        (this-rank (rank-of varray))
+        (prototype (prototype-of varray))
+        (movement (vacst-movement (vader-base varray)))
+        (in-factors (vacst-in-factors (vader-base varray)))
+        (win-factors (vacst-win-factors (vader-base varray)))
+        (window-dims (vacst-win-dims (vader-base varray)))
+        (oindices (let ((remaining (vastw-index varray)))
+                    (loop :for of :across (vacst-out-factors (vader-base varray))
+                          :collect (multiple-value-bind (index remainder) (floor remaining of)
+                                     (setf remaining remainder)
+                                     index)))))
+    (print (list :pro prototype
+                 this-rank win-factors oindices in-factors idims movement window-dims))
+    (lambda (index)
+      (let ((remaining index) (rmi 0) (valid t))
+        (loop :for cix :below this-rank :for wf :across win-factors
+              :for oindex :in oindices :for if :across in-factors :for idim :across idims
+              :for melem :across movement :for wdim :across window-dims
+              :do (multiple-value-bind (pindex remainder) (floor remaining wf)
+                    (print (list :p if))
+                    (let ((this-index (+ pindex (- (* melem oindex)
+                                                   (floor (- wdim (if (evenp wdim) 1 0)) 2)))))
+                      (setf remaining remainder)
+                      (if (<= 0 this-index (1- (aref idims cix)))
+                          (setq rmi (+ rmi (* this-index if)))
+                          (setq valid nil)))))
+        ;; (print (list :r rmi valid))
+        (if (not valid) prototype (funcall base-indexer rmi))))))
+
+(defclass vader-stencil-edge (varray-derived vad-with-argument)
+  ((%index :accessor vaste-index
+           :initform nil
+           :initarg :index
+           :documentation "Index of stencil edge vector."))
+  (:metaclass va-class)
+  (:documentation "A stencil edge vector, part of a stencil array produced by [⌺ stencil]."))
+
+(defmethod prototype-of ((varray vader-stencil-edge))
+  (declare (ignore varray))
+  0)
+
+(defmethod etype-of ((varray vader-stencil-edge))
+  (declare (ignore varray))
+  '(signed-byte 8)) ;; 8-bit elements for efficiency
+
+(defmethod indexer-of ((varray vader-stencil-edge) &optional params)
+  (let* ((stencil (vads-argument varray))
+         (stencil-shape (shape-of stencil))
+         (window-index (vaste-index varray))
+         (out-factors (vacst-out-factors (vader-base varray)))
+         (first-index (if (< window-index (aref out-factors 0))
+                          1 (if (>= window-index (- (size-of (vader-base varray))
+                                                    (aref out-factors 0)))
+                                -1 0))))
+    (lambda (index)
+      (if (zerop index) first-index
+          (let ((factor (aref out-factors (1- index))))
+            (if (zerop (mod window-index factor))
+                1 (if (zerop (mod (1+ window-index) factor))
+                      -1 0)))))))
+
+(defmethod indexer-of ((varray vacomp-stencil) &optional params)
+  (let* ((irank (rank-of (vacmp-omega varray)))
+         (idims (apply #'vector (shape-of (vacmp-omega varray))))
+         (this-shape (shape-of varray)) ;; must derive shape before fetching window-dims
+         (window-dims (vacst-win-dims varray)) (wrank (length window-dims))
+         (in-factors (or (vacst-in-factors varray)
+                         (setf (vacst-in-factors varray)
+                               (make-array irank :element-type 'fixnum :initial-element 0))))
+         (out-factors (or (vacst-out-factors varray)
+                          (setf (vacst-out-factors varray)
+                                (make-array wrank :element-type 'fixnum :initial-element 0))))
+         (win-factors (or (vacst-win-factors varray)
+                          (setf (vacst-win-factors varray)
+                                (make-array wrank :element-type 'fixnum :initial-element 0))))
+         (edge-shape (list (rank-of varray)))
+         (wd-list) (last-dim))
+    
+    ;; generate factor vector for window dimensions
+    (loop :for dx :below (length window-dims)
+          :do (let ((d (aref window-dims (- wrank 1 dx))))
+                (setf (aref win-factors (- wrank 1 dx))
+                      (if (zerop dx) 1 (* last-dim (aref win-factors (- wrank dx))))
+                      wd-list (cons d wd-list)
+                      last-dim d)))
+
+    ;; generate dimensional factors vector for input
+    (loop :for dx :below irank
+       :do (let ((d (aref idims (- irank 1 dx))))
+             (setf (aref in-factors (- irank 1 dx))
+                   (if (zerop dx) 1 (* last-dim (aref in-factors (- irank dx))))
+                   last-dim d)))
+
+    ;; generate dimensional factors vector for output
+    (loop :for d :in (reverse this-shape) :for dx :from 0
+       :do (setf (aref out-factors (- wrank 1 dx))
+                 (if (zerop dx) 1 (* last-dim (aref out-factors (- wrank dx))))
+                 last-dim d))
+
+    (lambda (index)
+      (funcall (vacmp-left varray) (make-instance 'vader-stencil-window
+                                                  :shape wd-list :base varray :index index)
+               (make-instance 'vader-stencil-edge :shape edge-shape :base varray :index index)))))
 
 ;; (print (render (make-instance 'vacomp-each
 ;;                               :left (vacmp-right varray)

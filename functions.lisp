@@ -1569,6 +1569,7 @@
                 ;;   (let ((tvix 0)
                 ;;         (true-vector (make-array (loop :for i :across true-indices :summing i)
                 ;;                                  :element-type (element-type omega-r))))
+                ;;     (print (list :tv true-vector omega-r))
                 ;;     (dotimes (i (size omega-r))
                 ;;       (if (not (zerop (row-major-aref true-indices i)))
                 ;;           (progn (setf (row-major-aref true-vector tvix)
@@ -1588,7 +1589,7 @@
                 ;;       omega-copy)))
                 (make-instance 'vader-select
                                :base omega :index-origin index-origin
-                               :assign (or alpha :monadic) :calling left-fn :assign-if right-fn)
+                               :assign alpha :calling left-fn :assign-if right-fn)
                 (let* ((mod-array (make-instance
                                    'vader-select
                                    :base omega :index-origin index-origin
@@ -1771,7 +1772,7 @@
     (setq omega (render-varrays omega)
           right-value (render-varrays right-value))
     (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
-      (flet ((iaxes (value index) (loop :for x :below (rank value) :for i :from 0
+      (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
                                         :collect (if (= i 0) index nil))))
         (if (not (or (and (< 2 (rank right-value))
                           (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
@@ -1790,6 +1791,36 @@
               (mix-arrays (rank omega)
                           (stencil omega left-fn-mod window-dims movement
                                    (side-effect-free left-function)))))))))
+
+;; (defun operate-stenciling (right-value left-function)
+;;   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
+;;   (lambda (omega &optional alpha environment blank)
+;;     (declare (ignore alpha environment blank))
+;;     (make-instance 'vacomp-stencil :omega omega :right right-value :left left-function)
+;;     ;; (setq omega (render-varrays omega)
+;;     ;;       right-value (render-varrays right-value))
+;;     ;; (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
+;;     ;;   (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
+;;     ;;                                     :collect (if (= i 0) index nil))))
+;;     ;;     (print (list :rr right-value))
+;;     ;;     (if (not (or (and (< 2 (rank right-value))
+;;     ;;                       (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+;;     ;;                  (and (not left-function)
+;;     ;;                       (error "The left operand of [⌺ stencil] must be a function."))))
+;;     ;;         (let ((window-dims (if (not (arrayp right-value))
+;;     ;;                                (vector right-value)
+;;     ;;                                (if (= 1 (rank right-value))
+;;     ;;                                    right-value (choose right-value (print (iaxes right-value 0))))))
+;;     ;;               (movement (if (not (arrayp right-value))
+;;     ;;                             (vector 1)
+;;     ;;                             (if (= 2 (rank right-value))
+;;     ;;                                 (choose right-value (print (iaxes right-value 1)))
+;;     ;;                                 (make-array (length right-value) :element-type 'fixnum
+;;     ;;                                                                  :initial-element 1)))))
+;;     ;;           (mix-arrays (rank omega)
+;;     ;;                       (print (stencil omega left-fn-mod window-dims movement
+;;     ;;                                       (side-effect-free left-function))))))))
+;;     ))
 
 ;; From this point are optimized implementations of APL idioms.
 
