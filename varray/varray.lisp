@@ -1498,6 +1498,7 @@
                        (if valid (if (vasel-calling varray)
                                      (let ((original (if (not (functionp base-indexer))
                                                          base-indexer (funcall base-indexer index))))
+                                       ;; (setf (vads-subrendering varray) t)
                                        (funcall (vasel-calling varray)
                                                 original (if (functionp set-indexer)
                                                              (funcall set-indexer oindex)
@@ -1574,7 +1575,10 @@
                                                                                (list meta-index)
                                                                                (coerce (render meta-index)
                                                                                        'list)))))
-                                   ;; (print (list :vaa (vasel-assign varray)))
+                                   ;; (setf (vads-subrendering varray) t)
+                                   ;; (setf (vads-subrendering (vader-base varray)) t)
+                                   ;; (print (list :vaa (vasel-assign varray)
+                                   ;;              (vader-base varray)))
                                    (make-instance 'vader-select
                                                   :base (disclose (render sub-base))
                                                   ;; TODO: wrap this in disclose obj
@@ -1583,6 +1587,7 @@
                                                   :assign (if (not (functionp assign-indexer))
                                                               assign-indexer (funcall assign-indexer
                                                                                       assign-sub-index))
+                                                  :subrendering t ; needed for cases like 3⌈@(⊂1 3)⊢3⍴⊂5⍴1
                                                   :assign-shape (vasel-assign-shape varray)
                                                   :calling (vasel-calling varray))))
                              (if (not (functionp base-indexer))
