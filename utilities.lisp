@@ -752,11 +752,12 @@
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
-                      ;; (render-varrays ,(append symbol (list :assign value)
-                      ;;                          (if by (list :calling by)))
-                      ;;                 :parallel t)
-                      ,(append symbol (list :assign value)
-                               (if by (list :calling by)))
+                      (render-varrays ,(append symbol (list :assign value)
+                                               (if by (list :calling by)))
+                                      :parallel t)
+                      ;; IPV-TODO: this causes problems with ncurses demo
+                      ;; ,(append symbol (list :assign value)
+                      ;;          (if by (list :calling by)))
                       ))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
