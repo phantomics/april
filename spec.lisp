@@ -1424,8 +1424,7 @@
   (\¨ (has :title "Each")
       (lateral (lambda (operand)
                  ;;`(operate-each ,operand) ; "bla←{ ⍺[0] } ⋄ {⎕io←0 ⋄ {⍵∘bla¨⊂0 1} ⎕←⍵} 3 4"
-                 `(op-compose 'vacomp-each :left (sub-lex ,operand))
-                 ))
+                 `(operate-each (sub-lex ,operand))))
       (tests (is "⍳¨1 2 3" #(#(1) #(1 2) #(1 2 3)))
              (is "⊃¨↓⍳5" 1)
              (is "(1∘=)¨⍬,1" #(1))

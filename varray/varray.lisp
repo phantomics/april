@@ -74,9 +74,10 @@
                                ;; i.e. (integer 2 2) for 2, so make sure the integer range starts with 0
                                (if (eql 'null itype)
                                    'null (coerce 0 (if (eql 'ratio itype) 'integer
-                                                       (if (not (and (listp itype) (eql 'integer (first itype))))
-                                                           itype (list 'integer (min 0 (second itype))
-                                                                       (max 0 (or (third itype) 0)))))))))
+                                                       (if (and (listp itype) (eql 'integer (first itype)))
+                                                           (list 'integer (min 0 (second itype))
+                                                                 (max 0 (or (third itype) 0)))
+                                                           (if (typep input 'number) itype 'number)))))))
                          (if (zerop (array-total-size input))
                              (make-array (array-dimensions input))
                              (derive-element (row-major-aref input 0)))))))
@@ -338,13 +339,13 @@
               ;;              (when (typep varray 'vader-composing)
               ;;                (vacmp-threadable varray))))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;           (not (vacmp-threadable varray)))
-                            ;;      ;; don't thread when rendering the output of operators composed
-                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;            :never (null (lparallel.kernel::running-category worker))))
-                         t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                      (not (vacmp-threadable varray)))
+                                 ;; don't thread when rendering the output of operators composed
+                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                       :never (null (lparallel.kernel::running-category worker))))
+                         ;; t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -600,11 +601,16 @@
   (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
 
 (defmethod inverse-count-to ((item t) index-origin)
-  (if (and (vectorp item)
-           (loop :for v :across item :for i :from index-origin :always (and (numberp v)
-                                                                            (= v i))))
+  (if (and (vectorp item) (loop :for v :across item :for i :from index-origin
+                                :always (and (numberp v) (= v i))))
       (length item)
       (error "Attempted to invoke inverse [⍳ index] on something other than an integer progression vector.")))
+
+(defmethod inverse-count-to ((varray varray-derived) index-origin)
+  (inverse-count-to (render varray) index-origin))
+
+(defmethod inverse-count-to ((varray vader-identity) index-origin)
+  (inverse-count-to (vader-base varray) index-origin))
 
 (defmethod inverse-count-to ((varray vapri-integer-progression) index-origin)
   ;; TODO: this does not get invoked by for instance ⍳⍣¯1⊢⍳9 because of the identity varray
@@ -4320,8 +4326,10 @@
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
   (let ((fn-meta (handler-case (funcall function :get-metadata)
                    (error () nil))))
-    (and fn-meta (or (member :side-effects fn-meta)
-                     (member :lexical-reference fn-meta))
+    
+    (and fn-meta (listp fn-meta)
+         (or (member :side-effects fn-meta)
+             (member :lexical-reference fn-meta))
          (not (getf fn-meta :side-effects))
          (not (getf fn-meta :side-refs))
          (or (not (getf fn-meta :symfns-called))

@@ -1095,58 +1095,7 @@
           (render-varrays output)))))
 
 (defun operate-each (operand)
-  "Generate a function applying a function to each element of an array. Used to implement [¨ each]."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore environment))
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
-    (let* ((oscalar (if (zerop (rank omega)) omega))
-           (ascalar (if (zerop (rank alpha)) alpha))
-           (ouvec (if (= 1 (size omega)) omega))
-           (auvec (if (= 1 (size alpha)) alpha))
-           (odims (dims omega)) (adims (dims alpha))
-           (orank (rank omega)) (arank (rank alpha))
-           ;; (op-rendered (lambda (o &optional a)
-           ;;                (render-varrays (apply operand o (if a (list a))))))
-           (op-rendered (lambda (o &optional a)
-                          ;; (print (list :oo o a))
-                          (apply operand (render-varrays o)
-                                 (if a (list (render-varrays a))))))
-           (threaded (side-effect-free operand)))
-      (flet ((disclose-any (item)
-               (if (not (arrayp item))
-                   item (row-major-aref item 0))))
-        (if (not (or oscalar ascalar ouvec auvec (not alpha)
-                     (and (= orank arank)
-                          (loop :for da :in adims :for do :in odims :always (= da do)))))
-            (error "Mismatched left and right arguments to [¨ each].")
-            (let* ((output-dims (dims (if (or oscalar (and ouvec (arrayp alpha) (not ascalar)))
-                                          alpha omega)))
-                   (output (if (or (arrayp alpha) (arrayp omega))
-                               (make-array output-dims))))
-              (if alpha (if (and (or oscalar ouvec)
-                                 (or ascalar auvec))
-                            (if output (setf (row-major-aref output 0)
-                                             (render-varrays (funcall op-rendered (disclose-any omega)
-                                                                      (disclose-any alpha))))
-                                (setf output (enclose (render-varrays (funcall op-rendered omega alpha)))))
-                            (xdotimes output (i (size (if (or oscalar ouvec) alpha omega))
-                                                :synchronous-if (not threaded))
-                              (if output
-                                  (setf (row-major-aref output i)
-                                        (render-varrays
-                                         (funcall op-rendered (if (or oscalar ouvec) (disclose-any omega)
-                                                                  (row-major-aref omega i))
-                                                  (if (or ascalar auvec)
-                                                      (disclose-any alpha)
-                                                      (row-major-aref alpha i)))))
-                                  (setf output (render-varrays (funcall op-rendered omega alpha))))))
-                  ;; if 0-rank array is passed, disclose its content and enclose the result of the operation
-                  (if oscalar (setq output (enclose (funcall op-rendered (disclose-any oscalar))))
-                      (xdotimes output (i (size omega) :synchronous-if (not threaded))
-                        (setf (row-major-aref output i)
-                              (render-varrays (funcall op-rendered (row-major-aref omega i)))))))
-              output))))))
+  (op-compose 'vacomp-each :left operand))
 
 (defun operate-commuting (operand)
   "Generate a function with reversed or mirrored arguments. Used to implement [⍨ commute]."
@@ -1165,67 +1114,47 @@
 (defun operate-grouping (function index-origin)
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   (lambda (omega &optional alpha environment)
-      (declare (ignore environment))
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
+    (declare (ignore environment))
     (let* ((keys (or alpha omega))
            (key-test #'equalp)
-           (increment (reduce #'* (rest (dims keys))))
+           (keys-dims (varray::shape-of keys))
+           (increment (reduce #'* (rest keys-dims)))
            (indices-of (lambda (item vector)
                          (let ((collection))
-                           (loop :for i :below (first (dims vector))
+                           (loop :for i :below (first (varray::shape-of vector))
                                  :do (let ((section (if (= 1 increment) (aref vector i)
                                                         (make-array increment :element-type
-                                                                    (element-type vector)
-                                                                    :displaced-to vector
+                                                                    (varray::etype-of vector)
+                                                                    :displaced-to (render-varrays vector)
                                                                     :displaced-index-offset
                                                                     (* i increment)))))
                                        (if (funcall key-test item section)
                                            (push (+ index-origin i) collection))))
                            collection)))
            (key-table (make-hash-table :test key-test))
-           (elisions (loop :for i :below (1- (rank omega)) :collect nil))
-           (key-list))
-      (dotimes (i (first (dims keys)))
-        (let ((item (if (= 1 increment) (aref keys i)
-                        (make-array increment :element-type (element-type keys) :displaced-to keys
+           (elisions (loop :for i :below (1- (varray::rank-of omega)) :collect nil))
+           (key-list)
+           (key-indexer (varray::indexer-of keys)))
+      (dotimes (i (first keys-dims))
+        (let ((item (if (= 1 increment) (funcall key-indexer i)
+                        (make-array increment :element-type (varray::etype-of keys)
+                                              :displaced-to (render-varrays keys)
                                               :displaced-index-offset (* i increment)))))
-          (if (loop :for key :in key-list :never (funcall key-test item key))
-              (push item key-list))
+          (when (loop :for key :in key-list :never (funcall key-test item key))
+            (push item key-list))
           (push i (gethash item key-table))))
       (let ((item-sets (loop :for key :in (reverse key-list)
-                             :collect (render-varrays
-                                       (funcall function
-                                                (if alpha (choose omega
-                                                                  (cons (apply #'vector
-                                                                               (reverse
-                                                                                (gethash key key-table)))
-                                                                        elisions))
-                                                    (let ((items (funcall indices-of key keys)))
-                                                      (make-array (length items)
-                                                                  :initial-contents (reverse items))))
-                                                key)))))
-        (mix-arrays 1 (apply #'vector item-sets))))))
-
-;; (defun operate-producing-outer (operand)
-;;   "Generate a function producing an outer product. Used to implement [∘. outer product]."
-;;   (lambda (omega alpha &optional environment blank)
-;;     (declare (ignore environment blank))
-;;     (let ((omega (render-varrays omega))
-;;           (alpha (render-varrays alpha))
-;;           (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
-;;     (if (eq :get-metadata omega)
-;;         (let* ((operand-meta (funcall operand :get-metadata nil))
-;;                (operand-inverse (getf operand-meta :inverse))
-;;                (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
-;;           (list :inverse-right (lambda (omega alpha)
-;;                                  (inverse-outer-product alpha operand-irendering omega
-;;                                                         (side-effect-free operand)))
-;;                 :inverse (lambda (omega alpha)
-;;                            (inverse-outer-product omega operand-irendering
-;;                                                   nil (side-effect-free operand)
-;;                                                   alpha))))
-;;         (array-outer-product omega alpha operand-rendering (side-effect-free operand))))))
+                             :collect (funcall function
+                                               (if alpha (choose omega
+                                                                 (cons (apply #'vector
+                                                                              (reverse
+                                                                               (gethash key key-table)))
+                                                                       elisions))
+                                                   (let ((items (funcall indices-of key keys)))
+                                                     (make-array (length items)
+                                                                 :initial-contents (reverse items))))
+                                               key))))
+        (make-instance 'vader-mix :base (apply #'vector item-sets) :subrendering t :axis 1)))))
 
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
@@ -1234,6 +1163,7 @@
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
                (operand-inverse (getf operand-meta :inverse))
+               ;; TODO: create lazy inverse outer product
                (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
           (list :inverse-right (lambda (omega alpha)
                                  (inverse-outer-product (render-varrays alpha) operand-irendering
@@ -1243,43 +1173,32 @@
                            (inverse-outer-product (render-varrays omega) operand-irendering
                                                   nil (side-effect-free operand)
                                                   alpha))))
-        ;; (array-outer-product omega alpha operand-rendering (side-effect-free operand))
         (make-instance 'vacomp-produce :right operand :left :outer :omega omega :alpha alpha))))
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
   (lambda (alpha omega &optional environment blank)
     (declare (ignore environment blank))
-    (let ((omega (render-varrays omega))
-          (alpha (render-varrays alpha))
-          (right-rendering (lambda (o a) (render-varrays (funcall right o a))))
-          (left-rendering (lambda (o a) (render-varrays (funcall left o a)))))
-      (if (or (zerop (size omega))
-              (zerop (size alpha)))
-          (if (or (< 1 (rank omega)) (< 1 (rank alpha)))
-              (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
-              (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
-                    (if (functionp identity) (funcall identity) identity))
-                  (error "Left operand given to [. inner product] has no identity.")))
-          (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
-                             (error () nil))))
-            (array-inner-product omega alpha right-rendering left-rendering
-                                 (and (side-effect-free right)
-                                      (side-effect-free left))
-                                 (not is-scalar)))))))
+    (if (or (zerop (varray::size-of omega))
+            (zerop (varray::size-of alpha)))
+        (if (or (< 1 (varray::rank-of omega)) (< 1 (varray::rank-of alpha)))
+            (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
+            (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
+                  (if (functionp identity) (funcall identity) identity))
+                (error "Left operand given to [. inner product] has no identity.")))
+        (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
+                           (error () nil))))
+          (array-inner-product omega alpha right left (and (side-effect-free right)
+                                                           (side-effect-free left))
+                               (not is-scalar))))))
 
 (defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
-  (let* ((fn-right (and (functionp right) right))
-         (right (if fn-right right (render-varrays right)))
-         (fn-left (and (functionp left) left))
-         (left (if fn-left left (render-varrays left)))
-         (temp))
+  (let ((fn-right (when (functionp right) right))
+        (fn-left (when (functionp left) left))
+        (temp))
     (lambda (omega &optional alpha environment blank)
       (declare (ignore environment blank)) ;; blank allows the case of :get-metadata nil arguments
-      (setq omega (render-varrays omega)
-            alpha (if (not (listp alpha)) ;; rule out (:env) objects
-                      (render-varrays alpha)))
       (if (eq :get-metadata omega)
           (list :inverse (lambda (omega &optional alpha)
                            (when (and fn-right fn-left)
@@ -1308,7 +1227,7 @@
                                      (funcall (or fn-right fn-left)
                                               (if fn-right omega right)
                                               (if fn-left omega left)))))))
-          (if (and fn-right fn-left)
+          (if (and fn-right fn-left) ;; TODO: the force render is needed for i.e. ⌊10_000×+∘÷/40/1
               (let ((processed (render-varrays (funcall fn-right omega))))
                 (if alpha (funcall fn-left processed alpha)
                     (funcall fn-left processed)))
@@ -1401,7 +1320,7 @@
                             (setf (row-major-aref output i)
                                   (funcall function (row-major-aref odivs i))))
                           (make-instance 'vader-mix :base output :subrendering t
-                                         :axis (rank output)))))))))))
+                                         :axis (varray::rank-of output)))))))))))
 
 ;; (defun operate-at-rank (rank function)
 ;;   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
@@ -1498,8 +1417,6 @@
   "Generate a function applying a function to a value and successively to the results of prior iterations a given number of times. Used to implement [⍣ power]."
   (lambda (omega &optional alpha environment blank)
     (declare (ignore environment blank))
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha))
     (if (eq omega :get-metadata)
         (list :inverse (let* ((determinant (render-varrays (funcall fetch-determinant)))
                               (inverse-function (if (not (numberp determinant))
