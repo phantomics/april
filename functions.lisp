@@ -1231,9 +1231,6 @@
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
   (lambda (omega alpha &optional environment blank)
     (declare (ignore environment blank))
-    (let (;(omega (render-varrays omega))
-          ;;(alpha (render-varrays alpha))
-          (operand-rendering (lambda (o a) (render-varrays (funcall operand o a)))))
     (if (eq :get-metadata omega)
         (let* ((operand-meta (funcall operand :get-metadata nil))
                (operand-inverse (getf operand-meta :inverse))
@@ -1247,9 +1244,7 @@
                                                   nil (side-effect-free operand)
                                                   alpha))))
         ;; (array-outer-product omega alpha operand-rendering (side-effect-free operand))
-        (make-instance 'vacomp-produce :right operand :left :outer ;; :index-origin index-origin
-                       :omega omega :alpha alpha)
-        ))))
+        (make-instance 'vacomp-produce :right operand :left :outer :omega omega :alpha alpha))))
 
 (defun operate-producing-inner (right left)
   "Generate a function producing an inner product. Used to implement [. inner product]."
@@ -1547,16 +1542,13 @@
           (right-fn (when (functionp right) right)))
       (if (and left-fn (or right-fn (= 1 (varray::rank-of right))
                            (not (or (arrayp right) (varray::varrayp right)))))
-          ;; if the right operand is a function, collect the right argument's matching elements
-          ;; into a vector, apply the left operand function to it and assign its elements to their
-          ;; proper places in the copied right argument array and return it
           (if right-fn (make-instance 'vader-select
                                       :base omega :index-origin index-origin
                                       :assign alpha :calling left-fn :assign-if right-fn)
               (let* ((mod-array (make-instance
                                  'vader-select :base omega :index-origin index-origin
-                                 :argument (cons right (loop :for i :below (1- orank)
-                                                             :collect nil))))
+                                               :argument (cons right (loop :for i :below (1- orank)
+                                                                           :collect nil))))
                      (out-sub-array (if alpha (funcall left-fn mod-array alpha)
                                         (funcall left-fn mod-array))))
                 (make-instance 'vader-select
@@ -1565,11 +1557,7 @@
                                                          (not (zerop (varray::rank-of out-sub-array))))
                                                     #'enclose #'identity)
                                                 (render-varrays out-sub-array))
-                               :argument (cons right (loop :for i :below (1- orank)
-                                                           :collect nil)))))
-          ;; if the right argument is an array of rank > 1, assign the left operand values or apply the
-          ;; left operand function as per choose or reach indexing
-          
+                               :argument (cons right (loop :for i :below (1- orank) :collect nil)))))
           (if right-fn (make-instance 'vader-select
                                       :base omega :index-origin index-origin :assign-if right-fn
                                       :calling left-fn :assign (if left-fn alpha left))
@@ -1674,62 +1662,39 @@
 ;;                                                (if alpha (funcall left-fn old alpha)
 ;;                                                    (funcall left-fn old)))))))))))
 
-(defun operate-stenciling (right-value left-function)
-  "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-  (lambda (omega &optional alpha environment blank)
-    (declare (ignore alpha environment blank))
-    (setq omega (render-varrays omega)
-          right-value (render-varrays right-value))
-    (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
-      (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
-                                        :collect (if (= i 0) index nil))))
-        (if (not (or (and (< 2 (rank right-value))
-                          (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
-                     (and (not left-function)
-                          (error "The left operand of [⌺ stencil] must be a function."))))
-            (let ((window-dims (if (not (arrayp right-value))
-                                   (vector right-value)
-                                   (if (= 1 (rank right-value))
-                                       right-value (choose right-value (iaxes right-value 0)))))
-                  (movement (if (not (arrayp right-value))
-                                (vector 1)
-                                (if (= 2 (rank right-value))
-                                    (choose right-value (iaxes right-value 1))
-                                    (make-array (length right-value) :element-type 'fixnum
-                                                                     :initial-element 1)))))
-              (mix-arrays (rank omega)
-                          (stencil omega left-fn-mod window-dims movement
-                                   (side-effect-free left-function)))))))))
-
 ;; (defun operate-stenciling (right-value left-function)
 ;;   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
 ;;   (lambda (omega &optional alpha environment blank)
 ;;     (declare (ignore alpha environment blank))
-;;     (make-instance 'vacomp-stencil :omega omega :right right-value :left left-function)
-;;     ;; (setq omega (render-varrays omega)
-;;     ;;       right-value (render-varrays right-value))
-;;     ;; (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
-;;     ;;   (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
-;;     ;;                                     :collect (if (= i 0) index nil))))
-;;     ;;     (print (list :rr right-value))
-;;     ;;     (if (not (or (and (< 2 (rank right-value))
-;;     ;;                       (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
-;;     ;;                  (and (not left-function)
-;;     ;;                       (error "The left operand of [⌺ stencil] must be a function."))))
-;;     ;;         (let ((window-dims (if (not (arrayp right-value))
-;;     ;;                                (vector right-value)
-;;     ;;                                (if (= 1 (rank right-value))
-;;     ;;                                    right-value (choose right-value (print (iaxes right-value 0))))))
-;;     ;;               (movement (if (not (arrayp right-value))
-;;     ;;                             (vector 1)
-;;     ;;                             (if (= 2 (rank right-value))
-;;     ;;                                 (choose right-value (print (iaxes right-value 1)))
-;;     ;;                                 (make-array (length right-value) :element-type 'fixnum
-;;     ;;                                                                  :initial-element 1)))))
-;;     ;;           (mix-arrays (rank omega)
-;;     ;;                       (print (stencil omega left-fn-mod window-dims movement
-;;     ;;                                       (side-effect-free left-function))))))))
-;;     ))
+;;     (setq omega (render-varrays omega)
+;;           right-value (render-varrays right-value))
+;;     (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
+;;       (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
+;;                                         :collect (if (= i 0) index nil))))
+;;         (if (not (or (and (< 2 (rank right-value))
+;;                           (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+;;                      (and (not left-function)
+;;                           (error "The left operand of [⌺ stencil] must be a function."))))
+;;             (let ((window-dims (if (not (arrayp right-value))
+;;                                    (vector right-value)
+;;                                    (if (= 1 (rank right-value))
+;;                                        right-value (choose right-value (iaxes right-value 0)))))
+;;                   (movement (if (not (arrayp right-value))
+;;                                 (vector 1)
+;;                                 (if (= 2 (rank right-value))
+;;                                     (choose right-value (iaxes right-value 1))
+;;                                     (make-array (length right-value) :element-type 'fixnum
+;;                                                                      :initial-element 1)))))
+;;               (mix-arrays (rank omega)
+;;                           (stencil omega left-fn-mod window-dims movement
+;;                                    (side-effect-free left-function)))))))))
+
+(defun operate-stenciling (right-value left-function)
+  "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore alpha environment blank))
+    (let ((stencil (make-instance 'vacomp-stencil :omega omega :right right-value :left left-function)))
+      (make-instance 'vader-mix :base stencil :subrendering t :axis (varray::rank-of stencil)))))
 
 ;; From this point are optimized implementations of APL idioms.
 

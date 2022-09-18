@@ -4782,10 +4782,22 @@
                                             ))))))))))
 
 (defclass vacomp-stencil (vad-subrendering vader-composing vad-with-io)
-  ((%win-dims :accessor vacst-win-dims
+  ((%base-dims :accessor vacst-base-dims
+               :initform nil
+               :initarg :base-dims
+               :documentation "Vector of base array's dimensions.")
+   (%win-dims :accessor vacst-win-dims
               :initform nil
               :initarg :win-dims
               :documentation "Dimensions for windows within stencil.")
+   (%win-offsets :accessor vacst-win-offsets
+                 :initform nil
+                 :initarg :win-offsets
+                 :documentation "Space offsets for windows within stencil.")
+   (%win-factors :accessor vacst-win-factors
+                 :initform nil
+                 :initarg :win-factors
+                 :documentation "Dimensional factors for stencil window.")
    (%movement :accessor vacst-movement
               :initform nil
               :initarg :movement
@@ -4797,11 +4809,7 @@
    (%out-factors :accessor vacst-out-factors
                  :initform nil
                  :initarg :out-factors
-                 :documentation "Dimensional factors for stencil output.")
-   (%win-factors :accessor vacst-win-factors
-                 :initform nil
-                 :initarg :win-factors
-                 :documentation "Dimensional factors for stencil window."))
+                 :documentation "Dimensional factors for stencil output."))
   (:metaclass va-class)
   (:documentation "A stencil-composed array as with the [⌺ stencil] operator."))
 
@@ -4839,15 +4847,20 @@
                                (if (= 2 (rank-of right-value)) (get-row right-value 1)
                                    (make-array (length right-value) :element-type 'fixnum
                                                                     :initial-element 1)))))
-             (setf (vacst-movement varray) movement
-                   (vacst-win-dims varray) (if (= omega-rank (length window-dims))
-                                               window-dims (coerce
-                                                            (loop :for s :in omega-shape :for i :from 0
-                                                                  :collect (if (>= i (length window-dims))
-                                                                               s (aref window-dims i)))
-                                                            'vector)))
-             (print (list :wd window-dims (vacst-win-dims varray) omega-rank))
-             (loop :for dim :below (length window-dims)
+             (setf (vacst-movement varray)
+                   (if (= omega-rank (length movement))
+                       movement (coerce (loop :for s :in omega-shape :for i :from 0
+                                              :collect (if (>= i (length window-dims))
+                                                           0 (aref movement i)))
+                                        'vector))
+                   (vacst-win-dims varray)
+                   (if (= omega-rank (length window-dims))
+                       window-dims (coerce (loop :for s :in omega-shape :for i :from 0
+                                                 :collect (if (>= i (length window-dims))
+                                                              s (aref window-dims i)))
+                                           'vector))
+                   (vacst-base-dims varray) (coerce omega-shape 'vector))
+             (loop :for dim :below (length window-dims) :for dx :from 0
                    :collect (ceiling (- (/ (nth dim idims) (aref movement dim))
                                         (if (and (evenp (aref window-dims dim))
                                                  (or (= 1 (aref movement dim))
@@ -4863,83 +4876,93 @@
   (:documentation "A stencil window, part of a stencil array produced by [⌺ stencil]."))
 
 (defmethod prototype-of ((varray vader-stencil-window))
-  (prototype-of (vacmp-omega (vader-base varray))))
+  (prototype-of (vacmp-omega (vader-base varray)))) ;; TODO: fix this to proto from individual frame
 
 (defmethod indexer-of ((varray vader-stencil-window) &optional params)
-  (let ((base-indexer (indexer-of (vacmp-omega (vader-base varray))))
-        (idims (apply #'vector (shape-of (vacmp-omega (vader-base varray)))))
-        (this-rank (rank-of varray))
-        (prototype (prototype-of varray))
-        (movement (vacst-movement (vader-base varray)))
-        (in-factors (vacst-in-factors (vader-base varray)))
-        (win-factors (vacst-win-factors (vader-base varray)))
-        (window-dims (vacst-win-dims (vader-base varray)))
-        (oindices (let ((remaining (vastw-index varray)))
-                    (loop :for of :across (vacst-out-factors (vader-base varray))
-                          :collect (multiple-value-bind (index remainder) (floor remaining of)
-                                     (setf remaining remainder)
-                                     index)))))
-    (print (list :pro prototype
-                 this-rank win-factors oindices in-factors idims movement window-dims))
+  (let* ((base-indexer (indexer-of (vacmp-omega (vader-base varray))))
+         (idims (apply #'vector (shape-of (vacmp-omega (vader-base varray)))))
+         (this-rank (rank-of varray))
+         (prototype (prototype-of varray))
+         (movement (vacst-movement (vader-base varray)))
+         (in-factors (vacst-in-factors (vader-base varray)))
+         (win-factors (vacst-win-factors (vader-base varray)))
+         (win-offsets (vacst-win-offsets (vader-base varray)))
+         (oindices (make-array this-rank :element-type 'fixnum :initial-element 0)))
+
+    (let ((remaining (vastw-index varray)))
+      (loop :for of :across (vacst-out-factors (vader-base varray)) :for i :from 0
+            :do (multiple-value-bind (index remainder) (floor remaining of)
+                  (setf (aref oindices i) index
+                        remaining remainder))))
+
+    ;; (loop :for wd :across (vacst-win-dims (vader-base varray)) :for i :from 0
+    ;;       :do (setf (aref win-offsets i) (- (floor (- wd (if (evenp wd) 1 0)) 2))))
+
+    ;; (print (list :pro prototype
+    ;;               this-rank win-factors oindices in-factors idims movement window-dims
+    ;;               (vacst-out-factors (vader-base varray))))
+    
     (lambda (index)
-      (let ((remaining index) (rmi 0) (valid t))
-        (loop :for cix :below this-rank :for wf :across win-factors
-              :for oindex :in oindices :for if :across in-factors :for idim :across idims
-              :for melem :across movement :for wdim :across window-dims
-              :do (multiple-value-bind (pindex remainder) (floor remaining wf)
-                    (print (list :p if))
-                    (let ((this-index (+ pindex (- (* melem oindex)
-                                                   (floor (- wdim (if (evenp wdim) 1 0)) 2)))))
+      (let ((remaining index) (rmi 0) (valid t) (ox 0))
+        (loop :while valid :for mv :across movement :for idim :across idims
+              :for if :across in-factors :for wf :across win-factors :for wo :across win-offsets
+              :do (multiple-value-bind (this-index remainder) (floor remaining wf)
+                    (let* ((static (zerop mv))
+                           (a-index (+ this-index (if static 0 (- (* mv (aref oindices ox)) wo)))))
+                      ;; 0 if no borders needed
+                      (incf rmi (* if a-index))
                       (setf remaining remainder)
-                      (if (<= 0 this-index (1- (aref idims cix)))
-                          (setq rmi (+ rmi (* this-index if)))
-                          (setq valid nil)))))
-        ;; (print (list :r rmi valid))
+                      (when (not static) (incf ox)
+                            (when (not (< -1 a-index idim))
+                              (setf valid nil))))))
         (if (not valid) prototype (funcall base-indexer rmi))))))
 
-(defclass vader-stencil-edge (varray-derived vad-with-argument)
+(defclass vader-stencil-margin (varray-derived vad-with-argument)
   ((%index :accessor vaste-index
            :initform nil
            :initarg :index
-           :documentation "Index of stencil edge vector."))
+           :documentation "Index of stencil margin vector."))
   (:metaclass va-class)
-  (:documentation "A stencil edge vector, part of a stencil array produced by [⌺ stencil]."))
+  (:documentation "A stencil margin vector, enumerating the margin padding in a stencil window array produced by [⌺ stencil]."))
 
-(defmethod prototype-of ((varray vader-stencil-edge))
+(defmethod prototype-of ((varray vader-stencil-margin))
   (declare (ignore varray))
   0)
 
-(defmethod etype-of ((varray vader-stencil-edge))
+(defmethod etype-of ((varray vader-stencil-margin))
   (declare (ignore varray))
-  '(signed-byte 8)) ;; 8-bit elements for efficiency
+  '(signed-byte 8)) ;; 8-bit elements for efficiency - TODO: is a different type better?
 
-(defmethod indexer-of ((varray vader-stencil-edge) &optional params)
-  (let* ((stencil (vads-argument varray))
-         (stencil-shape (shape-of stencil))
-         (window-index (vaste-index varray))
-         (out-factors (vacst-out-factors (vader-base varray)))
-         (first-index (if (< window-index (aref out-factors 0))
-                          1 (if (>= window-index (- (size-of (vader-base varray))
-                                                    (aref out-factors 0)))
-                                -1 0))))
+(defmethod indexer-of ((varray vader-stencil-margin) &optional params)
+  (let* ((base-dims (vacst-base-dims (vader-base varray)))
+         (win-index (vaste-index varray))
+         (win-dims (vacst-win-dims (vader-base varray)))
+         (win-factors (vacst-win-factors (vader-base varray)))
+         (win-offsets (vacst-win-offsets (vader-base varray))))
     (lambda (index)
-      (if (zerop index) first-index
-          (let ((factor (aref out-factors (1- index))))
-            (if (zerop (mod window-index factor))
-                1 (if (zerop (mod (1+ window-index) factor))
-                      -1 0)))))))
+      (let ((from-start (- (* (if (zerop index) (floor win-index (aref win-factors index))
+                                  (mod win-index (aref win-dims index)))
+                              (aref (vacst-movement (vader-base varray)) index))
+                           (aref win-offsets index))))
+        (- (if (not (zerop (min 0 from-start)))
+               from-start (max 0 (- (+ from-start (aref win-dims index))
+                                    (aref base-dims index)))))))))
 
 (defmethod indexer-of ((varray vacomp-stencil) &optional params)
   (let* ((irank (rank-of (vacmp-omega varray)))
          (idims (apply #'vector (shape-of (vacmp-omega varray))))
          (this-shape (shape-of varray)) ;; must derive shape before fetching window-dims
+         (this-rank (rank-of varray))
          (window-dims (vacst-win-dims varray)) (wrank (length window-dims))
+         (win-offsets (or (vacst-win-offsets varray)
+                          (setf (vacst-win-offsets varray)
+                                (make-array wrank :element-type 'fixnum :initial-element 0))))
          (in-factors (or (vacst-in-factors varray)
                          (setf (vacst-in-factors varray)
                                (make-array irank :element-type 'fixnum :initial-element 0))))
          (out-factors (or (vacst-out-factors varray)
                           (setf (vacst-out-factors varray)
-                                (make-array wrank :element-type 'fixnum :initial-element 0))))
+                                (make-array this-rank :element-type 'fixnum :initial-element 0))))
          (win-factors (or (vacst-win-factors varray)
                           (setf (vacst-win-factors varray)
                                 (make-array wrank :element-type 'fixnum :initial-element 0))))
@@ -4960,17 +4983,21 @@
              (setf (aref in-factors (- irank 1 dx))
                    (if (zerop dx) 1 (* last-dim (aref in-factors (- irank dx))))
                    last-dim d)))
-
+    
     ;; generate dimensional factors vector for output
     (loop :for d :in (reverse this-shape) :for dx :from 0
-       :do (setf (aref out-factors (- wrank 1 dx))
-                 (if (zerop dx) 1 (* last-dim (aref out-factors (- wrank dx))))
+       :do (setf (aref out-factors (- this-rank 1 dx))
+                 (if (zerop dx) 1 (* last-dim (aref out-factors (- this-rank dx))))
                  last-dim d))
+
+    ;; generate offsets determining 0-spacing at edges
+    (loop :for wd :across window-dims :for i :from 0
+          :do (setf (aref win-offsets i) (floor (- wd (if (evenp wd) 1 0)) 2)))
 
     (lambda (index)
       (funcall (vacmp-left varray) (make-instance 'vader-stencil-window
                                                   :shape wd-list :base varray :index index)
-               (make-instance 'vader-stencil-edge :shape edge-shape :base varray :index index)))))
+               (make-instance 'vader-stencil-margin :shape edge-shape :base varray :index index)))))
 
 ;; (print (render (make-instance 'vacomp-each
 ;;                               :left (vacmp-right varray)
@@ -4985,61 +5012,4 @@
 ;;                                 (make-instance 'vader-subarray-displaced
 ;;                                                :base alpha :index avix :shape ashape)))))
 
-;; (+ (* index (vasv-index varray))
-;;    (vasbr-delta varray)))
-;; (if (= 0 arank orank) (funcall (vacmp-right varray) omega alpha)
-;;     (disclose (make-instance 'vacomp-reduce :left (sub-lex ,operand)
-;;                                             :index-origin index-origin
-;;                                             (vacmp-left varray)
-;;                                             :omega )
-;;               (apply-scalar function1 (or oholder omega) (or adisp alpha)
-;;                                           nil nil function1-nonscalar)
-;;               0 nil))
-
 ;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?
-
-
-#|
-
-(defmethod initialize-instance :after ((obj person) &key)
-  (with-slots (name) obj
-    (assert (>= (length name) 3))))
-
-(defvar cl-user::*item-val*)
-(setf cl-user::*item-val* 3)
-
-(defclass sample ()
-  ((%fn :accessor sample-fn
-        :initform nil
-        :initarg :fn)))
-
-(defgeneric caller (sample))
-
-(defmethod caller ((sample sample))
-  (lambda (value)
-    (print (list :oo (funcall (sample-fn sample) 0)))
-    (funcall (sample-fn sample) value)))
-
-(funcall (lambda (object)
-           (funcall (caller object) 5))
-         (symbol-macrolet ((item cl-user::*item-val*))
-           (let ((cl-user::*item-val* (symbol-value 'cl-user::*item-val*)))
-             (setf cl-user::*item-val* 5)
-             (make-instance 'sample :fn (let ((ii item))
-                                          (symbol-macrolet ((item ii))
-                                            (lambda (i) (+ i item))))))))
-
-
-(funcall (lambda (form)
-           (make-array (length form) :initial-contents form))
-         (symbol-macrolet ((item cl-user::*item-val*))
-           (let ((cl-user::*item-val* (symbol-value 'cl-user::*item-val*)))
-             (setf cl-user::*item-val* 5)
-             (let ((test (make-instance 'sample :fn (progn (labels ((self (i) (+ i item)))
-                                                             #'self)))))
-               (list (funcall (sample-fn test) 5)
-                     (funcall (caller test) 5))
-               ))))
-
-
-|#
