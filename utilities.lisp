@@ -248,8 +248,8 @@
                                       ,env ,blank))
                   ;; (print (list :eee ,env ,@(loop :for var :in params :when (not (eql '&optional var))
                   ;;                                :collect var)))
-                  ,@(loop :for var :in params :when (not (eql '&optional var))
-                          :collect `(setq ,var (render-varrays ,var)))
+                  ;; ,@(loop :for var :in params :when (not (eql '&optional var))
+                  ;;         :collect `(setq ,var (render-varrays ,var)))
                   ;; (print (list :par ,@(remove '&optional (append params (list env)))))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
@@ -291,8 +291,9 @@
 (defmacro achoose (item indices &rest rest-params)
   "Wrapper for the choose function."
   (let ((indices-evaluated (gensym))
-        (item (if (symbolp item)
-                  item `(render-varrays ,item))))
+        ;; (item (if (symbolp item)
+        ;;           item `(render-varrays ,item)))
+        )
     `(let ((,indices-evaluated ,indices))
        (choose ,item ,indices-evaluated ,@rest-params))))
 
@@ -732,7 +733,9 @@
                                                                                 (rest namespace)))
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
-                             `(setf ,symbol (render-varrays ,set-to :parallel t))))))))
+                             `(setf ,symbol (render-varrays ,set-to :parallel t)
+                                    ;; ,set-to
+                                    )))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                (let ((val (gensym)))
@@ -749,9 +752,12 @@
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
-                      (render-varrays ,(append symbol (list :assign value)
-                                               (if by (list :calling by)))
-                                      :parallel t)))
+                      ;; (render-varrays ,(append symbol (list :assign value)
+                      ;;                          (if by (list :calling by)))
+                      ;;                 :parallel t)
+                      ,(append symbol (list :assign value)
+                               (if by (list :calling by)))
+                      ))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
@@ -786,7 +792,9 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values :parallel t)))
+                                `(let ((,this-val (render-varrays ,values :parallel t)
+                                                  ;; ,values
+                                                  ))
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
@@ -1084,7 +1092,9 @@
          
          (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
                                                                    (not (symbolp arg)))
-                                                              arg `(render-varrays ,arg)))))
+                                                              arg `(render-varrays ,arg))
+                          ;; arg
+                          )))
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
@@ -1187,12 +1197,9 @@ It remains here as a standard against which to compare methods for composing APL
                 (lambda (&rest ,args)
                   (if (eq :get-metadata (first ,args))
                       ,(append '(list :scalar t))
-                      ;; (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
-                      ;;               (first ,args) (second ,args)
-                      ;;               ,axes-sym)
-                      (render-varrays (a-call (apl-fn-s ,glyph)
-                                              (first ,args) (second ,args)
-                                              ,axes-sym)))))
+                      (a-call (apl-fn-s ,glyph)
+                              (first ,args) (second ,args)
+                              ,axes-sym))))
         (cons 'apl-fn (cons glyph initial-args)))))
 
 (defun build-call-form (glyph-char &optional args axes)
@@ -2078,6 +2085,7 @@ It remains here as a standard against which to compare methods for composing APL
     `(labels ((,this-fn (&rest ,args)
                 ,@(when (not is-virtual)
                     `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
+                ;; IPV-TODO: just one bug caused by this
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
                     ;; passing this option will return the core function again
@@ -2103,6 +2111,7 @@ It remains here as a standard against which to compare methods for composing APL
     `(labels ((,this-fn (&rest ,args)
                 ,@(when (not is-virtual)
                     `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
+                ;; IPV-TODO: the one of the biggest force-render points
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
                     ;; passing this option will return the core function again

@@ -59,29 +59,29 @@
                         (apl-random-process (row-major-aref omega i) index-origin generator)))
                 output))))))
 
-(defun deal (index-origin rngs)
-  "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
-  (lambda (omega alpha)
-    (let* ((omega (disclose-unitary omega))
-           (alpha (disclose-unitary alpha))
-           (gen-name (getf (rest rngs) :rng))
-           (generator (or (getf (rest rngs) gen-name)
-                          (setf (getf (rest rngs) gen-name)
-                                (if (eq :system gen-name)
-                                    :system (random-state:make-generator gen-name))))))
-      (if (or (not (integerp omega))
-              (not (integerp alpha)))
-          (error "Both arguments to ? must be single non-negative integers.")
-          (if (> alpha omega)
-              (error "The left argument to ? must be less than or equal to the right argument.")
-              (let ((vector (render-varrays (count-to omega index-origin))))
-                ;; perform Knuth shuffle of vector
-                (loop :for i :from omega :downto 2
-                      :do (rotatef (aref vector (if (eq :system generator) (random i)
-                                                    (random-state:random-int generator 0 (1- i))))
-                                   (aref vector (1- i))))
-                (if (= alpha omega)
-                    vector (make-array alpha :displaced-to vector :element-type (element-type vector)))))))))
+;; (defun deal (index-origin rngs)
+;;   "Return a function to randomly shuffle a finite sequence. Used to implement [? deal]."
+;;   (lambda (omega alpha)
+;;     (let* ((omega (disclose-unitary omega))
+;;            (alpha (disclose-unitary alpha))
+;;            (gen-name (getf (rest rngs) :rng))
+;;            (generator (or (getf (rest rngs) gen-name)
+;;                           (setf (getf (rest rngs) gen-name)
+;;                                 (if (eq :system gen-name)
+;;                                     :system (random-state:make-generator gen-name))))))
+;;       (if (or (not (integerp omega))
+;;               (not (integerp alpha)))
+;;           (error "Both arguments to ? must be single non-negative integers.")
+;;           (if (> alpha omega)
+;;               (error "The left argument to ? must be less than or equal to the right argument.")
+;;               (let ((vector (render-varrays (count-to omega index-origin))))
+;;                 ;; perform Knuth shuffle of vector
+;;                 (loop :for i :from omega :downto 2
+;;                       :do (rotatef (aref vector (if (eq :system generator) (random i)
+;;                                                     (random-state:random-int generator 0 (1- i))))
+;;                                    (aref vector (1- i))))
+;;                 (if (= alpha omega)
+;;                     vector (make-array alpha :displaced-to vector :element-type (element-type vector)))))))))
 
 (defun apl-divide (method)
   "Generate a division function according to the [⎕DIV division method] in use."
@@ -491,24 +491,24 @@
       (loop :for o :across omega :do (setf (varef output o index-origin) 1))
       output)))
 
-(defun tabulate (omega)
-  "Return a two-dimensional array of values from an array, promoting or demoting the array if it is of a rank other than two. Used to implement [⍪ table]."
-  (let ((omega (render-varrays omega)))
-    (if (not (arrayp omega))
-        omega (if (vectorp omega)
-                  (let ((output (make-array (list (length omega) 1) :element-type (element-type omega))))
-                    (loop :for i :below (length omega) :do (setf (row-major-aref output i) (aref omega i)))
-                    output)
-                  (let ((o-dims (dims omega)))
-                    (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
-                                :element-type (element-type omega)
-                                :displaced-to (copy-nested-array omega)))))))
+;; (defun tabulate (omega)
+;;   "Return a two-dimensional array of values from an array, promoting or demoting the array if it is of a rank other than two. Used to implement [⍪ table]."
+;;   (let ((omega (render-varrays omega)))
+;;     (if (not (arrayp omega))
+;;         omega (if (vectorp omega)
+;;                   (let ((output (make-array (list (length omega) 1) :element-type (element-type omega))))
+;;                     (loop :for i :below (length omega) :do (setf (row-major-aref output i) (aref omega i)))
+;;                     output)
+;;                   (let ((o-dims (dims omega)))
+;;                     (make-array (list (first o-dims) (reduce #'* (rest o-dims)))
+;;                                 :element-type (element-type omega)
+;;                                 :displaced-to (copy-nested-array omega)))))))
 
-(defun ravel-array (index-origin axes)
-  "Wrapper for aplesque [, ravel] function incorporating index origin from current workspace."
-  (lambda (omega)
-    (ravel index-origin (render-varrays omega)
-           (mapcar #'render-varrays axes))))
+;; (defun ravel-array (index-origin axes)
+;;   "Wrapper for aplesque [, ravel] function incorporating index origin from current workspace."
+;;   (lambda (omega)
+;;     (ravel index-origin (render-varrays omega)
+;;            (mapcar #'render-varrays axes))))
 
 (defun catenate-arrays (index-origin axes)
   "Wrapper for [, catenate] incorporating (aplesque:catenate) and (aplesque:laminate)."
@@ -536,20 +536,20 @@
         (when (or (not axes) (integerp (first axes)))
           (catenate alpha omega (or *first-axis-or-nil* 0))))))
 
-(defun mix-array (index-origin axes)
-  "Wrapper for (aplesque:mix) used for [↑ mix]."
-  (lambda (omega) ; &optional axes)
-    (let ((omega (render-varrays omega))) ;; IPV-TODO: remove-render
-    (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
-                    (rank omega))
-                omega :populator (lambda (item)
-                                   (let ((populator (build-populator item)))
-                                     (when populator (funcall populator))))))))
+;; (defun mix-array (index-origin axes)
+;;   "Wrapper for (aplesque:mix) used for [↑ mix]."
+;;   (lambda (omega) ; &optional axes)
+;;     (let ((omega (render-varrays omega))) ;; IPV-TODO: remove-render
+;;     (mix-arrays (if axes (- (ceiling (first axes)) index-origin)
+;;                     (rank omega))
+;;                 omega :populator (lambda (item)
+;;                                    (let ((populator (build-populator item)))
+;;                                      (when populator (funcall populator))))))))
 
-(defun wrap-split-array (index-origin axes)
-  "Wrapper for [↓ split]."
-  (lambda (omega) (split-array (render-varrays omega) ;; IPV-TODO: remove-render
-                               *last-axis*)))
+;; (defun wrap-split-array (index-origin axes)
+;;   "Wrapper for [↓ split]."
+;;   (lambda (omega) (split-array (render-varrays omega) ;; IPV-TODO: remove-render
+;;                                *last-axis*)))
 
 (defun section-array (index-origin &optional inverse axes)
   "Wrapper for (aplesque:section) used for [↑ take] and [↓ drop]."
@@ -949,80 +949,80 @@
                   (setf output o))
         (values (or output object) ivec))))
 
-(defun assign-by-selection (prime-function function value omega &key index-origin)
-  "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
-  (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    ;; (setf ggi (invert-assigned-varray (funcall function omega)))
-    (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
-      ;; (setf ggi base-object)
-      ;; (print (list :ren ivec (render-varrays base-object)))
-      (typecase base-object
-        (varray::vader-select
-         (setf (varray::vasel-assign base-object) value)
-         ;; (print (list :ba base-object))
-         base-object)
-        (varray::vader-pick
-         (setf (varray::vapick-assign base-object) value
-               (varray::vapick-selector base-object)
-               ;; assign the selector if the omega is a virtual array, this excludes
-               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-               ;; TODO: normalize this check for full lazy operation
-               (when (typep (varray::vader-base base-object) 'varray::varray)
-                 (varray::vader-base base-object))
-               (varray::vader-base base-object) omega)
-         base-object)
-        ;; In the case of an index vector returned as the second value from invert-assigned-varray,
-        ;; assignment is being done according to processing of an enlist of the input array, thus
-        ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
-        ;; and a nested index array must be passed to the select object indexer for use indexing.
-        (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                        :selector (if ivec (list :eindices (render-varrays base-object)
-                                                                 :ebase ivec)
-                                                      (funcall function omega))))))))
+;; (defun assign-by-selection (prime-function function value omega &key index-origin)
+;;   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
+;;   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
+;;     ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+;;     (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
+;;       ;; (setf ggi base-object)
+;;       ;; (print (list :ren ivec (render-varrays base-object)))
+;;       (typecase base-object
+;;         (varray::vader-select
+;;          (setf (varray::vasel-assign base-object) value)
+;;          ;; (print (list :ba base-object))
+;;          base-object)
+;;         (varray::vader-pick
+;;          (setf (varray::vapick-assign base-object) value
+;;                (varray::vapick-selector base-object)
+;;                ;; assign the selector if the omega is a virtual array, this excludes
+;;                ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+;;                ;; TODO: normalize this check for full lazy operation
+;;                (when (typep (varray::vader-base base-object) 'varray::varray)
+;;                  (varray::vader-base base-object))
+;;                (varray::vader-base base-object) omega)
+;;          base-object)
+;;         ;; In the case of an index vector returned as the second value from invert-assigned-varray,
+;;         ;; assignment is being done according to processing of an enlist of the input array, thus
+;;         ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
+;;         ;; and a nested index array must be passed to the select object indexer for use indexing.
+;;         (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+;;                                         :selector (if ivec (list :eindices (render-varrays base-object)
+;;                                                                  :ebase ivec)
+;;                                                       (funcall function omega))))))))
 
-(defun operate-reducing (function index-origin last-axis &key axis)
-  "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
-  (lambda (omega &optional alpha environment)
-    (declare (ignore environment))
-    (setq omega (render-varrays omega)
-          alpha (render-varrays alpha)
-          axis (if axis (list (render-varrays (first axis)))))
-    (let ((fn-rendered (lambda (o a) (render-varrays (funcall function o a)))))
-      (if (not (arrayp omega))
-          (if (eq :get-metadata omega)
-              (list :on-axis (or axis (if last-axis :last :first))
-                    :valence :ambivalent)
-              (if (eq :reassign-axes omega)
-                  (operate-reducing function index-origin last-axis :axis alpha)
-                  (if alpha (error "Left argument (window) passed to reduce-composed ~a"
-                                   "function when applied to scalar value.")
-                      omega)))
-          (if (zerop (size omega))
-              (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
-                                        :when (/= dx (or axis (if (not last-axis)
-                                                                  0 (1- (rank omega)))))
-                                          :collect d))
-                     (empty-output (loop :for od :in output-dims :when (zerop od) :do (return t)))
-                     (identity (getf (funcall function :get-metadata nil) :id)))
-                (if output-dims ;; if reduction produces an empty array just return that array
-                    (if empty-output (make-array output-dims)
-                        (if identity
-                            (let ((output (make-array output-dims)))
-                              ;; if reduction eliminates an empty axis to create a non-empty array,
-                              ;; populate it with the function's identity value
-                              (xdotimes output (i (size output))
-                                (setf (row-major-aref output i)
-                                      (enclose (if (functionp identity)
-                                                   (funcall identity) identity))))
-                              output)
-                            (error "The operand of [/ reduce] has no identity value.")))
-                    ;; if reduction produces a scalar, the result is the identity value
-                    (or (and identity (if (functionp identity) (funcall identity) identity))
-                        (error "The operand of [/ reduce] has no identity value."))))
-              (render-varrays (reduce-array omega fn-rendered (when (first axis)
-                                                                (- (first axis) index-origin))
-                                            (side-effect-free function)
-                                            last-axis alpha)))))))
+;; (defun operate-reducing (function index-origin last-axis &key axis)
+;;   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."
+;;   (lambda (omega &optional alpha environment)
+;;     (declare (ignore environment))
+;;     (setq omega (render-varrays omega)
+;;           alpha (render-varrays alpha)
+;;           axis (if axis (list (render-varrays (first axis)))))
+;;     (let ((fn-rendered (lambda (o a) (render-varrays (funcall function o a)))))
+;;       (if (not (arrayp omega))
+;;           (if (eq :get-metadata omega)
+;;               (list :on-axis (or axis (if last-axis :last :first))
+;;                     :valence :ambivalent)
+;;               (if (eq :reassign-axes omega)
+;;                   (operate-reducing function index-origin last-axis :axis alpha)
+;;                   (if alpha (error "Left argument (window) passed to reduce-composed ~a"
+;;                                    "function when applied to scalar value.")
+;;                       omega)))
+;;           (if (zerop (size omega))
+;;               (let* ((output-dims (loop :for d :in (dims omega) :for dx :from 0
+;;                                         :when (/= dx (or axis (if (not last-axis)
+;;                                                                   0 (1- (rank omega)))))
+;;                                           :collect d))
+;;                      (empty-output (loop :for od :in output-dims :when (zerop od) :do (return t)))
+;;                      (identity (getf (funcall function :get-metadata nil) :id)))
+;;                 (if output-dims ;; if reduction produces an empty array just return that array
+;;                     (if empty-output (make-array output-dims)
+;;                         (if identity
+;;                             (let ((output (make-array output-dims)))
+;;                               ;; if reduction eliminates an empty axis to create a non-empty array,
+;;                               ;; populate it with the function's identity value
+;;                               (xdotimes output (i (size output))
+;;                                 (setf (row-major-aref output i)
+;;                                       (enclose (if (functionp identity)
+;;                                                    (funcall identity) identity))))
+;;                               output)
+;;                             (error "The operand of [/ reduce] has no identity value.")))
+;;                     ;; if reduction produces a scalar, the result is the identity value
+;;                     (or (and identity (if (functionp identity) (funcall identity) identity))
+;;                         (error "The operand of [/ reduce] has no identity value."))))
+;;               (render-varrays (reduce-array omega fn-rendered (when (first axis)
+;;                                                                 (- (first axis) index-origin))
+;;                                             (side-effect-free function)
+;;                                             last-axis alpha)))))))
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
@@ -1474,6 +1474,7 @@
                                                          (not (zerop (varray::rank-of out-sub-array))))
                                                     #'enclose #'identity)
                                                 (render-varrays out-sub-array))
+                               ;; IPV-TODO: removing this force render causes a bug, figure it out
                                :argument (cons right (loop :for i :below (1- orank) :collect nil)))))
           (if right-fn (make-instance 'vader-select
                                       :base omega :index-origin index-origin :assign-if right-fn
@@ -1579,39 +1580,39 @@
 ;;                                                (if alpha (funcall left-fn old alpha)
 ;;                                                    (funcall left-fn old)))))))))))
 
-;; (defun operate-stenciling (right-value left-function)
-;;   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
-;;   (lambda (omega &optional alpha environment blank)
-;;     (declare (ignore alpha environment blank))
-;;     (setq omega (render-varrays omega)
-;;           right-value (render-varrays right-value))
-;;     (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
-;;       (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
-;;                                         :collect (if (= i 0) index nil))))
-;;         (if (not (or (and (< 2 (rank right-value))
-;;                           (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
-;;                      (and (not left-function)
-;;                           (error "The left operand of [⌺ stencil] must be a function."))))
-;;             (let ((window-dims (if (not (arrayp right-value))
-;;                                    (vector right-value)
-;;                                    (if (= 1 (rank right-value))
-;;                                        right-value (choose right-value (iaxes right-value 0)))))
-;;                   (movement (if (not (arrayp right-value))
-;;                                 (vector 1)
-;;                                 (if (= 2 (rank right-value))
-;;                                     (choose right-value (iaxes right-value 1))
-;;                                     (make-array (length right-value) :element-type 'fixnum
-;;                                                                      :initial-element 1)))))
-;;               (mix-arrays (rank omega)
-;;                           (stencil omega left-fn-mod window-dims movement
-;;                                    (side-effect-free left-function)))))))))
-
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (lambda (omega &optional alpha environment blank)
     (declare (ignore alpha environment blank))
-    (let ((stencil (make-instance 'vacomp-stencil :omega omega :right right-value :left left-function)))
-      (make-instance 'vader-mix :base stencil :subrendering t :axis (varray::rank-of stencil)))))
+    (setq omega (render-varrays omega)
+          right-value (render-varrays right-value))
+    (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
+      (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
+                                        :collect (if (= i 0) index nil))))
+        (if (not (or (and (< 2 (rank right-value))
+                          (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+                     (and (not left-function)
+                          (error "The left operand of [⌺ stencil] must be a function."))))
+            (let ((window-dims (if (not (arrayp right-value))
+                                   (vector right-value)
+                                   (if (= 1 (rank right-value))
+                                       right-value (choose right-value (iaxes right-value 0)))))
+                  (movement (if (not (arrayp right-value))
+                                (vector 1)
+                                (if (= 2 (rank right-value))
+                                    (choose right-value (iaxes right-value 1))
+                                    (make-array (length right-value) :element-type 'fixnum
+                                                                     :initial-element 1)))))
+              (mix-arrays (rank omega)
+                          (stencil omega left-fn-mod window-dims movement
+                                   (side-effect-free left-function)))))))))
+
+;; (defun operate-stenciling (right-value left-function)
+;;   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
+;;   (lambda (omega &optional alpha environment blank)
+;;     (declare (ignore alpha environment blank))
+;;     (let ((stencil (make-instance 'vacomp-stencil :omega omega :right right-value :left left-function)))
+;;       (make-instance 'vader-mix :base stencil :subrendering t :axis (varray::rank-of stencil)))))
 
 ;; From this point are optimized implementations of APL idioms.
 
