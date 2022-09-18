@@ -47,7 +47,7 @@ encInts   ←     48 384 144 288 16 416 128 304 32 400 256 176
 xChars    ← '┼╪╫'
 xDecInts  ← 68 69 257 261 321 324
 csIndex   ← 2 ⍝ the set of box-drawing characters to use
-decodings ← encInts⍪⍨{⍵⍴⍨1,⍴⍵} (csIndex⊃charSets)~' '
+decodings ← encInts⍪⍨{⍵⍴⍨1,⍴⍵}' '~⍨csIndex⊃charSets
 GCL       ← 1+≢GC ⍝ width of generation label field
 
 G ← ' ' {(⍺,0)⍪⍵[1;] {(⍪⍸×⍵),⍨⍪⍺⌷⍨⊂⍵~0} ⍵[2;] {⍺{⍵×⍵≤⍴⍺}⍺⍳⍵} {2⊥,(2 2⍴0)⍷3 3⍴(9⍴2)⊤⍵}¨⍳2*9} decodings
@@ -68,7 +68,7 @@ I ← ⍬ ⍝ the 5-iteration state history
   (let ((rebuilding (or (not *glyphs*)
                         (not (and (= height (first (array-dimensions *glyphs*)))
                                   (= width (second (array-dimensions *glyphs*))))))))
-    (if rebuilding (build-screen height width))
+    (when rebuilding (build-screen height width))
     (multiple-value-bind (glyphs colors)
         (april (with (:space ncurses-demo-space)
                      (:state :in ((randomize (if randomize 1 0))
@@ -91,8 +91,8 @@ M[H;GCL+⍳9]←9↑⍕GI   ⍝ print generation number; supports up to 9 digits
         ;; assign new vector contents in parallel, not assigning the footer content
         ;; unless the dimensions were just changed
         (setf (aref *glyphs* i) (row-major-aref glyphs i))
-        (if (>= *color-depth* 256)
-            (setf (aref *bg-colors* i) (row-major-aref colors i)))))))
+        (when (>= *color-depth* 256)
+          (setf (aref *bg-colors* i) (row-major-aref colors i)))))))
 
 (defun initialize-screen (screen)
   (flet ((render-screen (&optional restarting)

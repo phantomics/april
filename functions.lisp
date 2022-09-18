@@ -949,36 +949,33 @@
                   (setf output o))
         (values (or output object) ivec))))
 
-;; (defun assign-by-selection (prime-function function value omega &key index-origin)
-;;   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
-;;   (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-;;     ;; (setf ggi (invert-assigned-varray (funcall function omega)))
-;;     (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
-;;       ;; (setf ggi base-object)
-;;       ;; (print (list :ren ivec (render-varrays base-object)))
-;;       (typecase base-object
-;;         (varray::vader-select
-;;          (setf (varray::vasel-assign base-object) value)
-;;          ;; (print (list :ba base-object))
-;;          base-object)
-;;         (varray::vader-pick
-;;          (setf (varray::vapick-assign base-object) value
-;;                (varray::vapick-selector base-object)
-;;                ;; assign the selector if the omega is a virtual array, this excludes
-;;                ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-;;                ;; TODO: normalize this check for full lazy operation
-;;                (when (typep (varray::vader-base base-object) 'varray::varray)
-;;                  (varray::vader-base base-object))
-;;                (varray::vader-base base-object) omega)
-;;          base-object)
-;;         ;; In the case of an index vector returned as the second value from invert-assigned-varray,
-;;         ;; assignment is being done according to processing of an enlist of the input array, thus
-;;         ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
-;;         ;; and a nested index array must be passed to the select object indexer for use indexing.
-;;         (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-;;                                         :selector (if ivec (list :eindices (render-varrays base-object)
-;;                                                                  :ebase ivec)
-;;                                                       (funcall function omega))))))))
+(defun assign-by-selection (prime-function function value omega &key index-origin)
+  "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
+  (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
+    ;; (setf ggi (invert-assigned-varray (funcall function omega)))
+    (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
+      (typecase base-object
+        (varray::vader-select
+         (setf (varray::vasel-assign base-object) value)
+         base-object)
+        (varray::vader-pick
+         (setf (varray::vapick-assign base-object) value
+               (varray::vapick-selector base-object)
+               ;; assign the selector if the omega is a virtual array, this excludes
+               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+               ;; TODO: normalize this check for full lazy operation
+               (when (typep (varray::vader-base base-object) 'varray::varray)
+                 (varray::vader-base base-object))
+               (varray::vader-base base-object) omega)
+         base-object)
+        ;; In the case of an index vector returned as the second value from invert-assigned-varray,
+        ;; assignment is being done according to processing of an enlist of the input array, thus
+        ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
+        ;; and a nested index array must be passed to the select object indexer for use indexing.
+        (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                        :selector (if ivec (list :ebase ivec
+                                                                 :eindices (render-varrays base-object))
+                                                      (funcall function omega))))))))
 
 ;; (defun operate-reducing (function index-origin last-axis &key axis)
 ;;   "Reduce an array along a given axis by a given function, returning function identites when called on an empty array dimension. Used to implement the [/ reduce] operator."

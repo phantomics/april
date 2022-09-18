@@ -39,39 +39,40 @@
 ;;                                      (when output (setf default output)))))))))
 ;;        default)))
 
-(defmacro build-allocator ()
-  `(defmethod allocate-instance
-       ((this-class va-class) &key base axis argument)
-     (let ((default (call-next-method)))
-       (typecase default
-         ,@(loop :for combo :in *combos*
-              :collect
-              (list (first combo)
-                    `(typecase base
-                       ,@(loop :for subc :in (rest combo)
-                            :collect
-                            (list (first subc)
-                                  `(let ((output (funcall ,(second
-                                                            (assoc (first subc)
-                                                                   (rest (assoc (first combo)
-                                                                                *combos*))))
-                                                          default base axis argument)))
-                                     (when output (setf default output)))))))))
-       default)))
+;; (defmacro build-allocator ()
+;;   `(defmethod allocate-instance
+;;        ((this-class va-class) &key base axis argument)
+;;      (let ((default (call-next-method)))
+;;        (typecase default
+;;          ,@(loop :for combo :in *combos*
+;;               :collect
+;;               (list (first combo)
+;;                     `(typecase base
+;;                        ,@(loop :for subc :in (rest combo)
+;;                             :collect
+;;                             (list (first subc)
+;;                                   `(let ((output (funcall ,(second
+;;                                                             (assoc (first subc)
+;;                                                                    (rest (assoc (first combo)
+;;                                                                                 *combos*))))
+;;                                                           default base axis argument)))
+;;                                      (when output (setf default output)))))))))
+;;        default)))
 
-(assign-combo vader-turn vader-turn (varray base axis argument)
-  (let ((base-axis (vads-axis base))
-        (base-arg (vads-argument base)))
-    (print (list :bb varray base axis argument base-arg))
-    (when (or (and (eq :last axis)
-                   (eq :last base-axis))
-              (and (numberp axis)
-                   (numberp base-axis)
-                   (= axis base-axis)))
-      (if (and argument base-arg)
-          (progn (setf (vads-argument varray) (+ argument base-arg))
-                 varray)
-          (when (and (not argument) (not base-arg))
-            varray)))))
+;; (assign-combo vader-turn vader-turn (varray base axis argument)
+;;   (let ((base-axis (vads-axis base))
+;;         (base-arg (vads-argument base)))
+;;     (print (list :bb varray base axis argument base-arg))
+;;     (when (or (and (eq :last axis)
+;;                    (eq :last base-axis))
+;;               (and (numberp axis)
+;;                    (numberp base-axis)
+;;                    (= axis base-axis)))
+;;       (if (and argument base-arg)
+;;           (progn (setf (vads-argument varray) (+ argument base-arg))
+;;                  varray)
+;;           (when (and (not argument) (not base-arg))
+;;             varray)))))
 
-(build-allocator)
+;; (build-allocator)
+

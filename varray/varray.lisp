@@ -3942,6 +3942,24 @@
     (generator-of (vader-base varray)
                   (if (not nindexer) indexers (cons nindexer indexers)))))
 
+(defmethod initialize-instance :after ((varray vader-turn) &key)
+  "Sum cumulative rotations into a single rotation; currently only works with a scalar left argument."
+  (let ((base (vader-base varray))
+        (axis (vads-axis varray))
+        (argument (vads-argument varray)))
+    (when (typep base 'vader-turn)
+      (let ((base-axis (vads-axis base))
+            (base-arg (vads-argument base))
+            (sub-base (vader-base base)))
+        (when (or (and (eq :last axis)
+                       (eq :last base-axis))
+                  (and (numberp axis)
+                       (numberp base-axis)
+                       (= axis base-axis)))
+          (if (and argument base-arg)
+              (setf (vads-argument varray) (+ argument base-arg)
+                    (vader-base varray) sub-base)))))))
+
 (defclass vader-permute (varray-derived vad-with-io vad-with-argument)
   ((%is-diagonal :accessor vaperm-is-diagonal
                  :initform nil
