@@ -89,12 +89,11 @@
               (let ((commented) (osindex 0) (comment-char #\⍝)
                     (out-string (make-string (length string) :initial-element #\ )))
                 (loop :for char :across string
-                   :do (if commented (if (member char '(#\Newline #\Return) :test #'char=)
-                                         (setf commented nil
-                                               (row-major-aref out-string osindex) char
-                                               osindex (1+ osindex)))
-                           (if (char= char comment-char)
-                               (setq commented t)
+                   :do (if commented (when (member char '(#\Newline #\Return) :test #'char=)
+                                       (setf commented nil
+                                             (row-major-aref out-string osindex) char
+                                             osindex (1+ osindex)))
+                           (if (char= char comment-char) (setf commented t)
                                (setf (row-major-aref out-string osindex) char
                                      osindex (1+ osindex)))))
                 ;; return displaced string to save time processing blanks
@@ -112,9 +111,9 @@
                                                 (decf (aref nesting (- 3 mx)))
                                                 (error "Each closing ~a must match with an opening ~a."
                                                        (nth mx delimiters) (nth (- 3 mx) delimiters)))
-                                 (if (and (char= char #\;)
-                                          (zerop (loop :for ncount :across nesting :summing ncount)))
-                                     (setq indices (cons (1- charix) indices)))))))
+                                 (when (and (char= char #\;)
+                                            (zerop (loop :for ncount :across nesting :summing ncount)))
+                                   (setq indices (cons (1- charix) indices)))))))
                 (loop :for index :in (reverse (cons (length string) indices))
                    :counting index :into iix
                    :collect (make-array (- index (if last-index 1 0)
@@ -130,8 +129,8 @@
             ;; process system state input passed as with (april (with (:state ...)) "...")
             :preprocess-state-input
             (lambda (state)
-              (if (getf state :count-from) (setf (getf state :index-origin)
-                                                 (getf state :count-from)))
+              (when (getf state :count-from)
+                (setf (getf state :index-origin) (getf state :count-from)))
               state)
             ;; converts parts of the system state into lists that will form part of the local lexical
             ;; environment in which the compiled APL code runs, i.e. the (let) form into which
@@ -157,8 +156,9 @@
                                            (of-lexicons this-idiom (first form) :functions)))
                                  form (list (build-call-form (first form)))))
                        ;; operands for cases like (april-c "{⍵⍵ ⍺⍺/⍵}" #'+ #'- #(1 2 3 4 5))
-                       (operands (if (and inline-arguments (listp (first form)) (eql 'olambda (caar form)))
-                                     (cadar form)))
+                       (operands (when (and inline-arguments (listp (first form))
+                                            (eql 'olambda (caar form)))
+                                   (cadar form)))
                        (final-form (if inline-arguments
                                        (if operands
                                            `(a-call (a-comp :op ,(first (last form))
