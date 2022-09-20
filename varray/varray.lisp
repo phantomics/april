@@ -4758,11 +4758,11 @@
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
-(defmethod indexer-of ((varray vader-subarray-reduce) &optional params)
+(defmethod generator-of ((varray vader-subarray-reduce) &optional indexers params)
   (declare (ignore params))
   (get-promised
    (varray-indexer varray)
-   (let ((base-indexer (generator-of (vader-base varray))))
+   (let ((base-indexer (generator-of (vader-base varray) indexers params)))
      (if (vasbr-reverse varray)
          (let ((this-length (1- (first (shape-of varray)))))
            (lambda (index)
@@ -4959,7 +4959,10 @@
                                                     oshape (error "Shapes must match.")))))
                           ashape))))
 
-(Defmethod indexer-of ((varray vacomp-each) &optional params)
+;; (defmethod generator-of ((varray vacomp-each) &optional indexers params)
+;;   (call-next-method))
+
+(defmethod indexer-of ((varray vacomp-each) &optional params) ;; IPV-TODO
   (get-promised (varray-indexer varray)
                 (let ((this-shape (shape-of varray))
                       (oshape (shape-of (vacmp-omega varray)))
@@ -5018,11 +5021,11 @@
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
-(defmethod indexer-of ((varray vader-subarray-displaced) &optional params)
+(defmethod generator-of ((varray vader-subarray-displaced) &optional indexers params)
   (declare (ignore params))
   (get-promised (varray-indexer varray)
                 (let ((interval (reduce #'* (shape-of varray)))
-                      (base-indexer (generator-of (vader-base varray))))
+                      (base-indexer (generator-of (vader-base varray) indexers params)))
                   (if (not (functionp base-indexer))
                       base-indexer (lambda (index)
                                      (funcall base-indexer
