@@ -257,6 +257,19 @@
                    ;; (print (list :in index index-out))
                    (funcall this-indexer index-out)))))))
 
+(defmethod generator-of :around ((varray varray) &optional indexers params)
+  (if (typep varray 'vad-reindexing) (call-next-method)
+      (if t (call-next-method)
+      (let ((rev-indexers (reverse indexers))
+            (this-generator (call-next-method)))
+        (if (not (functionp this-generator))
+            this-generator
+            (lambda (index)
+              (let ((index-out index))
+                (loop :for i :in rev-indexers :do (setf index-out (funcall i index-out)))
+                ;; (print (list :in index index-out))
+                (funcall this-generator index-out))))))))
+
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
   (let ((output-shape (shape-of varray))
@@ -669,7 +682,7 @@
 ;; (defmethod iorigin-of ((varray vapri-coordinate-identity))
 ;;   (vapci-origin varray))
 
-(defmethod indexer-of ((varray vapri-coordinate-identity) &optional params)
+(defmethod generator-of ((varray vapri-coordinate-identity) &optional indexers params)
   "Each index returns a coordinate vector."
   (lambda (index) (make-instance 'vapri-coordinate-vector
                                  :reference varray :index index)))
@@ -729,6 +742,10 @@
                     (lambda (index) (funcall ref-indexer (+ delta (* index increment))))))))
 
 ;; superclasses encompassing array derivations taking different types of parameters
+
+(defclass vad-reindexing ()
+  nil (:metaclass va-class)
+  (:documentation "Superclass of array transformations that add an index transformation to those accumulated."))
 
 (defclass vad-on-axis ()
   ((%axis :accessor vads-axis
@@ -1822,7 +1839,7 @@
                   (declare (ignore this-indexer))
                   (shape-of (vader-content varray)))))
 
-(defmethod indexer-of ((varray vader-umask) &optional params)
+(defmethod generator-of ((varray vader-umask) &optional indexer params)
   (get-promised
    (varray-indexer varray)
    (let* ((derivative-count (if (getf params :shape-deriving)
@@ -2001,7 +2018,7 @@
   (let ((shape (coerce (shape-of (vader-base varray)) 'vector)))
     (lambda (index) (aref shape index))))
 
-(defclass vader-reshape (varray-derived vad-with-argument)
+(defclass vader-reshape (varray-derived vad-with-argument vad-reindexing)
   nil (:metaclass va-class)
   (:documentation "A reshaped array as from the [⍴ reshape] function."))
 
@@ -2061,8 +2078,6 @@
                               #'identity (lambda (index) (mod index input-size)))
              (lambda (index) (declare (ignore index)) 0))))))
 
-;; ⍬⍴(4 5) 6  
-
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
     (if (zerop output-size)
@@ -2071,6 +2086,15 @@
         (let ((nindexer (nindexer-of varray params)))
           ;; (print (list :ni nindexer indexers params (vader-base varray)))
           (generator-of (vader-base varray) (cons nindexer indexers))))))
+
+;; (defmethod generator-of :around ((varray vader-reshape) &optional indexers params)
+;;   (let ((output-size (size-of varray)))
+;;     (if (zerop output-size)
+;;         (let ((prototype (prototype-of varray)))
+;;           (lambda (index) (declare (ignore index)) prototype))
+;;         (let ((nindexer (nindexer-of varray params)))
+;;           ;; (print (list :ni nindexer indexers params (vader-base varray)))
+;;           (generator-of (vader-base varray) (cons nindexer indexers))))))
 
 (defclass vader-depth (varray-derived)
   nil (:metaclass va-class)
@@ -2111,7 +2135,7 @@
                                new-layer)
                       uniform possible-depth))))))
 
-(defmethod indexer-of ((varray vader-depth) &optional params)
+(defmethod generator-of ((varray vader-depth) &optional indexers params)
   "Index an array depth value."
   (get-promised
    (varray-indexer varray)
@@ -2138,7 +2162,7 @@
   (declare (ignore varray))
   nil)
 
-(defmethod indexer-of ((varray vader-first-dim) &optional params)
+(defmethod generator-of ((varray vader-first-dim) &optional indexers params)
   "Index a reshaped array."
   (get-promised
    (varray-indexer varray)
@@ -2974,7 +2998,7 @@
                             :prototype (when (not output-shape)
                                          (prototype-of (vader-base varray)))))))))
 
-(defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable)
+(defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable vad-reindexing)
   ((%overtaking :accessor vasec-overtaking
                 :initform nil
                 :initarg :overtaking
@@ -3574,7 +3598,7 @@
                                                         idims (list (aref intervals focus)))
                                              :indexer sub-indexer))))))))
 
-(defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
+(defclass vader-expand (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable vad-reindexing)
   ((%separating :accessor vadex-separating
                 :initform nil
                 :initarg :separating
@@ -4126,7 +4150,7 @@
                (aref (aref (vader-content varray) 1)
                      (- index (length (aref (vader-content varray) 0))))))))))
 
-(defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable)
+(defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable vad-reindexing)
   nil (:metaclass va-class)
   (:documentation "A rotated array as from the [⌽ rotate] function."))
 
@@ -4220,7 +4244,7 @@
               (setf (vads-argument varray) (+ argument base-arg)
                     (vader-base varray) sub-base)))))))
 
-(defclass vader-permute (varray-derived vad-with-io vad-with-argument)
+(defclass vader-permute (varray-derived vad-with-io vad-with-argument vad-reindexing)
   ((%is-diagonal :accessor vaperm-is-diagonal
                  :initform nil
                  :initarg :is-diagonal
