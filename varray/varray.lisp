@@ -2135,7 +2135,7 @@
                                new-layer)
                       uniform possible-depth))))))
 
-(defmethod generator-of ((varray vader-depth) &optional indexers params)
+(defmethod indexer-of ((varray vader-depth) &optional params)
   "Index an array depth value."
   (get-promised
    (varray-indexer varray)
@@ -2218,7 +2218,7 @@
   (declare (ignore varray))
   nil)
 
-(defmethod indexer-of ((varray vader-compare) &optional params)
+(defmethod generator-of ((varray vader-compare) &optional indexers params)
   "Index a reshaped array."
   (let ((base-indexer (base-indexer-of varray)))
     (lambda (index) (if (funcall (if (vads-inverse varray) #'not #'identity)
@@ -2294,7 +2294,11 @@
   (declare (ignore varray))
   'bit)
 
-(defmethod indexer-of ((varray vader-membership) &optional params)
+;;(defmethod generator-of ((varray vader-membership) &optional indexers params)
+;;  (call-next-method))
+
+(defmethod indexer-of ((varray vader-membership) &optional params) ;; IPV-TODO: generator bug
+;(defmethod generator-of ((varray vader-membership) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let ((base-indexer (base-indexer-of varray)))
@@ -2351,7 +2355,7 @@
   (declare (ignore varray))
   0)
 
-(defmethod indexer-of ((varray vader-find) &optional params)
+(defmethod generator-of ((varray vader-find) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((target (or (vafind-pattern varray)
@@ -2439,7 +2443,7 @@
                       (setf (vads-subrendering varray) t))
                     shape))))
 
-(defmethod indexer-of ((varray vader-where) &optional params)
+(defmethod generator-of ((varray vader-where) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((base-shape (shape-of (vader-base varray)))
@@ -2489,7 +2493,7 @@
     (if (not base-shape)
         nil (butlast base-shape (1- arg-rank)))))
 
-(defmethod indexer-of ((varray vader-interval-index) &optional params)
+(defmethod generator-of ((varray vader-interval-index) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((base-indexer (generator-of (vader-base varray)))
@@ -3166,12 +3170,12 @@
 ;;                      (if (not indexed)
 ;;                          prototype (funcall base-indexer indexed)))))))))))
 
-(defmethod indexer-of ((varray vader-section) &optional params)
-  (if (getf params :for-selective-assign)
-      (nindexer-of varray params)
-      (generator-of varray nil params)))
+;; (defmethod indexer-of ((varray vader-section) &optional params)
+;;   (if (getf params :for-selective-assign)
+;;       (nindexer-of varray params)
+;;       (generator-of varray nil params)))
 
-(defmethod nindexer-of ((varray vader-section) &optional params)
+(defmethod indexer-of ((varray vader-section) &optional params)
   "Indexer for a sectioned array."
   (get-promised
    (varray-indexer varray) ;; 6↑○⍳3 8↑'a',1 2 3 3↑⊂3 3⍴5 4↑(3 4⍴⍳12) 8 9
@@ -3253,11 +3257,11 @@
                  (funcall indexer index))))))))
 
 (defmethod generator-of ((varray vader-section) &optional indexers params)
-  (let ((nindexer (nindexer-of varray params)))
+  (let ((indexer (indexer-of varray params)))
     ;; (print (list :ni nindexer indexers params :base (vader-base varray) (vads-argument varray)
     ;;              (render (vader-base varray))))
     (if (getf params :for-selective-assign)
-        nindexer
+        indexer
         (if (vasec-overtaking varray)
             (let* ((rev-indexers (reverse indexers))
                    (arg (vads-argument varray))
@@ -3277,7 +3281,7 @@
               (lambda (index)
                 (let ((index-out index))
                   (loop :for i :in rev-indexers :do (setf index-out (funcall i index-out)))
-                  (let ((indexed (funcall nindexer index-out)))
+                  (let ((indexed (funcall indexer index-out)))
                     ;; (print (list :iin index indexed :base (vader-base varray)))
                     ;; (print (list :pro (prototype-of varray)))
                     (if indexed (let ((generator (generator-of (vader-base varray))))
@@ -3293,7 +3297,7 @@
                 (let ((prototype (prototype-of varray)))
                   (lambda (index) (declare (ignore index)) prototype))
                 (generator-of (vader-base varray)
-                              (if (not nindexer) indexers (cons nindexer indexers))))))))
+                              (if (not indexer) indexers (cons indexer indexers))))))))
 
 ;; (defmethod generator-of ((varray varray) &optional indexers params)
 ;;   (let ((rev-indexers (reverse indexers)))
@@ -3725,14 +3729,14 @@
 ;;                       (lambda (index)
 ;;                         (when (funcall indexer index) (disclose base-indexer)))))))
 
-(defmethod indexer-of ((varray vader-expand) &optional params)
-  (if (getf params :for-selective-assign)
-      (nindexer-of varray params)
-      (let ((generator (generator-of varray nil params)))
-        (if (functionp generator)
-            generator (lambda (index) (declare (ignore index)) generator)))))
+;; (defmethod indexer-of ((varray vader-expand) &optional params)
+;;   (if (getf params :for-selective-assign)
+;;       (nindexer-of varray params)
+;;       (let ((generator (generator-of varray nil params)))
+;;         (if (functionp generator)
+;;             generator (lambda (index) (declare (ignore index)) generator)))))
 
-(defmethod nindexer-of ((varray vader-expand) &optional params)
+(defmethod indexer-of ((varray vader-expand) &optional params)
   (get-promised (varray-indexer varray)
                 (let* ((assigning (getf params :for-selective-assign))
                        (arg-rendered (render (vads-argument varray)))
@@ -3753,13 +3757,13 @@
                         (funcall indexer index))))))
 
 (defmethod generator-of ((varray vader-expand) &optional indexers params)
-  (let ((nindexer (nindexer-of varray params)))
-    ;; (print (list :ni nindexer indexers params (vader-base varray)))
+  (let ((indexer (indexer-of varray params)))
+    ;; (print (list :ni indexer indexers params (vader-base varray)))
     (if (vadex-separating varray)
         (lambda (index)
           (let ((index-out index) (rev-indexers (reverse indexers)))
             (loop :for i :in rev-indexers :do (setf index-out (funcall i index-out)))
-            (let ((indexed (funcall nindexer index-out)))
+            (let ((indexed (funcall indexer index-out)))
               ;; (print (list :pro (prototype-of varray)))
               (if indexed (let ((generator (generator-of (vader-base varray))))
                             ;; (print (list :gen index generator indexed))
@@ -3767,7 +3771,7 @@
                             (if (not (functionp generator))
                                 generator (funcall generator indexed)))))))
         (generator-of (vader-base varray)
-                      (cons nindexer indexers)))))
+                      (cons indexer indexers)))))
 
 (defclass vader-pick (varray-derived vad-with-argument vad-with-io)
   ((%reference :accessor vapick-reference
@@ -4204,10 +4208,10 @@
 ;;                             base-indexer (funcall (the function base-indexer)
 ;;                                                   (funcall indexer index))))))))
 
-(defmethod indexer-of ((varray vader-turn) &optional params)
-  (get-promised (varray-indexer varray) (generator-of varray)))
+;; (defmethod indexer-of ((varray vader-turn) &optional params)
+;;   (get-promised (varray-indexer varray) (generator-of varray)))
 
-(defmethod nindexer-of ((varray vader-turn) &optional params)
+(defmethod indexer-of ((varray vader-turn) &optional params)
   (declare (ignore params) (optimize (speed 3) (safety 0)))
   (if (shape-of varray)
       (let* ((axis (the (unsigned-byte 8) (vads-axis varray)))
@@ -4222,9 +4226,9 @@
         (lambda (index) (funcall indexer index)))))
 
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
-  (let ((nindexer (nindexer-of varray)))
+  (let ((indexer (indexer-of varray)))
     (generator-of (vader-base varray)
-                  (if (not nindexer) indexers (cons nindexer indexers)))))
+                  (if (not indexer) indexers (cons indexer indexers)))))
 
 (defmethod initialize-instance :after ((varray vader-turn) &key)
   "Sum cumulative rotations into a single rotation; currently only works with a scalar left argument."
@@ -4313,12 +4317,12 @@
 ;;            (if (not indexer)
 ;;                base-indexer (funcall base-indexer (funcall indexer index))))))))
 
-(defmethod indexer-of ((varray vader-permute) &optional params)
-  (if (getf params :for-selective-assign)
-      (nindexer-of varray params)
-      (generator-of varray nil params)))
+;; (defmethod indexer-of ((varray vader-permute) &optional params)
+;;   (if (getf params :for-selective-assign)
+;;       (nindexer-of varray params)
+;;       (generator-of varray nil params)))
 
-(defmethod nindexer-of ((varray vader-permute) &optional params)
+(defmethod indexer-of ((varray vader-permute) &optional params)
   (declare (optimize (speed 3) (safety 0)))
   (if (or (shape-of varray) (getf params :for-selective-assign))
       (let* ((assigning (getf params :for-selective-assign))
@@ -4337,10 +4341,10 @@
         (lambda (index) (funcall indexer index)))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
-  (let ((nindexer (nindexer-of varray params)))
-    ;; (print (list :ni nindexer indexers params (vader-base varray)))
+  (let ((indexer (indexer-of varray params)))
+    ;; (print (list :ni indexer indexers params (vader-base varray)))
     (generator-of (vader-base varray)
-                  (if (not nindexer) indexers (cons nindexer indexers)))))
+                  (if (not indexer) indexers (cons indexer indexers)))))
 
 (defclass vader-grade (varray-derived vad-with-argument vad-with-io vad-invertable)
   nil (:metaclass va-class)
