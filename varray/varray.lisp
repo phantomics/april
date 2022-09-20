@@ -4365,6 +4365,9 @@
                   (if base-shape (list (first base-shape))
                       (error "The [⍋ grade] function cannot take a scalar argument.")))))
 
+;; (defmethod generator-of ((varray vader-grade) &optional indexers params)
+;;   (call-next-method))
+
 (defmethod indexer-of ((varray vader-grade) &optional params)
   (get-promised
    (varray-indexer varray)
@@ -4397,7 +4400,7 @@
   (generator-of varray)
   (shape-of (vaminv-cached varray)))
 
-(defmethod indexer-of ((varray vader-matrix-inverse) &optional params)
+(defmethod generator-of ((varray vader-matrix-inverse) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((content (when (shape-of (vader-base varray))
@@ -4430,7 +4433,10 @@
   (generator-of varray)
   (shape-of (vamdiv-cached varray)))
 
-(defmethod indexer-of ((varray vader-matrix-divide) &optional params)
+(defmethod generator-of ((varray vader-matrix-divide) &optional indexers params)
+  (call-next-method))
+
+(defmethod generator-of ((varray vader-matrix-divide) &optional indexers params)
   (get-promised (varray-indexer varray)
                 (let* ((content (when (shape-of (vader-base varray))
                                   (or (vamdiv-cached varray)
@@ -4464,6 +4470,9 @@
                                         0 (1+ (floor (log max-base)
                                                      (log (render (vads-argument varray)))))))))
                         (shape-of (vader-base varray)))))
+
+;; (defmethod generator-of ((varray vader-encode) &optional indexers params)
+;;   (call-next-method))
 
 (defmethod indexer-of ((varray vader-encode) &optional params)
   (get-promised
