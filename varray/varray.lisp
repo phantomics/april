@@ -4612,8 +4612,8 @@
         (setf (vads-shapeset varray) t
               (varray-shape varray) shape))))
 
-(defmethod indexer-of ((varray vader-identity) &optional params)
-  (generator-of (vader-base varray)))
+(defmethod generator-of ((varray vader-identity) &optional indexers params)
+  (generator-of (vader-base varray) indexers params))
 
 (defgeneric inverse-count-to (array index-origin)
   (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
