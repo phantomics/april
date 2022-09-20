@@ -4445,7 +4445,7 @@
                      (shape-of (vads-argument varray))))
           (base-shape (shape-of (vader-base varray)))
           (base-indexer (base-indexer-of varray))
-          (arg-indexer (indexer-of (vads-argument varray))) ;; IPV-TODO: generator bug!
+          (arg-indexer (generator-of (vads-argument varray)))
           (aifactors (get-dimensional-factors adims))
           (oifactors (get-dimensional-factors base-shape t))
           (ofactors (get-dimensional-factors out-dims t)))
@@ -4466,8 +4466,8 @@
                value (if (not (functionp base-indexer))
                          base-indexer (funcall base-indexer oindex)))
 
-         ;; (print (list :aa arg-indexer value adims))
-         (if (and (not (vads-inverse varray)) (not (functionp arg-indexer)))
+         ;; (print (list :aa arg-indexer value adims (vads-argument varray)))
+         (if (and (not (vads-inverse varray)) (not (shape-of (vads-argument varray))))
              (setf value (nth-value 1 (floor value arg-indexer)))
              (let ((last-base) (element) (aindex) (component 1)
                    (this-index (floor index (aref ofactors 0))))
@@ -4475,7 +4475,8 @@
                      :do (setq last-base base
                                aindex (+ afactor (* b (first aifactors)))
                                base (* base (if (and scalar-arg (vads-inverse varray))
-                                                arg-indexer (funcall arg-indexer aindex)))
+                                                arg-indexer (if (not (functionp arg-indexer))
+                                                                arg-indexer (funcall arg-indexer aindex))))
                                component (if (zerop base) value
                                              (nth-value 1 (floor value base)))
                                value (- value component)
@@ -4712,7 +4713,8 @@
 (defmethod prototype-of ((varray vader-subarray-reduce))
   (declare (ignore params))
   (get-promised (varray-prototype varray)
-                (let ((first-item (funcall (indexer-of varray) 0))) ;; IPV-TODO: generator bug!
+                (let* ((generator (generator-of varray))
+                       (first-item (funcall generator 0)))
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
@@ -4748,9 +4750,9 @@
                    (let ((fn-meta (funcall (vacmp-left varray) :get-metadata nil)))
                      (or (getf fn-meta :id)
                          (error "Attempted to [/ reduce] with a function that has no identity value.")))
-                   (indexer-of (vacmp-omega varray))))
+                   (generator-of (vacmp-omega varray))))
            (let* ((odims (shape-of (vacmp-omega varray)))
-                  (omega-indexer (indexer-of (vacmp-omega varray)))
+                  (omega-indexer (generator-of (vacmp-omega varray)))
                   (out-dims (shape-of varray))
                   (axis (or (vads-axis varray) (1- (length odims))))
                   (rlen (nth axis odims))
@@ -4809,7 +4811,8 @@
                                                       :displaced-to (vacmp-omega varray)
                                                       :displaced-index-offset (* i rlen))))))
                (t (flet ((process-item (i ix delta)
-                           (funcall omega-indexer (+ delta (* ix increment)))))
+                           (if (not (functionp omega-indexer))
+                               omega-indexer (funcall omega-indexer (+ delta (* ix increment))))))
                     ;; (print :gg)
                     ;; (print (list :tt window (type-of (vacmp-omega varray))
                     ;;              (vacmp-omega varray)
