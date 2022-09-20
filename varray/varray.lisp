@@ -10,7 +10,7 @@
    (%indexer :accessor varray-indexer
              :initform nil
              :initarg :indexer
-             :documentation "The array's indexer - typically populated by an (indexer-of) method.")
+             :documentation "The array's indexer - typically populated by an (generator-of) method.")
    (%prototype :accessor varray-prototype
                :initform nil
                :initarg :prototype
@@ -263,7 +263,7 @@
         (prototype (let ((proto (prototype-of varray)))
                      ;; a null-type prototype is nil
                      (when (not (eql 'null proto)) proto)))
-        ;; (indexer (indexer-of varray))
+        ;; (indexer (i2ndexer-of varray))
         (indexer (generator-of varray))
         (to-subrender (or (subrendering-p varray)
                           (subrendering-base varray))))
@@ -288,7 +288,8 @@
                          (lambda (i)
                            (declare (type (unsigned-byte 62) i))
                            ;; (print (list :ix indexer i varray))
-                           (let ((indexed (funcall indexer i)))
+                           (let ((indexed (if (not (functionp indexer))
+                                              indexer (funcall indexer i))))
                              (setf (row-major-aref output i)
                                    (if indexed (render indexed) prototype))))
                          (lambda (i)
@@ -841,7 +842,7 @@
 ;;                        (irank (rank-of (vader-base varray)))
 ;;                        (rlen (nth (vads-axis varray)
 ;;                                   (shape-of (vader-base varray))))
-;;                        (base-indexer (indexer-of (vader-base varray)))
+;;                        (base-indexer (generator-of (vader-base varray)))
 ;;                        (increment (reduce #'* (nthcdr (1+ axis) odims)))
 ;;                        (wsegment (and window (loop :for dim :in odims :for dx :from 0
 ;;                                                    :when (and window (= dx axis))
@@ -898,7 +899,9 @@
           (and (listp (vader-base varray))
                (= 1 (length (vader-base varray)))))
       (let* ((first-item (if (varrayp (vader-base varray))
-                             (funcall (generator-of (vader-base varray)) 0)
+                             (let ((gen (generator-of (vader-base varray))))
+                               (if (not (functionp gen))
+                                   gen (funcall (generator-of (vader-base varray)) 0)))
                              (elt (vader-base varray) 0)))
              (first-shape (shape-of first-item))
              (first-indexer (generator-of first-item)))
@@ -924,6 +927,7 @@
                     ;; (print (list :it item))
                     (when (< 0 (size-of item))
                       (let ((this-indexer (generator-of item)))
+                        ;; (print (list :ti this-indexer item))
                         (if (not pre-proto)
                             (setf pre-proto (render (if (not (functionp this-indexer))
                                                         this-indexer (funcall this-indexer 0))))
@@ -1203,7 +1207,7 @@
           (base-indexer (generator-of (vader-base varray)))
           (base-rank (rank-of (vader-base varray)))
           (set (vasel-assign varray))
-          (set-indexer (indexer-of set))
+          (set-indexer (generator-of set))
           (idims (shape-of varray))
           (selector-eindices (when (listp (vasel-selector varray))
                                (vasel-selector varray)))
@@ -1490,6 +1494,7 @@
                    ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
                    ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
                    ;;                        set-indexer)))
+                   ;; (print (list :se set-indexer oindex))
                    (if (numberp oindex)
                        (if valid (if (vasel-calling varray)
                                      (let ((original (if (not (functionp base-indexer))
@@ -1537,7 +1542,9 @@
                                                                                 :eindices)
                                                                           :ebase (funcall eindexer
                                                                                           index))))))
-                                                 (vasel-assign varray)))
+                                                 ;; (vasel-assign varray)
+                                                 set-indexer
+                                                 ))
                                          (funcall set-indexer oindex)))
                            (if (not (functionp base-indexer))
                                base-indexer (funcall base-indexer index)))
@@ -2884,11 +2891,11 @@
                               (iarray (if iarray iarray (funcall oindexer oindex)))
                               (ishape (or ishape (copy-list (shape-of iarray))))
                               (iifactors (or iifactors (get-dimensional-factors ishape)))
-                              (iindexer (indexer-of iarray)) ;; IPV-TODO: generator bug!
+                              (iindexer (generator-of iarray))
                               (irank (length ishape))
                               (doffset (- inner-rank irank))
                               (iindex 0))
-                         (if (not (functionp iindexer))
+                         (if (not (shape-of varray))
                              (when (zerop (reduce #'+ inner-indices)) iindexer)
                              (progn (loop :for i :in inner-indices :for ix :from 0 :while iindex
                                           :do (if (< ix doffset) (if (not (zerop i))
@@ -2898,7 +2905,8 @@
                                                              (setf ishape (rest ishape)
                                                                    iifactors (rest iifactors)))
                                                       (setf iindex nil))))
-                                    (when iindex (funcall iindexer iindex))))))))))))))
+                                    (when iindex (if (not (functionp iindexer))
+                                                     iindexer (funcall iindexer iindex)))))))))))))))
 
 (defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:metaclass va-class)
@@ -4573,7 +4581,7 @@
               (varray-shape varray) shape))))
 
 (defmethod indexer-of ((varray vader-identity) &optional params)
-  (indexer-of (vader-base varray)))
+  (generator-of (vader-base varray)))
 
 (defgeneric inverse-count-to (array index-origin)
   (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
@@ -4792,11 +4800,12 @@
                   (let* ((output (funcall (vacmp-left varray)
                                           :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                                (vacmp-omega varray))))
-                         (out-indexer (indexer-of output)))
+                         (out-indexer (generator-of output)))
                     ;; pass the indexer through for a shapeless output as from +/⍳5;
                     ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
                     (if (shape-of output)
-                        output (funcall out-indexer i)))))
+                        output (if (not (functionp out-indexer))
+                                   out-indexer (funcall out-indexer i))))))
                ((and (or scalar-fn (and catenate-fn (not window)))
                      (= (- axis (vads-io varray))
                         (length out-dims))
@@ -4970,7 +4979,10 @@
 (defmethod prototype-of ((varray vader-subarray-displaced))
   (declare (ignore params))
   (get-promised (varray-prototype varray)
-                (let ((first-item (funcall (generator-of varray) 0)))
+                (let* ((gen (generator-of varray))
+                       (first-item (if (not (functionp gen))
+                                       gen (funcall (generator-of varray) 0))))
+                  ;; (print (list :fi first-item))
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
@@ -4979,8 +4991,10 @@
   (get-promised (varray-indexer varray)
                 (let ((interval (reduce #'* (shape-of varray)))
                       (base-indexer (generator-of (vader-base varray))))
-                  (lambda (index)
-                    (funcall base-indexer (+ index (* interval (vasv-index varray))))))))
+                  (if (not (functionp base-indexer))
+                      base-indexer (lambda (index)
+                                     (funcall base-indexer
+                                              (+ index (* interval (vasv-index varray)))))))))
 
 (defmethod indexer-of ((varray vacomp-produce) &optional params)
   (get-promised
