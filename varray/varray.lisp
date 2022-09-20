@@ -2970,7 +2970,7 @@
 
 (defmethod prototype-of ((varray vader-section))
   (get-promised (varray-prototype varray)
-                (progn (indexer-of varray)
+                (progn (generator-of varray)
                        (varray-prototype varray))
                 ;; (let ((indexer (indexer-of varray))
                 ;;       (size (size-of varray))
@@ -2987,7 +2987,7 @@
    (varray-shape varray)
    (let* ((base (vader-base varray))
           (arg-shape (shape-of (vads-argument varray)))
-          (arg-indexer (indexer-of (setf (vads-argument varray)
+          (arg-indexer (generator-of (setf (vads-argument varray)
                                          (render (vads-argument varray)))))
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
@@ -3150,7 +3150,7 @@
                                                :initial-element 0)
                         (coerce (shape-of varray) 'vector)))
           (arg-shape (shape-of (vads-argument varray)))
-          (arg-indexer (indexer-of (vads-argument varray))))
+          (arg-indexer (generator-of (vads-argument varray))))
 
      (setf layers-below (when assigning (typecase (vader-base varray) (vader-section t)
                                                   (vader-pick
@@ -3464,7 +3464,7 @@
          (let ((base-type (etype-of (vader-base varray))))
            (when (eq t base-type) ;; array is simple if not t-type
              (let ((is-complex)
-                   (base-indexer (indexer-of (vader-base varray))))
+                   (base-indexer (generator-of (vader-base varray))))
                (when base-indexer
                  (loop :for i :below (size-of (vader-base varray))
                        :do (if (shape-of (funcall base-indexer i))
@@ -3920,7 +3920,7 @@
                   (funcall base-indexer index)))))
       
       (let* ((this-reference (fetch-reference varray (vader-base varray)))
-             (this-indexer (indexer-of this-reference)))
+             (this-indexer (indexer-of this-reference))) ;; IPV-TODO: generator bug!
         ;; (print (list :as (shape-of varray))) ; (scc≡⍳∘≢) (⍳10),⊂⍬ ⋄ md1 wpath 1 4 ⋄ (↑g w) wspan 1
         ;; (print (list :ti this-reference (vader-base varray) this-indexer
         ;;              (vads-argument varray)))
@@ -3997,7 +3997,7 @@
 
 (defmethod shape-of ((varray vader-unique))
   (get-promised (varray-shape varray)
-                (let ((this-indexer (indexer-of varray)))
+                (let ((this-indexer (generator-of varray)))
                   (declare (ignore this-indexer))
                   (if (vader-content varray)
                       (cons (length (vauni-indices varray))
@@ -4065,7 +4065,7 @@
 
 (defmethod shape-of ((varray vader-union))
   (get-promised (varray-shape varray)
-                (let ((this-indexer (indexer-of varray)))
+                (let ((this-indexer (generator-of varray)))
                   (declare (ignore this-indexer))
                   (list (+ (or (first (shape-of (aref (vader-content varray) 0))) 1)
                            (or (first (shape-of (aref (vader-content varray) 1))) 1))))))
@@ -4077,7 +4077,7 @@
                                 (reduce #'* (getf params :shape-deriving))))
           (contents (loop :for a :across (vader-base varray) :collect (render a)))
           (shapes (loop :for a :across (vader-base varray) :collect (shape-of a)))
-          (indexers (loop :for a :across (vader-base varray) :collect (indexer-of a)))
+          (indexers (loop :for a :across (vader-base varray) :collect (generator-of a)))
           (first (first contents)))
      (if (not (loop :for shape :in shapes :always (not (second shape))))
          (error "Arguments to [∪ union] must be vectors.")
@@ -4359,7 +4359,7 @@
   t)
 
 (defmethod shape-of ((varray vader-matrix-inverse))
-  (indexer-of varray)
+  (generator-of varray)
   (shape-of (vaminv-cached varray)))
 
 (defmethod indexer-of ((varray vader-matrix-inverse) &optional params)
@@ -4372,8 +4372,8 @@
                                                  (reduce #'= (shape-of (vader-base varray))))
                                             #'invert-matrix #'left-invert-matrix)
                                         (render (vader-base varray)))))))
-          (base-indexer (when (not content) (indexer-of (vader-base varray))))
-          (content-indexer (when content (indexer-of content))))
+          (base-indexer (when (not content) (generator-of (vader-base varray))))
+          (content-indexer (when content (generator-of content))))
      (lambda (index)
        (if content (funcall content-indexer index)
            (/ (if (not (functionp base-indexer))
@@ -4392,7 +4392,7 @@
   t)
 
 (defmethod shape-of ((varray vader-matrix-divide))
-  (indexer-of varray)
+  (generator-of varray)
   (shape-of (vamdiv-cached varray)))
 
 (defmethod indexer-of ((varray vader-matrix-divide) &optional params)
@@ -4405,7 +4405,7 @@
                                              (render (vads-argument varray))
                                              (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
                                              #'+ t)))))
-                       (content-indexer (indexer-of content)))
+                       (content-indexer (generator-of content)))
                   (lambda (index) (funcall content-indexer index)))))
 
 (defclass vader-encode (varray-derived vad-with-argument vad-invertable)
@@ -4441,7 +4441,7 @@
                      (shape-of (vads-argument varray))))
           (base-shape (shape-of (vader-base varray)))
           (base-indexer (base-indexer-of varray))
-          (arg-indexer (indexer-of (vads-argument varray)))
+          (arg-indexer (indexer-of (vads-argument varray))) ;; IPV-TODO: generator bug!
           (aifactors (get-dimensional-factors adims))
           (oifactors (get-dimensional-factors base-shape t))
           (ofactors (get-dimensional-factors out-dims t)))
@@ -4500,7 +4500,7 @@
           (osize (size-of (vader-base varray)))
           (asize (size-of (vads-argument varray)))
           (base-indexer (base-indexer-of varray))
-          (arg-indexer (indexer-of (vads-argument varray)))
+          (arg-indexer (indexer-of (vads-argument varray)))  ;; IPV-TODO: generator bug!
           (ovector (or (first odims) 1))
           (afactors (make-array (if (and (< 1 osize) (and adims (< 1 (first (last adims)))))
                                     adims (append (butlast adims 1) (list ovector)))
