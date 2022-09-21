@@ -1131,7 +1131,7 @@
            (key-table (make-hash-table :test key-test))
            (elisions (loop :for i :below (1- (varray::rank-of omega)) :collect nil))
            (key-list)
-           (key-indexer (varray::indexer-of keys)))
+           (key-indexer (varray::generator-of keys)))
       (dotimes (i (first keys-dims))
         (let ((item (if (= 1 increment) (funcall key-indexer i)
                         (make-array increment :element-type (varray::etype-of keys)
@@ -1283,7 +1283,7 @@
                          function (funcall function :reassign-axes (list orank)))
                      omega (when alpha (list alpha)))
               (flet ((generate-divs (div-array ref-array div-dims div-size)
-                       (let ((ref-indexer (indexer-of ref-array)))
+                       (let ((ref-indexer (varray::generator-of ref-array)))
                          (dotimes (i (size div-array))
                            (setf (row-major-aref div-array i)
                                  (if (zerop (rank div-array)) ref-array
