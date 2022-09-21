@@ -1877,7 +1877,7 @@
      (setf (vader-content varray) output)
      (lambda (index) (aref (vader-content varray) index)))))
 
-(defclass vader-inverse-where (varray-derived vad-with-argument vad-with-io)
+(defclass vader-inverse-where (varray-derived vad-with-argument vad-with-io vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "An inverted product of the [⍸ where] function."))
 
@@ -1917,7 +1917,7 @@
                            (coerce dims 'list)))))
        (t (error "The inverse [⍸ where] function cannot be applied to this object."))))))
 
-(defmethod indexer-of ((varray vader-inverse-where) &optional params)
+(defmethod generator-of ((varray vader-inverse-where) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let ((base (vader-base varray)))
@@ -2001,7 +2001,7 @@
                    ;; :do (print (list :lll a))
                    :counting a :into asum :finally (return (+ asum (vads-io varray))))))))))
 
-(defclass vader-shape (varray-derived)
+(defclass vader-shape (varray-derived vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "The shape of an array as from the [⍴ shape] function."))
 
@@ -2018,7 +2018,7 @@
   "The shape of a reshaped array is simply its argument."
   (get-promised (varray-shape varray) (list (length (shape-of (vader-base varray))))))
 
-(defmethod indexer-of ((varray vader-shape) &optional params)
+(defmethod generator-of ((varray vader-shape) &optional indexers params)
   "Index a reshaped array."
   (let ((shape (coerce (shape-of (vader-base varray)) 'vector)))
     (lambda (index) (aref shape index))))
@@ -2061,12 +2061,12 @@
 ;;                  (lambda (index) (declare (ignore index))
 ;;                    (funcall (the function base-indexer) 0))))))))
 
-(defmethod indexer-of ((varray vader-reshape) &optional params)
-  (let ((generator (generator-of varray nil params)))
-    (if (functionp generator)
-        generator (lambda (index) (declare (ignore index)) generator))))
+;; (defmethod indexer-of ((varray vader-reshape) &optional params)
+;;   (let ((generator (generator-of varray nil params)))
+;;     (if (functionp generator)
+;;         generator (lambda (index) (declare (ignore index)) generator))))
 
-(defmethod nindexer-of ((varray vader-reshape) &optional params)
+(defmethod indexer-of ((varray vader-reshape) &optional params)
    "Index a reshaped array."
   ;; (declare (ignore params) (optimize (speed 3) (safety 0)))
   (get-promised
@@ -2088,9 +2088,9 @@
     (if (zerop output-size)
         (let ((prototype (prototype-of varray)))
           (lambda (index) (declare (ignore index)) prototype))
-        (let ((nindexer (nindexer-of varray params)))
-          ;; (print (list :ni nindexer indexers params (vader-base varray)))
-          (generator-of (vader-base varray) (cons nindexer indexers))))))
+        (let ((indexer (indexer-of varray params)))
+          ;; (print (list :ni indexer indexers params (vader-base varray)))
+          (generator-of (vader-base varray) (cons indexer indexers))))))
 
 (defclass vader-depth (varray-derived)
   nil (:metaclass va-class)
@@ -2197,7 +2197,7 @@
                      (characterp indexer2)
                      (char= item1 indexer2))))))))
 
-(defclass vader-compare (varray-derived vad-with-ct vad-invertable)
+(defclass vader-compare (varray-derived vad-with-ct vad-invertable vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
 
@@ -2214,7 +2214,7 @@
   (declare (ignore varray))
   nil)
 
-(defmethod indexer-of ((varray vader-compare) &optional params)
+(defmethod generator-of ((varray vader-compare) &optional indexers params)
   "Index a reshaped array."
   (let ((base-indexer (base-indexer-of varray)))
     (lambda (index) (if (funcall (if (vads-inverse varray) #'not #'identity)
@@ -2223,7 +2223,7 @@
                                                  (vads-ct varray)))
                         1 0))))
 
-(defclass vader-enlist (varray-derived vad-limitable)
+(defclass vader-enlist (varray-derived vad-limitable vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "An array decomposed into a vector as from the [∊ enlist] function."))
 
@@ -2235,7 +2235,7 @@
                       (list (size-of (vader-base varray)))
                       (shape-of (vader-content varray))))))
 
-(defmethod indexer-of ((varray vader-enlist) &optional params)
+(defmethod generator-of ((varray vader-enlist) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let ((base-indexer (generator-of (vader-base varray))))
