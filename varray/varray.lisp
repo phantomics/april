@@ -5031,6 +5031,9 @@
                                      (funcall base-indexer
                                               (+ index (* interval (vasv-index varray)))))))))
 
+(defmethod generator-of ((varray vacomp-produce) &optional indexers params)
+  (call-next-method))
+
 (defmethod indexer-of ((varray vacomp-produce) &optional params)
   (get-promised
    (varray-indexer varray)
@@ -5218,7 +5221,7 @@
 (defmethod prototype-of ((varray vader-stencil-window))
   (prototype-of (vacmp-omega (vader-base varray)))) ;; TODO: fix this to proto from individual frame
 
-(defmethod indexer-of ((varray vader-stencil-window) &optional params)
+(defmethod generator ((varray vader-stencil-window) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((base-indexer (generator-of (vacmp-omega (vader-base varray))))
@@ -5270,7 +5273,7 @@
   'fixnum
   ) ;; 8-bit elements for efficiency - TODO: is a different type better?
 
-(defmethod indexer-of ((varray vader-stencil-margin) &optional params)
+(defmethod generator-of ((varray vader-stencil-margin) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((base-dims (vacst-base-dims (vader-base varray)))
@@ -5287,7 +5290,7 @@
                 from-start (max 0 (- (+ from-start (aref win-dims index))
                                      (aref base-dims index))))))))))
 
-(defmethod indexer-of ((varray vacomp-stencil) &optional params)
+(defmethod generator-of ((varray vacomp-stencil) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (progn
