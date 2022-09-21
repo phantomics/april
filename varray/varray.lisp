@@ -616,7 +616,7 @@
                                  (the (unsigned-byte 64)
                                       (+ origin (the (unsigned-byte 62) (floor index repeat))))))))))
       
-(defclass vapri-coordinate-vector (varray-primal)
+(defclass vapri-coordinate-vector (varray-primal vad-unrei-temp)
   ((%reference :accessor vacov-reference
                :initform nil
                :initarg :reference
@@ -645,7 +645,7 @@
   (get-promised (varray-shape vvector)
                 (list (length (vads-dfactors (vacov-reference vvector))))))
 
-(defmethod indexer-of ((vvector vapri-coordinate-vector) &optional params)
+(defmethod generator-of ((vvector vapri-coordinate-vector) &optional indexers params)
   (let* ((dfactors (vads-dfactors (vacov-reference vvector)))
          (output (make-array (length dfactors) :element-type (etype-of vvector)))
          (remaining (vacov-index vvector)))
@@ -2142,7 +2142,7 @@
                  (varray-depth (vader-base varray)))
          (lambda (index) (declare (ignore index)) 0)))))
 
-(defclass vader-first-dim (varray-derived)
+(defclass vader-first-dim (varray-derived vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "The first dimension of an array as from the [≢ first dimension] function."))
 
