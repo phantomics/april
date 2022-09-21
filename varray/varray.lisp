@@ -1618,7 +1618,7 @@
                              (if (not (functionp base-indexer))
                                  base-indexer (funcall base-indexer index)))))))))))))
 
-(defclass vader-random (varray-derived vad-with-rng vad-with-io)
+(defclass vader-random (varray-derived vad-with-rng vad-with-io vad-unrei-temp)
   ((%cached :accessor varand-cached
             :initform nil
             :initarg :cached
@@ -1647,7 +1647,7 @@
                                                  double-float-epsilon)))
           (error "The right argument to ? can only contain non-negative integers or floats."))))
 
-(defmethod indexer-of ((varray vader-random) &optional params)
+(defmethod generator-of ((varray vader-random) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((rngs (vads-rng varray))
@@ -1687,7 +1687,7 @@
                (apl-random-process (funcall base-indexer index) (vads-io varray)
                                    generator)))))))
 
-(defclass vader-deal (varray-derived vad-with-argument vad-with-rng vad-with-io)
+(defclass vader-deal (varray-derived vad-with-argument vad-with-rng vad-with-io vad-unrei-temp)
   ((%cached :accessor vadeal-cached
             :initform nil
             :initarg :cached
@@ -1723,7 +1723,7 @@
             (list length)
             (error "Both arguments to ? must be non-negative integers.")))))
 
-(defmethod indexer-of ((varray vader-deal) &optional params)
+(defmethod generator-of ((varray vader-deal) &optional indexer params)
   (get-promised
    (varray-indexer varray)
    (let* ((rngs (vads-rng varray))
@@ -1765,7 +1765,7 @@
 ;;                          (aref vector 3)))
 ;;       (print (length vector)))))
 
-(defclass vader-without (varray-derived vad-with-argument vad-limitable)
+(defclass vader-without (varray-derived vad-with-argument vad-limitable vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "An array without given elements as from the [~ without] function."))
 
@@ -1779,7 +1779,7 @@
                   (declare (ignore this-indexer))
                   (shape-of (vader-content varray)))))
 
-(defmethod indexer-of ((varray vader-without) &optional params)
+(defmethod generator-of ((varray vader-without) &optional indexer params)
   (get-promised
    (varray-indexer varray)
    (flet ((compare (o a)
