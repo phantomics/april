@@ -14,7 +14,11 @@
    (%prototype :accessor varray-prototype
                :initform nil
                :initarg :prototype
-               :documentation "The array's prototype - typically populated by a (prototype-of) method."))
+               :documentation "The array's prototype - typically populated by a (prototype-of) method.")
+   (%meta :accessor varray-meta
+          :initform nil
+          :initarg :meta
+          :documentation "Metadata for the array."))
   (:metaclass va-class)
   (:documentation "Virtual array - the ancestor class for all virtual array objects."))
 
@@ -240,6 +244,7 @@
 	  1 (read-from-string output)))))
 
 (defvar *workers-count* (max 1 (1- (count-cpus))))
+
 
 (defmethod generator-of ((varray varray) &optional indexers params)
   (let ((rev-indexers (reverse indexers))
@@ -476,6 +481,30 @@
   (when (typep (vader-base varray) 'varray-derived)
     (setf (vader-layer varray) ;; count layers from a non-derived array
           (1+ (vader-layer (vader-base varray))))))
+
+(defmethod shape-of :around ((varray varray-derived))
+  (let* ((this-shape (call-next-method))
+         (this-rank (length this-shape))
+         (this-size (reduce #'* this-shape))
+         (base-shape (shape-of (vader-base varray)))
+         (base-rank (length base-shape))
+         (base-size (reduce #'* base-shape))
+         (base-meta (varray-meta (vader-base varray)))
+         (base-lower-rank (< base-rank this-rank))
+         (max-shape (if base-lower-rank this-shape
+                        (or (getf base-meta :max-shape) base-shape))))
+    
+    (if base-lower-rank
+        (setf max-shape (loop :for s :in this-shape :for sx :from 0
+                              :collect (if (>= sx base-rank)
+                                           s (max s (nth sx base-shape)))))
+        (setf max-shape (loop :for s :in base-shape :for sx :from 0
+                              :collect (if (>= sx this-rank)
+                                           s (max s (nth sx this-shape))))))
+    
+    (setf (getf (varray-meta varray) :max-size) (max this-size base-size)
+          (getf (varray-meta varray) :max-shape) max-shape)
+    this-shape))
 
 (defmethod etype-of ((varray varray-derived))
   "The default shape of a derived array is the same as its base array."
