@@ -358,13 +358,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                         ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;           (not (vacmp-threadable varray)))
+                            ;;      ;; don't thread when rendering the output of operators composed
+                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;            :never (null (lparallel.kernel::running-category worker))))
+                         t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -495,7 +495,7 @@
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
     ;; (print (list :vd varray (vader-base varray)
-    ;;              ;; (print (prototype-of (vader-base varray)))
+    ;;              (print (prototype-of (vader-base varray)))
     ;;              (subrendering-p varray)
     ;;              (subrendering-p (vader-base varray))))
     ;; (print (list :ba varray (vader-base varray) shape
@@ -855,7 +855,7 @@
 ;;                     (nth (vads-axis varray)
 ;;                          (shape-of (vader-base varray))))))
 
-;; (defmethod indexer-of ((varray vader-subvector) &optional params)
+;; (defmethod generator-of ((varray vader-subvector) &optional indexers params)
 ;;   (get-promised (varray-indexer varray)
 ;;                 (let* ((valix 0)
 ;;                        (axis (vads-axis varray))
@@ -893,7 +893,7 @@
 ;;                       (lambda (index)
 ;;                         (funcall base-indexer (+ delta (* index increment))))))))
 
-(defclass vader-operate (vad-subrendering varray-derived vad-on-axis vad-with-io)
+(defclass vader-operate (vad-subrendering varray-derived vad-on-axis vad-with-io vad-unrei-temp)
   ((%params :accessor vaop-params
             :initform nil
             :initarg :params
@@ -1040,7 +1040,7 @@
                       (setf base-list (rest base-list))))))
        shape))))
 
-(defmethod indexer-of ((varray vader-operate) &optional params)
+(defmethod generator-of ((varray vader-operate) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((out-shape (shape-of varray))
@@ -1153,7 +1153,7 @@
                                                        :index-origin (vads-io varray)
                                                        :params (vaop-params varray))))))))))
 
-(defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
+(defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument vad-unrei-temp)
   ((%assign :accessor vasel-assign
             :initform nil
             :initarg :assign
@@ -1221,7 +1221,7 @@
                        (shape-of (or (first indices)
                                      (vader-base varray)))))))))
 
-(defmethod indexer-of ((varray vader-select) &optional params)
+(defmethod generator-of ((varray vader-select) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((indices)
@@ -1238,13 +1238,14 @@
           (sub-shape (shape-of index-selector))
           (is-picking)
           (sub-selector (multiple-value-bind (sselector is-pick)
-                            (indexer-of index-selector
-                                        (list :for-selective-assign
-                                              (or (shape-of (vasel-assign varray)) t)
-                                              :assigning set
-                                              :toggle-toplevel-subrendering
-                                              (lambda (&optional abc)
-                                                (setf (vads-subrendering varray) t))))
+                            (generator-of index-selector nil
+                            ;; (indexer-of index-selector
+                                          (list :for-selective-assign
+                                                (or (shape-of (vasel-assign varray)) t)
+                                                :assigning set
+                                                :toggle-toplevel-subrendering
+                                                (lambda (&optional abc)
+                                                  (setf (vads-subrendering varray) t))))
                           (when is-pick (setf is-picking t))
                           sselector))
           (ofactors (when (not set) (get-dimensional-factors idims t)))
@@ -1290,7 +1291,6 @@
        ;; (print (list :cc (vads-argument varray) indices ifactors ofactors afactors iarray-factors
        ;;              (vasel-calling varray)
        ;;              (vader-base varray) set))
-       ;; (⊂4 5 2 6 3 7 1)⌷'MARANGA'  st←'aodjeignwug' ⋄ st[⍋st]  
 
        (if (not (or set (vasel-calling varray)))
            (lambda (index)
@@ -1405,8 +1405,9 @@
                          (lambda (index) ;; the case of 9@(<∘5)⍳9 ; scalar assigned value
                            (if (not (zerop (funcall mask-indexer index)))
                                assign-indexer (funcall base-indexer index))))))
+               
                (lambda (index)
-                 ;; (print (list :ii index))
+                 ;;(print (list :ii index))
                  (let* ((remaining index) (oindex 0) (ofix 0) (valid t) (tafix 0)
                         (assign-sub-index) (iafactors iarray-factors))
                    (loop :for in :in indices :for ifactor :across ifactors
@@ -1503,7 +1504,7 @@
                                        (setf remaining remainder))))
                              (setf adims (rest adims)))
                    ;; (print (list :aa index oindex index-selector set-indexer set valid))
-
+                   ;; (print (list :vl index valid index-selector (funcall sub-selector index) (render index-selector)))
                    ;; index-selector is used in the case of assignment by selection,
                    ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
                    (when index-selector
@@ -1573,6 +1574,8 @@
                        
                        (let ((index-shape (first (shape-of oindex))))
                          (setf (vads-subrendering varray) t)
+                         ;; (print (list :in index-shape valid))
+                         ;; (error "stop")
                          (if valid
                              (if (typep oindex 'varray::varray)
                                  ;; in the case of an [¨ each]-composed assignment by selection
@@ -1596,7 +1599,7 @@
                                         (sub-base (make-instance 'vader-select
                                                                  :base (vader-base varray)
                                                                  :index-origin (vads-io varray)
-                                                                 :argument (if (numberp meta-index)
+                                                                 :argument (if (not (vectorp meta-index))
                                                                                (list meta-index)
                                                                                (coerce (render meta-index)
                                                                                        'list)))))
@@ -2038,33 +2041,6 @@
                   (if (typep arg 'sequence)
                       (coerce arg 'list)
                       (list arg)))))
-
-;; (defmethod indexer-of ((varray vader-reshape) &optional params)
-;;   "Index a reshaped array."
-;;   (declare (ignore params) (optimize (speed 3) (safety 0)))
-;;   (get-promised
-;;    (varray-indexer varray)
-;;    (let* ((base-indexer (base-indexer-of varray))
-;;           (input-size (the (unsigned-byte 62)
-;;                            (max (the bit 1)
-;;                                 (the fixnum (size-of (vader-base varray))))))
-;;           (output-shape (shape-of varray))
-;;           (output-size (the (unsigned-byte 62) (reduce #'* output-shape))))
-;;      (if (zerop output-size)
-;;          (lambda (index) (declare (ignore index)) (prototype-of varray))
-;;          (if (not (functionp base-indexer))
-;;              (lambda (index) (declare (ignore index)) base-indexer)
-;;              (if output-shape (lambda (index)
-;;                                 (declare (type (unsigned-byte 62) index))
-;;                                 (funcall (the function base-indexer)
-;;                                          (mod index input-size)))
-;;                  (lambda (index) (declare (ignore index))
-;;                    (funcall (the function base-indexer) 0))))))))
-
-;; (defmethod indexer-of ((varray vader-reshape) &optional params)
-;;   (let ((generator (generator-of varray nil params)))
-;;     (if (functionp generator)
-;;         generator (lambda (index) (declare (ignore index)) generator))))
 
 (defmethod indexer-of ((varray vader-reshape) &optional params)
    "Index a reshaped array."
@@ -2579,7 +2555,7 @@
                                                       axis (rest axis))))))
                        (reverse output)))))))))
 
-(defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io)
+(defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io vad-unrei-temp)
   ((%laminating :accessor vacat-laminating
                 :initform nil
                 :initarg :laminating
@@ -2685,7 +2661,7 @@
                                                          (length ref-shape)))
                                                  1 (nth axis shape)))))))))
 
-(defmethod indexer-of ((varray vader-catenate) &optional params)
+(defmethod generator-of ((varray vader-catenate) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((out-shape (shape-of varray))
@@ -2758,7 +2734,7 @@
                (if (not (subrendering-p indexed))
                    indexed (render indexed)))))))))
 
-(defclass vader-mix (varray-derived vad-on-axis vad-with-io)
+(defclass vader-mix (varray-derived vad-on-axis vad-with-io vad-unrei-temp)
   ((%shape-indices :accessor vamix-shape-indices
                    :initform nil
                    :initarg :shape-indices
@@ -2860,7 +2836,7 @@
             
             (reverse out-shape)))))))
 
-(defmethod indexer-of ((varray vader-mix) &optional params)
+(defmethod generator-of ((varray vader-mix) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((oshape (shape-of varray))
@@ -3075,98 +3051,6 @@
                                element)))))
            (coerce pre-shape 'list))))))
 
-;; (defmethod indexer-of ((varray vader-section) &optional params)
-;;   "Indexer for a sectioned array."
-;;   (get-promised
-;;    (varray-indexer varray) ;; 6↑○⍳3 8↑'a',1 2 3 3↑⊂3 3⍴5 4↑(3 4⍴⍳12) 8 9
-;;    (let* ((assigning (getf params :for-selective-assign))
-;;           (this-base (when assigning (vader-base varray)))
-;;           (base-indexer)
-;;           (layers-below)
-;;           (size (size-of varray))
-;;           (iorigin (vads-io varray))
-;;           (axis (vads-axis varray))
-;;           (is-inverse (vads-inverse varray))
-;;           (base-size (size-of (vader-base varray)))
-;;           (out-dims (if is-inverse (make-array (length (shape-of varray))
-;;                                                :initial-element 0)
-;;                         (coerce (shape-of varray) 'vector)))
-;;           (arg-shape (shape-of (vads-argument varray)))
-;;           (arg-indexer (generator-of (vads-argument varray))))
-
-;;      (setf layers-below (when assigning (typecase (vader-base varray) (vader-section t)
-;;                                                   (vader-pick
-;;                                                    (setf (vapick-assign (vader-base varray))
-;;                                                          (getf params :assigning))
-;;                                                    (funcall (getf params :toggle-toplevel-subrendering))
-;;                                                    :pick)))
-;;            base-indexer (base-indexer-of varray (list :for-selective-assign
-;;                                                       (getf params :for-selective-assign)
-;;                                                       :assigning (getf params :assigning)
-;;                                                       :toggle-toplevel-subrendering
-;;                                                       (getf params :toggle-toplevel-subrendering))))
-     
-;;      (if (vectorp axis)
-;;          (loop :for x :across axis :for ix :from 0
-;;                :do (setf (aref out-dims (- x iorigin))
-;;                          (funcall arg-indexer ix)))
-;;          (if (eq :last axis)
-;;              (if (functionp arg-indexer)
-;;                  (loop :for a :below (first arg-shape) :for ix :from 0
-;;                        :do (setf (aref out-dims ix)
-;;                                  (funcall arg-indexer a)))
-;;                  (setf (aref out-dims 0) arg-indexer))
-;;              (setf (aref out-dims (- axis iorigin))
-;;                    arg-indexer)))
-
-;;      ;; (print (list :bb params (vader-base varray) layers-below))
-
-;;      ;; (setf april::ggg (vader-base varray))
-;;      ;; (print (list :ba base-indexer))
-;;      (let* ((indexer (indexer-section (vads-inverse varray)
-;;                                       (or (shape-of (vader-base varray)) '(1))
-;;                                       out-dims assigning))
-;;             ;; (ee (print (funcall indexer 0)))
-;;             (prototype (when (not assigning)
-;;                          (setf (varray-prototype varray)
-;;                                (if (or (zerop size) (zerop base-size))
-;;                                    (prototype-of (vader-base varray))
-;;                                    (let ((indexed (funcall indexer 0)))
-;;                                      (if indexed
-;;                                          (if (not (functionp base-indexer))
-;;                                              (prototype-of base-indexer)
-;;                                              (aplesque:make-empty-array
-;;                                               (render (funcall base-indexer indexed))))
-;;                                          (prototype-of (vader-base varray)))))))))
-;;        ;; (print (list :fi prototype ;; (funcall base-indexer (funcall indexer 0))
-;;        ;;              ;; (render (funcall base-indexer (funcall indexer 0)))
-;;        ;;              ))
-       
-;;        (if assigning (lambda (index)
-;;                        (declare (type integer index))
-;;                        (let ((indexed (funcall indexer index)))
-;;                          (if (not layers-below) indexed
-;;                              ;; handle the next layer, as for x←⍳9 ⋄ (2↑4↓x)←99 ⋄ x
-;;                              ;; (funcall base-indexer indexed)
-;;                              (let ((inext (funcall base-indexer index)))
-;;                                (when inext (if (eq :pick layers-below)
-;;                                                inext (funcall indexer inext)))))))
-;;            (if (not (functionp base-indexer)) ;; TODO: why is the disclose needed?
-;;                (lambda (index)
-;;                  (declare (type integer index))
-;;                  (when (funcall indexer index) (disclose base-indexer)))
-;;                (let ()
-;;                  (lambda (index)
-;;                    (declare (type integer index))
-;;                    (let ((indexed (funcall indexer index)))
-;;                      (if (not indexed)
-;;                          prototype (funcall base-indexer indexed)))))))))))
-
-;; (defmethod indexer-of ((varray vader-section) &optional params)
-;;   (if (getf params :for-selective-assign)
-;;       (nindexer-of varray params)
-;;       (generator-of varray nil params)))
-
 (defmethod indexer-of ((varray vader-section) &optional params)
   "Indexer for a sectioned array."
   (get-promised
@@ -3292,7 +3176,7 @@
                               (if (not indexer) indexers (cons indexer indexers))))))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
-                         vad-with-argument vad-maybe-shapeless)
+                         vad-with-argument vad-maybe-shapeless vad-unrei-temp)
   ((%inner-shape :accessor vaenc-inner-shape
                  :initform nil
                  :initarg :inner-shape
@@ -3355,7 +3239,7 @@
                                        (setf (vaenc-inner-shape varray) (reverse inner-shape))
                                        (reverse outer-shape))))))))
 
-(defmethod indexer-of ((varray vader-enclose) &optional params)
+(defmethod generator-of ((varray vader-enclose) &optional indexers params)
   (get-promised
    (varray-indexer varray)
    (let* ((base-shape (shape-of (vader-base varray)))
@@ -3684,35 +3568,6 @@
                           :finally (setf ex-dim this-dim)))
                 (loop :for dim :in (or base-shape '(1)) :for index :from 0
                       :collect (if (/= index axis) dim (* 1 ex-dim)))))))))
-
-;; (defmethod indexer-of ((varray vader-expand) &optional params)
-;;   (get-promised (varray-indexer varray)
-;;                 (let* ((assigning (getf params :for-selective-assign))
-;;                        (arg-rendered (render (vads-argument varray)))
-;;                        ;; TODO: why can't (vector item) be used below?
-;;                        (arg-vector (if (not (typep arg-rendered 'sequence))
-;;                                        arg-rendered (coerce arg-rendered 'vector)))
-;;                        (base-indexer (base-indexer-of varray))
-;;                        (indexer (if (or (integerp arg-rendered)
-;;                                         (< 0 (size-of arg-vector)))
-;;                                     (indexer-expand arg-vector (shape-of (vader-base varray))
-;;                                                     (vads-axis varray)
-;;                                                     (vads-inverse varray)
-;;                                                     assigning))))
-;;                   (if (functionp base-indexer)
-;;                       (if assigning (lambda (index) (funcall indexer index))
-;;                           (lambda (index)
-;;                             (let ((indexed (funcall indexer index)))
-;;                               (when indexed (funcall base-indexer indexed)))))
-;;                       (lambda (index)
-;;                         (when (funcall indexer index) (disclose base-indexer)))))))
-
-;; (defmethod indexer-of ((varray vader-expand) &optional params)
-;;   (if (getf params :for-selective-assign)
-;;       (nindexer-of varray params)
-;;       (let ((generator (generator-of varray nil params)))
-;;         (if (functionp generator)
-;;             generator (lambda (index) (declare (ignore index)) generator)))))
 
 (defmethod indexer-of ((varray vader-expand) &optional params)
   (get-promised (varray-indexer varray)
@@ -4144,51 +3999,6 @@
                               (render argument) ;; TODO: eliminate forced render here
                               (when (arrayp argument) argument))))))
 
-;; (defmethod indexer-of ((varray vader-turn) &optional params)
-;;   "Indexer for a rotated or flipped array."
-;;   (get-promised (varray-indexer varray)
-;;                 (let* ((base-indexer (base-indexer-of varray))
-;;                        (indexer (when (and (functionp base-indexer))
-;;                                   (indexer-turn (if (eq :last (vads-axis varray))
-;;                                                     (1- (length (shape-of varray)))
-;;                                                     (- (vads-axis varray) (vads-io varray)))
-;;                                                 (shape-of varray)
-;;                                                 (arg-process (vads-argument varray))))))
-;;                   (if (zerop (reduce #'+ (shape-of (vader-base varray))))
-;;                       (lambda (_)
-;;                         (declare (ignore _))
-;;                         (vader-base varray)) ;; handle the case of ⌽⍬
-;;                       (lambda (index)
-;;                         (if (not indexer)
-;;                             base-indexer (funcall base-indexer (funcall indexer index))))))))
-
-;; (defmethod indexer-of ((varray vader-turn) &optional params)
-;;   "Indexer for a rotated or flipped array."
-;;   (declare (ignore params) (optimize (speed 3) (safety 0)))
-;;   (get-promised (varray-indexer varray)
-;;                 (let* ((base-indexer (base-indexer-of varray))
-;;                        (axis (the (unsigned-byte 8) (vads-axis varray)))
-;;                        (iorigin (the fixnum (vads-io varray)))
-;;                        (indexer (the function (if (functionp base-indexer)
-;;                                                   (indexer-turn (if (eq :last (vads-axis varray))
-;;                                                                     (1- (the (unsigned-byte 62)
-;;                                                                              (rank-of varray)))
-;;                                                                     (- axis iorigin))
-;;                                                                 (shape-of varray)
-;;                                                                 (arg-process varray))))))
-;;                   (if (zerop (the (unsigned-byte 62)
-;;                                   (reduce #'+ (shape-of (vader-base varray)))))
-;;                       (lambda (_)
-;;                         (declare (ignore _))
-;;                         (vader-base varray)) ;; handle the case of ⌽⍬
-;;                       (lambda (index)
-;;                         (if (not indexer)
-;;                             base-indexer (funcall (the function base-indexer)
-;;                                                   (funcall indexer index))))))))
-
-;; (defmethod indexer-of ((varray vader-turn) &optional params)
-;;   (get-promised (varray-indexer varray) (generator-of varray)))
-
 (defmethod indexer-of ((varray vader-turn) &optional params)
   (declare (ignore params) (optimize (speed 3) (safety 0)))
   (if (shape-of varray)
@@ -4271,37 +4081,8 @@
                       (= base-rank (length positions)))
                 (remove nil odims))))))
 
-;; (defmethod indexer-of ((varray vader-permute) &optional params)
-;;   "Indexer for a rotated or flipped array."
-;;   (get-promised
-;;    (varray-indexer varray)
-;;    (let* ((assigning (getf params :for-selective-assign))
-;;           (base-indexer (base-indexer-of varray))
-;;           (argument (render (vads-argument varray)))
-;;           (indexer (when (functionp base-indexer)
-;;                      (indexer-permute (shape-of (vader-base varray))
-;;                                       (shape-of varray)
-;;                                       (when argument
-;;                                         (if (vectorp argument)
-;;                                             (coerce (loop :for a :across argument
-;;                                                           :collect (max 0 (- a (vads-io varray))))
-;;                                                     'vector)
-;;                                             (- argument (vads-io varray))))
-;;                                       (not (or (not (vads-argument varray))
-;;                                                (vaperm-is-diagonal varray)))
-;;                                       assigning))))
-;;      (lambda (index)
-;;        (if assigning (funcall indexer index)
-;;            (if (not indexer)
-;;                base-indexer (funcall base-indexer (funcall indexer index))))))))
-
-;; (defmethod indexer-of ((varray vader-permute) &optional params)
-;;   (if (getf params :for-selective-assign)
-;;       (nindexer-of varray params)
-;;       (generator-of varray nil params)))
-
 (defmethod indexer-of ((varray vader-permute) &optional params)
-  (declare (optimize (speed 3) (safety 0)))
+  ;; (declare (optimize (speed 3) (safety 0)))
   (if (or (shape-of varray) (getf params :for-selective-assign))
       (let* ((assigning (getf params :for-selective-assign))
              (argument (render (vads-argument varray)))
@@ -4321,8 +4102,10 @@
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
   (let ((indexer (indexer-of varray params)))
     ;; (print (list :ni indexer indexers params (vader-base varray)))
-    (generator-of (vader-base varray)
-                  (if (not indexer) indexers (cons indexer indexers)))))
+    (if (getf params :for-selective-assign)
+        indexer
+        (generator-of (vader-base varray)
+                      (if (not indexer) indexers (cons indexer indexers))))))
 
 (defclass vader-grade (varray-derived vad-with-argument vad-with-io vad-invertable vad-unrei-temp)
   nil (:metaclass va-class)
@@ -4673,7 +4456,7 @@
                                  (funcall (getf args :left) :get-metadata)))))))
     #'this))
 
-(defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io vad-with-default-axis)
+(defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io vad-with-default-axis vad-unrei-temp)
   ((%unitary :accessor vacred-unitary
              :initform nil
              :initarg :unitary
@@ -4706,7 +4489,7 @@
                           :when (and (= ix axis) (= 1 b)) :do (setf (vacred-unitary varray) t)
                             :when (and window (= ix axis)) :collect (- b (1- window)))))))
 
-(defclass vader-subarray-reduce (vader-subarray)
+(defclass vader-subarray-reduce (vader-subarray vad-unrei-temp)
   ((%window :accessor vasbr-window
             :initform nil
             :initarg :window
@@ -4730,7 +4513,7 @@
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
-(defmethod indexer-of ((varray vader-subarray-reduce) &optional params)
+(defmethod generator-of ((varray vader-subarray-reduce) &optional indexers params)
   (declare (ignore params))
   (get-promised
    (varray-indexer varray)
@@ -4744,7 +4527,7 @@
            (funcall base-indexer (+ (* index (vasv-index varray))
                                     (vasbr-delta varray))))))))
 
-(defmethod indexer-of ((varray vacomp-reduce) &optional params)
+(defmethod generator-of ((varray vacomp-reduce) &optional indexers params)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
   (get-promised
    (varray-indexer varray)
@@ -4899,7 +4682,7 @@
                               (setf (vads-subrendering varray) nil))
                             value))))))))))))
 
-(defclass vacomp-each (vad-subrendering vader-composing)
+(defclass vacomp-each (vad-subrendering vader-composing vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "An each-composed array as with the [¨ each] operator."))
 
@@ -4912,13 +4695,6 @@
                        (ashape (shape-of (vacmp-alpha varray)))
                        (osize (reduce #'* oshape))
                        (asize (reduce #'* ashape)))
-                  ;; (print (list :os oshape ashape (vacmp-omega varray) (vacmp-alpha varray)
-                  ;;              ;; (setf april::iio (vacmp-omega varray))
-                  ;;              osize asize
-                  ;;              ))
-                  ;; (print (list :oo oshape osize ashape asize (vacmp-alpha varray)
-                  ;;              ;; (render (vacmp-alpha varray))
-                  ;;              ))
                   (if oshape (if (not ashape)
                                  oshape (if (= 1 osize)
                                             (if (zerop asize) oshape ashape)
@@ -4931,7 +4707,7 @@
                                                     oshape (error "Shapes must match.")))))
                           ashape))))
 
-(Defmethod indexer-of ((varray vacomp-each) &optional params)
+(Defmethod generator-of ((varray vacomp-each) &optional indexers params)
   (get-promised (varray-indexer varray)
                 (let ((this-shape (shape-of varray))
                       (oshape (shape-of (vacmp-omega varray)))
@@ -4976,7 +4752,7 @@
                   (if (eq :outer left) (append adims odims)
                       (append (butlast adims) (rest odims))))))
 
-(defclass vader-subarray-displaced (vader-subarray)
+(defclass vader-subarray-displaced (vader-subarray vad-unrei-temp)
   nil (:metaclass va-class)
   (:documentation "An element of a split array as from the [↓ split] function."))
 
@@ -4990,7 +4766,7 @@
                   (if (varrayp first-item) (prototype-of first-item)
                       (apl-array-prototype first-item)))))
 
-(defmethod indexer-of ((varray vader-subarray-displaced) &optional params)
+(defmethod generator-of ((varray vader-subarray-displaced) &optional indexers params)
   (declare (ignore params))
   (get-promised (varray-indexer varray)
                 (let ((interval (reduce #'* (shape-of varray)))
