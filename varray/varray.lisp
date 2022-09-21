@@ -259,7 +259,7 @@
 
 (defmethod generator-of :around ((varray varray) &optional indexers params)
   (if (typep varray 'vad-reindexing) (call-next-method)
-      (if t (call-next-method)
+      (if nil (call-next-method)
       (let ((rev-indexers (reverse indexers))
             (this-generator (call-next-method)))
         (if (not (functionp this-generator))
