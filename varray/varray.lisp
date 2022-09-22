@@ -188,13 +188,12 @@
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  (let ((rev-indexers (reverse indexers))
-        (prototype))
+  (let ((rev-indexers (reverse indexers)))
     (lambda (index)
       (let ((index-out index))
         (loop :for i :in rev-indexers :do (setf index-out (funcall i index-out)))
-        (if (>= index-out (array-total-size array))
-            (or prototype (setf prototype (prototype-of array)))
+        (if (< index-out (array-total-size array))
+            ;; (or prototype (setf prototype (prototype-of array)))
             (row-major-aref array index-out))))))
 
 (defmethod render ((item t) &rest params)
@@ -2205,8 +2204,10 @@
     (if (zerop output-size)
         (let ((prototype (prototype-of varray)))
           (lambda (index) (declare (ignore index)) prototype))
-        (let ((indexer (indexer-of varray params)))
-          (generator-of (vader-base varray) (cons indexer indexers))))))
+        (if (zerop (size-of (vader-base varray)))
+            (prototype-of (vader-base varray))
+            (let ((indexer (indexer-of varray params)))
+              (generator-of (vader-base varray) (cons indexer indexers)))))))
 
 (defclass vader-depth (varray-derived)
   nil (:metaclass va-class)
@@ -3330,6 +3331,12 @@
             (vads-argument varray))
         t (assign-element-type base))))
 
+(defmethod prototype-of ((varray vader-enclose))
+  (if (not (zerop (size-of varray)))
+      (call-next-method)
+      (make-instance 'vader-expand :argument 0 :axis :last :base (vader-base varray)
+                                   :index-origin (vads-io varray))))
+
 (defmethod shape-of ((varray vader-enclose))
   (get-promised (varray-shape varray)
                 (if (vads-shapeset varray)
@@ -3345,7 +3352,6 @@
                                           (nth axis base-shape)
                                           (or (first (last base-shape)) 1)))
                            (input-offset 0) (intervals (list 0)))
-
                       (when positions
                         (dotimes (i (if (is-unitary positions) (or (first (last base-shape)) 1)
                                         (length positions)))
@@ -3369,8 +3375,8 @@
                                                        t))
 
                       (if positions (list (1- (length intervals)))
-                          (when axis (let ((base-shape (shape-of (vader-base varray)))
-                                           (outer-shape) (inner-shape))
+                          (when axis (let ((outer-shape) (inner-shape)
+                                           (base-shape (shape-of (vader-base varray))))
                                        (loop :for d :in base-shape :for dx :from 0
                                              :do (if (if (integerp axis) (not (= dx axis))
                                                          (loop :for a :across axis :never (= a dx)))
@@ -3887,15 +3893,17 @@
 (defmethod shape-of ((varray vader-pick))
   (if (vapick-assign varray)
       (shape-of (vader-base varray))
-      (let* ((ref (fetch-reference varray (vader-base varray)))
-             (this-indexer (generator-of ref)))
-        (if (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
-            (if (arrayp this-indexer)
-                (shape-of (row-major-aref this-indexer 0))
-                (when (arrayp ref)
-                  (shape-of ref)))
-            (when (not (zerop (size-of (vader-base varray))))
-              (shape-of ref))))))
+      (if (zerop (size-of (vader-base varray)))
+          (shape-of (prototype-of (vader-base varray)))
+          
+          (let* ((ref (fetch-reference varray (vader-base varray)))
+                 (this-indexer (generator-of ref)))
+            (if (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
+                (if (arrayp this-indexer)
+                    (shape-of (row-major-aref this-indexer 0))
+                    (when (arrayp ref)
+                      (shape-of ref)))
+                (shape-of ref))))))
 
 (defmethod generator-of ((varray vader-pick) &optional indexers params)
   ;; (print (list :ii (vapick-selector varray) (vapick-assign varray)))
@@ -3916,7 +3924,6 @@
             (setf (vads-subrendering varray) t)
             ;; (print (list :ti this-index (vapick-apath-index varray) (vapick-apath-index varray)))
             (lambda (index)
-              ;; (print (list :ii (vapick-selector varray)))
               (if (= index this-index)
                   (if (vapick-selector varray)
                       (make-instance
@@ -3933,7 +3940,7 @@
       
       (let* ((this-reference (fetch-reference varray (vader-base varray)))
              (this-indexer (generator-of this-reference))) ;; IPV-TODO: generator bug!
-        ;; (print (list :as (shape-of varray))) ; (scc≡⍳∘≢) (⍳10),⊂⍬ ⋄ md1 wpath 1 4 ⋄ (↑g w) wspan 1
+        ;; (print (list :as (shape-of varray) (shape-of (vader-base varray)))) ; (scc≡⍳∘≢) (⍳10),⊂⍬ ⋄ md1 wpath 1 4 ⋄ (↑g w) wspan 1
         ;; (print (list :ti this-reference (vader-base varray) this-indexer
         ;;              (vads-argument varray)))
         ;; (if (not (arrayp this-indexer))
@@ -3942,7 +3949,7 @@
             (generator-of this-indexer)
             (if (not (arrayp this-indexer))
                 this-indexer (generator-of (row-major-aref this-indexer
-                                                         (or (vads-argument varray) 0))))))))
+                                                           (or (vads-argument varray) 0))))))))
 
 (defclass vader-intersection (varray-derived vad-limitable)
   nil (:metaclass va-class)
