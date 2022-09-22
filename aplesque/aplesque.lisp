@@ -2187,6 +2187,7 @@
          (out-factors (make-array wrank :element-type 'fixnum :initial-element 0))
          (win-factors (make-array wrank :element-type 'fixnum :initial-element 0))
          (output (make-array output-dims))
+         (prototype (apl-array-prototype input))
          (last-dim))
     
     ;; generate dimensional factors vector for window dimensions
@@ -2238,8 +2239,7 @@
                            (setq rmi (+ rmi (* this-index if)))
                            (setq valid nil)))))
             (setf (row-major-aref window w)
-                  (if (not valid)
-                      (apl-array-prototype input)
+                  (if (not valid) prototype
                       (row-major-aref input rmi)))))
         (setf (row-major-aref output o)
               (funcall process window acoords))))

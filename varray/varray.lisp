@@ -188,12 +188,14 @@
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  (let ((rev-indexers (reverse indexers)))
+  (let ((rev-indexers (reverse indexers))
+        (prototype))
     (lambda (index)
       (let ((index-out index))
         (loop :for i :in rev-indexers :do (setf index-out (funcall i index-out)))
-        (when (< index-out (array-total-size array))
-          (row-major-aref array index-out))))))
+        (if (>= index-out (array-total-size array))
+            (or prototype (setf prototype (prototype-of array)))
+            (row-major-aref array index-out))))))
 
 (defmethod render ((item t) &rest params)
   "Rendering a non-virtual array object simply returns the object."
@@ -245,7 +247,6 @@
 
 (defvar *workers-count* (max 1 (1- (count-cpus))))
 
-
 (defmethod generator-of ((varray varray) &optional indexers params)
   (let ((rev-indexers (reverse indexers))
         (this-indexer (indexer-of varray)))
@@ -269,27 +270,157 @@
                 ;; (print (list :in index index-out))
                 (funcall this-generator index-out)))))))
 
+;; (defmethod render ((varray varray) &rest params)
+;;   ;; (declare (optimize (speed 3)))
+;;   (let ((output-shape (shape-of varray))
+;;         (prototype (let ((proto (prototype-of varray)))
+;;                      ;; a null-type prototype is nil
+;;                      (when (not (eql 'null proto)) proto)))
+;;         ;; (indexer (i2ndexer-of varray))
+;;         (indexer (generator-of varray))
+;;         (to-subrender (or (subrendering-p varray)
+;;                           (subrendering-base varray))))
+;;     ;; (when (typep varray 'vader-identity) (print :ef))
+;;     ;; (print (list :vv varray prototype
+;;     ;;              (etype-of varray)
+;;     ;;              (if (typep varray 'varray-derived)
+;;     ;;                  (subrendering-p (vader-base varray)))))
+;;     (if output-shape
+;;         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
+;;             (let ((out-meta (when (arrayp prototype)
+;;                                (make-array 1 :initial-contents
+;;                                            (list (list :empty-array-prototype
+;;                                                        (prototype-of varray)))))))
+;;               ;; a nil element type results in a t-type array;
+;;               ;; nil types may occur from things like +/⍬
+;;               (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
+;;                   (make-array (shape-of varray) :element-type (or (etype-of varray) t))))
+;;             (let* ((output (make-array (shape-of varray) :element-type (etype-of varray)))
+;;                    (render-index
+;;                      (if to-subrender
+;;                          (lambda (i)
+;;                            (declare (type (unsigned-byte 62) i))
+;;                            ;; (print (list :ix indexer i varray))
+;;                            (let ((indexed (if (not (functionp indexer))
+;;                                               indexer (funcall indexer i))))
+;;                              (setf (row-major-aref output i)
+;;                                    (if indexed (render indexed) prototype))))
+;;                          (lambda (i)
+;;                            (declare (type (unsigned-byte 62) i))
+;;                            ;; (print (list :ioi i varray))
+;;                            (if (functionp indexer)
+;;                                (setf (row-major-aref output i)
+;;                                      (or (funcall indexer i) prototype))
+;;                                (setf (row-major-aref output i)
+;;                                      (or indexer prototype))))))
+;;                    (sbsize (sub-byte-element-size output))
+;;                    (sbesize (if sbsize (/ 64 sbsize) 1))
+;;                    (wcadj *workers-count*)
+;;                    (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
+;;                    (total-size (size-of varray))
+;;                    (interval (/ total-size sbesize *workers-count*))
+;;                    (lpchannel (lparallel::make-channel))
+;;                    (process (lambda (index)
+;;                               (lambda ()
+;;                                 (let* ((start-intervals (ceiling (* interval index)))
+;;                                        (start-at (* sbesize start-intervals))
+;;                                        (count (if (< index (1- divisions))
+;;                                                   (* sbesize (- (ceiling (* interval (1+ index)))
+;;                                                                 start-intervals))
+;;                                                   (- total-size start-at))))
+;;                                   (loop :for i :from start-at :to (1- (+ start-at count))
+;;                                         :do (funcall render-index i))))))
+;;                    ;; (total-size (size-of varray))
+;;                    ;; (divisions (min total-size (max wcadj (ceiling (/ total-size sbesize)))))
+;;                    ;; (interval sbesize) ; (/ total-size sbesize *workers-count*))
+;;                    ;; (lpchannel (lparallel::make-channel))
+;;                    ;; (process (lambda (index)
+;;                    ;;            (lambda ()
+;;                    ;;              (let* ((start-intervals (ceiling (* interval index)))
+;;                    ;;                     (start-at (* sbesize index))
+;;                    ;;                     (count (if (< index (1- divisions))
+;;                    ;;                                sbesize (- total-size start-at))))
+;;                    ;;                ;; (print (list :sa start-at count total-size))
+;;                    ;;                ;; (error "true")
+;;                    ;;                (loop :for i :from start-at :to (1- (+ start-at count))
+;;                    ;;                      :do (funcall render-index i))))))
+;;                    (threaded-count 0))
+;;               ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
+;;               ;;              (vader-base varray)
+;;               ;;              (when (typep varray 'vader-composing) (vacmp-omega varray))))
+;;               ;; (print (list :ss interval sbsize sbesize :div divisions wcadj (size-of varray)))
+;;               ;; (setf active-workers 0)
+;;               ;; (print (list :out (type-of output) (type-of varray)
+;;               ;;              divisions division-size sbesize sbsize
+;;               ;;              (typep varray 'vader-composing)
+;;               ;;              (when (typep varray 'vader-composing)
+;;               ;;                (vacmp-threadable varray))))
+;;               ;; (print (list :ts to-subrender (setf april::ggt varray)))
+;;               (loop :for d :below divisions
+;;                     :do (if ;; (or (and (typep varray 'vader-composing)
+;;                             ;;           (not (vacmp-threadable varray)))
+;;                             ;;      ;; don't thread when rendering the output of operators composed
+;;                             ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+;;                             ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+;;                             ;;            :never (null (lparallel.kernel::running-category worker))))
+;;                          t
+;;                          ;; (typep varray 'vacomp-each)
+;;                          ;; (lparallel:kernel-worker-index)
+;;                             (funcall (funcall process d))
+;;                             (progn (incf threaded-count)
+;;                                    (lparallel::submit-task lpchannel (funcall process d)))))
+;;               (loop :repeat threaded-count
+;;                 :do (lparallel::receive-result lpchannel))
+;;               output))
+;;         (funcall (if (subrendering-p varray)
+;;                      (lambda (item)
+;;                        (let ((rendered (render item)))
+;;                          ;; (print (list :rr rendered item varray
+;;                          ;;              (subrendering-p varray)))
+;;                          ;; (if (typep varray 'vacomp-reduce)
+;;                          ;;     (push varray april::ggg))
+;;                          (if (and (zerop (rank-of rendered))
+;;                                   (or (not (arrayp rendered))
+;;                                       ;; (print (subrendering-p varray))
+;;                                       (and (typep varray 'vacomp-reduce)
+;;                                            (subrendering-p varray))))
+;;                              ;; handle the case of {,/⍵}/3⍴⊂⍳3
+;;                              rendered (enclose rendered))))
+;;                      (lambda (item)
+;;                        (let ((rendered (apply #'render item params)))
+;;                          ;; (print (list :ren rendered))
+;;                          (if (or (not (shape-of rendered))
+;;                                  (typep varray 'vader-mix) ;; put these in a superclass
+;;                                  (typep varray 'vader-pick))
+;;                              rendered (enclose rendered)))))
+;;                  (if (not (functionp indexer))
+;;                      indexer (funcall indexer 0))))))
+
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
   (let ((output-shape (shape-of varray))
-        (prototype (let ((proto (prototype-of varray)))
-                     ;; a null-type prototype is nil
-                     (when (not (eql 'null proto)) proto)))
-        ;; (indexer (i2ndexer-of varray))
         (indexer (generator-of varray))
-        (to-subrender (or (subrendering-p varray)
-                          (subrendering-base varray))))
-    ;; (when (typep varray 'vader-identity) (print :ef))
+        (to-subrender))
+
+    (when (and (typep varray 'vader-select)
+               (< 0 (size-of varray)) (functionp indexer))
+      (funcall indexer 0))
+    ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
+    ;; first element is generated - figure out a better way to do this
+    (setf to-subrender (or (subrendering-p varray)
+                           (subrendering-base varray)))
+    ;; (print (list :sr varray (subrendering-p varray)
+    ;;              (subrendering-base varray)))
     ;; (print (list :vv varray prototype
     ;;              (etype-of varray)
     ;;              (if (typep varray 'varray-derived)
     ;;                  (subrendering-p (vader-base varray)))))
     (if output-shape
         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
-            (let ((out-meta (when (arrayp prototype)
+            (let* ((prototype (prototype-of varray))
+                   (out-meta (when (arrayp prototype)
                                (make-array 1 :initial-contents
-                                           (list (list :empty-array-prototype
-                                                       (prototype-of varray)))))))
+                                           (list (list :empty-array-prototype prototype))))))
               ;; a nil element type results in a t-type array;
               ;; nil types may occur from things like +/⍬
               (if out-meta (make-array (shape-of varray) :displaced-to out-meta)
@@ -299,19 +430,16 @@
                      (if to-subrender
                          (lambda (i)
                            (declare (type (unsigned-byte 62) i))
-                           ;; (print (list :ix indexer i varray))
+                           ;; (print (list :ix i varray indexer))
                            (let ((indexed (if (not (functionp indexer))
                                               indexer (funcall indexer i))))
                              (setf (row-major-aref output i)
-                                   (if indexed (render indexed) prototype))))
+                                   (render indexed))))
                          (lambda (i)
                            (declare (type (unsigned-byte 62) i))
-                           ;; (print (list :ioi i varray))
                            (if (functionp indexer)
-                               (setf (row-major-aref output i)
-                                     (or (funcall indexer i) prototype))
-                               (setf (row-major-aref output i)
-                                     (or indexer prototype))))))
+                               (setf (row-major-aref output i) (funcall indexer i))
+                               (setf (row-major-aref output i) indexer)))))
                    (sbsize (sub-byte-element-size output))
                    (sbesize (if sbsize (/ 64 sbsize) 1))
                    (wcadj *workers-count*)
@@ -356,13 +484,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;           (not (vacmp-threadable varray)))
-                            ;;      ;; don't thread when rendering the output of operators composed
-                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;            :never (null (lparallel.kernel::running-category worker))))
-                         t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                      (not (vacmp-threadable varray)))
+                                 ;; don't thread when rendering the output of operators composed
+                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                       :never (null (lparallel.kernel::running-category worker))))
+                         ;; t
                          ;; (typep varray 'vacomp-each)
                          ;; (lparallel:kernel-worker-index)
                             (funcall (funcall process d))
@@ -394,6 +522,8 @@
                              rendered (enclose rendered)))))
                  (if (not (functionp indexer))
                      indexer (funcall indexer 0))))))
+
+;; 2↑2  (3 4⍴⍳9)[(1 2)(3 1)]  (3 4⍴⍳9)[2 2⍴⊂(2 3)] {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99
 
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
@@ -733,8 +863,6 @@
 
 (defmethod etype-of ((varray vapri-axis-vector))
   (etype-of (vaxv-reference varray)))
-
-;; (defmethod prototype-of ((varray vapri-axis-vector)))
 
 (defmethod shape-of ((varray vapri-axis-vector))
   (get-promised (varray-shape varray)
@@ -1299,7 +1427,6 @@
                         :return (funcall vector-indexer v))))
             (compare-path (pindex path)
               (let ((remaining pindex) (valid t))
-                ;; (print (list :io pindex path))
                 (loop :for if :across ifactors :for p :across path :while valid
                       :do (multiple-value-bind (dindex remainder) (floor remaining if)
                             (setf remaining remainder)
@@ -1584,9 +1711,7 @@
                                                                                 :eindices)
                                                                           :ebase (funcall eindexer
                                                                                           index))))))
-                                                 ;; (vasel-assign varray)
-                                                 set-indexer
-                                                 ))
+                                                 set-indexer))
                                          (funcall set-indexer oindex)))
                            (if (not (functionp base-indexer))
                                base-indexer (funcall base-indexer index)))
@@ -1681,20 +1806,19 @@
                          (setf (getf (rest rngs) gen-name)
                                (if (eq :system gen-name)
                                    :system (random-state:make-generator gen-name)))))
-          ;; (generator :system)
           (seed (getf (rest rngs) :seed)))
 
      ;; randomized array content is generated synchronously
      ;; and cached in case a random seed is in use
-     (if (and t ; seed
-              (not (varand-cached varray)))
-         (progn (setf (varand-cached varray)
-                      (make-array (size-of (vader-base varray))
-                                  :element-type (etype-of varray)))
-                (loop :for i :below (size-of (vader-base varray))
-                      :do (setf (row-major-aref (varand-cached varray) i)
-                                (apl-random-process (funcall base-indexer i)
-                                                    (vads-io varray) generator)))))
+     (when (and t ; seed
+                (not (varand-cached varray)))
+       (setf (varand-cached varray)
+             (make-array (size-of (vader-base varray))
+                         :element-type (etype-of varray)))
+       (loop :for i :below (size-of (vader-base varray))
+             :do (setf (row-major-aref (varand-cached varray) i)
+                       (apl-random-process (funcall base-indexer i)
+                                           (vads-io varray) generator))))
 
      ;; (if t ; seed
      ;;     (print (list seed (varand-cached varray))))
@@ -1741,8 +1865,7 @@
              ;; (vector (make-array count :element-type (etype-of varray)))
              )
         ;; (setf (vadeal-cached varray) vector)
-        (if (integerp length)
-            (list length)
+        (if (integerp length) (list length)
             (error "Both arguments to ? must be non-negative integers.")))))
 
 (defmethod generator-of ((varray vader-deal) &optional indexer params)
@@ -1809,8 +1932,8 @@
                          #'char= (if (and (numberp a) (numberp o))
                                      #'= (lambda (a o) (declare (ignore a o)))))
                      o a)))
-     (let ((derivative-count (if (getf params :shape-deriving)
-                                 (reduce #'* (getf params :shape-deriving))))
+     (let ((derivative-count (when (getf params :shape-deriving)
+                               (reduce #'* (getf params :shape-deriving))))
            (contents (render (vader-base varray)))
            (argument (render (vads-argument varray))))
        ;; (print (list :arg argument))
@@ -1830,18 +1953,17 @@
                        :do (let ((include t))
                              (if (vectorp cont-vector)
                                  (loop :for ex :across cont-vector
-                                       :do (if (compare ex element) (setq include nil)))
-                                 (if (compare cont-vector element) (setq include nil)))
-                             (if include (progn (push element included)
-                                                (incf count)))))
+                                       :do (when (compare ex element) (setq include nil)))
+                                 (when (compare cont-vector element) (setq include nil)))
+                             (when include (push element included)
+                                   (incf count))))
                  (let ((include t))
-                   ;; (print (list :co cont-vector argument))
                    (if (vectorp cont-vector)
                        (loop :for ex :across cont-vector
-                             :do (if (compare ex argument) (setq include nil)))
-                       (if (compare cont-vector argument) (setq include nil)))
-                   (if include (progn (push argument included)
-                                      (incf count)))))
+                             :do (when (compare ex argument) (setq include nil)))
+                       (when (compare cont-vector argument) (setq include nil)))
+                   (when include (push argument included)
+                         (incf count))))
              ;; (print (list :inc included derivative-count))
              (setf (vader-content varray)
                    (make-array (length included) :element-type (etype-of argument)
@@ -2084,7 +2206,6 @@
         (let ((prototype (prototype-of varray)))
           (lambda (index) (declare (ignore index)) prototype))
         (let ((indexer (indexer-of varray params)))
-          ;; (print (list :ni indexer indexers params (vader-base varray)))
           (generator-of (vader-base varray) (cons indexer indexers))))))
 
 (defclass vader-depth (varray-derived)
@@ -3183,9 +3304,9 @@
                                   ;; (print (list :gen index generator indexed))
                                   ;; (print (list :cc indexed generator is-negative))
                                   (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
-                                      (when (zerop index) indexed)
+                                      (if (zerop index) indexed prototype)
                                       (if (not (functionp generator))
-                                          (when (= index scalar-index) generator)
+                                          (if (= index scalar-index) generator prototype)
                                           (funcall generator indexed))))
                         prototype)))))
             (if (zerop (size-of varray))
