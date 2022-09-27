@@ -58,7 +58,7 @@
                               (progn (incf oindex (* ofactor adj-index))
                                      (setq remaining remainder))
                               (setq valid nil)))))
-            (if valid oindex)))
+            (when valid oindex)))
         (lambda (i)
           (let ((iindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
@@ -72,32 +72,33 @@
                               (progn (incf iindex (* ifactor adj-index))
                                      (setq remaining remainder))
                               (setq valid nil)))))
-            (if valid iindex))))))
+            (when valid iindex))))))
 
 (defun indexer-expand (degrees dims axis compress-mode is-inverse)
   "Return indices of an array expanded as with the [/ compress] or [\\ expand] functions."
   ;; TODO: more speedup is possible here in the case of a scalar degree argument
-  (let* ((oned (if (not (arrayp degrees)) degrees))
+  (let* ((oned (when (not (arrayp degrees)) degrees))
          (degrees (if (arrayp degrees) degrees
-                      (if (integerp degrees) (vector degrees))))
+                      (when (integerp degrees) (vector degrees))))
          (d-count (length degrees))
-         (c-degrees (if degrees (make-array d-count :element-type 'fixnum :initial-element 0)))
+         (c-degrees (when degrees (make-array d-count :element-type 'fixnum :initial-element 0)))
          (positive-index-list (if (not compress-mode)
-                                  (if oned (if (< 0 oned) (list 0))
+                                  (if oned (when (< 0 oned) (list 0))
                                       (loop :for degree :below d-count
                                             :when (< 0 (aref degrees degree)) :collect degree))))
-         (positive-indices (if positive-index-list (make-array (length positive-index-list)
-                                                               :element-type 'fixnum
-                                                               :initial-contents positive-index-list)))
+         (positive-indices (when positive-index-list
+                             (make-array (length positive-index-list)
+                                         :element-type 'fixnum
+                                         :initial-contents positive-index-list)))
          (section-size (reduce #'* (loop :for d :in dims :for dx :from 0
                                          :when (> dx axis) :collect d))))
     (if degrees (loop :for degree :across degrees :for dx :from 0
                       :summing (max (abs degree) (if compress-mode 0 1))
                         :into this-dim :do (setf (aref c-degrees dx) this-dim)))
-    (let* ((in-factors (if (and is-inverse (listp is-inverse))
-                           (get-dimensional-factors dims t)))
-           (asn-factors (if (and is-inverse (listp is-inverse))
-                            (get-dimensional-factors is-inverse t)))
+    (let* ((in-factors (when (and is-inverse (listp is-inverse))
+                         (get-dimensional-factors dims t)))
+           (asn-factors (when (and is-inverse (listp is-inverse))
+                          (get-dimensional-factors is-inverse t)))
            (idiv-size (reduce #'* (loop :for d :in dims :for dx :from 0
                                         :when (>= dx axis) :collect d)))
            (odiv-size (reduce #'* (if dims (loop :for d :in dims :for dx :from 0
@@ -108,13 +109,14 @@
                                           (loop :for d :across c-degrees :for dx :from 0
                                                 :collect (abs d)))))))
       
-      (lambda (i)
-        ;; in compress-mode: degrees must = length of axis,
-        ;; zeroes are omitted from output, negatives add zeroes
-        ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
-        (if is-inverse
-            (if (eq t is-inverse)
-                (if (< 0 (aref degrees (mod i d-count))) i)
+      
+      ;; in compress-mode: degrees must = length of axis,
+      ;; zeroes are omitted from output, negatives add zeroes
+      ;; otherwise: zeroes pass through, negatives add zeroes, degrees>0 must = length of axis
+      (if is-inverse
+          (if (eq t is-inverse)
+              (lambda (i) (when (< 0 (aref degrees (mod i d-count))) i))
+              (lambda (i)
                 (let ((remaining i) (aindex 0) (valid t))
                   ;; find assignment indices for valid input indices,
                   ;; as for x←6 8⍴⍳9 ⋄ ((30>+⌿x)/x)←6 4⍴10×⍳3 ⋄ x
@@ -130,21 +132,22 @@
                                               :do (incf dcount (if (>= 0 d) 0 1)))
                                         (incf aindex (* ad dcount)))))
                               (setf remaining remainder)))
-                  (if valid aindex)))
+                  (when valid aindex))))
+          (lambda (i)
             (multiple-value-bind (oseg remainder) (floor i (max 1 odiv-size))
               (multiple-value-bind (oseg-index element-index) (floor remainder section-size)
                 ;; dimension index
                 (let ((dx (if oned (floor oseg-index (max 1 oned))
                               (loop :for d :across c-degrees :for di :from 0
                                     :when (> d oseg-index) :return di))))
-                  (if (if oned (< 0 oned)
-                          (< 0 (aref degrees dx)))
-                      (+ element-index (* oseg idiv-size)
-                         (* section-size (if (not positive-indices)
-                                             dx (or (loop :for p :across positive-indices
-                                                          :for px :from 0 :when (= p dx)
-                                                          :return px)
-                                                    1)))))))))))))
+                  (when (if oned (< 0 oned)
+                            (< 0 (aref degrees dx)))
+                    (+ element-index (* oseg idiv-size)
+                       (* section-size (if (not positive-indices)
+                                           dx (or (loop :for p :across positive-indices
+                                                        :for px :from 0 :when (= p dx)
+                                                        :return px)
+                                                  1)))))))))))))
 
 (defun indexer-enclose (axes input-dims)
   (let ((axis-list (array-to-list axes))
@@ -183,32 +186,36 @@
          (rlen (the (unsigned-byte 62) (nth axis idims)))
          (increment (the (unsigned-byte 62) (reduce #'* (nthcdr (1+ axis) idims))))
          (vset-size (the (unsigned-byte 64) (* increment rlen))))
-    (lambda (i)
-      (declare (type (unsigned-byte 62) i))
-      (the (unsigned-byte 62)
-           (+ (the (unsigned-byte 62) (mod i increment))
-              (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
-              (let ((degree (the fixnum
-                                 (if (not degrees)
-                                     0 (if (integerp degrees)
-                                           degrees
-                                           (if (arrayp degrees)
-                                               (row-major-aref
-                                                degrees
-                                                (+ (the (unsigned-byte 62)
-                                                        (mod i increment))
-                                                   (the (unsigned-byte 62)
-                                                        (* increment (floor i vset-size)))))
-                                               0))))))
-                (the (unsigned-byte 62)
-                     (* increment
-                        (the fixnum
-                             (funcall (if degrees #'identity
-                                          (lambda (x)
-                                            (declare (type (unsigned-byte 62) x))
-                                            (abs (- x (1- rlen)))))
-                                      (mod (the fixnum (+ degree (floor i increment)))
-                                           rlen)))))))))))
+    (if degrees
+        (lambda (i)
+          (declare (type (unsigned-byte 62) i))
+          (the (unsigned-byte 62)
+               (+ (the (unsigned-byte 62) (mod i increment))
+                  (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+                  (let ((degree (the fixnum
+                                     (if (integerp degrees)
+                                         degrees
+                                         (if (arrayp degrees)
+                                             (row-major-aref
+                                              degrees
+                                              (+ (the (unsigned-byte 62)
+                                                      (mod i increment))
+                                                 (the (unsigned-byte 62)
+                                                      (* increment (floor i vset-size)))))
+                                             0)))))
+                    (the (unsigned-byte 62)
+                         (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+                                                       rlen))))))))
+        (lambda (i)
+          (declare (type (unsigned-byte 62) i))
+          (the (unsigned-byte 62)
+               (+ (the (unsigned-byte 62) (mod i increment))
+                  (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+                  (the (unsigned-byte 62)
+                       (* increment
+                          (the fixnum (abs (- (mod (the fixnum (floor i increment))
+                                                   rlen)
+                                              (1- rlen))))))))))))
 
 (defun indexer-permute (idims odims alpha is-diagonal &optional is-inverse)
   "Return indices of an array permuted as with the [⍉ permute] function."
@@ -219,11 +226,11 @@
                              'vector))
          (indices (if alpha (progn (if (vectorp alpha)
                                        (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                             :do (if (not (member i positions))
+                                             :do (when (not (member i positions))
                                                      ;; if a duplicate position is found,
                                                      ;; a diagonal section is being performed
-                                                     (progn (push i positions)
-                                                            (push id idims-reduced)))
+                                                   (push i positions)
+                                                   (push id idims-reduced))
                                                 ;; collect possible diagonal indices into diagonal list
                                                 (if (assoc i diagonals)
                                                     (push ix (rest (assoc i diagonals)))
@@ -243,18 +250,19 @@
                     odfactor (* d odfactor)))
     (loop :for i :across id-factors :for ix :from 0
           :do (setf (aref s-factors (nth ix indices)) i))
-    (lambda (i)
-      (if (not is-diagonal)
-          ;; handle regular permutation cases
-          (if is-inverse i ;; selective assignment assigns all elements in a regular permute case
+    (if (not is-diagonal)
+        ;; handle regular permutation cases
+        (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
+            (lambda (i)
               (let* ((remaining i) (oindex 0))
                 (loop :for ix :in indices :for od :across od-factors :for s :across s-factors
                       :collect (multiple-value-bind (index remainder) (floor remaining od)
                                  (incf oindex (* index s))
                                  (setq remaining remainder)))
-                oindex))
-          ;; handle diagonal array traversals
-          (if is-inverse
+                oindex)))
+        ;; handle diagonal array traversals
+        (if is-inverse
+            (lambda (i)
               (let ((remaining i) (valid t) (factor))
                 ;; determine the presence of an input element in the
                 ;; output, used for selective assignment i.e. (1 1⍉M)←0
@@ -264,7 +272,8 @@
                                 (setq valid nil)
                                 (setq remaining remainder
                                       factor (or factor index)))))
-                (if valid factor))
+                (when valid factor)))
+            (lambda (i)
               (let ((remaining i) (iindex 0))
                 (loop :for ox :from 0 :for of :across od-factors
                       :do (multiple-value-bind (index remainder) (floor remaining of)

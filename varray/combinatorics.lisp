@@ -9,6 +9,8 @@
                                            (superclass cl:standard-class))
   t)
 
+(defvar *combos*)
+
 (setf *combos* nil)
 
 (defmacro assign-combo (from to args &body body)

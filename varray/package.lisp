@@ -17,6 +17,7 @@
            #:vacomp-reduce #:vacomp-each #:vacomp-produce #:vacomp-stencil
            #:inverse-count-to
            )
+  (:shadowing-import-from #:alexandria #:iota)
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force)
   (:shadowing-import-from #:aplesque #:varef #:enclose #:disclose #:disclose-unitary
                           #:get-dimensional-factors #:assign-element-type #:type-in-common
@@ -25,4 +26,5 @@
                           #:vector-grade #:xdotimes #:invert-matrix #:left-invert-matrix
                           #:array-inner-product)
   (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-section
-                          #:indexer-expand #:indexer-turn #:indexer-permute))
+                          #:indexer-expand ;#:indexer-turn ;#:indexer-permute
+                          ))
