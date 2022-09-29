@@ -143,8 +143,8 @@
 (defmacro intraverser (symbols &rest forms)
   (let ((widths '(8 16 32 64))
         (typekey (getf symbols :typekey))
-        (variants (gensym)) (default (gensym))
-        )
+        (linear (getf symbols :linear))
+        (variants (gensym)) (default (gensym)))
     (labels ((replace-symbols (form &optional size)
                (loop :for item :in form :for ix :from 0
                      :collect (if (listp item) (replace-symbols item size)
@@ -159,8 +159,7 @@
                                                                   (unsigned-byte ,size)
                                                                   (unsigned-byte ,size)
                                                                   (unsigned-byte ,size)
-                                                                  (unsigned-byte ,size)
-                                                                  function)
+                                                                  (unsigned-byte ,size))
                                                                  function)))
                                     (+optimize-for-type+
                                      (when size `(declare (optimize (speed 3) (safety 0)))))
@@ -172,17 +171,20 @@
       ;;                                             (replace-symbols (second (assoc :encoded forms)) b)))
       ;;    (t ,(replace-symbols (second (assoc :integer forms)))))
       `(let ((,variants (make-hash-table :test #'eq))
-             (,default ,(replace-symbols (second (assoc :integer forms)))))
-         ,@(loop :for b :in widths
-                 :collect `(setf (gethash ,(intern (format nil "I~a" b) "KEYWORD") ,variants)
-                                 ,(replace-symbols (second (assoc :integer forms)) b)))
-         ,@(loop :for b :in widths
-                 :collect `(setf (gethash ,(intern (format nil "E~a" b) "KEYWORD") ,variants)
-                                 ,(replace-symbols (second (assoc :encoded forms)) b)))
-         (list (gethash ,typekey ,variants)
-               ,default)
-         )
-      )))
+             (,default ,(when (not linear)
+                          (replace-symbols (second (assoc :integer forms))))))
+         ,@(if (assoc :integer forms)
+               (loop :for b :in widths
+                     :collect `(setf (gethash ,(intern (format nil "I~a" b) "KEYWORD") ,variants)
+                                     ,(replace-symbols (second (assoc :integer forms)) b))))
+         ,@(if (assoc :encoded forms)
+               (loop :for b :in widths
+                     :collect `(setf (gethash ,(intern (format nil "E~a" b) "KEYWORD") ,variants)
+                                     ,(replace-symbols (second (assoc :encoded forms)) b))))
+         ,(if linear `(gethash ,typekey ,variants)
+              `(list (gethash ,typekey ,variants)
+                     ,default))
+         ))))
 
 
 
