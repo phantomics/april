@@ -498,43 +498,43 @@
 
 ;; (format t "#x~4,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
 
-(defun get-indexing-function (typekey factors to-call)
-  factors
-  (intraverser (:typekey typekey)
-    (:integer
-     (the +root-function-type+
-          (lambda (index sbesize interval divisions total-size)
-            ;; +optimize-for-type+
-            (the (function nil)
-                 (lambda ()
-                   (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
-                          (start-at (the +index-type+ (* sbesize start-intervals)))
-                          (count (the +index-type+
-                                      (if (< index (1- divisions))
-                                          (* sbesize (- (ceiling (* interval (1+ index)))
-                                                        start-intervals))
-                                          (- total-size start-at)))))
-                     (loop :for i ; :of-type +index-type+
-                           :from start-at :to (1- (+ start-at count))
-                           :do (funcall to-call i))))))))
-    ;; (:encoded
-    ;;  (let* ((fraction (floor +index-width+ irank))
-    ;;         (byte (loop :for w :in '(8 16 32 64)
-    ;;                     :when (< fraction w) :return (floor w 2))))
-    ;;    (the +root-function-type+
-    ;;         (lambda (index sbesize interval divisions total-size)
-    ;;           (the (function nil)
-    ;;                (lambda ()
-    ;;                  (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
-    ;;                         (start-at (the +index-type+ (* sbesize start-intervals)))
-    ;;                         (count (the +index-type+
-    ;;                                     (if (< index (1- divisions))
-    ;;                                         (* sbesize (- (ceiling (* interval (1+ index)))
-    ;;                                                       start-intervals))
-    ;;                                         (- total-size start-at)))))
-    ;;                    (loop :for i :of-type +index-type+ :from start-at :to (1- (+ start-at count))
-    ;;                          :do (funcall render-index i)))))))))
-    ))
+(defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
+                              total-size index-type to-call)
+  (let ((encoder (when index-type (encode-rmi typekey factors index-type)))
+        (incrementer (when index-type (increment-encoded typekey shape-vector index-type))))
+    (intraverser (:typekey typekey)
+      (:integer
+       (the +root-function-type+
+            (lambda (index)
+              ;; +optimize-for-type+
+              (the (function nil)
+                   (lambda ()
+                     (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
+                            (start-at (the +index-type+ (* sbesize start-intervals)))
+                            (count (the +index-type+
+                                        (if (< index (1- divisions))
+                                            (* sbesize (- (ceiling (* interval (1+ index)))
+                                                          start-intervals))
+                                            (- total-size start-at)))))
+                       (loop :for i ; :of-type +index-type+
+                             :from start-at :to (1- (+ start-at count))
+                             :do (funcall to-call i))))))))
+      (:encoded
+       (the +root-function-type+
+            (lambda (index)
+              (the (function nil)
+                   (lambda ()
+                     (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
+                            (start-at (the +index-type+ (* sbesize start-intervals)))
+                            (count (the +index-type+
+                                        (if (< index (1- divisions))
+                                            (* sbesize (- (ceiling (* interval (1+ index)))
+                                                          start-intervals))
+                                            (- total-size start-at))))
+                            (coords (funcall encoder start-at)))
+                       (loop :for i :below count
+                             :do (funcall render-index coords)
+                                 (setf coords (funcall incrementer coords))))))))))))
 
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
@@ -549,9 +549,11 @@
                                  :return w))
                          t))
          (type-key (intern (format nil "I~a" index-type) "KEYWORD"))
-         ;; (d-index-type (let ((fraction (floor index-type output-rank)))
-         ;;                 (loop :for w :in '(8 16 32 64)
-         ;;                       :when (< fraction w) :return (floor w 2))))
+         (d-index-type (when (and (> output-rank 0)
+                                  (not (eq t index-type)))
+                         (let ((fraction (floor index-type output-rank)))
+                           (loop :for w :in '(8 16 32 64)
+                                 :when (< fraction w) :return (floor w 2)))))
          ;; (d-index-converter (when d-index-type
          ;;                      (increment-decoded type-key)))
          ;; (d-index-incrementer (when d-index-type
@@ -562,7 +564,6 @@
           (getf metadata :indexer-key) type-key
           indexer (generator-of varray nil ;; (list :meta metadata)
                                 (list :indexer-key type-key)
-                                
                                 ))
 
     (when (getf (varray-meta varray) :gen-meta)
@@ -623,18 +624,21 @@
                    ;;              (funcall render-index i)))
                    ;; (process (or (getf processes type-key)
                    ;;              (getf processes t)))
-                   ;; (process-pair (get-indexing-function type-key dfactors render-index))
-                   ;; (process (second process-pair))
-                   (process (lambda (index)
-                              (lambda ()
-                                (let* ((start-intervals (ceiling (* interval index)))
-                                       (start-at (* sbesize start-intervals))
-                                       (count (if (< index (1- divisions))
-                                                  (* sbesize (- (ceiling (* interval (1+ index)))
-                                                                start-intervals))
-                                                  (- total-size start-at))))
-                                  (loop :for i :from start-at :to (1- (+ start-at count))
-                                        :do (funcall render-index i))))))
+                   (process-pair (get-indexing-function
+                                  type-key dfactors (coerce output-shape 'vector)
+                                  sbesize interval
+                                  divisions total-size d-index-type render-index))
+                   (process (second process-pair))
+                   ;; (process (lambda (index)
+                   ;;            (lambda ()
+                   ;;              (let* ((start-intervals (ceiling (* interval index)))
+                   ;;                     (start-at (* sbesize start-intervals))
+                   ;;                     (count (if (< index (1- divisions))
+                   ;;                                (* sbesize (- (ceiling (* interval (1+ index)))
+                   ;;                                              start-intervals))
+                   ;;                                (- total-size start-at))))
+                   ;;                (loop :for i :from start-at :to (1- (+ start-at count))
+                   ;;                      :do (funcall render-index i))))))
                    (threaded-count 0))
               ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
               ;;              (vader-base varray)

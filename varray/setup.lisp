@@ -155,11 +155,7 @@
                                     (+function-type+ (if (not size) t `(function ((unsigned-byte ,size))
                                                                                  (unsigned-byte ,size))))
                                     (+root-function-type+
-                                     (if (not size) t `(function ((unsigned-byte ,size)
-                                                                  (unsigned-byte ,size)
-                                                                  (unsigned-byte ,size)
-                                                                  (unsigned-byte ,size)
-                                                                  (unsigned-byte ,size))
+                                     (if (not size) t `(function ((unsigned-byte ,size))
                                                                  function)))
                                     (+optimize-for-type+
                                      (when size `(declare (optimize (speed 3) (safety 0)))))
