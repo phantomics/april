@@ -226,13 +226,14 @@
                (getf params :indexer-key)
                (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
           (let* ((factors (get-dimensional-factors (shape-of array) t))
+                 (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
                  (converter ;; (fetch-index-generator (getf params :indexer-key) (rank-of array))
                    ;; (encode-rmi)
-                   (decode-rmi (intern (format nil "I~a" (getf params :encoding)) "KEYWORD")
-                               factors (getf params :index-width))
+                   (decode-rmi encoded-type factors (getf params :index-width))
                    ))
-            (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
+            ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
             (lambda (index)
+              ;; (print (list :ee index))
               (let ((index-out (funcall converter (funcall composite-indexer index))))
                 (when (< index-out array-size) (row-major-aref array index-out)))))
           (lambda (index)
@@ -283,9 +284,10 @@
             this-generator
             (multiple-value-bind (composite-indexer is-defaulting)
                 (join-indexers indexers t)
-              (lambda (index)
-                (let ((index-out index))
-                  (funcall this-generator (funcall composite-indexer index)))))))))
+              (values (lambda (index)
+                        (let ((index-out index))
+                          (funcall this-generator (funcall composite-indexer index))))
+                      is-defaulting))))))
 
 ;; (macroexpand `(varray::intraverser (:varray varray :factors factors :dimension dimension :this-index this-index) (do-stuff)))
 
@@ -462,16 +464,18 @@
   (intraverser (:typekey typekey :linear t)
     (:integer (the (function ((unsigned-byte +index-width+))
                              (unsigned-byte +index-width+))
-                   (lambda (index)
-                     (let ((remaining index)
-                           (output (the +index-type+ 0)))
-                       (loop :for f :across factors :for ix :from 0
-                             :do (multiple-value-bind (factor remainder)
-                                     (floor remaining f)
-                                   (setf output (dpb factor (byte byte-size (* byte-size ix))
-                                                     output)
-                                         remaining remainder)))
-                       output))))))
+                   (let ((this-rank (length factors)))
+                     (lambda (index)
+                       (let ((remaining index)
+                             (output (the +index-type+ 0)))
+                         (loop :for f :across factors :for ix :from (1- this-rank) :downto 0
+                               :do (multiple-value-bind (factor remainder)
+                                       (floor remaining f)
+                                     (setf output (dpb factor (byte byte-size (* byte-size ix))
+                                                       output)
+                                           remaining remainder)))
+                         ;; (print (list :ind index output))
+                         output)))))))
 
 ;; (format t "#x~4,'0X~%" (funcall (encode-rmi :i32 #(12 4 1) 8) 14))
 
@@ -482,10 +486,10 @@
                                (unsigned-byte +index-width+))
                      (lambda (index)
                        (let ((output (the +index-type+ 0)))
-                         (loop :for fx :from (1- this-rank) :downto 0
-                               :do (incf output (* (aref factors fx)
+                         (loop :for fx :from (1- this-rank) :downto 0 :for ix :from 0
+                               :do (incf output (* (aref factors ix)
                                                    (ldb (byte byte-size (* byte-size fx)) index))))
-                         (print (list :dec index output))
+                         ;; (print (list :dec index output factors))
                          output)))))))
 
 ;; (print (funcall (decode-rmi :i32 #(12 4 1) 8) #x20001))
@@ -507,10 +511,9 @@
                                                index)
                                           (1- (aref dimensions ix)))
                                        (setf complete (incf output (aref increments ix)))
-                                       ;;(setf output (dpb 0 (byte byte-size (* byte-size ix))
-                                       ;;                  output))
-                                       ))
-                         (print (list :in index output))
+                                       (setf output (dpb 0 (byte byte-size (* byte-size ix))
+                                                         output))))
+                         ;; (print (list :in index output))
                          output)))))))
 
 ;; (format t "#x~4,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
@@ -588,7 +591,7 @@
                                                     (t "I"))
                                    (or encoding index-type))
                            "KEYWORD"))
-         (to-subrender))
+         (default-generator) (to-subrender))
 
     ;; (print (list :dde d-index-type encoding output-rank index-type metadata type-key))
 
@@ -598,11 +601,16 @@
             (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
 
     (setf (getf metadata :index-width) index-type
-          (getf metadata :indexer-key) type-key
-          indexer (generator-of varray nil ;; (list :meta metadata)
-                                (list :indexer-key type-key
-                                      :index-width d-index-type
-                                      :encoding encoding)))
+          (getf metadata :indexer-key) type-key)
+
+    (multiple-value-bind (this-generator is-defaulting)
+        (generator-of varray nil ;; (list :meta metadata)
+                      (list :indexer-key type-key
+                            :index-width d-index-type
+                            :encoding encoding))
+      ;; (print (list :dg is-defaulting))
+      (setf indexer this-generator
+            default-generator is-defaulting))
     
     (when (and (typep varray 'vader-select)
                (< 0 (size-of varray)) (functionp indexer))
@@ -634,20 +642,27 @@
             ;;     (make-array output-shape :element-type (etype-of varray)
             ;;                                   :initial-element indexer))
             (let* ((output (make-array output-shape :element-type (etype-of varray)))
+                   (dfactors (when encoding (get-dimensional-factors output-shape t)))
+                   ;; the decoder function converts non-row-major index formats like
+                   ;; sub-byte-encoded coordinate vectors back to row-major indices
+                   ;; to reference elements in the output array
+                   (decoder (if t ; (or default-generator (not encoding)) ;; TOGGLE
+                                #'identity (decode-rmi (intern (format nil "I~a" encoding)
+                                                               "KEYWORD")
+                                                       dfactors d-index-type)))
                    (render-index
                      (if to-subrender
                          (lambda (i)
-                           (declare (type (unsigned-byte 62) i))
                            (let ((indexed (if (not (functionp indexer))
                                               indexer (funcall indexer i))))
-                             (setf (row-major-aref output i)
+                             (setf (row-major-aref output (funcall decoder i))
                                    (render indexed))))
                          (lambda (i)
-                           (declare (type (unsigned-byte 62) i))
                            (if (functionp indexer)
-                               (setf (row-major-aref output i) (funcall indexer i))
-                               (setf (row-major-aref output i) indexer)))))
-                   (dfactors (when encoding (get-dimensional-factors output-shape t)))
+                               (setf (row-major-aref output (funcall decoder i))
+                                     (funcall indexer i))
+                               (setf (row-major-aref output (funcall decoder i))
+                                     indexer)))))
                    (sbsize (sub-byte-element-size output))
                    (sbesize (if sbsize (/ 64 sbsize) 1))
                    (wcadj *workers-count*)
@@ -663,7 +678,8 @@
                                   type-key dfactors (coerce output-shape 'vector)
                                   sbesize interval
                                   divisions total-size d-index-type encoding render-index))
-                   (process (or ;; (first process-pair)
+                   (process (or (and nil ;(not default-generator) ;; TOGGLE
+                                     (first process-pair))
                                 (second process-pair)))
                    ;; (process (lambda (index)
                    ;;            (lambda ()
@@ -4368,8 +4384,7 @@
                       (- (vads-axis varray)
                          (vads-io varray)))
                   (shape-of varray)
-                  (or ;; (getf (getf params :meta) :indexer-key)
-                      ;; (when (getf (varray-meta varray) :gen-meta)
+                  (or ;; (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
                       ;;   (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
                       t)
                   (arg-process varray))))

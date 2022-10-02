@@ -241,7 +241,7 @@
                   (lambda (i) +optimize-for-type+
                     (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
                       ;; (print (list :ii i iindex axis))
-                      (dpb (print (mod (+ iindex (if (integerp degrees)
+                      (dpb (mod (+ iindex (if (integerp degrees)
                                               degrees
                                               (if (arrayp degrees)
                                                   (row-major-aref
@@ -250,7 +250,7 @@
                                                       (the +index-type+
                                                            (* increment (floor i vset-size)))))
                                                   0)))
-                                rlen))
+                                rlen)
                            (byte byte (* byte dindex))
                            i))))))
           )
