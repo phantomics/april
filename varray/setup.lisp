@@ -192,6 +192,7 @@
          (increment (the t (reduce #'* (nthcdr (1+ axis) idims))))
          (irank (length idims))
          (vset-size (the t (* increment rlen))))
+    ;; (print (list :ty typekey))
     (if degrees
         ;; (lambda (i)
         ;;   (the (unsigned-byte 62)
@@ -233,12 +234,14 @@
                                                                rlen))))))))))
           (:encoded
            (let* ((fraction (floor +index-width+ irank))
+                  (dindex (- irank 1 axis))
                   (byte (loop :for w :in '(8 16 32 64)
                               :when (< fraction w) :return (floor w 2))))
              (the +function-type+
                   (lambda (i) +optimize-for-type+
-                    (let ((iindex (the +index-type+ (ldb (byte byte (* byte axis)) i))))
-                      (dpb (mod (+ iindex (if (integerp degrees)
+                    (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
+                      ;; (print (list :ii i iindex axis))
+                      (dpb (print (mod (+ iindex (if (integerp degrees)
                                               degrees
                                               (if (arrayp degrees)
                                                   (row-major-aref
@@ -247,8 +250,8 @@
                                                       (the +index-type+
                                                            (* increment (floor i vset-size)))))
                                                   0)))
-                                rlen)
-                           (byte byte (* byte axis))
+                                rlen))
+                           (byte byte (* byte dindex))
                            i))))))
           )
         ;; (lambda (i)
