@@ -187,7 +187,7 @@
 
 (defun join-indexers (indexers type)
   (if (not indexers)
-      (values #'identity t)
+      #'identity
       (let ((ctype) ;; the type in common
             (reversed-indexers)
             (defaulting))
@@ -210,7 +210,7 @@
                   (let ((index-out index))
                     (loop :for i :in reversed-indexers :do (setf index-out (funcall i index-out)))
                     index-out))
-                defaulting))))
+                (when (not defaulting) type)))))
 
 (defmethod generator-of ((item t) &optional indexers params)
   (declare (ignore indexers params))
@@ -218,27 +218,28 @@
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  (multiple-value-bind (composite-indexer is-defaulting)
+  (multiple-value-bind (composite-indexer is-not-defaulting)
       (join-indexers indexers (getf params :indexer-key))
     ;; (print (list :pa composite-indexer :isd is-defaulting params))
-    (let ((array-size (array-total-size array)))
-      (if (and (not is-defaulting)
-               (getf params :indexer-key)
-               (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
-          (let* ((factors (get-dimensional-factors (shape-of array) t))
-                 (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
-                 (converter ;; (fetch-index-generator (getf params :indexer-key) (rank-of array))
-                   ;; (encode-rmi)
-                   (decode-rmi encoded-type factors (getf params :index-width))
-                   ))
-            ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
-            (lambda (index)
-              ;; (print (list :ee index))
-              (let ((index-out (funcall converter (funcall composite-indexer index))))
-                (when (< index-out array-size) (row-major-aref array index-out)))))
-          (lambda (index)
-            (let ((index-out (funcall composite-indexer index)))
-              (when (< index-out array-size) (row-major-aref array index-out))))))))
+    (values
+     (let ((array-size (array-total-size array)))
+       (if (and is-not-defaulting (getf params :indexer-key)
+                (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
+           (let* ((factors (get-dimensional-factors (shape-of array) t))
+                  (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
+                  (converter ;; (fetch-index-generator (getf params :indexer-key) (rank-of array))
+                    ;; (encode-rmi)
+                    (decode-rmi encoded-type factors (getf params :index-width))
+                    ))
+             ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
+             (lambda (index)
+               ;; (print (list :ee index))
+               (let ((index-out (funcall converter (funcall composite-indexer index))))
+                 (when (< index-out array-size) (row-major-aref array index-out)))))
+           (lambda (index)
+             (let ((index-out (funcall composite-indexer index)))
+               (when (< index-out array-size) (row-major-aref array index-out))))))
+     is-not-defaulting)))
 
 (defmethod metadata-of ((item t))
   (declare (ignore item))
@@ -279,15 +280,16 @@
 (defmethod generator-of :around ((varray varray) &optional indexers params)
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
-        ;; (print (list :par params))
+        ;; (print (list :par params varray))
         (if (not (functionp this-generator))
             this-generator
-            (multiple-value-bind (composite-indexer is-defaulting)
+            (multiple-value-bind (composite-indexer is-not-defaulting)
                 (join-indexers indexers t)
+              ;; (print (list :ind is-not-defaulting))
               (values (lambda (index)
                         (let ((index-out index))
                           (funcall this-generator (funcall composite-indexer index))))
-                      is-defaulting))))))
+                      is-not-defaulting))))))
 
 ;; (macroexpand `(varray::intraverser (:varray varray :factors factors :dimension dimension :this-index this-index) (do-stuff)))
 
@@ -593,8 +595,6 @@
                            "KEYWORD"))
          (default-generator) (to-subrender))
 
-    ;; (print (list :dde d-index-type encoding output-rank index-type metadata type-key))
-
     (when (getf (varray-meta varray) :gen-meta)
       (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) index-type
             (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
@@ -603,14 +603,17 @@
     (setf (getf metadata :index-width) index-type
           (getf metadata :indexer-key) type-key)
 
-    (multiple-value-bind (this-generator is-defaulting)
+    (multiple-value-bind (this-generator is-not-defaulting)
         (generator-of varray nil ;; (list :meta metadata)
                       (list :indexer-key type-key
                             :index-width d-index-type
                             :encoding encoding))
-      ;; (print (list :dg is-defaulting))
+      ;; (print (list :dg is-defaulting this-generator varray))
       (setf indexer this-generator
-            default-generator is-defaulting))
+            default-generator (not is-not-defaulting)))
+
+    ;; (print (list :dde d-index-type encoding output-rank index-type metadata type-key
+    ;;              default-generator varray))
     
     (when (and (typep varray 'vader-select)
                (< 0 (size-of varray)) (functionp indexer))
@@ -646,7 +649,7 @@
                    ;; the decoder function converts non-row-major index formats like
                    ;; sub-byte-encoded coordinate vectors back to row-major indices
                    ;; to reference elements in the output array
-                   (decoder (if t ; (or default-generator (not encoding)) ;; TOGGLE
+                   (decoder (if (or default-generator (not encoding)) ;; TOGGLE
                                 #'identity (decode-rmi (intern (format nil "I~a" encoding)
                                                                "KEYWORD")
                                                        dfactors d-index-type)))
@@ -655,9 +658,11 @@
                          (lambda (i)
                            (let ((indexed (if (not (functionp indexer))
                                               indexer (funcall indexer i))))
+                             ;; (print (list :ii i))
                              (setf (row-major-aref output (funcall decoder i))
                                    (render indexed))))
                          (lambda (i)
+                           ;; (print (list :i2 i))
                            (if (functionp indexer)
                                (setf (row-major-aref output (funcall decoder i))
                                      (funcall indexer i))
@@ -678,7 +683,8 @@
                                   type-key dfactors (coerce output-shape 'vector)
                                   sbesize interval
                                   divisions total-size d-index-type encoding render-index))
-                   (process (or (and nil ;(not default-generator) ;; TOGGLE
+                   ;; (eep (print (list :prop process-pair)))
+                   (process (or (and (not default-generator) ;; TOGGLE
                                      (first process-pair))
                                 (second process-pair)))
                    ;; (process (lambda (index)
@@ -4377,15 +4383,17 @@
 
 (defmethod indexer-of ((varray vader-turn) &optional params)
   ;; (declare (ignore params) (optimize (speed 3) (safety 0)))
-  ;; (print (list :mm (varray-meta varray)))
+  ;; (print (list :mm (varray-meta varray) (vader-base varray) (render (vader-base varray))
+  ;;              (vads-argument varray)))
+  ;; (setf april::iii (vader-base varray))
   (when (shape-of varray)
     (indexer-turn (if (eq :last (vads-axis varray))
                       (1- (rank-of varray))
                       (- (vads-axis varray)
                          (vads-io varray)))
                   (shape-of varray)
-                  (or ;; (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
-                      ;;   (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
+                  (or (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
+                        (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
                       t)
                   (arg-process varray))))
 

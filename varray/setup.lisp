@@ -237,19 +237,19 @@
                   (dindex (- irank 1 axis))
                   (byte (loop :for w :in '(8 16 32 64)
                               :when (< fraction w) :return (floor w 2))))
+             ;; (print (list :by byte))
              (the +function-type+
                   (lambda (i) +optimize-for-type+
                     (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
                       ;; (print (list :ii i iindex axis))
                       (dpb (mod (+ iindex (if (integerp degrees)
                                               degrees
-                                              (if (arrayp degrees)
-                                                  (row-major-aref
-                                                   degrees
-                                                   (+ (the +index-type+ (mod i increment))
-                                                      (the +index-type+
-                                                           (* increment (floor i vset-size)))))
-                                                  0)))
+                                              (if (not (arrayp degrees))
+                                                  0 (row-major-aref
+                                                     degrees
+                                                     (+ (the +index-type+ (mod i increment))
+                                                        (the +index-type+
+                                                             (* increment (floor i vset-size))))))))
                                 rlen)
                            (byte byte (* byte dindex))
                            i))))))
