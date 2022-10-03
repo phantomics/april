@@ -681,8 +681,8 @@
                    ;;              (getf processes t)))
                    (process-pair (get-indexing-function
                                   type-key dfactors (coerce output-shape 'vector)
-                                  sbesize interval
-                                  divisions total-size d-index-type encoding render-index))
+                                  sbesize interval divisions total-size d-index-type
+                                  encoding render-index))
                    ;; (eep (print (list :prop process-pair)))
                    (process (or (and (not default-generator) ;; TOGGLE
                                      (first process-pair))

@@ -194,66 +194,59 @@
          (vset-size (the t (* increment rlen))))
     ;; (print (list :ty typekey))
     (if degrees
-        ;; (lambda (i)
-        ;;   (the (unsigned-byte 62)
-        ;;        (+ (the (unsigned-byte 62) (mod i increment))
-        ;;           (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
-        ;;           (let ((degree (the fixnum
-        ;;                              (if (integerp degrees)
-        ;;                                  degrees
-        ;;                                  (if (arrayp degrees)
-        ;;                                      (row-major-aref
-        ;;                                       degrees
-        ;;                                       (+ (the (unsigned-byte 62)
-        ;;                                               (mod i increment))
-        ;;                                          (the (unsigned-byte 62)
-        ;;                                               (* increment (floor i vset-size)))))
-        ;;                                      0)))))
-        ;;             (the (unsigned-byte 62)
-        ;;                  (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
-        ;;                                                rlen))))))))
-        (intraverser (:typekey typekey)
-          (:integer
-           (the +function-type+
-                (lambda (i) +optimize-for-type+
-                  (the +index-type+
-                       (+ (the +index-type+ (mod i increment))
-                          (the +index-type+ (* vset-size (floor i vset-size)))
-                          (let ((degree (the fixnum
-                                             (if (integerp degrees)
-                                                 degrees
-                                                 (if (arrayp degrees)
-                                                     (row-major-aref
-                                                      degrees
-                                                      (+ (the +index-type+ (mod i increment))
-                                                         (the +index-type+
-                                                              (* increment (floor i vset-size)))))
-                                                     0)))))
-                            (the +index-type+
-                                 (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
-                                                               rlen))))))))))
-          (:encoded
-           (let* ((fraction (floor +index-width+ irank))
-                  (dindex (- irank 1 axis))
-                  (byte (loop :for w :in '(8 16 32 64)
-                              :when (< fraction w) :return (floor w 2))))
-             ;; (print (list :by byte))
-             (the +function-type+
-                  (lambda (i) +optimize-for-type+
-                    (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
-                      ;; (print (list :ii i iindex axis))
-                      (dpb (mod (+ iindex (if (integerp degrees)
-                                              degrees
-                                              (if (not (arrayp degrees))
-                                                  0 (row-major-aref
+        ;; TODO: implement a system for accelerated rotation when degrees are an array
+        (if (not (integerp degrees))
+            (lambda (i)
+              (the (unsigned-byte 62)
+                   (+ (the (unsigned-byte 62) (mod i increment))
+                      (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+                      (let ((degree (the fixnum
+                                         (if (integerp degrees)
+                                             degrees
+                                             (if (arrayp degrees)
+                                                 (row-major-aref
+                                                  degrees
+                                                  (+ (the (unsigned-byte 62)
+                                                          (mod i increment))
+                                                     (the (unsigned-byte 62)
+                                                          (* increment (floor i vset-size)))))
+                                                 0)))))
+                        (the (unsigned-byte 62)
+                             (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+                                                           rlen))))))))
+            (intraverser (:typekey typekey)
+              (:integer
+               (the +function-type+
+                    (lambda (i) +optimize-for-type+
+                      (the +index-type+
+                           (+ (the +index-type+ (mod i increment))
+                              (the +index-type+ (* vset-size (floor i vset-size)))
+                              (let ((degree (the fixnum
+                                                 (if (integerp degrees)
                                                      degrees
-                                                     (+ (the +index-type+ (mod i increment))
-                                                        (the +index-type+
-                                                             (* increment (floor i vset-size))))))))
-                                rlen)
-                           (byte byte (* byte dindex))
-                           i))))))
-          )
+                                                     (if (arrayp degrees)
+                                                         (row-major-aref
+                                                          degrees
+                                                          (+ (the +index-type+ (mod i increment))
+                                                             (the +index-type+
+                                                                  (* increment (floor i vset-size)))))
+                                                         0)))))
+                                (the +index-type+
+                                     (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+                                                                   rlen))))))))))
+              (:encoded
+               (let* ((fraction (floor +index-width+ irank))
+                      (dindex (- irank 1 axis))
+                      (byte (loop :for w :in '(8 16 32 64)
+                                  :when (< fraction w) :return (floor w 2))))
+                 ;; (print (list :by byte))
+                 (the +function-type+
+                      (lambda (i) +optimize-for-type+
+                        (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
+                          (dpb (mod (+ iindex degrees) rlen)
+                               (byte byte (* byte dindex))
+                               i))))))
+              ))
         ;; (lambda (i)
         ;;   (declare (type (unsigned-byte 62) i))
         ;;   (the (unsigned-byte 62)
