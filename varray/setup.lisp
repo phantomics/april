@@ -201,16 +201,13 @@
                    (+ (the (unsigned-byte 62) (mod i increment))
                       (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
                       (let ((degree (the fixnum
-                                         (if (integerp degrees)
-                                             degrees
-                                             (if (arrayp degrees)
-                                                 (row-major-aref
-                                                  degrees
-                                                  (+ (the (unsigned-byte 62)
-                                                          (mod i increment))
-                                                     (the (unsigned-byte 62)
-                                                          (* increment (floor i vset-size)))))
-                                                 0)))))
+                                         (if (not (arrayp degrees))
+                                             0 (row-major-aref
+                                                degrees
+                                                (+ (the (unsigned-byte 62)
+                                                        (mod i increment))
+                                                   (the (unsigned-byte 62)
+                                                        (* increment (floor i vset-size)))))))))
                         (the (unsigned-byte 62)
                              (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
                                                            rlen))))))))
@@ -239,14 +236,12 @@
                       (dindex (- irank 1 axis))
                       (byte (loop :for w :in '(8 16 32 64)
                                   :when (< fraction w) :return (floor w 2))))
-                 ;; (print (list :by byte))
                  (the +function-type+
                       (lambda (i) +optimize-for-type+
                         (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
                           (dpb (mod (+ iindex degrees) rlen)
                                (byte byte (* byte dindex))
-                               i))))))
-              ))
+                               i))))))))
         ;; (lambda (i)
         ;;   (declare (type (unsigned-byte 62) i))
         ;;   (the (unsigned-byte 62)
