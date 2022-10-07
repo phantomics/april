@@ -3269,7 +3269,7 @@
                               (oindex (when (not iarray)
                                         (loop :for i :in (reverse outer-indices)
                                               :for f :across iofactors :summing (* i f))))
-                              (iarray (if iarray iarray (funcall oindexer oindex)))
+                              (iarray (or iarray (funcall oindexer oindex)))
                               (ishape (or ishape (copy-list (shape-of iarray))))
                               (iifactors (or iifactors (get-dimensional-factors ishape)))
                               (iindexer (generator-of iarray))
@@ -3347,14 +3347,14 @@
           (core-indexer (indexer-split axis (length output-shape)
                                        base-factors (get-dimensional-factors output-shape t))))
      
-       (if (not (functionp base-indexer))
-           (lambda (index) (declare (ignore index)) base-indexer)
+       (if (functionp base-indexer)
            (lambda (index)
              (make-instance 'vader-subarray-split
                             :base (vader-base varray) :shape (when sv-length (list sv-length))
                             :index index :core-indexer core-indexer
                             :prototype (when (not output-shape)
-                                         (prototype-of (vader-base varray)))))))))
+                                         (prototype-of (vader-base varray)))))
+           (lambda (index) (declare (ignore index)) base-indexer)))))
 
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable vad-reindexing)
   ((%overtaking :accessor vasec-overtaking
