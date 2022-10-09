@@ -20,11 +20,12 @@
   (:shadowing-import-from #:alexandria #:iota)
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force)
   (:shadowing-import-from #:aplesque #:varef #:enclose #:disclose #:disclose-unitary
-                          #:get-dimensional-factors #:assign-element-type #:type-in-common
+                          ;; #:get-dimensional-factors
+                          #:assign-element-type #:type-in-common
                           #:apl-array-prototype #:apply-scalar #:is-unitary #:enclose-atom
                           #:array-compare #:index-of #:alpha-compare #:grade #:array-grade
                           #:vector-grade #:xdotimes #:invert-matrix #:left-invert-matrix
                           #:array-inner-product)
   (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-section
-                          #:indexer-expand ;#:indexer-turn ;#:indexer-permute
+                          #:indexer-expand #:indexer-permute ; #:indexer-turn
                           ))

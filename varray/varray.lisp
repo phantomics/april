@@ -63,6 +63,24 @@
 (defgeneric render (varray &rest params)
   (:documentation "Render an array into memory."))
 
+(defun get-dimensional-factors (dimensions &optional as-vector)
+  "Get the set of dimensional factors corresponding to a set of array dimensions."
+  (let ((factor) (last-index))
+    (if as-vector
+        (let* ((rank (length dimensions))
+               (output (make-array rank :element-type
+                                   ;; (list 'integer 0 (reduce #'* (rest dimensions)))
+                                   '(unsigned-byte 32)
+                                   )))
+          (loop :for d :in (reverse dimensions) :for dx :from 0
+                :do (setf factor (setf (aref output (- rank dx 1))
+                                       (if (zerop dx) 1 (* factor last-index)))
+                          last-index d))
+          output)
+        (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
+                       :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
+                       :do (setq last-index d))))))
+
 (defun apl-array-prototype2 (array)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   (labels ((derive-element (input)
@@ -483,16 +501,71 @@
 
 (defun decode-rmi (typekey factors byte-size)
   (let ((this-rank (length factors)))
+    ;; (print (list :ff (type-of factors) typekey))
     (intraverser (:typekey typekey :linear t)
       (:integer (the (function ((unsigned-byte +index-width+))
                                (unsigned-byte +index-width+))
-                     (lambda (index)
+                     (lambda (index) +optimize-for-type+
+                       (declare (type +index-type+ index))
                        (let ((output (the +index-type+ 0)))
-                         (loop :for fx :from (1- this-rank) :downto 0 :for ix :from 0
-                               :do (incf output (* (aref factors ix)
-                                                   (ldb (byte byte-size (* byte-size fx)) index))))
+                         (loop :for fx :of-type +index-type+ :from this-rank :downto 1
+                               :for ix :of-type +index-type+ :from 0
+                               :do (incf output (* (the +index-type+ (aref factors ix))
+                                                   (ldb (byte byte-size (* byte-size (1- fx))) index))))
                          ;; (print (list :dec index output factors))
                          output)))))))
+
+;; (let ((function-table
+;;         (intraverser-ex
+;;          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+;;                        :rank-width +rank-width+ :sub-base-width +sub-base-width+
+;;                        :rank-plus +rank-plus+))
+;;           (the (function ((simple-array (unsigned-byte 32) (+rank-plus+)))
+;;                          function)
+;;                (lambda (factors)
+;;                  (declare (optimize (speed 3) (safety 0))
+;;                           (type (simple-array (unsigned-byte 32) (+rank-plus+)) factors))
+;;                  (the (function ((unsigned-byte +eindex-width+))
+;;                                 (unsigned-byte +eindex-width+))
+;;                       (lambda (index)
+;;                         (declare (type (unsigned-byte +eindex-width+) index))
+;;                         (let ((output (the (unsigned-byte +eindex-width+) 0)))
+;;                           (loop :for fx :of-type (unsigned-byte +rank-width+)
+;;                                   := (1- +rank-plus+) :then (1- fx)
+;;                                 :for ix :of-type (unsigned-byte 32) :across factors
+;;                                 :do (incf (the (unsigned-byte +eindex-width+) output)
+;;                                           (* (the (unsigned-byte +eindex-width+) ix)
+;;                                              (the (unsigned-byte +cindex-width+)
+;;                                                   (ldb (byte +cindex-width+
+;;                                                              (* +cindex-width+ fx))
+;;                                                        index)))))
+;;                           (the (unsigned-byte +eindex-width+) output))))))))))
+;;   (defun decode-rmi (width element-width rank factors)
+;;     (let ((match (gethash (list '(:encoded) (list width element-width rank))
+;;                           function-table)))
+;;       (when match (funcall match factors)))))
+
+;; (the (function ((simple-array (unsigned-byte 32) (2))) function)
+;;                (lambda (factors)
+;;                  (declare (optimize (speed 3) (safety 0))
+;;                           (type (simple-array (unsigned-byte 32) (2)) factors))
+;;                  (the (function ((unsigned-byte 64)) (unsigned-byte 64))
+;;                       (lambda (index)
+;;                         (declare (type (unsigned-byte 64) index))
+;;                         (let ((output (the (unsigned-byte 64) 0)))
+;;                           (loop :for fx :of-type (unsigned-byte 4) := (1-
+;;                                                                        2) :then (1-
+;;                                                                                  fx)
+;;                                 :for ix :of-type (unsigned-byte
+;;                                                   32) :across factors
+;;                                 :do (incf (the (unsigned-byte 64) output)
+;;                                           (* (the (unsigned-byte 64) ix)
+;;                                              (the (unsigned-byte 32)
+;;                                                   (ldb (byte 32 (* 32 fx))
+;;                                                        index)))))
+;;                           (the (unsigned-byte 64) output))))))
+
+;; (the (function ((unsigned-byte 63)) (unsigned-byte 64)) (lambda (index) (declare (optimize (speed 3) (safety 0)) (type (unsigned-byte 63) index)) (let ((output (1+ index)))  (the (unsigned-byte 64) output))))
 
 ;; (print (funcall (decode-rmi :i32 #(12 4 1) 8) #x20001))
 
@@ -522,7 +595,6 @@
 
 (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
-  ;; (print (list :tt typekey encoding-type))
   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
          (encoder (when encoding-type (encode-rmi ekey factors index-type)))
          (incrementer (when encoding-type (increment-encoded ekey shape-vector index-type))))
@@ -596,7 +668,7 @@
          (default-generator) (to-subrender))
 
     (when (getf (varray-meta varray) :gen-meta)
-      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) index-type
+      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) d-index-type
             (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
             (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
 
@@ -652,7 +724,10 @@
                    (decoder (if (or default-generator (not encoding)) ;; TOGGLE
                                 #'identity (decode-rmi (intern (format nil "I~a" encoding)
                                                                "KEYWORD")
-                                                       dfactors d-index-type)))
+                                                       dfactors d-index-type)
+                                ;; (decode-rmi encoding d-index-type output-rank dfactors)
+                                ))
+                   ;; (de (print (list :dc d-index-type dfactors decoder)))
                    (render-index
                      (if to-subrender
                          (lambda (i)
@@ -717,8 +792,8 @@
                             ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
                             ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
                             ;;            :never (null (lparallel.kernel::running-category worker))))
-                         t
-                         (funcall (funcall process d))
+                            t
+                            (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
                                     lpchannel (funcall process d)))))
@@ -4395,6 +4470,8 @@
                   (or (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
                         (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
                       t)
+                  ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
+                  ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
                   (arg-process varray))))
 
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
@@ -4481,7 +4558,7 @@
                          (not (or (not (vads-argument varray))
                                   (vaperm-is-diagonal varray)))
                          ;; t ;; type of index
-                         (or (getf (getf params :meta) :indexer-key) t)
+                         ;; (or (getf (getf params :meta) :indexer-key) t)
                          assigning))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
