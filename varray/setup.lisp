@@ -309,6 +309,24 @@
          (setf ,@output)
          ,table))))
 
+(lambda (i) +optimize-for-type+
+  (the +index-type+
+       (+ (the +index-type+ (mod i increment))
+          (the +index-type+ (* vset-size (floor i vset-size)))
+          (let ((degree (the fixnum
+                             (if (integerp degrees)
+                                 degrees
+                                 (if (arrayp degrees)
+                                     (row-major-aref
+                                      degrees
+                                      (+ (the +index-type+ (mod i increment))
+                                         (the +index-type+
+                                              (* increment (floor i vset-size)))))
+                                     0)))))
+            (the +index-type+
+                 (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+                                               rlen))))))))
+
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
           (lambda (i)
@@ -334,6 +352,7 @@
                  (declare (optimize (speed 3) (safety 0))
                           (type (unsigned-byte +lindex-width+) increment vset-size)
                           (type (unsigned-byte +sub-base-width+) degrees rlen))
+                 ;; (print (list :cc degrees))
                  (if (integerp degrees)
                      (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
                           (lambda (i)
@@ -423,6 +442,13 @@
                                           function-table)))
                       (when match (funcall match degrees rlen)))
                     (funcall default-function increment vset-size degrees rlen)))
+          (lambda (i)
+            (+ (mod i increment)
+               (* vset-size (floor i vset-size))
+               (* increment
+                  (the fixnum (abs (- (mod (the fixnum (floor i increment))
+                                           rlen)
+                                      (1- rlen)))))))
           ;; (intraverser (:typekey typekey)
           ;;   (:integer
           ;;    (the +function-type+
@@ -436,7 +462,7 @@
           ;;                                                    rlen)
           ;;                                               (1- rlen)))))))))))
           ;;   (:encoded))
-          (funcall default-function increment vset-size degrees rlen)
+          ;; (funcall default-function increment vset-size degrees rlen)
           ))))
 
 (defmacro intraverser (symbols &rest forms)
@@ -475,88 +501,88 @@
               `(list (gethash ,typekey ,variants)
                      ,default))))))
 
-(defun indexer-turn (axis idims typekey &optional degrees)
-  "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
-  ;; (declare (optimize (speed 3) (safety 0)))
-  (let* ((axis (the t axis))
-         (rlen (the t (nth axis idims)))
-         (increment (the t (reduce #'* (nthcdr (1+ axis) idims))))
-         (irank (length idims))
-         (vset-size (the t (* increment rlen))))
-    ;; (print (list :ty typekey))
-    (if degrees
-        ;; TODO: implement a system for accelerated rotation when degrees are an array
-        (if (not (integerp degrees))
-            (lambda (i)
-              (the (unsigned-byte 62)
-                   (+ (the (unsigned-byte 62) (mod i increment))
-                      (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
-                      (let ((degree (the fixnum
-                                         (if (not (arrayp degrees))
-                                             0 (row-major-aref
-                                                degrees
-                                                (+ (the (unsigned-byte 62)
-                                                        (mod i increment))
-                                                   (the (unsigned-byte 62)
-                                                        (* increment (floor i vset-size)))))))))
-                        (the (unsigned-byte 62)
-                             (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
-                                                           rlen))))))))
-            (intraverser (:typekey typekey)
-              (:integer
-               (the +function-type+
-                    (lambda (i) +optimize-for-type+
-                      (the +index-type+
-                           (+ (the +index-type+ (mod i increment))
-                              (the +index-type+ (* vset-size (floor i vset-size)))
-                              (let ((degree (the fixnum
-                                                 (if (integerp degrees)
-                                                     degrees
-                                                     (if (arrayp degrees)
-                                                         (row-major-aref
-                                                          degrees
-                                                          (+ (the +index-type+ (mod i increment))
-                                                             (the +index-type+
-                                                                  (* increment (floor i vset-size)))))
-                                                         0)))))
-                                (the +index-type+
-                                     (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
-                                                                   rlen))))))))))
-              (:encoded
-               (let* ((fraction (floor +index-width+ irank))
-                      (dindex (- irank 1 axis))
-                      (byte (loop :for w :in '(8 16 32 64)
-                                  :when (< fraction w) :return (floor w 2))))
-                 (the +function-type+
-                      (lambda (i) +optimize-for-type+
-                        (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
-                          (dpb (mod (+ iindex degrees) rlen)
-                               (byte byte (* byte dindex))
-                               i))))))))
-        ;; (lambda (i)
-        ;;   (declare (type (unsigned-byte 62) i))
-        ;;   (the (unsigned-byte 62)
-        ;;        (+ (the (unsigned-byte 62) (mod i increment))
-        ;;           (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
-        ;;           (the (unsigned-byte 62)
-        ;;                (* increment
-        ;;                   (the fixnum (abs (- (mod (the fixnum (floor i increment))
-        ;;                                            rlen)
-        ;;                                       (1- rlen)))))))))
-        (intraverser (:typekey typekey)
-          (:integer
-           (the +function-type+
-                (lambda (i) +optimize-for-type+
-                  (the +index-type+
-                       (+ (the +index-type+ (mod i increment))
-                          (the +index-type+ (* vset-size (floor i vset-size)))
-                          (the +index-type+
-                               (* increment
-                                  (the fixnum (abs (- (mod (the fixnum (floor i increment))
-                                                           rlen)
-                                                      (1- rlen)))))))))))
-          (:encoded))
-        )))
+;; (defun indexer-turn (axis idims typekey &optional degrees)
+;;   "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
+;;   ;; (declare (optimize (speed 3) (safety 0)))
+;;   (let* ((axis (the t axis))
+;;          (rlen (the t (nth axis idims)))
+;;          (increment (the t (reduce #'* (nthcdr (1+ axis) idims))))
+;;          (irank (length idims))
+;;          (vset-size (the t (* increment rlen))))
+;;     ;; (print (list :ty typekey))
+;;     (if degrees
+;;         ;; TODO: implement a system for accelerated rotation when degrees are an array
+;;         (if (not (integerp degrees))
+;;             (lambda (i)
+;;               (the (unsigned-byte 62)
+;;                    (+ (the (unsigned-byte 62) (mod i increment))
+;;                       (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+;;                       (let ((degree (the fixnum
+;;                                          (if (not (arrayp degrees))
+;;                                              0 (row-major-aref
+;;                                                 degrees
+;;                                                 (+ (the (unsigned-byte 62)
+;;                                                         (mod i increment))
+;;                                                    (the (unsigned-byte 62)
+;;                                                         (* increment (floor i vset-size)))))))))
+;;                         (the (unsigned-byte 62)
+;;                              (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+;;                                                            rlen))))))))
+;;             (intraverser (:typekey typekey)
+;;               (:integer
+;;                (the +function-type+
+;;                     (lambda (i) +optimize-for-type+
+;;                       (the +index-type+
+;;                            (+ (the +index-type+ (mod i increment))
+;;                               (the +index-type+ (* vset-size (floor i vset-size)))
+;;                               (let ((degree (the fixnum
+;;                                                  (if (integerp degrees)
+;;                                                      degrees
+;;                                                      (if (arrayp degrees)
+;;                                                          (row-major-aref
+;;                                                           degrees
+;;                                                           (+ (the +index-type+ (mod i increment))
+;;                                                              (the +index-type+
+;;                                                                   (* increment (floor i vset-size)))))
+;;                                                          0)))))
+;;                                 (the +index-type+
+;;                                      (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
+;;                                                                    rlen))))))))))
+;;               (:encoded
+;;                (let* ((fraction (floor +index-width+ irank))
+;;                       (dindex (- irank 1 axis))
+;;                       (byte (loop :for w :in '(8 16 32 64)
+;;                                   :when (< fraction w) :return (floor w 2))))
+;;                  (the +function-type+
+;;                       (lambda (i) +optimize-for-type+
+;;                         (let ((iindex (the +index-type+ (ldb (byte byte (* byte dindex)) i))))
+;;                           (dpb (mod (+ iindex degrees) rlen)
+;;                                (byte byte (* byte dindex))
+;;                                i))))))))
+;;         ;; (lambda (i)
+;;         ;;   (declare (type (unsigned-byte 62) i))
+;;         ;;   (the (unsigned-byte 62)
+;;         ;;        (+ (the (unsigned-byte 62) (mod i increment))
+;;         ;;           (the (unsigned-byte 62) (* vset-size (floor i vset-size)))
+;;         ;;           (the (unsigned-byte 62)
+;;         ;;                (* increment
+;;         ;;                   (the fixnum (abs (- (mod (the fixnum (floor i increment))
+;;         ;;                                            rlen)
+;;         ;;                                       (1- rlen)))))))))
+;;         (intraverser (:typekey typekey)
+;;           (:integer
+;;            (the +function-type+
+;;                 (lambda (i) +optimize-for-type+
+;;                   (the +index-type+
+;;                        (+ (the +index-type+ (mod i increment))
+;;                           (the +index-type+ (* vset-size (floor i vset-size)))
+;;                           (the +index-type+
+;;                                (* increment
+;;                                   (the fixnum (abs (- (mod (the fixnum (floor i increment))
+;;                                                            rlen)
+;;                                                       (1- rlen)))))))))))
+;;           (:encoded))
+;;         )))
 
 ;; (defun indexer-permute (idims odims alpha is-diagonal typekey &optional is-inverse)
 ;;   "Return indices of an array permuted as with the [⍉ permute] function."

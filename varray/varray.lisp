@@ -4470,8 +4470,8 @@
                   (or (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
                         (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
                       t)
-                  ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
-                  ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
+                  (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
+                  (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
                   (arg-process varray))))
 
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
