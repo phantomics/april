@@ -247,7 +247,9 @@
                   (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
                   (converter ;; (fetch-index-generator (getf params :indexer-key) (rank-of array))
                     ;; (encode-rmi)
-                    (decode-rmi encoded-type factors (getf params :index-width))
+                    ;; (decode-rmi encoded-type factors (getf params :index-width))
+                    (decode-rmi (getf params :encoding) (getf params :index-width)
+                                (array-rank array) factors)
                     ))
              ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
              (lambda (index)
@@ -499,51 +501,59 @@
 
 ;; (format t "#x~4,'0X~%" (funcall (encode-rmi :i32 #(12 4 1) 8) 14))
 
-(defun decode-rmi (typekey factors byte-size)
-  (let ((this-rank (length factors)))
-    ;; (print (list :ff (type-of factors) typekey))
-    (intraverser (:typekey typekey :linear t)
-      (:integer (the (function ((unsigned-byte +index-width+))
-                               (unsigned-byte +index-width+))
-                     (lambda (index) +optimize-for-type+
-                       (declare (type +index-type+ index))
-                       (let ((output (the +index-type+ 0)))
-                         (loop :for fx :of-type +index-type+ :from this-rank :downto 1
-                               :for ix :of-type +index-type+ :from 0
-                               :do (incf output (* (the +index-type+ (aref factors ix))
-                                                   (ldb (byte byte-size (* byte-size (1- fx))) index))))
-                         ;; (print (list :dec index output factors))
-                         output)))))))
+;; (defun decode-rmi (typekey factors byte-size)
+;;   (let ((this-rank (length factors)))
+;;     ;; (print (list :ff (type-of factors) typekey))
+;;     (intraverser (:typekey typekey :linear t)
+;;       (:integer (the (function ((unsigned-byte +index-width+))
+;;                                (unsigned-byte +index-width+))
+;;                      (lambda (index) +optimize-for-type+
+;;                        (declare (type +index-type+ index))
+;;                        (let ((output (the +index-type+ 0)))
+;;                          (loop :for fx :of-type +index-type+ :from this-rank :downto 1
+;;                                :for ix :of-type +index-type+ :from 0
+;;                                :do (incf output (* (the +index-type+ (aref factors ix))
+;;                                                    (ldb (byte byte-size (* byte-size (1- fx))) index))))
+;;                          ;; (print (list :dec index output factors))
+;;                          output)))))))
 
-;; (let ((function-table
-;;         (intraverser-ex
-;;          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
-;;                        :rank-width +rank-width+ :sub-base-width +sub-base-width+
-;;                        :rank-plus +rank-plus+))
-;;           (the (function ((simple-array (unsigned-byte 32) (+rank-plus+)))
-;;                          function)
-;;                (lambda (factors)
-;;                  (declare (optimize (speed 3) (safety 0))
-;;                           (type (simple-array (unsigned-byte 32) (+rank-plus+)) factors))
-;;                  (the (function ((unsigned-byte +eindex-width+))
-;;                                 (unsigned-byte +eindex-width+))
-;;                       (lambda (index)
-;;                         (declare (type (unsigned-byte +eindex-width+) index))
-;;                         (let ((output (the (unsigned-byte +eindex-width+) 0)))
-;;                           (loop :for fx :of-type (unsigned-byte +rank-width+)
-;;                                   := (1- +rank-plus+) :then (1- fx)
-;;                                 :for ix :of-type (unsigned-byte 32) :across factors
-;;                                 :do (incf (the (unsigned-byte +eindex-width+) output)
-;;                                           (* (the (unsigned-byte +eindex-width+) ix)
-;;                                              (the (unsigned-byte +cindex-width+)
-;;                                                   (ldb (byte +cindex-width+
-;;                                                              (* +cindex-width+ fx))
-;;                                                        index)))))
-;;                           (the (unsigned-byte +eindex-width+) output))))))))))
-;;   (defun decode-rmi (width element-width rank factors)
-;;     (let ((match (gethash (list '(:encoded) (list width element-width rank))
-;;                           function-table)))
-;;       (when match (funcall match factors)))))
+(let ((function-table
+        (intraverser-ex
+         (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+                       :rank-width +rank-width+ :sub-base-width +sub-base-width+
+                       :rank-plus +rank-plus+))
+          (the (function ((simple-array (unsigned-byte 32) (+rank-plus+)))
+                         function)
+               (lambda (factors)
+                 (declare (optimize (speed 3) (safety 0))
+                          (type (simple-array (unsigned-byte 32) (+rank-plus+)) factors))
+                 (the (function ((unsigned-byte +eindex-width+))
+                                (unsigned-byte +eindex-width+))
+                      (lambda (index)
+                        (declare (type (unsigned-byte +eindex-width+) index))
+                        (let ((output (the (unsigned-byte +eindex-width+) 0)))
+                          (loop :for fx :of-type (unsigned-byte +rank-width+)
+                                  := (1- +rank-plus+) :then (1- fx)
+                                :for ix :of-type (unsigned-byte 32) :across factors
+                                :do (incf (the (unsigned-byte +eindex-width+) output)
+                                          (* (the (unsigned-byte +eindex-width+) ix)
+                                             (the (unsigned-byte +cindex-width+)
+                                                  (ldb (byte +cindex-width+
+                                                             (* +cindex-width+ fx))
+                                                       index)))))
+                          (the (unsigned-byte +eindex-width+) output))))))))))
+  (defun decode-rmi (width element-width rank factors)
+    (let ((match (gethash (list '(:encoded) (list width element-width rank))
+                          function-table)))
+      (values (when match (funcall match factors))
+              (lambda (index)
+                (let ((output 0))
+                  (loop :for fx :from rank :downto 0
+                        :for ix :across factors
+                        :do (incf output (* ix (ldb (byte element-width
+                                                          (* element-width fx))
+                                                    index))))
+                  output))))))
 
 ;; (the (function ((simple-array (unsigned-byte 32) (2))) function)
 ;;                (lambda (factors)
@@ -569,35 +579,105 @@
 
 ;; (print (funcall (decode-rmi :i32 #(12 4 1) 8) #x20001))
 
-(defun increment-encoded (typekey dimensions byte-size)
-  (let* ((this-rank (length dimensions))
-         (increments (make-array this-rank :element-type 'fixnum :initial-element 0)))
-    (loop :for i :below this-rank :do (setf (aref increments i)
-                                            (expt (expt 2 byte-size) i)))
-    (intraverser (:typekey typekey :linear t)
-      (:integer (the (function ((unsigned-byte +index-width+))
-                               (unsigned-byte +index-width+))
-                     (lambda (index)
-                       (let ((output index) (complete))
-                         (loop :for ix ;; :from (1- this-rank) :downto 0
-                               :from 0 :below this-rank
-                               :while (not complete)
-                               :do (if (< (ldb (byte byte-size (* byte-size ix))
-                                               index)
-                                          (1- (aref dimensions ix)))
-                                       (setf complete (incf output (aref increments ix)))
-                                       (setf output (dpb 0 (byte byte-size (* byte-size ix))
-                                                         output))))
-                         ;; (print (list :in index output))
-                         output)))))))
+;; (defun increment-encoded (typekey dimensions byte-size)
+;;   (let* ((this-rank (length dimensions))
+;;          (increments (make-array this-rank :element-type 'fixnum :initial-element 0)))
+;;     (loop :for i :below this-rank :do (setf (aref increments i)
+;;                                             (expt (expt 2 byte-size) i)))
+;;     (intraverser (:typekey typekey :linear t)
+;;       (:integer (the (function ((unsigned-byte +index-width+))
+;;                                (unsigned-byte +index-width+))
+;;                      (lambda (index)
+;;                        (let ((output index) (complete))
+;;                          (loop :for ix ;; :from (1- this-rank) :downto 0
+;;                                :from 0 :below this-rank
+;;                                :while (not complete)
+;;                                :do (if (< (ldb (byte byte-size (* byte-size ix))
+;;                                                index)
+;;                                           (1- (aref dimensions ix)))
+;;                                        (setf complete (incf output (aref increments ix)))
+;;                                        (setf output (dpb 0 (byte byte-size (* byte-size ix))
+;;                                                          output))))
+                         
+;;                          (print (list :in (format nil "#x~4,'0X" index)
+;;                                       (format nil "#x~4,'0X" output)))
+;;                          output)))))))
+
+(let* (( 8-bit-factors (make-array 8 :element-type '(unsigned-byte 64)))
+       (16-bit-factors (make-array 4 :element-type '(unsigned-byte 64)))
+       (32-bit-factors (make-array 2 :element-type '(unsigned-byte 64)))
+       (function-table
+         (intraverser-ex
+          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+                        :rank-width +rank-width+ :sub-base-width +sub-base-width+
+                        :rank-plus +rank+))
+           (the (function ((simple-array (unsigned-byte +cindex-width+) (+rank+)))
+                          function)
+                (lambda (dimensions)
+                  (declare (optimize (speed 3) (safety 0))
+                           (type (simple-array (unsigned-byte +cindex-width+) (+rank+)) dimensions))
+                  (let ((factors (case +cindex-width+
+                                   (8  (the (simple-array (unsigned-byte 64) (8))  8-bit-factors))
+                                   (16 (the (simple-array (unsigned-byte 64) (4)) 16-bit-factors))
+                                   (32 (the (simple-array (unsigned-byte 64) (2)) 32-bit-factors)))))
+                    (the (function ((unsigned-byte +eindex-width+))
+                                   (unsigned-byte +eindex-width+))
+                         (lambda (index)
+                           (declare (type (unsigned-byte +eindex-width+) index))
+                           (let ((output index) (complete (the (unsigned-byte +rank-width+) 0)))
+                             (declare (type (unsigned-byte +eindex-width+) output))
+                             (loop :for ix ;; :from (1- this-rank) :downto 0
+                                     :of-type (unsigned-byte +rank-width+)
+                                   :from 0 :below +rank+
+                                   :for dim :of-type (unsigned-byte +cindex-width+) :across dimensions
+                                   :for fac :of-type (unsigned-byte 64) :across factors
+                                   :while (zerop complete)
+                                   :do (if (< (the (unsigned-byte +cindex-width+)
+                                                   (ldb (byte +cindex-width+ (* +cindex-width+ ix))
+                                                        index))
+                                              (1- dim))
+                                           (incf (the (unsigned-byte +rank-width+) complete)
+                                                 (the bit (signum (incf output fac))))
+                                           (setf output (dpb 0 (byte +cindex-width+ (* +cindex-width+ ix))
+                                                             output))))
+                             ;; (print (list :in (format nil "#x~4,'0X" index)
+                             ;;              (format nil "#x~4,'0X" output)))
+                             (the (unsigned-byte +eindex-width+) output)))))))))))
+  (loop :for i :below 8 :do (setf (aref  8-bit-factors i) (expt 256 i)))
+  (loop :for i :below 4 :do (setf (aref 16-bit-factors i) (expt 65536 i)))
+  (loop :for i :below 2 :do (setf (aref 32-bit-factors i) (expt 4294967296 i)))
+  
+  (defun increment-encoded (width element-width dimensions)
+    (let* ((rank (length dimensions))
+           (match (gethash (list '(:encoded) (list width element-width rank))
+                           function-table)))
+      (values (when match (funcall match dimensions))
+              (let ((factors (case element-width (8 8-bit-factors)
+                               (16 16-bit-factors) (32 32-bit-factors))))
+                (lambda (index)
+                  (let ((output index) (complete))
+                    (loop :for ix ;; :from (1- this-rank) :downto 0
+                          :from 0 :below rank
+                          :while (not complete)
+                          :do (if (< (ldb (byte element-width (* element-width ix))
+                                          index)
+                                     (1- (aref dimensions ix)))
+                                  (setf complete (incf output (aref factors ix)))
+                                  (setf output (dpb 0 (byte element-width (* element-width ix))
+                                                    output))))
+                    output)))))))
 
 ;; (format t "#x~4,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
+;; (format t "#x~4,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
 (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
          (encoder (when encoding-type (encode-rmi ekey factors index-type)))
-         (incrementer (when encoding-type (increment-encoded ekey shape-vector index-type))))
+         ;; (incrementer (when encoding-type (increment-encoded ekey shape-vector index-type)))
+         (incrementer (when encoding-type (increment-encoded encoding-type index-type
+                                                             shape-vector)))
+         )
     (intraverser (:typekey typekey)
       (:integer
        (the +root-function-type+
@@ -680,7 +760,7 @@
                       (list :indexer-key type-key
                             :index-width d-index-type
                             :encoding encoding))
-      ;; (print (list :dg is-defaulting this-generator varray))
+      ;; (print (list :dg is-not-defaulting this-generator varray))
       (setf indexer this-generator
             default-generator (not is-not-defaulting)))
 
@@ -722,10 +802,10 @@
                    ;; sub-byte-encoded coordinate vectors back to row-major indices
                    ;; to reference elements in the output array
                    (decoder (if (or default-generator (not encoding)) ;; TOGGLE
-                                #'identity (decode-rmi (intern (format nil "I~a" encoding)
-                                                               "KEYWORD")
-                                                       dfactors d-index-type)
-                                ;; (decode-rmi encoding d-index-type output-rank dfactors)
+                                #'identity ;; (decode-rmi (intern (format nil "I~a" encoding)
+                                           ;;                     "KEYWORD")
+                                           ;;             dfactors d-index-type)
+                                (decode-rmi encoding d-index-type output-rank dfactors)
                                 ))
                    ;; (de (print (list :dc d-index-type dfactors decoder)))
                    (render-index
@@ -738,6 +818,7 @@
                                    (render indexed))))
                          (lambda (i)
                            ;; (print (list :i2 i))
+                           ;; (print (list :in (format nil "#x~6,'0X" i)))
                            (if (functionp indexer)
                                (setf (row-major-aref output (funcall decoder i))
                                      (funcall indexer i))
@@ -754,8 +835,12 @@
                    ;;              (funcall render-index i)))
                    ;; (process (or (getf processes type-key)
                    ;;              (getf processes t)))
+                   (shape-vector (when (and d-index-type output-rank)
+                                   (make-array output-rank :initial-contents (reverse output-shape)
+                                                           :element-type (list 'unsigned-byte
+                                                                               d-index-type))))
                    (process-pair (get-indexing-function
-                                  type-key dfactors (coerce output-shape 'vector)
+                                  type-key dfactors shape-vector ; (coerce output-shape 'vector)
                                   sbesize interval divisions total-size d-index-type
                                   encoding render-index))
                    ;; (eep (print (list :prop process-pair)))
