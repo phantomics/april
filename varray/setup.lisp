@@ -140,100 +140,6 @@
 ;;          (t ,@(replace-symbols body nil t))
 ;;          ))))
 
-#|
-(the (function ((unsigned-byte 63) (unsigned-byte 4) (unsigned-byte 63))
-               function)
-     (lambda (degrees dindex rlen)
-       (declare (optimize (speed 3) (safety 0))
-                (type (unsigned-byte 4) dindex)
-                (type (unsigned-byte 63) degrees rlen))
-       (let ((byte-offset (* 16 dindex)))
-         (the (function ((unsigned-byte 64)) (unsigned-byte 64))
-              (lambda (i)
-                (declare (type (unsigned-byte 64) i))
-                (let* ((iindex (the (unsigned-byte 16)
-                                    (ldb (byte 16 byte-offset) i))))
-                  (the (unsigned-byte 64)
-                       (dpb (the (unsigned-byte 16) (mod (+ iindex degrees) rlen))
-                            (byte 16 byte-offset)
-                            i))))))))
-
-(THE (FUNCTION ((UNSIGNED-BYTE 31) (UNSIGNED-BYTE 4) (UNSIGNED-BYTE 31))
-               FUNCTION)
-     (LAMBDA (DEGREES DINDEX RLEN)
-       (DECLARE (OPTIMIZE (SPEED 3) (SAFETY 0))
-                (TYPE (UNSIGNED-BYTE 4) DINDEX)
-                (TYPE (UNSIGNED-BYTE 31) DEGREES RLEN))
-       (THE (FUNCTION ((UNSIGNED-BYTE 32)) (UNSIGNED-BYTE 32))
-            (LAMBDA (I)
-              (DECLARE (TYPE (UNSIGNED-BYTE 32) I))
-              (LET ((IINDEX (THE (UNSIGNED-BYTE 16) (LDB (BYTE 16 16) I))))
-                (THE (UNSIGNED-BYTE 32)
-                     (DPB (THE (UNSIGNED-BYTE 16)
-                               (MOD (+ IINDEX DEGREES) RLEN))
-                          (BYTE 16 16)
-                          I)))))))
-
-(+ 1 2)
-
-(THE
-           (FUNCTION ((UNSIGNED-BYTE 32) (UNSIGNED-BYTE 4) (UNSIGNED-BYTE 31))
-            FUNCTION)
-           (LAMBDA (INCREMENT VSET-SIZE DEGREES RLEN)
-             (DECLARE (OPTIMIZE (SPEED 3) (SAFETY 0))
-                      (TYPE (UNSIGNED-BYTE 32) INCREMENT VSET-SIZE)
-                      (TYPE (UNSIGNED-BYTE 31) DEGREES RLEN))
-             (IF (INTEGERP DEGREES)
-                 (THE (FUNCTION ((UNSIGNED-BYTE 32)) (UNSIGNED-BYTE 32))
-                      (LAMBDA (I)
-                        (DECLARE (TYPE (UNSIGNED-BYTE 32) I))
-                        (THE (UNSIGNED-BYTE 32)
-                             (+ (THE (UNSIGNED-BYTE 31) (MOD I INCREMENT))
-                                (THE (UNSIGNED-BYTE 31)
-                                     (* VSET-SIZE (FLOOR I VSET-SIZE)))
-                                (THE (UNSIGNED-BYTE 31)
-                                     (* INCREMENT
-                                        (THE (UNSIGNED-BYTE 31)
-                                             (MOD
-                                              (THE (UNSIGNED-BYTE 31)
-                                                   (+ DEGREES
-                                                      (FLOOR I INCREMENT)))
-                                              RLEN))))))))
-                 (THE (FUNCTION ((UNSIGNED-BYTE 32)) (UNSIGNED-BYTE 32))
-                      (LAMBDA (I)
-                        (DECLARE (TYPE (UNSIGNED-BYTE 32) I))
-                        (THE (UNSIGNED-BYTE 32)
-                             (+ (THE (UNSIGNED-BYTE 31) (MOD I INCREMENT))
-                                (THE (UNSIGNED-BYTE 31)
-                                     (* VSET-SIZE (FLOOR I VSET-SIZE)))
-                                (LET ((DEGREE
-                                       (THE (UNSIGNED-BYTE 32)
-                                            (IF (NOT (ARRAYP DEGREES))
-                                                0
-                                                (ROW-MAJOR-AREF DEGREES
-                                                                (+
-                                                                 (THE
-                                                                  (UNSIGNED-BYTE
-                                                                   32)
-                                                                  (MOD I
-                                                                       INCREMENT))
-                                                                 (THE
-                                                                  (UNSIGNED-BYTE
-                                                                   32)
-                                                                  (* INCREMENT
-                                                                     (FLOOR I
-                                                                            VSET-SIZE)))))))))
-                                  (THE (UNSIGNED-BYTE 32)
-                                       (* INCREMENT
-                                          (THE (UNSIGNED-BYTE 31)
-                                               (MOD
-                                                (THE (UNSIGNED-BYTE 31)
-                                                     (+ DEGREE
-                                                        (FLOOR I INCREMENT)))
-                                                RLEN))))))))))))
-
-|#
-
 (defmacro intraverser-ex (&rest forms)
   (let ((widths '(:lindex-width (8 16 32 64)
                   :eindex-width (16 32 64)
@@ -308,24 +214,6 @@
       `(let ((,table (make-hash-table :test #'equalp)))
          (setf ,@output)
          ,table))))
-
-(lambda (i) +optimize-for-type+
-  (the +index-type+
-       (+ (the +index-type+ (mod i increment))
-          (the +index-type+ (* vset-size (floor i vset-size)))
-          (let ((degree (the fixnum
-                             (if (integerp degrees)
-                                 degrees
-                                 (if (arrayp degrees)
-                                     (row-major-aref
-                                      degrees
-                                      (+ (the +index-type+ (mod i increment))
-                                         (the +index-type+
-                                              (* increment (floor i vset-size)))))
-                                     0)))))
-            (the +index-type+
-                 (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
-                                               rlen))))))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
@@ -584,6 +472,159 @@
 ;;           (:encoded))
 ;;         )))
 
+;; (let ((default-function
+;;         (lambda (increment vset-size degrees rlen)
+;;           (lambda (i)
+;;             (+ (mod i increment)
+;;                (* vset-size (floor i vset-size))
+;;                (let ((degree (if (integerp degrees)
+;;                                  degrees
+;;                                  (if (not (arrayp degrees))
+;;                                      0 (row-major-aref
+;;                                         degrees
+;;                                         (+ (mod i increment)
+;;                                            (* increment (floor i vset-size))))))))
+;;                  (* increment (mod (+ degree (floor i increment))
+;;                                    rlen)))))))
+;;       (regular-handler-table
+;;         (intraverser-ex
+;;          (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
+;;                        ;; :rank +rank+
+;;                        :rank-width +rank-width+))
+;;           (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+;;                           ;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+;;                           vector vector)
+;;                          function)
+;;                (lambda (od-factors s-factors)
+;;                  (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+;;                       (lambda (i)
+;;                         (declare (optimize (speed 3) (safety 0))
+;;                                  (type (unsigned-byte +lindex-width+) i))
+;;                         (let* ((remaining (the (unsigned-byte +lindex-width+) i))
+;;                                (oindex (the (unsigned-byte +lindex-width+) 0)))
+;;                           (loop :for od :across od-factors :for s :across s-factors
+;;                                 :collect (multiple-value-bind (index remainder) (floor remaining od)
+;;                                            (incf oindex (* index s))
+;;                                            (setq remaining remainder)))
+;;                           oindex))))))
+;;          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+;;                        :rank-width +rank-width+))
+;;           (the (function ((simple-array (unsigned-byte +rank-width+) (+rank+)))
+;;                          function)
+;;                (lambda (indices)
+;;                  (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+;;                       (lambda (i)
+;;                         (declare (optimize (speed 3) (safety 0))
+;;                                  (type (unsigned-byte +eindex-width+) i))
+;;                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
+;;                           (loop :for a :in indices :for n :from 0
+;;                                 :do (dpb (ldb (byte +cindex-width+ (* n +cindex-width+)) i)
+;;                                          (byte +cindex-width+ (* a +cindex-width+))
+;;                                          iindex))
+;;                           iindex))))))))
+;;       (diagonal-handler-table
+;;         (intraverser-ex
+;;          (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
+;;                                      ;; :rank +rank+
+;;                        :rank-width +rank-width+))
+;;           (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+;;                           ;; (simple-array (unsigned-byte +rank-width+) (+rank+))
+;;                           vector vector)
+;;                          function)
+;;                (lambda (id-factors indices)
+;;                  (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+;;                       (lambda (i)
+;;                         (declare (optimize (speed 3) (safety 0))
+;;                                  (type (unsigned-byte +lindex-width+) i))
+;;                         (let ((iindex (the (unsigned-byte +lindex-width+) 0))
+;;                               (remaining (the (unsigned-byte +lindex-width+) i)))
+;;                           (loop :for ox :from 0 :for of :across od-factors
+;;                                 :do (multiple-value-bind (index remainder) (floor remaining of)
+;;                                       (loop :for a :of-type (unsigned-byte +rank-width+)
+;;                                               :across indices
+;;                                             :for ax :from 0 :when (= a ox)
+;;                                             :do (incf iindex (* index (aref id-factors ax))))
+;;                                       (setq remaining remainder)))
+;;                           (the (unsigned-byte +lindex-width+) iindex)))))))
+;;          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+;;                        :rank +rank+ :rank-width +rank-width+))
+;;           (the (function ((unsigned-byte +rank-width+)
+;;                           (simple-array (unsigned-byte +rank-width+) (+rank+)))
+;;                          function)
+;;                (lambda (input-rank indices)
+;;                  (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+;;                       (lambda (i)
+;;                         (declare (optimize (speed 3) (safety 0))
+;;                                  (type (unsigned-byte +eindex-width+) i))
+;;                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
+;;                           (loop :for d :below input-rank :for ox :from 0
+;;                                 :do (let ((this-index (ldb (byte +cindex-width+
+;;                                                                  (* d +cindex-width+))
+;;                                                            i)))
+;;                                       (loop :for a :in indices :for ax :from 0 :when (= a ox)
+;;                                             :do (setf iindex (dpb this-index
+;;                                                                   (byte +cindex-width+
+;;                                                                         (* ax +cindex-width+))
+;;                                                                   iindex)))))
+;;                           (the (unsigned-byte +eindex-width+) iindex))))))))))
+  
+;;   (defun indexer-permute (idims odims alpha is-diagonal iwidth itype &optional is-inverse)
+;;     "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
+;;     ;; (declare (optimize (speed 3) (safety 0)))
+;;     (let* ((irank (length idims))
+;;            (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
+;;            (id-factors (make-array irank :element-type '(unsigned-byte 62) ;; TODO: remove hard-coding
+;;                                    :initial-contents (reverse (loop :for d :in (reverse idims)
+;;                                                                     :collect idfactor
+;;                                                                     :do (setq idfactor
+;;                                                                               (* d idfactor))))))
+;;            (indices (if alpha (progn (if (vectorp alpha)
+;;                                          (loop :for i :across alpha :for id :in idims :for ix :from 0
+;;                                                :do (when (not (member i positions))
+;;                                                      ;; if a duplicate position is found,
+;;                                                      ;; a diagonal section is being performed
+;;                                                      (push i positions)
+;;                                                      (push id idims-reduced))
+;;                                                    ;; collect possible diagonal indices into diagonal list
+;;                                                    (if (assoc i diagonals)
+;;                                                        (push ix (rest (assoc i diagonals)))
+;;                                                        (push (list i ix) diagonals))
+;;                                                :collect i)
+;;                                          (progn (setq odims idims
+;;                                                       positions (cons alpha positions))
+;;                                                 (list alpha))))
+;;                         (reverse (iota irank))))
+;;            ;; TODO: hardcoded 8-bit rank
+;;            (indices-vector (make-array (length indices) :element-type '(unsigned-byte 8)
+;;                                        :initial-contents indices))
+;;            ;; remove indices not being used for diagonal section from diagonal list
+;;            ;; the idims-reduced are a set of the original dimensions without dimensions being elided
+;;            ;; for diagonal section, used to get the initial output array used for diagonal section
+;;            (od-factors (make-array (length odims)))
+;;            (s-factors (make-array irank)))
+;;       (if (not is-diagonal)
+;;           ;; handle regular permutation cases
+;;           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
+;;               (let ((match (gethash (list '(:encoded) (list iwidth itype (1- irank)))
+;;                                     regular-handler-table)))
+;;                 (when match (funcall match irank indices-vector))))
+;;           ;; handle diagonal array traversals
+;;           (if is-inverse
+;;               (lambda (i)
+;;                 (let ((remaining i) (valid t) (factor))
+;;                   ;; determine the presence of an input element in the
+;;                   ;; output, used for selective assignment i.e. (1 1⍉M)←0
+;;                   (loop :for if :across id-factors :while valid
+;;                         :do (multiple-value-bind (index remainder) (floor remaining if)
+;;                               (if (and factor (/= index factor))
+;;                                   (setq valid nil)
+;;                                   (setq remaining remainder
+;;                                         factor (or factor index)))))
+;;                   (when valid factor)))
+;;               (let ((match (gethash (list '(:encoded) (list iwidth itype (1- irank)))
+;;                                     diagonal-handler-table)))
+;;                 (when match (funcall match degrees rlen))))))))
+
 ;; (defun indexer-permute (idims odims alpha is-diagonal typekey &optional is-inverse)
 ;;   "Return indices of an array permuted as with the [⍉ permute] function."
 ;;   (let* ((irank (length idims))
@@ -651,7 +692,7 @@
 ;;                                          iindex))
 ;;                           iindex))))))
 ;;             )
-;;         handle diagonal array traversals
+;;         ;; handle diagonal array traversals
 ;;         (if is-inverse
 ;;             (lambda (i)
 ;;               (let ((remaining i) (valid t) (factor))
