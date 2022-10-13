@@ -4632,6 +4632,7 @@
   (if (or (shape-of varray) (getf params :for-selective-assign))
       (let* ((assigning (getf params :for-selective-assign))
              (argument (render (vads-argument varray))))
+        ;; (print (list :va (vader-base varray)))
         (indexer-permute (shape-of (vader-base varray))
                          (shape-of varray)
                          (when argument
@@ -4644,8 +4645,8 @@
                                   (vaperm-is-diagonal varray)))
                          ;; t ;; type of index
                          ;; (or (getf (getf params :meta) :indexer-key) t)
-                         ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
-                         ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
                          assigning))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)

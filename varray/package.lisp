@@ -27,5 +27,5 @@
                           #:vector-grade #:xdotimes #:invert-matrix #:left-invert-matrix
                           #:array-inner-product)
   (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-section
-                          #:indexer-expand #:indexer-permute ; #:indexer-turn
+                          #:indexer-expand ;; #:indexer-permute ; #:indexer-turn
                           ))
