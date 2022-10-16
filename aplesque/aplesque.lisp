@@ -93,7 +93,6 @@
         (let* ((rank (length dimensions))
                (output (make-array rank :element-type
                                    (list 'integer 0 (reduce #'* (rest dimensions))))))
-          (print (list :oo (type-of output)))
           (loop :for d :in (reverse dimensions) :for dx :from 0
                 :do (setf factor (setf (aref output (- rank dx 1))
                                        (if (zerop dx) 1 (* factor last-index)))

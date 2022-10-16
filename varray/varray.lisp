@@ -883,7 +883,8 @@
                                    (lparallel::submit-task
                                     lpchannel (funcall process d)))))
               (loop :repeat threaded-count
-                :do (lparallel::receive-result lpchannel))
+                    :do (lparallel::receive-result lpchannel))
+              ;; (print (list :oo output))
               output))
         (funcall (if (subrendering-p varray)
                      (lambda (item)
