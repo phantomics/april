@@ -521,8 +521,8 @@
                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
                           (loop :for a :of-type (unsigned-byte +cindex-width+) :across indices
                                 :for n :of-type (unsigned-byte 8) :from 0
-                                :do (setf iindex (dpb (ldb (byte +cindex-width+ (* (- +rank-plus+ n 1)
-                                                                                   +cindex-width+))
+                                :do (setf iindex (dpb (ldb (byte +cindex-width+
+                                                                 (* +cindex-width+ (- +rank-plus+ n 1)))
                                                            i)
                                                       (byte +cindex-width+ (* +cindex-width+
                                                                               (- +rank-plus+ a 1)))
