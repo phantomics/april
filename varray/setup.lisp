@@ -153,7 +153,7 @@
                                   (or (loop :for (key value) :on var-widths :by #'cddr
                                             :when (eql item key) :return value)
                                       item))))
-             (process-var-range (form types vars &optional params key-ints var-widths)
+             (process-var-range (form vars &optional params key-ints var-widths)
                (if vars
                    (destructuring-bind (var-type var-symbol &rest rest-vars) vars
                      ;; (print (list :vt var-type var-symbol rest-vars (getf widths var-type)))
@@ -161,12 +161,12 @@
                        (:rank
                         (loop :for i :below (floor (getf params :base-width)
                                                    (getf params :coordinate-width))
-                              :do (process-var-range form types rest-vars params (cons i key-ints)
+                              :do (process-var-range form rest-vars params (cons i key-ints)
                                                      (append (list var-symbol i) var-widths))))
                        (:rank-plus
                         (loop :for i :below (floor (getf params :base-width)
                                                    (getf params :coordinate-width))
-                              :do (process-var-range form types rest-vars params (cons (1+ i) key-ints)
+                              :do (process-var-range form rest-vars params (cons (1+ i) key-ints)
                                                      (append (list var-symbol (1+ i))
                                                              var-widths))))
                        (:address-fraction
@@ -175,7 +175,7 @@
                         (loop :for i :below (floor (getf params :base-width)
                                                    (getf params :coordinate-width))
                               :do (let ((width (* i (getf params :coordinate-width))))
-                                    (process-var-range form types rest-vars params (cons i key-ints)
+                                    (process-var-range form rest-vars params (cons i key-ints)
                                                        (append (list var-symbol width) var-widths)))))
                        (t
                         (loop :for width :in (or (getf widths var-type) '(0))
@@ -195,8 +195,7 @@
                                       ;; i.e. the sub-byte values of an integer must be half or less of
                                       ;; that integer's width
                                       (process-var-range
-                                       form types (cddr vars)
-                                       sub-params
+                                       form (cddr vars) sub-params
                                        (if (not (member var-type '(:lindex-width :eindex-width
                                                                    :cindex-width)))
                                            key-ints (cons width key-ints))
@@ -204,13 +203,13 @@
                                                var-widths)))))))
                    (progn (push (process-form form var-widths) output)
                           ;; the sub-base-width is not included in the key list
-                          (push `(gethash ',(list types (reverse key-ints)) ,table)
+                          (push `(gethash ',(reverse key-ints) ,table)
                                 output)))))
       (loop :for form :in forms
-            :do (let* ((types (caar form))
-                       (base-type (first types))
-                       (vars (cadar form)))
-                  (process-var-range (second form) types vars)))
+            :do (let (;; (types (caar form))
+                       ;; (base-type (first types))
+                       (vars (first form)))
+                  (process-var-range (second form) vars)))
       `(let ((,table (make-hash-table :test #'equalp)))
          (setf ,@output)
          ,table))))
@@ -279,8 +278,8 @@
          ;;                                                               (+ degree
          ;;                                                                  (floor i increment)))
          ;;                                                          rlen)))))))))))))
-         (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
-                       :sub-base-width +sub-base-width+ :address-fraction +address-fraction+))
+         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
+           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
           (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
                          function)
                (lambda (degrees rlen)
@@ -325,8 +324,7 @@
                           (the (unsigned-byte 62)
                                (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
                                                              rlen))))))))
-              (list (let ((match (gethash (list '(:encoded)
-                                                (list iwidth itype (- irank 1 axis)))
+              (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
                                           function-table)))
                       (when match (funcall match degrees rlen)))
                     (funcall default-function increment vset-size degrees rlen)))
@@ -507,8 +505,8 @@
          ;;                                   (incf oindex (* index s))
          ;;                                   (setq remaining remainder)))
          ;;                  oindex))))))
-         (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
-                       :rank-plus +rank-plus+ :rank-width +rank-width+))
+         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
+           :rank-plus +rank-plus+ :rank-width +rank-width+)
           (the (function ((simple-array (unsigned-byte 8) (+rank-plus+)))
                          function)
                (lambda (indices)
@@ -556,8 +554,8 @@
          ;;                                    :do (incf iindex (* index (aref id-factors ax))))
          ;;                              (setq remaining remainder)))
          ;;                  (the (unsigned-byte +lindex-width+) iindex)))))))
-         (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
-                       :rank +rank+ :rank-width +rank-width+))
+         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
+           :rank +rank+ :rank-width +rank-width+)
           (the (function ((unsigned-byte +rank-width+)
                           (simple-array (unsigned-byte +rank-width+) (+rank+)))
                          function)
@@ -624,7 +622,7 @@
       (if (not is-diagonal)
           ;; handle regular permutation cases
           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
-              (let ((match (gethash (list '(:encoded) (list iwidth itype irank))
+              (let ((match (gethash (list iwidth itype irank)
                                     regular-handler-table)))
                 ;; (print (list :ma idims match iwidth itype irank indices-vector))
                 (list (when match (funcall match indices-vector))
@@ -648,7 +646,7 @@
                                   (setq remaining remainder
                                         factor (or factor index)))))
                   (when valid factor)))
-              (let ((match (gethash (list '(:encoded) (list iwidth itype (1- irank)))
+              (let ((match (gethash (list iwidth itype (1- irank))
                                     diagonal-handler-table)))
                 (list (when match (funcall match indices-vector))
                       (lambda (i)

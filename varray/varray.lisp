@@ -519,9 +519,9 @@
 
 (let ((function-table
         (intraverser-ex
-         (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
-                       :rank-width +rank-width+ :sub-base-width +sub-base-width+
-                       :rank-plus +rank-plus+))
+         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
+           :rank-width +rank-width+ :sub-base-width +sub-base-width+
+           :rank-plus +rank-plus+)
           (the (function ((simple-array (unsigned-byte 32) (+rank-plus+)))
                          function)
                (lambda (factors)
@@ -543,8 +543,7 @@
                                                        index)))))
                           (the (unsigned-byte +eindex-width+) output))))))))))
   (defun decode-rmi (width element-width rank factors)
-    (let ((match (gethash (list '(:encoded) (list width element-width rank))
-                          function-table)))
+    (let ((match (gethash (list width element-width rank) function-table)))
       (values (when match (funcall match factors))
               (lambda (index)
                 (let ((output 0))
@@ -560,9 +559,8 @@
        (32-bit-factors (make-array 2 :element-type '(unsigned-byte 64)))
        (function-table
          (intraverser-ex
-          (((:encoded) (:eindex-width +eindex-width+ :cindex-width +cindex-width+
-                        :rank-width +rank-width+ :sub-base-width +sub-base-width+
-                        :rank-plus +rank+))
+          ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
+            :rank-width +rank-width+ :sub-base-width +sub-base-width+ :rank-plus +rank+)
            (the (function ((simple-array (unsigned-byte +cindex-width+) (+rank+)))
                           function)
                 (lambda (dimensions)
@@ -601,8 +599,7 @@
   
   (defun increment-encoded (width element-width dimensions)
     (let* ((rank (length dimensions))
-           (match (gethash (list '(:encoded) (list width element-width rank))
-                           function-table)))
+           (match (gethash (list width element-width rank) function-table)))
       (values (when match (funcall match dimensions))
               (let ((factors (case element-width (8 8-bit-factors)
                                (16 16-bit-factors) (32 32-bit-factors))))
