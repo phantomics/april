@@ -520,13 +520,14 @@
                         (declare (type (unsigned-byte +eindex-width+) i))
                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
                           (loop :for a :of-type (unsigned-byte +cindex-width+) :across indices
-                                :for n :of-type (unsigned-byte 8) :from 0
-                                :do (setf iindex (dpb (ldb (byte +cindex-width+
-                                                                 (* +cindex-width+ (- +rank-plus+ n 1)))
-                                                           i)
-                                                      (byte +cindex-width+ (* +cindex-width+
-                                                                              (- +rank-plus+ a 1)))
-                                                      iindex)))
+                                :for n :of-type (unsigned-byte 8) ; :from 0
+                                := (1- +rank-plus+) :then (1- n)
+                                :do (setf (the (unsigned-byte +eindex-width+) iindex)
+                                          (dpb (ldb (byte +cindex-width+ (* +cindex-width+ n))
+                                                    i)
+                                               (byte +cindex-width+ (* +cindex-width+
+                                                                       (- +rank-plus+ a 1)))
+                                               iindex)))
                           ;; (print (format nil "#x~8,'0X" i))
                           ;; (print (format nil "#x~8,'0X~%" iindex))
                           iindex))))))
@@ -626,9 +627,7 @@
               (let ((match (gethash (list '(:encoded) (list iwidth itype irank))
                                     regular-handler-table)))
                 ;; (print (list :ma idims match iwidth itype irank indices-vector))
-                (list (when match
-                        ;; (print (list :mm idims iwidth itype irank indices-vector))
-                        (funcall match indices-vector))
+                (list (when match (funcall match indices-vector))
                       (lambda (i)
                         (let* ((remaining i) (oindex 0))
                           (loop :for od :across od-factors :for s :across s-factors

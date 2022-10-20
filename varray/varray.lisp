@@ -555,54 +555,6 @@
                                                     index))))
                   output))))))
 
-;; (the (function ((simple-array (unsigned-byte 32) (2))) function)
-;;                (lambda (factors)
-;;                  (declare (optimize (speed 3) (safety 0))
-;;                           (type (simple-array (unsigned-byte 32) (2)) factors))
-;;                  (the (function ((unsigned-byte 64)) (unsigned-byte 64))
-;;                       (lambda (index)
-;;                         (declare (type (unsigned-byte 64) index))
-;;                         (let ((output (the (unsigned-byte 64) 0)))
-;;                           (loop :for fx :of-type (unsigned-byte 4) := (1-
-;;                                                                        2) :then (1-
-;;                                                                                  fx)
-;;                                 :for ix :of-type (unsigned-byte
-;;                                                   32) :across factors
-;;                                 :do (incf (the (unsigned-byte 64) output)
-;;                                           (* (the (unsigned-byte 64) ix)
-;;                                              (the (unsigned-byte 32)
-;;                                                   (ldb (byte 32 (* 32 fx))
-;;                                                        index)))))
-;;                           (the (unsigned-byte 64) output))))))
-
-;; (the (function ((unsigned-byte 63)) (unsigned-byte 64)) (lambda (index) (declare (optimize (speed 3) (safety 0)) (type (unsigned-byte 63) index)) (let ((output (1+ index)))  (the (unsigned-byte 64) output))))
-
-;; (print (funcall (decode-rmi :i32 #(12 4 1) 8) #x20001))
-
-;; (defun increment-encoded (typekey dimensions byte-size)
-;;   (let* ((this-rank (length dimensions))
-;;          (increments (make-array this-rank :element-type 'fixnum :initial-element 0)))
-;;     (loop :for i :below this-rank :do (setf (aref increments i)
-;;                                             (expt (expt 2 byte-size) i)))
-;;     (intraverser (:typekey typekey :linear t)
-;;       (:integer (the (function ((unsigned-byte +index-width+))
-;;                                (unsigned-byte +index-width+))
-;;                      (lambda (index)
-;;                        (let ((output index) (complete))
-;;                          (loop :for ix ;; :from (1- this-rank) :downto 0
-;;                                :from 0 :below this-rank
-;;                                :while (not complete)
-;;                                :do (if (< (ldb (byte byte-size (* byte-size ix))
-;;                                                index)
-;;                                           (1- (aref dimensions ix)))
-;;                                        (setf complete (incf output (aref increments ix)))
-;;                                        (setf output (dpb 0 (byte byte-size (* byte-size ix))
-;;                                                          output))))
-                         
-;;                          (print (list :in (format nil "#x~4,'0X" index)
-;;                                       (format nil "#x~4,'0X" output)))
-;;                          output)))))))
-
 (let* (( 8-bit-factors (make-array 8 :element-type '(unsigned-byte 64)))
        (16-bit-factors (make-array 4 :element-type '(unsigned-byte 64)))
        (32-bit-factors (make-array 2 :element-type '(unsigned-byte 64)))
