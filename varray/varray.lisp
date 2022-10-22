@@ -208,7 +208,8 @@
       #'identity
       (let ((ctype) ;; the type in common
             (reversed-indexers)
-            (defaulting))
+            ;; will default if a type is not specified
+            (defaulting (member type '(t nil))))
         ;; (loop :for i :in indexers :while (not (eq t ctype))
         ;;       :do (if (listp i)
         ;;               (if type (when (not (getf i ctype)) (setf ctype t))
@@ -808,9 +809,11 @@
                    ;;                      :do (funcall render-index i))))))
                    (threaded-count 0))
               ;; (print (list :pro process-pair))
-              ;; (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
-              ;;              (vader-base varray)
-              ;;              (when (typep varray 'vader-composing) (vacmp-omega varray))))
+              ;; (when (typep varray 'vader-permute)
+              ;;   (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
+              ;;                (vader-base varray)
+              ;;                (vads-argument varray)
+              ;;                (when (typep varray 'vader-composing) (vacmp-omega varray)))))
               ;; (print (list :ss interval sbsize sbesize :div divisions wcadj (size-of varray)))
               ;; (setf active-workers 0)
               ;; (print (list :out (type-of output) (type-of varray)
@@ -833,7 +836,8 @@
                                     lpchannel (funcall process d)))))
               (loop :repeat threaded-count
                     :do (lparallel::receive-result lpchannel))
-              ;; (print (list :oo output))
+              ;; (when (typep varray 'vader-permute)
+              ;;   (print (list :oo output)))
               output))
         (funcall (if (subrendering-p varray)
                      (lambda (item)
@@ -857,6 +861,9 @@
                              rendered (enclose rendered)))))
                  (if (not (functionp indexer))
                      indexer (funcall indexer 0))))))
+
+;; ↓display 'ABC'(1 4⍴1 2 3 4)(0 1 0⍴0)('88',99)
+;; (↑(3 2)(5 6)) xr ↑(2 3)(3 5)(4 4)(5 2)(6 8)(7 6)
 
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."

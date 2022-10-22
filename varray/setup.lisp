@@ -520,6 +520,7 @@
                  (declare (optimize (speed 3) (safety 0))
                           (type (simple-array (unsigned-byte 8) (+rank-plus+))
                                 indices)) ;; TODO: fix hardcoded type
+                 ;; (print (list :in indices))
                  (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
                       (lambda (i)
                         (declare (type (unsigned-byte +eindex-width+) i))
@@ -528,11 +529,10 @@
                                 :for n :of-type (unsigned-byte 8) ; :from 0
                                 := (1- +rank-plus+) :then (1- n)
                                 :do (setf (the (unsigned-byte +eindex-width+) iindex)
-                                          (dpb (ldb (byte +cindex-width+ (* +cindex-width+
-                                                                            (- +rank-plus+ a 1)))
+                                          (dpb (ldb (byte +cindex-width+
+                                                          (* +cindex-width+ (- +rank-plus+ a 1)))
                                                     i)
-                                               (byte +cindex-width+ (* n +cindex-width+
-                                                                       ))
+                                               (byte +cindex-width+ (* n +cindex-width+))
                                                iindex)))
                           ;; (print (format nil "#x~8,'0X" i))
                           ;; (print (format nil "#x~8,'0X~%" iindex))
