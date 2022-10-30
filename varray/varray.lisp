@@ -2169,7 +2169,8 @@
                          :element-type (etype-of varray)))
        (loop :for i :below (size-of (vader-base varray))
              :do (setf (row-major-aref (varand-cached varray) i)
-                       (apl-random-process (funcall base-indexer i)
+                       (apl-random-process (if (not (functionp base-indexer))
+                                               base-indexer (funcall base-indexer i))
                                            (vads-io varray) generator))))
 
      ;; (if t ; seed
@@ -3655,19 +3656,18 @@
                           :for f :in (get-dimensional-factors (shape-of varray))
                           :when (minusp a) :do (incf scalar-index (* f(1- d))))
                     (when (minusp arg) (incf scalar-index (1- (first (shape-of varray)))))))
-              
               ;; IPV-TODO: figure out how to allow n-rank mixed positive-negative takes for scalars
               (lambda (index)
                 (let ((indexed (funcall indexer (funcall composite-indexer index))))
                   ;; (print (list :iin index indexed :base (vader-base varray)))
-                  ;; (print (list :pro (prototype-of varray)))
                   (if indexed (let ((generator (generator-of (vader-base varray))))
                                 ;; (print (list :gen index generator indexed))
                                 ;; (print (list :cc indexed generator is-negative))
                                 (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
                                     (if (zerop index) indexed prototype)
                                     (if (not (functionp generator))
-                                        (if (= index scalar-index) generator prototype)
+                                        (if (and scalar-index (= index scalar-index))
+                                            generator prototype)
                                         (funcall generator indexed))))
                       prototype))))
             (if (zerop (size-of varray))

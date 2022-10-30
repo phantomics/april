@@ -336,7 +336,7 @@
                                                  :rng rngs :index-origin index-origin)))
      (meta (primary :implicit-args (index-origin rngs) :virtual-support t))
      (tests (is "⍴5?⍴⍳5" #(5))
-            (is "⍴?3 3⍴2" #(3 3))
+            (is "0=+/,3<?3 3⍴2" 1)
             ;; (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000" 1)
             ;; (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←7 0 ⋄ 10?⍵}¨10⍴1000" 1)
             (is "∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←⍬ 2 ⋄ 10?⍵}¨10⍴1000" 0)))
