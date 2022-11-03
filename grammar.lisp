@@ -1138,7 +1138,6 @@
                                                 (apply (apply fn-sym (cddr function-form))
                                                        (cons :get-metadata
                                                              (when arg2-rest (list nil)))))))
-                              ;(print (list :ccc fn-sym))
                               (if (not (and fn-meta (getf fn-meta :lexical-reference)
                                             (position (getf fn-meta :lexical-reference)
                                                       "⊃⌷" :test #'char=))) ; ↑ ↓ / \\
@@ -1152,19 +1151,10 @@
                                                   arg2-rest))))))
                           ;; TODO: add argument-isolating form here for full lazy mode
                           (funcall wrap (list 'identity form)))))
+             
              (set-assn-sym selection-form)
-             ;; (print (list :sel selection-form item assign-sym))
-             (setf selection-form (subst item assign-sym selection-form :test #'equalp)
-                   ;; inverted-fn (reverse-asel-function selection-form)
-                   )
+             (setf selection-form (subst item assign-sym selection-form :test #'equalp))
 
-             ;; (print (list :ii inverted-fn))
-             
-             ;;; PROVISIONAL
-             ;; (setf prime-function (second inverted-fn))
-             ;;;
-             
-             ;; (print (list :sel2 selection-form))
              `(aprgn (setf ,assign-sym
                            (assign-by-selection
                             ,(if (or (symbolp prime-function)
@@ -1180,15 +1170,7 @@
                                      #'identity))
                             (lambda (,item) ,selection-form)
                             ,value ,assign-sym
-                            :index-origin index-origin
-                            ;;:inverted (lambda (,item) ,inverted-fn)
-                            ;; :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
-                            ;;                 ',assign-sym)
-                            ;; ,@(if selection-axes (list :axes selection-axes))
-                            ;; ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                            ;;                                        (second (third selection-form))))
-                            ;; ,@(if function (list :by function))
-                            ))
+                            :index-origin index-origin))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))

@@ -246,11 +246,6 @@
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
                                               :collect var)
                                       ,env ,blank))
-                  ;; (print (list :eee ,env ,@(loop :for var :in params :when (not (eql '&optional var))
-                  ;;                                :collect var)))
-                  ;; ,@(loop :for var :in params :when (not (eql '&optional var))
-                  ;;         :collect `(setq ,var (render-varrays ,var)))
-                  ;; (print (list :par ,@(remove '&optional (append params (list env)))))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
                       (let ,(when space
@@ -315,10 +310,7 @@
 
 (defmacro achoose (item indices &rest rest-params)
   "Wrapper for the choose function."
-  (let ((indices-evaluated (gensym))
-        ;; (item (if (symbolp item)
-        ;;           item `(render-varrays ,item)))
-        )
+  (let ((indices-evaluated (gensym)))
     `(let ((,indices-evaluated ,indices))
        (choose ,item ,indices-evaluated ,@rest-params))))
 
@@ -526,7 +518,6 @@
 
 (defmacro nspath (list &rest keys)
   "Macro to expedite the fetching of values from nested namespaces."
-  ;; (print (list :ll list keys))
   `(at-path ,(if (not (and (listp list) (eql 'fn-ref (first list))))
                  list (second list))
             ,(cons 'list (loop :for k :in keys
@@ -534,11 +525,8 @@
                                             `(mapcar (lambda (array)
                                                        (when array
                                                          (apply-scalar #'- array index-origin)))
-                                                     ;; ,(cons 'list (first k))
-                                                     ;; ,(list 'list (cadr k))
                                                      ,(if (eql 'list (first k))
-                                                          k (cons 'list (first k)))
-                                                     ))))))
+                                                          k (cons 'list (first k)))))))))
 
 (defun format-nspath (items &optional output)
   "Create a string representation of a namespace path from the symbol list implementing that path."
@@ -758,9 +746,7 @@
                                                                                 (rest namespace)))
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
-                             `(setf ,symbol (render-varrays ,set-to :parallel t)
-                                    ;; ,set-to
-                                    )))))))
+                             `(setf ,symbol (render-varrays ,set-to :parallel t))))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                (let ((val (gensym)))
@@ -779,11 +765,7 @@
                `(setf ,(getf (cddr symbol) :base)
                       (render-varrays ,(append symbol (list :assign value)
                                                (if by (list :calling by)))
-                                      :parallel t)
-                      ;; IPV-TODO: this causes problems with ncurses demo
-                      ;; ,(append symbol (list :assign value)
-                      ;;          (if by (list :calling by)))
-                      ))
+                                      :parallel t)))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
@@ -818,9 +800,7 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values :parallel t)
-                                                  ;; ,values
-                                                  ))
+                                `(let ((,this-val (render-varrays ,values :parallel t)))
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
@@ -1118,9 +1098,7 @@
          
          (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
                                                                    (not (symbolp arg)))
-                                                              arg `(render-varrays ,arg))
-                          ;; arg
-                          )))
+                                                              arg `(render-varrays ,arg)))))
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
@@ -1337,38 +1315,7 @@ It remains here as a standard against which to compare methods for composing APL
            (t (make-instance 'vader-operate
                              :base (if (not ,ax-sym) ,args (butlast ,args))
                              :function ,fn-quoted :index-origin 0 :axis ,ax-sym
-                             :params (list ,@meta))
-            ;; (apply-scalar ,fn-quoted (first ,args) (second ,args)
-            ;;                ;; ,@(if axes (list axes))
-            ;;                ,ax-sym)
-            ))))))
-
-;; (defmacro scalar-function (function &rest meta)
-;;   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
-;;   (let ((args (gensym)) (ax-sym (gensym))
-;;         (is-virtual (getf meta :va))
-;;         (function (if (or (not (listp function))
-;;                           (not (eql 'apl-fn (first function)))
-;;                           (>= 2 (length function)))
-;;                       function (list (first function) (second function))))
-;;         (axes (and (listp function) (eql 'apl-fn (first function))
-;;                    (third function))))
-;;     `(lambda (&rest ,args)
-;;        (let ((,ax-sym (third ,args)))
-;;          (declare (ignorable ,ax-sym))
-;;          (if (eq :get-metadata (first ,args))
-;;              ,(append '(list :scalar t) meta)
-;;              ,(if is-virtual
-;;                   `(make-instance 'vader-operate
-;;                                   :base (coerce (if (not ,ax-sym)
-;;                                                     ,args (butlast ,args))
-;;                                                 'vector)
-;;                                   :function ,(if (not (symbolp function)) function `(function ,function))
-;;                                   :index-origin 0 :axis ,ax-sym :params (list ,@meta))
-;;                   `(apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-;;                                  (first ,args) (second ,args)
-;;                                  ;; ,@(if axes (list axes))
-;;                                  ,ax-sym)))))))
+                             :params (list ,@meta))))))))
 
 (defun validate-arg-unitary (value)
   "Verify that a form like (vector 5) represents a unitary value."
@@ -1403,11 +1350,6 @@ It remains here as a standard against which to compare methods for composing APL
                                       :modify-input t)
                            (if ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
-                  ;; `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- (render-varrays
-                  ;;                                                                      array)
-                  ;;                                                                 index-origin)))
-                  ;;                         (list ,@axes))
-                  ;;           ,@(if reference (list :reference reference)))
                   `(make-virtual 'vader-select :base ,body
                                                :argument (list ,@axes) :index-origin index-origin))
               (rest axis-sets)))))

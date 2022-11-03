@@ -796,12 +796,6 @@
                           output (cons item output))
                       rest special-precedent)))))))
 
-;; (defmacro ws-assign-fun (symbol value)
-;;   "Assignment macro for use with (:store-fun) directive."
-;;   `(progn (if (not (boundp ',symbol))
-;;               (proclaim '(special ,symbol)))
-;;           (setf (symbol-function ',symbol) ,value)))
-
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
