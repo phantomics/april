@@ -198,7 +198,8 @@
                              (progn (proclaim (list 'special (intern symbol space)))
                                     (set (intern symbol space) nil))))))
             :build-variable-declarations #'build-variable-declarations
-            :build-compiled-code #'build-compiled-code)
+            :build-compiled-code #'build-compiled-code
+            :assign-val-sym 'ws-assign-val :assign-fun-sym 'ws-assign-fun)
 
  ;; specs for multi-character symbols exposed within the language
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕div *division-method*
@@ -800,7 +801,8 @@
             (is "8↑3⍴⊂0 0 0⍴1" #(#3A() #3A() #3A() #3A() #3A() #3A() #3A() #3A()))
             (is "1↑2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8) (9 1 2 3))))
             (is "1 2↑2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8))))
-            (is "2 2 2↑1 0 2⍴⍳30" #3A(((0 0) (0 0)) ((0 0) (0 0))))))
+            (is "2 2 2↑1 0 2⍴⍳30" #3A(((0 0) (0 0)) ((0 0) (0 0))))
+            (is "5 5↑3 3⍴1" #2A((1 1 1 0 0) (1 1 1 0 0) (1 1 1 0 0) (0 0 0 0 0) (0 0 0 0 0)))))
   (↓ (has :titles ("Split" "Drop"))
      ;; (ambivalent (wrap-split-array index-origin axes)
      ;;             (section-array index-origin t axes))

@@ -763,7 +763,6 @@
                          (lambda (i)
                            (let ((indexed (if (not (functionp indexer))
                                               indexer (funcall indexer i))))
-                             ;; (print (list :ii i))
                              (setf (row-major-aref output (funcall decoder i))
                                    (render indexed))))
                          (lambda (i)
@@ -3587,7 +3586,6 @@
                                                 ;;       (getf params :toggle-toplevel-subrendering))
                                          params
                                          ))
-
      (if (vectorp axis)
          (loop :for x :across axis :for ix :from 0
                :do (setf (aref out-dims (- x iorigin))
@@ -3628,8 +3626,10 @@
                                                inext (funcall indexer inext)))))))
            (if (not (functionp base-indexer)) ;; TODO: why is the disclose needed?
                (lambda (index)
-                 (declare (ignore index))
-                 (disclose base-indexer))
+                 ;; (declare (ignore index))
+                 
+                 (when (funcall indexer index)
+                   (disclose base-indexer)))
                (lambda (index)
                  (declare (type integer index))
                  ;; (let ((indexed (funcall indexer index)))
@@ -3643,13 +3643,14 @@
     (if (getf params :for-selective-assign)
         indexer
         (if (vasec-overtaking varray)
-            (let* ((composite-indexer (join-indexers indexers t))
+            (let* ((composite-indexer (or (join-indexers indexers t) #'identity))
                    (arg (vads-argument varray))
                    (size (size-of varray))
                    (is-negative (when (or (numberp arg) (and (vectorp arg) (= 1 (length arg))))
                                   (minusp (disclose-unitary (vads-argument varray)))))
                    (scalar-index (when (not (shape-of (vader-base varray))) 0))
                    (prototype (prototype-of varray)))
+              ;; (print (list :sc scalar-index indexers indexer))
               (when scalar-index
                 (if (vectorp arg)
                     (loop :for a :across arg :for d :in (shape-of varray)
@@ -3659,16 +3660,14 @@
               ;; IPV-TODO: figure out how to allow n-rank mixed positive-negative takes for scalars
               (lambda (index)
                 (let ((indexed (funcall indexer (funcall composite-indexer index))))
-                  ;; (print (list :iin index indexed :base (vader-base varray)))
+                  ;; (print (list :iin composite-indexer index indexed :base (vader-base varray)))
                   (if indexed (let ((generator (generator-of (vader-base varray))))
                                 ;; (print (list :gen index generator indexed))
-                                ;; (print (list :cc indexed generator is-negative))
+                                ;; (print (list :cc index indexed generator is-negative))
                                 (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
                                     (if (zerop index) indexed prototype)
                                     (if (not (functionp generator))
-                                        (if (and scalar-index (= index scalar-index))
-                                            generator prototype)
-                                        (funcall generator indexed))))
+                                        indexed (funcall generator indexed))))
                       prototype))))
             (if (zerop (size-of varray))
                 (let ((prototype (prototype-of varray)))

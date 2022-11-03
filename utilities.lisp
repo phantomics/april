@@ -281,6 +281,31 @@
                        function `(function ,function))
                   ,args)))))
 
+
+(defmacro ws-assign-val (symbol value)
+  "Assignment macro for use with (:store-val) directive."
+  `(progn (when (not (boundp ',symbol))
+            (proclaim '(special ,symbol)))
+          (setf (symbol-value ',symbol) ,value)))
+
+(defmacro ws-assign-fun (symbol value)
+  "Assignment macro for use with (:store-fun) directive."
+  (let ((params (gensym)) (call-params (gensym))
+        (item (gensym)) (this-fn (gensym)))
+    `(let ((,this-fn ,value))
+       (when (not (boundp ',symbol))
+         (proclaim '(special ,symbol)))
+       (setf (symbol-function ',symbol)
+             (lambda (&rest ,params)
+               (let ((,call-params (if (not (third ,params))
+                                       ,params (butlast ,params))))
+                 ;; remove third params item (for example, (:FN-PARAMS :INDEX-ORIGIN 1))
+                 ;; from params so that the imported function can be called correctly
+                 (if (eq :get-metadata (first ,call-params))
+                     (list :meta-stuff nil)
+                     (apply ,this-fn (loop :for ,item :in ,call-params :when ,item
+                                           :collect (funcall #'april::render-varrays ,item))))))))))
+
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
   (let ((metadata (gensym)) (inverse (gensym)))

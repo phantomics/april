@@ -81,7 +81,7 @@ $[(M≡⍬)∨randomize∨⍲/H W=⍴M ;
     ⍝ initialize the matrix, generation index and history and create a random starting matrix;
   L←life L ⋄ GI+←1]
     ⍝ otherwise, produce the next-generation binary matrix according to the life function
-⍝ ⎕←M
+
 I←(5⌊1+≢I)↑I,⍨⊂L    ⍝ add latest iteration to history
 B[⍳H-3;]←232+2×⊃+/I ⍝ sum iterations in history; 232 is the base terminal background color
 M[⍳H-3;]←G trace L  ⍝ assign main display area containing box-traces of cells

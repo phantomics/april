@@ -796,17 +796,11 @@
                           output (cons item output))
                       rest special-precedent)))))))
 
-(defmacro ws-assign-val (symbol value)
-  "Assignment macro for use with (:store-val) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-value ',symbol) ,value)))
-
-(defmacro ws-assign-fun (symbol value)
-  "Assignment macro for use with (:store-fun) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-function ',symbol) ,value)))
+;; (defmacro ws-assign-fun (symbol value)
+;;   "Assignment macro for use with (:store-fun) directive."
+;;   `(progn (if (not (boundp ',symbol))
+;;               (proclaim '(special ,symbol)))
+;;           (setf (symbol-function ',symbol) ,value)))
 
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
@@ -832,7 +826,7 @@
                    (let ((result (funcall (of-utilities idiom :lexer-postprocess)
                                           (parse string (=vex-string idiom))
                                           idiom space)))
-                     (if print-tokens (print (first result)))
+                     (when print-tokens (print (first result)))
                      (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
@@ -841,7 +835,9 @@
                ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
                ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
                (loop :for item :in items-to-store
-                  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
+                  :collect (list ;; (if storing-functions 'ws-assign-fun 'ws-assign-val)
+                                 (if storing-functions (of-utilities idiom :assign-fun-sym)
+                                     (of-utilities idiom :assign-val-sym))
                                  (if (validate-var-symbol (first item))
                                      (let ((symbol (if (and (stringp (first item))
                                                             (loop :for c :across (first item)
