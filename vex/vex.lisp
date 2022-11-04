@@ -425,30 +425,33 @@
                                                            "-WORKSPACE-" (string-upcase ,ws-name))))
                             (if (string= "-LEX" (subseq (string ,ws-name) (- (length (string ,ws-name)) 4)))
                                 (error "Workspace names may not end with \"-LEX\", this suffix is reserved.")
-                                `(if (not (find-package ,,ws-fullname))
-                                     (progn (make-package ,,ws-fullname)
-                                            (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
-                                            (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
-                                                            (intern "*BRANCHES*" ,,ws-fullname)
-                                                            (intern "*NS-POINT*" ,,ws-fullname)
-                                                            ,@(loop :for (key val)
-                                                                      :on ,(getf (of-subspec system) :variables)
-                                                                    :by #'cddr
-                                                                    :collect `(intern ,(string-upcase val)
-                                                                                      ,,ws-fullname))))
-                                            (set (intern "*SYSTEM*" ,,ws-fullname)
-                                                 ,',(cons 'list (of-subspec system)))
-                                            ;; TODO: following is APL-specific, move into spec
-                                            (set (intern "*BRANCHES*" ,,ws-fullname) nil)
-                                            (set (intern "*NS-POINT*" ,,ws-fullname) nil)
-                                            ,@(loop :for (key val)
-                                                      :on ,(getf (of-subspec system) :variables) :by #'cddr
-                                                    :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
-                                                                   ,(getf ',(second (getf (of-subspec system)
-                                                                                          :workspace-defaults))
-                                                                          key)))
-                                            (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
-                                     (format nil "A workspace called ｢~a｣ already exists." ',,ws-name)))))
+                                `(progn
+                                   (if (not (find-package ,,ws-fullname))
+                                       (progn (make-package ,,ws-fullname)
+                                              (make-package ,(concatenate 'string ,ws-fullname "-LEX")))
+                                       
+                                       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))
+                                   (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
+                                                   (intern "*BRANCHES*" ,,ws-fullname)
+                                                   (intern "*NS-POINT*" ,,ws-fullname)
+                                                   ,@(loop :for (key val)
+                                                             :on ,(getf (of-subspec system) :variables)
+                                                           :by #'cddr
+                                                           :collect `(intern ,(string-upcase val)
+                                                                             ,,ws-fullname))))
+                                   (when (not (boundp (intern "*SYSTEM*" ,,ws-fullname)))
+                                     (set (intern "*SYSTEM*" ,,ws-fullname)
+                                          ,',(cons 'list (of-subspec system)))
+                                     ;; TODO: following is APL-specific, move into spec
+                                     (set (intern "*BRANCHES*" ,,ws-fullname) nil)
+                                     (set (intern "*NS-POINT*" ,,ws-fullname) nil)
+                                     ,@(loop :for (key val)
+                                               :on ,(getf (of-subspec system) :variables) :by #'cddr
+                                             :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
+                                                            ,(getf ',(second (getf (of-subspec system)
+                                                                                   :workspace-defaults))
+                                                                   key)))
+                                     (format nil "Successfully created workspace ｢~a｣." ',,ws-name))))))
                         (defmacro ,(intern (concatenate 'string symbol-string "-CLEAR-WORKSPACE")
                                            (symbol-package symbol))
                             (,ws-name)
@@ -793,18 +796,6 @@
                           output (cons item output))
                       rest special-precedent)))))))
 
-(defmacro ws-assign-val (symbol value)
-  "Assignment macro for use with (:store-val) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-value ',symbol) ,value)))
-
-(defmacro ws-assign-fun (symbol value)
-  "Assignment macro for use with (:store-fun) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-function ',symbol) ,value)))
-
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
@@ -813,6 +804,7 @@
                              "-WORKSPACE-" (if (not (second (assoc :space options)))
                                                "COMMON" (string-upcase (second (assoc :space options))))))
          (state-to-use) (system-to-use))
+
     (labels ((assign-from (source dest)
                (if (not source)
                    dest (progn (setf (getf dest (first source)) (second source))
@@ -828,7 +820,7 @@
                    (let ((result (funcall (of-utilities idiom :lexer-postprocess)
                                           (parse string (=vex-string idiom))
                                           idiom space)))
-                     (if print-tokens (print (first result)))
+                     (when print-tokens (print (first result)))
                      (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
@@ -837,7 +829,9 @@
                ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
                ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
                (loop :for item :in items-to-store
-                  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
+                  :collect (list ;; (if storing-functions 'ws-assign-fun 'ws-assign-val)
+                                 (if storing-functions (of-utilities idiom :assign-fun-sym)
+                                     (of-utilities idiom :assign-val-sym))
                                  (if (validate-var-symbol (first item))
                                      (let ((symbol (if (and (stringp (first item))
                                                             (loop :for c :across (first item)
@@ -889,7 +883,10 @@
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
-                                                   system-to-use inline-arguments))
+                                                   (append (if (assoc :unrendered options)
+                                                               (list :unrendered t))
+                                                           system-to-use)
+                                                   inline-arguments))
                                         (process-lines
                                          (funcall (of-utilities idiom :prep-code-string) string)
                                          space (list :call-scope (list :input-vars iv-list

@@ -11,7 +11,11 @@
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
 (define-symbol-macro *first-axis* (if (not axes) 0 (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *last-axis* (if axes (- (first axes) index-origin)
-                                     (max 0 (1- (rank omega)))))
+                                     (let ((rank (if (typep omega 'varray)
+                                                     (rank-of omega) ;; IPV-TODO: simplify this
+                                                     (rank omega))))
+                                       (max 0 (1- rank)))))
+  
 (define-symbol-macro *first-axis-or-nil* (if axes (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
@@ -62,7 +66,7 @@
 
 (defun system-command-exists (command-string &optional prefix)
   "Check for the existence of a shell command under the host operating system."
-  (if (not prefix) (setq prefix ""))
+  (when (not prefix) (setq prefix ""))
   (zerop (multiple-value-bind (1st 2nd error-code)
 	     (uiop:run-program (format nil "~acommand -v ~a" prefix command-string)
 			       :ignore-error-status t)
@@ -70,7 +74,7 @@
 	   error-code)))
 
 (defun count-cpus ()
-  "Count the available threads in the system, accounting for different CL implementations."
+  "Count the available threads in the system, accounting for different operating systems."
   (with-open-stream (cmd-out (make-string-output-stream))
     (uiop:run-program
      (case (uiop:operating-system)
@@ -89,9 +93,29 @@
 
 (defun make-threading-kernel-if-absent ()
   "Create a kernel for multithreaded executuion via lparallel if none is present."
-  (if (not lparallel:*kernel*)
-      (setq lparallel:*kernel* (setq *april-parallel-kernel*
-                                     (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
+  (when (not lparallel:*kernel*)
+    (setq lparallel:*kernel* (setq *april-parallel-kernel*
+                                   (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
+
+(defmacro sub-lex (item) item)
+
+(defmacro sub-aliasing (form)
+  (if (not (or (symbolp form)
+               (and (listp form)
+                    (member (first form) '(function)))))
+      form (let ((args (gensym)) (this-meta (gensym)))
+             `(if (not (functionp ,form))
+                  ,form (lambda (&rest ,args)
+                          (let ((,this-meta (apply ,form (cons :get-metadata
+                                                               (when (second ,args) (list nil))))))
+                            ;; pass the environment variables if this is a user-defined function;
+                            ;; remember not to add the nil argument if an internal
+                            ;; variable state is being set
+                            (apply ,form (append ,args (when (and (not (second ,args)))
+                                                         (list nil))
+                                                 (when (not (getf ,this-meta :lexical-reference))
+                                                   (list (list :fn-params
+                                                               :index-origin index-origin)))))))))))
 
 (let ((this-package (package-name *package*)))
   (defmacro in-april-workspace (name &body body)
@@ -99,25 +123,44 @@
     (let* ((space-name (concatenate 'string "APRIL-WORKSPACE-" (string-upcase name)))
            (lex-space-name (concatenate 'string space-name "-LEX"))
            ;; build list of values assigned in the (april) call; these are stored as dynamic vars
-           (top-level-instrs (mapcar (lambda (item) (string (cadar item))) (cdadar body))))
+           (top-level-instrs (mapcar (lambda (item) (string (cadar item))) (cdadar body)))
+           (symacro-lex) (symacro-syms))
       (labels ((replace-symbols (form &optional inside-function)
                  (loop :for item :in form :for ix :from 0
-                       :collect (cond ((listp item)
-                                       (if (and (second item) (not (third item))
-                                                (symbolp (second item)) (member (first item) '(inws inwsd)))
-                                           (let ((istring (string (second item))))
-                                             (intern (string (second item))
-                                                     (if (and inside-function
-                                                              (not (eql 'inwsd (first item)))
-                                                              (not (char= #\* (aref istring 0)))
-                                                              (loop :for str :in top-level-instrs
-                                                                    :never (string= str istring)))
-                                                         lex-space-name space-name)))
-                                           ;; don't lex-intern functions like #'⊏|fn|
-                                           (replace-symbols item (and (not (eql 'function (first item)))
-                                                                      (or inside-function
-                                                                          (member (first item)
-                                                                                  '(alambda olambda)))))))
+                    :collect (cond ((listp item)
+                                    ;; assign sublexicon based on symbol macros for invocation
+                                    (when (and (not symacro-lex) (symbolp (first item))
+                                               (eql 'symbol-macrolet (first item)))
+                                      (setf symacro-lex (second item)
+                                            symacro-syms (loop :for i :below (length (second item))
+                                                            :collect (gensym))))
+                                    (when (and (symbolp (first item))
+                                               (eql 'sub-lex (first item)))
+                                      ;; replace sub-lex forms with sub-lexicon instance
+                                      (setf item `(let ,(loop :for l :in symacro-lex
+                                                           :for s :in symacro-syms
+                                                              :collect (list s (first l)))
+                                                    (declare (ignorable ,@symacro-syms))
+                                                    (symbol-macrolet
+                                                        ,(loop :for l :in symacro-lex
+                                                            :for s :in symacro-syms
+                                                            :collect (list (first l) s))
+                                                      (sub-aliasing ,(second item))))))
+                                    (if (and (second item) (not (third item))
+                                             (symbolp (second item)) (member (first item) '(inws inwsd)))
+                                        (let ((istring (string (second item))))
+                                          (intern (string (second item))
+                                                  (if (and inside-function
+                                                           (not (eql 'inwsd (first item)))
+                                                           (not (char= #\* (aref istring 0)))
+                                                           (loop :for str :in top-level-instrs
+                                                              :never (string= str istring)))
+                                                      lex-space-name space-name)))
+                                        ;; don't lex-intern functions like #'⊏|fn|
+                                        (replace-symbols item (and (not (eql 'function (first item)))
+                                                                   (or inside-function
+                                                                       (member (first item)
+                                                                               '(alambda olambda)))))))
                                       ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
                                        (list 'quote (intern (string-upcase name) this-package)))
                                       (t item)))))
@@ -166,14 +209,15 @@
                               (let ((run-function-symbol
                                       (intern "RUN-TESTS"
                                               (string-upcase package-symbol))))
-                                (if (fboundp run-function-symbol)
-                                    `((,run-function-symbol)
-                                      (incf *lib-tests-run*
-                                            (getf prove.suite::*last-suite-report* :plan))
-                                      (incf *lib-tests-failed*
-                                            (getf prove.suite::*last-suite-report* :failed)))))
-                              (format t "~% Warning: demo system ｢~a｣ not loaded. Did you evaluate (load-demos) before trying to run the demo tests?~%"
+                                (when (fboundp run-function-symbol)
+                                  `((,run-function-symbol)
+                                    (incf *lib-tests-run*
+                                          (getf prove.suite::*last-suite-report* :plan))
+                                    (incf *lib-tests-failed*
+                                          (* 1/2 (getf prove.suite::*last-suite-report* :failed))))))
+                              (format t "~% Warning: library system ｢~a｣ not loaded. Did you evaluate (load-libs) before trying to run the library tests?~%"
                                       package-symbol)))
+          (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
 (defun disclose-atom (item)
@@ -192,15 +236,27 @@
   "Generate a lambda with a self-reference for use with APL's ∇ character for self-reference in a defn."
   (let* ((options (rest options))
          (system-vars (rest (assoc :sys-vars options)))
-         (meta (rest (assoc :meta options))))
+         (meta (rest (assoc :meta options)))
+         (space (second (assoc :space options)))
+         (env (gensym)) (blank (gensym)) (vals-list))
     `(symbol-macrolet ((%in-function-p% t))
-       (labels ((∇self ,params
+       (labels ((∇self ,(append params (append (when (not (member '&optional params))
+                                                 (list '&optional))
+                                        (list env blank)))
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
-                                              :collect var)))
+                                              :collect var)
+                                      ,env ,blank))
                   (if (eq :get-metadata ,(first params))
                       ,(cons 'list meta)
-                      (let ,(loop :for var :in system-vars :collect (list var var))
-                        (declare (ignorable ,@system-vars))
+                      (let ,(when space
+                              (loop :for (key val) :on *system-variables* :by #'cddr
+                                    :collect (list (first (push (find-symbol (string val) space)
+                                                                vals-list))
+                                                   `(or (getf (rest ,env) ,(intern (string key) "KEYWORD"))
+                                                        ,(find-symbol (string val) space)))))
+                        (declare (ignorable ,@vals-list))
+                        (when (getf (rest ,env) :test-param)
+                          (print (list :env ,env)))
                         ,@body))))
          #'∇self))))
 
@@ -220,11 +276,36 @@
                        function `(function ,function))
                   ,args)))))
 
+
+(defmacro ws-assign-val (symbol value)
+  "Assignment macro for use with (:store-val) directive."
+  `(progn (when (not (boundp ',symbol))
+            (proclaim '(special ,symbol)))
+          (setf (symbol-value ',symbol) ,value)))
+
+(defmacro ws-assign-fun (symbol value)
+  "Assignment macro for use with (:store-fun) directive."
+  (let ((params (gensym)) (call-params (gensym))
+        (item (gensym)) (this-fn (gensym)))
+    `(let ((,this-fn ,value))
+       (when (not (boundp ',symbol))
+         (proclaim '(special ,symbol)))
+       (setf (symbol-function ',symbol)
+             (lambda (&rest ,params)
+               (let ((,call-params (if (not (third ,params))
+                                       ,params (butlast ,params))))
+                 ;; remove third params item (for example, (:FN-PARAMS :INDEX-ORIGIN 1))
+                 ;; from params so that the imported function can be called correctly
+                 (if (eq :get-metadata (first ,call-params))
+                     (list :meta-stuff nil)
+                     (apply ,this-fn (loop :for ,item :in ,call-params :when ,item
+                                           :collect (funcall #'april::render-varrays ,item))))))))))
+
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
   (let ((metadata (gensym)) (inverse (gensym)))
     `(let* ((,metadata (funcall ,function :get-metadata ,@(if is-dyadic (list nil))))
-            (,inverse (if (listp ,metadata) (getf ,metadata ,(or inverse-type :inverse)))))
+            (,inverse (when (listp ,metadata) (getf ,metadata ,(or inverse-type :inverse)))))
        (or ,inverse (error "Cannot invert function ~a." (quote ,function))))))
 
 (defmacro achoose (item indices &rest rest-params)
@@ -232,6 +313,18 @@
   (let ((indices-evaluated (gensym)))
     `(let ((,indices-evaluated ,indices))
        (choose ,item ,indices-evaluated ,@rest-params))))
+
+(defmacro make-virtual (type &rest params)
+  "Wrapper for the choose function."
+  (let* ((indices (getf params :argument))
+         (indices-evaluated (gensym))
+         (params-with-placeholder))
+    (loop :for (key value) :on params :by #'cddr
+          :do (setf (getf params-with-placeholder key)
+                    (if (eq :argument key) indices-evaluated value)))
+    `(let ((,indices-evaluated ,indices))
+       (make-instance ,type ,@params-with-placeholder))))
+
 
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
@@ -278,7 +371,7 @@
 
 (defun reg-side-effect (item meta-form)
   "Add a reference to a side effect to a closure metadata object."
-  (if meta-form (push item (getf (rest meta-form) :side-effects))))
+  (when meta-form (push item (getf (rest meta-form) :side-effects))))
 
 (defun reg-symfn-call (function space meta-form)
   "Add a reference to a call to a symbolic function to a closure metadata object."
@@ -293,9 +386,9 @@
                       :do (push sf (getf (rest meta-form) :symfns-called)))
                 (loop :for se :in (second (getf fn-meta :side-effects))
                       :do (reg-side-effect se meta-form)))
-              (if (eql 'a-comp (first function))
-                  (progn (reg-symfn-call (fourth function) space meta-form)
-                         (reg-symfn-call (fifth function) space meta-form)))))))
+              (when (eql 'a-comp (first function))
+                (reg-symfn-call (fourth function) space meta-form)
+                (reg-symfn-call (fifth function) space meta-form))))))
 
 (defun side-effect-free (function)
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
@@ -332,15 +425,15 @@
 (defun get-array-meta (array &rest keys)
   "Gets one or more metadata of an array using the displacement reference technique."
   (let ((metadata-holder (array-displacement array)))
-    (if metadata-holder
-        (apply #'values (loop :for key :in keys :collect (getf (aref metadata-holder 0) key))))))
+    (when metadata-holder
+      (apply #'values (loop :for key :in keys :collect (getf (aref metadata-holder 0) key))))))
 
 (defun set-array-meta (array &rest data)
   "Sets one or more metadata of an array using the displacement reference technique."
   (let ((metadata-holder (array-displacement array)))
-    (if metadata-holder (progn (loop :for (key value) :on data :by #'cddr
-                                  :do (setf (getf (aref metadata-holder 0) key) value))
-                               data))))
+    (when metadata-holder (loop :for (key value) :on data :by #'cddr
+                                :do (setf (getf (aref metadata-holder 0) key) value))
+          data)))
 
 (defun array-setting-meta (array &rest data)
   "Sets one or more metadata of an array using the displacement reference technique, returning the displaced array."
@@ -360,9 +453,9 @@
   (if (not path)
       item (if item (follow-path space (rest path)
                                  (getf item (intern (string (first path)) "KEYWORD")))
-               (if (boundp (intern (string (first path)) space))
-                   (follow-path space (rest path)
-                                (symbol-value (intern (string (first path)) space)))))))
+               (when (boundp (intern (string (first path)) space))
+                 (follow-path space (rest path)
+                              (symbol-value (intern (string (first path)) space)))))))
 
 (defun is-alphanumeric (character)
   "Consistently check whether a character is alphanumeric - needed since different CL implementations consider different sets of characters to be alphanumeric as per (alphanumericp)."
@@ -374,62 +467,11 @@
             cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
           :test #'eql))
 
-(defmacro plain-ref (function &optional axes)
-  "Wrap a lexical function; this is needed to implement some meta-functionality."
-  ;; TODO: can the functionality here and in amb-ref be factored out and merged?
-  (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
-    `(labels ((,this-fn (&rest ,args)
-                (if (and (eq :reassign-axes (first ,args))
-                         (not (third ,args)))
-                    ;; passing this option will return the core function again
-                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
-                    (lambda (&rest ,iargs)
-                      (apply #',this-fn (append (list :assign-axes (second ,args))
-                                                ,iargs)))
-                    (progn ,@(if axes `((if (eq :assign-axes (first ,args))
-                                            (setq ,axes (second ,args)
-                                                  ,args (cddr ,args)))))
-                           (apply ,function ,args)))))
-       #',this-fn)))
-
-(defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
-  "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
-  (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
-        (m-meta (if (member (first fn-monadic) '(fn-meta scalar-function))
-                    (cddr fn-monadic)))
-        (d-meta (if (member (first fn-dyadic) '(fn-meta scalar-function))
-                    (cddr fn-dyadic))))
-    `(labels ((,this-fn (&rest ,args)
-                (if (and (eq :reassign-axes (first ,args))
-                         (not (third ,args)))
-                    ;; passing this option will return the core function again
-                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
-                    (lambda (&rest ,iargs)
-                      (apply #',this-fn (append (list :assign-axes (second ,args))
-                                                ,iargs)))
-                    (progn ,@(if axes `((if (eq :assign-axes (first ,args))
-                                            (setq ,axes (second ,args)
-                                                  ,args (cddr ,args)))))
-                           (if (eq :get-metadata (first ,args))
-                               (if (= 1 (length ,args)) ,(if m-meta (cons 'list m-meta))
-                                   ,(if d-meta (cons 'list d-meta)))
-                               (if (= 2 (length ,args))
-                                   (if (null (second ,args))
-                                       (a-call ,fn-monadic (first ,args))
-                                       (a-call ,fn-dyadic (first ,args) (second ,args)))
-                                   (if (= 3 (length ,args))
-                                       (if (null (second ,args))
-                                           (let ((,reduced-args (cons (first ,args) (cddr ,args))))
-                                             (apply ,fn-monadic ,reduced-args))
-                                           (apply ,fn-dyadic ,args))
-                                       (a-call ,fn-monadic (first ,args)))))))))
-       #',this-fn)))
-
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
-  (if (zerop (size array))
-      (let ((found (get-array-meta array :empty-array-prototype)))
-        (if found (lambda () (copy-nested-array found))))))
+  (when (zerop (size array))
+    (let ((found (get-array-meta array :empty-array-prototype)))
+      (when found (lambda () (copy-nested-array found))))))
 
 (defun make-prototype-of (array)
   "Make a prototype version of an array; all values in the array will be blank spaces for character arrays or zeroes for other types of arrays."
@@ -484,22 +526,25 @@
             ,(cons 'list (loop :for k :in keys
                                :collect (if (symbolp k) (intern (string k) "KEYWORD")
                                             `(mapcar (lambda (array)
-                                                       (if array
-                                                           (apply-scalar #'- array index-origin)))
-                                                     ,(cons 'list (first k))))))))
+                                                       (when array
+                                                         (apply-scalar #'- array index-origin)))
+                                                     ,(if (eql 'list (first k))
+                                                          k (cons 'list (first k)))))))))
 
 (defun format-nspath (items &optional output)
   "Create a string representation of a namespace path from the symbol list implementing that path."
   (if (not items)
       output (let ((this-item (if (and (listp (first items))
                                        (member (caar items) '(inws inwsd)))
-                                  (cadar items) (if (symbolp (first items))
-                                                    (first items)))))
-               (if this-item (format-nspath (rest items) (if output (format nil "~a.~a" output this-item)
-                                                             (string this-item)))))))
+                                  (cadar items) (when (symbolp (first items))
+                                                  (first items)))))
+               (when this-item
+                 (format-nspath (rest items) (if output (format nil "~a.~a" output this-item)
+                                                 (string this-item)))))))
 
 (defun at-path (object path &key (value) (value-nil) (set-by))
   "Get or set values within a namespace (structured as a ptree), handling arrays within the namespace according to array indices within the namespace path or eliding arrays in the absence of specific coordinates."
+  (setf value (render-varrays value))
   (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
       (apply-scalar (lambda (item) (at-path item path))
                     object)
@@ -536,8 +581,8 @@
               (nth-value 1 (achoose object (first path) ;; path is a set of coordinates, as for [1]
                                     :set value :set-nil value-nil :modify-input t
                                     :set-by (or set-by (lambda (a b) (declare (ignore a)) b)))))
-          (let ((object (if (symbolp object) (symbol-value object)
-                            object)))
+          (let ((object (if (not (symbolp object))
+                            object (symbol-value object))))
             (if (or value value-nil)
                 (if (= 2 (length path)) ;; path is 2 long and assigned a value
                     (if (symbolp (first path))
@@ -573,18 +618,18 @@
                         ;; as for [1].b←X or [1][2]←X
                         (nth-value 1 (achoose object (first path)
                                               :set value :set-nil value-nil :modify-input t
-                                              :set-by
-                                              (lambda (a b) (at-path a (rest path) :value b
-                                                                                   :set-by set-by)))))
+                                              :set-by (lambda (a b)
+                                                        (at-path a (rest path) :value b
+                                                                               :set-by set-by)))))
                     ;; path is more than two elements long and assigned a value
                     (if (not (symbolp (first path)))
                         ;; first elem is array coordinates, as for [1]...←X
                         (progn (achoose object (first path)
                                         :set value :set-nil value-nil :modify-input t
-                                        :set-by (if (rest path)
-                                                    (lambda (a b)
-                                                      (at-path a (rest path) :value b :value-nil value-nil
-                                                                             :set-by set-by))))
+                                        :set-by (when (rest path)
+                                                  (lambda (a b)
+                                                    (at-path a (rest path) :value b :value-nil value-nil
+                                                                           :set-by set-by))))
                                object)
                         ;; first elem is a symbol, as for a...←X
                         (if (arrayp object)
@@ -630,183 +675,200 @@
                (set-to (if (not is-symbol-value) value `(duplicate ,value))))
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
           ;; present; ⍵-assignment is an error. This is handled below for strand assignments.
-          (if axes (enclose-axes symbol axes :set value :set-by by)
-              (if (eql '⍺ symbol) `(or ⍺ (setf ⍺ ,set-to))
-                  (if (eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment.")
-                      (if (string= "*RNGS*" (string symbol))
-                          ;; handle random seed assignments
-                          (let ((valsym (gensym)) (seed (gensym))
-                                (rngindex (gensym)) (rngname (gensym)))
-                            `(let ((,valsym ,value))
-                               (if (or (integerp ,valsym)
-                                       (and (vectorp ,valsym) (= 1 (length ,valsym))))
-                                   (let ((,seed (disclose-atom ,valsym)))
-                                     (if (not (or (integerp ,seed)
-                                                  (and (vectorp ,seed) (zerop (length ,seed)))))
-                                         (error "Random seeds set by ⎕RL←X must be integers or empty vectors.")
-                                         (let ((,rngname (getf (rest ,symbol) :rng)))
-                                           (setf (getf (rest ,symbol) ,rngname)
-                                                 (if (eq :system ,rngname)
-                                                       :system
-                                                       (if (and (vectorp ,seed) (zerop (length ,seed)))
-                                                           (random-state:make-generator ,rngname)
-                                                           (random-state:make-generator
-                                                            ,rngname ,seed)))))))
-                                   (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
-                                       (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
-                                              (,rngname (aref *rng-names* ,rngindex)))
-                                         (if (not (or (integerp ,seed)
-                                                  (and (vectorp ,seed) (zerop (length ,seed)))))
-                                             (error "Random seeds set by ⎕RL←X must be ~a"
-                                                    "integers or empty vectors.")
-                                             (setf (getf (rest ,symbol) :rng)
-                                                   ,rngname
-                                                   (getf (rest ,symbol) ,rngname)
-                                                   (if (eq :system ,rngname)
-                                                       :system
-                                                       (if (and (vectorp ,seed) (zerop (length ,seed)))
-                                                           (random-state:make-generator ,rngname)
-                                                           (random-state:make-generator
-                                                            ,rngname ,seed))))))
-                                       (error "The [⎕RL random link] value can only be set as an ~a"
-                                              "integer or a 2-element vector.")))))
-                          (let ((sym-package (package-name (symbol-package symbol))))
-                            (if (and (listp value) (eql 'a-call (first value))
-                                     (listp (second value)) (eql 'function (caadr value))
-                                     (member (cadadr value) '(external-workspace-function
-                                                              external-workspace-operator))
-                                     (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
-                                                                 (length sym-package)))))
-                                (let ((args (gensym))
-                                      (other-space (concatenate 'string "APRIL-WORKSPACE-"
-                                                                (first (last value)))))
-                                  `(aprgn
-                                     (proclaim '(special ,symbol))
-                                     (setf (symbol-function ',symbol)
-                                           (lambda (&rest ,args)
-                                             (let ,(loop :for (key val) :on *system-variables* :by #'cddr
-                                                         :collect (list (intern (string val) other-space)
-                                                                        (intern (string val) sym-package)))
-                                               (apply ,value ,args)))
-                                           ,@(if (eql 'external-workspace-operator (cadadr value))
-                                                 `((symbol-value ',symbol)
-                                                   (symbol-value ',(intern (third value) other-space)))))))
-                                (if namespace `(setf (getf ,(if (symbolp namespace)
-                                                                namespace (follow-path (first namespace)
-                                                                                       (rest namespace)))
-                                                           ,(intern (string symbol) "KEYWORD"))
-                                                     ,set-to)
-                                    `(setf ,symbol ,set-to)))))))))
-        (if (and (listp symbol) (eql 'nspath (first symbol)))
-            ;; handle assignments within namespaces, using process-path to handle the paths
-            (let ((val (gensym)))
-              `(let ((,val ,value))
-                 ,(if (= 3 (length symbol))
-                      `(setf ,(second symbol) ,(append (macroexpand (append symbol (if axes (list axes))))
-                                                       (list :value val :value-nil `(null ,val))
-                                                       (if by (list :set-by by))))
-                      (append (macroexpand (append symbol (if axes (list axes))))
-                              (list :value val :value-nil `(null ,val))
-                              (if by (list :set-by by))))))
-            (if (and (listp symbol) (eql 'symbol-function (first symbol)))
-                `(setf ,symbol ,value)
-                (let ((symbols (if (not (eql 'avec (first symbol)))
-                                   symbol (rest symbol))))
-                  ;; handle multiple assignments like a b c←1 2 3
-                  (labels ((process-symbols (sym-list values)
-                             (let* ((this-val (gensym))
-                                    (assigning-xfns (and (listp values) (eql 'a-call (first values))
-                                                         (listp (second values))
-                                                         (eql 'function (caadr values))
-                                                         (member (cadadr values)
-                                                                 '(external-workspace-function
-                                                                   external-workspace-operator))))
-                                    (other-space (and assigning-xfns
-                                                      (concatenate 'string "APRIL-WORKSPACE-"
-                                                                   (first (last values)))))
-                                    (sym-package (and assigning-xfns
-                                                      (package-name (symbol-package (first sym-list)))))
-                                    (values (if (or (not assigning-xfns)
-                                                    (not (listp values))
-                                                    (not (listp (third values)))
-                                                    (not (eql 'avec (first (third values)))))
-                                                ;; change (avec 'values') to (list 'values') so that
-                                                ;; the external item loaders can properly tell the difference
-                                                ;; between "abc" and (avec #\a #\b #\c) as arguments
-                                                values (cons (first values)
-                                                             (cons (second values)
-                                                                   (cons (cons 'list (rest (third values)))
-                                                                         (cdddr values)))))))
-                               (if (and (listp sym-list) (listp values)
-                                        (eql 'avec (first values))
-                                        (/= (length sym-list) (length (rest values))))
-                                   (error "Attempted to assign a vector of values to a ~a"
-                                          "vector of symbols of a different length."))
-                               `(let ((,this-val ,values))
-                                  ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
-                                                           sym-list (rest sym-list))
-                                          :for sx :from 0
-                                          :append
-                                          (if (and (listp sym) (not (eql 'inws (first sym))))
-                                              (list (process-symbols
-                                                     sym `(if (not (vectorp ,this-val))
-                                                              ,this-val (aref ,this-val ,sx))))
-                                              (if (eql '⍺ sym)
+          (cond (axes (enclose-axes symbol axes :set value :set-by by))
+                ((eql '⍺ symbol) `(or (and (or (not (listp ⍺))
+                                               (not (eql :fn-params (first ⍺))))
+                                           ⍺)
+                                      (setf ⍺ ,set-to)))
+                ((eql '⍵ symbol) `(error "The [⍵ right argument] cannot have a default assignment."))
+                ((string= "*RNGS*" (string symbol))
+                 (let ((valsym (gensym)) (seed (gensym))
+                       (rngindex (gensym)) (rngname (gensym)))
+                   `(let ((,valsym (render-varrays ,value)))
+                      (if (or (integerp ,valsym)
+                              (and (vectorp ,valsym) (= 1 (length ,valsym))))
+                          (let ((,seed (disclose-atom ,valsym)))
+                            (if (not (or (integerp ,seed)
+                                         (and (vectorp ,seed) (zerop (length ,seed)))))
+                                (error "Random seeds set by ⎕RL←X must be integers or empty vectors.")
+                                (let ((,rngname (getf (rest ,symbol) :rng)))
+                                  (setf (getf (rest ,symbol) ,rngname)
+                                        (if (eq :system ,rngname)
+                                            :system
+                                            (if (and (vectorp ,seed) (zerop (length ,seed)))
+                                                (random-state:make-generator ,rngname)
+                                                (random-state:make-generator
+                                                 ,rngname ,seed)))
+                                        (getf (rest ,symbol) :seed)
+                                        (if (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                            ,seed)))))
+                          (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
+                              (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
+                                     (,rngname (aref *rng-names* ,rngindex)))
+                                (if (not (or (integerp ,seed)
+                                             (and (vectorp ,seed) (zerop (length ,seed)))))
+                                    (error "Random seeds set by ⎕RL←X must be ~a"
+                                           "integers or empty vectors.")
+                                    (setf (getf (rest ,symbol) :rng)
+                                          ,rngname
+                                          (getf (rest ,symbol) ,rngname)
+                                          (if (eq :system ,rngname)
+                                              :system
+                                              (if (and (vectorp ,seed) (zerop (length ,seed)))
+                                                  (random-state:make-generator ,rngname)
+                                                  (random-state:make-generator
+                                                   ,rngname ,seed)))
+                                          (getf (rest ,symbol) :seed)
+                                          (if (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                              ,seed))))
+                              (error "The [⎕RL random link] value can only be set as an ~a"
+                                     "integer or a 2-element vector."))))))
+                (t (let ((sym-package (package-name (symbol-package symbol))))
+                     (if (and (listp value) (eql 'a-call (first value))
+                              (listp (second value)) (eql 'function (caadr value))
+                              (member (cadadr value) '(external-workspace-function
+                                                       external-workspace-operator))
+                              (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
+                                                          (length sym-package)))))
+                         (let ((args (gensym))
+                               (other-space (concatenate 'string "APRIL-WORKSPACE-"
+                                                         (first (last value)))))
+                           `(aprgn
+                             (proclaim '(special ,symbol))
+                             (setf (symbol-function ',symbol)
+                                   (lambda (&rest ,args)
+                                     (let ,(loop :for (key val) :on *system-variables* :by #'cddr
+                                                 :collect (list (intern (string val) other-space)
+                                                                (intern (string val) sym-package)))
+                                       (apply ,value ,args)))
+                                   ,@(if (eql 'external-workspace-operator (cadadr value))
+                                         `((symbol-value ',symbol)
+                                           (symbol-value ',(intern (third value) other-space)))))))
+                         (if namespace `(setf (getf ,(if (symbolp namespace)
+                                                         namespace (follow-path (first namespace)
+                                                                                (rest namespace)))
+                                                    ,(intern (string symbol) "KEYWORD"))
+                                              ,set-to)
+                             `(setf ,symbol (render-varrays ,set-to :parallel t))))))))
+        (cond ((and (listp symbol) (eql 'nspath (first symbol)))
+               ;; handle assignments within namespaces, using process-path to handle the paths
+               (let ((val (gensym)))
+                 `(let ((,val ,value))
+                    ,(if (= 3 (length symbol))
+                         `(setf ,(second symbol)
+                                ,(append (macroexpand (append symbol (if axes (list axes))))
+                                         (list :value val :value-nil `(null ,val))
+                                         (if by (list :set-by by))))
+                         (append (macroexpand (append symbol (if axes (list axes))))
+                                 (list :value val :value-nil `(null ,val))
+                                 (if by (list :set-by by)))))))
+              ((and (listp symbol) (eql 'make-virtual (first symbol))
+                    (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
+               ;; handle assignments within namespaces, using process-path to handle the paths
+               `(setf ,(getf (cddr symbol) :base)
+                      (render-varrays ,(append symbol (list :assign value)
+                                               (if by (list :calling by)))
+                                      :parallel t)))
+              ((and (listp symbol) (eql 'symbol-function (first symbol)))
+               `(setf ,symbol ,value))
+              (t (let ((symbols (if (not (eql 'avec (first symbol)))
+                                    symbol (rest symbol))))
+                   ;; handle multiple assignments like a b c←1 2 3
+                   (labels ((process-symbols (sym-list values)
+                              (let* ((this-val (gensym))
+                                     (assigning-xfns (and (listp values) (eql 'a-call (first values))
+                                                          (listp (second values))
+                                                          (eql 'function (caadr values))
+                                                          (member (cadadr values)
+                                                                  '(external-workspace-function
+                                                                    external-workspace-operator))))
+                                     (other-space (and assigning-xfns
+                                                       (concatenate 'string "APRIL-WORKSPACE-"
+                                                                    (first (last values)))))
+                                     (sym-package (and assigning-xfns
+                                                       (package-name (symbol-package (first sym-list)))))
+                                     (values (if (or (not assigning-xfns)
+                                                     (not (listp values))
+                                                     (not (listp (third values)))
+                                                     (not (eql 'avec (first (third values)))))
+                                                 ;; change (avec 'values') to (list 'values') so that
+                                                 ;; the external item loaders can properly tell the difference
+                                                 ;; between "abc" and (avec #\a #\b #\c) as arguments
+                                                 values (cons (first values)
+                                                              (cons (second values)
+                                                                    (cons (cons 'list (rest (third values)))
+                                                                          (cdddr values)))))))
+                                (if (and (listp sym-list) (listp values)
+                                         (eql 'avec (first values))
+                                         (/= (length sym-list) (length (rest values))))
+                                    (error "Attempted to assign a vector of values to a ~a"
+                                           "vector of symbols of a different length."))
+                                `(let ((,this-val (render-varrays ,values :parallel t)))
+                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
+                                                            sym-list (rest sym-list))
+                                           :for sx :from 0
+                                           :append
+                                           (cond ((and (listp sym) (not (eql 'inws (first sym))))
+                                                  (list (process-symbols
+                                                         sym `(if (not (vectorp ,this-val))
+                                                                  ,this-val (aref ,this-val ,sx)))))
+                                                 ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (not (vectorp ,this-val))
                                                                       (disclose ,this-val)
-                                                                      (aref ,this-val sx)))))
-                                                  (if (eql '⍵ sym)
-                                                      `(error "The [⍵ right argument] cannot ~a"
-                                                              "have a default assignment.")
-                                                      (if assigning-xfns
-                                                          ;; handle assignment of multiple functions
-                                                          ;; from another WS like fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
-                                                          (let ((args (gensym)))
-                                                            `((proclaim '(special ,sym))
-                                                              (setf (symbol-function ',sym)
-                                                                    (lambda (&rest ,args)
-                                                                      (let ,(loop :for (key val)
-                                                                                    :on *system-variables*
-                                                                                  :by #'cddr
-                                                                                  :collect
-                                                                                  (list (intern (string val)
-                                                                                                other-space)
-                                                                                        (intern (string val)
-                                                                                                sym-package)))
-                                                                        (apply (aref ,this-val ,sx)
-                                                                               ,args))))))
-                                                          `((setf ,sym (if (not (vectorp ,this-val))
-                                                                           (disclose ,this-val)
-                                                                           (aref ,this-val ,sx)))))))))
-                                  ,this-val))))
-                    (process-symbols symbols value))))))))
+                                                                      (aref ,this-val sx))))))
+                                                 ((eql '⍵ sym)
+                                                  `(error "The [⍵ right argument] cannot ~a"
+                                                          "have a default assignment."))
+                                                 (assigning-xfns
+                                                  ;; handle assignment of multiple functions
+                                                  ;; from another WS like fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
+                                                  (let ((args (gensym)))
+                                                    `((proclaim '(special ,sym))
+                                                      (setf (symbol-function ',sym)
+                                                            (lambda (&rest ,args)
+                                                              (let ,(loop :for (key val)
+                                                                            :on *system-variables*
+                                                                          :by #'cddr
+                                                                          :collect
+                                                                          (list (intern (string val)
+                                                                                        other-space)
+                                                                                (intern (string val)
+                                                                                        sym-package)))
+                                                                (apply (aref ,this-val ,sx)
+                                                                       ,args)))))))
+                                                  (t `((setf ,sym (if (not (vectorp ,this-val))
+                                                                      (disclose ,this-val)
+                                                                      (aref ,this-val ,sx)))))))
+                                   ,this-val))))
+                     (process-symbols symbols value))))))))
 
-(defmacro a-out (form &key (print-to) (output-printed)
-                             (print-assignment) (print-precision) (with-newline))
+(defmacro a-out (form &key (print-to) (output-printed) (unrendered)
+                        (print-assignment) (print-precision) (with-newline))
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
   (let ((result (gensym)) (printout (gensym))
         ;; get the symbol referencing a function passed as the output
-        (function-name-value (if (and (listp form) (eql 'function (first form)))
-                                 `(string (quote ,(second form)))))
+        (function-name-value (when (and (listp form) (eql 'function (first form)))
+                               `(string (quote ,(second form)))))
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
-    `(let* ((,result ,form)
-            (,printout ,(if (and (or print-to output-printed))
-                            ;; don't print the results of assignment unless the :print-assignment option is set,
-                            ;; as done when compiling a ⎕← expression
-                            (or (and function-name-value
-                                     `(concatenate 'string "∇" ,function-name-value))
-                                ;; if a bare function name is to be output, prefix it with ∇
-                                (and (listp form)
-                                     (eql 'a-set (first form))
-                                     (not print-assignment)
-                                     "")
-                                `(matrix-print ,result :append #\Newline
-                                               :segment (lambda (n &optional s)
-                                                          (count-segments n ,print-precision s))
-                                               :format (lambda (n &optional s r)
-                                                         (print-apl-number-string
-                                                          n s ,print-precision nil r)))))))
+    ;; don't render if the (:unrendered) option has been passed
+    `(let* ((,result ,(if unrendered form `(render-varrays ,form :parallel t)))
+            (,printout ,(when (and (or print-to output-printed))
+                          ;; don't print the results of assignment unless the :print-assignment
+                          ;; option is set, as done when compiling a ⎕← expression
+                          (or (and function-name-value
+                                   `(concatenate 'string "∇" ,function-name-value))
+                              ;; if a bare function name is to be output, prefix it with ∇
+                              (and (listp form)
+                                   (eql 'a-set (first form))
+                                   (not print-assignment)
+                                   "")
+                              `(matrix-print ,result :append #\Newline
+                                                     :segment (lambda (n &optional s)
+                                                                (count-segments n ,print-precision s))
+                                                     :format (lambda (n &optional s r)
+                                                               (print-apl-number-string
+                                                                n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
        ,(if print-to (let ((string-output `(aprgn (write-string ,printout ,print-to))))
@@ -832,7 +894,7 @@
                                                                         (> 0 item))
                                                                     item (max 16 item))))))
     `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
-                 :element-type (quote ,type) :initial-contents (list ,@items))))
+                 :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items)))))
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
@@ -841,11 +903,11 @@
       (if (and (not (eql 'complex component-of))
                (find #\J nstring))
           (let ((halves (cl-ppcre:split #\J nstring)))
-            (if (and (= 2 (length halves))
-                     (< 0 (length (first halves)))
-                     (< 0 (length (second halves))))
-                (complex (parse-apl-number-string (first halves) 'complex)
-                         (parse-apl-number-string (second halves) 'complex))))
+            (when (and (= 2 (length halves))
+                       (< 0 (length (first halves)))
+                       (< 0 (length (second halves))))
+              (complex (parse-apl-number-string (first halves) 'complex)
+                       (parse-apl-number-string (second halves) 'complex))))
           (if (find #\E nstring)
               (let ((exp-float (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
                                                           :float-format 'double-float)))
@@ -866,10 +928,10 @@
   (cond ((complexp number)
          (format nil "~aJ~a" (print-apl-number-string (realpart number)
                                                       (list (first segments)
-                                                            (if (or realpart-multisegment
-                                                                    (not (integerp (realpart number))))
-                                                                (if (not (third segments))
-                                                                    0 (- (second segments)))))
+                                                            (when (or realpart-multisegment
+                                                                      (not (integerp (realpart number))))
+                                                              (if (not (third segments))
+                                                                  0 (- (second segments)))))
                                                       precision nil t)
                  (print-apl-number-string (imagpart number) (if (third segments)
                                                                 (list (- (third segments))
@@ -892,16 +954,16 @@
                                                                   #\_ #\ ))))
                                (abs number)))
                (number-found))
-           (if (> 0 number)
-               ;; replace ¯ padding with zeroes or spaces as appropriate; this strange system
-               ;; of initially padding with ¯ is needed because ¯ is an extended unicode character
-               ;; and strings of numeric characters are rendered as base-char arrays by (format),
-               ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
-               ;; by (format) so that the output string is of type 'character; this is also done for floats
-               (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
-                  :do (if (is-alphanumeric (aref output i))
-                          (setq number-found t)
-                          (setf (aref output (1- i)) #\ ))))
+           (when (> 0 number)
+             ;; replace ¯ padding with zeroes or spaces as appropriate; this strange system
+             ;; of initially padding with ¯ is needed because ¯ is an extended unicode character
+             ;; and strings of numeric characters are rendered as base-char arrays by (format),
+             ;; making it impossible to assign ¯ to their elements; unicode characters must be generated
+             ;; by (format) so that the output string is of type 'character; this is also done for floats
+             (loop :for i :from 1 :to (1- (length output)) :while (not number-found)
+                   :do (if (is-alphanumeric (aref output i))
+                           (setq number-found t)
+                           (setf (aref output (1- i)) #\ ))))
            output))
         ((rationalp number)
          (format nil "~ar~a" (print-apl-number-string (numerator number) (list (first segments)) precision)
@@ -928,11 +990,11 @@
                                                   "" (make-array right-padding :element-type 'base-char
                                                                  :initial-element #\ )))
                                   (abs number))))
-             (if (> 0 number)
-                 (let ((start-at (if (< 0 (first segments)) 0 1)))
-                   (loop :for i :from start-at :while (char= #\¯ (aref output i))
-                      :when (or (= 1 start-at) (char= #\¯ (aref output (1+ i))))
-                      :do (setf (aref output i) (aref " 0" start-at)))))
+             (when (> 0 number)
+               (let ((start-at (if (< 0 (first segments)) 0 1)))
+                 (loop :for i :from start-at :while (char= #\¯ (aref output i))
+                       :when (or (= 1 start-at) (char= #\¯ (aref output (1+ i))))
+                         :do (setf (aref output i) (aref " 0" start-at)))))
              output))))
 
 (defun format-value (idiom-name symbols element)
@@ -975,14 +1037,14 @@
 
 (defun resolve-function (reference)
   "Return a function form if it's valid as a function within compiled April code."
-  (if (and (listp reference)
-           (or (eql 'lambda (first reference))
-               (and (symbolp (first reference))
-                    (macro-function (first reference))
-                    (not (member (first reference)
-                                 ;; TODO: this will cause a problem if a function is passed and assigned
-                                 '(avec a-call apl-if a-out a-set))))))
-      reference))
+  (when (and (listp reference)
+             (or (eql 'lambda (first reference))
+                 (and (symbolp (first reference))
+                      (macro-function (first reference))
+                      (not (member (first reference)
+                                   ;; TODO: this will cause a problem if a function is passed and assigned
+                                   '(avec a-call apl-if a-out a-set))))))
+    reference))
 
 (defun extract-axes (process tokens &optional axes)
   "Given a list of tokens starting with axis specifications, build the code for the axis specifications to be applied to the subsequent function or value."
@@ -1008,95 +1070,104 @@
   "Adjust axes passed to a function to account for the given index origin."
   (if (integerp (first axis-list))
       (- (first axis-list) io)
-      (if (vectorp (first axis-list))
-          (let ((ix 0)
-                (output (make-array (list (length (first axis-list))))))
-            (loop :for i :across (first axis-list) :do (setf (aref output ix) (- i io)
-                                                             ix (1+ ix)))
-            output))))
+      (when (vectorp (first axis-list))
+        (let ((ix 0)
+              (output (make-array (list (length (first axis-list))))))
+          (loop :for i :across (first axis-list) :do (setf (aref output ix) (- i io)
+                                                           ix (1+ ix)))
+          output))))
+
+(defun render-varrays (item &rest params)
+  (if (not (typep item 'varray))
+      item (apply #'render item params)))
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
-  (let ((arg-list (gensym "A")))
-    (let ((is-scalar (or (and (second arguments)
-                              (listp function) (eql 'apl-fn-s (first arguments))
-                              (of-lexicons *april-idiom* (character (second arguments))
-                                           :functions-scalar-dyadic))
-                         (and (listp function) (eql 'apl-fn-s (first arguments))
-                              (of-lexicons *april-idiom* (character (second arguments))
-                                           :functions-scalar-monadic))))
-          (axes-present (and (listp function) (eql 'apl-fn-s (first arguments))
-                             (third function) (listp (third function))
-                             (eql 'apply-scalar (first (third function))))))
-      (or (join-fns `(a-call ,function ,@arguments))
-          (if (and (listp function)
+  (let* ((arg-list (gensym "A"))
+         (is-scalar (or (and (second arguments)
+                             (listp function) (eql 'apl-fn-s (first arguments))
+                             (of-lexicons *april-idiom* (character (second arguments))
+                                          :functions-scalar-dyadic))
+                        (and (listp function) (eql 'apl-fn-s (first arguments))
+                             (of-lexicons *april-idiom* (character (second arguments))
+                                          :functions-scalar-monadic))))
+         (scalar-axes-present
+           (and (listp function) (eql 'apl-fn-s (first function))
+                            (third function) (listp (third function))
+                            (eql 'apply-scalar (first (third function)))))
+         (axes-present (and (listp function) (eql 'apl-fn-s (first function))
+                            (third function) (listp (third function))
+                            (eql 'apply-scalar (first (third function)))))
+         
+         (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
+                                                                   (not (symbolp arg)))
+                                                              arg `(render-varrays ,arg)))))
+    (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
-              `(identity t))
-          (progn (if (and (listp function)
-                          (eql 'nspath (first function)))
-                     (let* ((ns-sym (intern "*NS-POINT*" (package-name (symbol-package (second function)))))
-                            (namespace (if (boundp ns-sym) (symbol-value ns-sym))))
-                       (if namespace (setq function
-                                           (cons 'nspath (append (if (listp namespace) namespace
-                                                                     (list namespace))
-                                                                 (list (intern (string (second function))
-                                                                               "KEYWORD"))
-                                                                 (cddr function)))))))
-                 `(let ((,arg-list (list ,@arguments ,@(if axes-present (list (third function))))))
-                    (apply ,@(if is-scalar (list '#'apply-scalar))
-                           ,(if (not axes-present) function (butlast function 1))
-                           ,arg-list)))))))
+          `(identity t))
+        (progn (when (and (listp function) (eql 'nspath (first function)))
+                 (let* ((ns-sym (intern "*NS-POINT*" (package-name (symbol-package (second function)))))
+                        (namespace (if (boundp ns-sym) (symbol-value ns-sym))))
+                   (when namespace (setq function
+                                         (cons 'nspath (append (if (listp namespace) namespace
+                                                                   (list namespace))
+                                                               (list (intern (string (second function))
+                                                                             "KEYWORD"))
+                                                               (cddr function)))))))
+               `(let ((,arg-list (list ,@arguments ))) ;,@(if axes-present (list (third function))))))
+                  (apply ,@(when is-scalar (list '#'apply-scalar))
+                         ,function ,arg-list))))))
 
 (defun join-fns (form &optional wrap)
   "Compose multiple successive scalar functions into a larger scalar function. Used to expand (a-call)."
-  (if (and (listp form) (eql 'a-call (first form)))
-      (destructuring-bind (_ function &rest args) form
-        (declare (ignore _))
-        (if (and (listp function) (eql 'apl-fn-s (first function)))
-            (if (or (and (numberp (first args)) (listp (second args))
-                         (eql 'a-call (first (second args)))
-                         (listp (second (second args))) (eql 'apl-fn-s (first (second (second args)))))
-                    (and (numberp (second args)) (listp (first args))
-                         (eql 'a-call (first (first args)))
-                         (listp (second (first args))) (eql 'apl-fn-s (first (second (first args)))))
-                    (and (not (second args)) (listp (first args))
-                         (eql 'a-call (first (first args)))
-                         (listp (second (first args))) (eql 'apl-fn-s (first (second (first args))))))
-                ;; need condition for one argument
-                (let ((to-wrap (lambda (fform)
-                                 (if (not wrap) (let ((arg-sym (gensym)))
-                                                  (values `(lambda (,arg-sym)
-                                                             (funcall ,function ,(if (numberp (first args))
-                                                                                     (first args) fform)
-                                                                      ,@(if (second args)
-                                                                            (list (if (numberp (second args))
-                                                                                      (second args) fform)))))
-                                                          arg-sym))
-                                     (funcall wrap `(funcall ,function ,(if (numberp (first args))
-                                                                            (first args) fform)
-                                                             ,@(if (second args)
-                                                                   (list (if (numberp (second args))
-                                                                             (second args) fform)))))))))
-                  (join-fns (if (numberp (first args))
-                                (second args) (first args))
-                            to-wrap))
-                (if (and wrap (numberp (first args)) (not (second args)))
-                    (multiple-value-bind (wrapped arg-symbol)
-                        (funcall wrap (list 'funcall function (if (numberp (first args))
-                                                                  (first args) :arg)))
-                      `(apply-scalar ,(subst arg-symbol :arg wrapped) ,(first args)))
-                    (let ((argument (if (numberp (first args))
-                                        (if (second args) (second args) (first args))
-                                        (if (numberp (second args))
-                                            (first args)))))
-                      (if (and argument wrap)
-                          (multiple-value-bind (wrapped arg-symbol)
-                              (funcall wrap (append (list 'funcall function (if (numberp (first args))
-                                                                                (first args) :arg))
-                                                    (if (second args) (list (if (numberp (second args))
-                                                                                (second args) :arg)))))
-                            `(apply-scalar ,(subst arg-symbol :arg wrapped) ,argument))))))))))
+  (when (and (listp form) (eql 'a-call (first form)))
+    (destructuring-bind (_ function &rest args) form
+      (declare (ignore _))
+      (if (and (listp function) (eql 'apl-fn-s (first function)))
+          (if (or (and (numberp (first args)) (listp (second args))
+                       (eql 'a-call (first (second args)))
+                       (listp (second (second args))) (eql 'apl-fn-s (first (second (second args)))))
+                  (and (numberp (second args)) (listp (first args))
+                       (eql 'a-call (first (first args)))
+                       (listp (second (first args))) (eql 'apl-fn-s (first (second (first args)))))
+                  (and (not (second args)) (listp (first args))
+                       (eql 'a-call (first (first args)))
+                       (listp (second (first args))) (eql 'apl-fn-s (first (second (first args))))))
+              ;; need condition for one argument
+              (let ((to-wrap (lambda (fform)
+                               (if (not wrap) (let ((arg-sym (gensym)))
+                                                (values `(lambda (,arg-sym)
+                                                           (funcall ,function ,(if (numberp (first args))
+                                                                                   (first args) fform)
+                                                                    ,@(when (second args)
+                                                                        (list (if (numberp (second args))
+                                                                                  (second args) fform)))))
+                                                        arg-sym))
+                                   (funcall wrap `(funcall ,function ,(if (numberp (first args))
+                                                                          (first args) fform)
+                                                           ,@(if (second args)
+                                                                 (list (if (numberp (second args))
+                                                                           (second args) fform)))))))))
+                (join-fns (if (numberp (first args))
+                              (second args) (first args))
+                          to-wrap))
+              (if (and wrap (numberp (first args)) (not (second args)))
+                  (multiple-value-bind (wrapped arg-symbol)
+                      (funcall wrap (list 'funcall function (if (numberp (first args))
+                                                                (first args) :arg)))
+                    `(apply-scalar ,(subst arg-symbol :arg wrapped) ,(first args)))
+                  (let ((argument (if (numberp (first args))
+                                      (if (second args) (second args) (first args))
+                                      (when (numberp (second args))
+                                        (first args)))))
+                    (when (and argument wrap)
+                      (multiple-value-bind (wrapped arg-symbol)
+                          (funcall wrap (append (list 'funcall function (if (numberp (first args))
+                                                                            (first args) :arg))
+                                                (when (second args) (list (if (numberp (second args))
+                                                                              (second args) :arg)))))
+                        `(apply-scalar ,(subst arg-symbol :arg wrapped) ,argument))))))))))
 
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
@@ -1116,7 +1187,10 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
-  (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*)))
+  (let ((symbol (if (fboundp (intern (concatenate 'string "APRIL-LEX-VFN-" (string glyph))
+                                     *package-name-string*))
+                    (intern (concatenate 'string "APRIL-LEX-VFN-" (string glyph)) *package-name-string*)
+                    (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*))))
     (if initial-args (cons symbol initial-args)
         (list 'function symbol))))
 
@@ -1124,15 +1198,15 @@ It remains here as a standard against which to compare methods for composing APL
   "Wrap a glyph referencing a scalar lexical function, with axes handled appropriately and defaulting to the (apl-fn) handling of ."
   (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*))
         (args (gensym)) (axes-sym (gensym))
-        (axes (if (listp (first initial-args))
-                  (first initial-args))))
+        (axes (when (listp (first initial-args))
+                (first initial-args))))
     (if axes `(let ((,axes-sym ,@(if axes (list axes))))
                 (lambda (&rest ,args)
                   (if (eq :get-metadata (first ,args))
                       ,(append '(list :scalar t))
-                      (apply-scalar ,(if (fboundp symbol) `(function ,symbol) glyph)
-                                    (first ,args) (second ,args)
-                                    ,axes-sym))))
+                      (a-call (apl-fn-s ,glyph)
+                              (first ,args) (second ,args)
+                              ,axes-sym))))
         (cons 'apl-fn (cons glyph initial-args)))))
 
 (defun build-call-form (glyph-char &optional args axes)
@@ -1147,25 +1221,25 @@ It remains here as a standard against which to compare methods for composing APL
     (append (list (if is-scalar 'apl-fn-s 'apl-fn)
                   (intern (string glyph-char) *package-name-string*))
             (getf fn-meta :implicit-args)
-            (if (and axes (or (getf fn-meta :axes)
-                              (eq :dyadic args)))
-                (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
-                          (cons 'list (first axes))))))))
+            (when (and axes (or (getf fn-meta :axes)
+                                (eq :dyadic args)))
+              (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
+                        (cons 'list (first axes))))))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
   (let ((omega (gensym)) (prototype (gensym)) (result (gensym)))
     (cond ((eql 'setf (first form))
-           (if (and (listp (third form))
-                    (eql 'duplicate (first (third form))))
-               (let ((to-assign (gensym)))
-                 `(let ((to-assign ,(third form)))
-                    (if (and (arrayp ,to-assign)
+           (when (and (listp (third form))
+                      (eql 'duplicate (first (third form))))
+             (let ((to-assign (gensym)))
+               `(let ((to-assign ,(third form)))
+                  (when (and (arrayp ,to-assign)
                              (zerop (size ,omega))
                              (zerop (size ,result)))
-                        (let ((,prototype (get-array-meta ,omega :empty-array-prototype)))
-                          (if ,prototype (array-setting-meta ,result :empty-array-prototype ,prototype)
-                              ,result)))))))
+                    (let ((,prototype (get-array-meta ,omega :empty-array-prototype)))
+                      (if ,prototype (array-setting-meta ,result :empty-array-prototype ,prototype)
+                          ,result)))))))
           ((eql 'apply-scalar (first form))
            (let ((omega (gensym)) (alpha (gensym)) (result (gensym)) (prototype (gensym)))
              `(let* ((,omega ,(third form))
@@ -1189,9 +1263,9 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro a-comp (symbol &rest body)
   "A wrapper macro for macros that implement April's operators; functionally this macro does nothing but it improves the readability of April's compiled code."
   (declare (ignore symbol))
-  (let* ((axis (if (and (symbolp (first body))
-                        (eq :axis (first body)))
-                   (second body)))
+  (let* ((axis (when (and (symbolp (first body))
+                          (eq :axis (first body)))
+                 (second body)))
          ;; find axis specification if present
          (expanded (macroexpand (if (not axis) body (cddr body)))))
     (if (or (and (not (listp (first expanded)))
@@ -1209,7 +1283,7 @@ It remains here as a standard against which to compare methods for composing APL
   "Expands to an APL-style if-statement where clauses are evaluated depending on whether given expressions evaluate to 1 or 0."
   (let ((condition (gensym)))
     (labels ((build-clauses (clauses)
-               `(let ((,condition (disclose-atom ,(first clauses))))
+               `(let ((,condition (disclose-atom (render-varrays ,(first clauses)))))
                   (if (not (is-unitary ,condition))
                       (error "Predicates within an [$ if] statement must be unitary or scalar.")
                       (if (not (zerop (disclose-atom ,condition)))
@@ -1223,19 +1297,28 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro scalar-function (function &rest meta)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
-  (let ((args (gensym))
+  (let ((args (gensym)) (ax-sym (gensym))
+        ;; (is-virtual (getf meta :va))
         (function (if (or (not (listp function))
                           (not (eql 'apl-fn (first function)))
                           (>= 2 (length function)))
                       function (list (first function) (second function))))
         (axes (and (listp function) (eql 'apl-fn (first function))
-                   (third function))))
+                   (third function)))
+        (fn-quoted (if (not (symbolp function)) function (list 'function function))))
     `(lambda (&rest ,args)
-       (if (eq :get-metadata (first ,args))
-           ,(append '(list :scalar t) meta)
-           (apply-scalar ,(if (not (symbolp function)) function `(function ,function))
-                         (first ,args) (second ,args)
-                         ,@(if axes (list axes)))))))
+       (let ((,ax-sym (third ,args)))
+         (declare (ignorable ,ax-sym))
+         (case (first ,args)
+           (:get-metadata ,(append '(list :scalar t) meta))
+           (:arg-vector (make-instance 'vader-operate
+                                       :base (second ,args) :index-origin 0 :params (list ,@meta)
+                                       :axis ,ax-sym :function ,fn-quoted))
+           (:call-scalar (apply ,fn-quoted (rest ,args)))
+           (t (make-instance 'vader-operate
+                             :base (if (not ,ax-sym) ,args (butlast ,args))
+                             :function ,fn-quoted :index-origin 0 :axis ,ax-sym
+                             :params (list ,@meta))))))))
 
 (defun validate-arg-unitary (value)
   "Verify that a form like (vector 5) represents a unitary value."
@@ -1259,7 +1342,9 @@ It remains here as a standard against which to compare methods for composing APL
               (if set `(let ((,to-set ,set))
                          (multiple-value-bind (,assignment-output ,assigned-array)
                              (achoose ,body (mapcar (lambda (array)
-                                                      (if array (apply-scalar #'- array index-origin)))
+                                                      (if array (apply-scalar
+                                                                 #'- (render-varrays array)
+                                                                 index-origin)))
                                                     (list ,@axes))
                                       :set-nil ,set-nil :set ,to-set ,@(if set-by (list :set-by set-by))
                                       ;; setting the modify-input parameter so that the original value
@@ -1268,9 +1353,8 @@ It remains here as a standard against which to compare methods for composing APL
                                       :modify-input t)
                            (if ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
-                  `(achoose ,body (mapcar (lambda (array) (if array (apply-scalar #'- array index-origin)))
-                                          (list ,@axes))
-                            ,@(if reference (list :reference reference))))
+                  `(make-virtual 'vader-select :base ,body
+                                               :argument (list ,@axes) :index-origin index-origin))
               (rest axis-sets)))))
 
 (defun make-namespace (contents)
@@ -1286,23 +1370,24 @@ It remains here as a standard against which to compare methods for composing APL
       (labels ((follow-path (item path)
                  (if path (let ((head (member (intern (string (first path)) "KEYWORD")
                                               item)))
-                            (if head (follow-path (second head) (rest path))))
+                            (when head (follow-path (second head) (rest path))))
                      (or item t))))
         (let ((namespace (if (symbolp ns-path)
                              (if (boundp ns-path) (list ns-path)
                                  (error "Namespace does not exist."))
-                             (if (listp ns-path)
-                                 (or (and (follow-path (symbol-value (first ns-path)) (rest ns-path))
-                                          (cons (first ns-path)
-                                                (loop :for i :in (rest ns-path)
-                                                      :collect (intern (string i) "KEYWORD"))))
-                                     (error "Namespace does not exist."))))))
+                             (when (listp ns-path)
+                               (or (and (follow-path (symbol-value (first ns-path)) (rest ns-path))
+                                        (cons (first ns-path)
+                                              (loop :for i :in (rest ns-path)
+                                                    :collect (intern (string i) "KEYWORD"))))
+                                   (error "Namespace does not exist."))))))
           (if namespace (setf (symbol-value workspace-symbol) namespace)
               (error "Not a valid namespace."))))))
 
 (defun coerce-or-get-type (array &optional type-index)
   "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕DT."
-  (let ((types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
+  (let ((array (render-varrays array))
+        (types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
                  (-3 (unsigned-byte 7)) (3 (unsigned-byte 8)) (-4 (unsigned-byte 15))
                  (4 (unsigned-byte 16)) (-5 (unsigned-byte 31)) (5 (unsigned-byte 32))
                  (-6 (unsigned-byte 63)) (6 (unsigned-byte 64))
@@ -1334,8 +1419,8 @@ It remains here as a standard against which to compare methods for composing APL
     (flet ((process-string (string)
              (let ((string (if (stringp string)
                                string (string string))))
-               (if (boundp (intern string space))
-                   (symbol-value (intern string space))))))
+               (when (boundp (intern string space))
+                 (symbol-value (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
           (if (listp symbol-string)
@@ -1347,8 +1432,8 @@ It remains here as a standard against which to compare methods for composing APL
     (flet ((process-string (string)
              (let ((string (if (stringp string)
                                string (string string))))
-               (if (fboundp (intern string space))
-                   (symbol-function (intern string space))))))
+               (when (fboundp (intern string space))
+                 (symbol-function (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
           (if (listp symbol-string)
@@ -1357,8 +1442,8 @@ It remains here as a standard against which to compare methods for composing APL
 (defun external-workspace-operator (symbol-string &optional space-string)
   "Import an operator from an external workspace, implementing the ⎕XWO function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
-    (if (fboundp (intern symbol-string space))
-        (symbol-function (intern symbol-string space)))))
+    (when (fboundp (intern symbol-string space))
+      (symbol-function (intern symbol-string space)))))
 
 (defun output-value (space form &optional properties closure-meta)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
@@ -1405,9 +1490,8 @@ It remains here as a standard against which to compare methods for composing APL
                                       (enclose-axes `(avec ,@(mapcar #'apply-props form properties))
                                                     (getf (first properties) :vector-axes))
                                       `(avec ,@(mapcar #'apply-props form properties))))))
-                   (if (not (numberp form))
-                       (apply-props form properties)
-                       form))))))
+                   (if (numberp form)
+                       form (apply-props form properties)))))))
 
 (defmacro f-lex (symbol-sets &body body)
   "Specify the lexicon for a function - this means wrapping the function's contents in a (let) form referencing external variables as appropriate."
@@ -1420,14 +1504,15 @@ It remains here as a standard against which to compare methods for composing APL
                                                                     (length membership))
                                                                  ref-symbols))))
                            `((,sym ,(if (not membership)
-                                        sym `(if (boundp ',dynamic-sym) (symbol-value ',dynamic-sym)))))))
+                                        sym `(when (boundp ',dynamic-sym)
+                                               (symbol-value ',dynamic-sym)))))))
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 
-(defun output-function (form &optional arguments closure-meta)
+(defun output-function (form space &optional arguments closure-meta)
   "Express an APL inline function like {⍵+5}."
   (let ((arg-symbols (getf closure-meta :arg-syms))
-        (side-refs)
+        (side-refs) (var-refs)
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
                              :when (not (or (member sym '(⍺ nil))
                                             (member sym arguments)))
@@ -1460,24 +1545,25 @@ It remains here as a standard against which to compare methods for composing APL
                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
-        (arguments (if arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
+        (arguments (when arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     ;; lexical variable references inside a function are registered as side effects _unless_ there
     ;; is a lexical assignment of the variable within the function; this is because lexical
     ;; references to an outer scope are incompatible with multithreading
     (loop :for (key value) :on *system-variables* :by #'cddr
-          :do (if (and (not (member value (getf closure-meta :var-syms)))
-                       (of-meta-hierarchy closure-meta :var-syms value))
-                  (push (list :dyn-mask value) side-refs)))
+          :do (when (and (not (member value (getf closure-meta :var-syms)))
+                         (of-meta-hierarchy closure-meta :var-syms value))
+                (push (list :dyn-mask value) side-refs)))
     (loop :for vr :in (getf closure-meta :var-refs)
           :do (if (member vr *system-variables*)
-                  (push (list :dyn-mask vr) side-refs)
-                  (if (and (not (member vr (getf closure-meta :var-syms)))
-                           (of-meta-hierarchy closure-meta :var-syms vr))
-                      (push (list :lex-ref vr) side-refs))))
+                  (progn (push (list :dyn-mask vr) side-refs)
+                         (push (list 'inwsd vr) var-refs))
+                  (when (and (not (member vr (getf closure-meta :var-syms)))
+                             (of-meta-hierarchy closure-meta :var-syms vr))
+                    (push (list :lex-ref vr) side-refs))))
 
     ;; explicitly register a side effect in the case of [⎕RL random link] assignment
-    (if (member '*rngs* (getf closure-meta :var-syms))
-        (push :random-link-assignment (getf closure-meta :side-effects)))
+    (when (member '*rngs* (getf closure-meta :var-syms))
+      (push :random-link-assignment (getf closure-meta :side-effects)))
     
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (aprgn) forms used to implement function variant implicit statements
@@ -1503,9 +1589,11 @@ It remains here as a standard against which to compare methods for composing APL
                                                      "contains more than one statement.")))
                                    :side-effects ',(getf closure-meta :side-effects)
                                    :side-refs ',side-refs
-                                   ,@(if (getf closure-meta :symfns-called)
-                                         (list :symfns-called
-                                               (list 'quote (getf closure-meta :symfns-called))))))
+                                   ,@(when (getf closure-meta :symfns-called)
+                                       (list :symfns-called
+                                             (list 'quote (getf closure-meta :symfns-called)))))
+                            (:sys-vars ,@var-refs)
+                            (:space ,space))
                     ,@(if (not (or context-vars context-fns context-ops
                                    assigned-vars assigned-fns assigned-ops))
                           form `((f-lex ,(list (append context-vars context-fns context-ops)
@@ -1539,15 +1627,15 @@ It remains here as a standard against which to compare methods for composing APL
                 :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
                                        (not (symbolp (second sub-form)))))
                              sub-form (if (integerp (second sub-form))
-                                          (if (assoc (second sub-form) tags-matching)
-                                              (list 'go (second (assoc (second sub-form) tags-matching))))
+                                          (when (assoc (second sub-form) tags-matching)
+                                            (list 'go (second (assoc (second sub-form) tags-matching))))
                                           (if (third sub-form)
-                                              `(let ((,branch-index ,(third sub-form)))
+                                              `(let ((,branch-index (render-varrays ,(third sub-form))))
                                                  (cond ,@(loop :for tag :in (second sub-form)
                                                             :counting tag :into tix
                                                             :collect `((= ,branch-index ,tix)
                                                                        (go ,tag)))))
-                                              `(let ((,branch-index ,(second sub-form)))
+                                              `(let ((,branch-index (render-varrays ,(second sub-form))))
                                                  (cond ,@(loop :for tag :in tags-matching
                                                             :when (and (listp tag)
                                                                        (member (second tag) tags-found))
@@ -1662,46 +1750,46 @@ It remains here as a standard against which to compare methods for composing APL
 
     ;; search each list of tokens for elements of namespace paths like aaa.bb.ccc[1].dd.e
     ;; and combine them into path tokens of the form (:pt ...) if found
-    (if (listp tokens)
-        (let* ((found) (path-contents) (in-path) (new-tokens)
-               (processed (loop :for rest-t :on tokens :by #'rest
-                                :collect (let ((i (first rest-t)))
-                                           (if (and (symbolp i) (position #\. (string i)))
-                                               (setq found (process-split-sym i))
-                                               (if (and (symbolp i) (is-product-operator (second rest-t))
-                                                        (listp (third rest-t))
+    (when (listp tokens)
+      (let* ((found) (path-contents) (in-path) (new-tokens)
+             (processed (loop :for rest-t :on tokens :by #'rest
+                              :collect (let ((i (first rest-t)))
+                                         (if (and (symbolp i) (position #\. (string i)))
+                                             (setq found (process-split-sym i))
+                                             (when (and (symbolp i) (listp (third rest-t))
+                                                        (is-product-operator (second rest-t))
                                                         (eq :ax (first (third rest-t))))
-                                                   (setq found i)))))))
-          (labels ((process-token-sets (rest-t rest-p)
-                     (if rest-t
-                         (let ((tk (first rest-t)) (pr (first rest-p)) (skip-next))
-                           (if pr (if (and (listp pr) (eq :pt (first pr)))
-                                      (let ((next-p (second rest-p)))
-                                        (setq in-path t)
-                                        (loop :for pelem :in (reverse (rest pr))
-                                              :do (push pelem path-contents))
-                                        ;; finish processing this path if the next token is also a path,
-                                        ;; i.e. for successive namespace refs like 5×myns.a myns.b
-                                        (if (and (listp next-p) (eq :pt (first next-p)))
-                                            (progn (setq in-path nil)
-                                                   (push (cons :pt path-contents) new-tokens)
-                                                   (setq path-contents nil))))
-                                      (progn (setq in-path t)
-                                             (push pr path-contents)))
-                               (if in-path (if (and (is-product-operator tk)
-                                                    (listp (second rest-t)) (eq :ax (caadr rest-t)))
-                                               (progn (push (second rest-t) path-contents)
-                                                      (setq skip-next t))
-                                               (progn (setq in-path nil)
-                                                      (push (cons :pt path-contents) new-tokens)
-                                                      (setq path-contents nil)
-                                                      (push tk new-tokens)))
-                                   (push tk new-tokens)))
-                           (if skip-next (process-token-sets (cddr rest-t) (cddr rest-p))
-                               (process-token-sets (rest rest-t) (rest rest-p)))))))
-            (if found (progn (process-token-sets tokens processed)
-                             (if in-path (push (cons :pt path-contents) new-tokens))
-                             (setq tokens (reverse new-tokens)))))))
+                                               (setq found i)))))))
+        (labels ((process-token-sets (rest-t rest-p)
+                   (when rest-t
+                     (let ((tk (first rest-t)) (pr (first rest-p)) (skip-next))
+                       (if pr (if (and (listp pr) (eq :pt (first pr)))
+                                  (let ((next-p (second rest-p)))
+                                    (setq in-path t)
+                                    (loop :for pelem :in (reverse (rest pr))
+                                          :do (push pelem path-contents))
+                                    ;; finish processing this path if the next token is also a path,
+                                    ;; i.e. for successive namespace refs like 5×myns.a myns.b
+                                    (if (and (listp next-p) (eq :pt (first next-p)))
+                                        (progn (setq in-path nil)
+                                               (push (cons :pt path-contents) new-tokens)
+                                               (setq path-contents nil))))
+                                  (progn (setq in-path t)
+                                         (push pr path-contents)))
+                           (if in-path (if (and (is-product-operator tk)
+                                                (listp (second rest-t)) (eq :ax (caadr rest-t)))
+                                           (progn (push (second rest-t) path-contents)
+                                                  (setq skip-next t))
+                                           (progn (setq in-path nil)
+                                                  (push (cons :pt path-contents) new-tokens)
+                                                  (setq path-contents nil)
+                                                  (push tk new-tokens)))
+                               (push tk new-tokens)))
+                       (if skip-next (process-token-sets (cddr rest-t) (cddr rest-p))
+                           (process-token-sets (rest rest-t) (rest rest-p)))))))
+          (when found (process-token-sets tokens processed)
+                (when in-path (push (cons :pt path-contents) new-tokens))
+                (setq tokens (reverse new-tokens))))))
 
     (symbol-macrolet ((closure-meta (rest closure-meta-form)))
       (match tokens
@@ -1711,17 +1799,17 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle function currying with axes, like ax←,[1.5]
          (if (eq :op (first fn-form))
              (let ((valence (second fn-form)))
-               (if closure-meta (if (not (member symbol (getf closure-meta
-                                                              (if (eq :lateral valence)
-                                                                  :lop-syms :pop-syms))))
-                                    (push symbol (getf closure-meta (if (eq :lateral valence)
-                                                                        :lop-syms :pop-syms))))
-                   (progn (if (is-workspace-value symbol)
-                              (makunbound (intern (string symbol) space)))))
+               (if closure-meta (when (not (member symbol (getf closure-meta
+                                                                (if (eq :lateral valence)
+                                                                    :lop-syms :pop-syms))))
+                                  (push symbol (getf closure-meta (if (eq :lateral valence)
+                                                                      :lop-syms :pop-syms))))
+                   (when (is-workspace-value symbol)
+                     (makunbound (intern (string symbol) space))))
                (list axes-form fn-form '(:fn #\←) symbol))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                        (progn (if (is-workspace-value symbol)
-                                   (makunbound (intern (string symbol) space)))
+                        (progn (when (is-workspace-value symbol)
+                                 (makunbound (intern (string symbol) space)))
                                (setf (symbol-function (intern (string symbol) space))
                                      #'dummy-nargument-function)))
                     (let ((each-axis (rest axes-form)))
@@ -1735,55 +1823,55 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle function assignments like fn←{⍵+5} or aliasing like fn←+
          (if (characterp (second fn-form))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                        (progn (if (is-workspace-value symbol)
-                                   (makunbound (intern (string symbol) space)))
+                        (progn (when (is-workspace-value symbol)
+                                 (makunbound (intern (string symbol) space)))
                                (setf (symbol-function (intern (string symbol) space))
                                      #'dummy-nargument-function)))
                     (list fn-form '(:fn #\←) symbol))
              (if (eq :op (first fn-form)) ;; handle operator aliases like x←⍤
                  (let ((valence (second fn-form)))
-                   (if closure-meta (if (not (member symbol (getf closure-meta
-                                                                  (if (eq :lateral valence)
-                                                                      :lop-syms :pop-syms))))
-                                        (push symbol (getf closure-meta (if (eq :lateral valence)
-                                                                            :lop-syms :pop-syms))))
-                       (progn (if (is-workspace-value symbol)
-                                  (makunbound (intern (string symbol) space)))))
+                   (if closure-meta (when (not (member symbol (getf closure-meta
+                                                                    (if (eq :lateral valence)
+                                                                        :lop-syms :pop-syms))))
+                                      (push symbol (getf closure-meta (if (eq :lateral valence)
+                                                                          :lop-syms :pop-syms))))
+                       (when (is-workspace-value symbol)
+                         (makunbound (intern (string symbol) space))))
                    (list fn-form '(:fn #\←) symbol))
                  (if (listp (second fn-form))
                      (let ((fn-meta (second fn-form)))
-                       (if (and fn-meta closure-meta-form)
-                           (setf (getf (rest fn-meta) :parent) closure-meta-form))
-                       (let* ((form-content (if (listp (third fn-form)) (third fn-form)))
+                       (when (and fn-meta closure-meta-form)
+                         (setf (getf (rest fn-meta) :parent) closure-meta-form))
+                       (let* ((form-content (when (listp (third fn-form)) (third fn-form)))
                               (processed (implicit-statement-process form-content fn-meta))
                               (is-operator (intersection (getf (rest fn-meta) :arg-syms)
                                                          '(⍶ ⍹ ⍺⍺ ⍵⍵)))
-                              (valence (if is-operator (if (intersection is-operator '(⍹ ⍵⍵))
-                                                           :pivotal :lateral)))
-                              (int-symbol (if is-operator (intern (string symbol) space))))
+                              (valence (when is-operator (if (intersection is-operator '(⍹ ⍵⍵))
+                                                             :pivotal :lateral)))
+                              (int-symbol (when is-operator (intern (string symbol) space))))
                          (if is-operator (progn (setf (getf (rest fn-meta) :valence) valence)
-                                                (if (getf (rest fn-meta) :valence-setters)
-                                                    (loop :for setter :in (getf (rest fn-meta)
-                                                                                :valence-setters)
-                                                          :do (funcall setter valence)))
+                                                (when (getf (rest fn-meta) :valence-setters)
+                                                  (loop :for setter :in (getf (rest fn-meta)
+                                                                              :valence-setters)
+                                                        :do (funcall setter valence)))
                                                 (setf (getf (rest fn-meta) :valence-setters) nil)))
                          (if closure-meta (if is-operator
-                                              (if (not (member symbol (getf closure-meta
-                                                                            (if (eq :lateral valence)
-                                                                                :lop-syms :pop-syms))))
-                                                  (push symbol (getf closure-meta (if (eq :lateral valence)
-                                                                                      :lop-syms :pop-syms))))
-                                              (if (not (member symbol (getf closure-meta :fn-syms)))
-                                                  (push symbol (getf closure-meta :fn-syms))))
-                             (progn (if (is-workspace-value symbol)
-                                        (makunbound (intern (string symbol) space)))
-                                    (if int-symbol (progn (if (not (fboundp int-symbol))
-                                                              (setf (symbol-function int-symbol)
-                                                                    #'dummy-operator))
+                                              (when (not (member symbol (getf closure-meta
+                                                                              (if (eq :lateral valence)
+                                                                                  :lop-syms :pop-syms))))
+                                                (push symbol (getf closure-meta (if (eq :lateral valence)
+                                                                                    :lop-syms :pop-syms))))
+                                              (when (not (member symbol (getf closure-meta :fn-syms)))
+                                                (push symbol (getf closure-meta :fn-syms))))
+                             (progn (when (is-workspace-value symbol)
+                                      (makunbound (intern (string symbol) space)))
+                                    (if int-symbol (progn (when (not (fboundp int-symbol))
+                                                            (setf (symbol-function int-symbol)
+                                                                  #'dummy-operator))
                                                           (setf (symbol-value int-symbol) fn-meta))
-                                        (if (not (fboundp (intern (string symbol) space)))
-                                            (setf (symbol-function (intern (string symbol) space))
-                                                  #'dummy-nargument-function)))))
+                                        (when (not (fboundp (intern (string symbol) space)))
+                                          (setf (symbol-function (intern (string symbol) space))
+                                                #'dummy-nargument-function)))))
                          (list (list (if is-operator :op :fn) fn-meta processed)
                                '(:fn #\←) (lexer-postprocess symbol idiom space closure-meta-form))))))))
         ((list form '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍵ ⍺))))))
@@ -1812,20 +1900,20 @@ It remains here as a standard against which to compare methods for composing APL
                                           (list :meta :valence :pivotal))))
                          (if closure-meta (push symbol (getf closure-meta :var-syms))
                              (fmakunbound symbol)))))
-             (if closure-meta (if (not (member symbol (getf closure-meta :var-syms)))
-                                  (push symbol (getf closure-meta :var-syms)))
+             (if closure-meta (when (not (member symbol (getf closure-meta :var-syms)))
+                                (push symbol (getf closure-meta :var-syms)))
                  (fmakunbound symbol)))
          (list (lexer-postprocess form idiom space closure-meta-form)
                '(:fn #\←) (lexer-postprocess symbol idiom space closure-meta-form)))
         ((guard fn-form (and (listp fn-form) (eq :fn (first fn-form))))
          ;; handle function forms like {⍵+5} by themselves, as when called inline
-         (let* ((form-meta (if (listp (second fn-form)) (second fn-form)))
-                (form-content (if (listp (third fn-form)) (third fn-form)))
+         (let* ((form-meta (when (listp (second fn-form)) (second fn-form)))
+                (form-content (when (listp (third fn-form)) (third fn-form)))
                 (processed (implicit-statement-process form-content form-meta))
                 (is-operator (intersection (getf (rest form-meta) :arg-syms)
                                            '(⍶ ⍹ ⍺⍺ ⍵⍵))))
-           (if (and form-meta closure-meta-form)
-               (setf (getf (rest form-meta) :parent) closure-meta-form))
+           (when (and form-meta closure-meta-form)
+             (setf (getf (rest form-meta) :parent) closure-meta-form))
            (if (not (and form-meta form-content))
                tokens (list (if is-operator :op :fn)
                             (second fn-form) processed))))
@@ -1833,8 +1921,8 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle operators like {⍺⍺/3×⍵} by themselves, as when called inline
          (let ((form-meta (if (listp (second fn-form)) (second fn-form)))
                (form-content (if (listp (third fn-form)) (third fn-form))))
-           (if (and form-meta closure-meta-form)
-               (setf (getf (rest form-meta) :parent) closure-meta-form))
+           (when (and form-meta closure-meta-form)
+             (setf (getf (rest form-meta) :parent) closure-meta-form))
            (if (not (and form-meta form-content))
                tokens (list (first fn-form) (second fn-form)
                             (loop :for item :in form-content
@@ -1851,22 +1939,22 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle closures like (1,⍳5)
          (labels ((process-symbols (possible-symbols &optional top-level)
                     (let ((symbols-valid t))
-                      (if (or top-level (loop :for item :in possible-symbols
-                                              :always (or (symbolp item) (listp item))))
-                          (progn (loop :for item :in possible-symbols :while symbols-valid
-                                       :do (if (and (symbolp item) (not (member item '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇ ∇∇))))
-                                               (if closure-meta
-                                                   (if (not (member item (getf closure-meta :var-syms)))
-                                                       (push item (getf closure-meta :var-syms))))
-                                               (if (listp item) (or (process-symbols item)
-                                                                    (setq symbols-valid nil))
-                                                   (setq symbols-valid nil))))
-                                 symbols-valid)))))
+                      (when (or top-level (loop :for item :in possible-symbols
+                                                :always (or (symbolp item) (listp item))))
+                        (loop :for item :in possible-symbols :while symbols-valid
+                              :do (if (and (symbolp item) (not (member item '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇ ∇∇))))
+                                      (when (and closure-meta
+                                                 (not (member item (getf closure-meta :var-syms))))
+                                        (push item (getf closure-meta :var-syms)))
+                                      (if (listp item) (or (process-symbols item)
+                                                           (setq symbols-valid nil))
+                                          (setq symbols-valid nil))))
+                        symbols-valid))))
            (let* ((assignment-indices)
                   (items (loop :for item :in list :for ix :from 0
-                               :do (if (and (listp item) (eq :fn (first item)) 
-                                            (characterp (second item)) (char= #\← (second item)))
-                                       (push ix assignment-indices))
+                               :do (when (and (listp item) (eq :fn (first item)) 
+                                              (characterp (second item)) (char= #\← (second item)))
+                                     (push ix assignment-indices))
                                :collect (lexer-postprocess item idiom space closure-meta-form))))
              (loop :for index :in (reverse assignment-indices)
                    :do (process-symbols (nthcdr (1+ index) list) t))
@@ -1879,38 +1967,37 @@ It remains here as a standard against which to compare methods for composing APL
            this-form))
         ((guard symbol (member symbol '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵)))
          ;; handle argument symbols, adding them to the closure-meta list
-         (if (and closure-meta (not (member symbol (getf closure-meta :arg-syms))))
-             (push symbol (getf closure-meta :arg-syms)))
+         (when (and closure-meta (not (member symbol (getf closure-meta :arg-syms))))
+           (push symbol (getf closure-meta :arg-syms)))
          symbol)
         ;; handle any other token
         (token-or-tokens token-or-tokens)))))
 
 (defun get-assigned-symbols (tokens space &optional token-list is-nested in-assignment-context)
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
-  (let ((previous-token)
-        (token-list (or token-list (list :tokens))))
+  (let ((previous-token) (token-list (or token-list (list :tokens))))
     (loop :for token :in tokens
-       :do (if (and previous-token (listp previous-token)
-                    (eql :fn (first previous-token))
-                    (characterp (second previous-token))
-                    (char= #\← (second previous-token)))
-               ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
-               ;; be added to the list to hoist if eligible
-               (setq in-assignment-context t))
-         (if (and (listp token) (member (first token) '(:fn :op)))
-             (setq in-assignment-context nil))
-         (if (and (listp token) (not (member (first token) '(:fn :op))))
-             ;; recurse into lists, but not functions contained within a function, otherwise something
-             ;; like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline operator is within it;
-             ;; if an assignment context, that will be passed down to the next level of recursion
-             ;; as for a (b c)←⍵
-             (get-assigned-symbols token space token-list t in-assignment-context)
-             (if (and in-assignment-context (symbolp token) (not (keywordp token)))
-                 (cond ((and (not (member token *idiom-native-symbols*))
-                             (not (member token token-list)))
-                        (setf (rest token-list)
-                              (cons token (rest token-list)))))))
-         (setq previous-token token))
+          :do (when (and previous-token (listp previous-token)
+                         (eql :fn (first previous-token))
+                         (characterp (second previous-token))
+                         (char= #\← (second previous-token)))
+                ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
+                ;; be added to the list to hoist if eligible
+                (setq in-assignment-context t))
+              (when (and (listp token) (member (first token) '(:fn :op)))
+                (setq in-assignment-context nil))
+              (if (and (listp token) (not (member (first token) '(:fn :op))))
+                  ;; recurse into lists, but not functions contained within a function, otherwise something
+                  ;; like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline operator is within it;
+                  ;; if an assignment context, that will be passed down to the next level of recursion
+                  ;; as for a (b c)←⍵
+                  (get-assigned-symbols token space token-list t in-assignment-context)
+                  (when (and in-assignment-context (symbolp token) (not (keywordp token)))
+                    (cond ((and (not (member token *idiom-native-symbols*))
+                                (not (member token token-list)))
+                           (setf (rest token-list)
+                                 (cons token (rest token-list)))))))
+              (setq previous-token token))
     ;; TODO: write tests to ensure variable hoisting is done properly?
     (if is-nested token-list (remove-duplicates (rest token-list)))))
 
@@ -1918,49 +2005,108 @@ It remains here as a standard against which to compare methods for composing APL
   "Invert a function expression. For use with the [⍣ power] operator taking a negative right operand."
   (match form
     ((list* 'a-call function-form arg1 arg2-rest)
-     (if (listp function-form)
-         (let ((arg2 (first arg2-rest)))
-           (if (not arg2) (if (and (listp arg1) (eql 'a-call (first arg1)))
-                              (invert-function arg1 (lambda (form)
-                                                      `(a-call (inv-fn ,function-form)
-                                                               ,(funcall to-wrap form))))
-                              `(a-call (inv-fn ,function-form) ,(funcall to-wrap arg1)))
-               (if (not (or (and (listp arg1) (eql 'a-call (first arg1)))
-                            (and (listp arg2) (eql 'a-call (first arg2)))))
-                   `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
-                                    ,(if (and (eql arg2 '⍵) (not (member arg1 '(⍵ ⍺))))
-                                         :inverse-right :inverse))
-                            ,@(list (if (not (member arg1 '(⍵ ⍺)))
-                                        arg1 (funcall to-wrap arg1))
-                                    (if (not (member arg2 '(⍵ ⍺)))
-                                        arg2 (funcall to-wrap arg2))))
-                   (if (and (listp arg1) (eql 'a-call (first arg1)))
-                       (if (and (listp arg2) (eql 'a-call (first arg2)))
-                           `(a-call (inv-fn ,function-form t :inverse)
-                                    ,(invert-function arg1)
-                                    ,(invert-function arg2))
-                           (if (eql '⍵ arg2)
-                               `(a-call (inv-fn ,function-form t :inverse-right)
-                                        ,(invert-function arg1) ,arg2)
-                               (invert-function
-                                arg1 (lambda (form)
-                                       `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
-                                                        ,(if (and (eql arg2 '⍺)
-                                                                  (not (member form '(⍵ ⍺))))
-                                                             :inverse-right :inverse))
-                                                ,(funcall to-wrap form)
-                                                ,arg2)))))
-                       (if (and (listp arg2) (eql 'a-call (first arg2)))
-                           (if (eql '⍵ arg1)
-                               `(a-call (inv-fn ,function-form t :inverse-right)
-                                        ,arg1 ,(invert-function arg2))
-                               (invert-function
-                                arg1 (lambda (form)
-                                       `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
-                                                        ,(if (and (member form '(⍵ ⍺))
-                                                                  (not (eql arg1 '⍺)))
-                                                             :inverse-right :inverse))
-                                                ,arg1 ,(funcall to-wrap form))))))))))))))
+     (when (listp function-form)
+       (let ((arg2 (first arg2-rest)))
+         (if (not arg2) (if (and (listp arg1) (eql 'a-call (first arg1)))
+                            (invert-function arg1 (lambda (form)
+                                                    `(a-call (inv-fn ,function-form)
+                                                             ,(funcall to-wrap form))))
+                            `(a-call (inv-fn ,function-form) ,(funcall to-wrap arg1)))
+             (if (not (or (and (listp arg1) (eql 'a-call (first arg1)))
+                          (and (listp arg2) (eql 'a-call (first arg2)))))
+                 `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
+                                  ,(if (and (eql arg2 '⍵) (not (member arg1 '(⍵ ⍺))))
+                                       :inverse-right :inverse))
+                          ,@(list (if (not (member arg1 '(⍵ ⍺)))
+                                      arg1 (funcall to-wrap arg1))
+                                  (if (not (member arg2 '(⍵ ⍺)))
+                                      arg2 (funcall to-wrap arg2))))
+                 (if (and (listp arg1) (eql 'a-call (first arg1)))
+                     (if (and (listp arg2) (eql 'a-call (first arg2)))
+                         `(a-call (inv-fn ,function-form t :inverse)
+                                  ,(invert-function arg1)
+                                  ,(invert-function arg2))
+                         (if (eql '⍵ arg2)
+                             `(a-call (inv-fn ,function-form t :inverse-right)
+                                      ,(invert-function arg1) ,arg2)
+                             (invert-function
+                              arg1 (lambda (form)
+                                     `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
+                                                      ,(if (and (eql arg2 '⍺)
+                                                                (not (member form '(⍵ ⍺))))
+                                                           :inverse-right :inverse))
+                                              ,(funcall to-wrap form)
+                                              ,arg2)))))
+                     (when (and (listp arg2) (eql 'a-call (first arg2)))
+                       (if (eql '⍵ arg1)
+                           `(a-call (inv-fn ,function-form t :inverse-right)
+                                    ,arg1 ,(invert-function arg2))
+                           (invert-function
+                            arg1 (lambda (form)
+                                   `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
+                                                    ,(if (and (member form '(⍵ ⍺))
+                                                              (not (eql arg1 '⍺)))
+                                                         :inverse-right :inverse))
+                                            ,arg1 ,(funcall to-wrap form))))))))))))))
+
+(defmacro plain-ref (function &optional axes is-virtual)
+  "Wrap a lexical function; this is needed to implement some meta-functionality."
+  ;; TODO: can the functionality here and in amb-ref be factored out and merged?
+  (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)) (a (gensym)))
+    `(labels ((,this-fn (&rest ,args)
+                ,@(when (not is-virtual)
+                    `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
+                ;; IPV-TODO: just one bug caused by this
+                (if (and (eq :reassign-axes (first ,args))
+                         (not (third ,args)))
+                    ;; passing this option will return the core function again
+                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
+                    (lambda (&rest ,iargs)
+                      (apply #',this-fn (append (list :assign-axes (second ,args))
+                                                ,iargs)))
+                    (progn ,@(when axes `((when (eq :assign-axes (first ,args))
+                                            (setq ,axes (second ,args)
+                                                  ,args (cddr ,args)))))
+                           (apply ,function ,args)))))
+       #',this-fn)))
+
+(defmacro amb-ref (fn-monadic fn-dyadic &optional axes is-virtual)
+  "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
+  (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym)) (a (gensym))
+        (m-scalar (when (eq 'scalar-function (first fn-monadic)) '(:scalar t)))
+        (d-scalar (when (eq 'scalar-function (first fn-dyadic)) '(:scalar t)))
+        (m-meta (when (member (first fn-monadic) '(fn-meta scalar-function))
+                  (cddr fn-monadic)))
+        (d-meta (when (member (first fn-dyadic) '(fn-meta scalar-function))
+                  (cddr fn-dyadic))))
+    `(labels ((,this-fn (&rest ,args)
+                ,@(when (not is-virtual)
+                    `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
+                ;; IPV-TODO: the one of the biggest force-render points
+                (if (and (eq :reassign-axes (first ,args))
+                         (not (third ,args)))
+                    ;; passing this option will return the core function again
+                    ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
+                    (lambda (&rest ,iargs)
+                      (apply #',this-fn (append (list :assign-axes (second ,args))
+                                                ,iargs)))
+                    (progn ,@(when axes `((when (eq :assign-axes (first ,args))
+                                            (setq ,axes (second ,args)
+                                                  ,args (cddr ,args)))))
+                           (if (eq :get-metadata (first ,args))
+                               (if (= 1 (length ,args)) ,(if m-meta (cons 'list (append m-scalar m-meta)))
+                                   ,(if d-meta (cons 'list (append d-scalar d-meta))))
+                               (if (= 2 (length ,args))
+                                   (if (null (second ,args))
+                                       (a-call ,fn-monadic (first ,args))
+                                       (a-call ,fn-dyadic (first ,args) (second ,args)))
+                                   (if (= 3 (length ,args))
+                                       (if (null (second ,args))
+                                           (let ((,reduced-args (cons (first ,args) (cddr ,args))))
+                                             (apply ,fn-monadic ,reduced-args))
+                                           (apply ,fn-dyadic ,args))
+                                       (a-call ,fn-monadic (first ,args)))))))))
+       #',this-fn)))
 
 (defun process-fnspecs (spec-sets)
   "Process a set of function and operator specs, generating lists of their referring characters, recording counts of functions and operators and building their assignment forms."
@@ -1979,7 +2125,7 @@ It remains here as a standard against which to compare methods for composing APL
                                   #'identity (lambda (fn-form)
                                                `(lambda (&rest ,args)
                                                   (a-call ,fn-form (first ,args)
-                                                          ,@(if (eq :dyadic type) `((second ,args)))))))
+                                                          ,@(when (eq :dyadic type) `((second ,args)))))))
                               (append form metadata (list :valence type :lexical-reference glyph)))
                      `(fn-meta ,form ,@metadata ,@(list :valence type :lexical-reference glyph)))))
            (wrap-implicit (implicit-args optional-implicit-args primary-meta form)
@@ -1995,11 +2141,11 @@ It remains here as a standard against which to compare methods for composing APL
       (macrolet ((push-char-and-aliases (&rest lexicons)
                    `(progn ,@(loop :for lexicon :in lexicons
                                    :collect `(push glyph-char (getf lexicons ,lexicon)))
-                           (if (getf props :aliases)
-                               (loop :for alias :in (getf props :aliases)
-                                     :do (let ((a-char (aref (string alias) 0)))
-                                           ,@(loop :for lexicon :in lexicons
-                                                   :collect `(push a-char (getf lexicons ,lexicon)))))))))
+                           (when (getf props :aliases)
+                             (loop :for alias :in (getf props :aliases)
+                                   :do (let ((a-char (aref (string alias) 0)))
+                                         ,@(loop :for lexicon :in lexicons
+                                                 :collect `(push a-char (getf lexicons ,lexicon)))))))))
         (loop :for each-spec :in spec-sets
               :do (loop :for spec :in (reverse (cddr each-spec))
                         :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
@@ -2018,18 +2164,21 @@ It remains here as a standard against which to compare methods for composing APL
                                                                 glyph-sym)))
                                      (assigned-form))
                                 (push fn-symbol symbol-set)
-                                (if (getf props :aliases)
-                                    (loop :for alias :in (getf props :aliases)
-                                          :do (let ((alias-symbol
-                                                      (intern (format nil "APRIL-LEX-~a-~a"
-                                                                      (if (eql 'operators spec-type) "OP" "FN")
-                                                                      alias))))
-                                                (push alias-symbol symbol-set))))
+                                (when (getf props :aliases)
+                                  (loop :for alias :in (getf props :aliases)
+                                        :do (let ((alias-symbol
+                                                    (intern (format nil "APRIL-LEX-~a-~a"
+                                                                    (if (eql 'operators spec-type) "OP" "FN")
+                                                                    alias)))
+                                                  (valias-symbol
+                                                    (intern (format nil "APRIL-LEX-VFN-~a" alias))))
+                                              (push alias-symbol symbol-set)
+                                              (push valias-symbol symbol-set))))
                                 (case item-type
                                   (monadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-monadic)
-                                   (if (eql 'scalar-function (caadr implementation))
-                                       (push-char-and-aliases :functions-scalar-monadic))
+                                   (when (eql 'scalar-function (caadr implementation))
+                                     (push-char-and-aliases :functions-scalar-monadic))
                                    (push (setq assigned-form
                                                (funcall
                                                 (lambda (form)
@@ -2039,12 +2188,13 @@ It remains here as a standard against which to compare methods for composing APL
                                                 `(plain-ref
                                                   ,(wrap-meta glyph-char :monadic (second implementation)
                                                               (rest (assoc 'monadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes))))
+                                                  ,(getf primary-metadata :axes)
+                                                  ,(getf primary-metadata :virtual-support))))
                                          assignment-forms))
                                   (dyadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-dyadic)
-                                   (if (eql 'scalar-function (caadr implementation))
-                                       (push-char-and-aliases :functions-scalar-dyadic))
+                                   (when (eql 'scalar-function (caadr implementation))
+                                     (push-char-and-aliases :functions-scalar-dyadic))
                                    (push (setq assigned-form
                                                (funcall
                                                 (lambda (form)
@@ -2054,14 +2204,15 @@ It remains here as a standard against which to compare methods for composing APL
                                                 `(plain-ref
                                                   ,(wrap-meta glyph-char :dyadic (second implementation)
                                                               (rest (assoc 'dyadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes))))
+                                                  ,(getf primary-metadata :axes)
+                                                  ,(getf primary-metadata :virtual-support))))
                                          assignment-forms))
                                   (ambivalent (incf fn-count 2)
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
-                                   (if (eql 'scalar-function (caadr implementation))
-                                       (push-char-and-aliases :functions-scalar-monadic))
-                                   (if (eql 'scalar-function (caaddr implementation))
-                                       (push-char-and-aliases :functions-scalar-dyadic))
+                                   (when (eql 'scalar-function (caadr implementation))
+                                     (push-char-and-aliases :functions-scalar-monadic))
+                                   (when (eql 'scalar-function (caaddr implementation))
+                                     (push-char-and-aliases :functions-scalar-dyadic))
                                    (push (setq assigned-form
                                                (funcall
                                                 (lambda (form)
@@ -2074,15 +2225,16 @@ It remains here as a standard against which to compare methods for composing APL
                                                           ,(wrap-meta glyph-char :ambivalent
                                                                       (third implementation)
                                                                       (rest (assoc 'dyadic spec-meta)))
-                                                          ,(getf primary-metadata :axes))))
+                                                          ,(getf primary-metadata :axes)
+                                                          ,(getf primary-metadata :virtual-support))))
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
-                                   (if (getf props :aliases)
-                                       (loop :for alias :in (getf props :aliases)
-                                             :do (let ((a-char (aref (string alias) 0)))
-                                                   (push a-char (getf lexicons :functions))
-                                                   (push a-char (getf lexicons :functions-symbolic)))))
+                                   (when (getf props :aliases)
+                                     (loop :for alias :in (getf props :aliases)
+                                           :do (let ((a-char (aref (string alias) 0)))
+                                                 (push a-char (getf lexicons :functions))
+                                                 (push a-char (getf lexicons :functions-symbolic)))))
                                    (push (setq assigned-form (second implementation))
                                          assignment-forms))
                                   (lateral (incf op-count)
@@ -2099,14 +2251,14 @@ It remains here as a standard against which to compare methods for composing APL
                                              'symbol-value 'symbol-function)
                                         (quote ,fn-symbol))
                                       assignment-forms)
-                                (if (getf props :aliases)
-                                    (loop :for alias :in (getf props :aliases)
-                                          :do (push assigned-form assignment-forms)
-                                              (push `(,(if (and (eql 'functions spec-type)
-                                                                (eql 'symbolic item-type))
-                                                           'symbol-value 'symbol-function)
-                                                      (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
-                                                    assignment-forms)))))))
+                                (when (getf props :aliases)
+                                  (loop :for alias :in (getf props :aliases)
+                                        :do (push assigned-form assignment-forms)
+                                            (push `(,(if (and (eql 'functions spec-type)
+                                                              (eql 'symbolic item-type))
+                                                         'symbol-value 'symbol-function)
+                                                    (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
+                                                  assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))
                                (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count))))))
@@ -2117,26 +2269,26 @@ It remains here as a standard against which to compare methods for composing APL
     `(defmacro ,(intern "RUN-TESTS" (package-name *package*)) ()
        '(progn (format t "~a ｢~a｣" ,title ,(package-name *package*))
          (princ #\Newline)
-         ,@(if (getf params :description)
-               `((format t "~a~%~%" ,(getf params :description))))
-         ,@(if (assoc :tests sections)
-               (let* ((test-count 0)
-                      (items (loop :for item :in (rest (assoc :tests sections))
-                                   :append (case (intern (string-upcase (first item)) "KEYWORD")
-                                             (:provision `((format t "  ] ~a~%" ,(second item))
-                                                           (april ,(second item))))
-                                             (:is (incf test-count)
-                                              `((format t "  _ ~a" ,(second item))
-                                                (is (april ,(second item))
-                                                    ,(third item) :test #'equalp)))))))
-                 `((setq prove:*enable-colors* nil)
-                   (plan ,test-count)
-                   (with-april-context ((:space ,(getf params :space)))
-                     ,@items)
-                   (setq ,tests-passed (finalize))
-                   (setq prove:*enable-colors* t)
-                   (format t "~%~%")
-                   ,tests-passed)))))))
+         ,@(when (getf params :description)
+             `((format t "~a~%~%" ,(getf params :description))))
+         ,@(when (assoc :tests sections)
+             (let* ((test-count 0)
+                    (items (loop :for item :in (rest (assoc :tests sections))
+                                 :append (case (intern (string-upcase (first item)) "KEYWORD")
+                                           (:provision `((format t "  ] ~a~%" ,(second item))
+                                                         (april ,(second item))))
+                                           (:is (incf test-count)
+                                            `((format t "  _ ~a" ,(second item))
+                                              (is (april ,(second item))
+                                                  ,(third item) :test #'equalp)))))))
+               `((setq prove:*enable-colors* nil)
+                 (plan ,test-count)
+                 (with-april-context ((:space ,(getf params :space)))
+                   ,@items)
+                 (setq ,tests-passed (finalize))
+                 (setq prove:*enable-colors* t)
+                 (format t "~%~%")
+                 ,tests-passed)))))))
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
