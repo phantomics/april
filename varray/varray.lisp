@@ -576,25 +576,8 @@
                    (process (or (and (not default-generator) ;; TOGGLE
                                      (first process-pair))
                                 (second process-pair)))
-                   ;; (process (lambda (index)
-                   ;;            (lambda ()
-                   ;;              (let* ((start-intervals (ceiling (* interval index)))
-                   ;;                     (start-at (* sbesize start-intervals))
-                   ;;                     (count (if (< index (1- divisions))
-                   ;;                                (* sbesize (- (ceiling (* interval (1+ index)))
-                   ;;                                              start-intervals))
-                   ;;                                (- total-size start-at))))
-                   ;;                (loop :for i :from start-at :to (1- (+ start-at count))
-                   ;;                      :do (funcall render-index i))))))
                    (threaded-count 0))
               ;; (print (list :pro process-pair))
-              ;; (when (typep varray 'vader-permute)
-              ;;   (print (list :sb sbsize (type-of varray) (etype-of varray) (type-of output)
-              ;;                (vader-base varray)
-              ;;                (vads-argument varray)
-              ;;                (when (typep varray 'vader-composing) (vacmp-omega varray)))))
-              ;; (print (list :ss interval sbsize sbesize :div divisions wcadj (size-of varray)))
-              ;; (setf active-workers 0)
               ;; (print (list :out (type-of output) (type-of varray)
               ;;              divisions division-size sbesize sbsize
               ;;              (typep varray 'vader-composing)
@@ -602,13 +585,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;           (not (vacmp-threadable varray)))
-                            ;;      ;; don't thread when rendering the output of operators composed
-                            ;;      ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;      (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;            :never (null (lparallel.kernel::running-category worker))))
-                            t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                     (not (vacmp-threadable varray)))
+                                ;; don't thread when rendering the output of operators composed
+                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                      :never (null (lparallel.kernel::running-category worker))))
+                            ;; t
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
@@ -1284,7 +1267,6 @@
                               (setf result (if (not result)
                                                item (funcall (vaop-function varray)
                                                              result item))))))
-              ;; (print (list :eee sub-flag))
               (if (not sub-flag)
                   result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                        :function (vaop-function varray)
@@ -1330,7 +1312,6 @@
                               (setf result (if (not result)
                                                item (funcall (vaop-function varray)
                                                              result item))))))
-              ;; (print (list :eee))
               (if (not sub-flag)
                   result (make-instance 'vader-operate :base (coerce (reverse subarrays) 'vector)
                                                        :function (vaop-function varray)
@@ -1383,7 +1364,6 @@
                                                    (< 1 (size-of i)))
                                           :collect (size-of i)))))
           (s 0) (sdims (when set (shape-of set))))
-     ;; (print (list :i indices sdims assign-shape set))
      (if (not indices)
          idims (if set (if (and sdims (not (loop :for i :in assign-shape :for sd :in sdims
                                                  :always (= sd i))))
@@ -1442,12 +1422,8 @@
                                             iarray-factors))
                                     (render item)))
            iarray-factors (reverse iarray-factors))
-     ;; (print (list :ia ifactors))
-     ;; (print (list :arg (render (vader-base varray)) (vads-argument varray)))
      (flet ((verify-vindex (ind vector-index)
-              ;; (PRINT (LIST :III ind VECTOR-INDEX))
               (let ((vector-indexer (generator-of vector-index)))
-                ;; (print (list :vv vector-indexer))
                 (loop :for v :below (size-of vector-index) :for ix :from 0
                       :when (let* ((this-index (funcall vector-indexer v))
                                    (sub-index (funcall (generator-of this-index) 0)))
@@ -1686,8 +1662,6 @@
                                                                  (funcall sub-selector index)))))
                                    valid)))
                    ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
-                   ;; (if valid (print (list :oin oindex index afactors valid set (vasel-calling varray)
-                   ;;                        set-indexer)))
                    ;; (print (list :se set-indexer oindex))
                    (if (numberp oindex)
                        (if valid (if (vasel-calling varray)
