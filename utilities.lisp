@@ -316,12 +316,15 @@
 
 (defmacro make-virtual (type &rest params)
   "Wrapper for the choose function."
-  (let ((indices (getf params :argument))
-        (indices-evaluated (gensym))
-        (base (getf params :base)))
-    (setf (getf params :argument) indices-evaluated)
+  (let* ((indices (getf params :argument))
+         (indices-evaluated (gensym))
+         (params-with-placeholder))
+    (loop :for (key value) :on params :by #'cddr
+          :do (setf (getf params-with-placeholder key)
+                    (if (eq :argument key) indices-evaluated value)))
     `(let ((,indices-evaluated ,indices))
-       (make-instance ,type ,@params))))
+       (make-instance ,type ,@params-with-placeholder))))
+
 
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
