@@ -117,32 +117,26 @@
 
 (defun apl-exp (omega)
   "Power of e function that will always output a double-precision float as per APL standard."
-  (exp (if (typep omega 'double-float)
-           omega (coerce omega 'double-float))))
+  (exp (if (typep omega 'integer)
+           (coerce omega 'double-float) omega)))
 
 (defun apl-expt (omega alpha)
-  "Exponent function that will always output a double-precision float as per APL standard."
+  "Exponent function that will always output a double-precision float except if both arguments are integers, as per APL standard."
   ;; in the case of one non-natural argument, both must be coerced to floats to avoid trouble in ABCL
-  (expt (if (not (and (or (not (integerp omega))
-                          (not (integerp alpha)))
-                      (not (or (typep omega 'double-float)
-                               (typep omega '(complex double-float))))))
-            omega (coerce omega 'double-float))
-        (if (not (and (or (not (integerp omega))
-                          (not (integerp alpha)))
-                      (not (or (typep alpha 'double-float)
-                               (typep alpha '(complex double-float))))))
-            alpha (coerce alpha 'double-float))))
+  (expt (if (and (typep omega 'integer) (not (typep alpha 'integer)))
+            (coerce omega 'double-float) omega)
+        (if (and (typep alpha 'integer) (not (typep omega 'integer)))
+            (coerce alpha 'double-float) alpha)))
 
 (defun apl-log (omega &optional alpha)
   "Logarithm function that will always output a double-precision float as per APL standard."
   ;; like expt, both args must be coerced to doubles to avoid a problem in ABCL
-  (if alpha (log (if (typep omega 'double-float)
-                     omega (coerce omega 'double-float))
-                 (if (typep alpha 'double-float)
-                           alpha (coerce alpha 'double-float)))
-      (log (if (typep omega 'double-float)
-               omega (coerce omega 'double-float)))))
+  (if alpha (log (if (typep omega 'integer)
+                     (coerce omega 'double-float) omega)
+                 (if (typep alpha 'integer)
+                     (coerce alpha 'double-float) alpha))
+      (log (if (typep omega 'integer)
+               (coerce omega 'double-float) omega))))
 
 (defun complex-floor (number comparison-tolerance)
   "Find the floor of a complex number using Eugene McDonnell's algorithm."
