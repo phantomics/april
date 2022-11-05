@@ -15,12 +15,6 @@
 Use the variable ncurses:colors instead, see croatoan example t18 for other available
 ncurses information.
 
-(defvar *color-depth*)
-
-(with-open-stream (cmd-out (make-string-output-stream))
-  (uiop:run-program "tput colors" :output cmd-out :ignore-error-status t)
-  (let ((count-string (read-from-string (get-output-stream-string cmd-out))))
-    (setq *color-depth* (if (integerp count-string) count-string 0))))
 |#
 
 (april (with (:space ncurses-demo-space))
@@ -120,42 +114,10 @@ M[H;GCL+⍳9]←9↑⍕GI   ⍝ print generation number; supports up to 9 digits
       (croatoan:bind screen #\r (lambda () (render-screen t)))
       ;; display the next (G)eneration
       (croatoan:bind screen #\g (lambda () (render-screen)))
-      ;; exit event loop is meant to be bound directly, it doesnt have to be passed in a lambda
-      (croatoan:bind screen #\q #'exit-event-loop)
+      ;; (Q)uit the program
+      (croatoan:bind screen #\q #'croatoan:exit-event-loop)
 
       ;; render initial state
       (render-screen t)
-      (croatoan:run-event-loop screen)
-      (cl-user::quit))))
-
-;;         (when (>= *color-depth* 256)
-;;           (setf (aref *bg-colors* i) (row-major-aref colors i)))))))
-
-;; (defun initialize-screen (screen)
-;;   (flet ((render-screen (&optional restarting)
-;;            (render (height screen) (width screen) restarting)
-;;            (move screen 0 0)
-;;            (loop :for char :across *glyphs* :for color :across *bg-colors*
-;;                  :do (if (< *color-depth* 256)
-;;                          (croatoan:add-wide-char screen char)
-;;                          (croatoan:add-wide-char screen char :fgcolor '(:number 253)
-;;                                                              :bgcolor (list :number color))))))
-    
-;;     (croatoan:submit (croatoan:bind screen #\r (lambda (win event)
-;;                                                  (declare (ignore win event))
-;;                                                  (render-screen t))))
-
-;;     (croatoan:submit (croatoan:bind screen #\g (lambda (win event)
-;;                                                  (declare (ignore win event))
-;;                                                  (render-screen))))
-
-;;     (croatoan:submit (croatoan:bind screen #\q (lambda (win event)
-;;                                                  (croatoan:exit-event-loop win event))))
-
-;;     (render-screen t) ;; render initial state
-
-;;     ;; Set *screen* to the initilized screen so that we can access it form
-;;     ;; the swank thread and then enter the event-loop.
-;;     (croatoan:run-event-loop (setf *screen* screen))
-;;     (cl-user::quit)))
+      (croatoan:run-event-loop screen))))
 

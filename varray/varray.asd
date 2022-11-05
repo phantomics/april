@@ -6,7 +6,7 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on ("aplesque")
+  :depends-on ("aplesque" "serapeum")
   :components ((:file "package")
                (:file "setup")
                (:file "combinatorics")
