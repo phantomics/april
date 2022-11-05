@@ -2087,10 +2087,9 @@
                                           :when (/= dx axis) :collect dim
                                           :when (and window (= dx axis))
                                             :collect (setq wsegment (- dim (1- window)))))))
-              ;; (print (list :d (dims output)))
-              (if (= 1 (first (last odims)))
-                  ;; (xdotimes output (i (size output))
-                  (dotimes (i (size output))
+              (if (and (= 1 (first (last odims)))
+                       (= axis (1- (rank input))))
+                  (xdotimes output (i (size output))
                     (setf (row-major-aref output i)
                           (row-major-aref input i)))
                   (dotimes (i (size output))
