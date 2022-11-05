@@ -102,23 +102,32 @@
             :process-axis-string
             (lambda (string)
               (let ((indices) (last-index) (quoted)
+                    (strlen (length string))
                     (nesting (vector 0 0 0))
-                    (delimiters '(#\[ #\( #\{ #\] #\) #\}))
-                    (quote-delimiters '(#\')))
+                    (delimiters "[({])}")
+                    (dllen-plus 7) ;; 1 plus the number of delimiters
+                    (quote-delimiter #\'))
                 (loop :for char :across string :counting char :into charix
-                      :do (let ((mx (length (member char delimiters))))
-                            (if (< 3 mx) (incf (aref nesting (- 6 mx)))
-                                (if (< 0 mx 4) (if (< 0 (aref nesting (- 3 mx)))
-                                                   (decf (aref nesting (- 3 mx)))
-                                                   (error "Each closing ~a must match with an opening ~a."
-                                                          (nth mx delimiters) (nth (- 3 mx) delimiters)))
-                                    (when (and (char= char #\;)
-                                               (zerop (loop :for ncount :across nesting :summing ncount)))
-                                      (setq indices (cons (1- charix) indices)))))))
+                      :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
+                                              :when (char= d char) :do (return (- dllen-plus dx)))
+                                        0)))
+                            (if (char= char quote-delimiter)
+                                (setf quoted (not quoted))
+                                (when (not quoted)
+                                  (if (< 3 mx) (incf (aref nesting (- 6 mx)))
+                                      (if (< 0 mx 4)
+                                          (if (< 0 (aref nesting (- 3 mx)))
+                                              (decf (aref nesting (- 3 mx)))
+                                              (error "Each closing ~a must match with an opening ~a."
+                                                     (aref delimiters mx) (aref delimiters (- 3 mx))))
+                                          (when (and (char= char #\;)
+                                                     (zerop (loop :for ncount :across nesting
+                                                                  :summing ncount)))
+                                            (setq indices (cons (1- charix) indices)))))))))
                 (loop :for index :in (reverse (cons (length string) indices))
                    :counting index :into iix
                    :collect (make-array (- index (if last-index 1 0)
-                                           (if last-index last-index 0))
+                                           (or last-index 0))
                                         :element-type 'character :displaced-to string
                                         :displaced-index-offset (if last-index (1+ last-index) 0))
                    :do (setq last-index index))))
@@ -141,8 +150,7 @@
               ;; the index origin, print precision and output stream values are
               ;; passed into the local lexical environment
               (append (list (list (intern "OUTPUT-STREAM" *package-name-string*)
-                                  (if (getf state :print-to)
-                                      (getf state :print-to)
+                                  (or (getf state :print-to)
                                       (second (getf state :output-stream)))))
                       (loop :for (key value) :on *system-variables* :by #'cddr
                          :collect (list (intern (string-upcase key) *package-name-string*)
@@ -174,30 +182,30 @@
                   (append (butlast form)
                           (list (append (list 'a-out final-form)
                                         (append (list :print-precision 'print-precision)
-                                                (if (getf state :unrendered) (list :unrendered t))
-                                                (if (getf state :print) (list :print-to 'output-stream))
-                                                (if (getf state :output-printed)
-                                                    (list :output-printed
-                                                          (getf state :output-printed))))))))))
+                                                (when (getf state :unrendered) (list :unrendered t))
+                                                (when (getf state :print) (list :print-to 'output-stream))
+                                                (when (getf state :output-printed)
+                                                  (list :output-printed
+                                                        (getf state :output-printed))))))))))
             :postprocess-value
             (lambda (form state)
               (append (list 'a-out form)
                       (append (list :print-precision 'print-precision)
-                              (if (getf state :print) (list :print-to 'output-stream))
-                              (if (getf state :output-printed)
-                                  (list :output-printed (getf state :output-printed))))))
+                              (when (getf state :print) (list :print-to 'output-stream))
+                              (when (getf state :output-printed)
+                                (list :output-printed (getf state :output-printed))))))
             :process-stored-symbol
             (lambda (symbol space is-function)
-              (if is-function (progn (if (and (boundp (intern symbol space))
-                                              (not (fboundp (intern symbol space))))
-                                         (makunbound (intern symbol space)))
+              (if is-function (progn (when (and (boundp (intern symbol space))
+                                                (not (fboundp (intern symbol space))))
+                                       (makunbound (intern symbol space)))
                                      (setf (symbol-function (intern symbol space))
                                            #'dummy-nargument-function))
-                  (progn (if (fboundp (intern symbol space))
-                             (fmakunbound (intern symbol space)))
-                         (if (not (boundp (intern symbol space)))
-                             (progn (proclaim (list 'special (intern symbol space)))
-                                    (set (intern symbol space) nil))))))
+                  (progn (when (fboundp (intern symbol space))
+                           (fmakunbound (intern symbol space)))
+                         (when (not (boundp (intern symbol space)))
+                           (proclaim (list 'special (intern symbol space)))
+                           (set (intern symbol space) nil)))))
             :build-variable-declarations #'build-variable-declarations
             :build-compiled-code #'build-compiled-code
             :assign-val-sym 'ws-assign-val :assign-fun-sym 'ws-assign-fun)
@@ -1692,6 +1700,8 @@
        "{[a;b;c;d](a-c)×b/d}[7;4;2;⍳3]" #(5 5 5 5 10 10 10 10 15 15 15 15))
   (for "Inline function containing lateral composition." "2 {⍺/¨⍵} 22 33" #(#(22 22) #(33 33)))
   (for "Function using default [⍺ left argument] assignment." "{⍺←3 ⋄ ⍵×⍺} 10" 30)
+  (for "String operation involving mixed quoted and unquoted parentheses."
+       "('(','asdf')⍳'('" 1)
   (for "Variable-referenced values, including an element within an array, in a vector."
        "a←9 ⋄ b←2 3 4⍴⍳9 ⋄ 1 2 a 3 (b[1;2;1])" #(1 2 9 3 5))
   (for "Index of inline vector." "5 6 7 8[2]" 6)
