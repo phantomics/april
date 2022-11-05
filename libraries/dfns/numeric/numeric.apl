@@ -1,6 +1,11 @@
 ⍝⍝ Ported from http://dfns.dyalog.com/n_contents.htm into April APL
 
 
+⍝⍝ External dependencies
+
+path ← 'GRAPH-LIB-SPACE' ⎕XWF 'path'
+
+
 ⍝⍝ Whole number processing
 
 ⍝ From http://dfns.dyalog.com/c_adic.htm
@@ -190,23 +195,6 @@ roman ← {                                    ⍝ Roman numeral arithmetic.
 
   ⍬≡⍺←⍬:fmts ⍺⍺ ⌊nums ⍵                      ⍝ monadic operand function.
   fmts(⌊nums ⍺)⍺⍺ ⌊nums ⍵                    ⍝ dyadic operand function.
-}
-
-⍝ From http://dfns.dyalog.com/n_path.htm
-
-path ← {                                     ⍝ Shortest path from/to ⍵ in graph ⍺.
-  graph(fm tto)←⍺ ⍵                          ⍝ graph and entry/exit vertex vectors
-  fm{                                        ⍝ fm is the starting-from vertex
-    ⍺≡⍬:⍬                                    ⍝ no vertices left: no path
-    ∨/tto∊⍺:⍬(⊃∘⍵){                          ⍝ found target: path from tree:
-      ⍵<0:⍺                                  ⍝ root: finished
-      (⍵,⍺)∇ ⍺⍺ ⍵                            ⍝ accumulated path to next vertex
-    }1↑⍺∩tto                                 ⍝ found vertex ⍺
-    next←graph[⍺]∩¨⊂⍸⍵=¯2                    ⍝ next vertices to visit
-    back←⊃,/⍺+0×next                         ⍝ back links
-    wave←⊃,/next                             ⍝ vertex wave front
-    (∪wave)∇ back@wave⊢⍵                     ⍝ advanced wave front
-  }¯2+(⍳⍴⍺)∊fm                               ⍝ null spanning tree
 }
 
 ⍝ From http://dfns.dyalog.com/c_stamps.htm
@@ -410,7 +398,7 @@ phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation 
 
 ⍝ From http://dfns.dyalog.com/s_phinary.htm
 
-align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨  
+align←⌽∘↑⍨∘(-∘(⌈/)⍨∘('.'∘(⍳¨⍨)))⍨
 
 ⍝ From http://dfns.dyalog.com/c_root.htm
 
