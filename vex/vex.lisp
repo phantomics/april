@@ -576,13 +576,13 @@
                    ;; the string-found variable is set to true
                    ;; TODO: is there a better way to do this?
                    (when (or (not (char= delimiter (aref content (1- (length content)))))
-                           (and escape-indices (= (first escape-indices)
-                                                  (- (length content) 2))))
-                       (error "Syntax error: unbalanced quotes."))
-                   (if escape-indices (let* ((offset 0)
-                                             (outstr (make-array (list (- (length content)
-                                                                          1 (length escape-indices)))
-                                                                 :element-type 'character)))
+                             (and escape-indices (= (first escape-indices)
+                                                    (- (length content) 2))))
+                     (error "Syntax error: unbalanced quotes."))
+                   (if escape-indices (let ((offset 0)
+                                            (outstr (make-array (list (- (length content)
+                                                                         1 (length escape-indices)))
+                                                                :element-type 'character)))
                                         (loop :for x :below (1- (length content))
                                            :when (member x escape-indices) :do (incf offset)
                                            :when (not (member x escape-indices))
@@ -612,6 +612,8 @@
                             (=transform (=subseq
                                          (%some (?satisfies
                                                  (lambda (char)
+                                                   ;; have to do the zerop check to avoid the double-
+                                                   ;; iteration mentioned above
                                                    (when (and (not (zerop char-index))
                                                               (char= char quote-delimiter))
                                                      (setf quoted (not quoted)))
