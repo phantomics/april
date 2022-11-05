@@ -575,8 +575,10 @@
                    (setq string-found t)
                    ;; the string-found variable is set to true
                    ;; TODO: is there a better way to do this?
-                   (when (not (char= delimiter (aref content (1- (length content)))))
-                     (error "Syntax error: unbalanced quotes."))
+                   (when (or (not (char= delimiter (aref content (1- (length content)))))
+                           (and escape-indices (= (first escape-indices)
+                                                  (- (length content) 2))))
+                       (error "Syntax error: unbalanced quotes."))
                    (if escape-indices (let* ((offset 0)
                                              (outstr (make-array (list (- (length content)
                                                                           1 (length escape-indices)))
