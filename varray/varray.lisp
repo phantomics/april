@@ -1361,11 +1361,10 @@
                                        (rank-of (vader-base varray)))
                                     (loop :for i :in indices :for id :in idims
                                           :when (not i) :collect id
-                                            :when (and (shape-of i)
-                                                       (< 1 (size-of i)))
+                                            :when (and (shape-of i) (< 1 (size-of i)))
                                               :collect (size-of i))
-                                    (if (= 1 (length indices))
-                                        (shape-of (first indices)))))))
+                                    (when (= 1 (length indices))
+                                      (shape-of (first indices)))))))
           (s 0) (sdims (when set (shape-of set))))
      ;; (print (list :ss sdims assign-shape set (render set) indices idims))
      (if (not indices)
