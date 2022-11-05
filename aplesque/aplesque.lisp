@@ -86,12 +86,21 @@
                                :element-type (element-type object) :displaced-to (copy-array displaced-to)))
                  (copy-array object))))
 
-(defun get-dimensional-factors (dimensions)
+(defun get-dimensional-factors (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."
   (let ((factor) (last-index))
-    (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
-                :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
-                :do (setq last-index d)))))
+    (if as-vector
+        (let* ((rank (length dimensions))
+               (output (make-array rank :element-type
+                                   (list 'integer 0 (reduce #'* (rest dimensions))))))
+          (loop :for d :in (reverse dimensions) :for dx :from 0
+                :do (setf factor (setf (aref output (- rank dx 1))
+                                       (if (zerop dx) 1 (* factor last-index)))
+                          last-index d))
+          output)
+        (reverse (loop :for d :in (reverse dimensions) :for dx :from 0
+                       :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
+                       :do (setq last-index d))))))
 
 (defun rmi-from-subscript-vector (array subscripts &optional offset)
   "Derive an array's row-major index from a vector of subscripts."
@@ -215,6 +224,23 @@
                                    (recurse (1+ n))))))
           (recurse 0)))))
 
+(defun make-empty-array (array)
+  "Makes a prototype version of an array." ;; IPV-TODO: replace the below function with this?
+  (if (not (arrayp array))
+      (if (typep array 'character)
+          #\Space (if (typep array 'double-float)
+                      0.0d0 0))
+      (let* ((output-type (element-type array))
+             (output (make-array (dims array) :element-type output-type)))
+        (dotimes (i (size output))
+          (setf (row-major-aref output i)
+                (if (not (arrayp (row-major-aref array i)))
+                    (if (member output-type '(character base-char))
+                        #\Space (if (eql 'double-float output-type)
+                                    0.0d0 0))
+                    (make-empty-array (row-major-aref array i)))))
+        output)))
+
 (defun apl-array-prototype (array)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   (labels ((derive-element (input)
@@ -227,7 +253,7 @@
                                'null (coerce 0 (if (eql 'ratio itype) 'integer
                                                    (if (not (and (listp itype) (eql 'integer (first itype))))
                                                        itype (list 'integer (min 0 (second itype))
-                                                                   (max 0 (third itype))))))))
+                                                                   (max 0 (or (third itype) 0))))))))
                          (if (zerop (size input))
                              (make-array (dims input))
                              (derive-element (row-major-aref input 0)))))))
@@ -469,6 +495,7 @@
                                            (across highrank (lambda (elem coords)
                                                               (loop :for a :across axes :for ax :from 0
                                                                     :do (setf (nth ax lrc) (nth a coords)))
+                                                              ;;(print (list :co coords lrc))
                                                               (setf (apply #'aref output coords)
                                                                     (nest (if omega-lower
                                                                               (funcall function elem
@@ -703,7 +730,7 @@
                                                            :element-type (element-type input)
                                                            :initial-element (if (not populator)
                                                                                 (apl-array-prototype input)))))
-                                   (if populator (xdotimes output (i (length output))
+                                   (if populator (xdotimes output (i (size output))
                                                    (setf (row-major-aref output i) (funcall populator))))
                                    output))))))
                (if (or (integerp degrees) (= 1 (length degrees)))
@@ -713,7 +740,7 @@
                                              :element-type (element-type input)
                                              :initial-element (if (not populator)
                                                                   (apl-array-prototype input)))))
-                     (if populator (xdotimes output (i (length output))
+                     (if populator (xdotimes output (i (size output))
                                      (setf (row-major-aref output i) (funcall populator))))
                      output)
                    (if (and (loop :for d :across degrees :always (zerop d))
@@ -724,7 +751,7 @@
                                                  :element-type (element-type input)
                                                  :initial-element (if (not populator)
                                                                       (apl-array-prototype input)))))
-                         (if populator (xdotimes output (i (length output))
+                         (if populator (xdotimes output (i (size output))
                                          (setf (row-major-aref output i) (funcall populator))))
                          output)
                        (error "An empty array can only be expanded to a single negative degree ~a"
@@ -792,7 +819,7 @@
              (loop :for degree :across degrees :for dx :from 0
                 :summing (max (abs degree) (if compress-mode 0 1))
                 :into this-dim :do (setf (aref c-degrees dx) this-dim)
-                :finally (setq ex-dim this-dim))
+                   :finally (setq ex-dim this-dim))
              (let ((output (make-array (loop :for dim :in (or (dims input) '(1)) :for index :from 0
                                           :collect (if (= index axis) ex-dim dim))
                                        :element-type (if (arrayp input)
@@ -842,32 +869,34 @@
 
 (defun partitioned-enclose (positions input axis)
   "Enclose parts of an input array partitioned according to the 'positions' argument."
-  (let* ((intervals) (offset 0) (input-offset 0)
+  (let* ((intervals (list 0)) (input-offset 0)
          (input (enclose-atom input)) (positions (enclose-atom positions))
          (idims (dims input)) (axis-size (nth axis idims)))
-    (declare (dynamic-extent intervals offset input-offset axis-size))
+    (declare (dynamic-extent intervals input-offset axis-size))
     ;; a scalar position argument is extended to the length of the input's first dimension
     (dotimes (i (if (is-unitary positions) (first (last idims))
                     (length positions)))
       (let ((p (if (is-unitary positions) (get-first-or-disclose positions)
                    (aref positions i))))
-        (if (zerop p) (progn (if intervals (incf (first intervals)) (incf offset))
-                           (incf input-offset))
+        (if (zerop p) (progn (incf (first intervals))
+                             (incf input-offset))
             (progn (setq intervals (append (loop :for i :below p :collect 0) intervals))
                    (if (> axis-size input-offset)
                        (progn (incf input-offset)
                               (if (first intervals) (incf (first intervals)))))))))
-    (if (first intervals)
+    (if (second intervals)
         (if (>= axis-size input-offset)
             (incf (first intervals) (- axis-size input-offset))
             (error "Size of partitions exceeds size of input array on axis ~w." axis)))
 
-    (let* ((input-offset 0) (intervals (reverse intervals))
+    (let* ((intervals (reverse intervals))
+           (each-offset (coerce (loop :for i :in intervals :summing i :into s :collect s)
+                                'vector))
            (last-indim (first (last (dims input))))
            (section-size (reduce #'* (loop :for d :in (dims input) :for dx :from 0
-                                        :when (> dx axis) :collect d)))
-           (output (make-array (length intervals)
-                               :initial-contents (loop :for intv :in intervals
+                                           :when (> dx axis) :collect d)))
+           (output (make-array (1- (length intervals))
+                               :initial-contents (loop :for intv :in (rest intervals)
                                                     :collect (make-array
                                                               (loop :for dim :in idims :for dx :from 0
                                                                  :collect (if (= dx axis) intv dim))
@@ -876,15 +905,18 @@
       (dotimes (oix (size output))
         (let* ((item (aref output oix))
                (last-idim (first (last (dims item))))
+               (input-offset (aref each-offset oix))
                (iseg (if (< 1 section-size) section-size (nth axis (dims input)))))
           (dotimes (i (size item))
+            ;; (print (list :i i section-size (size item) iseg last-idim input-offset))
             (let ((oseg (floor i iseg)) (ivix (mod i iseg)))
+              ;; (print (list :ea oix (aref each-offset oix)))
+              ;; (print (list :oos oseg ivix))
               (setf (row-major-aref item i)
                     (row-major-aref input (if (= 1 section-size)
-                                              (+ offset input-offset (mod i last-idim)
+                                              (+ input-offset (mod i last-idim)
                                                  (* last-indim (floor i last-idim)))
-                                              (+ ivix (* iseg (+ offset input-offset oseg))))))))
-          (incf input-offset (nth axis (dims item)))))
+                                              (+ ivix (* iseg (+ input-offset oseg))))))))))
       output)))
 
 (defun partition-array (positions input axis)
@@ -928,6 +960,9 @@
         (loop :for rint :in r-intervals :for rind :in r-indices :when (not (zerop rint))
            :do (push rint intervals)
                (push rind indices))
+
+        (print (list :rrr intervals indices))
+        
         (let* ((out-dims (loop :for dim :in idims :for dx :below arank
                             :collect (if (= dx axis) partitions dim)))
                (output (make-array out-dims))
@@ -1170,35 +1205,36 @@
 
 (defun grade (input count-from compare-by)
   "Grade an array, using vector grading if 1-dimensional or decomposing the array into vectors and comparing those if multidimensional."
-  (if (not (arrayp input))
-      count-from
-      (if (is-unitary input)
-          (make-array (dims input) :element-type (list 'integer 0 count-from) :initial-element count-from)
-          (let* ((input (if (= 1 (rank input))
-                            input (aops:split input 1)))
-                 (input-length (length input))
-                 (vector (make-array input-length))
-                 (graded-array (make-array input-length
-                                           :element-type (list 'integer 0 input-length))))
-            (xdotimes graded-array (i input-length) (setf (aref graded-array i) (+ i count-from)))
-            (xdotimes vector (i (length vector))
-              (setf (aref vector i) (if (and (arrayp (aref input i))
-                                             (< 1 (rank (aref input i))))
-                                        (grade (aref input i)
-                                               count-from compare-by)
-                                        (aref input i))))
-            (stable-sort graded-array (lambda (1st 2nd)
-                                        (let ((val1 (aref vector (- 1st count-from)))
-                                              (val2 (aref vector (- 2nd count-from))))
-                                          (cond ((not (arrayp val1))
-                                                 (if (arrayp val2)
-                                                     (funcall compare-by val1 (aref val2 0))
-                                                     (let ((output (funcall compare-by val1 val2)))
-                                                       (and output (not (eq :equal output))))))
-                                                ((not (arrayp val2))
-                                                 (funcall compare-by (aref val1 0) val2))
-                                                (t (vector-grade compare-by val1 val2))))))
-            graded-array))))
+  (if (or (is-unitary input)
+          (not (arrayp input)))
+      (make-array 1 :element-type (list 'integer 0 count-from) :initial-element count-from)
+      (let* ((input (if (= 1 (rank input))
+                        input (aops:split input 1)))
+             (input-length (length input))
+             (vector (make-array input-length))
+             (graded-array (make-array input-length
+                                       :element-type (list 'integer 0 input-length))))
+        ;; (xdotimes graded-array (i input-length) (setf (aref graded-array i) (+ i count-from)))
+        (dotimes (i input-length) (setf (aref graded-array i) (+ i count-from)))
+        ;; (xdotimes vector (i (length vector))
+        (dotimes (i (length vector))
+          (setf (aref vector i) (if (and (arrayp (aref input i))
+                                         (< 1 (rank (aref input i))))
+                                    (grade (aref input i)
+                                           count-from compare-by)
+                                    (aref input i))))
+        (stable-sort graded-array (lambda (1st 2nd)
+                                    (let ((val1 (aref vector (- 1st count-from)))
+                                          (val2 (aref vector (- 2nd count-from))))
+                                      (cond ((not (arrayp val1))
+                                             (if (arrayp val2)
+                                                 (funcall compare-by val1 (aref val2 0))
+                                                 (let ((output (funcall compare-by val1 val2)))
+                                                   (and output (not (eq :equal output))))))
+                                            ((not (arrayp val2))
+                                             (funcall compare-by (aref val1 0) val2))
+                                            (t (vector-grade compare-by val1 val2))))))
+        graded-array)))
 
 (defun array-grade (compare-by input)
   "Grade an array."
@@ -1366,7 +1402,7 @@
                  (axes-to-indices (rest ic) (rest idims) out-vector (rest if)
                                   (+ start (* fif  (row-major-aref fic i))))))))))
 
-(defun choose (input indices &key set set-by set-nil reference modify-input               )
+(defun choose (input indices &key set set-by set-nil reference modify-input)
   "Select indices from an array and return them in an array shaped according to the requested indices, with the option to elide indices and perform an operation on the values at the indices instead of just fetching them and return the entire altered array."
   (let* ((empty-output) (idims (dims input)) (sdims (if set (dims set)))
          ;; contents removed from 1-size arrays in the indices
@@ -1452,6 +1488,7 @@
          (set-by (or set-by (if set (lambda (a b) (declare (ignore a)) b)))))
     ;; if multiple axes have been passed, populate the vector of row-major indices
     (if naxes (axes-to-indices indices idims rmindices))
+    ;; (print (list :rr index-vector indices rmindices))
     (if empty-output output
         (if (or set set-by set-nil)
             (let ((pindices (if (and output indices) (make-array (size input) :initial-element 0))))
@@ -1499,13 +1536,15 @@
                         (setf (row-major-aref output i)
                               (apply set-by (row-major-aref input i)
                                      (and set (list set)))))
-                      (xdotimes output (i (size input))
+                      ;; (xdotimes output (i (size input))
+                      (dotimes (i (size input))
                         ;; if there are no indices the set-by function is to
                         ;; be run on all elements of the array
                         (setf (row-major-aref output i)
                               (apply set-by (row-major-aref input i)
                                      (and set (list set)))))))
-              (if pindices (progn (xdotimes output (i (size input))
+              (if pindices (progn ;; (xdotimes output (i (size input))
+                                  (dotimes (i (size input))
                                     (if (zerop (aref pindices i))
                                         (setf (row-major-aref output i)
                                               (row-major-aref input i))))
@@ -1521,7 +1560,8 @@
                                                                  :displaced-to input
                                                                  :displaced-index-offset index)))
                                  (enclose (duplicate (row-major-aref input (row-major-aref rmindices 0)))))
-                (progn (xdotimes output (o (length rmindices))
+                (progn ;; (xdotimes output (o (length rmindices))
+                       (dotimes (o (length rmindices))
                          (let ((i (aref rmindices o)))
                            (setf (row-major-aref output o)
                                  (if (integerp i)
@@ -1690,22 +1730,27 @@
         (xdotimes output (o (size output))
           (setf (row-major-aref output o) (make-array axis-dim :element-type (element-type input))))
 
-        (xdotimes output (o (size output))
-          ;; TODO: write case for parallelizing inner process in case lines are long and the
-          ;; containing output array is small
-          (symbol-macrolet ((output-element (row-major-aref output o)))
-            (dotimes (i (size (row-major-aref output o)))
-              (let ((iindex 0) (remaining o))
-                (loop :for ofactor :across output-factors :for ix :from 0
-                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                         (if (= ix axis)
-                             (incf iindex (* i (aref input-factors axis))))
-                         (incf iindex (* index (aref input-factors (+ ix (if (< ix axis) 0 1)))))
-                         (setq remaining remainder)))
-                (if (= axis (rank output)) (incf iindex i))
+        (let ((indexer (indexer-split axis (rank output) input-factors output-factors)))
+          (xdotimes output (o (size output))
+            ;; TODO: write case for parallelizing inner process in case lines are long and the
+            ;; containing output array is small
+            (symbol-macrolet ((output-element (row-major-aref output o)))
+              (dotimes (i (size (row-major-aref output o)))
+                ;; (let ((iindex 0) (remaining o))
+                ;;   (loop :for ofactor :across output-factors :for ix :from 0
+                ;;         :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                ;;               (if (= ix axis)
+                ;;                   (incf iindex (* i (aref input-factors axis))))
+                ;;               (incf iindex (* index (aref input-factors (+ ix (if (< ix axis) 0 1)))))
+                ;;               (setq remaining remainder)))
+                ;;   (if (= axis (rank output)) (incf iindex i))
+                ;;   (setf (row-major-aref output-element i)
+                ;;         (row-major-aref input iindex)))
                 (setf (row-major-aref output-element i)
-                      (row-major-aref input iindex))))))
-        output)))
+                      (row-major-aref input (funcall indexer o i)))
+
+                )))
+          output))))
 
 (defun ravel (count-from input &optional axes)
   "Produce a vector from the elements of a multidimensional array."
@@ -1796,9 +1841,9 @@
           ((= (length axes) (rank input))
            ;; if the number of axes is the same as the input's rank, just pass it back
            input)
-          (t (let* ((outer-dims) (inner-dims)
-                    (input-dims (dims input))
-                    (axis-list (array-to-list axes)))
+          (t (let ((outer-dims) (inner-dims)
+                   (input-dims (dims input))
+                   (axis-list (array-to-list axes)))
                ;; otherwise, start by separating the dimensions of the original array into sets of dimensions
                ;; for the output array and each of its enclosed arrays
                (dotimes (axis (rank input))
@@ -1820,7 +1865,7 @@
                  ;; of coordinates to set each value in the nested output arrays to the corresponding values in
                  ;; the original array
                  (ydotimes (row-major-aref output 0) (i (size input))
-                   (let* ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
+                   (let ((rest i) (inner-index 0) (inner-dx 0) (outer-index 0) (outer-dx 0))
                      (loop :for f :in infactors :for fx :from 0
                         :do (multiple-value-bind (factor remaining) (floor rest f)
                               (setq rest remaining)
@@ -2009,6 +2054,24 @@
     det ;; return determinant
     out-matrix))
 
+(defun left-invert-matrix (in-matrix)
+  "Perform left inversion of matrix. Used to implement [⌹ matrix inverse]."
+  (let* ((input (if (= 2 (rank in-matrix))
+                    in-matrix (make-array (list (length in-matrix) 1))))
+         (input-displaced (if (/= 2 (rank in-matrix))
+                              (make-array (list 1 (length in-matrix)) :element-type (element-type input)
+                                          :displaced-to input))))
+    (if input-displaced (xdotimes input (i (length in-matrix)) (setf (row-major-aref input i)
+                                                                     (aref in-matrix i))))
+    (let ((result (array-inner-product (invert-matrix (array-inner-product (or input-displaced
+                                                                               (permute-axes input #(1 0)))
+                                                                           input #'* #'+ t))
+                                       (or input-displaced (permute-axes input #(1 0)))
+                                       #'* #'+ t)))
+      (if (= 1 (rank in-matrix))
+          (make-array (size result) :element-type (element-type result) :displaced-to result)
+          result))))
+
 (defun reduce-array (input function axis threaded &optional last-axis window)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
   (if (zerop (rank input))
@@ -2031,14 +2094,14 @@
                           (row-major-aref input i)))
                   (dotimes (i (size output))
                     (declare (optimize (safety 1)))
-                    (let ((value))
+                    (let ((value)
+                          (increment-diff (- (* increment rlen) increment)))
                       (flet ((process-item (ix)
                                (let ((item (row-major-aref
                                             input (+ (* ix increment)
                                                      (if window (* rlen (floor i wsegment))
                                                          (if (= 1 increment)
-                                                             0 (* (floor i increment)
-                                                                  (- (* increment rlen) increment))))
+                                                             0 (* increment-diff (floor i increment))))
                                                      (if (/= 1 increment) i
                                                          (if window (if (>= 1 (rank input))
                                                                         i (mod i wsegment))
@@ -2046,6 +2109,7 @@
                                  (setq value (if (not value) item (funcall function value item))))))
                         (if window-reversed (loop :for ix :below window :do (process-item ix))
                             (loop :for ix :from (1- (or window rlen)) :downto 0 :do (process-item ix))))
+                      ;; (print (list :vl value (type-of output)))
                       (setf (row-major-aref output i) value))))
               (if (not (and (arrayp output)
                             (zerop (rank output))
@@ -2061,7 +2125,8 @@
                                             "must equal the first dimension of the right array.")))
          (osize (size omega)) (ovectors (reduce #'* (rest odims)))
          (output (make-array (append (butlast adims) (rest odims)))))
-    (xdotimes output (x (size output) :synchronous-if (not threaded))
+    ;; (xdotimes output (x (size output) :synchronous-if (not threaded))
+    (dotimes (x (size output))
       (let* ((avix (floor x ovectors))
              (ovix (mod x ovectors))
              (oholder (if odims (if (and (= osegment osize) (= 1 (rank omega)))
@@ -2085,7 +2150,8 @@
          (oscalar (if (zerop (rank omega)) (disclose omega)))
          (osize (size omega)) (adims (dims alpha)) (odims (dims omega))
          (output (make-array (append adims odims))))
-    (xdotimes output (i (size output) :synchronous-if (not threaded))
+    ;; (xdotimes output (i (size output) :synchronous-if (not threaded))
+    (dotimes (i (size output))
       (setf (row-major-aref output i)
             (funcall function (or oscalar (disclose (row-major-aref omega (mod i osize))))
                      (or ascalar (disclose (row-major-aref alpha (floor i osize)))))))
@@ -2121,6 +2187,7 @@
          (out-factors (make-array wrank :element-type 'fixnum :initial-element 0))
          (win-factors (make-array wrank :element-type 'fixnum :initial-element 0))
          (output (make-array output-dims))
+         (prototype (apl-array-prototype input))
          (last-dim))
     
     ;; generate dimensional factors vector for window dimensions
@@ -2172,8 +2239,7 @@
                            (setq rmi (+ rmi (* this-index if)))
                            (setq valid nil)))))
             (setf (row-major-aref window w)
-                  (if (not valid)
-                      (apl-array-prototype input)
+                  (if (not valid) prototype
                       (row-major-aref input rmi)))))
         (setf (row-major-aref output o)
               (funcall process window acoords))))

@@ -131,7 +131,9 @@
                     (eq :symbol (first (getf properties :type)))))
            ;; store variable references; needed to assess presence of lexical variable references that
            ;; interfere with multithreading of functions
-           (if (and (not is-arg-symbol) (getf (getf properties :special) :closure-meta))
+           (if (and (not is-arg-symbol) (getf (getf properties :special) :closure-meta)
+                    (not (member this-item (getf (rest (getf (getf properties :special) :closure-meta))
+                                                 :var-refs))))
                (push this-item (getf (rest (getf (getf properties :special) :closure-meta)) :var-refs)))
            (if (not (member (intern (string-upcase this-item) *package-name-string*)
                             (rest (assoc :function (idiom-symbols *april-idiom*)))))
@@ -189,7 +191,7 @@
                                       fn :space space
                                       :params (list :special (list :closure-meta (second this-item))
                                                     :call-scope (getf properties :call-scope)))
-                                     polyadic-args (rest this-closure-meta)))))))))
+                                     space polyadic-args (rest this-closure-meta)))))))))
             (if (eq :pt (first this-item))
                 (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                                :ns-point)
@@ -277,7 +279,7 @@
                                                     :params (list :special
                                                                   (list :closure-meta (second this-item))
                                                                   :call-scope (getf properties :call-scope)))
-                                   nil (rest this-closure-meta)))))))
+                                   space nil (rest this-closure-meta)))))))
       (if (symbolp this-item)
           ;; if the operator is represented by a symbol, it is a user-defined operator
           ;; and the appropriate variable name should be verified in the workspace
@@ -580,12 +582,14 @@
   (multiple-value-bind (function rest)
       ;; don't try function pattern matching if a function is already confirmed
       ;; or if the :ignore-patterns option is set in the params
-      (if (or found-function from-pivotal (getf params :ignore-patterns)) (values nil nil)
-          (match-function-patterns tokens axes space params))
+      ;; (if (or found-function from-pivotal (getf params :ignore-patterns)) (values nil nil)
+      ;;     (match-function-patterns tokens axes space params))
+      (values nil nil)
     (if function (values function rest)
         (build-function-core tokens :axes axes :found-function found-function
                                     :initial initial :space space :params params))))
 
+;; TODO!!: There is another function of the same name in grammar.lisp
 (defun build-call-form (glyph-char &optional args axes)
   "Format a function to be called within generated APL code."
   (if (not (characterp glyph-char))
@@ -604,8 +608,8 @@
                 (getf fn-meta :implicit-args)
                 (if (and axes (or (getf fn-meta :axes)
                                   (eq :dyadic args)))
-                    (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
-                              (cons 'list (first axes)))))))))
+                    (list (if is-scalar `(apply-scalar #'- (render-varrays ,(caar axes)) index-origin)
+                              (cons 'list (list (cons 'render-varrays (first axes)))))))))))
 
 (defun build-function-core (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
@@ -1051,19 +1055,29 @@
                        (error "Invalid assignment to ⎕OST.")))
                  (error "Invalid assignment to ⎕OST."))))
         ((and (listp symbol) (eql 'achoose (first symbol)))
-         ;; compose indexed assignments like x[;1 2 3]←5
+         ;; compose indexed assignments like x[;1 2 3]←5 ;; TO-DELETE once lazy impl finished
          (let ((val (gensym)) (var-sym (second symbol))
                (out1 (gensym)) (out2 (gensym)))
            (if (and (listp var-sym) (eql 'nspath (first var-sym)))
                `(a-set ,var-sym ,value
                        ,@(if (third symbol) (list :axes (list (rest (third (third symbol)))))))
-               `(let ((,val ,value))
+               `(let ((,val (render-varrays ,value)))
                   (multiple-value-bind (,out1 ,out2)
                       ,(append symbol (list :set val :modify-input t)
                                (if function `(:set-by (lambda (item item2)
-                                                        (a-call ,function item item2)))))
+                                                        (render-varrays
+                                                         (a-call ,function item item2))))))
                     (if ,out2 (setf ,var-sym ,out2))
                     ,out1)))))
+        ((and (listp symbol) (eql 'make-virtual (first symbol))
+              (listp (getf (cddr symbol) :base))
+              (eql 'nspath (first (getf (cddr symbol) :base))))
+         ;; compose indexed namespace assignments like myns.aa.bb[2 4]←⎕NS⍬
+         (let ((val (gensym)) (var-sym (getf (cddr symbol) :base))
+               (out1 (gensym)) (out2 (gensym)))
+           `(a-set ,var-sym ,value
+                   ,@(if (getf (cddr symbol) :argument)
+                         (list :axes (getf (cddr symbol) :argument))))))
         ((and (listp symbol) (eql 'a-call (first symbol)))
          ;; compose selective assignments like (3↑x)←5
          (let* ((selection-form symbol)
@@ -1074,44 +1088,89 @@
                                                      (and (listp prime-function)
                                                           (member (first prime-function) '(inws inwsd)))
                                                      (equalp prime-function '(apl-fn '⊢)))))
-                (selection-axes) (assign-sym)
+                (selection-axes) (assign-sym) (inverted-fn)
                 (item (gensym)))
            (labels ((set-assn-sym (form)
                       ;; get the symbol referencing the object to be reassigned,
                       ;; and fetch axes as well if present
                       (if (and (listp (third form))
                                (member (first (third form)) '(inws inwsd)))
-                          (progn (setf assign-sym (third form))
-                                 (setf (third form) item))
+                          (setf assign-sym (third form))
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
-                              (set-assn-sym (third form))
-                              (if (and (listp (third form))
+                              (set-assn-sym (third form))   ;; TODO: remove non-lazy logic here
+                              (if (and (listp (third form)) ;; once lazy impl is complete
                                        (eql 'achoose (first (third form))))
-                                  (progn (setf assign-sym (second (third form)))
-                                         (setf selection-axes (third (third form)))
-                                         (setf (third form) item)))))))
+                                  (setf assign-sym (second (third form))
+                                        selection-axes (third (third form)))
+                                  (if (and (listp (third form))
+                                           (eql 'make-virtual (first (third form))))
+                                      (setf assign-sym (getf (cddr (third form)) :base)
+                                            selection-axes
+                                            `(mapcar
+                                              (lambda (array)
+                                                (if array
+                                                    (apply-scalar #'- (render-varrays array)
+                                                                  index-origin)))
+                                              ,(getf (cddr (third form)) :argument))))))))
+                    (reverse-asel-function (form &optional (wrap #'identity))
+                      ;; (print (list :ff form))
+                      (if (and (listp form) (eql 'a-call (first form)))
+                          ;; TODO: functions cannot be IDed in cases like
+                          ;; {e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9 where a function is locally aliased
+                          (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
+                            ;(print (list :abc form params))
+                            (let* ((in-sym (if (listp function-form)
+                                               (find-symbol (format nil "APRIL-LEX-FN-~a"
+                                                                    (second function-form)))))
+                                   (fn-sym (if (fboundp in-sym)
+                                               (symbol-function in-sym)
+                                               (if (and (listp function-form)
+                                                        (member (first function-form)
+                                                                '(inws inwsd)))
+                                                   (let ((sym (find-symbol
+                                                               (string (second function-form))
+                                                               space)))
+                                                     ;; (print sym)
+                                                     (if (fboundp sym)
+                                                         (symbol-function sym))))))
+                                   (fn-meta (if fn-sym
+                                                (apply (apply fn-sym (cddr function-form))
+                                                       (cons :get-metadata
+                                                             (when arg2-rest (list nil)))))))
+                              (if (not (and fn-meta (getf fn-meta :lexical-reference)
+                                            (position (getf fn-meta :lexical-reference)
+                                                      "⊃⌷" :test #'char=))) ; ↑ ↓ / \\
+                                  (reverse-asel-function
+                                   arg1 (lambda (item)
+                                          (funcall wrap (append (list 'a-call function-form item)
+                                                                arg2-rest))))
+                                  (reverse-asel-function
+                                   arg1 (lambda (item)
+                                          (append (list 'a-call function-form (funcall wrap item))
+                                                  arg2-rest))))))
+                          ;; TODO: add argument-isolating form here for full lazy mode
+                          (funcall wrap (list 'identity form)))))
+             
              (set-assn-sym selection-form)
-             `(aprgn (a-set ,assign-sym
-                            (assign-by-selection
-                             ,(if (or (symbolp prime-function)
-                                      (and (listp prime-function)
-                                           (member (first prime-function) '(inws apl-fn function))))
-                                  ;; TODO: make this work with an aliased ¨ operator
-                                  prime-function
-                                  (if (eql 'a-comp (first prime-function))
-                                      (if (string= "¨" (string (second prime-function)))
-                                          (fourth prime-function)
-                                          (error "Invalid operator-composed expression ~a"
-                                                 "used for selective assignment."))))
-                             (lambda (,item) ,selection-form)
-                             ,value ,assign-sym
-                             :assign-sym (if (string= ,space (package-name (symbol-package ',assign-sym)))
-                                             ',assign-sym)
-                             ,@(if selection-axes (list :axes selection-axes))
-                             ,@(if possible-prime-passthrough (list :secondary-prime-fn
-                                                                    (second (third selection-form))))
-                             ,@(if function (list :by function))))
+             (setf selection-form (subst item assign-sym selection-form :test #'equalp))
+
+             `(aprgn (setf ,assign-sym
+                           (assign-by-selection
+                            ,(if (or (symbolp prime-function)
+                                     (and (listp prime-function)
+                                          (member (first prime-function) '(inws apl-fn function))))
+                                 ;; TODO: make this work with an aliased ¨ operator
+                                 prime-function
+                                 (if (eql 'a-comp (first prime-function))
+                                     (if (string= "¨" (string (second prime-function)))
+                                         (fourth prime-function)
+                                         (error "Invalid operator-composed expression ~a"
+                                                "used for selective assignment."))
+                                     #'identity))
+                            (lambda (,item) ,selection-form)
+                            ,value ,assign-sym
+                            :index-origin index-origin))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
@@ -1175,7 +1234,8 @@
                           (if (and function (not xfns-assigned))
                               (if (listp syms) ;; handle namespace paths
                                   `(a-set ,symbol ,value :by (lambda (item item2)
-                                                               (a-call ,function item item2)))
+                                                               (render-varrays
+                                                                (a-call ,function item item2))))
                                   ;; handle assignment by function as with a+←10;
                                   ;; note that this reassigns the variable at its top scope level
                                   (let ((assigned (gensym)))
@@ -1263,7 +1323,8 @@
          (with (:meta :side-effects ',(getf (rest train-meta) :side-effects)
                       ,@(if (getf (rest train-meta) :symfns-called)
                             (list :symfns-called
-                                  (list 'quote (getf (rest train-meta) :symfns-called))))))
+                                  (list 'quote (getf (rest train-meta) :symfns-called)))))
+               (:sys-vars index-origin))
        (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
                           ,@(if left-value (list left-value)
                                 (if left `((a-call ,left ,omega ,alpha)))))

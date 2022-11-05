@@ -38,7 +38,7 @@
 (defmethod set-system-meta ((idiom idiom) &rest pairs)
   "Set a property of the idiom's system."
   (loop :for (key value) :on pairs :by #'cddr
-     :do (setf (getf (idiom-system idiom) key) value)))
+        :do (setf (getf (idiom-system idiom) key) value)))
 
 (defgeneric of-utilities (idiom utility))
 (defmethod of-utilities ((idiom idiom) utility)
@@ -54,15 +54,14 @@
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
   (let ((omega (gensym)) (alpha (gensym)) (outcome (gensym)))
     `(lambda (,omega &optional ,alpha)
-       (let ((,outcome (funcall ,(if (symbolp operation)
-                                     `(function ,operation)
+       (let ((,outcome (funcall ,(if (symbolp operation) `(function ,operation)
                                      (macroexpand operation))
                                 ,alpha ,omega)))
          (if ,outcome 1 0)))))
 
 (defmacro reverse-op (is-dyadic &optional operation)
   "Wrap a function so as to reverse the arguments passed to it and (- 5 10) will thus result in 5."
-  (let ((is-dyadic (if operation is-dyadic))
+  (let ((is-dyadic (when operation is-dyadic))
         (operation (if operation operation is-dyadic))
         (omega (gensym)) (alpha (gensym)))
     `(lambda (,omega &optional ,alpha)
@@ -75,9 +74,8 @@
   (let ((results 0))
     (loop :for limb :in limbs :do (if (listp limb)
                                       (incf results (count-symbol-in-spec symbol limb))
-                                      (if (and (symbolp limb)
-                                               (eql symbol limb))
-                                          (incf results))))
+                                      (when (and (symbolp limb) (eql symbol limb))
+                                        (incf results))))
     results))
 
 (defun process-lex-tests-for (symbol operator &key (mode :test))
@@ -89,14 +87,14 @@
          (heading (format nil "[~a] ~a~a~%" (first operator)
                           (if (getf props :title)
                               (getf props :title)
-                              (if (getf props :titles)
-                                  (first (getf props :titles))))
+                              (when (getf props :titles)
+                                (first (getf props :titles))))
                           (if (not (getf props :titles))
                               "" (concatenate 'string " / " (second (getf props :titles)))))))
     (labels ((for-tests (tests &optional output)
                (if tests (for-tests (rest tests)
-                                    (append output (if (not (eq :time mode))
-                                                       `((format t "  _ ~a" ,(cadr (first tests)))))
+                                    (append output (when (not (eq :time mode))
+                                                     `((format t "  _ ~a" ,(cadr (first tests)))))
                                             (cond ((and (eq :test mode)
                                                         (eql 'is (caar tests)))
                                                    `((is (,(intern (string-upcase symbol)
@@ -122,28 +120,28 @@
                                                                (regex-replace-all
                                                                 "[\\n]" output
                                                                 ,(concatenate 'string '(#\Newline) "    "))))
-                                                       (if (or (zerop (length output))
-                                                               (not (char= #\Newline
-                                                                           (aref output (1- (length
-                                                                                             output))))))
-                                                           (princ #\Newline)))
-                                                     ,@(if (rest tests)
-                                                           `((princ #\Newline))))))))
+                                                       (when (or (zerop (length output))
+                                                                 (not (char= #\Newline
+                                                                             (aref output (1- (length
+                                                                                               output))))))
+                                                         (princ #\Newline)))
+                                                     ,@(when (rest tests)
+                                                         `((princ #\Newline))))))))
                    output)))
-      (if tests (append (if (not (eq :time mode))
-                            `((format t "~%~a" ,heading)))
+      (if tests (append (when (not (eq :time mode))
+                          `((format t "~%~a" ,heading)))
                         (for-tests tests))))))
 
 ;; TODO: this is also April-specific, move it into spec
 (defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
-  (append (if (not (eq :time mode))
-              `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
-                                                    "⍎ ")
-                                                   ((string= "FOR-PRINTED" (string-upcase (first test-set)))
-                                                    (if (eq :test mode) "⎕ Printed: " "⎕ ")))
-                                (second test-set)))
-                (format t "~%  _ ~a~%" ,(third test-set))))
+  (append (when (not (eq :time mode))
+            `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
+                                                  "⍎ ")
+                                                 ((string= "FOR-PRINTED" (string-upcase (first test-set)))
+                                                  (if (eq :test mode) "⎕ Printed: " "⎕ ")))
+                              (second test-set)))
+              (format t "~%  _ ~a~%" ,(third test-set))))
           (list (cond ((and (eq :test mode)
                             (string= "FOR" (string-upcase (first test-set))))
                        `(is (,(intern (string-upcase symbol) (package-name *package*))
@@ -162,9 +160,9 @@
                           (princ (concatenate 'string "    "
                                               (regex-replace-all "[\\n]" output
                                                                  ,(concatenate 'string '(#\Newline)  "    "))))
-                          (if (or (zerop (length output))
-                                  (not (char= #\Newline (aref output (1- (length output))))))
-                              (princ #\Newline))))
+                          (when (or (zerop (length output))
+                                    (not (char= #\Newline (aref output (1- (length output))))))
+                            (princ #\Newline))))
                       ((and (eq :test mode)
                             (string= "FOR-PRINTED" (string-upcase (first test-set))))
                        `(is (,(intern (string-upcase symbol) (package-name *package*))
@@ -185,9 +183,9 @@
                           (princ (concatenate 'string "    "
                                               (regex-replace-all "[\\n]" output
                                                                  ,(concatenate 'string '(#\Newline)  "    "))))
-                          (if (or (zerop (length output))
-                                  (not (char= #\Newline (aref output (1- (length output))))))
-                              (princ #\Newline))))))))
+                          (when (or (zerop (length output))
+                                    (not (char= #\Newline (aref output (1- (length output))))))
+                            (princ #\Newline))))))))
 
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
   "Process arbitrary tests within a spec containing expressions that are evaluated without being wrapped in an (april ...) form."
@@ -212,9 +210,9 @@
                                   ;; effectively a pass-by-reference and changing osection will change section
                                   (osection (loop :for item :in (rest section) :collect item)))
                               (loop :for (item-name item-value) :on source-items :while item-value
-                                 :do (if (evenp pair-index)
-                                         (setf (getf osection item-name) item-value))
-                                   (incf pair-index))
+                                    :do (when (evenp pair-index)
+                                          (setf (getf osection item-name) item-value))
+                                        (incf pair-index))
                               (cons (first section)
                                     osection)))))
     (loop :for section :in source :when (not (assoc (first section) target))
@@ -284,9 +282,9 @@
                                             (string= "OPERATORS" (string-upcase (first subspec)))
                                             (string= "STATEMENTS" (string-upcase (first subspec))))
                                     :collect subspec)))
-        `(progn ,@(if (not extension)
-                      `((proclaim '(special ,idiom-symbol))
-                        (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
+        `(progn ,@(when (not extension)
+                    `((proclaim '(special ,idiom-symbol))
+                      (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
                 ,@assignment-form
                 (setf (idiom-system ,idiom-symbol)
                       (append (idiom-system ,idiom-symbol)
@@ -308,7 +306,8 @@
                                       (string= "TEST" (string-upcase (first ,options))))
                                  ;; the (test) setting is used to run tests
                                  `(progn (setq prove:*enable-colors* nil)
-                                         (plan ,(+ (loop :for exp :in ',test-forms :counting (eql 'is (first exp)))
+                                         (plan ,(+ (loop :for exp :in ',test-forms
+                                                         :counting (eql 'is (first exp)))
                                                    (count-symbol-in-spec 'prove:is ',atest-forms)))
                                          (,',(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
                                                      (symbol-package symbol))
@@ -328,21 +327,21 @@
                                            (and (not ,input-string)
                                                 (stringp ,options)))
                                        (vex-program ,idiom-symbol
-                                                    (if ,input-string
-                                                        (if (or (string= "WITH" (string (first ,options)))
-                                                                (string= "SET" (string (first ,options))))
-                                                            (rest ,options)
-                                                            (error "Incorrect option syntax.")))
+                                                    (when ,input-string
+                                                      (if (or (string= "WITH" (string (first ,options)))
+                                                              (string= "SET" (string (first ,options))))
+                                                          (rest ,options)
+                                                          (error "Incorrect option syntax.")))
                                                     (if ,input-string ,input-string ,options))
                                        ;; this clause results in compilation at runtime of an
                                        ;; evaluated string value
                                        `(eval (vex-program
                                                ,',idiom-symbol
-                                               ,(if ,input-string
-                                                    (if (or (string= "WITH" (string (first ,options)))
-                                                            (string= "SET" (string (first ,options))))
-                                                        `(quote ,(rest ,options))
-                                                        (error "Incorrect option syntax.")))
+                                               ,(when ,input-string
+                                                  (if (or (string= "WITH" (string (first ,options)))
+                                                          (string= "SET" (string (first ,options))))
+                                                      `(quote ,(rest ,options))
+                                                      (error "Incorrect option syntax.")))
                                                ,(if ,input-string ,input-string ,options)))))))
                         (defmacro ,(intern printout-sym (symbol-package symbol))
                             (&rest ,options)
@@ -361,13 +360,13 @@
                           ;; makes for more compact invocations of the language
                           ;; TODO: can this be made to work with code passed in string-referencing variables?
                           (let ((,args (if (stringp ,options) ,args (rest ,args)))
-                                (,input-string (if (listp ,options) (first ,args))))
+                                (,input-string (when (listp ,options) (first ,args))))
                             (apply #'vex-program ,idiom-symbol
-                                   (if ,input-string
-                                       (if (or (string= "WITH" (string (first ,options)))
-                                               (string= "SET" (string (first ,options))))
-                                           (rest ,options)
-                                           (error "Incorrect option syntax.")))
+                                   (when ,input-string
+                                     (if (or (string= "WITH" (string (first ,options)))
+                                             (string= "SET" (string (first ,options))))
+                                         (rest ,options)
+                                         (error "Incorrect option syntax.")))
                                    (if ,input-string ,input-string ,options)
                                    ,args)))
                         (defmacro ,(intern (concatenate 'string symbol-string "-LOAD")
@@ -379,11 +378,11 @@
                                                         (eval ,options))))
                                      (if (pathnamep ,pathname)
                                          (vex-program ,idiom-symbol
-                                                      (if ,input-path
-                                                          (if (or (string= "WITH" (string (first ,options)))
-                                                                  (string= "SET" (string (first ,options))))
-                                                              (rest ,options)
-                                                              (error "Incorrect option syntax.")))
+                                                      (when ,input-path
+                                                        (if (or (string= "WITH" (string (first ,options)))
+                                                                (string= "SET" (string (first ,options))))
+                                                            (rest ,options)
+                                                            (error "Incorrect option syntax.")))
                                                       ,pathname)
                                          (error "Argument to be loaded was not a pathname.")))))
                         (defmacro ,(intern (concatenate 'string "WITH-" symbol-string "-CONTEXT")
@@ -412,9 +411,8 @@
                                                                                        ,options))
                                                                   (cons 'with ,options))
                                                               (first (last ,item)))
-                                                        (if (listp ,item)
-                                                            (,process ,item)
-                                                            ,item)))))
+                                                        (if (not (listp ,item))
+                                                            ,item (,process ,item))))))
                             (cons 'progn (,process ,body))))
                         (defmacro ,(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
                                            (symbol-package symbol))
@@ -425,30 +423,33 @@
                                                            "-WORKSPACE-" (string-upcase ,ws-name))))
                             (if (string= "-LEX" (subseq (string ,ws-name) (- (length (string ,ws-name)) 4)))
                                 (error "Workspace names may not end with \"-LEX\", this suffix is reserved.")
-                                `(if (not (find-package ,,ws-fullname))
-                                     (progn (make-package ,,ws-fullname)
-                                            (make-package ,(concatenate 'string ,ws-fullname "-LEX"))
-                                            (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
-                                                            (intern "*BRANCHES*" ,,ws-fullname)
-                                                            (intern "*NS-POINT*" ,,ws-fullname)
-                                                            ,@(loop :for (key val)
-                                                                      :on ,(getf (of-subspec system) :variables)
-                                                                    :by #'cddr
-                                                                    :collect `(intern ,(string-upcase val)
-                                                                                      ,,ws-fullname))))
-                                            (set (intern "*SYSTEM*" ,,ws-fullname)
-                                                 ,',(cons 'list (of-subspec system)))
-                                            ;; TODO: following is APL-specific, move into spec
-                                            (set (intern "*BRANCHES*" ,,ws-fullname) nil)
-                                            (set (intern "*NS-POINT*" ,,ws-fullname) nil)
-                                            ,@(loop :for (key val)
-                                                      :on ,(getf (of-subspec system) :variables) :by #'cddr
-                                                    :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
-                                                                   ,(getf ',(second (getf (of-subspec system)
-                                                                                          :workspace-defaults))
-                                                                          key)))
-                                            (format nil "Successfully created workspace ｢~a｣." ',,ws-name))
-                                     (format nil "A workspace called ｢~a｣ already exists." ',,ws-name)))))
+                                `(progn
+                                   (if (not (find-package ,,ws-fullname))
+                                       (progn (make-package ,,ws-fullname)
+                                              (make-package ,(concatenate 'string ,ws-fullname "-LEX")))
+                                       
+                                       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))
+                                   (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
+                                                   (intern "*BRANCHES*" ,,ws-fullname)
+                                                   (intern "*NS-POINT*" ,,ws-fullname)
+                                                   ,@(loop :for (key val)
+                                                             :on ,(getf (of-subspec system) :variables)
+                                                           :by #'cddr
+                                                           :collect `(intern ,(string-upcase val)
+                                                                             ,,ws-fullname))))
+                                   (when (not (boundp (intern "*SYSTEM*" ,,ws-fullname)))
+                                     (set (intern "*SYSTEM*" ,,ws-fullname)
+                                          ,',(cons 'list (of-subspec system)))
+                                     ;; TODO: following is APL-specific, move into spec
+                                     (set (intern "*BRANCHES*" ,,ws-fullname) nil)
+                                     (set (intern "*NS-POINT*" ,,ws-fullname) nil)
+                                     ,@(loop :for (key val)
+                                               :on ,(getf (of-subspec system) :variables) :by #'cddr
+                                             :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
+                                                            ,(getf ',(second (getf (of-subspec system)
+                                                                                   :workspace-defaults))
+                                                                   key)))
+                                     (format nil "Successfully created workspace ｢~a｣." ',,ws-name))))))
                         (defmacro ,(intern (concatenate 'string symbol-string "-CLEAR-WORKSPACE")
                                            (symbol-package symbol))
                             (,ws-name)
@@ -531,9 +532,9 @@
                               (let ((glyph (first glyph-list)))
                                 (if (characterp glyph)
                                     (cons glyph output)
-                                    (if (stringp glyph)
-                                        (append output (loop :for char :below (length glyph)
-                                                          :collect (aref glyph char)))))))))
+                                    (when (stringp glyph)
+                                      (append output (loop :for char :below (length glyph)
+                                                           :collect (aref glyph char)))))))))
 
 (defun =vex-string (idiom &optional output special-precedent)
   "Parse a string of text, converting its contents into nested lists of Vex tokens."
@@ -555,26 +556,28 @@
              (=string (&rest delimiters)
                (let ((lastc) (delimiter) (escape-indices) (char-index 0))
                  (=destructure (_ content)
-                     (=list (?satisfies (lambda (c) (if (member c delimiters)
-                                                        (setq delimiter c))))
+                     (=list (?satisfies (lambda (c) (when (member c delimiters)
+                                                      (setq delimiter c))))
                             ;; note: nested quotes must be checked backwards; to determine whether a delimiter
                             ;; indicates the end of the quote, look at previous character to see whether it is a
                             ;; delimiter, then check whether the current character is an escape character #\\
                             (=subseq (%any (?satisfies (lambda (char)
-                                                         (if (or (not lastc)
-                                                                 (not (char= lastc delimiter))
-                                                                 (char= char delimiter))
-                                                             (setq lastc (if (and lastc (char= char delimiter)
-                                                                                  (char= lastc delimiter))
-                                                                             (progn (push (1- char-index)
-                                                                                          escape-indices)
-                                                                                    #\ )
-                                                                             char)
-                                                                   char-index (1+ char-index))))))))
+                                                         (when (or (not lastc)
+                                                                   (not (char= lastc delimiter))
+                                                                   (char= char delimiter))
+                                                           (setq lastc (if (and lastc (char= char delimiter)
+                                                                                (char= lastc delimiter))
+                                                                           (progn (push (1- char-index)
+                                                                                        escape-indices)
+                                                                                  #\ )
+                                                                           char)
+                                                                 char-index (1+ char-index))))))))
                    (setq string-found t)
                    ;; the string-found variable is set to true
                    ;; TODO: is there a better way to do this?
-                   (if (not (char= delimiter (aref content (1- (length content)))))
+                   (when (or (not (char= delimiter (aref content (1- (length content)))))
+                           (and escape-indices (= (first escape-indices)
+                                                  (- (length content) 2))))
                        (error "Syntax error: unbalanced quotes."))
                    (if escape-indices (let* ((offset 0)
                                              (outstr (make-array (list (- (length content)
@@ -595,10 +598,11 @@
                                            (symbol-collector) (if-confirmed))
                (let* ((balance 1)
                       (char-index 0)
+                      (quoted) (quote-delimiter #\')
                       ;; disallow linebreak overriding opening and closing characters
-                      (dllen (if (stringp disallow-linebreaks) (length disallow-linebreaks)))
-                      (dlbor-opening-chars (if dllen (subseq disallow-linebreaks 0 (/ dllen 2))))
-                      (dlbor-closing-chars (if dllen (subseq disallow-linebreaks (/ dllen 2) dllen)))
+                      (dllen (when (stringp disallow-linebreaks) (length disallow-linebreaks)))
+                      (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (/ dllen 2))))
+                      (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (/ dllen 2) dllen)))
                       (dlb-overriding-balance 0))
                  (=destructure (_ enclosed _)
                      (=list (?eq (aref boundary-chars 0))
@@ -608,39 +612,43 @@
                             (=transform (=subseq
                                          (%some (?satisfies
                                                  (lambda (char)
-                                                   (if (and disallow-linebreaks
-                                                            (zerop dlb-overriding-balance)
-                                                            (funcall (of-utilities
-                                                                      idiom :match-newline-character)
-                                                                     char))
-                                                       (error "Newlines cannot occur within a ~a closure."
-                                                              boundary-chars))
-                                                   (if (and (char= char (aref boundary-chars 0))
-                                                            (< 0 char-index))
-                                                       (incf balance)
-                                                       (if (and (char= char (aref boundary-chars 1))
-                                                                (< 0 char-index))
+                                                   (when (and (not (zerop char-index))
+                                                              (char= char quote-delimiter))
+                                                     (setf quoted (not quoted)))
+                                                   (when (and disallow-linebreaks
+                                                              (zerop dlb-overriding-balance)
+                                                              (funcall (of-utilities
+                                                                        idiom :match-newline-character)
+                                                                       char))
+                                                     (error "Newlines cannot occur within a ~a closure."
+                                                            boundary-chars))
+                                                   (when (not quoted)
+                                                     (if (and (char= char (aref boundary-chars 0))
+                                                              (< 0 char-index))
+                                                         (incf balance)
+                                                         (when (and (char= char (aref boundary-chars 1))
+                                                                    (< 0 char-index))
                                                            (decf balance)))
-                                                   (if dlbor-opening-chars
+                                                     (when dlbor-opening-chars
                                                        (if (and (< 0 char-index)
                                                                 (not (loop :for c :across dlbor-opening-chars
                                                                            :never (char= char c))))
                                                            (incf dlb-overriding-balance)
-                                                           (if (not (loop :for c :across dlbor-closing-chars
-                                                                          :never (char= char c)))
-                                                               (decf dlb-overriding-balance))))
-                                                   (incf char-index 1)
+                                                           (when (not (loop :for c :across dlbor-closing-chars
+                                                                            :never (char= char c)))
+                                                             (decf dlb-overriding-balance)))))
+                                                   (incf char-index)
                                                    (< 0 balance)))))
                                         (if transform-by transform-by
                                             (lambda (string-content)
                                               (destructuring-bind (parsed remaining meta)
                                                   (parse string-content (=vex-string idiom))
                                                 (declare (ignore remaining))
-                                                (if symbol-collector (funcall symbol-collector meta))
+                                                (when symbol-collector (funcall symbol-collector meta))
                                                 parsed))))
                             (?eq (aref boundary-chars 1)))
                    (if (zerop balance)
-                       (progn (if if-confirmed (funcall if-confirmed))
+                       (progn (when if-confirmed (funcall if-confirmed))
                               enclosed)
                        (error "No closing ~a found for opening ~a."
                               (aref boundary-chars 1) (aref boundary-chars 0))))))
@@ -648,9 +656,10 @@
                (let ((errant-char))
                  (=destructure (_ _)
                      (=list (?satisfies (lambda (char)
-                                          (if (funcall (of-utilities idiom :match-axis-separating-character)
-                                                       char)
-                                              (setq errant-char char))))
+                                          (when (funcall (of-utilities
+                                                          idiom :match-axis-separating-character)
+                                                         char)
+                                            (setq errant-char char))))
                             (=subseq (%any (?satisfies 'characterp))))
                    (error "Misplaced axis delimiter ~a." errant-char))))
              (=vex-errant-closing-character (boundary-chars)
@@ -664,7 +673,7 @@
                                                           matching-char (aref boundary-chars
                                                                               (+ x chars-count))))
                                           errant-char))
-                                      (=subseq (%any (?satisfies 'characterp))))
+                            (=subseq (%any (?satisfies 'characterp))))
                    (error "Mismatched enclosing characters; each closing ~a must be preceded by an opening ~a."
                           errant-char matching-char))))
              (process-lines (lines &optional output meta)
@@ -673,7 +682,7 @@
                    (list output meta)
                    (destructuring-bind (out remaining meta)
                        (parse lines (=vex-string idiom nil meta))
-                     (process-lines remaining (append output (if out (list out)))
+                     (process-lines remaining (append output (when out (list out)))
                                     meta))))
              (handle-axes ()
                (lambda (input-string)
@@ -698,12 +707,12 @@
                                 string))
                  (values formatted is-symbol)))
              (functional-character-matcher (char)
-               (if (and (> 2 fix)
-                        (funcall (of-utilities idiom :match-overloaded-numeric-character)
-                                 char))
-                   (setq olnchar char))
-               (if (and olnchar (= 2 fix) (not (digit-char-p char)))
-                   (setq olnchar nil))
+               (when (and (> 2 fix)
+                          (funcall (of-utilities idiom :match-overloaded-numeric-character)
+                                   char))
+                 (setq olnchar char))
+               (when (and olnchar (= 2 fix) (not (digit-char-p char)))
+                 (setq olnchar nil))
                (incf fix 1)
                (and (not (< 2 fix))
                     (or (of-lexicons idiom char :functions)
@@ -723,9 +732,9 @@
                                       (if (not olnchar)
                                           (append (list (if (of-lexicons idiom char :statements)
                                                             :st (if (of-lexicons idiom char :operators)
-                                                                    :op (if (of-lexicons idiom char
-                                                                                         :functions)
-                                                                            :fn))))
+                                                                    :op (when (of-lexicons idiom char
+                                                                                           :functions)
+                                                                          :fn))))
                                                   (if (of-lexicons idiom char :operators)
                                                       (list (if (of-lexicons idiom char :operators-pivotal)
                                                                 :pivotal
@@ -755,18 +764,18 @@
                                                  (=transform
                                                   (=subseq (%any (?test (#'pjoin-char-p) (=element))))
                                                   (lambda (c)
-                                                    (if (< 0 (length c)) (setq arg-rooted-path t))))
+                                                    (when (< 0 (length c)) (setq arg-rooted-path t))))
                                                  (=subseq (%any (?test ((p-or-u-char-p
                                                                          arg-rooted-path
                                                                          uniform-char)))))))
                                   (lambda (string)
                                     (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                      (if is-symbol (push formatted symbols))
+                                      (when is-symbol (push formatted symbols))
                                       formatted)))
                       (=transform (=subseq (%some (?token-character)))
                                   (lambda (string)
                                     (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                      (if is-symbol (push formatted symbols))
+                                      (when is-symbol (push formatted symbols))
                                       formatted)))
                       ;; this last clause returns the remainder of the input in case the input has either no
                       ;; characters or only blank characters before the first line break
@@ -782,8 +791,8 @@
             (parse (subseq item 1) (=vex-string idiom nil special-precedent))
             (if (and (zerop (length break)) (< 0 (length rest)))
                 (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
-                                                   (if item (list item)))
-                                         (append (if olnchar (list :overloaded-num-char olnchar))
+                                                   (when item (list item)))
+                                         (append (when olnchar (list :overloaded-num-char olnchar))
                                                  (list :symbols nil))))
                 (list (if (or (not item)
                               (and (typep item 'sequence)
@@ -793,18 +802,6 @@
                           output (cons item output))
                       rest special-precedent)))))))
 
-(defmacro ws-assign-val (symbol value)
-  "Assignment macro for use with (:store-val) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-value ',symbol) ,value)))
-
-(defmacro ws-assign-fun (symbol value)
-  "Assignment macro for use with (:store-fun) directive."
-  `(progn (if (not (boundp ',symbol))
-              (proclaim '(special ,symbol)))
-          (setf (symbol-function ',symbol) ,value)))
-
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
   (let* ((state (rest (assoc :state options)))
@@ -813,6 +810,7 @@
                              "-WORKSPACE-" (if (not (second (assoc :space options)))
                                                "COMMON" (string-upcase (second (assoc :space options))))))
          (state-to-use) (system-to-use))
+
     (labels ((assign-from (source dest)
                (if (not source)
                    dest (progn (setf (getf dest (first source)) (second source))
@@ -828,7 +826,7 @@
                    (let ((result (funcall (of-utilities idiom :lexer-postprocess)
                                           (parse string (=vex-string idiom))
                                           idiom space)))
-                     (if print-tokens (print (first result)))
+                     (when print-tokens (print (first result)))
                      (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
@@ -837,7 +835,8 @@
                ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
                ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
                (loop :for item :in items-to-store
-                  :collect (list (if storing-functions 'ws-assign-fun 'ws-assign-val)
+                  :collect (list (if storing-functions (of-utilities idiom :assign-fun-sym)
+                                     (of-utilities idiom :assign-val-sym))
                                  (if (validate-var-symbol (first item))
                                      (let ((symbol (if (and (stringp (first item))
                                                             (loop :for c :across (first item)
@@ -855,10 +854,10 @@
 
       (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
 
-        (setq state (funcall (of-utilities idiom :preprocess-state-input) state)
-              state-to-use (assign-from (getf ws-system :base-state) state-to-use)
-              state-to-use (assign-from (getf ws-system :state) state-to-use)
-              state-to-use (assign-from state state-to-use)
+        (setq state         (funcall (of-utilities idiom :preprocess-state-input) state)
+              state-to-use  (assign-from (getf ws-system :base-state) state-to-use)
+              state-to-use  (assign-from (getf ws-system :state) state-to-use)
+              state-to-use  (assign-from state state-to-use)
               system-to-use (assign-from ws-system system-to-use)
               system-to-use (assign-from state system-to-use))
 
@@ -889,16 +888,19 @@
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
-                                                   system-to-use inline-arguments))
+                                                   (append (when (assoc :unrendered options)
+                                                             (list :unrendered t))
+                                                           system-to-use)
+                                                   inline-arguments))
                                         (process-lines
                                          (funcall (of-utilities idiom :prep-code-string) string)
                                          space (list :call-scope (list :input-vars iv-list
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
-                               (if output-vars
-                                   (list (cons 'values (mapcar (lambda (return-var)
-                                                                 (intern (lisp->camel-case return-var) space))
-                                                               output-vars)))))
+                               (when output-vars
+                                 (list (cons 'values (mapcar (lambda (return-var)
+                                                               (intern (lisp->camel-case return-var) space))
+                                                             output-vars)))))
                        (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
                           :by #'cddr :collect (string-upcase key))
                        options system-vars vars-declared stored-refs space)))))))
