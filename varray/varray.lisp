@@ -1578,9 +1578,7 @@
                                  (if in (let ((matched-index) (sub-index 0) (aindex index))
                                           ;; TODO: (print (list :ii in ofactors))
                                           (if (or (and (vectorp in) (< 0 (length in)))
-                                                  (and (or (arrayp in) (varrayp in))
-                                                       ;; (not (shape-of in))
-                                                       ))
+                                                  (and (or (arrayp in) (varrayp in))))
                                               (multiple-value-bind (index remainder)
                                                   (floor remaining ifactor)
                                                 (let* ((sub-indexer (generator-of in))
@@ -1610,7 +1608,7 @@
                                                                 :do (when (compare-path
                                                                            aindex (funcall
                                                                                    sub-indexer b))
-                                                                      (setf oindex aindex
+                                                                      (setf oindex b
                                                                             matched-index t
                                                                             assign-sub-index index)))
                                                           ;; the case of toasn←(('JAN' 1)('FEB' 2)
