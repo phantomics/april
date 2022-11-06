@@ -1360,6 +1360,8 @@
                                 (if (and (= (length indices)
                                             (rank-of (vader-base varray))))
                                     (if (>= 1 (rank-of (first indices)))
+                                        ;; take the shape of the first of the indices in cases like
+                                        ;; (⌽2 3⍴⍳6)@(⍳2 3)⊢M
                                         (loop :for i :in indices :for id :in idims
                                               :when (not i) :collect id
                                                 :when (and (shape-of i) (< 1 (size-of i)))
