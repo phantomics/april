@@ -1357,12 +1357,14 @@
           (naxes (when indices (< 1 (length indices))))
           (assign-shape (when (and set indices)
                           (setf (vasel-assign-shape varray)
-                                (if (= (length indices)
-                                       (rank-of (vader-base varray)))
-                                    (loop :for i :in indices :for id :in idims
-                                          :when (not i) :collect id
-                                            :when (and (shape-of i) (< 1 (size-of i)))
-                                              :collect (size-of i))
+                                (if (and (= (length indices)
+                                            (rank-of (vader-base varray))))
+                                    (if t ; (second indices)
+                                        (loop :for i :in indices :for id :in idims
+                                              :when (not i) :collect id
+                                                :when (and (shape-of i) (< 1 (size-of i)))
+                                                  :collect (size-of i))
+                                        (shape-of (first indices)))
                                     (when (= 1 (length indices))
                                       (shape-of (first indices)))))))
           (s 0) (sdims (when set (shape-of set))))
@@ -1428,9 +1430,7 @@
      (flet ((verify-vindex (ind vector-index)
               (let ((vector-indexer (generator-of vector-index)))
                 (loop :for v :below (size-of vector-index) :for ix :from 0
-                      :when (let* ((this-index (funcall vector-indexer v))
-                                   (sub-index (funcall (generator-of this-index) 0)))
-                              ;; (print (list :ti this-index sub-index))
+                      :when (let ((sub-index (funcall (generator-of (funcall vector-indexer v)) 0)))
                               (cond ((numberp sub-index)
                                      (= ind (- sub-index (vads-io varray))))
                                     ((shape-of sub-index)
@@ -1574,10 +1574,11 @@
                                    (setf remaining remainder))
                                  ;; handle arrays as indices as for x[⍳3]
                                  (if in (let ((matched-index) (sub-index 0) (aindex index))
-                                          ;; (print (list :ii in ofactors))
+                                          ;; TODO: (print (list :ii in ofactors))
                                           (if (or (and (vectorp in) (< 0 (length in)))
                                                   (and (or (arrayp in) (varrayp in))
-                                                       (not (shape-of in))))
+                                                       ;; (not (shape-of in))
+                                                       ))
                                               (multiple-value-bind (index remainder)
                                                   (floor remaining ifactor)
                                                 (let* ((sub-indexer (generator-of in))
@@ -1621,12 +1622,14 @@
                                                 (incf ofix)
                                                 (setf remaining remainder))
                                               
-                                              (progn (loop :for iafactor :in (first iafactors)
+                                              (progn (print (list :ii ofactors))
+                                                     (loop :for iafactor :in (first iafactors)
                                                            :do (multiple-value-bind (index remainder)
                                                                    (floor remaining (aref ofactors ofix))
                                                                  (incf sub-index (* iafactor index))
                                                                  (incf ofix)
                                                                  (setf remaining remainder)))
+                                                     (print :ee)
                                                      (when (not (vectorp in))
                                                        (setf iafactors (rest iafactors)))))
                                           (if (zerop (size-of in)) ;; the case of ⍬@⍬⊢1 2 3

@@ -1512,7 +1512,9 @@
                              :base omega :index-origin index-origin
                              :calling left-fn :assign (if left-fn alpha left)
                              :argument (cons right (loop :for i :below (- orank (array-depth right))
-                                                         :collect nil))))))))
+                                                         :collect nil))
+                             ;; (list right)
+                             ))))))
 
 ;; (defun operate-at (right left index-origin)
 ;;   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
