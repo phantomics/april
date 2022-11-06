@@ -958,46 +958,46 @@
                                (not (member (first branch-from-base) '(inws inwsd))))
                            branch-from-base (second branch-from-base))))
       (values
-       (if branch-to
-           (progn (when (listp branch-to)
-                    (if (loop :for item :in branch-to :always (and (listp item) (eql 'inws (first item))))
-                        (setq branch-to (mapcar #'second branch-to))
-                        (when (eql 'inws (first branch-to))
-                          (setq branch-to (second branch-to)))))
-                  (if (and branch-from (eql 'to-output branch-to))
-                      ;; if this is a branch point statement like X→⎕, do the following:
-                      (if (integerp branch-from)
-                          ;; if the branch is designated by an integer like 5→⎕
-                          (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
-                            (push (list branch-from branch-symbol) *branches*)
-                            branch-symbol)
-                          ;; if the branch is designated by a symbol like doSomething→⎕
-                          (if (symbolp branch-from)
-                              (progn (push branch-from *branches*)
-                                     branch-from)
-                              (error "Invalid left argument to →; must be a single integer value or a symbol.")))
-                      ;; otherwise, this is a branch-to statement like →5 or →doSomething
-                      (if (or (integerp branch-to) (symbolp branch-to))
-                          ;; if the target is an explicit symbol as in →mySymbol, or explicit index
-                          ;; as in →3, just pass the symbol through
-                          (list 'go branch-to)
-                          (if (loop :for item :in (rest branch-to)
-                                    :always (or (symbolp item)
-                                                (and (listp item) (eql 'inws (first item)))))
-                              ;; if the target is one of an array of possible destination symbols...
-                              (if (integerp branch-from)
-                                  ;; if there is an explicit index to the left of the arrow,
-                                  ;; grab the corresponding symbol unless the index is outside the
-                                  ;; array's scope, in which case a (list) is returned so nothing is done
-                                  (if (< 0 branch-from (1+ (length (rest branch-to))))
-                                      ;; TODO: should this be affected by ⎕IO?
-                                      (list 'go (second (nth (1- branch-from) (rest branch-to))))
-                                      (list 'list))
-                                  ;; otherwise, there must be an expression to the left of the arrow, as with
-                                  ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
-                                  (list 'go (mapcar #'second (rest branch-to))
-                                        branch-from))
-                              (list 'go branch-to))))))
+       (when branch-to
+         (when (listp branch-to)
+           (if (loop :for item :in branch-to :always (and (listp item) (eql 'inws (first item))))
+               (setq branch-to (mapcar #'second branch-to))
+               (when (eql 'inws (first branch-to))
+                 (setq branch-to (second branch-to)))))
+         (if (and branch-from (eql 'to-output branch-to))
+             ;; if this is a branch point statement like X→⎕, do the following:
+             (if (integerp branch-from)
+                 ;; if the branch is designated by an integer like 5→⎕
+                 (let ((branch-symbol (gensym "AB"))) ;; AB for APL Branch
+                   (push (list branch-from branch-symbol) *branches*)
+                   branch-symbol)
+                 ;; if the branch is designated by a symbol like doSomething→⎕
+                 (if (symbolp branch-from)
+                     (progn (push branch-from *branches*)
+                            branch-from)
+                     (error "Invalid left argument to →; must be a single integer value or a symbol.")))
+             ;; otherwise, this is a branch-to statement like →5 or →doSomething
+             (if (or (integerp branch-to) (symbolp branch-to))
+                 ;; if the target is an explicit symbol as in →mySymbol, or explicit index
+                 ;; as in →3, just pass the symbol through
+                 (list 'go branch-to)
+                 (if (loop :for item :in (rest branch-to)
+                           :always (or (symbolp item)
+                                       (and (listp item) (eql 'inws (first item)))))
+                     ;; if the target is one of an array of possible destination symbols...
+                     (if (integerp branch-from)
+                         ;; if there is an explicit index to the left of the arrow,
+                         ;; grab the corresponding symbol unless the index is outside the
+                         ;; array's scope, in which case a (list) is returned so nothing is done
+                         (if (< 0 branch-from (1+ (length (rest branch-to))))
+                             ;; TODO: should this be affected by ⎕IO?
+                             (list 'go (second (nth (1- branch-from) (rest branch-to))))
+                             (list 'list))
+                         ;; otherwise, there must be an expression to the left of the arrow, as with
+                         ;; (3-2)→tagOne tagTwo, so pass it through for the postprocessor
+                         (list 'go (mapcar #'second (rest branch-to))
+                               branch-from))
+                     (list 'go branch-to)))))
        remaining))))
 
 (defun complete-pivotal-match (operator tokens right-function right-value space params initial)
@@ -1066,9 +1066,9 @@
                `(let ((,val (render-varrays ,value)))
                   (multiple-value-bind (,out1 ,out2)
                       ,(append symbol (list :set val :modify-input t)
-                               (if function `(:set-by (lambda (item item2)
-                                                        (render-varrays
-                                                         (a-call ,function item item2))))))
+                               (when function `(:set-by (lambda (item item2)
+                                                          (render-varrays
+                                                           (a-call ,function item item2))))))
                     (when ,out2 (setf ,var-sym ,out2))
                     ,out1)))))
         ((and (listp symbol) (eql 'make-virtual (first symbol))
@@ -1170,8 +1170,7 @@
                                                 "used for selective assignment."))
                                      #'identity))
                             (lambda (,item) ,selection-form)
-                            ,value ,assign-sym
-                            :index-origin index-origin))
+                            ,value ,assign-sym :index-origin index-origin))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
@@ -1179,11 +1178,10 @@
                                                   (rest symbol)))))
                   (symbols-list (when (symbolp syms) (list syms)))
                   (set-symbol (if (and (symbolp syms) (member syms '(⍺ ⍶ ⍺⍺)))
-                                  syms (if (or (symbolp symbol) (and (listp symbol)
-                                                                     (member (first symbol)
-                                                                             '(inws inwsd))))
-                                           (resolve-path symbol space params)
-                                           symbol)))
+                                  syms (if (not (or (symbolp symbol) (and (listp symbol)
+                                                                          (member (first symbol)
+                                                                                  '(inws inwsd)))))
+                                           symbol (resolve-path symbol space params))))
                   (xfns-assigned (and (listp value) (eql 'a-call (first value))
                                       (listp (second value)) (eql 'function (caadr value))
                                       (member (cadadr value) '(external-workspace-function
