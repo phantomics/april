@@ -12,7 +12,7 @@ These variables can be reassigned by the user; for instance, `⎕io←0` sets th
 
 |Symbol|Name                |Description|
 |------|--------------------|-----------|
-|`⎕IO` |Index Origin        |The number from which counting begins; may be 1 (default) or 0.|
+|`⎕IO` |Index Origin        |The number from which counting begins; may be 1 (default) or any other non-negative integer.|
 |`⎕CT` |Comparison Tolerance|Difference between floating point numbers below which they are considered equal.|
 |`⎕PP` |Print Precision     |Precision at which decimal values are expressed for printing; default 10.|
 |`⎕DIV`|Division Method     |Defines how division by 0 is handled; may be 0 (default) or 1.|
