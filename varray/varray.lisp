@@ -60,6 +60,11 @@
 (defgeneric metadata-of (varray)
   (:documentation "Get metadata of a virtual array."))
 
+;; dedicated reduction methods for particlar virtual array types
+
+(defgeneric get-reduced (varray function)
+  (:documentation "Get the result of an array reduced using a particular function."))
+
 (defgeneric render (varray &rest params)
   (:documentation "Render an array into memory."))
 
@@ -827,6 +832,12 @@
 
 ;; the shape of an IP vector is its number times its repetition
 (defmethod shape-of ((vvector vapri-integer-progression))
+  ;; TODO: it's still possible to create something like ⍳¯5, the error doesn't happen
+  ;; until it's rendered - is there a better way to implement this check?
+  (when (not (and (integerp (vapip-number vvector))
+                  (or (zerop (vapip-number vvector))
+                      (plusp (vapip-number vvector)))))
+    (error "The argument to [⍳ index] must be an integer 0 or higher."))
   (get-promised (varray-shape vvector) (list (* (vapip-number vvector)
                                                 (vapip-repeat vvector)))))
 
@@ -866,6 +877,43 @@
                                  (declare (type (unsigned-byte 62) index))
                                  (the (unsigned-byte 64)
                                       (+ origin (the (unsigned-byte 62) (floor index repeat))))))))))
+
+(deftype fast-iota-sum-fixnum ()
+  "The largest integer that can be supplied to fast-iota-sum without causing a fixnum overflow"
+  '(integer 0 #.(isqrt (* 2 most-positive-fixnum))))
+
+(declaim (ftype (function (fast-iota-sum-fixnum) fixnum) fast-iota-sum))
+(defun fast-iota-sum (n)
+  "Fast version of iota-sum for integers of type fast-iota-sum-fixnum"
+  (declare (optimize (speed 3) (safety 0)))
+  (if (oddp n)
+      (* n (the fixnum (/ (1+ n) 2)))
+    (let ((n/2 (the fixnum (/ n 2))))
+      (+ (* n n/2) n/2))))
+
+(defun iota-sum (n index-origin)
+  "Fast implementation of +/⍳X."
+  (cond ((< n 0)
+	 (error "The argument to [⍳ index] must be a positive integer, i.e. ⍳9, or a vector, i.e. ⍳2 3."))
+	((= n 0) 0)
+	((= n 1) index-origin)
+	((typep n 'fast-iota-sum-fixnum)
+	 (if (= index-origin 1) (fast-iota-sum n)
+	     (fast-iota-sum (1- n))))
+	(t (* n (/ (+ n index-origin index-origin -1) 2)))))
+
+(defmethod get-reduced ((vvector vapri-integer-progression) function)
+  (let ((fn-meta (funcall function :get-metadata)))
+    ;; (print (list :ff fn-meta))
+    (case (getf fn-meta :lexical-reference)
+      (#\+ (iota-sum (vapip-number vvector) (vapip-origin vvector)))
+      ;; TODO: extend below to support any ⎕IO
+      (#\× (sprfact (+ (vapip-number vvector) (- (vapip-origin vvector) 1))))
+      (t (let* ((generator (generator-of vvector))
+                (output (funcall generator 0)))
+           (loop :for i :from 1 :below (vapip-number vvector)
+                 :do (setf output (funcall function (funcall generator i) output)))
+           output)))))
       
 (defclass vapri-coordinate-vector (varray-primal)
   ((%reference :accessor vacov-reference
@@ -4612,6 +4660,8 @@
                      :do (setq wsegment (- dim (1- window))))
              ;; (print (list :ws rlen (funcall (vacmp-left varray) :get-metadata nil)))
              (cond
+               ((and scalar-fn (typep (vacmp-omega varray) 'vapri-integer-progression))
+                (get-reduced (vacmp-omega varray) (vacmp-left varray)))
                ((and (or scalar-fn (and catenate-fn (not window)))
                      (not out-dims) (arrayp (vacmp-omega varray)))
                 ;; reverse the argument vector in the case of a scalar function;
