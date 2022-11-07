@@ -13,12 +13,11 @@
            #:vader-intersection #:vader-unique #:vader-union #:vader-turn #:vader-permute
            #:vader-expand #:vader-grade #:vader-matrix-inverse #:vader-matrix-divide
            #:vader-encode #:vader-decode #:vader-identity
-           #:vader-composing #:op-compose
-           #:vacomp-reduce #:vacomp-each #:vacomp-produce #:vacomp-stencil
-           #:inverse-count-to
-           )
+           #:vader-composing #:op-compose #:vacomp-reduce #:vacomp-each #:vacomp-produce
+           #:vacomp-stencil #:inverse-count-to)
   (:shadowing-import-from #:alexandria #:iota)
   (:shadowing-import-from #:serapeum #:count-cpus)
+  (:shadowing-import-from #:random-state #:make-generator #:random-int #:random-float)
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force)
   (:shadowing-import-from #:aplesque #:varef #:enclose #:disclose #:disclose-unitary
                           #:assign-element-type #:type-in-common
