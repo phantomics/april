@@ -347,9 +347,10 @@
 
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
+  ;; (print (list :el elements))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
-      (when elements (enclose-axes
-                      (output-value space (if (< 1 (length elements)) elements (first elements))
+      (when elements
+        (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
                                     (loop :for i :below (length elements) :collect nil)
                                     (rest (getf (getf params :special) :closure-meta)))
                       axes))
@@ -541,22 +542,45 @@
                                      (let ((exp-operator (build-operator (list (first tokens))
                                                                          :params params :space space
                                                                          :valence :pivotal :axes axes)))
-                                       (if exp-operator
-                                           (multiple-value-bind (composed remaining)
-                                               (complete-pivotal-match
-                                                exp-operator tokens nil
-                                                (build-value nil :elements elements
-                                                                 :params params :space space)
-                                                space params nil)
-                                             (cons (list :fn :pass composed) remaining))
-                                           (if tokens
-                                               (if (and (listp (first tokens))
-                                                        (eq :op (caar tokens))
-                                                        (eq :lateral (cadar tokens)))
+                                       ;; (print (list :el elements))
+                                       ;; (when (and (listp elements) (listp (first (last elements)))
+                                       ;;            (eql 'a-call (caar (last elements))))
+                                       ;;   (print (list :ab (first (last elements)))))
+                                       (destructuring-bind (operand &optional argument)
+                                           (if (not (and (listp elements)
+                                                         (listp (first (last elements)))
+                                                         (eql 'a-call
+                                                              (caar (last elements)))))
+                                               (list elements)
+                                               (list (butlast elements) (first (last elements))))
+                                         (if exp-operator
+                                             (if (and operand argument)
+                                                 ;; the case of i.e. {⊢⍤1(⊢⍤1)⍵}⍳3
+                                                 (multiple-value-bind (composed _)
+                                                     (complete-pivotal-match
+                                                      exp-operator tokens nil
+                                                      (build-value nil :elements operand
+                                                                       :params params :space space)
+                                                      space params nil)
+                                                   (values `(a-call ,composed ,argument)
+                                                           remaining))
+                                                 ;; other cases of pivotal compositions with
+                                                 ;; a value as right operand
+                                                 (multiple-value-bind (composed remaining)
+                                                     (complete-pivotal-match
+                                                      exp-operator tokens nil
+                                                      (build-value nil :elements elements
+                                                                       :params params :space space)
+                                                      space params nil)
+                                                   (cons (list :fn :pass composed) remaining)))
+                                             (if tokens
+                                                 (when (and (listp (first tokens))
+                                                            (eq :op (caar tokens))
+                                                            (eq :lateral (cadar tokens)))
                                                    (error
                                                     "No function found to the left of lateral operator ~a."
                                                     (third (first tokens))))
-                                               preceding))))))
+                                                 preceding)))))))
                              (if axes (if (or (symbolp (first tokens))
                                               (and (listp (first tokens))
                                                    (eq :fn (caar tokens))
@@ -1297,16 +1321,16 @@
                     operator `(inws ,operator))
                ,(or function value))))
   
-(defun compose-function-pivotal (operator function1 function2 value2)
+(defun compose-function-pivotal (operator function1 function2 value)
   "Compose a function using a pivotal operator like [⍣ power]."
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
               (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
                                                 *package-name-string*))
-                       function1 (or function2 value2)))
+                       function1 (or function2 value)))
       `(a-comp :op ,(if (not (symbolp operator))
                         operator `(inws ,operator))
-               ,(or function2 value2) ,function1)))
+               ,(or function2 value) ,function1)))
 
 (defun compose-function-train (space right center &optional left left-value)
   "Compose a function train like (-,÷)."

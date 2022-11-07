@@ -1791,9 +1791,8 @@
   (for "Assignment by function result of array after after function applied."
        "q←3×1-⍨3 3⍴⍳4 ⋄ p←4 4⍴1 ⋄ p[⍳3;⍳3]×←q=0 ⋄ p" #2A((1 0 0 1) (0 1 0 1) (0 0 1 1) (1 1 1 1)))
   (for "Operation over portions of an array."
-       "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a"
-       #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
-           (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
+       "a←4 8⍴⍳9 ⋄ a[2 4;1 6 7 8]+←10 ⋄ a" #2A((1 2 3 4 5 6 7 8) (19 1 2 3 4 15 16 17)
+                                               (8 9 1 2 3 4 5 6) (17 8 9 1 2 13 14 15)))
   (for "Assignment of array element referenced by [⌷ index] function."
        "x←3 3⍴⍳9 ⋄ (2 3⌷x)←33 ⋄ x" #2A((1 2 3) (4 5 33) (7 8 9)))
   (for "Assignment of array element referenced by [⌷ index] function to different type."
@@ -1880,6 +1879,8 @@
        "(1 0 1∘/)¨⍳3" #(#*11 #(2 2) #(3 3)))
   (for "Pivotal composition composed across a vector followed by another lateral composition."
        "+/×⍤1¨1 0 ¯1" 0)
+  (for "Pivotal composition with another pivotal composition preceding right operand within defn."
+       "{⊢⍤1(⊢⍤1)⍵}⍳3" #(1 2 3))
   (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
