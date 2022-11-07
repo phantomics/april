@@ -232,6 +232,11 @@
            (member ,symbol *idiom-native-symbols*))
        ,symbol (intern (string ,symbol) space)))
 
+(defun check-value (item)
+  ;; TODO: performing this check is time-consuming; is there another way to accomplish this?
+  (if (not (functionp item))
+      item (error "Functions cannot return functions, they must return values.")))
+
 (defmacro alambda (params options &body body)
   "Generate a lambda with a self-reference for use with APL's ∇ character for self-reference in a defn."
   (let* ((options (rest options))
@@ -257,7 +262,9 @@
                         (declare (ignorable ,@vals-list))
                         (when (getf (rest ,env) :test-param)
                           (print (list :env ,env)))
-                        ,@body))))
+                        ;; ,@body
+                        ,@(append (butlast body)
+                                  (list (cons 'check-value (last body))))))))
          #'∇self))))
 
 (defmacro olambda (params &body body)

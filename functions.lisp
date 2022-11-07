@@ -1301,10 +1301,16 @@
                     (make-array (subseq adims 0 arankdelta))))
            (adiv-dims (when adivs (subseq adims arankdelta)))
            (adiv-size (when alpha (reduce #'* adiv-dims))))
+
+      (when (or (not (and (integerp ocrank) (or (zerop ocrank) (plusp ocrank))))
+                (not (and (integerp acrank) (or (zerop acrank) (plusp acrank))))
+                (not (and (integerp omrank) (or (zerop omrank) (plusp omrank)))))
+        (error "Right operand to rank may only be a scalar or vector of 2-3 dimensional indices."))
       (when (and alpha (eq :monadic (getf fn-meta :valence)))
         (error "Function composed with [⍤ rank] may not have a left argument."))
       (when (and (not alpha) (eq :dyadic (getf fn-meta :valence)))
         (error "Function composed with [⍤ rank] must have a left argument."))
+      
       (if (eq omega :get-metadata)
           (append fn-meta (list :composed-by #\⍤))
           (if (and (getf fn-meta :on-axis)
