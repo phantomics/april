@@ -1310,7 +1310,7 @@
         (error "Function composed with [⍤ rank] may not have a left argument."))
       (when (and (not alpha) (eq :dyadic (getf fn-meta :valence)))
         (error "Function composed with [⍤ rank] must have a left argument."))
-      
+
       (if (eq omega :get-metadata)
           (append fn-meta (list :composed-by #\⍤))
           (if (and (getf fn-meta :on-axis)
@@ -1318,7 +1318,7 @@
               ;; if the composed function is directly equivalent to a function that operates
               ;; across an axis, as ⊖⍤1 and ⌽⍤1 are to ⌽, just reassign the axis
               (apply (if (eq :last (getf fn-meta :on-axis))
-                         function (funcall function :reassign-axes (list orank)))
+                         function (funcall function :reassign-axes (list (max orank arank))))
                      omega (when alpha (list alpha)))
               (flet ((generate-divs (div-array ref-array div-dims div-size)
                        (let ((ref-indexer (varray::generator-of ref-array)))
@@ -1334,7 +1334,9 @@
                                  (if (not (or odivs adivs))
                                      ;; if alpha and omega are scalar, just call the function on them
                                      (funcall function omega alpha)
-                                     (let ((output (make-array (dims (or odivs adivs)))))
+                                     (let ((output (make-array (shape-of (if (> (rank-of odivs)
+                                                                                (rank-of adivs))
+                                                                             odivs adivs)))))
                                        (dotimes (i (size output))
                                          (let ((this-odiv (if (not odivs)
                                                               omega (if (zerop (rank odivs))
