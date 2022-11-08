@@ -1350,7 +1350,8 @@
             (is "⊃,/3 4+/¨⊂3 6⍴⍳9"
                 #2A((6 9 12 15 10 14 18) (24 18 12 6 25 20 15) (15 18 21 24 22 26 30)))
             (is "⊃,/(⊂'abc') 'def' 'ghi'" #("abc" #\d #\e #\f #\g #\h #\i))
-            (is "(×⌿,+⌿)+⌿(⍳2)∘.×⍬∘.×⍳4" #(1 1 1 1 0 0 0 0))))
+            (is "(×⌿,+⌿)+⌿(⍳2)∘.×⍬∘.×⍳4" #(1 1 1 1 0 0 0 0))
+            (is "+/⍳2 5" #(#(5 15) #(10 15)))))
   (⌿ (has :title "Reduce First")
      (lateral (lambda (operand)
                 (values `(op-compose 'vacomp-reduce :left (sub-lex ,operand)
@@ -1834,8 +1835,8 @@
   (for "Selective assignment of vector elements by take of sub-indices."
        "{mt←⍳20 ⋄ (3↑mt[2×⍳8])←⍵ ⋄ mt} 99" #(1 99 3 99 5 99 7 8 9 10 11 12 13 14 15 16 17 18 19 20))
   (for "Selective assignment of nested character vector elements enlisted by [/ compress] function."
-       "{names←'Kent' 'Alan' 'Ryan' ⋄ (('a'=∊names)/∊names)←⍵ ⋄ names} '*'"
-       #(#(#\K #\e #\n #\t) #(#\A #\l #\* #\n) #(#\R #\y #\* #\n)))
+       "'a' {names←'Kent' 'Alan' 'Ryan' ⋄ ((⍺=∊names)/∊names)←⍵ ⋄ names} '*'"
+       #("Kent" "Al*n" "Ry*n"))
   (for "Selective assignment of string elements within string applied by [/ compress] function."
        "{A←'STELLAR' ⋄ ((A∊'AEIOU')/A)←⍵ ⋄ A} '*'" #(#\S #\T #\* #\L #\L #\* #\R))
   (for "Multiple assignment with selective assignment in midstream."
@@ -1984,6 +1985,8 @@
   (for "Locally-scoped function used with pivotal operator within if-statement."
        "(⍳3){ g←{⍵×⍺-2} ⋄ b←{⍺×⍵÷3} ⋄ h←{12×$[~2|⍺;⍺ (b . g) ⍵;⍺ g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(-24 -36 -48) 0 #(48 60 72)))
+  (for "Pivotal operator with value operands but no arguments defined and used."
+       "2{⍶⋄⍹}3⊢10" 3)
   (for "Function containing multiple nested locally-scoped functions."
        "{aa←{⍵+5} ⋄ bb←{cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵} ⋄ 9 bb ⍵} 100" #(9 105))
   (for "Operator composition assigned as function with a right-value composition on the right."

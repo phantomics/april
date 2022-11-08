@@ -968,7 +968,7 @@
                             (vader-select (setf (varray::vasel-selector o) (or output object)))
                             ;; in the case of an enlist object, generate the index array and pass it
                             ;; back via the second value, needed for cases like
-                            ;; {names←'Kent' 'Alan' 'Ryan' ⋄ (('a'=∊names)/∊names)←⍵ ⋄ names} '*'
+                            ;; 'a' {names←'Kent' 'Alan' 'Ryan' ⋄ ((⍺=∊names)/∊names)←⍵ ⋄ names} '*'
                             (t (setf (varray::vader-base o)
                                      (or output (if (not (typep o 'vader-enlist))
                                                     object (setf ivec (generate-index-array object)))))))

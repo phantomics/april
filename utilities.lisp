@@ -1571,7 +1571,7 @@ It remains here as a standard against which to compare methods for composing APL
     ;; explicitly register a side effect in the case of [⎕RL random link] assignment
     (when (member '*rngs* (getf closure-meta :var-syms))
       (push :random-link-assignment (getf closure-meta :side-effects)))
-    
+
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (aprgn) forms used to implement function variant implicit statements
         (cons 'aprgn form)
@@ -1974,6 +1974,10 @@ It remains here as a standard against which to compare methods for composing APL
            this-form))
         ((guard symbol (member symbol '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵)))
          ;; handle argument symbols, adding them to the closure-meta list
+         ;; (print (list :sy symbol closure-meta))
+         (when (not closure-meta)
+           ;; create the meta form if not present, needed for cases like 2{⍶⋄⍹}3⊢10
+           (setf closure-meta (list :arg-syms nil)))
          (when (and closure-meta (not (member symbol (getf closure-meta :arg-syms))))
            (push symbol (getf closure-meta :arg-syms)))
          symbol)
