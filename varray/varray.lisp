@@ -4645,9 +4645,13 @@
                   (wsegment)
                   (non-nested (not (eq t (etype-of (vacmp-omega varray)))))
                   (fn-meta (funcall (vacmp-left varray) :get-metadata nil))
-                  (scalar-fn (and (getf fn-meta :scalar)
+                  ;; check whether fn-meta is a list since train-composed functions and some
+                  ;; others won't return a metadata list; TODO: a better way to do this?
+                  (scalar-fn (and (listp fn-meta)
+                                  (getf fn-meta :scalar)
                                   (not (getf fn-meta :operator-reference))))
-                  (catenate-fn (and (getf fn-meta :lexical-reference)
+                  (catenate-fn (and (listp fn-meta)
+                                    (getf fn-meta :lexical-reference)
                                     (not (getf fn-meta :operator-reference))
                                     (member (getf fn-meta :lexical-reference)
                                             '(#\, #\⍪ #\∩) :test #'char=)))
