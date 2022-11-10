@@ -4128,9 +4128,9 @@
                   (and (numberp axis)
                        (numberp base-axis)
                        (= axis base-axis)))
-          (if (and argument base-arg)
-              (setf (vads-argument varray) (+ argument base-arg)
-                    (vader-base varray) sub-base)))))))
+          (when (and argument base-arg)
+            (setf (vads-argument varray) (+ argument base-arg)
+                  (vader-base varray) sub-base)))))))
 
 (defclass vader-permute (varray-derived vad-with-io vad-with-argument vad-reindexing)
   ((%is-diagonal :accessor vaperm-is-diagonal

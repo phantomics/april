@@ -1559,7 +1559,7 @@
      (tests (is "fn←{2+⍵}⍣3 ⋄ fn 5" 11)
             (is "{2+⍵}⍣3⊢9" 15)
             (is "2{⍺×2+⍵}⍣3⊢9" 100)
-            (is "{3×⍵}⍣(g←3)⊢5" 135)
+            (is "{3×⍵}⍣(gg←3)⊢5" 135)
             (is "fn←{2+⍵}⍣{10<⍺} ⋄ fn 2" 12)
             (is "fn←{2+⍵}⍣{10<⍵} ⋄ fn 2" 14)
             (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
@@ -1705,7 +1705,7 @@
     ⍝ This is another comment.
     v←⍳3 ⋄ f2 f1 v,4 5"
        #(8 10 12 14 16))
-  (for "One-line assignment followed by comment." "f←1 2 3 ⍝ Comment follows." #(1 2 3))
+  (for "One-line assignment followed by comment." "vc←1 2 3 ⍝ Comment follows." #(1 2 3))
   (for "Monadic inline function." "{⍵+3} 3 4 5" #(6 7 8))
   (for "Dyadic inline function." "1 2 3 {⍺×⍵+3} 3 4 5" #(6 14 24))
   (for "Vector of input variables and discrete values processed within a function."
@@ -1733,7 +1733,7 @@
        "a←3 4⍴⍳12 ⋄ ⍴a[⍬;]" #(0 4))
   (for "Indexing with variables." "x←3 3⍴⍳9 ⋄ y←1 ⋄ x[;y]" #(1 4 7))
   (for "Application of functions to indexed array elements."
-       "g←2 3 4 5 ⋄ 9,g[2],3 4" #(9 3 3 4))
+       "gg←2 3 4 5 ⋄ 9,gg[2],3 4" #(9 3 3 4))
   (for "Assignment of an element within an array."
        "a←2 3⍴⍳9 ⋄ a[1;2]←20 ⋄ a" #2A((1 20 3) (4 5 6)))
   (for "Assignment of enclosed array to multiple indices of an array."
@@ -1745,7 +1745,7 @@
   (for "Strand assignment of nested scalar variable."
        "⎕IO←1 ⋄ (a b c)←⊂3 3⍴1 ⋄ ⊃+/a b c" #2A((3 3 3) (3 3 3) (3 3 3)))
   (for "Strand assignment of variables without parentheses." "a b c←4 5 6 ⋄ a×b,c" #(20 24))
-  (for "Strand assignment with nesting." "d (e f)←7 (8 9) ⋄ e⍴d×f" #(63 63 63 63 63 63 63 63))
+  (for "Strand assignment with nesting." "cc (dd ee)←7 (8 9) ⋄ dd⍴cc×ee" #(63 63 63 63 63 63 63 63))
   (for "Assignment of axis-selected element within inline function."
        "{m←'+∘×'[2],⍵ ⋄ ↓m} 3 3⍴'ab'" #("∘aba" "∘bab" "∘aba"))
   (for "Selection from an array with multiple elided dimensions."
@@ -1763,7 +1763,7 @@
        "x←8 8⍴0 ⋄ x[2+⍳3;3+⍳4]←3 4⍴⍳9 ⋄ x" #2A((0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0) (0 0 0 1 2 3 4 0)
                                                (0 0 0 5 6 7 8 0) (0 0 0 9 1 2 3 0) (0 0 0 0 0 0 0 0)
                                                                  (0 0 0 0 0 0 0 0) (0 0 0 0 0 0 0 0)))
-  (for "Elided assignment of a matrix of values." "g←5 5⍴⍳9 ⋄ g[2 5;]←2 5⍴0 1 ⋄ g"
+  (for "Elided assignment of a matrix of values." "gg←5 5⍴⍳9 ⋄ gg[2 5;]←2 5⍴0 1 ⋄ gg"
        #2A((1 2 3 4 5) (0 1 0 1 0) (2 3 4 5 6) (7 8 9 1 2) (1 0 1 0 1)))
   (for "Elision and indexed array elements."
        "(6 8⍴⍳9)[1 4;]" #2A((1 2 3 4 5 6 7 8) (7 8 9 1 2 3 4 5)))
@@ -2085,7 +2085,7 @@
   (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #("" "a" "b" "ab"))
   (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
        #("" "a" "b" "ab" "c" "ac" "bc" "abc"))
-  (for "Inversion of variable-referenced function." "g←3∘× ⋄ g⍣¯1⊢24" 8)
+  (for "Inversion of variable-referenced function." "vr←3∘× ⋄ vr⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
   (for "Inversion of more complex arbitrary function." "{5×2+⍵}⍣¯1⊢20" 2)
   (for "Even more complex function inverted." "⌈{2*1+7-⍵}⍣¯1⊢64" 2)
@@ -2118,8 +2118,8 @@
                          :|gg| (:|kk| 30 :|jj| :FUNCTION :|ii| 6 :|hh| 5) :|bb| 33)))
   (for "Namespace points set in global and local scopes."
        "⎕CS _ ⋄ myns←⎕NS⍬ ⋄ myns.aa←10 ⋄ myns.bb←⎕NS⍬ ⋄ myns.bb.cc←3 ⋄ ⎕CS myns
-    ff←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
-       '(:|ff| 31 :|bb| (:|cc| 3) :|aa| 10))
+    it←{⎕CS myns.bb ⋄ d←5 ⋄ e←3 ⋄ cc+d+e+⍵} 10+aa ⋄ ⎕CS _ ⋄ myns"
+       '(:|it| 31 :|bb| (:|cc| 3) :|aa| 10))
   (for "Elision of namespaces within an array."
        "myns←⎕NS⍬ ⋄ myns.a←1 ⋄ myns.b←2 ⋄ myns.c←{n←⎕NS⍬ ⋄ n.a←⍵ ⋄ n.b←⍵×2 ⋄ n.d←⍳5 ⋄ n}¨⍳3 
     myns.c.a+←2 ⋄ myns.c.c←5 ⋄ myns.c.d[3 5]←⎕NS⍬ ⋄ myns.c.d[3 5].a←2 
@@ -2337,7 +2337,7 @@ i 900    k
  cde  fgh b
  900    k i
 ")
-  (for-printed "Another mixed matrix." "g←⍪12 'abc' 900 ⋄ g,(⍪1 2 3),g"
+  (for-printed "Another mixed matrix." "gg←⍪12 'abc' 900 ⋄ gg,(⍪1 2 3),gg"
                "  12  1   12
  abc  2  abc
  900  3  900

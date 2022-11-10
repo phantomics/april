@@ -1242,7 +1242,7 @@
                                         (not (getf (getf params :special) :closure-meta)))
                                ;; unbind the symbol as for a function if this
                                ;; variable assignment is made at the top level
-                               (fmakunbound insym))
+                               (error "The name ~a already designates a function." insym))
                              (when (and (not (boundp insym))
                                         (not (member symbol (getf (rest (getf (getf params :special)
                                                                               :closure-meta))
@@ -1277,7 +1277,8 @@
     (if (symbolp symbol) ;; handle the case of a function assigned to a symbol like f←{⍵+1}
         (let ((i-sym (intern (string symbol) space))
               (in-closure (getf (getf params :special) :closure-meta)))
-          (when (boundp i-sym) (makunbound i-sym))
+          (when (and (boundp i-sym) (not in-closure))
+            (error "The name ~a already designates a value." i-sym))
           (when (and (not in-closure)
                      (not (member symbol '(⍺ ⍺⍺)))) ;; don't bind assignments to argument symbols
             (setf (symbol-function i-sym) #'dummy-nargument-function))
