@@ -1886,6 +1886,9 @@
   (for "Pivotal composition with another pivotal composition preceding right operand within defn."
        "{⊢⍤1(⊢⍤1)⍵}⍳3" #(1 2 3))
   (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
+  (for "Operator composition calling accumulating function."
+       "{accum←⍬ ⋄ update←{accum,←⍵} ⋄ {_←{update ⍵}¨⍵⋄⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ accum} 5"
+       #(1 2 3 4 5 4 3 2 1 2 3 4 3 2 3))
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))

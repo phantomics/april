@@ -379,9 +379,14 @@
 
 (defun reg-symfn-call (function space meta-form)
   "Add a reference to a call to a symbolic function to a closure metadata object."
-  (if (and meta-form function (listp function))
+  ;; (print (list :ff function))
+  ;; (print :ff)
+  (when (and meta-form function (listp function))
+    (let ((h-sym (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
       (if (and (member (first function) '(inws inwsd))
-               (not (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
+               ;; (not (of-meta-hierarchy (rest meta-form) :fn-syms (second function)))
+               (not h-sym)
+               )
           (push (intern (string (second function)) space)
                 (getf (rest meta-form) :symfns-called))
           (if (eql 'alambda (first function))
@@ -390,9 +395,13 @@
                       :do (push sf (getf (rest meta-form) :symfns-called)))
                 (loop :for se :in (second (getf fn-meta :side-effects))
                       :do (reg-side-effect se meta-form)))
-              (when (eql 'a-comp (first function))
+              (when (and (eql 'a-comp (first function))
+                         ;; (not (of-meta-hierarchy (rest meta-form) :fn-syms (second function)))
+                         ;; (not h-sym)
+                         )
+                ;; (print :gg)
                 (reg-symfn-call (fourth function) space meta-form)
-                (reg-symfn-call (fifth function) space meta-form))))))
+                (reg-symfn-call (fifth function) space meta-form)))))))
 
 (defun side-effect-free (function)
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."

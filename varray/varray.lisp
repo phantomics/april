@@ -4785,7 +4785,9 @@
                       (ashape (shape-of (vacmp-alpha varray)))
                       (oindexer (generator-of (vacmp-omega varray)))
                       (aindexer (generator-of (vacmp-alpha varray)))
-                      (threaded (side-effect-free (vacmp-left varray))))
+                      (threaded ;; (side-effect-free (vacmp-left varray))
+                        ))
+                  ;; TODO: logic to determine threading needs work, then reenable it
                   (when (not threaded) (setf (vacmp-threadable varray) nil))
                   (lambda (index)
                     (if (vacmp-alpha varray)
