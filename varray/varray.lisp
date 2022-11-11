@@ -2317,9 +2317,13 @@
                           (if (not (member (etype-of item1) '(character base-char)))
                               (not (member (etype-of item2) '(character base-char)))
                               (member (etype-of item2) '(character base-char))))
+                      ;; TODO: this can be optimized - currently the
+                      ;; function check happens for every element
                       (loop :for i :below (size-of item1)
-                            :always (varray-compare (funcall indexer1 i)
-                                                    (funcall indexer2 i))))
+                            :always (varray-compare (if (not (functionp indexer1))
+                                                        indexer1 (funcall indexer1 i))
+                                                    (if (not (functionp indexer2))
+                                                        indexer2 (funcall indexer2 i)))))
           (when (not shape2)
             (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
                      (> comparison-tolerance (abs (- indexer1 indexer2))))

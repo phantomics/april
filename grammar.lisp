@@ -943,36 +943,47 @@
                                                              external-workspace-operator))))
                 (values nil tokens)
                 (build-function tokens :space space :params params))
-          (multiple-value-bind (symbol remaining2)
-              ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9)
-              (build-value (if (not (and (or (symbolp function)
-                                             (and (listp function)
-                                                  (member (first function) '(inws inwsd))))
-                                         (not remaining)))
-                               remaining tokens)
-                           :space space :left t :params (append (list :match-all-syms t) params))
+          (let ((initial-token-unstrandable (member (first tokens) '(to-output))))
             (multiple-value-bind (symbol remaining2)
-                (if (all-symbols-p symbol) (values symbol remaining2)
-                    (build-value (if (not (and (or (symbolp function)
-                                                   (and (listp function)
-                                                        (member (first function) '(inws inwsd))))
-                                               (not remaining)))
-                                     remaining tokens)
-                                 :space space :left t :params params))
-              ;; TODO: account for stuff after the assigned symbol
-              (when (or symbol function)
-                (if (and symbol (listp symbol) (eql 'avec (first symbol))
-                         (not (all-symbols-p symbol)))
-                    ;; error occurs if an invalid strand assignment like ⎕←'hi' ⎕←'bye' is made
-                    (error "Invalid assignment.")
-                    (build-value remaining2
-                                 :elements (list (compose-value-assignment
-                                                  (or symbol function)
-                                                  (build-value nil :axes axes :elements elements
-                                                                   :space space :params params)
-                                                  :params params :space space
-                                                  :function (if symbol function)))
-                                 :space space :params params)))))))))
+                ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9);
+                ;; do not build an assignment strand if a ⎕ is present in the vector of names,
+                ;; and there may be other symbols that this rule should apply to
+                (build-value (if (not (and (or (symbolp function)
+                                               (and (listp function)
+                                                    (member (first function) '(inws inwsd))))
+                                           (not remaining)))
+                                 remaining (if (not initial-token-unstrandable)
+                                               tokens (list (first tokens))))
+                             :space space :left t :params (append (list :match-all-syms t) params))
+              (when initial-token-unstrandable
+                (setf remaining2 (rest tokens)))
+              ;; (print (list :sym symbol remaining tokens
+              ;;              (not (and (or (symbolp function)
+              ;;                            (and (listp function)
+              ;;                                 (member (first function) '(inws inwsd))))
+              ;;                        (not remaining)))))
+              (multiple-value-bind (symbol remaining2)
+                  (if (all-symbols-p symbol) (values symbol remaining2)
+                      (build-value (if (not (and (or (symbolp function)
+                                                     (and (listp function)
+                                                          (member (first function) '(inws inwsd))))
+                                                 (not remaining)))
+                                       remaining tokens)
+                                   :space space :left t :params params))
+                ;; TODO: account for stuff after the assigned symbol
+                (when (or symbol function)
+                  (if (and symbol (listp symbol) (eql 'avec (first symbol))
+                           (not (all-symbols-p symbol)))
+                      ;; error occurs if an invalid strand assignment like ⎕←'hi' ⎕←'bye' is made
+                      (error "Invalid assignment.")
+                      (build-value remaining2
+                                   :elements (list (compose-value-assignment
+                                                    (or symbol function)
+                                                    (build-value nil :axes axes :elements elements
+                                                                     :space space :params params)
+                                                    :params params :space space
+                                                    :function (if symbol function)))
+                                   :space space :params params))))))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
   "Complete the composition of a branch statement, either creating or optionally moving to a branch within an APL expression."
@@ -1239,10 +1250,18 @@
                  (loop :for symbol :in symbols-list
                        :do (let ((insym (intern (string symbol) space)))
                              (when (and (is-workspace-function symbol)
-                                        (not (getf (getf params :special) :closure-meta)))
+                                        (not (getf (getf params :special) :closure-meta))
+                                        ;; don't cause an error in the case of assignments of functions
+                                        ;; or operators from an external workspace as with ⎕XWF and ⎕XWO
+                                        (not (and (listp value)
+                                                  (eql 'a-call (first value))
+                                                  (or (member (second value)
+                                                              '((function external-workspace-function)
+                                                                (function external-workspace-operator))
+                                                              :test #'equalp)))))
                                ;; unbind the symbol as for a function if this
                                ;; variable assignment is made at the top level
-                               (error "The name ~a already designates a function." insym))
+                               (error "The name [~a] already designates a function." insym))
                              (when (and (not (boundp insym))
                                         (not (member symbol (getf (rest (getf (getf params :special)
                                                                               :closure-meta))
@@ -1278,7 +1297,7 @@
         (let ((i-sym (intern (string symbol) space))
               (in-closure (getf (getf params :special) :closure-meta)))
           (when (and (boundp i-sym) (not in-closure))
-            (error "The name ~a already designates a value." i-sym))
+            (error "The name [~a] already designates a value." i-sym))
           (when (and (not in-closure)
                      (not (member symbol '(⍺ ⍺⍺)))) ;; don't bind assignments to argument symbols
             (setf (symbol-function i-sym) #'dummy-nargument-function))
