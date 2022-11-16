@@ -368,11 +368,14 @@
             `(λω (funcall ,body omega ,(cons 'list axes)))
             body))))
 
-(defun of-meta-hierarchy (meta-form key symbol)
+(defun of-meta-hierarchy (meta-form key &optional symbol)
   "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
   ;; (print (list :mm key symbol meta-form))
-  (or (and (getf meta-form key) (member symbol (getf meta-form key) :test #'eql))
-      (and (getf meta-form :parent) (of-meta-hierarchy (rest (getf meta-form :parent)) key symbol))))
+  (if symbol (or (and (getf meta-form key) (member symbol (getf meta-form key) :test #'eql))
+                 (and (getf meta-form :parent) (of-meta-hierarchy (rest (getf meta-form :parent)) key symbol)))
+      (when (getf meta-form key)
+        (append (getf meta-form key)
+                (of-meta-hierarchy (rest (getf meta-form :parent)) key)))))
 
 (defun reg-side-effect (item meta-form)
   "Add a reference to a side effect to a closure metadata object."
@@ -385,36 +388,40 @@
 
 (defun reg-symfn-call (function space meta-form)
   "Add a reference to a call to a symbolic function to a closure metadata object."
-  ;; (print (list :ff function))
+  ;; (print (list :ff function meta-form))
   ;; (print :ff)
   (when (and meta-form function (listp function))
     (let ((h-sym ;; (and (of-meta-hierarchy (rest meta-form) :fn-syms (second function))
                  ;;      (of-meta-hierarchy (rest meta-form) :side-effecting-functions (second function)))
-                 (of-meta-hierarchy (rest meta-form) :fn-syms (second function))
-                 ))
-      ;; (print (list :hh h-sym function meta-form))
+            (of-meta-hierarchy (rest meta-form) :fn-syms (second function))
+            ))
+      ;; (print (list :hh h-sym function meta-form
+      ;;              (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))))
       (if (eql 'sub-lex (first function))
           (reg-symfn-call (second function) space meta-form)
           (if (and (member (first function) '(inws inwsd))
-                   (not h-sym)
-                   )
+                   (not h-sym))
               (push (intern (string (second function)) space)
                     (getf (rest meta-form) :symfns-called))
-              (if (eql 'alambda (first function))
-                  (let ((fn-meta (rest (second (third function)))))
-                    (loop :for sf :in (second (getf fn-meta :symfns-called))
-                          :do (push sf (getf (rest meta-form) :symfns-called)))
-                    (loop :for se :in (second (getf fn-meta :side-effects))
-                          :do (reg-side-effect se meta-form)
-                              ;; (reg-se-function function (getf (rest meta-form) :parent))
-                          )
-                    ;; (loop :for sf :in (second (getf fn-meta :side-effecting-functions))
-                    ;;       :do (push sf (getf (rest meta-form) :side-effecting-functions)))
-                    )
-                  (when (eql 'a-comp (first function))
-                    ;; (print (list :gg (fourth function) meta-form))
-                    (reg-symfn-call (fourth function) space meta-form)
-                    (reg-symfn-call (fifth function) space meta-form))))))))
+              (if (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))
+                  (when (symbolp (second function))
+                    (push (intern (string (second function)) space)
+                          (getf (rest meta-form) :sefns-called)))
+                  (if (eql 'alambda (first function))
+                      (let ((fn-meta (rest (second (third function)))))
+                        (loop :for sf :in (second (getf fn-meta :symfns-called))
+                              :do (push sf (getf (rest meta-form) :symfns-called)))
+                        (loop :for se :in (second (getf fn-meta :side-effects))
+                              :do (reg-side-effect se meta-form)
+                                  ;; (reg-se-function function (getf (rest meta-form) :parent))
+                              )
+                        ;; (loop :for sf :in (second (getf fn-meta :side-effecting-functions))
+                        ;;       :do (push sf (getf (rest meta-form) :side-effecting-functions)))
+                        )
+                      (when (eql 'a-comp (first function))
+                        ;; (print (list :gg (fourth function) meta-form))
+                        (reg-symfn-call (fourth function) space meta-form)
+                        (reg-symfn-call (fifth function) space meta-form)))))))))
 
 (defun side-effect-free (function)
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
@@ -1537,7 +1544,6 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun output-function (form space &optional arguments closure-meta properties)
   "Express an APL inline function like {⍵+5}."
-  ;; (print (list :props properties form))
   (let ((arg-symbols (getf closure-meta :arg-syms))
         (side-refs) (var-refs)
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
@@ -1572,6 +1578,8 @@ It remains here as a standard against which to compare methods for composing APL
                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
+        (se-functions (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
+                                         :side-effecting-functions))
         (arguments (when arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
     ;; lexical variable references inside a function are registered as side effects _unless_ there
     ;; is a lexical assignment of the variable within the function; this is because lexical
@@ -1616,8 +1624,11 @@ It remains here as a standard against which to compare methods for composing APL
                                                      "contains more than one statement.")))
                                    :side-effects ',(getf closure-meta :side-effects)
                                    :side-effecting-functions
-                                   ',(getf closure-meta :side-effecting-functions)
+                                   ',se-functions
                                    :side-refs ',side-refs
+                                   ,@(when (getf closure-meta :sefns-called)
+                                       (list :sefns-called
+                                             (list 'quote (getf closure-meta :sefns-called))))
                                    ,@(when (getf closure-meta :symfns-called)
                                        (list :symfns-called
                                              (list 'quote (getf closure-meta :symfns-called)))))
