@@ -191,7 +191,7 @@
                                       fn :space space
                                       :params (list :special (list :closure-meta (second this-item))
                                                     :call-scope (getf properties :call-scope)))
-                                     space polyadic-args (rest this-closure-meta) properties))))))))
+                                     space polyadic-args properties (rest this-closure-meta)))))))))
             (when (eq :pt (first this-item))
               (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                              :ns-point)
@@ -279,7 +279,7 @@
                                   :params (list :special
                                                 (list :closure-meta (second this-item))
                                                 :call-scope (getf properties :call-scope)))
-                 space nil (rest this-closure-meta) properties)))))
+                 space nil properties (rest this-closure-meta))))))
       (when (symbolp this-item)
         ;; if the operator is represented by a symbol, it is a user-defined operator
         ;; and the appropriate variable name should be verified in the workspace

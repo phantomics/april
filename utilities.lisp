@@ -381,29 +381,23 @@
   "Add a reference to a side effect to a closure metadata object."
   (when meta-form (push item (getf (rest meta-form) :side-effects))))
 
-;; (defun reg-se-function (item meta-form)
-;;   "Add a reference to a side effect to a closure metadata object."
-;;   (print (list :oo item))
-;;   (when meta-form (push item (getf (rest meta-form) :side-effecting-functions))))
-
 (defun reg-symfn-call (function space meta-form)
   "Add a reference to a call to a symbolic function to a closure metadata object."
   ;; (print (list :ff function meta-form))
   ;; (print :ff)
   (when (and meta-form function (listp function))
-    (let ((h-sym ;; (and (of-meta-hierarchy (rest meta-form) :fn-syms (second function))
-                 ;;      (of-meta-hierarchy (rest meta-form) :side-effecting-functions (second function)))
-            (of-meta-hierarchy (rest meta-form) :fn-syms (second function))
-            ))
-      ;; (print (list :hh h-sym function meta-form
-      ;;              (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))))
-      (if (eql 'sub-lex (first function))
-          (reg-symfn-call (second function) space meta-form)
-          (if (and (member (first function) '(inws inwsd))
-                   (not h-sym))
+    (if (eql 'sub-lex (first function))
+        (reg-symfn-call (second function) space meta-form)
+        ;; if this function is represented by a symbol from the top-level scope, push its symbol to the list
+        ;; of symbolic functions called in the immediate scope
+        (let ((h-sym (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
+          (if (and (not h-sym) (member (first function) '(inws inwsd)))
               (push (intern (string (second function)) space)
                     (getf (rest meta-form) :symfns-called))
               (if (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))
+                  ;; if this function is listed as a side-effecting function in the local scope
+                  ;; (as for evaluations like {acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵⋄⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5)
+                  ;; push it to the list of side-effecting functions called in the immediate scope
                   (when (symbolp (second function))
                     (push (intern (string (second function)) space)
                           (getf (rest meta-form) :sefns-called)))
@@ -412,14 +406,8 @@
                         (loop :for sf :in (second (getf fn-meta :symfns-called))
                               :do (push sf (getf (rest meta-form) :symfns-called)))
                         (loop :for se :in (second (getf fn-meta :side-effects))
-                              :do (reg-side-effect se meta-form)
-                                  ;; (reg-se-function function (getf (rest meta-form) :parent))
-                              )
-                        ;; (loop :for sf :in (second (getf fn-meta :side-effecting-functions))
-                        ;;       :do (push sf (getf (rest meta-form) :side-effecting-functions)))
-                        )
+                              :do (reg-side-effect se meta-form)))
                       (when (eql 'a-comp (first function))
-                        ;; (print (list :gg (fourth function) meta-form))
                         (reg-symfn-call (fourth function) space meta-form)
                         (reg-symfn-call (fifth function) space meta-form)))))))))
 
@@ -1542,7 +1530,7 @@ It remains here as a standard against which to compare methods for composing APL
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 
-(defun output-function (form space &optional arguments closure-meta properties)
+(defun output-function (form space &optional arguments properties closure-meta)
   "Express an APL inline function like {⍵+5}."
   (let ((arg-symbols (getf closure-meta :arg-syms))
         (side-refs) (var-refs)
@@ -1578,6 +1566,7 @@ It remains here as a standard against which to compare methods for composing APL
                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                  :pop-syms sym))
                                      :collect `(inwsd ,(intern (string sym))))))
+        ;; the list of side-effecting functions defined in this function's scope
         (se-functions (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                          :side-effecting-functions))
         (arguments (when arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
@@ -1626,9 +1615,13 @@ It remains here as a standard against which to compare methods for composing APL
                                    :side-effecting-functions
                                    ',se-functions
                                    :side-refs ',side-refs
+                                   ;; add the list of side-effecting functions called
+                                   ;; in this function's scope, if any are present
                                    ,@(when (getf closure-meta :sefns-called)
                                        (list :sefns-called
                                              (list 'quote (getf closure-meta :sefns-called))))
+                                   ;; the list of symbolic functions (represented by a symbol at the
+                                   ;; top-level scope) called within this function's scope
                                    ,@(when (getf closure-meta :symfns-called)
                                        (list :symfns-called
                                              (list 'quote (getf closure-meta :symfns-called)))))
