@@ -191,7 +191,7 @@
                                       fn :space space
                                       :params (list :special (list :closure-meta (second this-item))
                                                     :call-scope (getf properties :call-scope)))
-                                     space polyadic-args (rest this-closure-meta)))))))))
+                                     space polyadic-args (rest this-closure-meta) properties))))))))
             (when (eq :pt (first this-item))
               (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                              :ns-point)
@@ -279,7 +279,7 @@
                                   :params (list :special
                                                 (list :closure-meta (second this-item))
                                                 :call-scope (getf properties :call-scope)))
-                 space nil (rest this-closure-meta))))))
+                 space nil (rest this-closure-meta) properties)))))
       (when (symbolp this-item)
         ;; if the operator is represented by a symbol, it is a user-defined operator
         ;; and the appropriate variable name should be verified in the workspace
@@ -1316,6 +1316,9 @@
                                                  :fn-syms))))
               (push symbol (getf (rest (getf (getf params :special) :closure-meta)) :fn-syms))))
           (reg-symfn-call function space (getf (getf params :special) :closure-meta))
+          (when (getf (rest (getf (getf params :special) :closure-meta)) :side-effects)
+            (push symbol (getf (rest (getf (getf params :special) :closure-meta)) :side-effecting-functions)))
+          ;; (print (list :pa params))
           `(a-set ,(if (eql '⍺ symbol) ;; handle the ⍺←function case
                        symbol (if in-closure `(inws ,symbol)                    
                                   `(symbol-function '(inwsd ,symbol))))

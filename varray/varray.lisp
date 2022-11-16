@@ -4493,7 +4493,7 @@
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
   (let ((fn-meta (handler-case (funcall function :get-metadata)
                    (error () nil))))
-    
+    ;; (print (list :ffnn fn-meta))
     (and fn-meta (listp fn-meta)
          (or (member :side-effects fn-meta)
              (member :lexical-reference fn-meta))
@@ -4785,7 +4785,7 @@
                       (ashape (shape-of (vacmp-alpha varray)))
                       (oindexer (generator-of (vacmp-omega varray)))
                       (aindexer (generator-of (vacmp-alpha varray)))
-                      (threaded ;; (side-effect-free (vacmp-left varray))
+                      (threaded (side-effect-free (vacmp-left varray))
                         ))
                   ;; TODO: logic to determine threading needs work, then reenable it
                   (when (not threaded) (setf (vacmp-threadable varray) nil))
