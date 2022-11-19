@@ -556,7 +556,7 @@
   (≢ (has :titles ("First Dimension" "Not Match"))
      (ambivalent (λω (make-instance 'vader-first-dim :base omega))
                  (λωα (make-instance
-                       'vader-compare :base (vector omega alpha) :inverse t 
+                       'vader-compare :base (vector omega alpha) :inverse t
                                       :comparison-tolerance comparison-tolerance)))
      (meta (primary :implicit-args (comparison-tolerance) :virtual-support t))
      (tests (is "≢2" 1)
@@ -704,7 +704,7 @@
      (ambivalent (λω (make-instance 'vader-mix :base omega :index-origin index-origin
                                                :axis (or (first axes) :last)))
                  (λωα (make-instance
-                       'vader-section :base omega :argument alpha 
+                       'vader-section :base omega :argument alpha
                                       :index-origin index-origin :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :inverse (λω (make-instance 'vader-split :base omega :index-origin index-origin

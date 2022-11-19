@@ -304,22 +304,31 @@
                           (funcall this-generator (funcall composite-indexer index))))
                       is-not-defaulting))))))
 
-(defun encode-rmi (typekey factors byte-size)
-  (intraverser (:typekey typekey :linear t)
-    (:integer (the (function ((unsigned-byte +index-width+))
-                             (unsigned-byte +index-width+))
-                   (let ((this-rank (length factors)))
-                     (lambda (index)
-                       (let ((remaining index)
-                             (output (the +index-type+ 0)))
-                         (loop :for f :across factors :for ix :from (1- this-rank) :downto 0
-                               :do (multiple-value-bind (factor remainder)
-                                       (floor remaining f)
-                                     (setf output (dpb factor (byte byte-size (* byte-size ix))
-                                                       output)
-                                           remaining remainder)))
-                         ;; (print (list :ind index output))
-                         output)))))))
+(let ((encoder-table
+        (intraverser-ex
+         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
+           :rank-width +rank-width+ :rank-plus +rank-plus+)
+          (the (function ((simple-array (unsigned-byte 62) (+rank-plus+))) ;; TODO: variable type
+                         function)
+               (lambda (factors)
+                 (the (function ((unsigned-byte +eindex-width+))
+                                (unsigned-byte +eindex-width+))
+                      (lambda (index)
+                        (let ((remaining index)
+                              (output (the (unsigned-byte +eindex-width+) 0)))
+                          (loop :for f :of-type (unsigned-byte 62) :across factors
+                                :for ix :of-type (unsigned-byte +rank-width+)
+                                := (1- +rank-plus+) :then (1- ix)
+                                :do (multiple-value-bind (factor remainder)
+                                        (floor remaining f)
+                                      (setf output (dpb factor (byte +cindex-width+
+                                                                     (* +cindex-width+ ix))
+                                                        output)
+                                            remaining remainder)))
+                          output)))))))))
+  (defun encode-rmi (factors iwidth itype)
+    (let ((base-encoder (gethash (list iwidth itype (length factors)) encoder-table)))
+      (when base-encoder (funcall base-encoder factors)))))
 
 ;; (format t "#x~4,'0X~%" (funcall (encode-rmi :i32 #(12 4 1) 8) 14))
 
@@ -328,7 +337,7 @@
          ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
            :rank-width +rank-width+ :sub-base-width +sub-base-width+
            :rank-plus +rank-plus+)
-          (the (function ((simple-array (unsigned-byte 32) (+rank-plus+)))
+          (the (function ((simple-array (unsigned-byte 32) (+rank-plus+))) ;; TODO: variable type
                          function)
                (lambda (factors)
                  (declare (optimize (speed 3) (safety 0))
@@ -422,10 +431,69 @@
 ;; (format t "#x~8,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
 ;; (format t "#x~8,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
+;; (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
+;;                               total-size index-type encoding-type to-call)
+;;   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
+;;          (encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
+;;          (incrementer (when encoding-type (increment-encoded encoding-type index-type
+;;                                                              shape-vector)))
+;;          (default-indexer (lambda (index)
+;;                             (lambda ()
+;;                               (let* ((start-intervals (ceiling (* interval index)))
+;;                                      (start-at (* sbesize start-intervals))
+;;                                      (count (if (< index (1- divisions))
+;;                                                 (* sbesize (- (ceiling (* interval (1+ index)))
+;;                                                               start-intervals))
+;;                                                 (- total-size start-at))))
+;;                                 (loop :for i :from start-at :to (1- (+ start-at count))
+;;                                       :do (funcall to-call i))))))
+;;          (flat-indexer-table
+;;            (intraverser-ex
+;;             ((:lindex-width +lindex-width+)
+;;              (the (function ((unsigned-byte +lindex-width+)))
+;;                   (lambda (index)
+;;                     (the (function nil)
+;;                          (lambda ()
+;;                            (let* ((start-intervals (the (unsigned-byte +lindex-width+)
+;;                                                         (ceiling (* interval index))))
+;;                                   (start-at (the (unsigned-byte +lindex-width+)
+;;                                                  (* sbesize start-intervals)))
+;;                                   (count (the (unsigned-byte +lindex-width+)
+;;                                               (if (< index (1- divisions))
+;;                                                   (* sbesize (- (ceiling (* interval (1+ index)))
+;;                                                                 start-intervals))
+;;                                                   (- total-size start-at)))))
+;;                              (loop :for i :from start-at :to (1- (+ start-at count))
+;;                                    :do (funcall to-call i))))))))))
+;;          (encoded-indexer-table
+;;            (intraverser-ex
+;;             ((:eindex-width +eindex-width+ :cindex-width +cindex-width+)
+;;              (the (function ((unsigned-byte +eindex-width+)))
+;;                   (lambda (index)
+;;                     (the (function nil)
+;;                          (lambda ()
+;;                            (let* ((start-intervals (the (unsigned-byte +eindex-width+)
+;;                                                         (ceiling (* interval index))))
+;;                                   (start-at (the (unsigned-byte +eindex-width+)
+;;                                                  (* sbesize start-intervals)))
+;;                                   (count (the (unsigned-byte +eindex-width+)
+;;                                               (if (< index (1- divisions))
+;;                                                   (* sbesize (- (ceiling (* interval (1+ index)))
+;;                                                                 start-intervals))
+;;                                                   (- total-size start-at))))
+;;                                   (coords (funcall encoder start-at)))
+;;                              (loop :for i :below count
+;;                                    :do (funcall to-call coords)
+;;                                        (when (< i (1- count))
+;;                                          (setf coords (funcall incrementer coords)))))))))))))
+;;     (list (if encoding-type (gethash (list index-type encoding-type) encoded-indexer-table)
+;;               (gethash (list index-type) flat-indexer-table))
+;;           default-indexer)))
+
 (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
-         (encoder (when encoding-type (encode-rmi ekey factors index-type)))
+         (encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
          (incrementer (when encoding-type (increment-encoded encoding-type index-type
                                                              shape-vector))))
     (intraverser (:typekey typekey)
@@ -467,8 +535,7 @@
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
          (metadata (metadata-of varray))
-         (indexer) ; (generator-of varray nil (list :meta metadata)))
-         ;; (encodable-index t)
+         (indexer)
          (index-type (or (when (getf metadata :max-size)
                            (loop :for w :in '(8 16 32 64) :when (< (getf metadata :max-size)
                                                                    (expt 2 w))
@@ -505,14 +572,10 @@
           (getf metadata :indexer-key) type-key)
 
     (multiple-value-bind (this-generator is-not-defaulting)
-        (generator-of varray nil (list :indexer-key type-key
-                                       :index-width d-index-type
+        (generator-of varray nil (list :indexer-key type-key :index-width d-index-type
                                        :encoding encoding))
       (setf indexer this-generator
             default-generator (not is-not-defaulting)))
-
-    ;; (print (list :dde d-index-type encoding output-rank index-type metadata type-key
-    ;;              default-generator varray))
     
     (when (and (typep varray 'vader-select)
                (< 0 (size-of varray)) (functionp indexer))
@@ -522,14 +585,6 @@
     (setf to-subrender (or (subrendering-p varray)
                            (subrendering-base varray)))
 
-    ;; (print (list :me (varray-meta varray) index-type type-key))
-    ;; (print (list :sr varray (subrendering-p varray)
-    ;;              (subrendering-base varray)))
-    ;; (print (list :vv varray prototype
-    ;;              (etype-of varray)
-    ;;              (if (typep varray 'varray-derived)
-    ;;                  (subrendering-p (vader-base varray)))))
-    ;; (print (list :va varray))
     (if output-shape
         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
             (let* ((prototype (prototype-of varray))
@@ -540,9 +595,6 @@
               ;; nil types may occur from things like +/⍬
               (if out-meta (make-array output-shape :displaced-to out-meta)
                   (make-array output-shape :element-type (or (etype-of varray) t))))
-            ;; (if (not (functionp indexer))
-            ;;     (make-array output-shape :element-type (etype-of varray)
-            ;;                                   :initial-element indexer))
             (let* ((output (make-array output-shape :element-type (etype-of varray)))
                    (dfactors (when encoding (get-dimensional-factors output-shape t)))
                    ;; the decoder function converts non-row-major index formats like
@@ -723,7 +775,6 @@
                (base-lower-rank (< base-rank this-rank))
                (max-shape (if base-lower-rank this-shape base-shape))
                (generator-meta (or (getf base-meta :gen-meta) (list :items))))
-          
           (setf max-shape (if base-lower-rank
                               (loop :for s :in this-shape :for sx :from 0
                                     :collect (let ((item (if (>= sx base-rank)
@@ -1954,8 +2005,10 @@
                          #'char= (if (and (numberp a) (numberp o))
                                      #'= (lambda (a o) (declare (ignore a o)))))
                      o a)))
-     (let ((derivative-count (when (getf params :shape-deriving)
-                               (reduce #'* (getf params :shape-deriving))))
+     ;; (print (list :par params))
+     (let ((derivative-count (when (and (varray-shape varray)
+                                        (listp (varray-shape varray)))
+                               (reduce #'* (varray-shape varray))))
            (contents (render (vader-base varray)))
            (argument (render (vads-argument varray))))
        (if (and (arrayp argument)
@@ -2010,19 +2063,20 @@
 (defmethod generator-of ((varray vader-umask) &optional indexer params)
   (get-promised
    (varray-generator varray)
-   (let* ((derivative-count (if (getf params :shape-deriving)
-                                   (reduce #'* (getf params :shape-deriving))))
-             (base-shape (shape-of (vader-base varray)))
-             (contents (render (vader-base varray)))
-             (output-length (if (not derivative-count)
-                                (first base-shape)
-                                (min derivative-count (first base-shape))))
-             (increment (reduce #'* (rest base-shape)))
-             (displaced (if (< 1 (array-rank contents))
-                            (make-array (rest base-shape) :displaced-to contents
-                                                          :element-type (etype-of contents))))
-             (uniques)
-             (output (make-array output-length :element-type 'bit :initial-element 1)))
+   (let* ((derivative-count (when (and (varray-shape varray)
+                                       (listp (varray-shape varray)))
+                              (reduce #'* (varray-shape varray))))
+          (base-shape (shape-of (vader-base varray)))
+          (contents (render (vader-base varray)))
+          (output-length (if (not derivative-count)
+                             (first base-shape)
+                             (min derivative-count (first base-shape))))
+          (increment (reduce #'* (rest base-shape)))
+          (displaced (when (< 1 (array-rank contents))
+                       (make-array (rest base-shape) :displaced-to contents
+                                                     :element-type (etype-of contents))))
+          (uniques)
+          (output (make-array output-length :element-type 'bit :initial-element 1)))
      (dotimes (x output-length)
        (if (and displaced (< 0 x))
            (setq displaced (make-array (rest base-shape)
@@ -2262,7 +2316,7 @@
                               uniform new-uniform
                               possible-depth new-possible-depth))
                       (if (not possible-depth) (setq possible-depth new-layer)
-                          (if (/= layer possible-depth) (setq uniform nil))))))
+                          (when (/= layer possible-depth) (setq uniform nil))))))
               (values (funcall (if (and first-level (not uniform)) #'- #'identity)
                                new-layer)
                       uniform possible-depth))))))
@@ -2579,8 +2633,9 @@
           (base-rank (length base-shape))
           (maximum (when base-shape (reduce #'max base-shape))))
      (if (and maximum (not (vader-content varray)))
-         (let* ((derivative-count (if (getf params :shape-deriving)
-                                      (reduce #'* (getf params :shape-deriving))))
+         (let* ((derivative-count (when (and (varray-shape varray)
+                                             (listp (varray-shape varray)))
+                                    (reduce #'* (varray-shape varray))))
                 (base-indexer (generator-of (vader-base varray)))
                 (output-length (if derivative-count (min derivative-count (first base-shape))
                                    (first base-shape)))
@@ -3106,7 +3161,11 @@
   ((%overtaking :accessor vasec-overtaking
                 :initform nil
                 :initarg :overtaking
-                :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype."))
+                :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype.")
+   (%span :accessor vasec-span
+          :initform nil
+          :initarg :scope
+          :documentation "The start and end points of the section within the base array."))
   (:metaclass va-class)
   (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
@@ -3127,6 +3186,8 @@
           (iorigin (vads-io varray))
           (axis (vads-axis varray)))
 
+     ;; (print (list :bs (shape-of base)))
+     
      (if (and (not is-inverse)
               (eq :last axis)
               (typep (vader-base varray) 'vad-limitable)
@@ -3134,7 +3195,11 @@
          (if (functionp arg-indexer)
              (loop :for a :below (first arg-shape)
                    :collect (abs (funcall arg-indexer a)))
-             (list (abs arg-indexer)))
+             ;; a scalar left argument can be used to limit the computation of
+             ;; a base virtual array, as for the case of 5↑'This is a test'~' '
+             (let ((size (list (abs arg-indexer))))
+               (if (not (typep base 'vad-limitable))
+                   size (setf (varray-shape base) size))))
          (let* ((base-shape (copy-list (shape-of base)))
                 ;; the shape of the base is only needed for [↓ drop]
                 (pre-shape (coerce (loop :for b :below (max (length base-shape)
@@ -3194,12 +3259,12 @@
           (arg-shape (shape-of (vads-argument varray)))
           (arg-indexer (generator-of (vads-argument varray))))
 
-     (setf layers-below (when assigning (typecase (vader-base varray) (vader-section t)
-                                                  (vader-pick
-                                                   (setf (vapick-assign (vader-base varray))
-                                                         (getf params :assigning))
-                                                   (funcall (getf params :toggle-toplevel-subrendering))
-                                                   :pick)))
+     (setf layers-below (when assigning
+                          (typecase (vader-base varray) (vader-section t)
+                                    (vader-pick (setf (vapick-assign (vader-base varray))
+                                                      (getf params :assigning))
+                                     (funcall (getf params :toggle-toplevel-subrendering))
+                                     :pick)))
            base-indexer (base-indexer-of varray params))
      
      (if (vectorp axis)
@@ -3215,8 +3280,7 @@
              (setf (aref out-dims (- axis iorigin))
                    arg-indexer)))
 
-     (let* ((indexer (indexer-section (vads-inverse varray)
-                                      (or (shape-of (vader-base varray)) '(1))
+     (let* ((indexer (indexer-section is-inverse (or (shape-of (vader-base varray)) '(1))
                                       out-dims assigning))
             (prototype (when (not assigning)
                          (setf (varray-prototype varray)
@@ -3922,8 +3986,9 @@
 
 (defmethod generator-of ((varray vader-intersection) &optional indexers params)
   (when (not (vader-content varray))
-    (let ((derivative-count (if (getf params :shape-deriving)
-                                (reduce #'* (getf params :shape-deriving))))
+    (let ((derivative-count (when (and (varray-shape varray)
+                                       (listp (varray-shape varray)))
+                              (reduce #'* (varray-shape varray))))
           (contents (loop :for a :across (render (vader-base varray)) :collect (render a))))
       (if (not (loop :for a :in contents :always (not (second (shape-of a)))))
           (error "Arguments to [∩ intersection] must be vectors.")
@@ -3977,8 +4042,9 @@
          (base-rank (length base-shape))
          (base-indexer (generator-of (vader-base varray))))
     (if (not (vauni-indices varray))
-        (let ((derivative-count (when (getf params :shape-deriving)
-                                  (reduce #'* (getf params :shape-deriving)))))
+        (let ((derivative-count (when (and (varray-shape varray)
+                                           (listp (varray-shape varray)))
+                                  (reduce #'* (varray-shape varray)))))
           (if (not (functionp base-indexer))
               (setf (vauni-indices varray)
                     (if (not base-shape) #*0 #()))
@@ -4039,8 +4105,9 @@
 (defmethod generator-of ((varray vader-union) &optional indexers params)
   (get-promised
    (varray-generator varray)
-   (let* ((derivative-count (if (getf params :shape-deriving)
-                                (reduce #'* (getf params :shape-deriving))))
+   (let* ((derivative-count (when (and (varray-shape varray)
+                                       (listp (varray-shape varray)))
+                              (reduce #'* (varray-shape varray))))
           (contents (loop :for a :across (vader-base varray) :collect (render a)))
           (shapes (loop :for a :across (vader-base varray) :collect (shape-of a)))
           (indexers (loop :for a :across (vader-base varray) :collect (generator-of a)))
@@ -4098,16 +4165,13 @@
                               (when (arrayp argument) argument))))))
 
 (defmethod indexer-of ((varray vader-turn) &optional params)
-  (declare (ignore params)) ; (optimize (speed 3) (safety 0)))
+  (declare (ignore params))
   (when (shape-of varray)
     (indexer-turn (if (eq :last (vads-axis varray))
                       (1- (rank-of varray))
                       (- (vads-axis varray)
                          (vads-io varray)))
                   (shape-of varray)
-                  (or (when (getf (varray-meta varray) :gen-meta) ;; TOGGLE
-                        (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key))
-                      t)
                   (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
                   (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
                   (arg-process varray))))

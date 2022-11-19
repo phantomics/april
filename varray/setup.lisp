@@ -81,6 +81,61 @@
          (setf ,@output)
          ,table))))
 
+(defun indexer-section (inverse dims dimensions output-shorter)
+  "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
+  ;; (print (list :is inverse dims dimensions output-shorter))
+  (let* ((isize (reduce #'* dims)) (irank (length dims))
+         (rdiff (- irank (length dimensions)))
+         (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
+                                  :initial-contents dims))
+         (odims (loop :for odim :across dimensions :for idim :across idims
+                      :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+         (osize (reduce #'* odims))
+         (last-dim)
+         (id-factors (make-array irank :element-type 'fixnum))
+         (od-factors (make-array irank :element-type 'fixnum)))
+    ;; generate dimensional factors vectors for input and output
+    (loop :for dx :below irank
+          :do (let ((d (aref idims (- irank 1 dx))))
+                (setf (aref id-factors (- irank 1 dx))
+                      (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
+                      last-dim d)))
+
+    (loop :for d :in (reverse odims) :for dx :from 0
+          :do (setf (aref od-factors (- irank 1 dx))
+                    (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+                    last-dim d))
+    (if output-shorter
+        ;; choose shorter path depending on whether input or output are larger, and
+        ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+        ;; to respect the segmentation of the elements
+        (lambda (i)
+          (let ((oindex 0) (remaining i) (valid t))
+            ;; calculate row-major offset for outer array dimensions
+            (loop :for i :from 0 :to (- irank 1) :while valid
+                  :for dim :across dimensions :for id :across idims :for od :in odims
+                  :for ifactor :across id-factors :for ofactor :across od-factors
+                  :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+                        (let ((adj-index (- index (if inverse (if (> 0 dim) 0 dim)
+                                                      (if (< 0 dim) 0 (+ dim id))))))
+                          (setf valid (when (< -1 adj-index od)
+                                        (incf oindex (* ofactor adj-index))
+                                        (setq remaining remainder))))))
+            (when valid oindex)))
+        (lambda (i)
+          (let ((iindex 0) (remaining i) (valid t))
+            ;; calculate row-major offset for outer array dimensions
+            (loop :for i :from 0 :to (- irank 1) :while valid
+                  :for dim :across dimensions :for id :across idims :for od :in odims
+                  :for ifactor :across id-factors :for ofactor :across od-factors
+                  :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                        (let ((adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
+                                                      (if (< 0 dim) 0 (+ dim id))))))
+                          (setf valid (when (< -1 adj-index id)
+                                        (incf iindex (* ifactor adj-index))
+                                        (setq remaining remainder))))))
+            (when valid iindex))))))
+
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
           (lambda (i)
@@ -166,7 +221,7 @@
                                     (byte +cindex-width+ +address-fraction+)
                                     i)))))))))))
   
-  (defun indexer-turn (axis idims typekey iwidth itype &optional degrees)
+  (defun indexer-turn (axis idims iwidth itype &optional degrees)
     "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
     ;; (declare (optimize (speed 3) (safety 0)))
     (let* ((irank (length idims))
@@ -198,11 +253,8 @@
           (lambda (i)
             (+ (mod i increment)
                (* vset-size (floor i vset-size))
-               (* increment
-                  (the fixnum (abs (- (mod (the fixnum (floor i increment))
-                                           rlen)
-                                      (1- rlen)))))))
-          ))))
+               (* increment (abs (- (mod (floor i increment) rlen)
+                                    (1- rlen))))))))))
 
 (defmacro intraverser (symbols &rest forms)
   (let (;; (widths '(16)) ; '(8 16 32 64))
@@ -323,21 +375,7 @@
 ;;           (:encoded))
 ;;         )))
 
-(let (;; (default-function
-      ;;   (lambda (increment vset-size degrees rlen)
-      ;;     (lambda (i)
-      ;;       (+ (mod i increment)
-      ;;          (* vset-size (floor i vset-size))
-      ;;          (let ((degree (if (integerp degrees)
-      ;;                            degrees
-      ;;                            (if (not (arrayp degrees))
-      ;;                                0 (row-major-aref
-      ;;                                   degrees
-      ;;                                   (+ (mod i increment)
-      ;;                                      (* increment (floor i vset-size))))))))
-      ;;            (* increment (mod (+ degree (floor i increment))
-      ;;                              rlen)))))))
-      (regular-handler-table
+(let ((regular-handler-table
         (intraverser-ex
          ;; (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
          ;;               ;; :rank +rank+
@@ -358,30 +396,6 @@
          ;;                                   (incf oindex (* index s))
          ;;                                   (setq remaining remainder)))
          ;;                  oindex))))))
-         ;; ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
-         ;;   :rank-plus +rank-plus+ :rank-width +rank-width+)
-         ;;  (the (function ((simple-array (unsigned-byte 8) (+rank-plus+)))
-         ;;                 function)
-         ;;       (lambda (indices)
-         ;;         (declare (optimize (speed 3) (safety 0))
-         ;;                  (type (simple-array (unsigned-byte 8) (+rank-plus+))
-         ;;                        indices)) ;; TODO: fix hardcoded type
-         ;;         (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
-         ;;              (lambda (i)
-         ;;                (declare (type (unsigned-byte +eindex-width+) i))
-         ;;                (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
-         ;;                  (loop :for a :of-type (unsigned-byte +cindex-width+) :across indices
-         ;;                        :for n :of-type (unsigned-byte 8) ; :from 0
-         ;;                        := (1- +rank-plus+) :then (1- n)
-         ;;                        :do (setf (the (unsigned-byte +eindex-width+) iindex)
-         ;;                                  (dpb (ldb (byte +cindex-width+ (* +cindex-width+ n))
-         ;;                                            i)
-         ;;                                       (byte +cindex-width+ (* +cindex-width+
-         ;;                                                               (- +rank-plus+ a 1)))
-         ;;                                       iindex)))
-         ;;                  (print (format nil "#x~8,'0X" i))
-         ;;                  (print (format nil "#x~8,'0X~%" iindex))
-         ;;                  iindex))))))
          ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
            :rank-plus +rank-plus+ :rank-width +rank-width+)
           (the (function ((simple-array (unsigned-byte 8) (+rank-plus+)))
@@ -396,7 +410,7 @@
                         (declare (type (unsigned-byte +eindex-width+) i))
                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
                           (loop :for a :of-type (unsigned-byte +cindex-width+) :across indices
-                                :for n :of-type (unsigned-byte 8) ; :from 0
+                                :for n :of-type (unsigned-byte 8)
                                 := (1- +rank-plus+) :then (1- n)
                                 :do (setf (the (unsigned-byte +eindex-width+) iindex)
                                           (dpb (ldb (byte +cindex-width+

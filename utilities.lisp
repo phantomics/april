@@ -1112,10 +1112,9 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (scalar-axes-present
-           (and (listp function) (eql 'apl-fn-s (first function))
-                            (third function) (listp (third function))
-                            (eql 'apply-scalar (first (third function)))))
+         (scalar-axes-present (and (listp function) (eql 'apl-fn-s (first function))
+                                   (third function) (listp (third function))
+                                   (eql 'apply-scalar (first (third function)))))
          (axes-present (and (listp function) (eql 'apl-fn-s (first function))
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
@@ -1136,7 +1135,7 @@
                                                                (list (intern (string (second function))
                                                                              "KEYWORD"))
                                                                (cddr function)))))))
-               `(let ((,arg-list (list ,@arguments ))) ;,@(if axes-present (list (third function))))))
+               `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
                          ,function ,arg-list))))))
 
@@ -1204,7 +1203,7 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro ac-wrap (type form)
   "Wrap a function form in a function that calls it via (a-call). Used for specification of inverse scalar functions."
   (list (if (eq :m type) 'λω 'λωα)
-        `(a-call ,form omega ,@(if (eq :d type) (list 'alpha)))))
+        `(a-call ,form omega ,@(when (eq :d type) (list 'alpha)))))
 
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
@@ -1221,7 +1220,7 @@ It remains here as a standard against which to compare methods for composing APL
         (args (gensym)) (axes-sym (gensym))
         (axes (when (listp (first initial-args))
                 (first initial-args))))
-    (if axes `(let ((,axes-sym ,@(if axes (list axes))))
+    (if axes `(let ((,axes-sym ,@(when axes (list axes))))
                 (lambda (&rest ,args)
                   (if (eq :get-metadata (first ,args))
                       ,(append '(list :scalar t))
@@ -1363,16 +1362,16 @@ It remains here as a standard against which to compare methods for composing APL
               (if set `(let ((,to-set ,set))
                          (multiple-value-bind (,assignment-output ,assigned-array)
                              (achoose ,body (mapcar (lambda (array)
-                                                      (if array (apply-scalar
-                                                                 #'- (render-varrays array)
-                                                                 index-origin)))
+                                                      (when array (apply-scalar
+                                                                   #'- (render-varrays array)
+                                                                   index-origin)))
                                                     (list ,@axes))
-                                      :set-nil ,set-nil :set ,to-set ,@(if set-by (list :set-by set-by))
+                                      :set-nil ,set-nil :set ,to-set ,@(when set-by (list :set-by set-by))
                                       ;; setting the modify-input parameter so that the original value
                                       ;; is modified in place if possible
                                       ,@(if reference (list :reference reference))
                                       :modify-input t)
-                           (if ,assigned-array (setf ,body ,assigned-array))
+                           (when ,assigned-array (setf ,body ,assigned-array))
                            ,assignment-output))
                   `(make-virtual 'vader-select :base ,body
                                                :argument (list ,@axes) :index-origin index-origin))
@@ -1444,8 +1443,8 @@ It remains here as a standard against which to compare methods for composing APL
                  (symbol-value (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
-          (if (listp symbol-string)
-              (apply #'vector (mapcar #'process-string symbol-string)))))))
+          (when (listp symbol-string)
+            (apply #'vector (mapcar #'process-string symbol-string)))))))
       
 (defun external-workspace-function (symbol-string &optional space-string)
   "Import a function from an external workspace, implementing the ⎕XWF function."
@@ -2169,9 +2168,9 @@ It remains here as a standard against which to compare methods for composing APL
              (let ((axis-arg (getf primary-meta :axes)))
                (if (not (or implicit-args optional-implicit-args axis-arg))
                    form `(lambda ,(cons (first implicit-args)
-                                        (cons '&optional (append (rest implicit-args)
-                                                                 (if axis-arg (list axis-arg))
-                                                                 optional-implicit-args)))
+                                   (cons '&optional (append (rest implicit-args)
+                                                     (if axis-arg (list axis-arg))
+                                                     optional-implicit-args)))
                            (if (eq :get-metadata ,(first implicit-args))
                                (quote ,primary-meta)
                                ,form))))))
