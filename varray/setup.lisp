@@ -81,7 +81,7 @@
          (setf ,@output)
          ,table))))
 
-(defun indexer-section (inverse dims dimensions output-shorter)
+(defun indexer-section (inverse dims dimensions output-shorter span padding)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter))
   (let* ((isize (reduce #'* dims)) (irank (length dims))
@@ -90,6 +90,11 @@
                                   :initial-contents dims))
          (odims (loop :for odim :across dimensions :for idim :across idims
                       :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+         ;; (odims (loop :for ix :below irank
+         ;;              :collect (+ (aref span (+ ix irank))
+         ;;                          (- (aref span ix))
+         ;;                          (aref padding ix)
+         ;;                          (aref padding (+ ix irank)))))
          (osize (reduce #'* odims))
          (last-dim)
          (id-factors (make-array irank :element-type 'fixnum))
@@ -105,6 +110,7 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
+    ;; (print (list :pad span padding odims id-factors od-factors dimensions))
     (if output-shorter
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -135,6 +141,73 @@
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
             (when valid iindex))))))
+
+;; (defun indexer-section (inverse dims dimensions output-shorter span padding)
+;;   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
+;;   ;; (print (list :is inverse dims dimensions output-shorter))
+;;   (let* ((isize (reduce #'* dims)) (irank (length dims))
+;;          (rdiff (- irank (length dimensions)))
+;;          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
+;;                                   :initial-contents dims))
+;;          ;; (odims (loop :for odim :across dimensions :for idim :across idims
+;;          ;;              :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+;;          (odims (loop :for ix :below irank
+;;                       :collect (+ (aref span (+ ix irank))
+;;                                   (- (aref span ix))
+;;                                   (aref padding ix)
+;;                                   (aref padding (+ ix irank)))))
+;;          (osize (reduce #'* odims))
+;;          (last-dim)
+;;          (id-factors (make-array irank :element-type 'fixnum))
+;;          (od-factors (make-array irank :element-type 'fixnum)))
+;;     ;; generate dimensional factors vectors for input and output
+;;     (loop :for dx :below irank
+;;           :do (let ((d (aref idims (- irank 1 dx))))
+;;                 (setf (aref id-factors (- irank 1 dx))
+;;                       (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
+;;                       last-dim d)))
+
+;;     (loop :for d :in (reverse odims) :for dx :from 0
+;;           :do (setf (aref od-factors (- irank 1 dx))
+;;                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+;;                     last-dim d))
+;;     ;; (print (list :pad span padding odims id-factors od-factors dimensions output-shorter))
+;;     (if output-shorter
+;;         ;; choose shorter path depending on whether input or output are larger, and
+;;         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+;;         ;; to respect the segmentation of the elements
+;;         (lambda (i)
+;;           (let ((oindex 0) (remaining i) (valid t))
+;;             ;; calculate row-major offset for outer array dimensions
+;;             (loop :for i :from 0 :to (1- irank) :while valid
+;;                   :for dim :across dimensions :for id :across idims :for od :in odims
+;;                   :for ifactor :across id-factors :for ofactor :across od-factors
+;;                   :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+;;                         (let (;; (adj-index (- index (if inverse (if (> 0 dim) 0 dim)
+;;                               ;;                         (if (< 0 dim) 0 (+ dim id)))))
+;;                               (adj-index (- index (aref padding i)))
+;;                               )
+;;                           (setf valid (when (< -1 adj-index (aref span (+ irank i)))
+;;                                         (incf oindex (* ofactor adj-index))
+;;                                         (setq remaining remainder))))))
+;;             (when valid oindex)))
+;;         (lambda (i)
+;;           (let ((iindex 0) (remaining i) (valid t))
+;;             ;; calculate row-major offset for outer array dimensions
+;;             (loop :for i :from 0 :to (1- irank) :while valid
+;;                   :for dim :across dimensions :for id :across idims :for od :in odims
+;;                   :for ifactor :across id-factors :for ofactor :across od-factors
+;;                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+;;                         (let (;; (adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
+;;                               ;;                         (if (< 0 dim) 0 (+ dim id)))))
+;;                               (adj-index (- index (aref padding i)))
+;;                               )
+;;                           ;; (print (list :adj adj-index))
+;;                           (setf valid (when (< -1 adj-index (aref span (+ irank i)))
+;;                                         ;; (< -1 adj-index id)
+;;                                         (incf iindex (* ifactor adj-index))
+;;                                         (setq remaining remainder))))))
+;;             (when valid iindex))))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
