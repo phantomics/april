@@ -83,18 +83,22 @@
 
 (defun indexer-section (inverse dims dimensions output-shorter span padding)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
-  ;; (print (list :is inverse dims dimensions output-shorter))
-  (let* ((isize (reduce #'* dims)) (irank (length dims))
+  ;; (print (list :is inverse dims dimensions output-shorter span padding))
+  (let* ((scalar (not dims))
+         (dims (or dims '(1)))
+         (isize (reduce #'* dims)) (irank (length dims))
          (rdiff (- irank (length dimensions)))
          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                   :initial-contents dims))
          (odims (loop :for odim :across dimensions :for idim :across idims
                       :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
-         ;; (odims (loop :for ix :below irank
-         ;;              :collect (+ (aref span (+ ix irank))
-         ;;                          (- (aref span ix))
-         ;;                          (aref padding ix)
-         ;;                          (aref padding (+ ix irank)))))
+         ;; (odims (if (and span (not scalar))
+         ;;            (loop :for ix :below irank :for sp :across span
+         ;;                  :collect (+ (- sp) (aref span (+ ix irank))
+         ;;                              (aref padding ix)
+         ;;                              (aref padding (+ ix irank))))
+         ;;            (loop :for odim :across dimensions :for idim :across idims
+         ;;                  :collect (if (not inverse) (abs odim) (- idim (abs odim))))))
          (osize (reduce #'* odims))
          (last-dim)
          (id-factors (make-array irank :element-type 'fixnum))
@@ -110,7 +114,7 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
-    ;; (print (list :pad span padding odims id-factors od-factors dimensions))
+    ;; (print (list :pad odims irank dims span padding idims odims id-factors od-factors dimensions))
     (if output-shorter
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -136,8 +140,12 @@
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                         (let ((adj-index (+ index (if inverse (if (> 0 dim) 0 dim)
-                                                      (if (< 0 dim) 0 (+ dim id))))))
-                          (setf valid (when (< -1 adj-index id)
+                                                      (if (< 0 dim) 0 (+ dim id)))))
+                              ;; (adj-index (- index (aref padding i)))
+                              )
+                          ;; (print (list :sp span))
+                          (setf valid (when ;; (< -1 adj-index (aref span (+ irank i)))
+                                        (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
             (when valid iindex))))))
