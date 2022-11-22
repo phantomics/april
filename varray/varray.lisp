@@ -3364,7 +3364,9 @@
                                        (setf (aref (vasec-span varray)
                                                    (+ (- axis iorigin)
                                                       (* base-rank (if (>= 0 arg) 0 1))))
-                                             element)))
+                                             (if (<= 0 arg)
+                                                 element (+ arg-indexer
+                                                            (aref pre-shape (- axis iorigin)))))))
                                  element))))))
            ;; (print (list :span (vasec-span varray) (vasec-padding varray)))
            (coerce pre-shape 'list))))))
