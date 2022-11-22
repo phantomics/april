@@ -3230,8 +3230,8 @@
            
            ;; (print (list :vs (vasec-span varray) (vasec-padding varray)))
 
-           ;; (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
-           ;;       :do (setf (aref (vasec-span varray) i) s))
+           (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
+                 :do (setf (aref (vasec-span varray) i) s))
 
            ;; populate the span and padding vectors according to the arguments
            ;; and the dimensions of the input array
@@ -3319,6 +3319,7 @@
                                                             (- (aref pre-shape 0) (abs arg)))))
                                                 element)
                                    (let ((element (abs arg)))
+                                     ;; (print (list :el element pre-shape))
                                      (if (> element (aref pre-shape 0))
                                          (progn (setf (vasec-overtaking varray) t)
                                                 (when (< 0 base-rank)
@@ -3332,7 +3333,8 @@
                                          (when (< 0 base-rank)
                                            (setf (aref (vasec-span varray)
                                                        (* base-rank (if (>= 0 arg) 0 1)))
-                                                 element)))
+                                                 (if (<= 0 arg)
+                                                     element (+ arg (aref pre-shape 0))))))
                                      element)))))
                    (setf (aref pre-shape (- axis iorigin))
                          (let ((arg arg-indexer))

@@ -90,15 +90,15 @@
          (rdiff (- irank (length dimensions)))
          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                   :initial-contents dims))
-         (odims (loop :for odim :across dimensions :for idim :across idims
-                      :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
-         ;; (odims (if (and span (not scalar))
-         ;;            (loop :for ix :below irank :for sp :across span
-         ;;                  :collect (+ (- sp) (aref span (+ ix irank))
-         ;;                              (aref padding ix)
-         ;;                              (aref padding (+ ix irank))))
-         ;;            (loop :for odim :across dimensions :for idim :across idims
-         ;;                  :collect (if (not inverse) (abs odim) (- idim (abs odim))))))
+         ;; (odims (loop :for odim :across dimensions :for idim :across idims
+         ;;              :collect (if (not inverse) (abs odim) (- idim (abs odim)))))
+         (odims (if (and span (not scalar))
+                    (loop :for ix :below irank :for sp :across span
+                          :collect (+ (- sp) (aref span (+ ix irank))
+                                      (aref padding ix)
+                                      (aref padding (+ ix irank))))
+                    (loop :for odim :across dimensions :for idim :across idims
+                          :collect (if (not inverse) (abs odim) (- idim (abs odim))))))
          (osize (reduce #'* odims))
          (last-dim)
          (id-factors (make-array irank :element-type 'fixnum))
@@ -143,7 +143,7 @@
                                                       (if (< 0 dim) 0 (+ dim id)))))
                               ;; (adj-index (- index (aref padding i)))
                               )
-                          ;; (print (list :sp span))
+                          ;; (print (list :sp index span padding id adj-index (+ irank i)))
                           (setf valid (when ;; (< -1 adj-index (aref span (+ irank i)))
                                         (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
