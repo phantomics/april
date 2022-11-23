@@ -366,12 +366,12 @@ NormRand ← {                                 ⍝ Random numbers with a normal 
 ⍝ TODO: Loose comparison tolerance is needed here, why?
 phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation of numbers ⍵.
   ⍺←1                                        ⍝ result formatted by default.
-  P←(1+5*÷2)÷2                               ⍝ Phi.
+  Ø←(1+5*÷2)÷2                               ⍝ Phi.
   $[''≡0/∊⍵;{                                ⍝ char array: inverse: phinary → decimal.
       1<|≡⍵:∇¨⍵                              ⍝ nested: decode each.
       '¯'=⊃⍵:-∇ 1↓⍵                          ⍝ -ive: negation of inverse of +ive.
-      a←P⊥⎕D⍳⍵~'.'                           ⍝ phi decode of ⍵.
-      a÷P*(≢⍵∪'.')-1+(,⍵)⍳'.'                ⍝ adjusted by posn of phinary point.
+      a←Ø⊥⎕D⍳⍵~'.'                           ⍝ phi decode of ⍵.
+      a÷Ø*(≢⍵∪'.')-1+(,⍵)⍳'.'                ⍝ adjusted by posn of phinary point.
     }⍵;                                      ⍝ ⍵ is char vect phinary number.
     0≠≡⍵;⍺ ∇¨⍵;                              ⍝ higher rank, depth: encode each.
     ⍵<0;'¯',⍺ ∇-⍵;                           ⍝ negative.
@@ -387,11 +387,11 @@ phinary ← { ⎕IO ⎕CT←0 0.001                  ⍝ Phinary representation 
         (fmt lft),'.',fmt rgt                ⍝ both: point-separated digits.
        ]
     }⍬{                                      ⍝ accumulated powers of phi.
-      num=P+.*⍺:⍺                            ⍝ convergence: done.
+      num=Ø+.*⍺:⍺                            ⍝ convergence: done.
       ∆←(-⍴⍺)↑1                              ⍝ delta (1 in least sig place)
-      num=P+.*⍺+∆:⍺+∆                        ⍝ (⍺+∆) convergence: done.
-      k←⌊P⍟⍵                                 ⍝ next power of phi.
-      (⍺,k)∇ ⍵-P*k                           ⍝ accumlated powers of phi.
+      num=Ø+.*⍺+∆:⍺+∆                        ⍝ (⍺+∆) convergence: done.
+      k←⌊Ø⍟⍵                                 ⍝ next power of phi.
+      (⍺,k)∇ ⍵-Ø*k                           ⍝ accumlated powers of phi.
     }⍵
    ]
 }
