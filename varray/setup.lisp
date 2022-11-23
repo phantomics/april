@@ -81,7 +81,7 @@
          (setf ,@output)
          ,table))))
 
-(defun indexer-section (inverse dims output-shorter span padding)
+(defun indexer-section (dims span padding output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter span padding))
   (let* ((scalar (not dims))
