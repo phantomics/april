@@ -81,7 +81,7 @@
          (setf ,@output)
          ,table))))
 
-(defun indexer-section (dims span padding output-shorter)
+(defun indexer-section (dims span output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter span padding))
   (let* ((scalar (not dims))
@@ -90,13 +90,12 @@
          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                   :initial-contents dims))
          (odims (loop :for ix :below irank :for sp :across span
-                      :collect (+ (- sp) (aref span (+ ix irank))
-                                  (aref padding ix)
-                                  (aref padding (+ ix irank)))))
+                      :collect (- (aref span (+ ix irank)) sp)))
          (osize (reduce #'* odims))
          (last-dim)
          (id-factors (make-array irank :element-type 'fixnum))
          (od-factors (make-array irank :element-type 'fixnum)))
+    
     ;; generate dimensional factors vectors for input and output
     (loop :for dx :below irank
           :do (let ((d (aref idims (- irank 1 dx))))
@@ -108,7 +107,7 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
-    ;; (print (list :pad odims irank dims span padding idims odims id-factors od-factors dimensions))
+    ;; (print (list :pad odims irank dims span padding idims odims id-factors od-factors))
     (if output-shorter
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -119,26 +118,119 @@
             (loop :for i :below irank :while valid :for id :across idims :for od :in odims
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                        (let ((adj-index (+ (if padding (aref padding i) 0) ;; TODO: OPTIMIZE, SLOW
-                                            (- index (if span (aref span i) 0)))))
+                        (let ((adj-index (+ (- index (aref span i)))))
                           (setf valid (when (< -1 adj-index od)
                                         (incf oindex (* ofactor adj-index))
                                         (setq remaining remainder))))))
             (when valid oindex)))
+        ;; (lambda (i)
+        ;;   (let ((iindex 0) (remaining i) (valid t))
+        ;;     ;; calculate row-major offset for outer array dimensions
+        ;;     (loop :for i :below irank :while valid :for id :across idims
+        ;;           :for ifactor :across id-factors :for ofactor :across od-factors
+        ;;           :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+        ;;                 (let ((adj-index (+ (aref span i) ;; TODO: OPTIMIZE, SLOW
+        ;;                                     (- index 0 ; (if padding (aref padding i) 0)
+        ;;                                        ))))
+        ;;                   (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
+        ;;                                span padding id (+ irank i) idims))
+        ;;                   (setf valid (when (< -1 adj-index id)
+        ;;                                 (print (list :ee))
+        ;;                                 (incf iindex (* ifactor adj-index))
+        ;;                                 (setq remaining remainder))))))
+        ;;     (when valid iindex)))
+        ;; ¯1↑⍳5  2 ¯2 ¯2↑4 5 6⍴⍳9  2 ¯3↑3 4⍴⍳21
+        ;; {A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ ⍕¨A} '*'
         (lambda (i)
           (let ((iindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
             (loop :for i :below irank :while valid :for id :across idims
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                        (let ((adj-index (+ (if span (aref span i) 0) ;; TODO: OPTIMIZE, SLOW
-                                            (- index (if padding (aref padding i) 0)))))
+                        (let ((adj-index (+ index (aref span i))))
                           ;; (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
                           ;;              span padding id (+ irank i) idims))
                           (setf valid (when (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
-            (when valid iindex))))))
+            (when valid iindex)))
+        )))
+
+;; (defun indexer-section (dims span padding output-shorter)
+;;   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
+;;   ;; (print (list :is inverse dims dimensions output-shorter span padding))
+;;   (let* ((scalar (not dims))
+;;          (dims (or dims '(1)))
+;;          (isize (reduce #'* dims)) (irank (length dims))
+;;          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
+;;                                   :initial-contents dims))
+;;          (odims (loop :for ix :below irank :for sp :across span
+;;                       :collect (+ (- sp) (aref span (+ ix irank))
+;;                                   (aref padding ix)
+;;                                   (aref padding (+ ix irank)))))
+;;          (osize (reduce #'* odims))
+;;          (last-dim)
+;;          (id-factors (make-array irank :element-type 'fixnum))
+;;          (od-factors (make-array irank :element-type 'fixnum)))
+;;     ;; generate dimensional factors vectors for input and output
+;;     (loop :for dx :below irank
+;;           :do (let ((d (aref idims (- irank 1 dx))))
+;;                 (setf (aref id-factors (- irank 1 dx))
+;;                       (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
+;;                       last-dim d)))
+
+;;     (loop :for d :in (reverse odims) :for dx :from 0
+;;           :do (setf (aref od-factors (- irank 1 dx))
+;;                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+;;                     last-dim d))
+;;     ;; (print (list :pad odims irank dims span padding idims odims id-factors od-factors dimensions))
+;;     (if output-shorter
+;;         ;; choose shorter path depending on whether input or output are larger, and
+;;         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+;;         ;; to respect the segmentation of the elements
+;;         (lambda (i) ;; x←4 5⍴⍳20 ⋄ (2 3↓x)←0 ⋄ x
+;;           (let ((oindex 0) (remaining i) (valid t))
+;;             ;; calculate row-major offset for outer array dimensions
+;;             (loop :for i :below irank :while valid :for id :across idims :for od :in odims
+;;                   :for ifactor :across id-factors :for ofactor :across od-factors
+;;                   :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+;;                         (let ((adj-index (+ (if padding (aref padding i) 0) ;; TODO: OPTIMIZE, SLOW
+;;                                             (- index (aref span i)))))
+;;                           (setf valid (when (< -1 adj-index od)
+;;                                         (incf oindex (* ofactor adj-index))
+;;                                         (setq remaining remainder))))))
+;;             (when valid oindex)))
+;;         ;; (lambda (i)
+;;         ;;   (let ((iindex 0) (remaining i) (valid t))
+;;         ;;     ;; calculate row-major offset for outer array dimensions
+;;         ;;     (loop :for i :below irank :while valid :for id :across idims
+;;         ;;           :for ifactor :across id-factors :for ofactor :across od-factors
+;;         ;;           :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+;;         ;;                 (let ((adj-index (+ (aref span i) ;; TODO: OPTIMIZE, SLOW
+;;         ;;                                     (- index 0 ; (if padding (aref padding i) 0)
+;;         ;;                                        ))))
+;;         ;;                   (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
+;;         ;;                                span padding id (+ irank i) idims))
+;;         ;;                   (setf valid (when (< -1 adj-index id)
+;;         ;;                                 (print (list :ee))
+;;         ;;                                 (incf iindex (* ifactor adj-index))
+;;         ;;                                 (setq remaining remainder))))))
+;;         ;;     (when valid iindex)))
+;;         (lambda (i)
+;;           (let ((iindex 0) (remaining i) (valid t))
+;;             ;; calculate row-major offset for outer array dimensions
+;;             (loop :for i :below irank :while valid :for id :across idims
+;;                   :for ifactor :across id-factors :for ofactor :across od-factors
+;;                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+;;                         (let ((adj-index (+ (aref span i) ;; TODO: OPTIMIZE, SLOW
+;;                                             (- index (if padding (aref padding i) 0)))))
+;;                           (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
+;;                                        span padding id (+ irank i) idims))
+;;                           (setf valid (when (< -1 adj-index id)
+;;                                         (incf iindex (* ifactor adj-index))
+;;                                         (setq remaining remainder))))))
+;;             (when valid iindex)))
+;;         )))
 
 ;; (defun indexer-section (inverse dims dimensions output-shorter span padding)
 ;;   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
