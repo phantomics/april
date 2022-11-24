@@ -112,35 +112,17 @@
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
         ;; to respect the segmentation of the elements
-        (lambda (i) ;; x←4 5⍴⍳20 ⋄ (2 3↓x)←0 ⋄ x
+        (lambda (i)
           (let ((oindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
-            (loop :for i :below irank :while valid :for id :across idims :for od :in odims
+            (loop :for i :below irank :while valid :for od :in odims
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                        (let ((adj-index (+ (- index (aref span i)))))
+                        (let ((adj-index (- index (aref span i))))
                           (setf valid (when (< -1 adj-index od)
                                         (incf oindex (* ofactor adj-index))
                                         (setq remaining remainder))))))
             (when valid oindex)))
-        ;; (lambda (i)
-        ;;   (let ((iindex 0) (remaining i) (valid t))
-        ;;     ;; calculate row-major offset for outer array dimensions
-        ;;     (loop :for i :below irank :while valid :for id :across idims
-        ;;           :for ifactor :across id-factors :for ofactor :across od-factors
-        ;;           :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-        ;;                 (let ((adj-index (+ (aref span i) ;; TODO: OPTIMIZE, SLOW
-        ;;                                     (- index 0 ; (if padding (aref padding i) 0)
-        ;;                                        ))))
-        ;;                   (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
-        ;;                                span padding id (+ irank i) idims))
-        ;;                   (setf valid (when (< -1 adj-index id)
-        ;;                                 (print (list :ee))
-        ;;                                 (incf iindex (* ifactor adj-index))
-        ;;                                 (setq remaining remainder))))))
-        ;;     (when valid iindex)))
-        ;; ¯1↑⍳5  2 ¯2 ¯2↑4 5 6⍴⍳9  2 ¯3↑3 4⍴⍳21
-        ;; {A←4 3⍴'RANDOM' 'CHANCE' ⋄ (¯2↑¨A[;1 3])←⍵ ⋄ ⍕¨A} '*'
         (lambda (i)
           (let ((iindex 0) (remaining i) (valid t))
             ;; calculate row-major offset for outer array dimensions
@@ -148,13 +130,10 @@
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                         (let ((adj-index (+ index (aref span i))))
-                          ;; (print (list :sp adj-index (- adj-index (aref padding i)) id (+ irank i)
-                          ;;              span padding id (+ irank i) idims))
                           (setf valid (when (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
-            (when valid iindex)))
-        )))
+            (when valid iindex))))))
 
 ;; (defun indexer-section (dims span padding output-shorter)
 ;;   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
