@@ -3251,6 +3251,7 @@
                                ;;             (+ ax (* span-offset (if (> 0 arg) 0 1))))
                                ;;       (if (<= 0 arg)
                                ;;           element (+ arg orig (if (zerop base-rank) 1 0))))
+                               (print (list :eo element orig))
                                (if (> element orig)
                                    (setf (vasec-overtaking varray) t
                                          (aref (vasec-span varray)
@@ -3283,6 +3284,7 @@
                            (process-element arg-indexer (- axis iorigin)
                                             (aref pre-shape (- axis iorigin))
                                             (abs arg-indexer))))))
+           (print (list :ab (vasec-span varray) (vasec-pad varray)))
            (let ((orank (* 1/2 (length (vasec-span varray)))))
              (loop :for ix :below orank
                    :collect (max 0 (+ (- (aref (vasec-span varray) (+ ix orank))

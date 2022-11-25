@@ -90,7 +90,9 @@
          (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                   :initial-contents dims))
          (odims (loop :for ix :below irank :for sp :across span
-                      :collect (- (aref span (+ ix irank)) sp)))
+                      :collect (+ (- (aref span (+ ix irank)) sp)
+                                  (aref pad ix)
+                                  (aref pad (+ ix irank)))))
          (osize (reduce #'* odims))
          (last-dim)
          (id-factors (make-array irank :element-type 'fixnum))
@@ -107,7 +109,7 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
-    ;; (print (list :pad odims irank dims span padding idims odims id-factors od-factors))
+    (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
     (if output-shorter
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -129,9 +131,8 @@
             (loop :for i :below irank :while valid :for id :across idims
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                        (let ((adj-index (+ (+ index (aref span i))
-                                            ;; (aref pad i)
-                                            )))
+                        (let ((adj-index (+ (aref span i)
+                                            (- index (aref pad i)))))
                           (setf valid (when (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
