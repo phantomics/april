@@ -81,7 +81,7 @@
          (setf ,@output)
          ,table))))
 
-(defun indexer-section (dims span output-shorter)
+(defun indexer-section (dims span pad output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter span padding))
   (let* ((scalar (not dims))
@@ -129,7 +129,9 @@
             (loop :for i :below irank :while valid :for id :across idims
                   :for ifactor :across id-factors :for ofactor :across od-factors
                   :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                        (let ((adj-index (+ index (aref span i))))
+                        (let ((adj-index (+ (+ index (aref span i))
+                                            ;; (aref pad i)
+                                            )))
                           (setf valid (when (< -1 adj-index id)
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))

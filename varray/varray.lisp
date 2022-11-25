@@ -3169,8 +3169,12 @@
                 :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype.")
    (%span :accessor vasec-span
           :initform nil
-          :initarg :scope
-          :documentation "The start and end points of the section within the base array."))
+          :initarg :span
+          :documentation "The start and end points of the section within the base array.")
+   (%pad :accessor vasec-pad
+         :initform nil
+         :initarg :pad
+         :documentation "The number of prototype elements padding the output in each dimension."))
   (:metaclass va-class)
   (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
@@ -3219,6 +3223,9 @@
            
            (setf (vasec-span varray)
                  (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
+                             :element-type 'fixnum :initial-element 0)
+                 (vasec-pad varray)
+                 (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
                              :element-type 'fixnum :initial-element 0))
            
            (if base-shape
@@ -3237,13 +3244,25 @@
                                              (+ ax (* span-offset (if (< 0 arg) 0 1))))
                                        (if (> arg 0) element (- orig element))))
                                (max 0 (- orig element)))
-                        (progn (when (> element orig)
-                                 (setf (vasec-overtaking varray) t))
-                               ;; (print (list :el element))
-                               (setf (aref (vasec-span varray)
-                                           (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                        (progn ;; (when (> element orig)
+                               ;;   (setf (vasec-overtaking varray) t))
+                               ;; ;; (print (list :el element))
+                               ;; (setf (aref (vasec-span varray)
+                               ;;             (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                               ;;       (if (<= 0 arg)
+                               ;;           element (+ arg orig (if (zerop base-rank) 1 0))))
+                               (if (> element orig)
+                                   (setf (vasec-overtaking varray) t
+                                         (aref (vasec-span varray)
+                                               (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                                         (if (> 0 arg) 0 orig)
+                                         (aref (vasec-pad varray)
+                                               (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                                         (- element orig))
+                                   (setf (aref (vasec-span varray)
+                                               (+ ax (* span-offset (if (> 0 arg) 0 1))))
                                      (if (<= 0 arg)
-                                         element (+ arg orig (if (zerop base-rank) 1 0))))
+                                         element (+ arg orig (if (zerop base-rank) 1 0)))))
                                element))))
              (if (vectorp axis)
                  (loop :for x :across axis :for ix :from 0
@@ -3267,7 +3286,10 @@
            (let ((orank (* 1/2 (length (vasec-span varray)))))
              (loop :for ix :below orank
                    :collect (max 0 (+ (- (aref (vasec-span varray) (+ ix orank))
-                                         (aref (vasec-span varray) ix)))))))))))
+                                         (aref (vasec-span varray) ix))
+                                      (aref (vasec-pad varray) (+ ix orank))
+                                      (aref (vasec-pad varray) ix)
+                                      )))))))))
 
 (defmethod indexer-of ((varray vader-section) &optional params)
   "Indexer for a sectioned array."
@@ -3294,7 +3316,7 @@
            base-indexer (base-indexer-of varray params))
 
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
-                                      (vasec-span varray) assigning))
+                                      (vasec-span varray) (vasec-pad varray) assigning))
             (prototype (when (not assigning)
                          (setf (varray-prototype varray)
                                (if (or (zerop size) (zerop base-size))
