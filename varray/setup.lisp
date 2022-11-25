@@ -109,7 +109,7 @@
           :do (setf (aref od-factors (- irank 1 dx))
                     (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                     last-dim d))
-    (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
+    ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
     (if output-shorter
         ;; choose shorter path depending on whether input or output are larger, and
         ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
