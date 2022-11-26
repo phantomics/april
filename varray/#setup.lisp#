@@ -82,6 +82,28 @@
          (setf ,@output)
          ,table))))
 
+(let ((indexer-table-encoded
+        (intraverser-ex
+         (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
+          :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
+         (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
+                        function)
+              (lambda (degrees rlen)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (unsigned-byte +sub-base-width+) degrees rlen))
+                ;; (let ((byte-offset (* +cindex-width+ dindex)))
+                ;; (print (list :fn degrees rlen +cindex-width+ +eindex-width+ +address-fraction+))
+                (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+                     (lambda (i)
+                       (declare (type (unsigned-byte +eindex-width+) i))
+                       (let ((iindex (the (unsigned-byte +cindex-width+)
+                                          (ldb (byte +cindex-width+ +address-fraction+)
+                                               i))))
+                         (the (unsigned-byte +eindex-width+)
+                              (dpb (the (unsigned-byte +cindex-width+)
+                                        (incf iindex degrees))
+                                   (byte +cindex-width+ +address-fraction+)
+                                   i))))))))))
 (defun indexer-section (dims span pad is-inverse output-shorter)
   "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
   ;; (print (list :is inverse dims dimensions output-shorter span padding))

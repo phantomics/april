@@ -306,26 +306,26 @@
 
 (let ((encoder-table
         (intraverser-ex
-         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
-           :rank-width +rank-width+ :rank-plus +rank-plus+)
-          (the (function ((simple-array (unsigned-byte 62) (+rank-plus+))) ;; TODO: variable type
-                         function)
-               (lambda (factors)
-                 (the (function ((unsigned-byte +eindex-width+))
-                                (unsigned-byte +eindex-width+))
-                      (lambda (index)
-                        (let ((remaining index)
-                              (output (the (unsigned-byte +eindex-width+) 0)))
-                          (loop :for f :of-type (unsigned-byte 62) :across factors
-                                :for ix :of-type (unsigned-byte +rank-width+)
-                                := (1- +rank-plus+) :then (1- ix)
-                                :do (multiple-value-bind (factor remainder)
-                                        (floor remaining f)
-                                      (setf output (dpb factor (byte +cindex-width+
-                                                                     (* +cindex-width+ ix))
-                                                        output)
-                                            remaining remainder)))
-                          output)))))))))
+         (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+          :rank-width +rank-width+ :rank-plus +rank-plus+)
+         (the (function ((simple-array (unsigned-byte 62) (+rank-plus+))) ;; TODO: variable type
+                        function)
+              (lambda (factors)
+                (the (function ((unsigned-byte +eindex-width+))
+                               (unsigned-byte +eindex-width+))
+                     (lambda (index)
+                       (let ((remaining index)
+                             (output (the (unsigned-byte +eindex-width+) 0)))
+                         (loop :for f :of-type (unsigned-byte 62) :across factors
+                               :for ix :of-type (unsigned-byte +rank-width+)
+                                 := (1- +rank-plus+) :then (1- ix)
+                               :do (multiple-value-bind (factor remainder)
+                                       (floor remaining f)
+                                     (setf output (dpb factor (byte +cindex-width+
+                                                                    (* +cindex-width+ ix))
+                                                       output)
+                                           remaining remainder)))
+                         output))))))))
   (defun encode-rmi (factors iwidth itype)
     (let ((base-encoder (gethash (list iwidth itype (length factors)) encoder-table)))
       (when base-encoder (funcall base-encoder factors)))))
@@ -334,29 +334,28 @@
 
 (let ((function-table
         (intraverser-ex
-         ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
-           :rank-width +rank-width+ :sub-base-width +sub-base-width+
-           :rank-plus +rank-plus+)
-          (the (function ((simple-array (unsigned-byte 32) (+rank-plus+))) ;; TODO: variable type
-                         function)
-               (lambda (factors)
-                 (declare (optimize (speed 3) (safety 0))
-                          (type (simple-array (unsigned-byte 32) (+rank-plus+)) factors))
-                 (the (function ((unsigned-byte +eindex-width+))
-                                (unsigned-byte +eindex-width+))
-                      (lambda (index)
-                        (declare (type (unsigned-byte +eindex-width+) index))
-                        (let ((output (the (unsigned-byte +eindex-width+) 0)))
-                          (loop :for fx :of-type (unsigned-byte +rank-width+)
-                                  := (1- +rank-plus+) :then (1- fx)
-                                :for ix :of-type (unsigned-byte 32) :across factors
-                                :do (incf (the (unsigned-byte +eindex-width+) output)
-                                          (* (the (unsigned-byte +eindex-width+) ix)
-                                             (the (unsigned-byte +cindex-width+)
-                                                  (ldb (byte +cindex-width+
-                                                             (* +cindex-width+ fx))
-                                                       index)))))
-                          (the (unsigned-byte +eindex-width+) output))))))))))
+         (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
+          :sub-base-width +sub-base-width+ :rank-plus +rank-plus+)
+         (the (function ((simple-array (unsigned-byte 32) (+rank-plus+))) ;; TODO: variable type
+                        function)
+              (lambda (factors)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (simple-array (unsigned-byte 32) (+rank-plus+)) factors))
+                (the (function ((unsigned-byte +eindex-width+))
+                               (unsigned-byte +eindex-width+))
+                     (lambda (index)
+                       (declare (type (unsigned-byte +eindex-width+) index))
+                       (let ((output (the (unsigned-byte +eindex-width+) 0)))
+                         (loop :for fx :of-type (unsigned-byte +rank-width+)
+                                 := (1- +rank-plus+) :then (1- fx)
+                               :for ix :of-type (unsigned-byte 32) :across factors
+                               :do (incf (the (unsigned-byte +eindex-width+) output)
+                                         (* (the (unsigned-byte +eindex-width+) ix)
+                                            (the (unsigned-byte +cindex-width+)
+                                                 (ldb (byte +cindex-width+
+                                                            (* +cindex-width+ fx))
+                                                      index)))))
+                         (the (unsigned-byte +eindex-width+) output)))))))))
   (defun decode-rmi (width element-width rank factors)
     (let ((match (gethash (list width element-width rank) function-table)))
       (values (when match (funcall match factors))
@@ -374,39 +373,39 @@
        (32-bit-factors (make-array 2 :element-type '(unsigned-byte 64)))
        (function-table
          (intraverser-ex
-          ((:eindex-width +eindex-width+ :cindex-width +cindex-width+
-            :rank-width +rank-width+ :sub-base-width +sub-base-width+ :rank-plus +rank+)
-           (the (function ((simple-array (unsigned-byte +cindex-width+) (+rank+)))
-                          function)
-                (lambda (dimensions)
-                  (declare (optimize (speed 3) (safety 0))
-                           (type (simple-array (unsigned-byte +cindex-width+) (+rank+)) dimensions))
-                  (let ((factors (case +cindex-width+
-                                   (8  (the (simple-array (unsigned-byte 64) (8))  8-bit-factors))
-                                   (16 (the (simple-array (unsigned-byte 64) (4)) 16-bit-factors))
-                                   (32 (the (simple-array (unsigned-byte 64) (2)) 32-bit-factors)))))
-                    (the (function ((unsigned-byte +eindex-width+))
-                                   (unsigned-byte +eindex-width+))
-                         (lambda (index)
-                           (declare (type (unsigned-byte +eindex-width+) index))
-                           (let ((output index) (complete (the (unsigned-byte +rank-width+) 0)))
-                             (declare (type (unsigned-byte +eindex-width+) output))
-                             (loop :for ix :of-type (unsigned-byte +rank-width+)
-                                   :from 0 :below +rank+
-                                   :for dim :of-type (unsigned-byte +cindex-width+) :across dimensions
-                                   :for fac :of-type (unsigned-byte 64) :across factors
-                                   :while (zerop complete)
-                                   :do (if (< (the (unsigned-byte +cindex-width+)
-                                                   (ldb (byte +cindex-width+ (* +cindex-width+ ix))
-                                                        index))
-                                              (1- dim))
-                                           (incf (the (unsigned-byte +rank-width+) complete)
-                                                 (the bit (signum (incf output fac))))
-                                           (setf output (dpb 0 (byte +cindex-width+ (* +cindex-width+ ix))
-                                                             output))))
-                             ;; (print (list :in (format nil "#x~4,'0X" index)
-                             ;;              (format nil "#x~4,'0X" output)))
-                             (the (unsigned-byte +eindex-width+) output)))))))))))
+          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
+           :rank-width +rank-width+ :sub-base-width +sub-base-width+ :rank-plus +rank+)
+          (the (function ((simple-array (unsigned-byte +cindex-width+) (+rank+)))
+                         function)
+               (lambda (dimensions)
+                 (declare (optimize (speed 3) (safety 0))
+                          (type (simple-array (unsigned-byte +cindex-width+) (+rank+)) dimensions))
+                 (let ((factors (case +cindex-width+
+                                  (8  (the (simple-array (unsigned-byte 64) (8))  8-bit-factors))
+                                  (16 (the (simple-array (unsigned-byte 64) (4)) 16-bit-factors))
+                                  (32 (the (simple-array (unsigned-byte 64) (2)) 32-bit-factors)))))
+                   (the (function ((unsigned-byte +eindex-width+))
+                                  (unsigned-byte +eindex-width+))
+                        (lambda (index)
+                          (declare (type (unsigned-byte +eindex-width+) index))
+                          (let ((output index) (complete (the (unsigned-byte +rank-width+) 0)))
+                            (declare (type (unsigned-byte +eindex-width+) output))
+                            (loop :for ix :of-type (unsigned-byte +rank-width+)
+                                  :from 0 :below +rank+
+                                  :for dim :of-type (unsigned-byte +cindex-width+) :across dimensions
+                                  :for fac :of-type (unsigned-byte 64) :across factors
+                                  :while (zerop complete)
+                                  :do (if (< (the (unsigned-byte +cindex-width+)
+                                                  (ldb (byte +cindex-width+ (* +cindex-width+ ix))
+                                                       index))
+                                             (1- dim))
+                                          (incf (the (unsigned-byte +rank-width+) complete)
+                                                (the bit (signum (incf output fac))))
+                                          (setf output (dpb 0 (byte +cindex-width+ (* +cindex-width+ ix))
+                                                            output))))
+                            ;; (print (list :in (format nil "#x~4,'0X" index)
+                            ;;              (format nil "#x~4,'0X" output)))
+                            (the (unsigned-byte +eindex-width+) output))))))))))
   (loop :for i :below 8 :do (setf (aref  8-bit-factors i) (expt 256 i)))
   (loop :for i :below 4 :do (setf (aref 16-bit-factors i) (expt 65536 i)))
   (loop :for i :below 2 :do (setf (aref 32-bit-factors i) (expt 4294967296 i)))
@@ -431,104 +430,71 @@
 ;; (format t "#x~8,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
 ;; (format t "#x~8,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
-;; (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
-;;                               total-size index-type encoding-type to-call)
-;;   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
-;;          (encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
-;;          (incrementer (when encoding-type (increment-encoded encoding-type index-type
-;;                                                              shape-vector)))
-;;          (default-indexer (lambda (index)
-;;                             (lambda ()
-;;                               (let* ((start-intervals (ceiling (* interval index)))
-;;                                      (start-at (* sbesize start-intervals))
-;;                                      (count (if (< index (1- divisions))
-;;                                                 (* sbesize (- (ceiling (* interval (1+ index)))
-;;                                                               start-intervals))
-;;                                                 (- total-size start-at))))
-;;                                 (loop :for i :from start-at :to (1- (+ start-at count))
-;;                                       :do (funcall to-call i))))))
-;;          (flat-indexer-table
-;;            (intraverser-ex
-;;             ((:lindex-width +lindex-width+)
-;;              (the (function ((unsigned-byte +lindex-width+)))
-;;                   (lambda (index)
-;;                     (the (function nil)
-;;                          (lambda ()
-;;                            (let* ((start-intervals (the (unsigned-byte +lindex-width+)
-;;                                                         (ceiling (* interval index))))
-;;                                   (start-at (the (unsigned-byte +lindex-width+)
-;;                                                  (* sbesize start-intervals)))
-;;                                   (count (the (unsigned-byte +lindex-width+)
-;;                                               (if (< index (1- divisions))
-;;                                                   (* sbesize (- (ceiling (* interval (1+ index)))
-;;                                                                 start-intervals))
-;;                                                   (- total-size start-at)))))
-;;                              (loop :for i :from start-at :to (1- (+ start-at count))
-;;                                    :do (funcall to-call i))))))))))
-;;          (encoded-indexer-table
-;;            (intraverser-ex
-;;             ((:eindex-width +eindex-width+ :cindex-width +cindex-width+)
-;;              (the (function ((unsigned-byte +eindex-width+)))
-;;                   (lambda (index)
-;;                     (the (function nil)
-;;                          (lambda ()
-;;                            (let* ((start-intervals (the (unsigned-byte +eindex-width+)
-;;                                                         (ceiling (* interval index))))
-;;                                   (start-at (the (unsigned-byte +eindex-width+)
-;;                                                  (* sbesize start-intervals)))
-;;                                   (count (the (unsigned-byte +eindex-width+)
-;;                                               (if (< index (1- divisions))
-;;                                                   (* sbesize (- (ceiling (* interval (1+ index)))
-;;                                                                 start-intervals))
-;;                                                   (- total-size start-at))))
-;;                                   (coords (funcall encoder start-at)))
-;;                              (loop :for i :below count
-;;                                    :do (funcall to-call coords)
-;;                                        (when (< i (1- count))
-;;                                          (setf coords (funcall incrementer coords)))))))))))))
-;;     (list (if encoding-type (gethash (list index-type encoding-type) encoded-indexer-table)
-;;               (gethash (list index-type) flat-indexer-table))
-;;           default-indexer)))
-
 (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
+  ;; TODO: when encoded indexing is disabled, the following will fail:
+  ;; (april::april-f (with (:space array-lib-space)) "(2 1)(2 1)(2 1)(2 1) from ta4")
+  ;; why does this happen?
   (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
          (encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
          (incrementer (when encoding-type (increment-encoded encoding-type index-type
-                                                             shape-vector))))
-    (intraverser (:typekey typekey)
-      (:integer
-       (the +root-function-type+
-            (lambda (index)
-              ;; +optimize-for-type+
-              (the (function nil)
-                   (lambda ()
-                     (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
-                            (start-at (the +index-type+ (* sbesize start-intervals)))
-                            (count (the +index-type+
-                                        (if (< index (1- divisions))
-                                            (* sbesize (- (ceiling (* interval (1+ index)))
-                                                          start-intervals))
-                                            (- total-size start-at)))))
-                       (loop :for i :from start-at :to (1- (+ start-at count))
-                             :do (funcall to-call i))))))))
-      (:encoded
-       (the +root-function-type+
-            (lambda (index)
-              (the (function nil)
-                   (lambda ()
-                     (let* ((start-intervals (the +index-type+ (ceiling (* interval index))))
-                            (start-at (the +index-type+ (* sbesize start-intervals)))
-                            (count (the +index-type+
-                                        (if (< index (1- divisions))
-                                            (* sbesize (- (ceiling (* interval (1+ index)))
-                                                          start-intervals))
-                                            (- total-size start-at))))
-                            (coords (funcall encoder start-at)))
-                       (loop :for i :below count
-                             :do (funcall to-call coords)
-                                 (when (< i (1- count))
-                                   (setf coords (funcall incrementer coords)))))))))))))
+                                                             shape-vector)))
+         (default-indexer (lambda (index)
+                            (lambda ()
+                              ;; (print (list :mm index t))
+                              (let* ((start-intervals (ceiling (* interval index)))
+                                     (start-at (* sbesize start-intervals))
+                                     (count (if (< index (1- divisions))
+                                                (* sbesize (- (ceiling (* interval (1+ index)))
+                                                              start-intervals))
+                                                (- total-size start-at))))
+                                (loop :for i :from start-at :to (1- (+ start-at count))
+                                      :do (funcall to-call i))))))
+         (flat-indexer-table
+           (intraverser-ex
+            (:lindex-width +lindex-width+)
+            (the (function ((unsigned-byte +lindex-width+)))
+                 (lambda (index)
+                   ;; (print (list :nn index +lindex-width+))
+                   (the (function nil)
+                        (lambda ()
+                          (let* ((start-intervals (the (unsigned-byte +lindex-width+)
+                                                       (ceiling (* interval index))))
+                                 (start-at (the (unsigned-byte +lindex-width+)
+                                                (* sbesize start-intervals)))
+                                 (count (the (unsigned-byte +lindex-width+)
+                                             (if (< index (1- divisions))
+                                                 (* sbesize (- (ceiling (* interval (1+ index)))
+                                                               start-intervals))
+                                                 (- total-size start-at)))))
+                            (loop :for i :from start-at :to (1- (+ start-at count))
+                                  :do (funcall to-call i)))))))))
+         (encoded-indexer-table
+           (intraverser-ex
+            (:eindex-width +eindex-width+ :cindex-width +cindex-width+)
+            (the (function ((unsigned-byte +eindex-width+)))
+                 (lambda (index)
+                   ;; (print (list :ee index +eindex-width+))
+                   (the (function nil)
+                        (lambda ()
+                          (let* ((start-intervals (the (unsigned-byte +eindex-width+)
+                                                       (ceiling (* interval index))))
+                                 (start-at (the (unsigned-byte +eindex-width+)
+                                                (* sbesize start-intervals)))
+                                 (count (the (unsigned-byte +eindex-width+)
+                                             (if (< index (1- divisions))
+                                                 (* sbesize (- (ceiling (* interval (1+ index)))
+                                                               start-intervals))
+                                                 (- total-size start-at))))
+                                 (coords (funcall encoder start-at)))
+                            (loop :for i :below count
+                                  :do (funcall to-call coords)
+                                      (when (< i (1- count))
+                                        (setf coords (funcall incrementer coords))))))))))))
+    ;; (print (list :en encoding-type (list index-type encoding-type)))
+    (list (if encoding-type (gethash (list encoding-type index-type) encoded-indexer-table)
+              (gethash (list index-type) flat-indexer-table))
+          default-indexer)))
 
 (defmethod render ((varray varray) &rest params)
   ;; (declare (optimize (speed 3)))
@@ -2268,13 +2234,7 @@
      (if (not (functionp base-indexer))
          (lambda (index) (declare (ignore index)) base-indexer)
          (if output-shape (if (<= output-size input-size)
-                              #'identity
-                              (intraverser (:typekey t)
-                                (:integer
-                                 (the +function-type+ (lambda (index) (mod index input-size))))
-                                ;; (:encoded
-                                ;;  (the +function-type+ (lambda (i) ... )))
-                                ))
+                              #'identity (lambda (index) (mod index input-size)))
              (lambda (index) (declare (ignore index)) 0))))))
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
@@ -3163,11 +3123,7 @@
            (lambda (index) (declare (ignore index)) base-indexer)))))
 
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable vad-reindexing)
-  (;; (%overtaking :accessor vasec-overtaking
-   ;;              :initform nil
-   ;;              :initarg :overtaking
-   ;;              :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype.")
-   (%span :accessor vasec-span
+  ((%span :accessor vasec-span
           :initform nil
           :initarg :span
           :documentation "The start and end points of the section within the base array.")
@@ -3239,43 +3195,45 @@
                           (aref new-span (if negative position pre-position))
                           (abs (if negative (+ (min 0 adjusted) (aref new-span position))
                                    (abs adjusted)))))))
-           (if (or (vectorp axis)
-                   (eq :last axis))
-               (progn
-                 (setf new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)
-                       new-pad (make-array (length base-pad) :element-type 'fixnum :initial-element 0))
-                 (loop :for bs :across base-span :for ix :from 0 :do (setf (aref new-span ix) bs))
-                 (loop :for bp :across base-pad :for ix :from 0 :do (setf (aref new-pad ix) bp))
+           
+           (setf new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)
+                 new-pad (make-array (length base-pad) :element-type 'fixnum :initial-element 0))
+           
+           (loop :for bs :across base-span :for ix :from 0 :do (setf (aref new-span ix) bs))
+           (loop :for bp :across base-pad :for ix :from 0 :do (setf (aref new-pad ix) bp))
 
-                 (if (vectorp axis)
-                     (if (vectorp argument)
-                         (loop :for x :across axis :for a :across argument
-                               :do (if is-inverse
-                                       (if (minusp a)
-                                           (update-drop a (+ (- x iorigin) base-rank) x t)
-                                           (update-drop a (+ (- x iorigin) base-rank) (- x iorigin)))
-                                       (if (minusp a)
-                                           (update-take a (+ (- x iorigin) base-rank) (- x iorigin))
-                                           (update-take a (+ (- x iorigin) base-rank) (- x iorigin) t)))))
-                     (if (eq :last axis)
-                         (if (vectorp argument)
-                             (loop :for a :across argument :for ix :from 0
-                                   :do (if is-inverse
-                                           (if (minusp a) (update-drop a (+ ix base-rank) ix t)
-                                               (update-drop a (+ ix base-rank) ix))
-                                           (if (minusp a) (update-take a (+ ix base-rank) ix)
-                                               (update-take a (+ ix base-rank) ix t))))
-                             (if is-inverse
-                                 (if (minusp argument) (update-drop argument 1 0 t)
-                                     (update-drop argument 1 0))
-                                 (if (minusp argument) (update-take argument 1 0 t)
-                                     (update-take argument 1 0))))))))
+           (if (vectorp axis)
+               (if (functionp arg-indexer)
+                   (loop :for x :across axis :for ix :below (first (shape-of argument))
+                         :do (let ((a (funcall arg-indexer ix)))
+                               (if is-inverse
+                                   (if (minusp a)
+                                       (update-drop a (+ (- x iorigin) base-rank) x t)
+                                       (update-drop a (+ (- x iorigin) base-rank) (- x iorigin)))
+                                   (if (minusp a)
+                                       (update-take a (+ (- x iorigin) base-rank) (- x iorigin))
+                                       (update-take a (+ (- x iorigin) base-rank) (- x iorigin) t))))))
+               (if (eq :last axis)
+                   (if (functionp arg-indexer)
+                       (loop :for ix :below (first (shape-of argument))
+                             :do (let ((a (funcall arg-indexer ix)))
+                                   (if is-inverse
+                                       (if (minusp a) (update-drop a (+ ix base-rank) ix t)
+                                           (update-drop a (+ ix base-rank) ix))
+                                       (if (minusp a) (update-take a (+ ix base-rank) ix)
+                                           (update-take a (+ ix base-rank) ix t)))))
+                       (if is-inverse
+                           (if (minusp argument) (update-drop argument 1 0 t)
+                               (update-drop argument 1 0))
+                           (if (minusp argument) (update-take argument 1 0 t)
+                               (update-take argument 1 0))))))
 
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
                  (vader-base varray) (if new-span sub-base base)))))
      
      (when (not (vasec-span varray))
+       ;; this will usually apply to a section object without another section as its base
        (if (and (not is-inverse) (eq :last axis)
                 (typep base 'vad-limitable) (not (functionp arg-indexer)))
            ;; a scalar left argument can be used to limit the computation of
