@@ -641,13 +641,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;          (not (vacmp-threadable varray)))
-                            ;;     ;; don't thread when rendering the output of operators composed
-                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;           :never (null (lparallel.kernel::running-category worker))))
-                            t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                     (not (vacmp-threadable varray)))
+                                ;; don't thread when rendering the output of operators composed
+                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                      :never (null (lparallel.kernel::running-category worker))))
+                            ;; t
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
@@ -3211,7 +3211,6 @@
          (flet ((update-take (a position pre-position &optional negative)
                   (let ((adjusted (if negative (+ a (aref new-pad position))
                                       (+ a (aref new-span pre-position)))))
-                    ;; (print (list :ad adjusted negative new-span new-pad))
                     (if negative
                         (if (minusp adjusted)
                             (setf (aref new-span pre-position)
@@ -3225,7 +3224,7 @@
                                     (aref new-pad position)
                                     (abs (min 0 adj-pad)))))
                         (if (minusp adjusted)
-                            (setf (aref new-span position)
+                             (setf (aref new-span position)
                                   (+ adjusted (aref new-span position))
                                   (aref new-pad position) 0)
                             (setf (aref new-span position)
@@ -3240,25 +3239,37 @@
                           (aref new-span (if negative position pre-position))
                           (abs (if negative (+ (min 0 adjusted) (aref new-span position))
                                    (abs adjusted)))))))
-           (if (eq :last axis)
+           (if (or (vectorp axis)
+                   (eq :last axis))
                (progn
                  (setf new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)
                        new-pad (make-array (length base-pad) :element-type 'fixnum :initial-element 0))
                  (loop :for bs :across base-span :for ix :from 0 :do (setf (aref new-span ix) bs))
                  (loop :for bp :across base-pad :for ix :from 0 :do (setf (aref new-pad ix) bp))
 
-                 (if (vectorp argument)
-                     (loop :for a :across argument :for ix :from 0
-                           :do (if is-inverse
-                                   (if (minusp a) (update-drop a (+ ix base-rank) ix t)
-                                       (update-drop a (+ ix base-rank) ix))
-                                   (if (minusp a) (update-take a (+ ix base-rank) ix)
-                                       (update-take a (+ ix base-rank) ix t))))
-                     (if is-inverse
-                         (if (minusp argument) (update-drop argument 1 0 t)
-                             (update-drop argument 1 0))
-                         (if (minusp argument) (update-take argument 1 0 t)
-                             (update-take argument 1 0))))))
+                 (if (vectorp axis)
+                     (if (vectorp argument)
+                         (loop :for x :across axis :for a :across argument
+                               :do (if is-inverse
+                                       (if (minusp a)
+                                           (update-drop a (+ (- x iorigin) base-rank) x t)
+                                           (update-drop a (+ (- x iorigin) base-rank) (- x iorigin)))
+                                       (if (minusp a)
+                                           (update-take a (+ (- x iorigin) base-rank) (- x iorigin))
+                                           (update-take a (+ (- x iorigin) base-rank) (- x iorigin) t)))))
+                     (if (eq :last axis)
+                         (if (vectorp argument)
+                             (loop :for a :across argument :for ix :from 0
+                                   :do (if is-inverse
+                                           (if (minusp a) (update-drop a (+ ix base-rank) ix t)
+                                               (update-drop a (+ ix base-rank) ix))
+                                           (if (minusp a) (update-take a (+ ix base-rank) ix)
+                                               (update-take a (+ ix base-rank) ix t))))
+                             (if is-inverse
+                                 (if (minusp argument) (update-drop argument 1 0 t)
+                                     (update-drop argument 1 0))
+                                 (if (minusp argument) (update-take argument 1 0 t)
+                                     (update-take argument 1 0))))))))
 
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
