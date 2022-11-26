@@ -41,7 +41,8 @@
                                                              var-widths))))
                        (:address-fraction
                         ;; address fractions are traversed based on the ratio of coordinate
-                        ;; width to base width, as needed for functions like ⌽, where movement along an axis
+                        ;; width to base width, as needed for functions like ⌽⊖↑↓, where index
+                        ;; transformations are applied to a specific axis
                         (loop :for i :below (floor (getf params :base-width)
                                                    (getf params :coordinate-width))
                               :do (let ((width (* i (getf params :coordinate-width))))
