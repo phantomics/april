@@ -641,13 +641,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                     (not (vacmp-threadable varray)))
-                                ;; don't thread when rendering the output of operators composed
-                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                      :never (null (lparallel.kernel::running-category worker))))
-                            ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;          (not (vacmp-threadable varray)))
+                            ;;     ;; don't thread when rendering the output of operators composed
+                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;           :never (null (lparallel.kernel::running-category worker))))
+                            t
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
@@ -3163,10 +3163,10 @@
            (lambda (index) (declare (ignore index)) base-indexer)))))
 
 (defclass vader-section (varray-derived vad-on-axis vad-with-argument vad-with-io vad-invertable vad-reindexing)
-  ((%overtaking :accessor vasec-overtaking
-                :initform nil
-                :initarg :overtaking
-                :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype.")
+  (;; (%overtaking :accessor vasec-overtaking
+   ;;              :initform nil
+   ;;              :initarg :overtaking
+   ;;              :documentation "Whether this section performs an overtake of its base, creating empty space to be filled with the array's prototype.")
    (%span :accessor vasec-span
           :initform nil
           :initarg :span
@@ -3193,114 +3193,164 @@
                                            (render (vads-argument varray)))))
           (is-inverse (vads-inverse varray))
           (iorigin (vads-io varray))
-          (axis (vads-axis varray)))
+          (axis (vads-axis varray))
+          (limited-shape))
+
+     ;; (when (typep base 'vader-section)
+     ;;   ;; merge successive section objects into a single object pointing at the base of the first
+     ;;   (let* ((base-axis (vads-axis base))
+     ;;          (argument (vads-argument varray))
+     ;;          (base-shape (shape-of base))
+     ;;          (base-arg (vads-argument base))
+     ;;          (base-span (vasec-span base))
+     ;;          (base-pad (vasec-pad base))
+     ;;          (base-rank (* 1/2 (length base-span)))
+     ;;          (sub-base (vader-base base))
+     ;;          (new-span) (new-pad))
+     ;;     (flet ((update-take (a position pre-position &optional negative)
+     ;;              (let ((adjusted (if negative (- a (aref new-span position))
+     ;;                                  (+ a (aref new-pad position)))))
+     ;;                ;; (print (list :ad adjusted))
+     ;;                (if negative
+     ;;                    (if (minusp adjusted)
+     ;;                        (setf (aref new-span position)
+     ;;                              (+ adjusted (aref new-span position))
+     ;;                              (aref new-pad position) 0)
+     ;;                        (setf (aref new-pad position) adjusted))
+     ;;                    (if (minusp adjusted)
+     ;;                        (setf (aref new-span pre-position)
+     ;;                              (abs (+ adjusted (aref new-span position))))
+     ;;                        (setf (aref new-span pre-position)
+     ;;                              (aref new-span position)
+     ;;                              (aref new-pad pre-position) 0
+     ;;                              (aref new-pad position) adjusted)))))
+     ;;            (update-drop (a position &optional negative)
+     ;;              (let ((adjusted (+ (if negative a (- a))
+     ;;                                 (aref new-pad position))))
+     ;;                (setf (aref new-pad position)
+     ;;                      (max 0 adjusted)
+     ;;                      (aref new-span position)
+     ;;                      (abs (+ (aref new-span position)
+     ;;                              (min 0 adjusted)))))))
+     ;;       (if (eq :last axis)
+     ;;           (progn
+     ;;             ;; (print (list :ba base-span base-pad))
+     ;;             (setf new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)
+     ;;                   new-pad (make-array (length base-pad) :element-type 'fixnum :initial-element 0))
+     ;;             (loop :for bs :across base-span :for ix :from 0 :do (setf (aref new-span ix) bs))
+     ;;             (loop :for bp :across base-pad :for ix :from 0 :do (setf (aref new-pad ix) bp))
+
+     ;;             (if (vectorp argument)
+     ;;                 (loop :for a :across argument :for ix :from 0
+     ;;                       :do (if is-inverse
+     ;;                               (if (minusp a) (update-drop a (+ ix base-rank) t)
+     ;;                                   (update-drop a (+ ix base-rank)))
+     ;;                               (if (minusp a) (update-take a (+ ix base-rank) ix)
+     ;;                                   (update-take a (+ ix base-rank) ix t))))
+     ;;                 (if is-inverse
+     ;;                     (if (minusp argument) (update-drop argument 1 t)
+     ;;                         (update-drop argument 1))
+     ;;                     (if (minusp argument) (update-take argument 1 0)
+     ;;                         (update-take argument 1 0 t))))))
+
+     ;;       (setf (vasec-span varray) new-span
+     ;;             (vasec-pad varray) new-pad
+     ;;             (vader-base varray) (if new-span sub-base base)))))
      
-     (if (and (not is-inverse) (eq :last axis)
-              (typep base 'vad-limitable) (not (functionp arg-indexer)))
-         ;; a scalar left argument can be used to limit the computation of
-         ;; a base virtual array, as for the case of 5↑'This is a test'~' ';
-         ;; this case is computed separately because other cases require that the shape
-         ;; of the base array be obtained, which precludes setting it as is done here
-         (let ((shape (list (abs arg-indexer))))
-           (setf (varray-shape base) shape)
-           (generator-of base)
-           (when (> (first shape) (first (shape-of base)))
-             (setf (vasec-overtaking varray) t))
-           (let ((base-rank (rank-of base)))
+     (when (not (vasec-span varray))
+       (if (and (not is-inverse) (eq :last axis)
+                (typep base 'vad-limitable) (not (functionp arg-indexer)))
+           ;; a scalar left argument can be used to limit the computation of
+           ;; a base virtual array, as for the case of 5↑'This is a test'~' ';
+           ;; this case is computed separately because other cases require that the shape
+           ;; of the base array be obtained, which precludes setting it as is done here
+           (let ((shape (list (abs arg-indexer))))
+             (setf (varray-shape base) shape)
+             (generator-of base)
+             (let ((base-shape (shape-of base))
+                   (base-rank (rank-of base)))
+               (setf (vasec-span varray)
+                     (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
+                                 :element-type 'fixnum :initial-element 0)
+                     (vasec-pad varray)
+                     (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
+                                 :element-type 'fixnum :initial-element 0))
+               (if base-shape
+                   (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
+                         :do (setf (aref (vasec-span varray) i) s))
+                   (when (not is-inverse) (setf (aref (vasec-span varray) 1) 1))))
+             (setf limited-shape shape))
+           
+           (let* ((base-rank (rank-of base))
+                  (span-offset (max 1 base-rank))
+                  (base-shape (copy-list (shape-of base)))
+                  ;; the shape of the base is only needed for [↓ drop]
+                  (pre-shape (coerce (loop :for b :below (max (length base-shape)
+                                                              (if (not arg-shape) 1 (first arg-shape)))
+                                           :collect (or (nth b base-shape) 0))
+                                     'vector)))
+             
              (setf (vasec-span varray)
                    (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
                                :element-type 'fixnum :initial-element 0)
                    (vasec-pad varray)
                    (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
-                               :element-type 'fixnum :initial-element 0)))
-           shape)
-         
-         (let* ((base-rank (rank-of base))
-                (span-offset (max 1 base-rank))
-                (base-shape (copy-list (shape-of base)))
-                ;; the shape of the base is only needed for [↓ drop]
-                (pre-shape (coerce (loop :for b :below (max (length base-shape)
-                                                            (if (not arg-shape) 1 (first arg-shape)))
-                                         :collect (or (nth b base-shape) 0))
-                                   'vector)))
-           
-           (setf (vasec-span varray)
-                 (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
-                             :element-type 'fixnum :initial-element 0)
-                 (vasec-pad varray)
-                 (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
-                             :element-type 'fixnum :initial-element 0))
-           
-           (if base-shape
-               (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
-                     :do (setf (aref (vasec-span varray) i) s))
-               (when (not is-inverse) (setf (aref (vasec-span varray) 1) 1)))
+                               :element-type 'fixnum :initial-element 0))
+             
+             (if base-shape
+                 (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
+                       :do (setf (aref (vasec-span varray) i) s))
+                 (when (not is-inverse) (setf (aref (vasec-span varray) 1) 1)))
 
-           ;; (print (list :vs (vasec-span varray)))
-
-           ;; populate the span and padding vectors according to the arguments
-           ;; and the dimensions of the input array
-           (flet ((process-element (arg ax orig element)
-                    (if is-inverse
-                        (progn (when (< 0 base-rank)
-                                 (setf (aref (vasec-span varray)
-                                             (+ ax (* span-offset (if (< 0 arg) 0 1))))
-                                       (if (> arg 0) element (- orig element))))
-                               (max 0 (- orig element)))
-                        (progn ;; (when (> element orig)
-                               ;;   (setf (vasec-overtaking varray) t))
-                               ;; ;; (print (list :el element))
-                               ;; (setf (aref (vasec-span varray)
-                               ;;             (+ ax (* span-offset (if (> 0 arg) 0 1))))
-                               ;;       (if (<= 0 arg)
-                               ;;           element (+ arg orig (if (zerop base-rank) 1 0))))
-                               ;; (print (list :eo ax element orig base-shape base-rank))
-                               (if (> element orig)
-                                   (setf (vasec-overtaking varray) t
-                                         (aref (vasec-span varray)
-                                               (+ ax (* span-offset (if (not base-shape)
-                                                                        1 (if (> 0 arg) 0 1)))))
-                                         (if (not base-shape)
-                                             1 (+ (if (> 0 arg) 0 orig)
-                                                  ;; (if base-shape 1 0)
-                                                  ;; (if (zerop base-rank) 1 0)
-                                                  ))
-                                         (aref (vasec-pad varray)
-                                               (+ ax (* span-offset (if (> 0 arg) 0 1))))
-                                         (- element orig (if base-shape 0 1)
-                                            ))
+             ;; populate the span and padding vectors according to the arguments
+             ;; and the dimensions of the input array
+             (flet ((process-element (arg ax orig element)
+                      (if is-inverse
+                          (progn (when (< 0 base-rank)
                                    (setf (aref (vasec-span varray)
-                                               (+ ax (* span-offset (if (> 0 arg) 0 1))))
-                                     (if (<= 0 arg)
-                                         element (+ arg orig (if (zerop base-rank) 1 0)))))
-                               element))))
-             (if (vectorp axis)
-                 (loop :for x :across axis :for ix :from 0
-                       :do (let ((arg (funcall arg-indexer ix)))
-                             (setf (aref pre-shape (- x iorigin))
-                                   (process-element arg (- x iorigin) (aref pre-shape (- x iorigin))
-                                                    (abs arg)))))
-                 (if (eq :last axis)
-                     (if (functionp arg-indexer)
-                         (loop :for a :below (first arg-shape) :for ix :from 0
-                               :do (let ((arg (funcall arg-indexer a)))
-                                     (setf (aref pre-shape ix)
-                                           (process-element arg ix (aref pre-shape ix)
-                                                            (abs arg)))))
-                         (setf (aref pre-shape 0)
-                               (process-element arg-indexer 0 (aref pre-shape 0) (abs arg-indexer))))
-                     (setf (aref pre-shape (- axis iorigin))
-                           (process-element arg-indexer (- axis iorigin)
-                                            (aref pre-shape (- axis iorigin))
-                                            (abs arg-indexer))))))
-           ;; (print (list :ab pre-shape (vasec-span varray) (vasec-pad varray)))
-           (let ((orank (* 1/2 (length (vasec-span varray)))))
-             (loop :for ix :below orank
-                   :collect (max 0 (+ (- (aref (vasec-span varray) (+ ix orank))
-                                         (aref (vasec-span varray) ix))
-                                      (aref (vasec-pad varray) (+ ix orank))
-                                      (aref (vasec-pad varray) ix)
-                                      )))))))))
+                                               (+ ax (* span-offset (if (< 0 arg) 0 1))))
+                                         (if (> arg 0) element (- orig element))))
+                                 (max 0 (- orig element)))
+                          (progn (if (<= element orig)
+                                     (setf (aref (vasec-span varray)
+                                                 (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                                           (if (<= 0 arg)
+                                               element (+ arg orig (if (zerop base-rank) 1 0))))
+                                     (setf (aref (vasec-span varray)
+                                                 (+ ax (* span-offset (if (not base-shape)
+                                                                          1 (if (> 0 arg) 0 1)))))
+                                           ;; the span is nominally 0 1 in the case of any take
+                                           ;; of a scalar, as with ¯5↑1 or 2↑2
+                                           (if (not base-shape) 1 (if (> 0 arg) 0 orig))
+                                           (aref (vasec-pad varray)
+                                                 (+ ax (* span-offset (if (> 0 arg) 0 1))))
+                                           ;; subtract 1 from the pad for takes of scalars
+                                           (- element orig (if base-shape 0 1))))
+                                 element))))
+               (if (vectorp axis)
+                   (loop :for x :across axis :for ix :from 0
+                         :do (let ((arg (funcall arg-indexer ix)))
+                               (process-element arg (- x iorigin) (aref pre-shape (- x iorigin))
+                                                (abs arg))))
+                   (if (eq :last axis)
+                       (if (functionp arg-indexer)
+                           (loop :for a :below (first arg-shape) :for ix :from 0
+                                 :do (let ((arg (funcall arg-indexer a)))
+                                       (process-element arg ix (aref pre-shape ix) (abs arg))))
+                           (process-element arg-indexer 0 (aref pre-shape 0) (abs arg-indexer)))
+                       (process-element arg-indexer (- axis iorigin)
+                                        (aref pre-shape (- axis iorigin))
+                                        (abs arg-indexer))))))))
+     ;; (print (list :ssp (vasec-span varray) (vasec-pad varray)
+     ;;              (vads-argument varray) (vads-axis varray) (render base)
+     ;;              is-inverse))
+     (or limited-shape
+         (let ((orank (* 1/2 (length (vasec-span varray)))))
+           (loop :for ix :below orank
+                 :collect (+ (max 0 (- (aref (vasec-span varray) (+ ix orank))
+                                       (aref (vasec-span varray) ix)))
+                             (aref (vasec-pad varray) (+ ix orank))
+                             (aref (vasec-pad varray) ix))))))))
 
 (defmethod indexer-of ((varray vader-section) &optional params)
   "Indexer for a sectioned array."
@@ -3327,7 +3377,8 @@
            base-indexer (base-indexer-of varray params))
 
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
-                                      (vasec-span varray) (vasec-pad varray) assigning))
+                                      (vasec-span varray) (vasec-pad varray)
+                                      is-inverse assigning))
             (prototype (when (not assigning)
                          (setf (varray-prototype varray)
                                (if (or (zerop size) (zerop base-size))
@@ -3352,14 +3403,16 @@
                (lambda (index)
                  (when (funcall indexer index) (disclose base-indexer)))
                (lambda (index)
-                 (declare (type integer index))
+                  (declare (type integer index))
+                 ;; (print (list :iin index))
                  (funcall indexer index))))))))
 
 (defmethod generator-of ((varray vader-section) &optional indexers params)
   (let ((indexer (indexer-of varray params)))
     (if (getf params :for-selective-assign)
         indexer
-        (if (vasec-overtaking varray)
+        (if ;; (vasec-overtaking varray)
+            (not (loop :for item :across (vasec-pad varray) :always (zerop item)))
             (let* ((composite-indexer (or (join-indexers indexers t) #'identity))
                    (arg (vads-argument varray))
                    (size (size-of varray))
@@ -3389,40 +3442,6 @@
                   (lambda (index) (declare (ignore index)) prototype))
                 (generator-of (vader-base varray)
                               (if (not indexer) indexers (cons indexer indexers))))))))
-
-;; (defmethod initialize-instance :after ((varray vader-section) &key)
-;;   "Merge successive takes and drops into a single operation."
-;;   (let ((base (vader-base varray))
-;;         (axis (vads-axis varray))
-;;         (argument (render (vads-argument varray)))
-;;         (is-inverse (vads-inverse varray)))
-;;     (when (typep base 'vader-section)
-;;       (shape-of base)
-;;       (let* ((base-axis (vads-axis base))
-;;              (base-arg (vads-argument base))
-;;              (base-span (vasec-span base))
-;;              (base-rank (* 1/2 (length base-span)))
-;;              (sub-base (vader-base base))
-;;              (new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)))
-;;         (if (eq :last axis)
-;;             (progn (loop :for bs :across base-span :for ix :from 0 :do (setf (aref new-span ix) bs))
-;;                    (loop :for a :across argument :for ix :from 0
-;;                          :do (if is-inverse
-;;                                  (if (minusp a)
-;;                                      (setf (aref new-span (+ ix base-rank))
-;;                                            (+ a (aref new-span (+ ix base-rank))))
-;;                                      (setf (aref new-span ix)
-;;                                            (+ a (aref new-span ix))))
-;;                                  (if (minusp a)
-;;                                      (setf (aref new-span ix)
-;;                                            (+ a (aref new-span (+ ix base-rank))))
-;;                                      (setf (aref new-span (+ ix base-rank))
-;;                                            (+ a (aref new-span ix))))))))
-;;         (setf (vasec-span varray) new-span
-;;               (varray-shape varray) (loop :for ix :below base-rank
-;;                                           :collect (max 0 (+ (- (aref new-span (+ ix base-rank))
-;;                                                                 (aref new-span ix)))))
-;;               (vader-base varray) sub-base)))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
                          vad-with-argument vad-maybe-shapeless)
