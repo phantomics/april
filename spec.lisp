@@ -796,7 +796,8 @@
             (is "1 2↑2 3 4⍴⍳9" #3A(((1 2 3 4) (5 6 7 8))))
             (is "2 2 2↑1 0 2⍴⍳30" #3A(((0 0) (0 0)) ((0 0) (0 0))))
             (is "5 5↑3 3⍴1" #2A((1 1 1 0 0) (1 1 1 0 0) (1 1 1 0 0) (0 0 0 0 0) (0 0 0 0 0)))
-            (is "(¯5↑1),(,¯5)↑1" #*0000100001)))
+            (is "(¯5↑1),(,¯5)↑1" #*0000100001)
+            (is "4 3↑1 1↓4 5⍴⍳20" #2A((7 8 9) (12 13 14) (17 18 19) (0 0 0)))))
   (↓ (has :titles ("Split" "Drop"))
      (ambivalent (λω (make-instance 'vader-split :base omega :index-origin index-origin
                                                  :axis (or (first axes) :last)))
@@ -837,7 +838,8 @@
             (is "¯2 ¯2↓5 8⍴⍳9" #2A((1 2 3 4 5 6) (9 1 2 3 4 5) (8 9 1 2 3 4)))
             (is "4 5↓2 3⍴1" #2A())
             (is "1↓2 3 4⍴⍳9" #3A(((4 5 6 7) (8 9 1 2) (3 4 5 6))))
-            (is "1 1↓2 3 4⍴⍳9" #3A(((8 9 1 2) (3 4 5 6))))))
+            (is "1 1↓2 3 4⍴⍳9" #3A(((8 9 1 2) (3 4 5 6))))
+            (is "1↓¯1↓' abcdefg'" "abcdef")))
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      (ambivalent (λω (make-instance 'vader-enclose :base omega :index-origin index-origin
                                                    :axis (first axes)))

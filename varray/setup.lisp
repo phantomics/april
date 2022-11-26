@@ -138,11 +138,7 @@
                           ;;              (- (aref span (+ i irank))
                           ;;                 0 ; (if is-inverse (aref span i) 0)
                           ;;                 )))
-                          (setf valid (when (< -1 adj-index
-                                               ;; id
-                                               (aref span (+ i irank))
-                                               
-                                               )
+                          (setf valid (when (< -1 adj-index (aref span (+ i irank)))
                                         (incf iindex (* ifactor adj-index))
                                         (setq remaining remainder))))))
             (when valid iindex))))))
