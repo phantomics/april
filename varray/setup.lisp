@@ -82,85 +82,100 @@
          (setf ,@output)
          ,table))))
 
-;; (let ((indexer-table-encoded
-;;         (intraverser-ex
-;;          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
-;;           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
-;;          (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
-;;                         function)
-;;               (lambda (degrees rlen)
-;;                 (declare (optimize (speed 3) (safety 0))
-;;                          (type (unsigned-byte +sub-base-width+) degrees rlen))
-;;                 ;; (let ((byte-offset (* +cindex-width+ dindex)))
-;;                 ;; (print (list :fn degrees rlen +cindex-width+ +eindex-width+ +address-fraction+))
-;;                 (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
-;;                      (lambda (i)
-;;                        (declare (type (unsigned-byte +eindex-width+) i))
-;;                        (let ((iindex (the (unsigned-byte +cindex-width+)
-;;                                           (ldb (byte +cindex-width+ +address-fraction+)
-;;                                                i))))
-;;                          (the (unsigned-byte +eindex-width+)
-;;                               (dpb (the (unsigned-byte +cindex-width+)
-;;                                         (incf iindex degrees))
-;;                                    (byte +cindex-width+ +address-fraction+)
-;;                                    i))))))))))
+(let ((indexer-table-encoded
+        (intraverser-ex
+         (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
+          :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
+         (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
+                        function)
+              (lambda (degrees)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (unsigned-byte +sub-base-width+) degrees))
+                ;; (let ((byte-offset (* +cindex-width+ dindex)))
+                ;; (print (list :fn degrees +cindex-width+ +eindex-width+ +address-fraction+))
+                (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+                     (lambda (i)
+                       (declare (type (unsigned-byte +eindex-width+) i))
+                       (let ((iindex (the (unsigned-byte +cindex-width+)
+                                          (ldb (byte +cindex-width+ +address-fraction+)
+                                               i))))
+                         (the (unsigned-byte +eindex-width+)
+                              (dpb (the (unsigned-byte +cindex-width+)
+                                        (incf iindex degrees))
+                                   (byte +cindex-width+ +address-fraction+)
+                                   i))))))))))
   
-(defun indexer-section (dims span pad is-inverse output-shorter)
-  "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
-  ;; (print (list :is inverse dims dimensions output-shorter span padding))
-  (let* ((scalar (not dims))
-         (dims (or dims '(1)))
-         (isize (reduce #'* dims)) (irank (length dims))
-         (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
-                                  :initial-contents dims))
-         (odims (loop :for ix :below irank :for sp :across span
-                      :collect (+ (- (aref span (+ ix irank)) sp)
-                                  (aref pad ix)
-                                  (aref pad (+ ix irank)))))
-         (osize (reduce #'* odims))
-         (last-dim)
-         (id-factors (make-array irank :element-type 'fixnum))
-         (od-factors (make-array irank :element-type 'fixnum)))
-    
-    ;; generate dimensional factors vectors for input and output
-    (loop :for dx :below irank
-          :do (let ((d (aref idims (- irank 1 dx))))
-                (setf (aref id-factors (- irank 1 dx))
-                      (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
-                      last-dim d)))
+  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype)
+    "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
+    ;; (print (list :is inverse dims dimensions output-shorter span padding))
+    (let* ((scalar (not dims))
+           (dims (or dims '(1)))
+           (isize (reduce #'* dims)) (irank (length dims))
+           (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
+                                    :initial-contents dims))
+           (odims (loop :for ix :below irank :for sp :across span
+                        :collect (+ (- (aref span (+ ix irank)) sp)
+                                    (aref pad ix)
+                                    (aref pad (+ ix irank)))))
+           (osize (reduce #'* odims))
+           (last-dim)
+           (id-factors (make-array irank :element-type 'fixnum))
+           (od-factors (make-array irank :element-type 'fixnum)))
+      
+      ;; generate dimensional factors vectors for input and output
+      (loop :for dx :below irank
+            :do (let ((d (aref idims (- irank 1 dx))))
+                  (setf (aref id-factors (- irank 1 dx))
+                        (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
+                        last-dim d)))
 
-    (loop :for d :in (reverse odims) :for dx :from 0
-          :do (setf (aref od-factors (- irank 1 dx))
-                    (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
-                    last-dim d))
-    ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-    (if output-shorter
-        ;; choose shorter path depending on whether input or output are larger, and
-        ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
-        ;; to respect the segmentation of the elements
-        (lambda (i)
-          (let ((oindex 0) (remaining i) (valid t))
-            ;; calculate row-major offset for outer array dimensions
-            (loop :for i :below irank :while valid :for od :in odims
-                  :for ifactor :across id-factors :for ofactor :across od-factors
-                  :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                        (let ((adj-index (- index (aref span i))))
-                          (setf valid (when (< -1 adj-index od)
-                                        (incf oindex (* ofactor adj-index))
-                                        (setq remaining remainder))))))
-            (when valid oindex)))
-        (lambda (i)
-          (let ((iindex 0) (remaining i) (valid t))
-            ;; calculate row-major offset for outer array dimensions
-            (loop :for i :below irank :while valid :for id :across idims
-                  :for ifactor :across id-factors :for ofactor :across od-factors
-                  :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                        (let ((adj-index (+ (aref span i)
-                                            (- index (aref pad i)))))
-                          (setf valid (when (< -1 adj-index (aref span (+ i irank)))
-                                        (incf iindex (* ifactor adj-index))
-                                        (setq remaining remainder))))))
-            (when valid iindex))))))
+      (loop :for d :in (reverse odims) :for dx :from 0
+            :do (setf (aref od-factors (- irank 1 dx))
+                      (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+                      last-dim d))
+      ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
+
+      (let ((encoder-chain
+              (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
+                       :pass)
+                  (loop :for dx :below irank
+                        :append (let ((sum (+ (aref span dx) (aref pad dx))))
+                                  ;; (print (list :sp span pad sum))
+                                  (when (not (zerop sum))
+                                    (let ((encoder (gethash (list iwidth itype dx)
+                                                            indexer-table-encoded)))
+                                      (when encoder (list (funcall encoder sum)))))))))
+            (default-indexer
+              (if output-shorter
+                  ;; choose shorter path depending on whether input or output are larger, and
+                  ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+                  ;; to respect the segmentation of the elements
+                  (lambda (i)
+                    (let ((oindex 0) (remaining i) (valid t))
+                      ;; calculate row-major offset for outer array dimensions
+                      (loop :for i :below irank :while valid :for od :in odims
+                            :for ifactor :across id-factors :for ofactor :across od-factors
+                            :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+                                  (let ((adj-index (- index (aref span i))))
+                                    (setf valid (when (< -1 adj-index od)
+                                                  (incf oindex (* ofactor adj-index))
+                                                  (setq remaining remainder))))))
+                      (when valid oindex)))
+                  (lambda (i)
+                    (let ((iindex 0) (remaining i) (valid t))
+                      ;; calculate row-major offset for outer array dimensions
+                      (loop :for i :below irank :while valid
+                            :for ifactor :across id-factors :for ofactor :across od-factors
+                            :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                                  (let ((adj-index (+ (aref span i)
+                                                      (- index (aref pad i)))))
+                                    (setf valid (when (< -1 adj-index (aref span (+ i irank)))
+                                                  (incf iindex (* ifactor adj-index))
+                                                  (setq remaining remainder))))))
+                      (when valid iindex))))))
+        ;; (print (list :enc encoder-chain))
+        default-indexer
+        ))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)

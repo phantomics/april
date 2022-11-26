@@ -528,7 +528,7 @@
                                    (or encoding index-type))
                            "KEYWORD"))
          (default-generator) (to-subrender))
-
+    
     (when (getf (varray-meta varray) :gen-meta)
       (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) d-index-type
             (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
@@ -3354,7 +3354,9 @@
 
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
                                       (vasec-span varray) (vasec-pad varray)
-                                      is-inverse assigning))
+                                      is-inverse assigning
+                                      (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
+                                      (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)))
             (prototype (when (not assigning)
                          (setf (varray-prototype varray)
                                (if (or (zerop size) (zerop base-size))
