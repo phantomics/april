@@ -3382,13 +3382,9 @@
                              (let ((inext (funcall base-indexer index)))
                                (when inext (if (eq :pick layers-below)
                                                inext (funcall indexer inext)))))))
-           (if (not (functionp base-indexer)) ;; TODO: why is the disclose needed?
-               (lambda (index)
-                 (when (funcall indexer index) (disclose base-indexer)))
-               (lambda (index)
-                  (declare (type integer index))
-                 ;; (print (list :iin index))
-                 (funcall indexer index))))))))
+           (if (functionp base-indexer) ;; TODO: why is the disclose needed?
+               indexer (lambda (index)
+                         (when (funcall indexer index) (disclose base-indexer)))))))))
 
 (defmethod generator-of ((varray vader-section) &optional indexers params)
   (let ((indexer (indexer-of varray params)))
@@ -4500,8 +4496,7 @@
                      (incf oix)
                      (setf oindex (+ oindex (* of this-index))
                            remaining remainder)))
-         (setf remaining index
-               value (if (not (functionp base-indexer))
+         (setf value (if (not (functionp base-indexer))
                          base-indexer (funcall base-indexer oindex)))
 
          ;; (print (list :aa arg-indexer value adims (vads-argument varray)))
