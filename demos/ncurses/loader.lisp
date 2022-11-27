@@ -4,4 +4,5 @@
 (asdf:load-system 'april-demo.ncurses)
 
 (april-demo.ncurses::main)
+
 (cl-user::quit)
