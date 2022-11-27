@@ -3,7 +3,9 @@
 
 (in-package #:varray)
 
-(defmacro intraverser-ex (params function)
+"Macros supporting the implementation of virtual arrays."
+
+(defmacro intraverser (params function)
   (let ((widths '(:lindex-width (8 16 32 64)
                   :eindex-width (16 32 64)
                   :cindex-width (8 16 32)

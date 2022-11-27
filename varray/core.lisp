@@ -3,6 +3,8 @@
 
 (in-package #:varray)
 
+"Core classes, methods and specs for virtual arrays."
+
 ;; specialized types for April virtual arrays
 (deftype ava-worker-count () `(integer 0 ,(max 1 (1- (serapeum:count-cpus :default 2)))))
 (deftype ava-rank () `(integer 0 ,(1- array-rank-limit)))
@@ -102,7 +104,7 @@
                        :collect (setq factor (if (zerop dx) 1 (* factor last-index)))
                        :do (setq last-index d))))))
 
-(defun apl-array-prototype2 (array)
+(defun apl-array-prototype (array)
   "Returns the default element for an array based on that array's first element (its prototype in array programming terms); blank spaces in the case of a character prototype and zeroes for others."
   (labels ((derive-element (input)
              (if (characterp input)
@@ -153,7 +155,7 @@
             (getf (aref (array-displacement item) 0) :empty-array-prototype)
             (if (and (arrayp item) (zerop (array-rank item)))
                 (aplesque:make-empty-array (disclose item))
-                (apl-array-prototype2 item)))))
+                (apl-array-prototype item)))))
 
 (defmethod prototype-of ((varray varray))
   "The default prototype for a virtual array is 0."
@@ -321,7 +323,7 @@
                       is-not-defaulting))))))
 
 (let ((encoder-table
-        (intraverser-ex
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
           :rank-width +rank-width+ :rank-plus +rank-plus+)
          (the (function ((simple-array (unsigned-byte 62) (+rank-plus+))) ;; TODO: variable type
@@ -349,7 +351,7 @@
 ;; (format t "#x~4,'0X~%" (funcall (encode-rmi :i32 #(12 4 1) 8) 14))
 
 (let ((function-table
-        (intraverser-ex
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
           :sub-base-width +sub-base-width+ :rank-plus +rank-plus+)
          (the (function ((simple-array (unsigned-byte 32) (+rank-plus+))) ;; TODO: variable type
@@ -388,7 +390,7 @@
        (16-bit-factors (make-array 4 :element-type '(unsigned-byte 64)))
        (32-bit-factors (make-array 2 :element-type '(unsigned-byte 64)))
        (function-table
-         (intraverser-ex
+         (intraverser
           (:eindex-width +eindex-width+ :cindex-width +cindex-width+
            :rank-width +rank-width+ :sub-base-width +sub-base-width+ :rank-plus +rank+)
           (the (function ((simple-array (unsigned-byte +cindex-width+) (+rank+)))
@@ -467,7 +469,7 @@
                                 (loop :for i :from start-at :to (1- (+ start-at count))
                                       :do (funcall to-call i))))))
          (flat-indexer-table
-           (intraverser-ex
+           (intraverser
             (:lindex-width +lindex-width+)
             (the (function ((unsigned-byte +lindex-width+)))
                  (lambda (index)
@@ -485,7 +487,7 @@
                             (loop :for i :from start-at :to (1- (+ start-at count))
                                   :do (funcall to-call i)))))))))
          (encoded-indexer-table
-           (intraverser-ex
+           (intraverser
             (:eindex-width +eindex-width+ :cindex-width +cindex-width+)
             (the (function ((unsigned-byte +eindex-width+)))
                  (lambda (index)

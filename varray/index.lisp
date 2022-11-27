@@ -3,8 +3,10 @@
 
 (in-package #:varray)
 
+"Indexers for virtual arrays, including optimized polymorphic functions that may be selected for use based on the most efficient compatible coordinate datatype for a given tree of virtual array objects."
+
 (let ((indexer-table-encoded
-        (intraverser-ex
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
          (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
@@ -159,7 +161,7 @@
       ;;                                                                  (floor i increment)))
       ;;                                                          rlen)))))))))))))
       (function-table
-        (intraverser-ex
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
          (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
@@ -217,7 +219,7 @@
                                     (1- rlen))))))))))
 
 (let ((regular-handler-table
-        (intraverser-ex
+        (intraverser
          ;; (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
          ;;               ;; :rank +rank+
          ;;               :rank-width +rank-width+))
@@ -264,7 +266,7 @@
                           iindex)))))
          ))
       (diagonal-handler-table
-        (intraverser-ex
+        (intraverser
          ;; (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
          ;;                             ;; :rank +rank+
          ;;               :rank-width +rank-width+))

@@ -1,3 +1,4 @@
+;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:Varray -*-
 ;;;; package.lisp
 
 (defpackage #:varray
@@ -18,11 +19,11 @@
   (:shadowing-import-from #:serapeum #:count-cpus)
   (:shadowing-import-from #:random-state #:make-generator #:random-int #:random-float)
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force #:fulfilledp)
-  (:shadowing-import-from #:aplesque #:varef #:sprfact #:enclose #:disclose #:disclose-unitary
+  (:shadowing-import-from #:aplesque #:varef #:sprfact
+                          #:enclose #:disclose #:disclose-unitary
                           #:assign-element-type #:type-in-common
-                          #:apl-array-prototype #:apply-scalar #:is-unitary #:enclose-atom
+                          #:apply-scalar #:is-unitary #:enclose-atom
                           #:array-compare #:index-of #:alpha-compare #:grade #:array-grade
-                          #:vector-grade #:xdotimes #:invert-matrix #:left-invert-matrix
+                          #:vector-grade #:invert-matrix #:left-invert-matrix
                           #:array-inner-product)
-  (:shadowing-import-from #:aplesque.forms #:indexer-split ;; #:indexer-section
-                          #:indexer-expand))
+  (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-expand))

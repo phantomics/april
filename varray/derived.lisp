@@ -3,6 +3,8 @@
 
 (in-package #:varray)
 
+"Definitions of virtual arrays derived from other arrays, implementing most APL array processing functions."
+
 ;; superclasses encompassing array derivations taking different types of parameters
 
 (defclass vad-reindexing ()

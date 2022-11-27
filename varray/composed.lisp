@@ -3,6 +3,8 @@
 
 (in-package #:varray)
 
+"Definitions of virtual arrays produced by the composition of functions, implementing APL operators."
+
 (defun side-effect-free (function)
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
   (let ((fn-meta (handler-case (funcall function :get-metadata)

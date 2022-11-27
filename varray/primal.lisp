@@ -3,6 +3,8 @@
 
 (in-package #:varray)
 
+"Definitions of virtual arrays derived solely from their input parameters and not based on other arrays."
+
 (defclass vapri-integer-progression (varray-primal)
   ((%number :accessor vapip-number
             :initform 1
