@@ -81,9 +81,9 @@
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
             :match-overloaded-numeric-character (lambda (char) (char= #\. char))
-            ;; this code preprocessor removes comments: everything between a ⍝ and newline character
+            ;; match character(s) used to separate axes
             :match-axis-separating-character (lambda (char) (char= #\; char))
-            ;; this code preprocessor removes comments: everything between a ⍝ and newline character
+            ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
             :prep-code-string
             (lambda (string)
               (let ((commented) (osindex 0) (comment-char #\⍝)
@@ -799,7 +799,8 @@
             (is "(¯5↑1),(,¯5)↑1" #*0000100001)
             (is "4 3↑1 1↓4 5⍴⍳20" #2A((7 8 9) (12 13 14) (17 18 19) (0 0 0)))
             (is "2 2↑[2 3]3 4 5↑4 5 6⍴⍳9" #3A(((1 2) (7 8)) ((4 5) (1 2)) ((7 8) (4 5))))
-            (is "¯2 ¯2↑[2 3]3 4 5↑4 5 6⍴⍳9" #3A(((7 8) (4 5)) ((1 2) (7 8)) ((4 5) (1 2))))))
+            (is "¯2 ¯2↑[2 3]3 4 5↑4 5 6⍴⍳9" #3A(((7 8) (4 5)) ((1 2) (7 8)) ((4 5) (1 2))))
+            (is "¯2 ¯2↑[2 3]3 4 8↑3 4 5↑4 5 6⍴⍳9" #3A(((0 0) (0 0)) ((0 0) (0 0)) ((0 0) (0 0))))))
   (↓ (has :titles ("Split" "Drop"))
      (ambivalent (λω (make-instance 'vader-split :base omega :index-origin index-origin
                                                  :axis (or (first axes) :last)))

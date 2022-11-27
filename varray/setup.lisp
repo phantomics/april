@@ -92,8 +92,6 @@
               (lambda (degrees)
                 (declare (optimize (speed 3) (safety 0))
                          (type (unsigned-byte +sub-base-width+) degrees))
-                ;; (let ((byte-offset (* +cindex-width+ dindex)))
-                ;; (print (list :fn degrees +cindex-width+ +eindex-width+ +address-fraction+))
                 (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
                      (lambda (i)
                        (declare (type (unsigned-byte +eindex-width+) i))
@@ -102,7 +100,7 @@
                                                i))))
                          (the (unsigned-byte +eindex-width+)
                               (dpb (the (unsigned-byte +cindex-width+)
-                                        (incf iindex degrees))
+                                        (+ iindex degrees))
                                    (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   
