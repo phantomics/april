@@ -12,7 +12,6 @@
   :components ((:file "package")
                (:file "utilities")
                (:file "functions")
-               (:file "patterns")
                (:file "grammar")
                (:file "spec")
                (:file "game-of-life")))
