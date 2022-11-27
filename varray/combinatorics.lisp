@@ -2,23 +2,6 @@
 
 (in-package #:varray)
 
-(defclass va-class (standard-class)
-  nil (:documentation "Metaclass for virtual array objects."))
-
-(defmethod closer-mop:validate-superclass ((class va-class)
-                                           (superclass cl:standard-class))
-  t)
-
-(defvar *combos*)
-
-(setf *combos* nil)
-
-(defmacro assign-combo (from to args &body body)
-  `(progn (when (not (assoc (quote ,from) *combos*))
-            (push (list (quote ,from)) *combos*))
-          (push (list (quote ,to) '(lambda ,args ,@body))
-                (rest (assoc (quote ,from) *combos*)))))
-
 ;; (defmacro build-allocator ()
 ;;   `(defmethod allocate-instance
 ;;        ((this-class va-class) &key base axis argument)

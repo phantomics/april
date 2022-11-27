@@ -8,6 +8,10 @@
   :serial t
   :depends-on ("aplesque" "serapeum" "lparallel" "random-state")
   :components ((:file "package")
-               (:file "setup")
-               (:file "combinatorics")
-               (:file "varray")))
+               (:file "macros")
+               (:file "core")
+               (:file "index")
+               (:file "primal")
+               (:file "derived")
+               ;; (:file "combinatorics")
+               (:file "composed")))
