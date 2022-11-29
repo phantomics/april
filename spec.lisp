@@ -843,7 +843,10 @@
             (is "1↓¯1↓' abcdefg'" "abcdef")
             (is "2 2↓[2 3]3 4 8↑3 4 5↑4 5 6⍴⍳9" #3A(((6 7 8 0 0 0) (3 4 5 0 0 0))
                                                     ((9 1 2 0 0 0) (6 7 8 0 0 0))
-                                                    ((3 4 5 0 0 0) (9 1 2 0 0 0))))))
+                                                    ((3 4 5 0 0 0) (9 1 2 0 0 0))))
+            (is "¯2 ¯2↓[2 3]3 4 8↑3 4 5↑4 5 6⍴⍳9" #3A(((1 2 3 4 5 0) (7 8 9 1 2 0))
+                                                      ((4 5 6 7 8 0) (1 2 3 4 5 0))
+                                                      ((7 8 9 1 2 0) (4 5 6 7 8 0))))))
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      (ambivalent (λω (make-instance 'vader-enclose :base omega :index-origin index-origin
                                                    :axis (first axes)))

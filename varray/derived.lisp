@@ -2160,9 +2160,8 @@
                   ;; (print (list :sp negative a new-span new-pad
                   ;;              :p position pre-position))
                   (setf (aref new-span (if negative position pre-position))
-                        (if negative (max (aref new-span pre-position)
-                                          (- (aref new-span position)
-                                             (max 0 (- (aref new-pad position) a))))
+                        (if negative (+ (aref new-span position)
+                                        (min 0 (+ a (aref new-pad position))))
                             (min a (aref new-span position)))
                         (aref new-pad (if negative position pre-position))
                         (if negative (max 0 (+ (aref new-pad position) a))
