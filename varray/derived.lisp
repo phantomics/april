@@ -2144,14 +2144,30 @@
                                   (max 0 (- adjusted (aref new-span position)))
                                   ;; (max (aref new-pad position) (abs adjusted))
                                   )))))
+                ;; (update-drop (a position pre-position &optional negative)
+                ;;   (let ((adjusted (+ (if negative a (- a))
+                ;;                      (aref new-pad position))))
+                ;;     (print (list :sp negative adjusted new-span new-pad
+                ;;                  :p position pre-position))
+                ;;     (setf (aref new-pad position)
+                ;;           (max 0 adjusted)
+                ;;           (aref new-span (if negative position pre-position))
+                ;;           (abs (if negative (+ (min 0 adjusted) (aref new-span position))
+                ;;                    (print (+ (aref new-pad position)
+                ;;                       (min 0 (- (aref new-span pre-position)
+                ;;                                 (abs adjusted))))))))))
                 (update-drop (a position pre-position &optional negative)
-                  (let ((adjusted (+ (if negative a (- a))
-                                     (aref new-pad position))))
-                    (setf (aref new-pad position)
-                          (max 0 adjusted)
-                          (aref new-span (if negative position pre-position))
-                          (abs (if negative (+ (min 0 adjusted) (aref new-span position))
-                                   (abs adjusted)))))))
+                  ;; (print (list :sp negative a new-span new-pad
+                  ;;              :p position pre-position))
+                  (setf (aref new-span (if negative position pre-position))
+                        (if negative (max (aref new-span pre-position)
+                                          (- (aref new-span position)
+                                             (max 0 (- (aref new-pad position) a))))
+                            (min a (aref new-span position)))
+                        (aref new-pad (if negative position pre-position))
+                        (if negative (max 0 (+ (aref new-pad position) a))
+                            (max 0 (- (aref new-pad pre-position) a)))))
+                )
            
            (setf new-span (make-array (length base-span) :element-type 'fixnum :initial-element 0)
                  new-pad (make-array (length base-pad) :element-type 'fixnum :initial-element 0))
@@ -2188,6 +2204,9 @@
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
                  (vader-base varray) (if new-span sub-base base)))))
+
+     ;; (when (vasec-span varray)
+     ;;   (print (list :vv (vasec-span varray) (vasec-pad varray))))
      
      (when (not (vasec-span varray))
        ;; this will usually apply to a section object without another section as its base
@@ -2274,7 +2293,7 @@
                        (process-element arg-indexer (- axis iorigin)
                                         (aref pre-shape (- axis iorigin))
                                         (abs arg-indexer))))))))
-     ;; (print (list :ssp (vasec-span varray) (vasec-pad varray)
+     ;; (print (list :ts (vasec-span varray) (vasec-pad varray)
      ;;              (vads-argument varray) (vads-axis varray) (render base)
      ;;              is-inverse))
      (or limited-shape

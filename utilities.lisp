@@ -217,6 +217,16 @@
           (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
+(defun add-aprepl-load-to-emacs-init-file (&optional path)
+  "Add a line loading the ApREPL utility to the Emacs init file so ApREPL will be ready for use when Emacs is loaded."
+  (let ((init-path (or path "~/.emacs"))
+        (el-path (asdf:system-relative-pathname :april "aprepl/aprepl.el")))
+    (with-open-file (init-file init-path :direction :output :if-exists :append
+                                         :if-does-not-exist :create)
+      (format init-file "~%(when (file-exists-p \"~a\")" el-path)
+      (format init-file "~%  (load \"~a\"))~%" el-path)
+      (format nil "Added ApREPL load to Emacs init file at ~a." init-path))))
+  
 (defun disclose-atom (item)
   "If the argument is a non-nested array with only one member, disclose it, otherwise do nothing."
   (if (not (and (not (stringp item)) (arrayp item) (is-unitary item)

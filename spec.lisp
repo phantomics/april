@@ -47,10 +47,8 @@
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
                   :lexical-operators-pivotal :lexical-statements :general-tests
-                  :system-variable-function-tests
-            :function-inversion-tests :namespace-tests
-            :printed-format-tests
-            )
+                  :system-variable-function-tests :function-inversion-tests :namespace-tests
+                  :printed-format-tests)
            (:arbitrary-test :output-specification-tests)
            (:time :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
                   :lexical-functions-array :lexical-functions-special :lexical-operators-lateral
@@ -842,7 +840,10 @@
             (is "4 5↓2 3⍴1" #2A())
             (is "1↓2 3 4⍴⍳9" #3A(((4 5 6 7) (8 9 1 2) (3 4 5 6))))
             (is "1 1↓2 3 4⍴⍳9" #3A(((8 9 1 2) (3 4 5 6))))
-            (is "1↓¯1↓' abcdefg'" "abcdef")))
+            (is "1↓¯1↓' abcdefg'" "abcdef")
+            (is "2 2↓[2 3]3 4 8↑3 4 5↑4 5 6⍴⍳9" #3A(((6 7 8 0 0 0) (3 4 5 0 0 0))
+                                                    ((9 1 2 0 0 0) (6 7 8 0 0 0))
+                                                    ((3 4 5 0 0 0) (9 1 2 0 0 0))))))
   (⊂ (has :titles ("Enclose" "Partitioned Enclose"))
      (ambivalent (λω (make-instance 'vader-enclose :base omega :index-origin index-origin
                                                    :axis (first axes)))
