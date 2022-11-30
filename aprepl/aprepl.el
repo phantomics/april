@@ -32,14 +32,14 @@
 
 
 (defcustom aprepl-noisy t
-  "If non-nil, APREPL will beep on error."
+  "If non-nil, ApREPL will beep on error."
   :type 'boolean
   :group 'aprepl)
 
 (defcustom aprepl-prompt-read-only t
-  "If non-nil, the APREPL prompt is read only.
+  "If non-nil, the ApREPL prompt is read only.
 The read only region includes the newline before the prompt.
-Setting this variable does not affect existing APREPL runs.
+Setting this variable does not affect existing ApREPL runs.
 This works by setting the buffer-local value of `comint-prompt-read-only'.
 Setting that value directly affects new prompts in the current buffer.
 
@@ -59,7 +59,7 @@ wish to put something like the following in your init file:
 If you set `comint-prompt-read-only' to t, you might wish to use
 `comint-mode-hook' and `comint-mode-map' instead of
 `aprepl-mode-hook' and `aprepl-map'.  That will affect all comint
-buffers, including APREPL buffers.  If you sometimes use APREPL on
+buffers, including ApREPL buffers.  If you sometimes use ApREPL on
 text-only terminals or with `emacs -nw', you might wish to use
 another binding for `comint-kill-whole-line'."
   :type 'boolean
@@ -67,19 +67,19 @@ another binding for `comint-kill-whole-line'."
   :version "22.1")
 
 (defcustom aprepl-prompt "      "
-  "Prompt used in APREPL.  Six spaces as per APL convention. 
-Setting this variable does not affect existing APREPL runs."
+  "Prompt used in ApREPL.  Six spaces as per APL convention. 
+Setting this variable does not affect existing ApREPL runs."
   :type 'string
   :group 'aprepl)
 
 (defvar aprepl-prompt-internal "      "
-  "Stored value of `aprepl-prompt' in the current APREPL buffer.
-This is an internal variable used by APREPL.  Its purpose is to
-prevent a running APREPL process from being messed up when the user
+  "Stored value of `aprepl-prompt' in the current ApREPL buffer.
+This is an internal variable used by ApREPL.  Its purpose is to
+prevent a running ApREPL process from being messed up when the user
 customizes `aprepl-prompt'.")
 
 (defcustom aprepl-indent "  "
-  "Indentation used in APREPL. Two spaces, intended for indenting within dfns."
+  "Indentation used in ApREPL. Two spaces, intended for indenting within dfns."
   :type 'string
   :group 'aprepl)
 
@@ -87,7 +87,7 @@ customizes `aprepl-prompt'.")
   "Stored value of `aprepl-indent'.")
 
 (defcustom aprepl-dynamic-return t
-  "Controls whether \\<aprepl-map>\\[aprepl-return] has intelligent behavior in APREPL.
+  "Controls whether \\<aprepl-map>\\[aprepl-return] has intelligent behavior in ApREPL.
 If non-nil, \\[aprepl-return] evaluates input for complete sexps, or inserts a newline
 and indents for incomplete sexps.  If nil, always inserts newlines."
   :type 'boolean
@@ -114,7 +114,7 @@ such as `edebug-defun' to work with such inputs."
 (defvaralias 'april-apl-repl-mode-hook 'aprepl-mode-hook)
 
 (defcustom aprepl-mode-hook nil
-  "Hooks to be run when APREPL (`april-apl-repl-mode') is started."
+  "Hooks to be run when ApREPL (`april-apl-repl-mode') is started."
   :options '(eldoc-mode)
   :type 'hook
   :group 'aprepl)
@@ -125,7 +125,7 @@ such as `edebug-defun' to work with such inputs."
 ;;; System variables
 
 (defvar aprepl-working-buffer nil
-  "Buffer in which APREPL expressions will be evaluated.")
+  "Buffer in which ApREPL expressions will be evaluated.")
 
 (defvar aprepl-header
   "*** Welcome to the April REPL *** \n"
@@ -154,11 +154,11 @@ such as `edebug-defun' to work with such inputs."
     (define-key map "\C-c\C-f" 'aprepl-display-working-buffer)
     (define-key map "\C-c\C-v" 'aprepl-print-working-buffer)
     map)
-  "Keymap for APREPL mode.")
+  "Keymap for ApREPL mode.")
 
 (easy-menu-define aprepl-menu aprepl-map
-  "APREPL mode menu."
-  '("APREPL"
+  "ApREPL mode menu."
+  '("ApREPL"
     ["Change Working Buffer" aprepl-change-working-buffer t]
     ["Display Working Buffer" aprepl-display-working-buffer t]
     ["Print Working Buffer" aprepl-print-working-buffer t]))
@@ -167,7 +167,7 @@ such as `edebug-defun' to work with such inputs."
   '(("\\(^\\*\\*\\*[^*]+\\*\\*\\*\\)\\(.*$\\)"
      (1 font-lock-comment-face)
      (2 font-lock-constant-face)))
-  "Additional expressions to highlight in APREPL buffers.")
+  "Additional expressions to highlight in ApREPL buffers.")
 
 ;;; Completion stuff
 
@@ -186,12 +186,12 @@ such as `edebug-defun' to work with such inputs."
 ;;; Working buffer manipulation
 
 (defun aprepl-print-working-buffer nil
-  "Print the current APREPL working buffer's name in the echo area."
+  "Print the current ApREPL working buffer's name in the echo area."
   (interactive)
   (message "The current working buffer is: %s" (buffer-name aprepl-working-buffer)))
 
 (defun aprepl-display-working-buffer nil
-  "Display the current APREPL working buffer.
+  "Display the current ApREPL working buffer.
 Don't forget that selecting that buffer will change its value of `point'
 to its value of `window-point'!"
   (interactive)
@@ -199,10 +199,10 @@ to its value of `window-point'!"
   (aprepl-print-working-buffer))
 
 (defun aprepl-change-working-buffer (buf)
-  "Change the current APREPL working buffer to BUF.
-This is the buffer in which all sexps entered at the APREPL prompt are
+  "Change the current ApREPL working buffer to BUF.
+This is the buffer in which all sexps entered at the ApREPL prompt are
 evaluated.  You can achieve the same effect with a call to
-`set-buffer' at the APREPL prompt."
+`set-buffer' at the ApREPL prompt."
   (interactive "bSet working buffer to: ")
   (let ((buffer (get-buffer buf)))
     (if (and buffer (buffer-live-p buffer))
@@ -418,66 +418,11 @@ nonempty, then flushes the buffer."
   ;; Set the process mark in the current buffer to POS.
   (set-marker (process-mark (get-buffer-process (current-buffer))) pos))
 
-;; (slime-eval-async
-;;     `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                    "(asdf:system-registered-p 'april)"))
-;;   (lambda (result)
-;;     (cl-destructuring-bind (out value) result
-;;       (print value)
-;;       (print 36))))
-
-;; (defun aprepl-prep-system-load-april ()
-;;   (print "eee")
-;;   (message "Trying to load")
-;;   (slime-eval-async
-;;       `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                      "(asdf:system-registered-p 'april)"))
-;;     (lambda (result)
-;;       (cl-destructuring-bind (out value) result
-;;         (print (list :res result value (upcase value)))
-;;         (if (not (string= "NIL" (upcase value)))
-;;             t (let ((april-load-selection (read-string "April compiler not loaded. Load it? [y/n] : ")))
-;;                 (print (list :bla))
-;;                 (when (char-equal ?y (aref april-load-selection 0))
-;;                   (slime-eval-async `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                                                    "(asdf:load-system 'april)"))
-;;                     (lambda (result)
-;;                       (cl-destructuring-bind (out value) result
-;;                         (print (list :val value))))))))))))
-
 (defcustom aprepl-load-april-on-slime-start nil
   "Should April be automatically loaded when Slime starts?
 This is meant to be checked when the Slime hook for loading April is run."
   :type 'boolean
   :group 'aprepl)
-
-;; (defun aprepl-prep-system-load-april ()
-;;   (slime-eval-async `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                                    "(asdf:load-system 'april)"))
-;;     (lambda (result)
-;;       (cl-destructuring-bind (out value) result
-;;         (print (list :val2 value))
-;;         t))))
-
-;; (aprepl-prep-system-load-april)
-
-;; (add-hook 'slime-connected-hook 'aprepl-prep-system-load-april)
-
-;; (defun aprepl-prep-system (next-do)
-;;   (if (slime-connected-p)
-;;       (slime-eval-async
-;;           `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                          "(asdf:system-registered-p 'april)"))
-;;         (lambda (result)
-;;           (cl-destructuring-bind (out value) result
-;;             (print (list :res result value (upcase value)))
-;;             (if (not (string= "NIL" (upcase value)))
-;;                 t (let ((april-load-selection (read-string "April compiler not loaded. Load it? [y/n] : ")))
-;;                     (when (char-equal ?y (aref april-load-selection 0))
-;;                       (aprepl-prep-system-load-april)))))))
-;;     (let ((start-slime-selection (read-string "Slime is not running. Start it? [y/n] : ")))
-;;       (when (char-equal ?y (aref start-slime-selection 0))
-;;         (slime)))))
 
 ;;; Major mode
 
@@ -507,12 +452,12 @@ with \\[aprepl-display-working-buffer].
 
 If, at the start of evaluation, `standard-output' is t (the
 default), `standard-output' is set to a special function that
-causes output to be directed to the APREPL buffer.
+causes output to be directed to the ApREPL buffer.
 `standard-output' is restored after evaluation unless explicitly
 set to a different value during evaluation.  You can use (princ
-VALUE) or (pp VALUE) to write to the APREPL buffer.
+VALUE) or (pp VALUE) to write to the ApREPL buffer.
 
-The behavior of APREPL may be customized with the following variables:
+The behavior of ApREPL may be customized with the following variables:
 * To stop beeping on error, set `aprepl-noisy' to nil.
 * If you don't like the prompt, you can change it by setting `aprepl-prompt'.
 * If you do not like that the prompt is (by default) read-only, set
@@ -568,18 +513,24 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
     ;; carriage control code.
     (set (make-local-variable 'comint-inhibit-carriage-motion) t)
 
-    ;; Add a silly header
-    (insert aprepl-header) 
-    ;; (window-total-width)
-    (aprepl-set-pm (point-max))
-    (unless comint-use-prompt-regexp
-      (let ((inhibit-read-only t))
-        (add-text-properties
-         (point-min) (point-max)
-         '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
-    (comint-output-filter (aprepl-process) aprepl-prompt-internal)
-    (set-marker comint-last-input-start (aprepl-pm))
-    (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter)))
+    (insert "\n\n")
+    (slime-eval-async ;; print header selected and formatted with April banner function
+        `(swank:eval-and-grab-output
+          ,(substring-no-properties
+            (format "(april::display-banner :width %s)" (floor (* 0.85 (window-total-width))))))
+      (lambda (result)
+        (cl-destructuring-bind (out value) result
+          (insert (substring value 1 -1))
+          (insert "\n\n")
+          (aprepl-set-pm (point-max))
+          (unless comint-use-prompt-regexp
+            (let ((inhibit-read-only t))
+              (add-text-properties
+               (point-min) (point-max)
+               '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
+          (comint-output-filter (aprepl-process) aprepl-prompt-internal)
+          (set-marker comint-last-input-start (aprepl-pm))
+          (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter))))))
 
 (defun aprepl-get-old-input nil
   ;; Return the previous input surrounding point
@@ -590,9 +541,65 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
     (comint-skip-prompt)
     (buffer-substring (point) (progn (forward-sexp 1) (point)))))
 
+;; (slime-eval-async
+;;     `(swank:eval-and-grab-output ,(substring-no-properties
+;;                                    "(asdf:system-registered-p 'april)"))
+;;   (lambda (result)
+;;     (cl-destructuring-bind (out value) result
+;;       (print value)
+;;       (print 36))))
+
+;; (defun aprepl-prep-system-load-april ()
+;;   (print "eee")
+;;   (message "Trying to load")
+;;   (slime-eval-async
+;;       `(swank:eval-and-grab-output ,(substring-no-properties
+;;                                      "(asdf:system-registered-p 'april)"))
+;;     (lambda (result)
+;;       (cl-destructuring-bind (out value) result
+;;         (print (list :res result value (upcase value)))
+;;         (if (not (string= "NIL" (upcase value)))
+;;             t (let ((april-load-selection (read-string "April compiler not loaded. Load it? [y/n] : ")))
+;;                 (print (list :bla))
+;;                 (when (char-equal ?y (aref april-load-selection 0))
+;;                   (slime-eval-async `(swank:eval-and-grab-output ,(substring-no-properties
+;;                                                                    "(asdf:load-system 'april)"))
+;;                     (lambda (result)
+;;                       (cl-destructuring-bind (out value) result
+;;                         (print (list :val value))))))))))))
+
+;; (defun aprepl-prep-system-load-april ()
+;;   (slime-eval-async `(swank:eval-and-grab-output ,(substring-no-properties
+;;                                                    "(asdf:load-system 'april)"))
+;;     (lambda (result)
+;;       (cl-destructuring-bind (out value) result
+;;         (print (list :val2 value))
+;;         t))))
+
+;; (aprepl-prep-system-load-april)
+
+;; (add-hook 'slime-connected-hook 'aprepl-prep-system-load-april)
+
+;; (defun aprepl-prep-system (next-do)
+;;   (if (slime-connected-p)
+;;       (slime-eval-async
+;;           `(swank:eval-and-grab-output ,(substring-no-properties
+;;                                          "(asdf:system-registered-p 'april)"))
+;;         (lambda (result)
+;;           (cl-destructuring-bind (out value) result
+;;             (print (list :res result value (upcase value)))
+;;             (if (not (string= "NIL" (upcase value)))
+;;                 t (let ((april-load-selection (read-string "April compiler not loaded. Load it? [y/n] : ")))
+;;                     (when (char-equal ?y (aref april-load-selection 0))
+;;                       (aprepl-prep-system-load-april)))))))
+;;     (let ((start-slime-selection (read-string "Slime is not running. Start it? [y/n] : ")))
+;;       (when (char-equal ?y (aref start-slime-selection 0))
+;;         (slime)))))
+
 ;; Check whether REPL is able to run
 
 (defun aprepl-check-system-ready-then (do-next)
+  "Check whether it's possible to run ApREPL, i.e. make sure that Slime is running and April's system is loaded."
   (if (slime-connected-p)
       (slime-eval-async
           `(swank:eval-and-grab-output "(asdf:system-registered-p 'april)")

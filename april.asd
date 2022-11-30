@@ -14,4 +14,4 @@
                (:file "functions")
                (:file "grammar")
                (:file "spec")
-               (:file "game-of-life")))
+               (:file "novelties")))

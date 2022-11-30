@@ -1,10 +1,13 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:April -*-
-;;;; game-of-life.lisp
+;;;; novelties.lisp
 
 (in-package #:april)
 
-#|
-Just for fun, an implementation of an old APL standby - Conway's Game of Life.
+"A collection of fun odds and ends demonstrating April APL features."
+
+#| Conway's Game of Life
+
+An implementation of an old APL standby.
 
 Usage:
 
@@ -55,3 +58,16 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
     (if return (values life-array (list :generation life-generation))
         (progn (april-c "{⎕←' ⍬_║▐▀'[⎕IO+(0,(1+≢⍉⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)
                (list :generation life-generation)))))
+
+(let ((banners
+        (vector #("  Welcome to"
+                  "┌─────┬─────┬─────┬─────┬─────┬─┐ "
+                  "├──── │ ─── │ ┌───┤ ─── │ ─── │ │ "
+                  "│ ─── │ ┌───┤ │   │ ────┤ ┌───┤ └┐"
+                  "└─────┴─┘   └─┘   └─────┴─┘   └──┘"
+                  "              the April APL REPL"))))
+  (defun display-banner (&key width height)
+    (april-c (with (:state :output-printed :only))
+             "{B←⊃⍵ ⋄ W←⊃⌽⍺ ⋄ H BW←⍴B ⋄ (-⌊2÷⍨0⌈W-BW)⌽H W↑B}"
+             (april-c "↑¨" banners)
+             (vector (or height 0) (or width 0)))))
