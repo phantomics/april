@@ -78,6 +78,14 @@ This is an internal variable used by APREPL.  Its purpose is to
 prevent a running APREPL process from being messed up when the user
 customizes `aprepl-prompt'.")
 
+(defcustom aprepl-indent "  "
+  "Indentation used in APREPL. Two spaces, intended for indenting within dfns."
+  :type 'string
+  :group 'aprepl)
+
+(defvar aprepl-indent-internal "  "
+  "Stored value of `aprepl-indent'.")
+
 (defcustom aprepl-dynamic-return t
   "Controls whether \\<aprepl-map>\\[aprepl-return] has intelligent behavior in APREPL.
 If non-nil, \\[aprepl-return] evaluates input for complete sexps, or inserts a newline
@@ -94,7 +102,17 @@ such as `edebug-defun' to work with such inputs."
   :type 'boolean
   :group 'aprepl)
 
+(defvar aprepl-closure-balance-braces 0
+  "A balance count of {} braces. Used to track whether a defn is in the process of being written.")
+
+(defvar aprepl-closure-balance-brackets 0
+  "A balance count of [] brackets. Used to track whether a multiline axis is in the process of being written, as for the $[] k-style if statements.")
+
+(defvar aprepl-stored-multiline-input ""
+  "A string of multiline input, constructed as a user enters a dfn or multiline statement.")
+
 (defvaralias 'april-apl-repl-mode-hook 'aprepl-mode-hook)
+
 (defcustom aprepl-mode-hook nil
   "Hooks to be run when APREPL (`april-apl-repl-mode') is started."
   :options '(eldoc-mode)
@@ -206,6 +224,7 @@ simply inserts a newline."
                (end-of-line)
                (parse-partial-sexp (aprepl-pm)
                                    (point)))))
+        ;; (print (list :st state))
         (if (and (< (car state) 1) (not (nth 3 state)))
             (aprepl-send-input for-effect)
           (when (and aprepl-dynamic-multiline-inputs
@@ -328,23 +347,54 @@ nonempty, then flushes the buffer."
                  (kill-buffer aprepl-working-buffer))
                 (t (insert output "Unknown command.")
                    (aprepl-complete-output output))))
-      (slime-eval-async
-          `(swank:eval-and-grab-output
-            ,(substring-no-properties
-              (format "(april:april (with (:space %s) (:state :output-printed :only)) \"%s\")"
-                      aprepl-workspace string)))
-        (lambda (result)
-          (cl-destructuring-bind (out value) result
-            (push-mark)
-            (insert output out)
-            ;; don't insert the extra newline when there's no output, i.e. for assignments
-            (when (< 2 (length value))
-              (insert output (substring
-                              value 1 (if (char-equal ?\n (aref value (+ -2 (length value))))
-                                          -2 -1)))
-              (insert output ?\n))
-            (insert output aprepl-prompt-internal)
-            (aprepl-set-pm (point-max))))))
+      (let* ((has-backslashes (string-match "[\\]" string))
+             (string (if (not has-backslashes) string
+                       (replace-regexp-in-string "[\\]" "\\\\\\\\" string)))
+             (str-index 0))
+        
+        (while (< str-index (length string))
+          (cond ((char-equal ?\{ (aref string str-index))
+                 (setq aprepl-closure-balance-braces
+                       (1+ aprepl-closure-balance-braces)))
+                ((char-equal ?\} (aref string str-index))
+                 (setq aprepl-closure-balance-braces
+                       (max 0 (1- aprepl-closure-balance-braces))))
+                ((char-equal ?\[ (aref string str-index))
+                 (setq aprepl-closure-balance-braces
+                       (1+ aprepl-closure-balance-brackets)))
+                ((char-equal ?\] (aref string str-index))
+                 (setq aprepl-closure-balance-braces
+                       (max 0 (1- aprepl-closure-balance-brackets)))))
+          (setq str-index (1+ str-index)))
+
+        (if (and (= 0 aprepl-closure-balance-braces)
+                 (= 0 aprepl-closure-balance-brackets))
+            (slime-eval-async
+                `(swank:eval-and-grab-output
+                  ,(substring-no-properties
+                    (format "(april:april (with (:space %s) (:state :output-printed :only)) \"%s\")"
+                            aprepl-workspace (concat aprepl-stored-multiline-input string))))
+              (lambda (result)
+                (cl-destructuring-bind (out value) result
+                  (push-mark)
+                  (setq aprepl-stored-multiline-input "")
+                  (insert output out)
+                  ;; don't insert the extra newline when there's no output, i.e. for assignments
+                  (when (< 2 (length value))
+                    (insert output (substring
+                                    value 1 (if (char-equal ?\n (aref value (+ -2 (length value))))
+                                                -2 -1)))
+                    (insert output ?\n))
+                  (insert output aprepl-prompt-internal)
+                  (aprepl-set-pm (point-max)))))
+          (progn (setf aprepl-stored-multiline-input
+                       (concat aprepl-stored-multiline-input string "\n"))
+                 (insert output aprepl-prompt-internal)
+                 (dotimes (x aprepl-closure-balance-braces)
+                   (insert output aprepl-indent))
+                 (dotimes (x aprepl-closure-balance-brackets)
+                   (insert output aprepl-indent))
+                 (aprepl-set-pm (point-max))))))
     (when (not terminated)
       (comint-output-filter (aprepl-process) output))))
 
