@@ -60,14 +60,14 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
                (list :generation life-generation)))))
 
 (let ((banners
-        (vector #("  Welcome to"
-                  "┌─────┬─────┬─────┬─────┬─────┬─┐ "
-                  "├──── │ ─── │ ┌───┤ ─── │ ─── │ │ "
-                  "│ ─── │ ┌───┤ │   │ ────┤ ┌───┤ └┐"
-                  "└─────┴─┘   └─┘   └─────┴─┘   └──┘"
-                  "              the April APL REPL"))))
+        (april-c
+         "↑¨" (vector #("  Welcome to"
+                        "┌─────┬─────┬─────┬─────┬─────┬─┐ "
+                        "├──── │ ─── │ ┌───┤ ─── │ ─── │ │ "
+                        "│ ─── │ ┌───┤ │   │ ────┤ ┌───┤ └┐"
+                        "└─────┴─┘   └─┘   └─────┴─┘   └──┘"
+                        "              the April APL REPL")))))
   (defun display-banner (&key width height)
     (april-c (with (:state :output-printed :only))
              "{B←⊃⍵ ⋄ W←⊃⌽⍺ ⋄ H BW←⍴B ⋄ (-⌊2÷⍨0⌈W-BW)⌽H W↑B}"
-             (april-c "↑¨" banners)
-             (vector (or height 0) (or width 0)))))
+             banners (vector (or height 0) (or width 0)))))
