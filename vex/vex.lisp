@@ -424,11 +424,10 @@
                             (if (string= "-LEX" (subseq (string ,ws-name) (- (length (string ,ws-name)) 4)))
                                 (error "Workspace names may not end with \"-LEX\", this suffix is reserved.")
                                 `(progn
-                                   (if (not (find-package ,,ws-fullname))
+                                   (if (find-package ,,ws-fullname)
+                                       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name)
                                        (progn (make-package ,,ws-fullname)
-                                              (make-package ,(concatenate 'string ,ws-fullname "-LEX")))
-                                       
-                                       (format nil "A workspace called ｢~a｣ already exists." ',,ws-name))
+                                              (make-package ,(concatenate 'string ,ws-fullname "-LEX"))))
                                    (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
                                                    (intern "*BRANCHES*" ,,ws-fullname)
                                                    (intern "*NS-POINT*" ,,ws-fullname)
@@ -641,7 +640,7 @@
                                                              (decf dlb-overriding-balance)))))
                                                    (incf char-index)
                                                    (< 0 balance)))))
-                                        (if transform-by transform-by
+                                        (or transform-by
                                             (lambda (string-content)
                                               (destructuring-bind (parsed remaining meta)
                                                   (parse string-content (=vex-string idiom))

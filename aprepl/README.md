@@ -14,9 +14,11 @@ If your Emacs init file is not located at one of the three above paths, you can 
 
 Once the extension has been added to your init file, you can start ApREPL in Emacs by typing `M-x aprepl`.
 
+ApREPL works through interactions with Slime, thus you need to start Slime and load April's package before starting ApREPL. If you start the REPL without these requirements being met, the extension will print messages in your Emacs minibuffer promting you to carry out the required steps.
+
 ### REPL commands
 
-As well as evaluating APL expressions, you can interact with ApREPL using its REPL commands. Each of these commands starts with a `)` character as per APL convention. These commands are different from APL functions in that they are handled directly by the REPL, not the underlying April compiler. Many of these commands cause interactions with the compiler, but they are all handled by ApREPL within Emacs before anything happens involving April.
+As well as evaluating APL expressions, you can interact with ApREPL using its REPL commands. Each of these commands starts with a `)` character as per APL convention. These commands are different from APL functions in that they are handled directly by the REPL, not the underlying April compiler. Many of these commands cause interactions with the compiler, but they are all directed to ApREPL within Emacs before anything happens involving April.
 
 All commands are case-insensitive, so `)OFF` does the same thing as `)off`.
 

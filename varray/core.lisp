@@ -227,6 +227,7 @@
               (row-major-aref array index))))))
 
 (defun join-indexers (indexers type)
+  ;; (print (list :ind indexers))
   (if (not indexers)
       #'identity
       (let ((ctype) ;; the type in common
@@ -236,7 +237,11 @@
          (loop :for i :in indexers :while (not defaulting)
               :do (if (or (not (listp i)) (not (first i)))
                       (setf defaulting t)
-                      (push (first i) reversed-indexers)))
+                      (when (not (eq :pass (first i)))
+                        (if (listp (first i))
+                            (setf reversed-indexers (append (first i)
+                                                            reversed-indexers))
+                            (push (first i) reversed-indexers)))))
         (when defaulting
           (setf reversed-indexers nil)
           (loop :for i :in indexers :do (push (if (not (listp i)) i (second i))
@@ -253,6 +258,7 @@
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
+  ;; (print (list :par params (shape-of array)))
   (multiple-value-bind (composite-indexer is-not-defaulting)
       (join-indexers indexers (getf params :indexer-key))
     (values
@@ -261,10 +267,16 @@
                 (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
            (let* ((factors (get-dimensional-factors (shape-of array) t))
                   (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
-                  (converter (decode-rmi (getf params :encoding) (getf params :index-width)
+                  ;; TODO: below is a super-hacky way to handle different naming schemes
+                  ;; for encoding and index width, improve on this
+                  (converter (decode-rmi (if (getf params :encoding) (getf params :encoding)
+                                             (getf params :index-width))
+                                         (if (getf params :encoding) (getf params :index-width)
+                                             (getf params :index-type))
                                          (array-rank array) factors)))
              ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
              (lambda (index)
+               ;; (print (list :c converter composite-indexer))
                (let ((index-out (funcall converter (funcall composite-indexer index))))
                  (when (< index-out array-size) (row-major-aref array index-out)))))
            (lambda (index)
@@ -316,7 +328,6 @@
             this-generator
             (multiple-value-bind (composite-indexer is-not-defaulting)
                 (join-indexers indexers t)
-              ;; (print (list :ind is-not-defaulting))
               (values (lambda (index)
                         (let ((index-out index))
                           (funcall this-generator (funcall composite-indexer index))))
@@ -559,7 +570,7 @@
                                        :encoding encoding))
       (setf indexer this-generator
             default-generator (not is-not-defaulting)))
-    
+
     (when (and (typep varray 'vader-select)
                (< 0 (size-of varray)) (functionp indexer))
       (funcall indexer 0))

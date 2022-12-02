@@ -55,7 +55,6 @@
                       (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-
       (let ((encoder-chain
               (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
                        :pass)
@@ -95,7 +94,7 @@
                                                   (setq remaining remainder))))))
                       (when valid iindex))))))
         ;; (print (list :enc encoder-chain))
-        default-indexer
+        (list encoder-chain default-indexer)
         ))))
 
 (let ((default-function
