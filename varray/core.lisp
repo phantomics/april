@@ -227,7 +227,7 @@
               (row-major-aref array index))))))
 
 (defun join-indexers (indexers type)
-  ;; (print (list :ind indexers))
+  ;; (print (list :ind indexers type))
   (if (not indexers)
       #'identity
       (let ((ctype) ;; the type in common
@@ -261,6 +261,7 @@
   ;; (print (list :par params (shape-of array)))
   (multiple-value-bind (composite-indexer is-not-defaulting)
       (join-indexers indexers (getf params :indexer-key))
+    ;; (print (list :cc composite-indexer is-not-defaulting))
     (values
      (let ((array-size (array-total-size array)))
        (if (and is-not-defaulting (getf params :indexer-key)
@@ -387,6 +388,7 @@
                          (the (unsigned-byte +eindex-width+) output)))))))))
   (defun decode-rmi (width element-width rank factors)
     (let ((match (gethash (list width element-width rank) function-table)))
+      ;; (print (list :ee match (list width element-width rank)))
       (values (when match (funcall match factors))
               (lambda (index)
                 (let ((output 0))
@@ -594,21 +596,25 @@
                    ;; the decoder function converts non-row-major index formats like
                    ;; sub-byte-encoded coordinate vectors back to row-major indices
                    ;; to reference elements in the output array
-                   (decoder (if (or default-generator (not encoding)) ;; TOGGLE
-                                #'identity (decode-rmi encoding d-index-type output-rank dfactors)))
+                   ;; (decoder (if (or default-generator (not encoding)) ;; TOGGLE
+                   ;;              #'identity (decode-rmi encoding d-index-type output-rank dfactors)))
                    (render-index
-                     (if to-subrender
-                         (lambda (i)
-                           (let ((indexed (if (not (functionp indexer))
-                                              indexer (funcall indexer i))))
-                             (setf (row-major-aref output (funcall decoder i))
-                                   (render indexed))))
-                         (lambda (i)
-                           (if (functionp indexer)
-                               (setf (row-major-aref output (funcall decoder i))
-                                     (funcall indexer i))
-                               (setf (row-major-aref output (funcall decoder i))
-                                     indexer)))))
+                     (multiple-value-bind (decoder default-decoder)
+                         (if (or default-generator (not encoding)) ;; TOGGLE
+                             #'identity (decode-rmi encoding d-index-type output-rank dfactors))
+                       (let ((decoder (or decoder default-decoder)))
+                         (if to-subrender
+                             (lambda (i)
+                               (let ((indexed (if (not (functionp indexer))
+                                                  indexer (funcall indexer i))))
+                                 (setf (row-major-aref output (funcall decoder i))
+                                       (render indexed))))
+                             (lambda (i)
+                               (if (functionp indexer)
+                                   (setf (row-major-aref output (funcall decoder i))
+                                         (funcall indexer i))
+                                   (setf (row-major-aref output (funcall decoder i))
+                                         indexer)))))))
                    (sbsize (sub-byte-element-size output))
                    (sbesize (if sbsize (/ 64 sbsize) 1))
                    (wcadj *workers-count*)
