@@ -258,7 +258,7 @@
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  ;; (print (list :par params (shape-of array)))
+  ;; (print (list :par array params (shape-of array)))
   (multiple-value-bind (composite-indexer is-not-defaulting)
       (join-indexers indexers (getf params :indexer-key))
     ;; (print (list :cc composite-indexer is-not-defaulting))
@@ -267,19 +267,23 @@
        (if (and is-not-defaulting (getf params :indexer-key)
                 (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
            (let* ((factors (get-dimensional-factors (shape-of array) t))
-                  (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD"))
-                  ;; TODO: below is a super-hacky way to handle different naming schemes
-                  ;; for encoding and index width, improve on this
-                  (converter (decode-rmi (if (getf params :encoding) (getf params :encoding)
-                                             (getf params :index-width))
-                                         (if (getf params :encoding) (getf params :index-width)
-                                             (getf params :index-type))
-                                         (array-rank array) factors)))
-             ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
-             (lambda (index)
-               ;; (print (list :c converter composite-indexer))
-               (let ((index-out (funcall converter (funcall composite-indexer index))))
-                 (when (< index-out array-size) (row-major-aref array index-out)))))
+                  (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD")))
+             (multiple-value-bind (opt-converter default-converter)
+                 (decode-rmi (if (getf params :encoding) (getf params :encoding)
+                                 (getf params :index-width))
+                             (if (getf params :encoding) (getf params :index-width)
+                                 (getf params :index-type))
+                             (array-rank array) factors)
+               ;; (print (list :op opt-converter default-converter))
+               ;; TODO: below is a super-hacky way to handle different naming schemes
+               ;; for encoding and index width, improve on this
+               ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
+               (let ((converter (or opt-converter default-converter)))
+                 (lambda (index)
+                   ;; (print (list :c converter composite-indexer))
+                   (let ((index-out (funcall converter (funcall composite-indexer index))))
+                     ;; (print (list :in index-out))
+                     (when (< index-out array-size) (row-major-aref array index-out)))))))
            (lambda (index)
              (let ((index-out (funcall composite-indexer index)))
                (when (< index-out array-size) (row-major-aref array index-out))))))
@@ -392,7 +396,7 @@
       (values (when match (funcall match factors))
               (lambda (index)
                 (let ((output 0))
-                  (loop :for fx :from rank :downto 0
+                  (loop :for fx :from (1- rank) :downto 0
                         :for ix :across factors
                         :do (incf output (* ix (ldb (byte element-width
                                                           (* element-width fx))
@@ -463,11 +467,12 @@
 
 (defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
+  ;; (print (list :gi typekey factors shape-vector sbesize interval divisions
+  ;;              total-size index-type encoding-type))
   ;; TODO: when encoded indexing is disabled, the following will fail:
   ;; (april::april-f (with (:space array-lib-space)) "(2 1)(2 1)(2 1)(2 1) from ta4")
   ;; why does this happen?
-  (let* ((ekey (intern (format nil "I~a" encoding-type) "KEYWORD"))
-         (encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
+  (let* ((encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
          (incrementer (when encoding-type (increment-encoded encoding-type index-type
                                                              shape-vector)))
          (default-indexer (lambda (index)
@@ -517,6 +522,7 @@
                                                                start-intervals))
                                                  (- total-size start-at))))
                                  (coords (funcall encoder start-at)))
+                            ;; (print (list :dd start-intervals start-at count coords))
                             (loop :for i :below count
                                   :do (funcall to-call coords)
                                       (when (< i (1- count))

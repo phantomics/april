@@ -2351,6 +2351,9 @@
 
 (defmethod generator-of ((varray vader-section) &optional indexers params)
   (let ((indexer (indexer-of varray params)))
+    ;; (print (list :vv (vads-argument varray) (vads-axis varray) (vads-inverse varray) (vader-base varray)
+    ;;              params))
+    ;; (setf april::blavar2 varray)
     (if (getf params :for-selective-assign)
         (second indexer)
         (if (not (loop :for item :across (vasec-pad varray) :always (zerop item)))
@@ -2385,7 +2388,7 @@
                   (lambda (index) (declare (ignore index)) prototype))
                 (generator-of (vader-base varray)
                               (if (not indexer) indexers (cons indexer indexers))
-                              ;; (rest (getf (varray-meta varray) :gen-meta))
+                              (rest (getf (varray-meta varray) :gen-meta))
                               ))))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io

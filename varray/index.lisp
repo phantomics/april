@@ -59,10 +59,11 @@
               (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
                        :pass)
                   (loop :for dx :below irank
-                        :append (let ((sum (+ (aref span dx) (aref pad dx))))
-                                  ;; (print (list :sp span pad sum))
+                        :append (let ((sum (+ (aref span dx) (aref pad dx)))
+                                      (dim (- irank 1 dx)))
+                                  ;; (print (list :sp span pad sum dim))
                                   (when (not (zerop sum))
-                                    (let ((encoder (gethash (list iwidth itype dx)
+                                    (let ((encoder (gethash (list iwidth itype dim) ; dx)
                                                             indexer-table-encoded)))
                                       (when encoder (list (funcall encoder sum)))))))))
             (default-indexer
@@ -94,7 +95,8 @@
                                                   (setq remaining remainder))))))
                       (when valid iindex))))))
         ;; (print (list :enc encoder-chain))
-        (list encoder-chain default-indexer)
+        (list encoder-chain
+              default-indexer)
         ))))
 
 (let ((default-function
