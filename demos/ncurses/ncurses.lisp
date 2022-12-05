@@ -114,10 +114,13 @@ M[H;GCL+⍳12]←12↑⍕GI  ⍝ print generation number; supports up to 12 digi
                              :bgcolor (aref *bg-color-forms* color)))))))
       ;; (R)estart with a random matrix
       (croatoan:bind screen #\r (lambda () (funcall render-screen t)))
+      (croatoan:bind screen #\R (lambda () (funcall render-screen t)))
       ;; display the next (G)eneration
       (croatoan:bind screen #\g (lambda () (funcall render-screen)))
+      (croatoan:bind screen #\G (lambda () (funcall render-screen)))
       ;; (Q)uit the program
       (croatoan:bind screen #\q #'croatoan:exit-event-loop)
+      (croatoan:bind screen #\Q #'croatoan:exit-event-loop)
 
       ;; render initial state
       (funcall render-screen t)

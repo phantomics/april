@@ -389,11 +389,10 @@
           (s 0) (sdims (when set (shape-of set))))
      ;; (print (list :ss sdims assign-shape set (render set) indices idims))
      (if (not indices)
-         idims (if set (if (and sdims (not (loop :for i :in assign-shape :for sd :in sdims
-                                                 :always (= sd i))))
-                           (error "Dimensions of assigned area don't ~a"
-                                  "match array to be assigned.")
-                           idims)
+         idims (if set (if (not (and sdims (not (loop :for i :in assign-shape :for sd :in sdims
+                                                      :always (= sd i)))))
+                           idims (error "Dimensions of assigned area don't ~a"
+                                        "match array to be assigned."))
                    (if naxes (loop :for i :in indices :for d :in idims
                                    :append (let ((len (or (and (null i) (list d))
                                                           (and (integerp i) nil)
@@ -536,7 +535,8 @@
                                                          :index-origin (vads-io varray)
                                                          :argument (if (numberp meta-index)
                                                                        (list meta-index)
-                                                                       (coerce (render meta-index) 'list)))))
+                                                                       (coerce (render meta-index)
+                                                                               'list)))))
                            (make-instance 'vader-select :base (disclose (render sub-base))
                                           ;; TODO: wrap this in disclose obj
                                           :index-origin (vads-io varray)

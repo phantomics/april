@@ -339,7 +339,7 @@
                              (cons (intern (string (second (second path))) space)
                                    (loop :for item :in (cddr path)
                                          :collect (intern (string item) "KEYWORD"))))
-                         (when (not (string= "_" (string (second path))))
+                         (unless (string= "_" (string (second path)))
                            (list (intern (string (second path)) space)))))))
     (if (getf (getf params :special) :closure-meta)
         (setf (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
@@ -718,8 +718,8 @@
                                   remaining :space space :params params :initial initial
                                             :found-function (compose-function-lateral
                                                              exp-operator nil exp-value axes))
-                       (when (not (and (listp (second tokens)) (eq :fn (caadr tokens))
-                                       (characterp (cadadr tokens)) (char= #\← (cadadr tokens))))
+                       (unless (and (listp (second tokens)) (eq :fn (caadr tokens))
+                                    (characterp (cadadr tokens)) (char= #\← (cadadr tokens)))
                          ;; if a lateral operator is encountered followed by ←, the operator is being
                          ;; assigned and the current form is not valid as a function, so return nil
                          (multiple-value-bind (exp-function remaining)
@@ -904,7 +904,7 @@
                                                                    `(:axis (list ,(first axes))))
                                                           (when (member :axis op-postargs)
                                                             `(:axis (first axes))))))))
-                           ,@(when (not (getf (getf params :special) :closure-meta))
+                           ,@(unless (getf (getf params :special) :closure-meta)
                                ;; assign operator metadata in output for operators defined at top level
                                `((symbol-value ',assign-symbol)
                                  (quote ,(symbol-value interned-sym)))))
@@ -1235,7 +1235,7 @@
                                                     list (rest list))
                                           :collect (setq valid
                                                          (if (symbolp i)
-                                                             (progn (when (not (member i symbols-list))
+                                                             (progn (unless (member i symbols-list)
                                                                       (setq symbols-list
                                                                             (cons i symbols-list)))
                                                                     i)
