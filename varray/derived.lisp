@@ -2118,7 +2118,6 @@
               (sub-base (vader-base base))
               (new-span) (new-pad))
          (flet ((update-take (a position pre-position &optional negative)
-                  ;; (print (list :aa a position pre-position))
                   (let ((adjusted (if negative (+ a (aref new-pad position))
                                       (+ a (aref new-span pre-position)))))
                     (if negative
