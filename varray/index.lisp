@@ -180,7 +180,10 @@
                                                i))))
                          (the (unsigned-byte +eindex-width+)
                               (dpb (the (unsigned-byte +cindex-width+)
-                                        (mod (+ iindex degrees) rlen))
+                                        (let ((out (the (unsigned-byte +cindex-width+)
+                                                        (+ iindex degrees))))
+                                          (the (unsigned-byte +cindex-width+)
+                                               (if (> rlen out) out (- out rlen)))))
                                    (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   

@@ -3201,7 +3201,11 @@
                      (- index (length (aref (vader-content varray) 0))))))))))
 
 (defclass vader-turn (varray-derived vad-on-axis vad-with-io vad-with-argument vad-invertable vad-reindexing)
-  nil (:metaclass va-class)
+  ((%degrees :accessor vaturn-degrees
+             :initform nil
+             :initarg :degrees
+             :documentation "Real degrees to rotate the array (with modulo applied)."))
+  (:metaclass va-class)
   (:documentation "A rotated array as from the [⌽ rotate] function."))
 
 (defun arg-process (varray)
@@ -3222,9 +3226,28 @@
                   (shape-of varray)
                   (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
                   (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)
-                  (arg-process varray))))
+                  (vaturn-degrees varray))))
 
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
+  (when (and (vads-argument varray)
+             (shape-of varray) (not (vaturn-degrees varray)))
+    (let ((arg (setf (vads-argument varray)
+                     (arg-process varray)))
+          (dimension (nth (if (eq :last (vads-axis varray))
+                              (1- (rank-of varray))
+                              (- (vads-axis varray)
+                                 (vads-io varray)))
+                          (shape-of varray))))
+      (setf (vaturn-degrees varray)
+            (if (integerp arg)
+                (mod arg dimension)
+                (if (arrayp arg)
+                    (let ((out (make-array (array-dimensions arg)
+                                           :element-type (array-element-type arg))))
+                      (dotimes (i (array-total-size arg))
+                        (setf (row-major-aref out i)
+                              (mod (row-major-aref arg i) dimension)))
+                      out))))))
   (let ((indexer (indexer-of varray params)))
     (generator-of (vader-base varray)
                   (if (not indexer) indexers (cons indexer indexers))
