@@ -306,7 +306,7 @@
                       (threaded (side-effect-free (vacmp-left varray))
                         ))
                   ;; TODO: logic to determine threading needs work, then reenable it
-                  (when (not threaded) (setf (vacmp-threadable varray) nil))
+                  (unless threaded (setf (vacmp-threadable varray) nil))
                   ;; (print (list :th threaded))
                   (lambda (index)
                     (if (vacmp-alpha varray)
@@ -372,10 +372,10 @@
           (oindexer (generator-of omega))
           (aindexer (generator-of alpha))
           (orank (rank-of omega)) (arank (rank-of alpha))
-          (oscalar (when (not (shape-of omega))
+          (oscalar (unless (shape-of omega)
                      (if (not (functionp oindexer))
                          oindexer (funcall oindexer 0))))
-          (ascalar (when (not (shape-of alpha))
+          (ascalar (unless (shape-of alpha)
                      (if (not (functionp aindexer))
                          aindexer (funcall aindexer 0)))))
      (if is-outer
@@ -555,9 +555,10 @@
                        ;; 0 if no borders needed
                        (incf rmi (* if a-index))
                        (setf remaining remainder)
-                       (when (not static) (incf ox)
-                             (when (not (< -1 a-index idim))
-                               (setf valid nil))))))
+                       (unless static
+                         (incf ox)
+                         (unless (< -1 a-index idim)
+                           (setf valid nil))))))
          (if (not valid) prototype (funcall base-indexer rmi)))))))
 
 (defclass vader-stencil-margin (varray-derived vad-with-argument)

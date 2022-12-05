@@ -984,11 +984,10 @@
                                                  :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :last :inverse #'identity)
-           (dyadic :id 0 :on-axis :last :inverse (λωαχ (make-instance 'vader-turn
-                                                                      :base omega :argument alpha
-                                                                      :index-origin index-origin
-                                                                      :inverse t
-                                                                      :axis (or (first axes) :last)))))
+           (dyadic :id 0 :on-axis :last
+                   :inverse (λωαχ (make-instance 'vader-turn :base omega :argument alpha
+                                                             :inverse t :index-origin index-origin
+                                                             :axis (or (first axes) :last)))))
      (tests (is "⌽3" 3)
             (is "⌽1 2 3 4 5" #(5 4 3 2 1))
             (is "⌽3 4⍴⍳9" #2A((4 3 2 1) (8 7 6 5) (3 2 1 9)))
@@ -1003,12 +1002,10 @@
                                                  :axis (or (first axes) index-origin))))
      (meta (primary :axes axes :implicit-args (index-origin) :virtual-support t)
            (monadic :on-axis :first :inverse #'identity)
-           (dyadic :id 0 :on-axis :first :inverse (λωαχ (make-instance 'vader-turn
-                                                                       :base omega :argument alpha
-                                                                       :index-origin index-origin
-                                                                       :inverse t
-                                                                       :axis (or (first axes)
-                                                                                 index-origin)))))
+           (dyadic :id 0 :on-axis :first
+                   :inverse (λωαχ (make-instance 'vader-turn :base omega :argument alpha
+                                                             :inverse t :index-origin index-origin
+                                                             :axis (or (first axes) index-origin)))))
      (tests (is "⊖4" 4)
             (is "⊖1 2 3 4 5" #(5 4 3 2 1))
             (is "⊖3 4⍴⍳9" #2A((9 1 2 3) (5 6 7 8) (1 2 3 4)))

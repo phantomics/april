@@ -93,7 +93,7 @@
                               "" (concatenate 'string " / " (second (getf props :titles)))))))
     (labels ((for-tests (tests &optional output)
                (if tests (for-tests (rest tests)
-                                    (append output (when (not (eq :time mode))
+                                    (append output (unless (eq :time mode)
                                                      `((format t "  _ ~a" ,(cadr (first tests)))))
                                             (cond ((and (eq :test mode)
                                                         (eql 'is (caar tests)))
@@ -128,14 +128,13 @@
                                                      ,@(when (rest tests)
                                                          `((princ #\Newline))))))))
                    output)))
-      (if tests (append (when (not (eq :time mode))
-                          `((format t "~%~a" ,heading)))
+      (if tests (append (unless (eq :time mode) `((format t "~%~a" ,heading)))
                         (for-tests tests))))))
 
 ;; TODO: this is also April-specific, move it into spec
 (defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
-  (append (when (not (eq :time mode))
+  (append (unless (eq :time mode)
             `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
                                                   "⍎ ")
                                                  ((string= "FOR-PRINTED" (string-upcase (first test-set)))
@@ -282,9 +281,8 @@
                                             (string= "OPERATORS" (string-upcase (first subspec)))
                                             (string= "STATEMENTS" (string-upcase (first subspec))))
                                     :collect subspec)))
-        `(progn ,@(when (not extension)
-                    `((proclaim '(special ,idiom-symbol))
-                      (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
+        `(progn ,@(unless extension `((proclaim '(special ,idiom-symbol))
+                                      (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
                 ,@assignment-form
                 (setf (idiom-system ,idiom-symbol)
                       (append (idiom-system ,idiom-symbol)
@@ -436,7 +434,7 @@
                                                            :by #'cddr
                                                            :collect `(intern ,(string-upcase val)
                                                                              ,,ws-fullname))))
-                                   (when (not (boundp (intern "*SYSTEM*" ,,ws-fullname)))
+                                   (unless (boundp (intern "*SYSTEM*" ,,ws-fullname))
                                      (set (intern "*SYSTEM*" ,,ws-fullname)
                                           ,',(cons 'list (of-subspec system)))
                                      ;; TODO: following is APL-specific, move into spec
@@ -623,7 +621,7 @@
                                                                        char))
                                                      (error "Newlines cannot occur within a ~a closure."
                                                             boundary-chars))
-                                                   (when (not quoted)
+                                                   (unless quoted
                                                      (if (and (char= char (aref boundary-chars 0))
                                                               (< 0 char-index))
                                                          (incf balance)
@@ -635,8 +633,8 @@
                                                                 (not (loop :for c :across dlbor-opening-chars
                                                                            :never (char= char c))))
                                                            (incf dlb-overriding-balance)
-                                                           (when (not (loop :for c :across dlbor-closing-chars
-                                                                            :never (char= char c)))
+                                                           (unless (loop :for c :across dlbor-closing-chars
+                                                                         :never (char= char c))
                                                              (decf dlb-overriding-balance)))))
                                                    (incf char-index)
                                                    (< 0 balance)))))

@@ -237,7 +237,7 @@
          (loop :for i :in indexers :while (not defaulting)
               :do (if (or (not (listp i)) (not (first i)))
                       (setf defaulting t)
-                      (when (not (eq :pass (first i)))
+                      (unless (eq :pass (first i))
                         (if (listp (first i))
                             (setf reversed-indexers (append (first i)
                                                             reversed-indexers))
@@ -251,7 +251,7 @@
                   (let ((index-out index))
                     (loop :for i :in reversed-indexers :do (setf index-out (funcall i index-out)))
                     index-out))
-                (when (not defaulting) type)))))
+                (unless defaulting type)))))
 
 (defmethod generator-of ((item t) &optional indexers params)
   (declare (ignore indexers params))
@@ -756,7 +756,7 @@
 
 (defmethod initialize-instance :around ((varray varray-derived) &key)
   "If the instance's base slot is already bound, it has been populated through one of he above type combinatorics and so should be returned with no changes."
-  (when (not (slot-boundp varray '%base))
+  (unless (slot-boundp varray '%base)
     (call-next-method))
   
   (when (typep (vader-base varray) 'varray-derived)

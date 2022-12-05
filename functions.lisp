@@ -248,7 +248,7 @@
                     o a)))
     (if (not (arrayp alpha))
         (setq alpha (vector alpha))
-        (when (not (vectorp alpha))
+        (unless (vectorp alpha)
           (error "The left argument to [~ without] must be a vector.")))
     (let ((included)
           (omega-vector (if (or (vectorp omega)(not (arrayp omega)))

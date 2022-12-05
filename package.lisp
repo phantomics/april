@@ -2,8 +2,8 @@
 ;;;; package.lisp
 
 (defpackage #:april
-  (:export #:april #:april-f #:april-p #:april-c #:april-load
-           #:with-april-context #:april-create-workspace #:april-clear-workspace)
+  (:export #:april #:april-f #:april-c #:april-load #:with-april-context
+           #:april-create-workspace #:april-clear-workspace)
   (:use #:cl #:aplesque #:vex #:varray)
   (:shadowing-import-from #:aplesque.forms #:indexer-section #:indexer-expand)
   (:shadowing-import-from #:array-operations #:flatten #:dims #:size #:rank #:element-type)

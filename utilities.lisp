@@ -63,7 +63,7 @@
 
 (defun system-command-exists (command-string &optional prefix)
   "Check for the existence of a shell command under the host operating system."
-  (when (not prefix) (setq prefix ""))
+  (unless prefix (setq prefix ""))
   (zerop (multiple-value-bind (1st 2nd error-code)
 	     (uiop:run-program (format nil "~acommand -v ~a" prefix command-string)
 			       :ignore-error-status t)
@@ -90,7 +90,7 @@
 
 (defun make-threading-kernel-if-absent ()
   "Create a kernel for multithreaded executuion via lparallel if none is present."
-  (when (not lparallel:*kernel*)
+  (unless lparallel:*kernel*
     (setq lparallel:*kernel* (setq *april-parallel-kernel*
                                    (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
 
@@ -110,7 +110,7 @@
                             ;; variable state is being set
                             (apply ,form (append ,args (when (and (not (second ,args)))
                                                          (list nil))
-                                                 (when (not (getf ,this-meta :lexical-reference))
+                                                 (unless (getf ,this-meta :lexical-reference)
                                                    (list (list :fn-params
                                                                :index-origin index-origin)))))))))))
 
@@ -254,7 +254,7 @@
          (space (second (assoc :space options)))
          (env (gensym)) (blank (gensym)) (vals-list))
     `(symbol-macrolet ((%in-function-p% t))
-       (labels ((∇self ,(append params (append (when (not (member '&optional params))
+       (labels ((∇self ,(append params (append (unless (member '&optional params)
                                                  (list '&optional))
                                         (list env blank)))
                   (declare (ignorable ,@(loop :for var :in params :when (not (eql '&optional var))
@@ -292,10 +292,9 @@
                        function `(function ,function))
                   ,args)))))
 
-
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."
-  `(progn (when (not (boundp ',symbol))
+  `(progn (unless (boundp ',symbol)
             (proclaim '(special ,symbol)))
           (setf (symbol-value ',symbol) ,value)))
 
@@ -304,7 +303,7 @@
   (let ((params (gensym)) (call-params (gensym))
         (item (gensym)) (this-fn (gensym)))
     `(let ((,this-fn ,value))
-       (when (not (boundp ',symbol))
+       (unless (boundp ',symbol)
          (proclaim '(special ,symbol)))
        (setf (symbol-function ',symbol)
              (lambda (&rest ,params)
@@ -341,7 +340,6 @@
     `(let ((,indices-evaluated ,indices))
        (make-instance ,type ,@params-with-placeholder))))
 
-
 (defun dummy-nargument-function (first &rest rest)
   "Placeholder function to be assigned to newly initialized function symbols."
   (declare (ignorable rest))
@@ -351,10 +349,6 @@
   "Placeholder function to be assigned to newly initialized operator symbols."
   (declare (ignorable rest))
   first)
-
-;; keep legacy april-p macro in place and usable in place of april-f
-(defmacro april-p (&rest args)
-  (cons 'april-f args))
 
 ;; these macros are shorthand for lambda definitions used in the spec; they make April's compiled code
 ;; more compact and comfortable to read
@@ -1468,8 +1462,8 @@ It remains here as a standard against which to compare methods for composing APL
                  (symbol-function (intern string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
-          (if (listp symbol-string)
-              (apply #'vector (mapcar #'process-string symbol-string)))))))
+          (when (listp symbol-string)
+            (apply #'vector (mapcar #'process-string symbol-string)))))))
 
 (defun external-workspace-operator (symbol-string &optional space-string)
   "Import an operator from an external workspace, implementing the ⎕XWO function."
@@ -1498,10 +1492,8 @@ It remains here as a standard against which to compare methods for composing APL
                    (enclose-symbol item)))))
     (let ((properties (reverse properties)))
       (if form (if (listp form)
-                   (let ((initial (if (not (and (listp (first form))
-                                                (member (first form) '(inws inwsd))))
-                                      (first form) (first form))))
-                     (if (member (first form) '(avec achoose inws inwsd))
+                   (let ((initial (first form)))
+                     (if (member initial '(avec achoose inws inwsd))
                          form (if (not (or (numberp initial)
                                            (listp initial)
                                            (stringp initial)
@@ -1532,9 +1524,9 @@ It remains here as a standard against which to compare methods for composing APL
           (modifier-symbols))
       `(let* ,(loop :for sym :in symbols
                  :append (let* ((membership (member (string sym) ref-strings :test #'string=))
-                                (dynamic-sym (if membership (nth (- (length ref-symbols)
-                                                                    (length membership))
-                                                                 ref-symbols))))
+                                (dynamic-sym (when membership (nth (- (length ref-symbols)
+                                                                      (length membership))
+                                                                   ref-symbols))))
                            `((,sym ,(if (not membership)
                                         sym `(when (boundp ',dynamic-sym)
                                                (symbol-value ',dynamic-sym)))))))
@@ -1814,10 +1806,10 @@ It remains here as a standard against which to compare methods for composing APL
                                           :do (push pelem path-contents))
                                     ;; finish processing this path if the next token is also a path,
                                     ;; i.e. for successive namespace refs like 5×myns.a myns.b
-                                    (if (and (listp next-p) (eq :pt (first next-p)))
-                                        (progn (setq in-path nil)
-                                               (push (cons :pt path-contents) new-tokens)
-                                               (setq path-contents nil))))
+                                    (when (and (listp next-p) (eq :pt (first next-p)))
+                                      (setq in-path nil)
+                                      (push (cons :pt path-contents) new-tokens)
+                                      (setq path-contents nil)))
                                   (progn (setq in-path t)
                                          (push pr path-contents)))
                            (if in-path (if (and (is-product-operator tk)
@@ -1843,9 +1835,9 @@ It remains here as a standard against which to compare methods for composing APL
          ;; handle function currying with axes, like ax←,[1.5]
          (if (eq :op (first fn-form))
              (let ((valence (second fn-form)))
-               (if closure-meta (when (not (member symbol (getf closure-meta
-                                                                (if (eq :lateral valence)
-                                                                    :lop-syms :pop-syms))))
+               (if closure-meta (unless (member symbol (getf closure-meta
+                                                             (if (eq :lateral valence)
+                                                                 :lop-syms :pop-syms)))
                                   (push symbol (getf closure-meta (if (eq :lateral valence)
                                                                       :lop-syms :pop-syms))))
                    (when (is-workspace-value symbol)
@@ -1874,9 +1866,9 @@ It remains here as a standard against which to compare methods for composing APL
                     (list fn-form '(:fn #\←) symbol))
              (if (eq :op (first fn-form)) ;; handle operator aliases like x←⍤
                  (let ((valence (second fn-form)))
-                   (if closure-meta (when (not (member symbol (getf closure-meta
-                                                                    (if (eq :lateral valence)
-                                                                        :lop-syms :pop-syms))))
+                   (if closure-meta (unless (member symbol (getf closure-meta
+                                                                 (if (eq :lateral valence)
+                                                                     :lop-syms :pop-syms)))
                                       (push symbol (getf closure-meta (if (eq :lateral valence)
                                                                           :lop-syms :pop-syms))))
                        (when (is-workspace-value symbol)
@@ -1893,27 +1885,28 @@ It remains here as a standard against which to compare methods for composing APL
                               (valence (when is-operator (if (intersection is-operator '(⍹ ⍵⍵))
                                                              :pivotal :lateral)))
                               (int-symbol (when is-operator (intern (string symbol) space))))
-                         (if is-operator (progn (setf (getf (rest fn-meta) :valence) valence)
-                                                (when (getf (rest fn-meta) :valence-setters)
-                                                  (loop :for setter :in (getf (rest fn-meta)
-                                                                              :valence-setters)
-                                                        :do (funcall setter valence)))
-                                                (setf (getf (rest fn-meta) :valence-setters) nil)))
+                         (when is-operator
+                           (setf (getf (rest fn-meta) :valence) valence)
+                           (when (getf (rest fn-meta) :valence-setters)
+                             (loop :for setter :in (getf (rest fn-meta)
+                                                         :valence-setters)
+                                   :do (funcall setter valence)))
+                           (setf (getf (rest fn-meta) :valence-setters) nil))
                          (if closure-meta (if is-operator
-                                              (when (not (member symbol (getf closure-meta
-                                                                              (if (eq :lateral valence)
-                                                                                  :lop-syms :pop-syms))))
+                                              (unless (member symbol (getf closure-meta
+                                                                           (if (eq :lateral valence)
+                                                                               :lop-syms :pop-syms)))
                                                 (push symbol (getf closure-meta (if (eq :lateral valence)
                                                                                     :lop-syms :pop-syms))))
-                                              (when (not (member symbol (getf closure-meta :fn-syms)))
+                                              (unless (member symbol (getf closure-meta :fn-syms))
                                                 (push symbol (getf closure-meta :fn-syms))))
                              (progn (when (is-workspace-value symbol)
                                       (error "The name [~a] already designates a value." symbol))
-                                    (if int-symbol (progn (when (not (fboundp int-symbol))
+                                    (if int-symbol (progn (unless (fboundp int-symbol)
                                                             (setf (symbol-function int-symbol)
                                                                   #'dummy-operator))
                                                           (setf (symbol-value int-symbol) fn-meta))
-                                        (when (not (fboundp (intern (string symbol) space)))
+                                        (unless (fboundp (intern (string symbol) space))
                                           (setf (symbol-function (intern (string symbol) space))
                                                 #'dummy-nargument-function)))))
                          (list (list (if is-operator :op :fn) fn-meta processed)
@@ -1944,7 +1937,7 @@ It remains here as a standard against which to compare methods for composing APL
                                           (list :meta :valence :pivotal))))
                          (if closure-meta (push symbol (getf closure-meta :var-syms))
                              (fmakunbound symbol)))))
-             (if closure-meta (when (not (member symbol (getf closure-meta :var-syms)))
+             (if closure-meta (unless (member symbol (getf closure-meta :var-syms))
                                 (push symbol (getf closure-meta :var-syms)))
                  (fmakunbound symbol)))
          (list (lexer-postprocess form idiom space closure-meta-form)
@@ -1963,8 +1956,8 @@ It remains here as a standard against which to compare methods for composing APL
                             (second fn-form) processed))))
         ((guard fn-form (and (listp fn-form) (eq :op (first fn-form))))
          ;; handle operators like {⍺⍺/3×⍵} by themselves, as when called inline
-         (let ((form-meta (if (listp (second fn-form)) (second fn-form)))
-               (form-content (if (listp (third fn-form)) (third fn-form))))
+         (let ((form-meta (when (listp (second fn-form)) (second fn-form)))
+               (form-content (when (listp (third fn-form)) (third fn-form))))
            (when (and form-meta closure-meta-form)
              (setf (getf (rest form-meta) :parent) closure-meta-form))
            (if (not (and form-meta form-content))
@@ -2012,7 +2005,7 @@ It remains here as a standard against which to compare methods for composing APL
         ((guard symbol (member symbol '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵)))
          ;; handle argument symbols, adding them to the closure-meta list
          ;; (print (list :sy symbol closure-meta))
-         (when (not closure-meta)
+         (unless closure-meta
            ;; create the meta form if not present, needed for cases like 2{⍶⋄⍹}3⊢10
            (setf closure-meta (list :arg-syms nil)))
          (when (and closure-meta (not (member symbol (getf closure-meta :arg-syms))))
@@ -2102,7 +2095,7 @@ It remains here as a standard against which to compare methods for composing APL
   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)) (a (gensym)))
     `(labels ((,this-fn (&rest ,args)
-                ,@(when (not is-virtual)
+                ,@(unless is-virtual
                     `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
                 ;; IPV-TODO: just one bug caused by this
                 (if (and (eq :reassign-axes (first ,args))
@@ -2128,7 +2121,7 @@ It remains here as a standard against which to compare methods for composing APL
         (d-meta (when (member (first fn-dyadic) '(fn-meta scalar-function))
                   (cddr fn-dyadic))))
     `(labels ((,this-fn (&rest ,args)
-                ,@(when (not is-virtual)
+                ,@(unless is-virtual
                     `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
                 ;; IPV-TODO: the one of the biggest force-render points
                 (if (and (eq :reassign-axes (first ,args))

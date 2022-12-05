@@ -62,7 +62,7 @@
                         :append (let ((sum (+ (aref span dx) (aref pad dx)))
                                       (dim (- irank 1 dx)))
                                   ;; (print (list :sp span pad sum dim))
-                                  (when (not (zerop sum))
+                                  (unless (zerop sum)
                                     (let ((encoder (gethash (list iwidth itype dim) ; dx)
                                                             indexer-table-encoded)))
                                       (when encoder (list (funcall encoder sum)))))))))
@@ -328,7 +328,7 @@
                                                                               (* d idfactor))))))
            (indices (if alpha (progn (if (vectorp alpha)
                                          (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                               :do (when (not (member i positions))
+                                               :do (unless (member i positions)
                                                      ;; if a duplicate position is found,
                                                      ;; a diagonal section is being performed
                                                      (push i positions)

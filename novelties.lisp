@@ -59,14 +59,26 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
         (progn (april-c "{⎕←' ⍬_║▐▀'[⎕IO+(0,(1+≢⍉⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)
                (list :generation life-generation)))))
 
+#| April Banners
+
+Code to print April-related text banners. Currently used to implement welcome text for ApREPL.
+|#
+
 (let ((banners
         (april-c
          "↑¨" (vector #("  Welcome to"
-                        "┌─────┬─────┬─────┬─────┬─────┬─┐ "
-                        "├──── │ ─── │ ┌───┤ ─── │ ─── │ │ "
+                        "┌─────┬─────┬─────┬─────┬─────┬─┐"
+                        "│ ─── │ ─── │ ─── │ ────┤ ─── │ │"
+                        "│ ┌─┐ │ ┌───┤ ┌─┐ ┤ ────┤ ┌───┤ └─┐"
+                        "└─┘ └─┴─┘   └─┘ └─┴─────┴─┘   └───┘"
+                        "              the April APL REPL")
+                      #("  Welcome to"
+                        "┌─────┬─────┬─────┬─────┬─────┬─┐"
+                        "├──── │ ─── │ ┌───┤ ─── │ ─── │ │"
                         "│ ─── │ ┌───┤ │   │ ────┤ ┌───┤ └┐"
                         "└─────┴─┘   └─┘   └─────┴─┘   └──┘"
-                        "              the April APL REPL")))))
+                        "              the April APL REPL")
+                      ))))
   (defun display-banner (&key width height)
     (april-c (with (:state :output-printed :only))
              "{B←⊃⍵ ⋄ W←⊃⌽⍺ ⋄ H BW←⍴B ⋄ (-⌊2÷⍨0⌈W-BW)⌽H W↑B}"

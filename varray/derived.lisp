@@ -159,7 +159,7 @@
          (base-size (if (listp (vader-base varray))
                         (length (vader-base varray))
                         (size-of (vader-base varray))))
-         (base-indexer (when (not (listp (vader-base varray)))
+         (base-indexer (unless (listp (vader-base varray))
                          (generator-of (vader-base varray))))
          (axis (setf (vads-axis varray)
                      (when (vads-axis varray)
@@ -195,7 +195,7 @@
                                                  (let ((ax-copy (when (listp axis) (copy-list axis)))
                                                        (shape-copy (copy-list shape))
                                                        (matching t))
-                                                   (when (not (vaop-sub-shape varray))
+                                                   (unless (vaop-sub-shape varray)
                                                      (setf (vaop-sub-shape varray) shape))
                                                    (loop :for d :in (shape-of a) :for ix :from 0
                                                          :when (and (if ax-copy (= ix (first ax-copy))
@@ -207,7 +207,7 @@
                                                    (if matching (setf shape (shape-of a))
                                                        (error "Mismatched array dimensions.")))
                                                  (if (= rank (length shape))
-                                                     (when (not (shape-matches a))
+                                                     (unless (shape-matches a)
                                                        (error "Mismatched array dimensions."))
                                                      (error "Mismatched array dimensions.")))
                                              (if (= rank (if (numberp axis) 1 (length axis)))
@@ -369,7 +369,7 @@
    (varray-shape varray)
    (let* ((idims (shape-of (vader-base varray)))
           (set (vasel-assign varray))
-          (indices (when (not (typep (vads-argument varray) 'varray::varray))
+          (indices (unless (typep (vads-argument varray) 'varray::varray)
                      (vads-argument varray)))
           (naxes (when indices (< 1 (length indices))))
           (assign-shape (when (and set indices)
@@ -422,7 +422,7 @@
           (selector-eindices (when (listp (vasel-selector varray))
                                (vasel-selector varray)))
           (eindexer (when selector-eindices (generator-of (getf selector-eindices :ebase))))
-          (index-selector (when (not selector-eindices) (vasel-selector varray)))
+          (index-selector (unless selector-eindices (vasel-selector varray)))
           (sub-shape (shape-of index-selector))
           (is-picking)
           (sub-selector (multiple-value-bind (sselector is-pick)
@@ -435,7 +435,7 @@
                                                   (setf (vads-subrendering varray) t))))
                           (when is-pick (setf is-picking t))
                           sselector))
-          (ofactors (when (not set) (get-dimensional-factors idims t)))
+          (ofactors (unless set (get-dimensional-factors idims t)))
           (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t))
           (adims (shape-of (vasel-assign varray)))
           (afactors (when adims (get-dimensional-factors (vasel-assign-shape varray) t))))
@@ -489,9 +489,9 @@
                                                              (incf sub-index (* iafactor index))
                                                              (incf ofix)
                                                              (setf remaining remainder)))
-                                                 (when (not (vectorp in))
+                                                 (unless (vectorp in)
                                                    (setf iafactors (rest iafactors)))))
-                                      (when (not matched-index)
+                                      (unless matched-index
                                         ;; adjust indices if the index was not an array as for x[⍳3]←5
                                         (let* ((iindexer (generator-of in))
                                                (indexed (if (not (functionp iindexer))
@@ -513,7 +513,7 @@
                (if (numberp oindex)
                    (let ((indexed (if (not (functionp base-indexer))
                                       base-indexer (funcall base-indexer oindex))))
-                     (when (not (shape-of varray))
+                     (unless (shape-of varray)
                        (setf (vads-subrendering varray) t))
                      indexed)
                    (let ((index-shape (first (shape-of oindex))))
@@ -555,7 +555,7 @@
                        ;; create an index mask for the assignments where each nonzero number corresponds
                        ;; to the index of the assigned value - 1
                        (dotimes (i (size-of mask))
-                         (when (not (zerop (funcall mask-indexer i)))
+                         (unless (zerop (funcall mask-indexer i))
                            (setf (row-major-aref mindices i) (incf mindex))))
                        ;; TODO: add case for scalar functions as with ÷@(≤∘5)⊢3 3⍴⍳9 so that
                        ;; the function can work element by element instead of needing displacement
@@ -563,7 +563,7 @@
                          (setf mindex 0)
                          (dotimes (i (size-of mindices))
                            (let ((mi (row-major-aref mindices i)))
-                             (when (not (zerop mi))
+                             (unless (zerop mi)
                                (setf (aref displaced (1- (incf mindex)))
                                      (funcall base-indexer i)))))
                          (let ((processed (render (funcall (vasel-calling varray) displaced
@@ -645,11 +645,11 @@
                                                                  (incf sub-index (* iafactor index))
                                                                  (incf ofix)
                                                                  (setf remaining remainder)))
-                                                     (when (not (vectorp in))
+                                                     (unless (vectorp in)
                                                        (setf iafactors (rest iafactors)))))
                                           (if (zerop (size-of in)) ;; the case of ⍬@⍬⊢1 2 3
                                               (setf valid nil)
-                                              (when (not matched-index)
+                                              (unless matched-index
                                                 ;; adjust indices if the index was not an array as for x[⍳3]←5
                                                 (let* ((iindexer (generator-of in))
                                                        (indexed (if (not (functionp iindexer))
@@ -707,7 +707,7 @@
                                                  (let* ((bindex (if (not (functionp base-indexer))
                                                                     base-indexer (funcall base-indexer index)))
                                                         (assign-indexer (generator-of (vasel-assign varray)))
-                                                        (eelement (when (not (arrayp bindex))
+                                                        (eelement (unless (arrayp bindex)
                                                                     (funcall eindexer index))))
                                                    (if eelement
                                                        (if (loop :for e :across (getf selector-eindices
@@ -1295,7 +1295,7 @@
                                                         indexer1 (funcall indexer1 i))
                                                     (if (not (functionp indexer2))
                                                         indexer2 (funcall indexer2 i)))))
-          (when (not shape2)
+          (unless shape2
             (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
                      (> comparison-tolerance (abs (- indexer1 indexer2))))
                 (and (numberp indexer1)
@@ -1535,7 +1535,7 @@
                                                   (integerp base-indexer)
                                                   (= 1 base-indexer))
                                              1 0)))))
-                    (when (not (vads-dfactors varray))
+                    (unless (vads-dfactors varray)
                       (setf (vads-dfactors varray)
                             (get-dimensional-factors (shape-of (vader-base varray)) t)))
                     (when (second (shape-of (vader-base varray)))
@@ -1970,7 +1970,7 @@
              (generator-of (vamix-cached-elements varray))
              (if (vamix-cached-elements varray)
                  (lambda (index) (row-major-aref (vamix-cached-elements varray) index))
-                 (let* ((iarray (when (not (shape-of varray))
+                 (let* ((iarray (unless (shape-of varray)
                                   (render (vader-base varray))))
                         (ishape (when iarray (copy-list (shape-of iarray))))
                         (iifactors (when iarray (get-dimensional-factors ishape)))
@@ -1984,7 +1984,7 @@
                                        (push this-index inner-indices))))
 
                        (let* ((inner-indices (reverse inner-indices))
-                              (oindex (when (not iarray)
+                              (oindex (unless iarray
                                         (loop :for i :in (reverse outer-indices)
                                               :for f :across iofactors :summing (* i f))))
                               (iarray (or iarray (funcall oindexer oindex)))
@@ -2070,7 +2070,7 @@
              (make-instance 'vader-subarray-split
                             :base (vader-base varray) :shape (when sv-length (list sv-length))
                             :index index :core-indexer core-indexer
-                            :prototype (when (not output-shape)
+                            :prototype (unless output-shape
                                          (prototype-of (vader-base varray)))))
            (lambda (index) (declare (ignore index)) base-indexer)))))
 
@@ -2198,7 +2198,7 @@
      ;; (when (vasec-span varray)
      ;;   (print (list :vv (vasec-span varray) (vasec-pad varray))))
      
-     (when (not (vasec-span varray))
+     (unless (vasec-span varray)
        ;; this will usually apply to a section object without another section as its base
        (if (and (not is-inverse) (eq :last axis)
                 (typep base 'vad-limitable) (not (functionp arg-indexer)))
@@ -2220,7 +2220,7 @@
                (if base-shape
                    (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
                          :do (setf (aref (vasec-span varray) i) s))
-                   (when (not is-inverse) (setf (aref (vasec-span varray) 1) 1))))
+                   (unless is-inverse (setf (aref (vasec-span varray) 1) 1))))
              (setf limited-shape shape))
            
            (let* ((base-rank (rank-of base))
@@ -2242,7 +2242,7 @@
              (if base-shape
                  (loop :for s :in base-shape :for i :from base-rank :to (1- (* 2 base-rank))
                        :do (setf (aref (vasec-span varray) i) s))
-                 (when (not is-inverse) (setf (aref (vasec-span varray) 1) 1)))
+                 (unless is-inverse (setf (aref (vasec-span varray) 1) 1)))
 
              ;; populate the span and padding vectors according to the arguments
              ;; and the dimensions of the input array
@@ -2323,7 +2323,7 @@
                                       is-inverse assigning
                                       (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
                                       (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)))
-            (prototype (when (not assigning)
+            (prototype (unless assigning
                          (setf (varray-prototype varray)
                                (if (or (zerop size) (zerop base-size))
                                    (prototype-of (vader-base varray))
@@ -2362,7 +2362,7 @@
                    (size (size-of varray))
                    (is-negative (when (or (numberp arg) (and (vectorp arg) (= 1 (length arg))))
                                   (minusp (disclose-unitary (vads-argument varray)))))
-                   (scalar-index (when (not (shape-of (vader-base varray))) 0))
+                   (scalar-index (unless (shape-of (vader-base varray)) 0))
                    (prototype (prototype-of varray)))
               ;; (print (list :sc scalar-index indexers indexer))
               (when scalar-index
@@ -2503,7 +2503,7 @@
                     (last-idim (or (first (last shape)) 1))
                     (this-size (reduce #'* shape)))
                 (lambda (i)
-                  (when (not (zerop this-size))
+                  (unless (zerop this-size)
                     (let ((oseg (floor i iseg)) (ivix (mod i iseg)))
                       (if (not (functionp base-indexer))
                           base-indexer (funcall base-indexer
@@ -2601,7 +2601,7 @@
                ;; find the index where each partition begins in the
                ;; input array and the length of each partition
                (loop :for pos :across positions :for p :from 0
-                     :do (when (not (zerop current-interval))
+                     :do (unless (zerop current-interval)
                            (incf interval-size))
                          ;; if a position lower than the current interval index is encountered,
                          ;; decrement the current index to it, as for 1 1 1 2 1 1 2 1 1⊆⍳9
@@ -2615,7 +2615,7 @@
                            (setq current-interval pos interval-size 0))
                ;; add the last entry to the intervals provided the
                ;; positions list didn't have a 0 value at the end
-               (when (not (zerop (aref positions (1- (length positions)))))
+               (unless (zerop (aref positions (1- (length positions))))
                  (push (- (length positions) (first r-indices))
                        r-intervals))
                
@@ -2715,7 +2715,7 @@
      
      ;; designate the array as separating if appropriate;
      ;; this will determine the generator logic
-     (if (not (vectorp degrees)) (when (not (plusp degrees))
+     (if (not (vectorp degrees)) (unless (plusp degrees)
                                    (setf (vadex-separating varray) t))
          (loop :for d :across degrees :when (not (plusp d))
                :do (setf (vadex-separating varray) t)))
@@ -3033,7 +3033,7 @@
                                         (shape-of (vader-content varray)))))
 
 (defmethod generator-of ((varray vader-intersection) &optional indexers params)
-  (when (not (vader-content varray))
+  (unless (vader-content varray)
     (let ((derivative-count (when (and (varray-shape varray)
                                        (listp (varray-shape varray)))
                               (reduce #'* (varray-shape varray))))
@@ -3101,7 +3101,7 @@
                     (loop :for ix :below base-size
                           :while (or (not derivative-count) (< unique-count derivative-count))
                           :do (let ((item (render (funcall base-indexer ix))))
-                                (when (not (find item uniques :test #'array-compare))
+                                (unless (find item uniques :test #'array-compare)
                                   (push item uniques)
                                   (push ix indices)
                                   (incf unique-count))))
@@ -3170,13 +3170,13 @@
                              (loop :for ti :across this-item
                                    :when (not (find ti first :test #'array-compare))
                                      :do (push ti (first matched)))
-                             (when (not (find this-item first :test #'array-compare))
+                             (unless (find this-item first :test #'array-compare)
                                (push this-item (first matched))))
                          (if (arrayp this-item)
                              (loop :for ti :across this-item
                                    :when (not (array-compare ti first))
                                      :do (push ti (first matched)))
-                             (when (not (array-compare this-item first))
+                             (unless (array-compare this-item first)
                                (push this-item (first matched)))))
                      (loop :for m :in (rest matched)
                            :do (if (arrayp this-item)
@@ -3304,7 +3304,7 @@
                                                       (nth ix base-shape)))
                               ;; if a duplicate position is found, a diagonal section
                               ;; is being performed
-                              (when (not (member i positions))
+                              (unless (member i positions)
                                 (push i positions))
                               ;; collect possible diagonal indices into diagonal list
                               (if (assoc i diagonals)
@@ -3402,7 +3402,7 @@
                                                  (reduce #'= (shape-of (vader-base varray))))
                                             #'invert-matrix #'left-invert-matrix)
                                         (render (vader-base varray)))))))
-          (base-indexer (when (not content) (generator-of (vader-base varray))))
+          (base-indexer (unless content (generator-of (vader-base varray))))
           (content-indexer (when content (generator-of content))))
      (lambda (index)
        (if content (funcall content-indexer index)
@@ -3448,9 +3448,9 @@
                                       (not (shape-of (vads-argument varray)))))
                             (shape-of (vads-argument varray))
                             (let* ((base (render (vader-base varray)))
-                                   (max-base (when (not (shape-of base)) base))
+                                   (max-base (unless (shape-of base) base))
                                    (arg (render (vads-argument varray))))
-                              (when (not max-base)
+                              (unless max-base
                                 (setf max-base 0)
                                 (dotimes (i (size-of base))
                                   (when (< max-base (row-major-aref base i))
@@ -3480,7 +3480,7 @@
          (loop :for af :in aifactors :for of :across ofactors :for ix :from 0
                :do (multiple-value-bind (this-index remainder) (floor remaining of)
                      (incf oix)
-                     (when (not (zerop ix))
+                     (unless (zerop ix)
                        (setf afactor (+ afactor (* af this-index))))
                      (setf remaining remainder)))
          (loop :for of :across oifactors
