@@ -197,27 +197,30 @@
                (* increment (abs (- (mod (floor i increment) rlen)
                                     (1- rlen))))))))))
 
-(let ((regular-handler-table
+(let ((indexer-table-regular-linear
         (intraverser
-         ;; (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
-         ;;               ;; :rank +rank+
-         ;;               :rank-width +rank-width+))
-         ;;  (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-         ;;                  ;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-         ;;                  vector vector)
-         ;;                 function)
-         ;;       (lambda (od-factors s-factors)
-         ;;         (declare (optimize (speed 3) (safety 0)))
-         ;;         (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
-         ;;              (lambda (i)
-         ;;                (declare (type (unsigned-byte +lindex-width+) i))
-         ;;                (let* ((remaining (the (unsigned-byte +lindex-width+) i))
-         ;;                       (oindex (the (unsigned-byte +lindex-width+) 0)))
-         ;;                  (loop :for od :across od-factors :for s :across s-factors
-         ;;                        :collect (multiple-value-bind (index remainder) (floor remaining od)
-         ;;                                   (incf oindex (* index s))
-         ;;                                   (setq remaining remainder)))
-         ;;                  oindex))))))
+         (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
+          ;; :rank +rank+
+          :rank-width +rank-width+)
+         (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+                         ;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+                         vector vector
+                         )
+                        function)
+              (lambda (od-factors s-factors)
+                (declare (optimize (speed 3) (safety 0)))
+                (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+                     (lambda (i)
+                       (declare (type (unsigned-byte +lindex-width+) i))
+                       (let* ((remaining (the (unsigned-byte +lindex-width+) i))
+                              (oindex (the (unsigned-byte +lindex-width+) 0)))
+                         (loop :for od :across od-factors :for s :across s-factors
+                               :collect (multiple-value-bind (index remainder) (floor remaining od)
+                                          (incf oindex (* index s))
+                                          (setq remaining remainder)))
+                         oindex)))))))
+      (indexer-table-regular-encoded
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
           :rank-plus +rank-plus+ :rank-width +rank-width+)
          (the (function ((simple-array (unsigned-byte 8) (+rank-plus+)))
@@ -242,32 +245,33 @@
                                                iindex)))
                           ;; (print (format nil "#x~8,'0X" i))
                           ;; (print (format nil "#x~8,'0X~%" iindex))
-                          iindex)))))
-         ))
-      (diagonal-handler-table
+                          iindex)))))))
+      (indexer-table-diagonal-linear
         (intraverser
-         ;; (((:integer) (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
-         ;;                             ;; :rank +rank+
-         ;;               :rank-width +rank-width+))
-         ;;  (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-         ;;                  ;; (simple-array (unsigned-byte +rank-width+) (+rank+))
-         ;;                  vector vector)
-         ;;                 function)
-         ;;       (lambda (id-factors indices)
-         ;;         (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
-         ;;              (lambda (i)
-         ;;                (declare (optimize (speed 3) (safety 0))
-         ;;                         (type (unsigned-byte +lindex-width+) i))
-         ;;                (let ((iindex (the (unsigned-byte +lindex-width+) 0))
-         ;;                      (remaining (the (unsigned-byte +lindex-width+) i)))
-         ;;                  (loop :for ox :from 0 :for of :across od-factors
-         ;;                        :do (multiple-value-bind (index remainder) (floor remaining of)
-         ;;                              (loop :for a :of-type (unsigned-byte +rank-width+)
-         ;;                                      :across indices
-         ;;                                    :for ax :from 0 :when (= a ox)
-         ;;                                    :do (incf iindex (* index (aref id-factors ax))))
-         ;;                              (setq remaining remainder)))
-         ;;                  (the (unsigned-byte +lindex-width+) iindex)))))))
+         (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
+                        ;; :rank +rank+
+          :rank-width +rank-width+)
+         (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+                         ;; (simple-array (unsigned-byte +rank-width+) (+rank+))
+                         vector vector vector)
+                        function)
+              (lambda (od-factors id-factors indices)
+                (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+                     (lambda (i)
+                       (declare (optimize (speed 3) (safety 0))
+                                (type (unsigned-byte +lindex-width+) i))
+                       (let ((iindex (the (unsigned-byte +lindex-width+) 0))
+                             (remaining (the (unsigned-byte +lindex-width+) i)))
+                         (loop :for ox :from 0 :for of :across od-factors
+                               :do (multiple-value-bind (index remainder) (floor remaining of)
+                                     (loop :for a :of-type (unsigned-byte +rank-width+)
+                                             :across indices
+                                           :for ax :from 0 :when (= a ox)
+                                           :do (incf iindex (* index (aref id-factors ax))))
+                                     (setq remaining remainder)))
+                         (the (unsigned-byte +lindex-width+) iindex))))))))
+      (indexer-table-diagonal-encoded
+        (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
           :rank +rank+ :rank-width +rank-width+)
          (the (function ((unsigned-byte +rank-width+)
@@ -301,21 +305,21 @@
                                                                     :collect idfactor
                                                                     :do (setq idfactor
                                                                               (* d idfactor))))))
-           (indices (if alpha (progn (if (vectorp alpha)
-                                         (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                               :do (unless (member i positions)
-                                                     ;; if a duplicate position is found,
-                                                     ;; a diagonal section is being performed
-                                                     (push i positions)
-                                                     (push id idims-reduced))
-                                                   ;; collect possible diagonal indices into diagonal list
-                                                   (if (assoc i diagonals)
-                                                       (push ix (rest (assoc i diagonals)))
-                                                       (push (list i ix) diagonals))
-                                               :collect i)
-                                         (progn (setq odims idims
-                                                      positions (cons alpha positions))
-                                                (list alpha))))
+           (indices (if alpha (if (vectorp alpha)
+                                  (loop :for i :across alpha :for id :in idims :for ix :from 0
+                                        :do (unless (member i positions)
+                                              ;; if a duplicate position is found,
+                                              ;; a diagonal section is being performed
+                                              (push i positions)
+                                              (push id idims-reduced))
+                                            ;; collect possible diagonal indices into diagonal list
+                                            (if (assoc i diagonals)
+                                                (push ix (rest (assoc i diagonals)))
+                                                (push (list i ix) diagonals))
+                                        :collect i)
+                                  (progn (setq odims idims
+                                               positions (cons alpha positions))
+                                         (list alpha)))
                         (reverse (iota irank))))
            ;; TODO: hardcoded 8-bit rank
            (indices-vector (make-array (length indices) :element-type '(unsigned-byte 8)
@@ -337,7 +341,7 @@
           ;; handle regular permutation cases
           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
               (let ((match (gethash (list iwidth itype irank)
-                                    regular-handler-table)))
+                                    indexer-table-regular-encoded)))
                 ;; (print (list :ma idims match iwidth itype irank indices-vector))
                 (list (when match (funcall match indices-vector))
                       (lambda (i)
@@ -361,7 +365,7 @@
                                         factor (or factor index)))))
                   (when valid factor)))
               (let ((match (gethash (list iwidth itype (1- irank))
-                                    diagonal-handler-table)))
+                                    indexer-table-diagonal-encoded)))
                 (list (when match (funcall match indices-vector))
                       (lambda (i)
                         (let ((remaining i) (iindex 0))
