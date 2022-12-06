@@ -89,7 +89,7 @@
   (:documentation "Render an array into memory."))
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
-  "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
+  "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions (mostly found in combinatorics.lisp) which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
   (let* ((cname (class-name this-class))
          (fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase cname))
                         *package-name-string*)))

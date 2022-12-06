@@ -21,10 +21,8 @@
                       (member lex-ref arith-functions :test #'char=)
                       (not (and iota-second (char= #\÷ lex-ref))))
              (destructuring-bind (iota number) (if iota-second base (reverse base))
-               ;; (print (list :if function iota-first params))
                (make-instance 'vapri-integer-progression
-                              :number (vapip-number iota)
-                              :origin (vapip-origin iota)
+                              :number (vapip-number iota) :origin (vapip-origin iota)
                               :offset (if (not (member lex-ref add-sub-functions :test #'char=))
                                           (vapip-offset iota)
                                           (if (char= #\+ lex-ref)
