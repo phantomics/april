@@ -13,5 +13,5 @@
                (:file "index")
                (:file "primal")
                (:file "derived")
-               ;; (:file "combinatorics")
+               (:file "combinatorics")
                (:file "composed")))

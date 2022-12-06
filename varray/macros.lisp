@@ -43,30 +43,29 @@
                               :do (let ((width (* i (getf params :coordinate-width))))
                                     (process-var-range form rest-vars params (cons i key-ints)
                                                        (append (list var-symbol width) var-widths)))))
-                       (t
-                        (loop :for width :in (or (getf widths var-type) '(0))
-                              :when (or (not (member var-type '(:cindex-width)))
-                                        (not (getf params :base-width))
-                                        (< width (getf params :base-width)))
-                                :do (let ((sub-params (copy-tree params))
-                                          (sub-base-width (when (eq :sub-base-width var-type)
-                                                            (1- (getf params :base-width)))))
-                                      
-                                      (when (member var-type '(:lindex-width :eindex-width))
-                                        (setf (getf sub-params :base-width) width))
+                       (t (loop :for width :in (or (getf widths var-type) '(0))
+                                :when (or (not (member var-type '(:cindex-width)))
+                                          (not (getf params :base-width))
+                                          (< width (getf params :base-width)))
+                                  :do (let ((sub-params (copy-tree params))
+                                            (sub-base-width (when (eq :sub-base-width var-type)
+                                                              (1- (getf params :base-width)))))
+                                        
+                                        (when (member var-type '(:lindex-width :eindex-width))
+                                          (setf (getf sub-params :base-width) width))
 
-                                      (when (member var-type '(:cindex-width))
-                                        (setf (getf sub-params :coordinate-width) width))
-                                      ;; these variable types impose a width limit on subordinate
-                                      ;; variables; i.e. the sub-byte values of an integer must
-                                      ;; be half or less of that integer's width
-                                      (process-var-range
-                                       form (cddr vars) sub-params
-                                       (if (not (member var-type '(:lindex-width :eindex-width
-                                                                   :cindex-width)))
-                                           key-ints (cons width key-ints))
-                                       (append (list var-symbol (or sub-base-width width))
-                                               var-widths)))))))
+                                        (when (member var-type '(:cindex-width))
+                                          (setf (getf sub-params :coordinate-width) width))
+                                        ;; these variable types impose a width limit on subordinate
+                                        ;; variables; i.e. the sub-byte values of an integer must
+                                        ;; be half or less of that integer's width
+                                        (process-var-range
+                                         form (cddr vars) sub-params
+                                         (if (not (member var-type '(:lindex-width :eindex-width
+                                                                     :cindex-width)))
+                                             key-ints (cons width key-ints))
+                                         (append (list var-symbol (or sub-base-width width))
+                                                 var-widths)))))))
                    (progn (push (process-form form var-widths) output)
                           ;; the sub-base-width is not included in the key list
                           (push `(gethash ',(reverse key-ints) ,table)

@@ -95,9 +95,7 @@
                                                   (setq remaining remainder))))))
                       (when valid iindex))))))
         ;; (print (list :enc encoder-chain))
-        (list encoder-chain
-              default-indexer)
-        ))))
+        (list encoder-chain default-indexer)))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
@@ -342,7 +340,6 @@
           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
               (let ((match (gethash (list iwidth itype irank)
                                     indexer-table-regular-encoded)))
-                ;; (print (list :ma idims match iwidth itype irank indices-vector))
                 (list (when match (funcall match indices-vector))
                       (lambda (i)
                         (let* ((remaining i) (oindex 0))

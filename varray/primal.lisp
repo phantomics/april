@@ -14,6 +14,10 @@
             :initform 0
             :initarg :origin
             :documentation "The origin point - by default, the index origin.")
+   (%offset :accessor vapip-offset
+            :initform 0
+            :initarg :offset
+            :documentation "The offset - an amount added to or subtracted from each value.")
    (%factor :accessor vapip-factor
             :initform 1
             :initarg :factor
@@ -27,9 +31,13 @@
 
 (defmethod etype-of ((vvector vapri-integer-progression))
   (if (floatp (vapip-factor vvector))
-      'double-float (list 'integer (min 0 (vapip-origin vvector))
-                          (+ (vapip-origin vvector)
-                             (first (shape-of vvector))))))
+      'double-float (list 'integer (min 0 (+ (vapip-offset vvector)
+                                             (vapip-origin vvector)))
+                          (max (vapip-offset vvector)
+                               (+ (vapip-origin vvector)
+                                  (+ (vapip-offset vvector)
+                                     (* (vapip-factor vvector)
+                                        (first (shape-of vvector)))))))))
 
 (defmethod prototype-of ((vvector vapri-integer-progression))
   (declare (ignore vvector))
@@ -48,36 +56,36 @@
 
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-integer-progression) &optional indexers params)
-  (declare (ignore params) (optimize (speed 3) (safety 0)))
+  (declare (ignore params indexers) (optimize (speed 3) (safety 0)))
   (get-promised (varray-generator vvector)
                 (let ((origin (the (unsigned-byte 62) (vapip-origin vvector)))
+                      (offset (the (unsigned-byte 62) (vapip-offset vvector)))
                       (factor (the real (vapip-factor vvector)))
                       (repeat (the (unsigned-byte 62) (vapip-repeat vvector))))
                   (funcall (if (or (and (integerp factor) (= 1 factor))
                                    (and (typep factor 'single-float) (= 1.0 factor))
                                    (and (typep factor 'double-float) (= 1.0d0 factor)))
-                               #'identity
+                               (if (zerop offset)
+                                   #'identity (lambda (fn)
+                                                (lambda (item) (+ offset (funcall fn item)))))
                                (if (integerp factor)
                                    (lambda (fn) (lambda (item)
                                                   (declare (type (unsigned-byte 62) item))
-                                                  (the (unsigned-byte 64)
-                                                       (* (the (unsigned-byte 62) factor)
-                                                          (the (unsigned-byte 62)
-                                                               (funcall (the function fn) item))))))
+                                                  (+ offset
+                                                     (* (the (unsigned-byte 62) factor)
+                                                        (the (unsigned-byte 62)
+                                                             (funcall (the function fn) item))))))
                                    (lambda (fn) (lambda (item)
                                                   (declare (type (unsigned-byte 62) item)
                                                            (type function fn))
-                                                  (* (the float factor)
-                                                     (funcall fn item))))))
+                                                  (+ offset (* (the float factor)
+                                                               (funcall fn item)))))))
                            (if (= 1 repeat)
                                (if (zerop origin)
-                                   #'identity (if (= 1 origin)
-                                                  (lambda (index)
-                                                    (declare (type (unsigned-byte 62) index))
-                                                    (the (unsigned-byte 62) (1+ index)))
-                                                  (lambda (index)
-                                                    (declare (type (unsigned-byte 62) index))
-                                                    (the (unsigned-byte 64) (+ origin index)))))
+                                   #'identity
+                                   (lambda (index)
+                                     (declare (type (unsigned-byte 62) index))
+                                     (the (unsigned-byte 64) (+ origin index))))
                                (lambda (index)
                                  (declare (type (unsigned-byte 62) index))
                                  (the (unsigned-byte 64)
