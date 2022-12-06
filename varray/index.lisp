@@ -59,9 +59,8 @@
               (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
                        :pass)
                   (loop :for dx :below irank
-                        :append (let ((sum (+ (aref span dx) (aref pad dx)))
-                                      (dim (- irank 1 dx)))
-                                  ;; (print (list :sp span pad sum dim))
+                        :append (let ((dim (- irank 1 dx))
+                                      (sum (+ (aref span dx) (aref pad dx))))
                                   (unless (zerop sum)
                                     (let ((encoder (gethash (list iwidth itype dim) ; dx)
                                                             indexer-table-encoded)))
@@ -294,7 +293,7 @@
                            (the (unsigned-byte +eindex-width+) iindex))))))))))
   
   (defun indexer-permute (idims odims alpha is-diagonal iwidth itype &optional is-inverse)
-    "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
+    "Return indices of an array permuted as with the [⍉ permute] function."
     ;; (declare (optimize (speed 3) (safety 0)))
     (let* ((irank (length idims))
            (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
