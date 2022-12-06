@@ -13,6 +13,8 @@
 
 (defparameter *workers-count* (max 1 (1- (serapeum:count-cpus :default 2))))
 
+(defparameter *package-name-string* (package-name *package*))
+
 (defclass va-class (standard-class)
   nil (:documentation "Metaclass for virtual array objects."))
 
@@ -85,6 +87,16 @@
 
 (defgeneric render (varray &rest params)
   (:documentation "Render an array into memory."))
+
+(defmethod allocate-instance ((this-class va-class) &rest params)
+  "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
+  (let* ((cname (class-name this-class))
+         (fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase cname))
+                        *package-name-string*)))
+    (if (not (fboundp fname))
+        (call-next-method)
+        (or (apply (symbol-function fname) params)
+            (call-next-method)))))
 
 (defun get-dimensional-factors (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."

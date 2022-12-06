@@ -2,24 +2,13 @@
 
 (in-package #:varray)
 
-"Special combinatoric rules, mostly determining object allocations that return a modified form of the base object rather than an instance of the class being invoked."
-
-(defparameter *package-name-string* (package-name *package*))
-
-(defmethod allocate-instance ((this-class va-class) &rest params)
-  "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
-  (let* ((cname (class-name this-class))
-         (fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase cname))
-                        *package-name-string*)))
-    (if (not (fboundp fname))
-        (call-next-method)
-        (or (apply (symbol-function fname) params)
-            (call-next-method)))))
+"Special combinatoric rules for virtual arrays, mostly determining object allocations that return a modified form of the base object rather than an instance of the class being invoked."
 
 (let* ((add-sub-functions (list #\+ #\-))
        (mul-div-functions (list #\× #\÷))
        (arith-functions (append add-sub-functions mul-div-functions)))
   (defun extend-allocator-vader-operate (&key base axis function index-origin params)
+    "Extend allocation behavior of operate class; currently, this allows for things like 1+⍳9 returning a modified integer progression vector rather than an instance of the vader-operate class."
     (typecase base
       (list
        (when (= 2 (length base))
