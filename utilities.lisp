@@ -1422,15 +1422,15 @@ It remains here as a standard against which to compare methods for composing APL
                  (31 short-float) (32 single-float) (34 double-float) (35 long-float)
                  (48 base-char) (49 character)))
         (type))
-    (if type-index
+    (if (not type-index)
+        (loop :for item :in types :when (equalp (element-type array) (second item)) :return (first item))
         (progn (loop :for item :in types :when (= type-index (first item)) :do (setf type (second item)))
                (if (or (not (arrayp array))
                        (equalp type (element-type array)))
                    array (let ((output (make-array (dims array) :element-type type)))
                            (xdotimes output (i (size array)) (setf (row-major-aref output i)
-                                                                   (row-major-aref array i)))
-                           output)))
-        (loop :for item :in types :when (equalp (element-type array) (second item)) :return (first item)))))
+                                                                   (coerce (row-major-aref array i) type)))
+                           output))))))
 
 (defun scalar-code-char (input) ;; TODO: add left arg? 'UTF-8', 16 or 32
   "Convert Unicode characters into integers and vice versa. Used to implement ⎕UCS."
