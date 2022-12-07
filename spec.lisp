@@ -100,7 +100,6 @@
             :process-axis-string
             (lambda (string)
               (let ((indices) (last-index) (quoted)
-                    (strlen (length string))
                     (nesting (vector 0 0 0))
                     (delimiters "[({])}")
                     (dllen-plus 7) ;; 1 plus the number of delimiters
@@ -401,7 +400,7 @@
            (dyadic :id 0))
      (tests (is "3<1 2 3 4 5" #*00011)))
   (≤ (has :title "Less or Equal")
-     (dyadic (scalar-function (boolean-op (compare-by '<= comparison-tolerance t))
+     (dyadic (scalar-function (boolean-op (compare-by '<= comparison-tolerance))
                               :va t :binary-output t))
      (meta (primary :implicit-args (comparison-tolerance) :virtual-support t)
            (dyadic :id 1))
@@ -416,7 +415,7 @@
      (tests (is "3=1 2 3 4 5" #*00100)
             (is "'cat'='hat'" #*011)))
   (≥ (has :title "Greater or Equal")
-     (dyadic (scalar-function (boolean-op (compare-by '>= comparison-tolerance t))
+     (dyadic (scalar-function (boolean-op (compare-by '>= comparison-tolerance))
                               :va t :binary-output t))
      (meta (primary :implicit-args (comparison-tolerance) :virtual-support t)
            (dyadic :id 1))

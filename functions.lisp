@@ -275,7 +275,7 @@
                              (lambda (a o) (declare (ignore a o)))))
              omega alpha)))
 
-(defun compare-by (symbol comparison-tolerance &optional or-equal)
+(defun compare-by (symbol comparison-tolerance)
   "Generate a comparison function using the [⎕CT comparison tolerance]."
   (lambda (omega alpha)
     (funcall (if (and (numberp alpha) (numberp omega))
@@ -306,21 +306,18 @@
   (lambda (omega alpha)
     (setf omega (render-varrays omega))
     (if (not (arrayp omega))
-        (if (and (numberp alpha)
-                 (= index-origin alpha))
+        (if (and (numberp alpha) (= index-origin alpha))
             omega (error "Invalid index."))
         (make-virtual
          'vader-select
          :base omega :index-origin index-origin
          :argument (let ((alpha (render-varrays alpha))
-                         (axes (render-varrays axes))
-                         (axis (if axes (if (vectorp (first axes))
-                                            ;; the inefficient array-to-list is used here in case of nested
-                                            ;; alpha arguments like (⊂1 2 3)⌷...
-                                            (coerce (first axes) 'list)
-                                            (if (integerp (first axes))
+                         (axis (when axes (if (vectorp (first axes))
+                                              ;; the inefficient array-to-list is used here in
+                                              ;; case of nested alpha arguments like (⊂1 2 3)⌷...
+                                              (coerce (first axes) 'list)
+                                              (when (integerp (first axes))
                                                 (list (first axes)))))))
-                     ;; (print (list :ax axis coords))
                      (if axis (let ((cx 0))
                                 (loop :for dim :below (length (shape-of omega))
                                       :collect (if (member (+ dim index-origin) axis)
@@ -331,11 +328,11 @@
                                                      (incf cx)
                                                      c))))
                          ;; pad coordinates with nil elements in the case of an elided reference
-                         (append (if (not (arrayp alpha))
-                                     (list alpha)
+                         (append (if (arrayp alpha)
                                      (if (zerop (rank alpha))
                                          (list (aref alpha))
-                                         (loop :for a :across alpha :collect a)))
+                                         (loop :for a :across alpha :collect a))
+                                     (list alpha))
                                  (loop :for i :below (- (length (shape-of omega))
                                                         (if (or (not (arrayp alpha))
                                                                 (zerop (rank alpha)))
@@ -430,33 +427,31 @@
                   (setf output o))
         (values (or output object) ivec))))
 
-(defun assign-by-selection (prime-function function value omega &key index-origin)
+(defun assign-by-selection (function value omega &key index-origin)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
-  (let ((function-meta (handler-case (funcall prime-function :get-metadata nil) (error () nil))))
-    ;; (setf ggi (invert-assigned-varray (funcall function omega)))
-    (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
-      (typecase base-object
-        (varray::vader-select
-         (setf (varray::vasel-assign base-object) value)
-         base-object)
-        (varray::vader-pick
-         (setf (varray::vapick-assign base-object) value
-               (varray::vapick-selector base-object)
-               ;; assign the selector if the omega is a virtual array, this excludes
-               ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
-               ;; TODO: normalize this check for full lazy operation
-               (when (typep (varray::vader-base base-object) 'varray::varray)
-                 (varray::vader-base base-object))
-               (varray::vader-base base-object) omega)
-         base-object)
-        ;; In the case of an index vector returned as the second value from invert-assigned-varray,
-        ;; assignment is being done according to processing of an enlist of the input array, thus
-        ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
-        ;; and a nested index array must be passed to the select object indexer for use indexing.
-        (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
-                                        :selector (if ivec (list :ebase ivec
-                                                                 :eindices (render-varrays base-object))
-                                                      (funcall function omega))))))))
+  (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
+    (typecase base-object
+      (varray::vader-select
+       (setf (varray::vasel-assign base-object) value)
+       base-object)
+      (varray::vader-pick
+       (setf (varray::vapick-assign base-object) value
+             (varray::vapick-selector base-object)
+             ;; assign the selector if the omega is a virtual array, this excludes
+             ;; cases like x←⍳4 ⋄ (⊃x)←2 2⍴⍳4 ⋄ x
+             ;; TODO: normalize this check for full lazy operation
+             (when (typep (varray::vader-base base-object) 'varray::varray)
+               (varray::vader-base base-object))
+             (varray::vader-base base-object) omega)
+       base-object)
+      ;; In the case of an index vector returned as the second value from invert-assigned-varray,
+      ;; assignment is being done according to processing of an enlist of the input array, thus
+      ;; selection is done using a vector of matching enlisted indices. Thus a vector of the indices
+      ;; and a nested index array must be passed to the select object indexer for use indexing.
+      (t (make-instance 'vader-select :base omega :index-origin index-origin :assign value
+                                      :selector (if ivec (list :ebase ivec
+                                                               :eindices (render-varrays base-object))
+                                                    (funcall function omega)))))))
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
@@ -706,12 +701,10 @@
            (orankdelta (- orank (if alpha ocrank omrank)))
            (odivs (when (<= 0 orankdelta) (make-array (subseq odims 0 orankdelta))))
            (odiv-dims (when odivs (subseq odims orankdelta)))
-           (odiv-size (when odivs (reduce #'* odiv-dims)))
            (arankdelta (- arank acrank))
            (adivs (when (and alpha (<= 0 arankdelta))
                     (make-array (subseq adims 0 arankdelta))))
-           (adiv-dims (when adivs (subseq adims arankdelta)))
-           (adiv-size (when alpha (reduce #'* adiv-dims))))
+           (adiv-dims (when adivs (subseq adims arankdelta))))
 
       (when (or (not (and (integerp ocrank) (or (zerop ocrank) (plusp ocrank))))
                 (not (and (integerp acrank) (or (zerop acrank) (plusp acrank))))
@@ -731,7 +724,7 @@
               (apply (if (eq :last (getf fn-meta :on-axis))
                          function (funcall function :reassign-axes (list (max orank arank))))
                      omega (when alpha (list alpha)))
-              (flet ((generate-divs (div-array ref-array div-dims div-size)
+              (flet ((generate-divs (div-array ref-array div-dims)
                        (let ((ref-indexer (varray::generator-of ref-array)))
                          (dotimes (i (size div-array))
                            (setf (row-major-aref div-array i)
@@ -740,8 +733,8 @@
                                          (make-instance 'varray::vader-subarray-displaced
                                                         :shape div-dims :index i
                                                         :base ref-array))))))))
-                (when odivs (generate-divs odivs omega odiv-dims odiv-size))
-                (if alpha (progn (when adivs (generate-divs adivs alpha adiv-dims adiv-size))
+                (when odivs (generate-divs odivs omega odiv-dims))
+                (if alpha (progn (when adivs (generate-divs adivs alpha adiv-dims))
                                  (if (not (or odivs adivs))
                                      ;; if alpha and omega are scalar, just call the function on them
                                      (funcall function omega alpha)

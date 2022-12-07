@@ -162,6 +162,8 @@
                                        (list 'quote (intern (string-upcase name) this-package)))
                                       (t item)))))
         (funcall (lambda (form)
+                   ;; create an lparallel kernel if none is present; this is done at
+                   ;; runtime so April's compilation doesn't entail the creation of a kernel
                    (push '(make-threading-kernel-if-absent) (cdddr form))
                    form)
                  (replace-symbols (first body)))))))
@@ -249,7 +251,6 @@
 (defmacro alambda (params options &body body)
   "Generate a lambda with a self-reference for use with APL's ∇ character for self-reference in a defn."
   (let* ((options (rest options))
-         (system-vars (rest (assoc :sys-vars options)))
          (meta (rest (assoc :meta options)))
          (space (second (assoc :space options)))
          (env (gensym)) (blank (gensym)) (vals-list))
@@ -727,8 +728,8 @@
                                                 (random-state:make-generator
                                                  ,rngname ,seed)))
                                         (getf (rest ,symbol) :seed)
-                                        (if (not (and (vectorp ,seed) (zerop (length ,seed))))
-                                            ,seed)))))
+                                        (when (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                          ,seed)))))
                           (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
                               (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
                                      (,rngname (aref *rng-names* ,rngindex)))
@@ -746,8 +747,8 @@
                                                   (random-state:make-generator
                                                    ,rngname ,seed)))
                                           (getf (rest ,symbol) :seed)
-                                          (if (not (and (vectorp ,seed) (zerop (length ,seed))))
-                                              ,seed))))
+                                          (when (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                            ,seed))))
                               (error "The [⎕RL random link] value can only be set as an ~a"
                                      "integer or a 2-element vector."))))))
                 (t (let ((sym-package (package-name (symbol-package symbol))))
@@ -776,7 +777,9 @@
                                                                                 (rest namespace)))
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
-                             `(setf ,symbol (render-varrays ,set-to :parallel t))))))))
+                             `(setf ,symbol (render-varrays ,set-to))
+                             ;; `(setf ,symbol ,set-to) ;; TOGGLE ASSIGNING VARRAYS
+                             ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                (let ((val (gensym)))
@@ -830,7 +833,7 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values :parallel t)))
+                                `(let ((,this-val (render-varrays ,values)))
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
@@ -879,7 +882,7 @@
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
     ;; don't render if the (:unrendered) option has been passed
-    `(let* ((,result ,(if unrendered form `(render-varrays ,form :parallel t)))
+    `(let* ((,result ,(if unrendered form `(render-varrays ,form)))
             (,printout ,(when (and (or print-to output-printed))
                           ;; don't print the results of assignment unless the :print-assignment
                           ;; option is set, as done when compiling a ⎕← expression
@@ -1118,9 +1121,6 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (scalar-axes-present (and (listp function) (eql 'apl-fn-s (first function))
-                                   (third function) (listp (third function))
-                                   (eql 'apply-scalar (first (third function)))))
          (axes-present (and (listp function) (eql 'apl-fn-s (first function))
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
@@ -1144,56 +1144,6 @@
                `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
                          ,function ,arg-list))))))
-
-(defun join-fns (form &optional wrap)
-  "Compose multiple successive scalar functions into a larger scalar function. Used to expand (a-call)."
-  (when (and (listp form) (eql 'a-call (first form)))
-    (destructuring-bind (_ function &rest args) form
-      (declare (ignore _))
-      (if (and (listp function) (eql 'apl-fn-s (first function)))
-          (if (or (and (numberp (first args)) (listp (second args))
-                       (eql 'a-call (first (second args)))
-                       (listp (second (second args))) (eql 'apl-fn-s (first (second (second args)))))
-                  (and (numberp (second args)) (listp (first args))
-                       (eql 'a-call (first (first args)))
-                       (listp (second (first args))) (eql 'apl-fn-s (first (second (first args)))))
-                  (and (not (second args)) (listp (first args))
-                       (eql 'a-call (first (first args)))
-                       (listp (second (first args))) (eql 'apl-fn-s (first (second (first args))))))
-              ;; need condition for one argument
-              (let ((to-wrap (lambda (fform)
-                               (if (not wrap) (let ((arg-sym (gensym)))
-                                                (values `(lambda (,arg-sym)
-                                                           (funcall ,function ,(if (numberp (first args))
-                                                                                   (first args) fform)
-                                                                    ,@(when (second args)
-                                                                        (list (if (numberp (second args))
-                                                                                  (second args) fform)))))
-                                                        arg-sym))
-                                   (funcall wrap `(funcall ,function ,(if (numberp (first args))
-                                                                          (first args) fform)
-                                                           ,@(if (second args)
-                                                                 (list (if (numberp (second args))
-                                                                           (second args) fform)))))))))
-                (join-fns (if (numberp (first args))
-                              (second args) (first args))
-                          to-wrap))
-              (if (and wrap (numberp (first args)) (not (second args)))
-                  (multiple-value-bind (wrapped arg-symbol)
-                      (funcall wrap (list 'funcall function (if (numberp (first args))
-                                                                (first args) :arg)))
-                    `(apply-scalar ,(subst arg-symbol :arg wrapped) ,(first args)))
-                  (let ((argument (if (numberp (first args))
-                                      (if (second args) (second args) (first args))
-                                      (when (numberp (second args))
-                                        (first args)))))
-                    (when (and argument wrap)
-                      (multiple-value-bind (wrapped arg-symbol)
-                          (funcall wrap (append (list 'funcall function (if (numberp (first args))
-                                                                            (first args) :arg))
-                                                (when (second args) (list (if (numberp (second args))
-                                                                              (second args) :arg)))))
-                        `(apply-scalar ,(subst arg-symbol :arg wrapped) ,argument))))))))))
 
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
@@ -1222,8 +1172,7 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro apl-fn-s (glyph &rest initial-args)
   "Wrap a glyph referencing a scalar lexical function, with axes handled appropriately and defaulting to the (apl-fn) handling of ."
-  (let ((symbol (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*))
-        (args (gensym)) (axes-sym (gensym))
+  (let ((args (gensym)) (axes-sym (gensym))
         (axes (when (listp (first initial-args))
                 (first initial-args))))
     (if axes `(let ((,axes-sym ,@(when axes (list axes))))
@@ -1237,20 +1186,24 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun build-call-form (glyph-char &optional args axes)
   "Format a function to be called within generated APL code."
-  (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
-                                                                  *package-name-string*))
-                                         :get-metadata)
-                    (error () nil)))
-         (is-scalar (of-lexicons *april-idiom* glyph-char
-                                 (if (eq :dyadic args) :functions-scalar-dyadic
-                                     :functions-scalar-monadic))))
-    (append (list (if is-scalar 'apl-fn-s 'apl-fn)
-                  (intern (string glyph-char) *package-name-string*))
-            (getf fn-meta :implicit-args)
-            (when (and axes (or (getf fn-meta :axes)
-                                (eq :dyadic args)))
-              (list (if is-scalar `(apply-scalar #'- ,(caar axes) index-origin)
-                        (cons 'list (first axes))))))))
+  (if (not (characterp glyph-char))
+      glyph-char
+      (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                                      *package-name-string*))
+                                             :get-metadata)
+                        (error () nil)))
+             (is-scalar (of-lexicons *april-idiom* glyph-char
+                                     (if (eq :dyadic args) :functions-scalar-dyadic
+                                         :functions-scalar-monadic))))
+        ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
+        ;; there's a left argument or not
+        (append (list (if is-scalar 'apl-fn-s 'apl-fn)
+                      (intern (string glyph-char) *package-name-string*))
+                (getf fn-meta :implicit-args)
+                (when (and axes (or (getf fn-meta :axes)
+                                    (eq :dyadic args)))
+                  (list (if is-scalar `(apply-scalar #'- (render-varrays ,(caar axes)) index-origin)
+                            (cons 'list (list (cons 'render-varrays (first axes)))))))))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
@@ -1324,13 +1277,6 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro scalar-function (function &rest meta)
   "Wrap a scalar function. This is a passthrough macro used by the scalar composition system in (a-call)."
   (let ((args (gensym)) (ax-sym (gensym))
-        ;; (is-virtual (getf meta :va))
-        (function (if (or (not (listp function))
-                          (not (eql 'apl-fn (first function)))
-                          (>= 2 (length function)))
-                      function (list (first function) (second function))))
-        (axes (and (listp function) (eql 'apl-fn (first function))
-                   (third function)))
         (fn-quoted (if (not (symbolp function)) function (list 'function function))))
     `(lambda (&rest ,args)
        (let ((,ax-sym (third ,args)))
@@ -1656,8 +1602,6 @@ It remains here as a standard against which to compare methods for composing APL
          (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
          (tags-matching (loop :for tag :in (symbol-value branches-sym)
                            :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
-    ;; create an lparallel kernel if none is present; this is done at runtime so April's compilation
-    ;; doesn't entail the creation of a kernel
     (flet ((process-tags (form)
              (loop :for sub-form :in form
                 :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
