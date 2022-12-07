@@ -85,7 +85,7 @@
 (defgeneric get-reduced (varray function)
   (:documentation "Get the result of an array reduced using a particular function."))
 
-(defgeneric render (varray &rest params)
+(defgeneric render (varray)
   (:documentation "Render an array into memory."))
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
@@ -158,16 +158,14 @@
 (defmethod prototype-of ((item t))
   "The prototype representation of an item is returned by the (apl-array-prototype) function."
   (if (listp item) ;; lists, used to implement things like namespaces, have a nil prototype
-      nil (if (and (arrayp item)
-                 (array-displacement item)
-                 (vectorp (array-displacement item))
-                 (listp (aref (array-displacement item) 0))
-                 (member :empty-array-prototype (aref (array-displacement item) 0)))
-            ;; if an empty array prototype has been stored, retrieve it
-            (getf (aref (array-displacement item) 0) :empty-array-prototype)
-            (if (and (arrayp item) (zerop (array-rank item)))
-                (aplesque:make-empty-array (disclose item))
-                (apl-array-prototype item)))))
+      nil (let ((displacement (and (arrayp item) (array-displacement item))))
+            (if (and displacement (listp (aref displacement 0))
+                     (member :empty-array-prototype (aref displacement 0)))
+                ;; if an empty array prototype has been stored, retrieve it
+                (getf (aref displacement 0) :empty-array-prototype)
+                (if (and (arrayp item) (zerop (array-rank item)))
+                    (aplesque:make-empty-array (disclose item))
+                    (apl-array-prototype item))))))
 
 (defmethod prototype-of ((varray varray))
   "The default prototype for a virtual array is 0."
@@ -306,7 +304,7 @@
 (defmethod metadata-of ((varray varray))
   (varray-meta varray))
 
-(defmethod render ((item t) &rest params)
+(defmethod render ((item t))
   "Rendering a non-virtual array object simply returns the object."
   item)
 
@@ -472,7 +470,7 @@
 ;; (format t "#x~8,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
 ;; (format t "#x~8,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
-(defun get-indexing-function (typekey factors shape-vector sbesize interval divisions
+(defun get-indexing-function (factors shape-vector sbesize interval divisions
                               total-size index-type encoding-type to-call)
   ;; (print (list :gi typekey factors shape-vector sbesize interval divisions
   ;;              total-size index-type encoding-type))
@@ -537,7 +535,7 @@
               (gethash (list index-type) flat-indexer-table))
           default-indexer)))
 
-(defmethod render ((varray varray) &rest params)
+(defmethod render ((varray varray))
   ;; (declare (optimize (speed 3)))
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
@@ -550,22 +548,18 @@
                          t))
          (d-index-type (when (and (> output-rank 0)
                                   (not (eq t index-type)))
-                         (let ((fraction (floor index-type output-rank)))
-                           (loop :for w :in '(8 16 32 64)
-                                 :when (< (getf metadata :max-dim)
-                                          (expt 2 w))
-                                   :return w))))
+                         (loop :for w :in '(8 16 32 64)
+                               :when (< (getf metadata :max-dim)
+                                        (expt 2 w))
+                                 :return w)))
          (encoding (when d-index-type
                      ;; encoded integer size that can hold the encoded dimensions,
                      ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
                      ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                      ;; 4x16 or 2x32 dimension indices
-                     (let ((fraction (floor index-type output-rank)))
-                       (loop :for w :in '(8 16 32 64)
-                             :when (>= w (* output-rank d-index-type))
-                               :return w))))
-         (type-key (intern (format nil "~a~a" (cond (encoding "E")
-                                                    (t "I"))
+                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank d-index-type))
+                           :return w)))
+         (type-key (intern (format nil "~a~a" (cond (encoding "E") (t "I"))
                                    (or encoding index-type))
                            "KEYWORD"))
          (default-generator) (to-subrender))
@@ -638,7 +632,7 @@
                                                            :element-type (list 'unsigned-byte
                                                                                d-index-type))))
                    (process-pair (get-indexing-function
-                                  type-key dfactors shape-vector sbesize interval divisions
+                                  dfactors shape-vector sbesize interval divisions
                                   total-size d-index-type encoding render-index))
                    (process (or (and (not default-generator)
                                      (first process-pair))
@@ -681,7 +675,7 @@
                              ;; handle the case of {,/⍵}/3⍴⊂⍳3
                              rendered (enclose rendered))))
                      (lambda (item)
-                       (let ((rendered (apply #'render item params)))
+                       (let ((rendered (render item)))
                          (if (or (not (shape-of rendered))
                                  (typep varray 'vader-mix) ;; put these in a superclass
                                  (typep varray 'vader-pick))

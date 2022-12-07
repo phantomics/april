@@ -70,8 +70,6 @@
                           ;; the sub-base-width is not included in the key list
                           (push `(gethash ',(reverse key-ints) ,table)
                                 output)))))
-      ;; (loop :for form :in forms :do (let ((vars (first form)))
-      ;;                                 (process-var-range (second form) vars)))
       (process-var-range function params)
       `(let ((,table (make-hash-table :test #'equalp)))
          (setf ,@output)

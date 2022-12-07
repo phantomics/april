@@ -797,8 +797,7 @@
                ;; handle assignments within namespaces, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
                       (render-varrays ,(append symbol (list :assign value)
-                                               (if by (list :calling by)))
-                                      :parallel t)))
+                                               (if by (list :calling by))))))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
@@ -1107,9 +1106,9 @@
                                                            ix (1+ ix)))
           output))))
 
-(defun render-varrays (item &rest params)
+(defun render-varrays (item)
   (if (not (typep item 'varray))
-      item (apply #'render item params)))
+      item (render item)))
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."

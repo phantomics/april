@@ -1900,28 +1900,7 @@
 (defun permute-axes (omega alpha)
   "Permute an array according to a given new order of axes. If axis order indices are repeated, a diagonal traversal of the dimensions with repeated order indices is indicated."
   (let* ((idims (dims omega)) (irank (rank omega))
-         (odims) (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
-         (indices (if alpha (progn (setq odims (loop :for i :below irank :collect nil))
-                                   (if (vectorp alpha)
-                                       (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                             :do (setf (nth i odims) (if (nth i odims)
-                                                                         (min (nth i odims)
-                                                                              (nth ix idims))
-                                                                         (nth ix idims)))
-                                                 ;; if a duplicate position is found, a diagonal section
-                                                 ;; is being performed
-                                                 (if (not (member i positions))
-                                                     (progn (push i positions)
-                                                            (push id idims-reduced)))
-                                                 ;; collect possible diagonal indices into diagonal list
-                                                 (if (assoc i diagonals)
-                                                     (push ix (rest (assoc i diagonals)))
-                                                     (push (list i ix) diagonals))
-                                             :collect i)
-                                       (progn (setq odims idims
-                                                    positions (cons alpha positions))
-                                              (list alpha))))
-                      (reverse (iota irank))))
+         (odims) (positions) (diagonals) (idims-reduced)
          (odims (remove nil odims))
          ;; remove indices not being used for diagonal section from diagonal list
          ;; the idims-reduced are a set of the original dimensions without dimensions being elided
