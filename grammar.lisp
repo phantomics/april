@@ -1093,27 +1093,11 @@
                        `(setq output-stream ,(intern symbol-string package-string))
                        (error "Invalid assignment to ⎕OST.")))
                  (error "Invalid assignment to ⎕OST."))))
-        ((and (listp symbol) (eql 'achoose (first symbol)))
-         ;; compose indexed assignments like x[;1 2 3]←5 ;; TO-DELETE once lazy impl finished
-         (let ((val (gensym)) (var-sym (second symbol))
-               (out1 (gensym)) (out2 (gensym)))
-           (if (and (listp var-sym) (eql 'nspath (first var-sym)))
-               `(a-set ,var-sym ,value
-                       ,@(if (third symbol) (list :axes (list (rest (third (third symbol)))))))
-               `(let ((,val (render-varrays ,value)))
-                  (multiple-value-bind (,out1 ,out2)
-                      ,(append symbol (list :set val :modify-input t)
-                               (when function `(:set-by (lambda (item item2)
-                                                          (render-varrays
-                                                           (a-call ,function item item2))))))
-                    (when ,out2 (setf ,var-sym ,out2))
-                    ,out1)))))
         ((and (listp symbol) (eql 'make-virtual (first symbol))
               (listp (getf (cddr symbol) :base))
               (eql 'nspath (first (getf (cddr symbol) :base))))
          ;; compose indexed namespace assignments like myns.aa.bb[2 4]←⎕NS⍬
-         (let ((val (gensym)) (var-sym (getf (cddr symbol) :base))
-               (out1 (gensym)) (out2 (gensym)))
+         (let ((var-sym (getf (cddr symbol) :base)))
            `(a-set ,var-sym ,value
                    ,@(when (getf (cddr symbol) :argument)
                        (list :axes (getf (cddr symbol) :argument))))))
@@ -1121,13 +1105,7 @@
          ;; compose selective assignments like (3↑x)←5
          (let* ((selection-form symbol)
                 (prime-function (second selection-form))
-                (possible-prime-passthrough (and (listp (third selection-form))
-                                                 (eql 'a-call (first (third selection-form)))
-                                                 (or (symbolp prime-function)
-                                                     (and (listp prime-function)
-                                                          (member (first prime-function) '(inws inwsd)))
-                                                     (equalp prime-function '(apl-fn '⊢)))))
-                (selection-axes) (assign-sym) (inverted-fn)
+                (selection-axes) (assign-sym)
                 (item (gensym)))
            (labels ((set-assn-sym (form)
                       ;; get the symbol referencing the object to be reassigned,
@@ -1137,58 +1115,16 @@
                           (setf assign-sym (third form))
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
-                              (set-assn-sym (third form))   ;; TODO: remove non-lazy logic here
-                              (if (and (listp (third form)) ;; once lazy impl is complete
-                                       (eql 'achoose (first (third form))))
-                                  (setf assign-sym (second (third form))
-                                        selection-axes (third (third form)))
-                                  (when (and (listp (third form))
-                                             (eql 'make-virtual (first (third form))))
-                                    (setf assign-sym (getf (cddr (third form)) :base)
-                                          selection-axes
-                                          `(mapcar
-                                            (lambda (array)
-                                              (if array
-                                                  (apply-scalar #'- (render-varrays array)
-                                                                index-origin)))
-                                            ,(getf (cddr (third form)) :argument))))))))
-                    (reverse-asel-function (form &optional (wrap #'identity))
-                      ;; (print (list :ff form))
-                      (if (and (listp form) (eql 'a-call (first form)))
-                          ;; TODO: functions cannot be IDed in cases like
-                          ;; {e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9 where a function is locally aliased
-                          (destructuring-bind (function-form arg1 &rest arg2-rest) (rest form)
-                            ;(print (list :abc form params))
-                            (let* ((in-sym (when (listp function-form)
-                                             (find-symbol (format nil "APRIL-LEX-FN-~a"
-                                                                  (second function-form)))))
-                                   (fn-sym (if (fboundp in-sym)
-                                               (symbol-function in-sym)
-                                               (when (and (listp function-form)
-                                                          (member (first function-form)
-                                                                  '(inws inwsd)))
-                                                 (let ((sym (find-symbol
-                                                             (string (second function-form))
-                                                             space)))
-                                                   (when (fboundp sym)
-                                                     (symbol-function sym))))))
-                                   (fn-meta (when fn-sym
-                                              (apply (apply fn-sym (cddr function-form))
-                                                     (cons :get-metadata
-                                                           (when arg2-rest (list nil)))))))
-                              (if (not (and fn-meta (getf fn-meta :lexical-reference)
-                                            (position (getf fn-meta :lexical-reference)
-                                                      "⊃⌷" :test #'char=))) ; ↑ ↓ / \\
-                                  (reverse-asel-function
-                                   arg1 (lambda (item)
-                                          (funcall wrap (append (list 'a-call function-form item)
-                                                                arg2-rest))))
-                                  (reverse-asel-function
-                                   arg1 (lambda (item)
-                                          (append (list 'a-call function-form (funcall wrap item))
-                                                  arg2-rest))))))
-                          ;; TODO: add argument-isolating form here for full lazy mode
-                          (funcall wrap (list 'identity form)))))
+                              (set-assn-sym (third form))
+                              (when (and (listp (third form))
+                                         (eql 'make-virtual (first (third form))))
+                                (setf assign-sym (getf (cddr (third form)) :base)
+                                      selection-axes
+                                      `(mapcar (lambda (array)
+                                                 (when array
+                                                   (apply-scalar #'- (render-varrays array)
+                                                                 index-origin)))
+                                               ,(getf (cddr (third form)) :argument))))))))
              
              (set-assn-sym selection-form)
              (setf selection-form (subst item assign-sym selection-form :test #'equalp))

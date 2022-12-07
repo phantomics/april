@@ -31,7 +31,7 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 ### LispNYC April compiler presentation
 [Video outline and panel discussion showing early April design](https://youtube.com/watch?v=AUEIgfj9koc)
 
-### ELS 2022 paper
+### European Lisp Symposium 2022 paper
 [April: APL Compiling to Common Lisp](https://doi.org/10.5281/zenodo.6337140)
 
 ## Compatibility with Common Lisp Implementations

@@ -4,7 +4,7 @@
 
 <!-- /TITLE -->
 
-### Emacs exension for April interaction
+### Emacs extension for April interaction
 
 This is an extension to Emacs implementing an April REPL. With additional Emacs extensions and April libraries, a wide range of interactions between the two systems may be possible.
 
