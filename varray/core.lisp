@@ -272,13 +272,12 @@
 
 (defmethod generator-of ((array array) &optional indexers params)
   (multiple-value-bind (composite-indexer is-not-defaulting)
-      (join-indexers indexers (getf params :indexer-key))
+      (join-indexers indexers (getf params :index-type))
     (values
      (let ((array-size (array-total-size array)))
-       (if (and is-not-defaulting (getf params :indexer-key)
-                (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
-           (let* ((factors (get-dimensional-factors (shape-of array) t))
-                  (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD")))
+       (if (and is-not-defaulting (getf params :index-type)
+                (member (getf params :index-type) '(8 16 32 64) :test #'=))
+           (let ((factors (get-dimensional-factors (shape-of array) t)))
              (multiple-value-bind (opt-converter default-converter)
                  (decode-rmi (getf params :index-width) (getf params :index-type)
                              (array-rank array) factors)
@@ -571,18 +570,13 @@
                     ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                     ;; 4x16 or 2x32 dimension indices
                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank coordinate-type))
-                          :return w)))
-         (type-key (intern (format nil "~a~a" (cond (en-type "E") (t "I"))
-                                   (or en-type linear-index-type))
-                           "KEYWORD")))
+                          :return w))))
     
     (when (getf (varray-meta varray) :gen-meta)
       (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) coordinate-type
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
             (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) en-type))
 
-    (setf (getf metadata :index-width) linear-index-type
-          (getf metadata :indexer-key) type-key)))
+    (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
   (specify varray)
@@ -666,16 +660,13 @@
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
                                     lpchannel (funcall process d)))))
-              (loop :repeat threaded-count
-                    :do (lparallel::receive-result lpchannel))
+              (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
               output))
         (funcall (if (subrendering-p varray)
                      (lambda (item)
                        (let ((rendered (render item)))
                          ;; (print (list :rr rendered item varray
                          ;;              (subrendering-p varray)))
-                         ;; (if (typep varray 'vacomp-reduce)
-                         ;;     (push varray april::ggg))
                          (if (and (zerop (rank-of rendered))
                                   (or (not (arrayp rendered))
                                       ;; (print (subrendering-p varray))
