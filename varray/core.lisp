@@ -536,9 +536,9 @@
           default-indexer)))
 
 (defmethod specify ((varray varray))
-  (let* ((metadata (metadata-of varray))
-         (output-shape (shape-of varray))
+  (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
+         (metadata (metadata-of varray))
          (linear-index-type (or (when (getf metadata :max-size)
                                   (loop :for w :in '(8 16 32 64)
                                         :when (< (getf metadata :max-size) (expt 2 w))
@@ -549,64 +549,35 @@
                             (loop :for w :in '(8 16 32 64)
                                   :when (< (getf metadata :max-dim) (expt 2 w))
                                     :return w)))
-         (encoding (when coordinate-type
-                     ;; encoded integer size that can hold the encoded dimensions,
-                     ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
-                     ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
-                     ;; 4x16 or 2x32 dimension indices
-                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank coordinate-type))
-                           :return w)))
-         (type-key (intern (format nil "~a~a" (cond (encoding "E") (t "I"))
-                                   (or encoding linear-index-type))
+         (en-type (when coordinate-type
+                    ;; encoded integer size that can hold the encoded dimensions,
+                    ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
+                    ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
+                    ;; 4x16 or 2x32 dimension indices
+                    (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank coordinate-type))
+                          :return w)))
+         (type-key (intern (format nil "~a~a" (cond (en-type "E") (t "I"))
+                                   (or en-type linear-index-type))
                            "KEYWORD")))
     
     (when (getf (varray-meta varray) :gen-meta)
       (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) coordinate-type
             (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
+            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) en-type))
 
     (setf (getf metadata :index-width) linear-index-type
-          (getf metadata :indexer-key) type-key)
-    
-    ))
+          (getf metadata :indexer-key) type-key)))
 
 (defmethod render ((varray varray))
   ;; (declare (optimize (speed 3)))
-  ;; (specify varray)
+  (specify varray)
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
          (metadata (metadata-of varray))
          (indexer)
-         (index-type (or (when (getf metadata :max-size)
-                           (loop :for w :in '(8 16 32 64) :when (< (getf metadata :max-size)
-                                                                   (expt 2 w))
-                                 :return w))
-                         t))
-         (d-index-type (when (and (> output-rank 0)
-                                  (not (eq t index-type)))
-                         (loop :for w :in '(8 16 32 64)
-                               :when (< (getf metadata :max-dim)
-                                        (expt 2 w))
-                                 :return w)))
-         (encoding (when d-index-type
-                     ;; encoded integer size that can hold the encoded dimensions,
-                     ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
-                     ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
-                     ;; 4x16 or 2x32 dimension indices
-                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank d-index-type))
-                           :return w)))
-         (type-key (intern (format nil "~a~a" (cond (encoding "E") (t "I"))
-                                   (or encoding index-type))
-                           "KEYWORD"))
+         (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
          (default-generator) (to-subrender))
-    
-    (when (getf (varray-meta varray) :gen-meta)
-      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) d-index-type
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
-
-    (setf (getf metadata :index-width) index-type
-          (getf metadata :indexer-key) type-key)
 
     (multiple-value-bind (this-generator is-not-defaulting)
         (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta)))
@@ -632,16 +603,14 @@
               (if out-meta (make-array output-shape :displaced-to out-meta)
                   (make-array output-shape :element-type (or (etype-of varray) t))))
             (let* ((output (make-array output-shape :element-type (etype-of varray)))
-                   (dfactors (when encoding (get-dimensional-factors output-shape t)))
+                   (dfactors (when en-type (get-dimensional-factors output-shape t)))
                    ;; the decoder function converts non-row-major index formats like
                    ;; sub-byte-encoded coordinate vectors back to row-major indices
                    ;; to reference elements in the output array
-                   ;; (decoder (if (or default-generator (not encoding)) ;; TOGGLE
-                   ;;              #'identity (decode-rmi encoding d-index-type output-rank dfactors)))
                    (render-index
                      (multiple-value-bind (decoder default-decoder)
-                         (if (or default-generator (not encoding)) ;; TOGGLE
-                             #'identity (decode-rmi encoding d-index-type output-rank dfactors))
+                         (if (or default-generator (not en-type)) ;; TOGGLE
+                             #'identity (decode-rmi en-type coordinate-type output-rank dfactors))
                        (let ((decoder (or decoder default-decoder)))
                          (if to-subrender
                              (lambda (i)
@@ -662,13 +631,13 @@
                    (total-size (size-of varray))
                    (interval (/ total-size sbesize *workers-count*))
                    (lpchannel (lparallel::make-channel))
-                   (shape-vector (when (and d-index-type output-rank)
+                   (shape-vector (when (and coordinate-type output-rank)
                                    (make-array output-rank :initial-contents (reverse output-shape)
                                                            :element-type (list 'unsigned-byte
-                                                                               d-index-type))))
+                                                                               coordinate-type))))
                    (process-pair (get-indexing-function
                                   dfactors shape-vector sbesize interval divisions
-                                  total-size d-index-type encoding render-index))
+                                  total-size coordinate-type en-type render-index))
                    (process (or (and (not default-generator)
                                      (first process-pair))
                                 (second process-pair)))
@@ -681,13 +650,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if (or (and (typep varray 'vader-composing)
-                                     (not (vacmp-threadable varray)))
-                                ;; don't thread when rendering the output of operators composed
-                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                      :never (null (lparallel.kernel::running-category worker))))
-                            ;; t
+                    :do (if ;; (or (and (typep varray 'vader-composing)
+                            ;;          (not (vacmp-threadable varray)))
+                            ;;     ;; don't thread when rendering the output of operators composed
+                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                            ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                            ;;           :never (null (lparallel.kernel::running-category worker))))
+                            t
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task
