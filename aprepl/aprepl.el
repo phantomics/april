@@ -543,7 +543,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 
 ;; (slime-eval-async
 ;;     `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                    "(asdf:system-registered-p 'april)"))
+;;                                    "(asdf:find-system 'april nil)"))
 ;;   (lambda (result)
 ;;     (cl-destructuring-bind (out value) result
 ;;       (print value)
@@ -554,7 +554,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 ;;   (message "Trying to load")
 ;;   (slime-eval-async
 ;;       `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                      "(asdf:system-registered-p 'april)"))
+;;                                      "(asdf:find-system 'april nil)"))
 ;;     (lambda (result)
 ;;       (cl-destructuring-bind (out value) result
 ;;         (print (list :res result value (upcase value)))
@@ -584,7 +584,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 ;;   (if (slime-connected-p)
 ;;       (slime-eval-async
 ;;           `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                          "(asdf:system-registered-p 'april)"))
+;;                                          "(asdf:find-system 'april nil)"))
 ;;         (lambda (result)
 ;;           (cl-destructuring-bind (out value) result
 ;;             (print (list :res result value (upcase value)))
@@ -602,7 +602,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
   "Check whether it's possible to run ApREPL, i.e. make sure that Slime is running and April's system is loaded."
   (if (slime-connected-p)
       (slime-eval-async
-          `(swank:eval-and-grab-output "(asdf:system-registered-p 'april)")
+          `(swank:eval-and-grab-output "(asdf:find-system 'april nil)")
         (lambda (result)
           (cl-destructuring-bind (out value) result
             (if (string= "NIL" (upcase value))

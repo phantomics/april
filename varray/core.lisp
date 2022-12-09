@@ -85,8 +85,11 @@
 (defgeneric get-reduced (varray function)
   (:documentation "Get the result of an array reduced using a particular function."))
 
+(defgeneric specify (varray)
+  (:documentation "Specify calculation methods for a virtual array's transformation."))
+
 (defgeneric render (varray)
-  (:documentation "Render an array into memory."))
+  (:documentation "Render a virtual array into memory."))
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
   "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions (mostly found in combinatorics.lisp) which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
@@ -277,10 +280,7 @@
            (let* ((factors (get-dimensional-factors (shape-of array) t))
                   (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD")))
              (multiple-value-bind (opt-converter default-converter)
-                 (decode-rmi (if (getf params :encoding) (getf params :encoding)
-                                 (getf params :index-width))
-                             (if (getf params :encoding) (getf params :index-width)
-                                 (getf params :index-type))
+                 (decode-rmi (getf params :index-width) (getf params :index-type)
                              (array-rank array) factors)
                ;; (print (list :op opt-converter default-converter))
                ;; TODO: below is a super-hacky way to handle different naming schemes
@@ -535,8 +535,44 @@
               (gethash (list index-type) flat-indexer-table))
           default-indexer)))
 
+(defmethod specify ((varray varray))
+  (let* ((metadata (metadata-of varray))
+         (output-shape (shape-of varray))
+         (output-rank (length output-shape))
+         (linear-index-type (or (when (getf metadata :max-size)
+                                  (loop :for w :in '(8 16 32 64)
+                                        :when (< (getf metadata :max-size) (expt 2 w))
+                                          :return w))
+                                t))
+         (coordinate-type (when (and (> output-rank 0)
+                                     (not (eq t linear-index-type)))
+                            (loop :for w :in '(8 16 32 64)
+                                  :when (< (getf metadata :max-dim) (expt 2 w))
+                                    :return w)))
+         (encoding (when coordinate-type
+                     ;; encoded integer size that can hold the encoded dimensions,
+                     ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
+                     ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
+                     ;; 4x16 or 2x32 dimension indices
+                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank coordinate-type))
+                           :return w)))
+         (type-key (intern (format nil "~a~a" (cond (encoding "E") (t "I"))
+                                   (or encoding linear-index-type))
+                           "KEYWORD")))
+    
+    (when (getf (varray-meta varray) :gen-meta)
+      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) coordinate-type
+            (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
+            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
+
+    (setf (getf metadata :index-width) linear-index-type
+          (getf metadata :indexer-key) type-key)
+    
+    ))
+
 (defmethod render ((varray varray))
   ;; (declare (optimize (speed 3)))
+  ;; (specify varray)
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
          (metadata (metadata-of varray))
@@ -573,8 +609,7 @@
           (getf metadata :indexer-key) type-key)
 
     (multiple-value-bind (this-generator is-not-defaulting)
-        (generator-of varray nil (list :indexer-key type-key :index-width d-index-type
-                                       :encoding encoding))
+        (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta)))
       (setf indexer this-generator
             default-generator (not is-not-defaulting)))
 
@@ -646,13 +681,13 @@
               ;;                (vacmp-threadable varray))))
               ;; (print (list :ts to-subrender (setf april::ggt varray)))
               (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;          (not (vacmp-threadable varray)))
-                            ;;     ;; don't thread when rendering the output of operators composed
-                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;           :never (null (lparallel.kernel::running-category worker))))
-                            t
+                    :do (if (or (and (typep varray 'vader-composing)
+                                     (not (vacmp-threadable varray)))
+                                ;; don't thread when rendering the output of operators composed
+                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                      :never (null (lparallel.kernel::running-category worker))))
+                            ;; t
                             (funcall (funcall process d))
                             (progn (incf threaded-count)
                                    (lparallel::submit-task

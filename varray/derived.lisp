@@ -3329,8 +3329,8 @@
                                (- argument (vads-io varray))))
                          (not (or (not (vads-argument varray))
                                   (vaperm-is-diagonal varray)))
-                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
-                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)
                          assigning))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
