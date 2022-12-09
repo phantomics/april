@@ -325,6 +325,17 @@
                                 (> 7 (second type))
                                 (second type))))))
 
+(defun sub-byte-element-type (varray)
+  "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
+  (let ((type (etype-of varray)))
+    (or (and (eql 'bit type) 1)
+        #+clasp (case type (ext:byte2 2)
+                      (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
+        #+(not clasp) (and (listp type)
+                           (eql 'unsigned-byte (first type))
+                           (> 7 (second type))
+                           (second type)))))
+
 (defmethod generator-of ((varray varray) &optional indexers params)
   (let ((composite-indexer (join-indexers indexers t))
         (this-indexer (indexer-of varray)))
@@ -470,16 +481,22 @@
 ;; (format t "#x~8,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
 ;; (format t "#x~8,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
-(defun get-indexing-function (factors shape-vector sbesize interval divisions
-                              total-size index-type encoding-type to-call)
-  ;; (print (list :gi typekey factors shape-vector sbesize interval divisions
-  ;;              total-size index-type encoding-type))
+(defun get-indexing-function (varray factors divisions to-call)
   ;; TODO: when encoded indexing is disabled, the following will fail:
   ;; (april::april-f (with (:space array-lib-space)) "(2 1)(2 1)(2 1)(2 1) from ta4")
   ;; why does this happen?
-  (let* ((encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
-         (incrementer (when encoding-type (increment-encoded encoding-type index-type
-                                                             shape-vector)))
+  (let* ((metadata (metadata-of varray))
+         (enco-type (getf (rest (getf metadata :gen-meta)) :index-width))
+         (coord-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         (output-rank (rank-of varray))
+         (total-size (size-of varray))
+         (shape-vector (when (and coord-type output-rank)
+                         (make-array output-rank :initial-contents (reverse (shape-of varray))
+                                                 :element-type (list 'unsigned-byte coord-type))))
+         (encoder (when enco-type (encode-rmi factors enco-type coord-type)))
+         (incrementer (when enco-type (increment-encoded enco-type coord-type shape-vector)))
+         (sbesize (or (sub-byte-element-type varray) 1))
+         (interval (/ total-size sbesize *workers-count*))
          (default-indexer (lambda (index)
                             (lambda ()
                               (let* ((start-intervals (ceiling (* interval index)))
@@ -530,9 +547,8 @@
                                   :do (funcall to-call coords)
                                       (when (< i (1- count))
                                         (setf coords (funcall incrementer coords))))))))))))
-    ;; (print (list :en encoding-type (list index-type encoding-type)))
-    (list (if encoding-type (gethash (list encoding-type index-type) encoded-indexer-table)
-              (gethash (list index-type) flat-indexer-table))
+    (list (if enco-type (gethash (list enco-type coord-type) encoded-indexer-table)
+              (gethash (list coord-type) flat-indexer-table))
           default-indexer)))
 
 (defmethod specify ((varray varray))
@@ -569,7 +585,6 @@
           (getf metadata :indexer-key) type-key)))
 
 (defmethod render ((varray varray))
-  ;; (declare (optimize (speed 3)))
   (specify varray)
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
@@ -619,25 +634,15 @@
                                  (setf (row-major-aref output (funcall decoder i))
                                        (render indexed))))
                              (lambda (i)
-                               (if (functionp indexer)
-                                   (setf (row-major-aref output (funcall decoder i))
-                                         (funcall indexer i))
-                                   (setf (row-major-aref output (funcall decoder i))
-                                         indexer)))))))
+                               (setf (row-major-aref output (funcall decoder i))
+                                     (if (not (functionp indexer))
+                                         indexer (funcall indexer i))))))))
                    (sbsize (sub-byte-element-size output))
                    (sbesize (if sbsize (/ 64 sbsize) 1))
                    (wcadj *workers-count*)
                    (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
-                   (total-size (size-of varray))
-                   (interval (/ total-size sbesize *workers-count*))
                    (lpchannel (lparallel::make-channel))
-                   (shape-vector (when (and coordinate-type output-rank)
-                                   (make-array output-rank :initial-contents (reverse output-shape)
-                                                           :element-type (list 'unsigned-byte
-                                                                               coordinate-type))))
-                   (process-pair (get-indexing-function
-                                  dfactors shape-vector sbesize interval divisions
-                                  total-size coordinate-type en-type render-index))
+                   (process-pair (get-indexing-function varray dfactors divisions render-index))
                    (process (or (and (not default-generator)
                                      (first process-pair))
                                 (second process-pair)))
