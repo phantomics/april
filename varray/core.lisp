@@ -85,8 +85,11 @@
 (defgeneric get-reduced (varray function)
   (:documentation "Get the result of an array reduced using a particular function."))
 
+(defgeneric specify (varray)
+  (:documentation "Specify calculation methods for a virtual array's transformation."))
+
 (defgeneric render (varray)
-  (:documentation "Render an array into memory."))
+  (:documentation "Render a virtual array into memory."))
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
   "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions (mostly found in combinatorics.lisp) which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
@@ -220,9 +223,11 @@
 
 (defmethod indexer-of ((item t) &optional params)
   "The indexer for a non-array is its identity."
+  (declare (ignore params))
   item)
 
 (defmethod indexer-of ((array array) &optional params)
+  (declare (ignore params))
   (if (= 0 (array-rank array))
       ;; array
       ;; TODO: this causes tree printing test to fail
@@ -240,8 +245,7 @@
   ;; (print (list :ind indexers type))
   (if (not indexers)
       #'identity
-      (let ((ctype) ;; the type in common
-            (reversed-indexers)
+      (let ((reversed-indexers)
             ;; will default if a type is not specified
             (defaulting (member type '(t nil))))
          (loop :for i :in indexers :while (not defaulting)
@@ -263,39 +267,64 @@
                     index-out))
                 (unless defaulting type)))))
 
+(defun join-indexers2 (params)
+  (if (not (getf params :indexers))
+      #'identity (let* ((icount (length (getf params :indexers)))
+                        (fvector (make-array icount)))
+                   (loop :for i :in (getf params :indexers) :for ix :from 0
+                         :do (setf (aref fvector (- icount 1 ix)) i))
+                   (lambda (index)
+                     (let ((index-out index))
+                       (loop :for f :across fvector :do (setf index-out (funcall f index-out)))
+                       index-out)))))
+
 (defmethod generator-of ((item t) &optional indexers params)
   (declare (ignore indexers params))
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  (multiple-value-bind (composite-indexer is-not-defaulting)
-      (join-indexers indexers (getf params :indexer-key))
-    (values
-     (let ((array-size (array-total-size array)))
-       (if (and is-not-defaulting (getf params :indexer-key)
-                (member (getf params :indexer-key) '(:e8 :e16 :e32 :e64)))
-           (let* ((factors (get-dimensional-factors (shape-of array) t))
-                  (encoded-type (intern (format nil "I~a" (getf params :encoding)) "KEYWORD")))
-             (multiple-value-bind (opt-converter default-converter)
-                 (decode-rmi (if (getf params :encoding) (getf params :encoding)
-                                 (getf params :index-width))
-                             (if (getf params :encoding) (getf params :index-width)
-                                 (getf params :index-type))
-                             (array-rank array) factors)
-               ;; (print (list :op opt-converter default-converter))
-               ;; TODO: below is a super-hacky way to handle different naming schemes
-               ;; for encoding and index width, improve on this
-               ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
-               (let ((converter (or opt-converter default-converter)))
-                 (lambda (index)
-                   ;; (print (list :c converter composite-indexer))
-                   (let ((index-out (funcall converter (funcall composite-indexer index))))
-                     ;; (print (list :in index-out))
-                     (when (< index-out array-size) (row-major-aref array index-out)))))))
-           (lambda (index)
-             (let ((index-out (funcall composite-indexer index)))
-               (when (< index-out array-size) (row-major-aref array index-out))))))
-     is-not-defaulting)))
+  (case (getf params :format) ;; determine indexing method using the current format, not base
+    (:encoded
+     (let* ((array-size (size-of array))
+            (gen-params (getf params :gen-meta))
+            (factors (get-dimensional-factors (shape-of array) t))
+            (decoder (decode-rmi (getf gen-params :index-width) (getf gen-params :index-type)
+                                 (array-rank array) factors))
+            (converter (join-indexers2 params)))
+       ;; (print (list :ff params factors decoder converter array (shape-of array)))
+       (lambda (index)
+         (let ((index-out (funcall decoder (funcall converter index))))
+           (when (< index-out array-size) (row-major-aref array index-out))))))
+    (:linear (let ((converter (join-indexers2 params)))
+               (lambda (index)
+                 (let ((array-size (size-of array))
+                       (index-out (funcall converter index)))
+                   (when (< index-out array-size)
+                     (row-major-aref array index))))))
+    (t (multiple-value-bind (composite-indexer is-not-defaulting)
+           (join-indexers indexers (getf params :index-type))
+         (values
+          (let ((array-size (array-total-size array)))
+            (if (and is-not-defaulting (getf params :index-type)
+                     (member (getf params :index-type) '(8 16 32 64) :test #'=))
+                (let ((factors (get-dimensional-factors (shape-of array) t)))
+                  (multiple-value-bind (opt-converter default-converter)
+                      (decode-rmi (getf params :index-width) (getf params :index-type)
+                                  (array-rank array) factors)
+                    ;; (print (list :op opt-converter default-converter))
+                    ;; TODO: below is a super-hacky way to handle different naming schemes
+                    ;; for encoding and index width, improve on this
+                    ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
+                    (let ((converter (or opt-converter default-converter)))
+                      (lambda (index)
+                        ;; (print (list :c converter composite-indexer))
+                        (let ((index-out (funcall converter (funcall composite-indexer index))))
+                          ;; (print (list :in index-out))
+                          (when (< index-out array-size) (row-major-aref array index-out)))))))
+                (lambda (index)
+                  (let ((index-out (funcall composite-indexer index)))
+                    (when (< index-out array-size) (row-major-aref array index-out))))))
+          is-not-defaulting)))))
 
 (defmethod metadata-of ((item t))
   (declare (ignore item))
@@ -313,17 +342,16 @@
     (or (subrendering-p (vader-base item))
         (subrendering-base (vader-base item)))))
 
-(defun sub-byte-element-size (array)
+(defun sub-byte-element-type (varray)
   "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
-  (and (arrayp array)
-       (let ((type (array-element-type array)))
-         (or (and (eql 'bit type) 1)
-             #+clasp (case type (ext:byte2 2)
-                           (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
-             #+(not clasp) (and (listp type)
-                                (eql 'unsigned-byte (first type))
-                                (> 7 (second type))
-                                (second type))))))
+  (let ((type (etype-of varray)))
+    (or (and (eql 'bit type) 1)
+        #+clasp (case type (ext:byte2 2)
+                      (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
+        #+(not clasp) (and (listp type)
+                           (eql 'unsigned-byte (first type))
+                           (> 7 (second type))
+                           (second type)))))
 
 (defmethod generator-of ((varray varray) &optional indexers params)
   (let ((composite-indexer (join-indexers indexers t))
@@ -398,6 +426,7 @@
                          (the (unsigned-byte +eindex-width+) output)))))))))
   (defun decode-rmi (width element-width rank factors)
     (let ((match (gethash (list width element-width rank) function-table)))
+      ;; (print (list :mm match width element-width rank))
       (values (when match (funcall match factors))
               (lambda (index)
                 (let ((output 0))
@@ -450,7 +479,7 @@
   (loop :for i :below 4 :do (setf (aref 16-bit-factors i) (expt 65536 i)))
   (loop :for i :below 2 :do (setf (aref 32-bit-factors i) (expt 4294967296 i)))
   
-  (defun increment-encoded (width element-width dimensions)
+  (defun incrementer-encoded (width element-width dimensions)
     (let* ((rank (length dimensions))
            (match (gethash (list width element-width rank) function-table)))
       (values (when match (funcall match dimensions))
@@ -467,19 +496,25 @@
                                                     output))))
                     output)))))))
 
-;; (format t "#x~8,'0X" (funcall (increment-encoded :i32 #(2 3 4) 8) #x20001))
-;; (format t "#x~8,'0X" (funcall (increment-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
+;; (format t "#x~8,'0X" (funcall (incrementer-encoded :i32 #(2 3 4) 8) #x20001))
+;; (format t "#x~8,'0X" (funcall (incrementer-encoded 32 8 (make-array 3 :element-type '(unsigned-byte 8) :initial-contents '(2 3 4))) #x20001))
 
-(defun get-indexing-function (factors shape-vector sbesize interval divisions
-                              total-size index-type encoding-type to-call)
-  ;; (print (list :gi typekey factors shape-vector sbesize interval divisions
-  ;;              total-size index-type encoding-type))
+(defun get-indexing-function (varray factors divisions to-call)
   ;; TODO: when encoded indexing is disabled, the following will fail:
   ;; (april::april-f (with (:space array-lib-space)) "(2 1)(2 1)(2 1)(2 1) from ta4")
   ;; why does this happen?
-  (let* ((encoder (when encoding-type (encode-rmi factors encoding-type index-type )))
-         (incrementer (when encoding-type (increment-encoded encoding-type index-type
-                                                             shape-vector)))
+  (let* ((metadata (metadata-of varray))
+         (enco-type (getf (rest (getf metadata :gen-meta)) :index-width))
+         (coord-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         (output-rank (rank-of varray))
+         (total-size (size-of varray))
+         (shape-vector (when (and coord-type output-rank)
+                         (make-array output-rank :initial-contents (reverse (shape-of varray))
+                                                 :element-type (list 'unsigned-byte coord-type))))
+         (encoder (when enco-type (encode-rmi factors enco-type coord-type)))
+         (incrementer (when enco-type (incrementer-encoded enco-type coord-type shape-vector)))
+         (sbesize (or (sub-byte-element-type varray) 1))
+         (interval (/ total-size sbesize *workers-count*))
          (default-indexer (lambda (index)
                             (lambda ()
                               (let* ((start-intervals (ceiling (* interval index)))
@@ -530,158 +565,149 @@
                                   :do (funcall to-call coords)
                                       (when (< i (1- count))
                                         (setf coords (funcall incrementer coords))))))))))))
-    ;; (print (list :en encoding-type (list index-type encoding-type)))
-    (list (if encoding-type (gethash (list encoding-type index-type) encoded-indexer-table)
-              (gethash (list index-type) flat-indexer-table))
+    (list (if enco-type (gethash (list enco-type coord-type) encoded-indexer-table)
+              (gethash (list coord-type) flat-indexer-table))
           default-indexer)))
 
+(defmethod specify ((varray varray))
+  (let* ((metadata (metadata-of varray))
+         (output-rank (rank-of varray))
+         (linear-index-type (or (when (getf metadata :max-size)
+                                  (loop :for w :in '(8 16 32 64)
+                                        :when (< (getf metadata :max-size) (expt 2 w))
+                                          :return w))
+                                t))
+         (coordinate-type (when (and (> output-rank 1)
+                                     (not (eq t linear-index-type)))
+                            (loop :for w :in '(8 16 32 64)
+                                  :when (< (getf metadata :max-dim) (expt 2 w))
+                                    :return w)))
+         (encoding-type (when coordinate-type
+                          ;; encoded integer size that can hold the encoded dimensions,
+                          ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
+                          ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
+                          ;; 4x16 or 2x32 dimension indices
+                          (loop :for w :in '(16 32 64) :when (>= w (* (or (getf metadata :max-rank)
+                                                                          output-rank)
+                                                                      coordinate-type))
+                                :return w))))
+
+    ;; (print (list :out metadata output-rank coordinate-type encoding-type))
+    
+    (when (getf metadata :gen-meta)
+      (setf (getf (rest (getf metadata :gen-meta)) :index-type) coordinate-type
+            (getf (rest (getf metadata :gen-meta)) :index-width) encoding-type))
+
+    (setf (getf metadata :index-width) linear-index-type)))
+
 (defmethod render ((varray varray))
-  ;; (declare (optimize (speed 3)))
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
+         (spec (specify varray))
          (metadata (metadata-of varray))
-         (indexer)
-         (index-type (or (when (getf metadata :max-size)
-                           (loop :for w :in '(8 16 32 64) :when (< (getf metadata :max-size)
-                                                                   (expt 2 w))
-                                 :return w))
-                         t))
-         (d-index-type (when (and (> output-rank 0)
-                                  (not (eq t index-type)))
-                         (loop :for w :in '(8 16 32 64)
-                               :when (< (getf metadata :max-dim)
-                                        (expt 2 w))
-                                 :return w)))
-         (encoding (when d-index-type
-                     ;; encoded integer size that can hold the encoded dimensions,
-                     ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
-                     ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
-                     ;; 4x16 or 2x32 dimension indices
-                     (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank d-index-type))
-                           :return w)))
-         (type-key (intern (format nil "~a~a" (cond (encoding "E") (t "I"))
-                                   (or encoding index-type))
-                           "KEYWORD"))
+         (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
          (default-generator) (to-subrender))
+
+    ;; (print (list :rr metadata coordinate-type en-type))
     
-    (when (getf (varray-meta varray) :gen-meta)
-      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) d-index-type
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :indexer-key) type-key
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding))
+    ;; (when en-type
+    ;;   (multiple-value-bind (indexer is-not-defaulting)
+    ;;       (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+    ;;                                      :format :encoded :base-format :encoded :indexers nil))
+    ;;     ))
+    
+    (multiple-value-bind (indexer is-not-defaulting)
+        (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta)))
+      
+      (when (and (typep varray 'vader-select)
+                 (< 0 (size-of varray)) (functionp indexer))
+        (funcall indexer 0))
+      ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
+      ;; first element is generated - figure out a better way to do this
+      (setf to-subrender (or (subrendering-p varray)
+                             (subrendering-base varray)))
 
-    (setf (getf metadata :index-width) index-type
-          (getf metadata :indexer-key) type-key)
-
-    (multiple-value-bind (this-generator is-not-defaulting)
-        (generator-of varray nil (list :indexer-key type-key :index-width d-index-type
-                                       :encoding encoding))
-      (setf indexer this-generator
-            default-generator (not is-not-defaulting)))
-
-    (when (and (typep varray 'vader-select)
-               (< 0 (size-of varray)) (functionp indexer))
-      (funcall indexer 0))
-    ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
-    ;; first element is generated - figure out a better way to do this
-    (setf to-subrender (or (subrendering-p varray)
-                           (subrendering-base varray)))
-
-    (if output-shape
-        (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
-            (let* ((prototype (prototype-of varray))
-                   (out-meta (when (arrayp prototype)
-                               (make-array 1 :initial-contents
-                                           (list (list :empty-array-prototype prototype))))))
-              ;; a nil element type results in a t-type array;
-              ;; nil types may occur from things like +/⍬
-              (if out-meta (make-array output-shape :displaced-to out-meta)
-                  (make-array output-shape :element-type (or (etype-of varray) t))))
-            (let* ((output (make-array output-shape :element-type (etype-of varray)))
-                   (dfactors (when encoding (get-dimensional-factors output-shape t)))
-                   ;; the decoder function converts non-row-major index formats like
-                   ;; sub-byte-encoded coordinate vectors back to row-major indices
-                   ;; to reference elements in the output array
-                   ;; (decoder (if (or default-generator (not encoding)) ;; TOGGLE
-                   ;;              #'identity (decode-rmi encoding d-index-type output-rank dfactors)))
-                   (render-index
-                     (multiple-value-bind (decoder default-decoder)
-                         (if (or default-generator (not encoding)) ;; TOGGLE
-                             #'identity (decode-rmi encoding d-index-type output-rank dfactors))
-                       (let ((decoder (or decoder default-decoder)))
-                         (if to-subrender
-                             (lambda (i)
-                               (let ((indexed (if (not (functionp indexer))
-                                                  indexer (funcall indexer i))))
+      (if output-shape
+          (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
+              (let* ((prototype (prototype-of varray))
+                     (out-meta (when (arrayp prototype)
+                                 (make-array 1 :initial-contents
+                                             (list (list :empty-array-prototype prototype))))))
+                ;; a nil element type results in a t-type array;
+                ;; nil types may occur from things like +/⍬
+                (if out-meta (make-array output-shape :displaced-to out-meta)
+                    (make-array output-shape :element-type (or (etype-of varray) t))))
+              (let* ((output (make-array output-shape :element-type (etype-of varray)))
+                     (dfactors (when en-type (get-dimensional-factors output-shape t)))
+                     ;; the decoder function converts non-row-major index formats like
+                     ;; sub-byte-encoded coordinate vectors back to row-major indices
+                     ;; to reference elements in the output array
+                     (render-index
+                       (multiple-value-bind (decoder default-decoder)
+                           (if (or (not is-not-defaulting) (not en-type))
+                               #'identity (decode-rmi en-type coordinate-type output-rank dfactors))
+                         (let ((decoder (or decoder default-decoder)))
+                           (if to-subrender
+                               (lambda (i)
+                                 (let ((indexed (if (not (functionp indexer))
+                                                    indexer (funcall indexer i))))
+                                   (setf (row-major-aref output (funcall decoder i))
+                                         (render indexed))))
+                               (lambda (i)
                                  (setf (row-major-aref output (funcall decoder i))
-                                       (render indexed))))
-                             (lambda (i)
-                               (if (functionp indexer)
-                                   (setf (row-major-aref output (funcall decoder i))
-                                         (funcall indexer i))
-                                   (setf (row-major-aref output (funcall decoder i))
-                                         indexer)))))))
-                   (sbsize (sub-byte-element-size output))
-                   (sbesize (if sbsize (/ 64 sbsize) 1))
-                   (wcadj *workers-count*)
-                   (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
-                   (total-size (size-of varray))
-                   (interval (/ total-size sbesize *workers-count*))
-                   (lpchannel (lparallel::make-channel))
-                   (shape-vector (when (and d-index-type output-rank)
-                                   (make-array output-rank :initial-contents (reverse output-shape)
-                                                           :element-type (list 'unsigned-byte
-                                                                               d-index-type))))
-                   (process-pair (get-indexing-function
-                                  dfactors shape-vector sbesize interval divisions
-                                  total-size d-index-type encoding render-index))
-                   (process (or (and (not default-generator)
-                                     (first process-pair))
-                                (second process-pair)))
-                   (threaded-count 0))
-              ;; (print (list :pro process-pair))
-              ;; (print (list :out (type-of output) (type-of varray)
-              ;;              divisions division-size sbesize sbsize
-              ;;              (typep varray 'vader-composing)
-              ;;              (when (typep varray 'vader-composing)
-              ;;                (vacmp-threadable varray))))
-              ;; (print (list :ts to-subrender (setf april::ggt varray)))
-              (loop :for d :below divisions
-                    :do (if ;; (or (and (typep varray 'vader-composing)
-                            ;;          (not (vacmp-threadable varray)))
-                            ;;     ;; don't thread when rendering the output of operators composed
-                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                            ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                            ;;           :never (null (lparallel.kernel::running-category worker))))
-                            t
-                            (funcall (funcall process d))
-                            (progn (incf threaded-count)
-                                   (lparallel::submit-task
-                                    lpchannel (funcall process d)))))
-              (loop :repeat threaded-count
-                    :do (lparallel::receive-result lpchannel))
-              output))
-        (funcall (if (subrendering-p varray)
-                     (lambda (item)
-                       (let ((rendered (render item)))
-                         ;; (print (list :rr rendered item varray
-                         ;;              (subrendering-p varray)))
-                         ;; (if (typep varray 'vacomp-reduce)
-                         ;;     (push varray april::ggg))
-                         (if (and (zerop (rank-of rendered))
-                                  (or (not (arrayp rendered))
-                                      ;; (print (subrendering-p varray))
-                                      (and (typep varray 'vacomp-reduce)
-                                           (subrendering-p varray))))
-                             ;; handle the case of {,/⍵}/3⍴⊂⍳3
-                             rendered (enclose rendered))))
-                     (lambda (item)
-                       (let ((rendered (render item)))
-                         (if (or (not (shape-of rendered))
-                                 (typep varray 'vader-mix) ;; put these in a superclass
-                                 (typep varray 'vader-pick))
-                             rendered (enclose rendered)))))
-                 (if (not (functionp indexer))
-                     indexer (funcall indexer 0))))))
+                                       (if (not (functionp indexer))
+                                           indexer (funcall indexer i))))))))
+                     (sbsize (sub-byte-element-type varray))
+                     (sbesize (if sbsize (/ 64 sbsize) 1))
+                     (wcadj *workers-count*)
+                     (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
+                     (lpchannel (lparallel::make-channel))
+                     (process-pair (get-indexing-function varray dfactors divisions render-index))
+                     (process (or (and is-not-defaulting (first process-pair))
+                                  (second process-pair)))
+                     (threaded-count 0))
+                ;; (print (list :pro process-pair))
+                ;; (print (list :out (type-of output) (type-of varray)
+                ;;              divisions division-size sbesize sbsize
+                ;;              (typep varray 'vader-composing)
+                ;;              (when (typep varray 'vader-composing)
+                ;;                (vacmp-threadable varray))))
+                ;; (print (list :ts to-subrender (setf april::ggt varray)))
+                (loop :for d :below divisions
+                      :do (if ;; (or (and (typep varray 'vader-composing)
+                           ;;          (not (vacmp-threadable varray)))
+                           ;;     ;; don't thread when rendering the output of operators composed
+                           ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                           ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                           ;;           :never (null (lparallel.kernel::running-category worker))))
+                           t
+                           (funcall (funcall process d))
+                           (progn (incf threaded-count)
+                                  (lparallel::submit-task
+                                   lpchannel (funcall process d)))))
+                (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
+                output))
+          (funcall (if (subrendering-p varray)
+                       (lambda (item)
+                         (let ((rendered (render item)))
+                           ;; (print (list :rr rendered item varray
+                           ;;              (subrendering-p varray)))
+                           (if (and (zerop (rank-of rendered))
+                                    (or (not (arrayp rendered))
+                                        ;; (print (subrendering-p varray))
+                                        (and (typep varray 'vacomp-reduce)
+                                             (subrendering-p varray))))
+                               ;; handle the case of {,/⍵}/3⍴⊂⍳3
+                               rendered (enclose rendered))))
+                       (lambda (item)
+                         (let ((rendered (render item)))
+                           (if (or (not (shape-of rendered))
+                                   (typep varray 'vader-mix) ;; put these in a superclass
+                                   (typep varray 'vader-pick))
+                               rendered (enclose rendered)))))
+                   (if (not (functionp indexer))
+                       indexer (funcall indexer 0)))))))
 
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."

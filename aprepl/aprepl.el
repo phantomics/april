@@ -574,7 +574,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 
 ;; (slime-eval-async
 ;;     `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                    "(asdf:system-registered-p 'april)"))
+;;                                    "(asdf:find-system 'april nil)"))
 ;;   (lambda (result)
 ;;     (cl-destructuring-bind (out value) result
 ;;       (print value)
@@ -585,7 +585,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 ;;   (message "Trying to load")
 ;;   (slime-eval-async
 ;;       `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                      "(asdf:system-registered-p 'april)"))
+;;                                      "(asdf:find-system 'april nil)"))
 ;;     (lambda (result)
 ;;       (cl-destructuring-bind (out value) result
 ;;         (print (list :res result value (upcase value)))
@@ -615,7 +615,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 ;;   (if (slime-connected-p)
 ;;       (slime-eval-async
 ;;           `(swank:eval-and-grab-output ,(substring-no-properties
-;;                                          "(asdf:system-registered-p 'april)"))
+;;                                          "(asdf:find-system 'april nil)"))
 ;;         (lambda (result)
 ;;           (cl-destructuring-bind (out value) result
 ;;             (print (list :res result value (upcase value)))
@@ -656,7 +656,6 @@ April's system is loaded."
      (cl-destructuring-bind (_out value) result
        (if (string= "NIL" (upcase value))
            (error "The Common Lisp REPL is running but April is not loaded; evaluate (asdf:load-system 'april) in the REPL to load it")
-         (funcall do-next))))))
 
 ;;; User command
 

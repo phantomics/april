@@ -2382,13 +2382,36 @@
                                     (if (not (functionp generator))
                                         indexed (funcall generator indexed))))
                       prototype))))
-            (if (zerop (size-of varray))
-                (let ((prototype (prototype-of varray)))
-                  (lambda (index) (declare (ignore index)) prototype))
-                (generator-of (vader-base varray)
-                              (if (not indexer) indexers (cons indexer indexers))
-                              (rest (getf (varray-meta varray) :gen-meta))
-                              ))))))
+            (case (getf params :base-format)
+              (:encoded (let ((indexer (indexer-section
+                                        (shape-of (vader-base varray))
+                                        (vasec-span varray) (vasec-pad varray)
+                                        (vads-inverse varray)
+                                        nil (getf (getf params :gen-meta) :index-width)
+                                        (getf (getf params :gen-meta) :index-type))))
+                          (when indexer
+                            (when (eq :linear (getf params :format))
+                              (push (encode-rmi factors enco-type coord-type)
+                                    (getf params :indexers))
+                              (setf (getf params :format) :encoded))
+                            (push indexer (getf params :indexers))
+                            (generator-of (vader-base varray) nil params))))
+              (:linear (let ((indexer (indexer-section
+                                       (shape-of (vader-base varray))
+                                       (vasec-span varray) (vasec-pad varray)
+                                       (vads-inverse varray)
+                                       nil (getf (getf params :gen-meta) :index-width)
+                                       (getf (getf params :gen-meta) :index-type))))
+                         (when indexer
+                           (push indexer (getf params :indexers))
+                           (generator-of (vader-base varray) nil params))))
+              (t (if (zerop (size-of varray))
+                     (let ((prototype (prototype-of varray)))
+                       (lambda (index) (declare (ignore index)) prototype))
+                     (generator-of (vader-base varray)
+                                   (if (not indexer) indexers (cons indexer indexers))
+                                   (rest (getf (varray-meta varray) :gen-meta))
+                                   ))))))))
 
 (defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
                          vad-with-argument vad-maybe-shapeless)
@@ -3329,8 +3352,8 @@
                                (- argument (vads-io varray))))
                          (not (or (not (vads-argument varray))
                                   (vaperm-is-diagonal varray)))
-                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) ;; tg-new
-                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) ;; tg-new
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
+                         (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)
                          assigning))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
