@@ -223,9 +223,11 @@
 
 (defmethod indexer-of ((item t) &optional params)
   "The indexer for a non-array is its identity."
+  (declare (ignore params))
   item)
 
 (defmethod indexer-of ((array array) &optional params)
+  (declare (ignore params))
   (if (= 0 (array-rank array))
       ;; array
       ;; TODO: this causes tree printing test to fail
@@ -243,8 +245,7 @@
   ;; (print (list :ind indexers type))
   (if (not indexers)
       #'identity
-      (let ((ctype) ;; the type in common
-            (reversed-indexers)
+      (let ((reversed-indexers)
             ;; will default if a type is not specified
             (defaulting (member type '(t nil))))
          (loop :for i :in indexers :while (not defaulting)
@@ -266,35 +267,64 @@
                     index-out))
                 (unless defaulting type)))))
 
+(defun join-indexers2 (params)
+  (if (not (getf params :indexers))
+      #'identity (let* ((icount (length (getf params :indexers)))
+                        (fvector (make-array icount)))
+                   (loop :for i :in (getf params :indexers) :for ix :from 0
+                         :do (setf (aref fvector (- icount 1 ix)) i))
+                   (lambda (index)
+                     (let ((index-out index))
+                       (loop :for f :across fvector :do (setf index-out (funcall f index-out)))
+                       index-out)))))
+
 (defmethod generator-of ((item t) &optional indexers params)
   (declare (ignore indexers params))
   item)
 
 (defmethod generator-of ((array array) &optional indexers params)
-  (multiple-value-bind (composite-indexer is-not-defaulting)
-      (join-indexers indexers (getf params :index-type))
-    (values
-     (let ((array-size (array-total-size array)))
-       (if (and is-not-defaulting (getf params :index-type)
-                (member (getf params :index-type) '(8 16 32 64) :test #'=))
-           (let ((factors (get-dimensional-factors (shape-of array) t)))
-             (multiple-value-bind (opt-converter default-converter)
-                 (decode-rmi (getf params :index-width) (getf params :index-type)
-                             (array-rank array) factors)
-               ;; (print (list :op opt-converter default-converter))
-               ;; TODO: below is a super-hacky way to handle different naming schemes
-               ;; for encoding and index width, improve on this
-               ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
-               (let ((converter (or opt-converter default-converter)))
-                 (lambda (index)
-                   ;; (print (list :c converter composite-indexer))
-                   (let ((index-out (funcall converter (funcall composite-indexer index))))
-                     ;; (print (list :in index-out))
-                     (when (< index-out array-size) (row-major-aref array index-out)))))))
-           (lambda (index)
-             (let ((index-out (funcall composite-indexer index)))
-               (when (< index-out array-size) (row-major-aref array index-out))))))
-     is-not-defaulting)))
+  (case (getf params :format) ;; determine indexing method using the current format, not base
+    (:encoded
+     (let* ((array-size (size-of array))
+            (gen-params (getf params :gen-meta))
+            (factors (get-dimensional-factors (shape-of array) t))
+            (decoder (decode-rmi (getf gen-params :index-width) (getf gen-params :index-type)
+                                 (array-rank array) factors))
+            (converter (join-indexers2 params)))
+       ;; (print (list :ff params factors decoder converter array (shape-of array)))
+       (lambda (index)
+         (let ((index-out (funcall decoder (funcall converter index))))
+           (when (< index-out array-size) (row-major-aref array index-out))))))
+    (:linear (let ((converter (join-indexers2 params)))
+               (lambda (index)
+                 (let ((array-size (size-of array))
+                       (index-out (funcall converter index)))
+                   (when (< index-out array-size)
+                     (row-major-aref array index))))))
+    (t (multiple-value-bind (composite-indexer is-not-defaulting)
+           (join-indexers indexers (getf params :index-type))
+         (values
+          (let ((array-size (array-total-size array)))
+            (if (and is-not-defaulting (getf params :index-type)
+                     (member (getf params :index-type) '(8 16 32 64) :test #'=))
+                (let ((factors (get-dimensional-factors (shape-of array) t)))
+                  (multiple-value-bind (opt-converter default-converter)
+                      (decode-rmi (getf params :index-width) (getf params :index-type)
+                                  (array-rank array) factors)
+                    ;; (print (list :op opt-converter default-converter))
+                    ;; TODO: below is a super-hacky way to handle different naming schemes
+                    ;; for encoding and index width, improve on this
+                    ;; (print (list :con converter factors (format nil "I~a" (getf params :encoding))))
+                    (let ((converter (or opt-converter default-converter)))
+                      (lambda (index)
+                        ;; (print (list :c converter composite-indexer))
+                        (let ((index-out (funcall converter (funcall composite-indexer index))))
+                          ;; (print (list :in index-out))
+                          (when (< index-out array-size) (row-major-aref array index-out)))))))
+                (lambda (index)
+                  (let ((index-out (funcall composite-indexer index)))
+                    (when (< index-out array-size) (row-major-aref array index-out))))))
+          is-not-defaulting)))))
 
 (defmethod metadata-of ((item t))
   (declare (ignore item))
@@ -396,6 +426,7 @@
                          (the (unsigned-byte +eindex-width+) output)))))))))
   (defun decode-rmi (width element-width rank factors)
     (let ((match (gethash (list width element-width rank) function-table)))
+      ;; (print (list :mm match width element-width rank))
       (values (when match (funcall match factors))
               (lambda (index)
                 (let ((output 0))
@@ -539,15 +570,14 @@
           default-indexer)))
 
 (defmethod specify ((varray varray))
-  (let* ((output-shape (shape-of varray))
-         (output-rank (length output-shape))
-         (metadata (metadata-of varray))
+  (let* ((metadata (metadata-of varray))
+         (output-rank (rank-of varray))
          (linear-index-type (or (when (getf metadata :max-size)
                                   (loop :for w :in '(8 16 32 64)
                                         :when (< (getf metadata :max-size) (expt 2 w))
                                           :return w))
                                 t))
-         (coordinate-type (when (and (> output-rank 0)
+         (coordinate-type (when (and (> output-rank 1)
                                      (not (eq t linear-index-type)))
                             (loop :for w :in '(8 16 32 64)
                                   :when (< (getf metadata :max-dim) (expt 2 w))
@@ -557,28 +587,35 @@
                           ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
                           ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                           ;; 4x16 or 2x32 dimension indices
-                          (loop :for w :in '(8 16 32 64) :when (>= w (* output-rank coordinate-type))
+                          (loop :for w :in '(16 32 64) :when (>= w (* (or (getf metadata :max-rank)
+                                                                          output-rank)
+                                                                      coordinate-type))
                                 :return w))))
+
+    ;; (print (list :out metadata output-rank coordinate-type encoding-type))
     
-    (when (getf (varray-meta varray) :gen-meta)
-      (setf (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type) coordinate-type
-            (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width) encoding-type))
+    (when (getf metadata :gen-meta)
+      (setf (getf (rest (getf metadata :gen-meta)) :index-type) coordinate-type
+            (getf (rest (getf metadata :gen-meta)) :index-width) encoding-type))
 
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
-  (specify varray)
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
+         (spec (specify varray))
          (metadata (metadata-of varray))
          (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
          (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
          (default-generator) (to-subrender))
 
-    (multiple-value-bind (indexer is-not-defaulting)
-        (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
-                                       :format :encoded :base-format :encoded :indexers nil))
-      )
+    ;; (print (list :rr metadata coordinate-type en-type))
+    
+    ;; (when en-type
+    ;;   (multiple-value-bind (indexer is-not-defaulting)
+    ;;       (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+    ;;                                      :format :encoded :base-format :encoded :indexers nil))
+    ;;     ))
     
     (multiple-value-bind (indexer is-not-defaulting)
         (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta)))
