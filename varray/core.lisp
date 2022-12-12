@@ -722,6 +722,18 @@
                                         (aref start-points i))))
     (values start-points section-lengths)))
 
+(defmacro get-promised-hash (object form)
+  `(if ,object (force ,object)
+       (progn (setf ,object (promise))
+              (fulfill ,object ,form)
+              (force ,object))))
+
+;; (defmacro get-promised (object form)
+;;   `(if ,object (force ,object)
+;;        (progn (setf ,object (promise))
+;;               (fulfill ,object ,form)
+;;               (force ,object))))
+
 (defmacro get-promised (object form)
   `(if ,object (force ,object)
        (progn (setf ,object (promise))
