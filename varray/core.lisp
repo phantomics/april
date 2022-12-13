@@ -344,7 +344,7 @@
 
 (defun sub-byte-element-type (varray)
   "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
-  (let ((type (etype-of varray)))
+  (let ((type (upgraded-array-element-type (etype-of varray))))
     (or (and (eql 'bit type) 1)
         #+clasp (case type (ext:byte2 2)
                       (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
@@ -513,7 +513,8 @@
                                                  :element-type (list 'unsigned-byte coord-type))))
          (encoder (when enco-type (encode-rmi factors enco-type coord-type)))
          (incrementer (when enco-type (incrementer-encoded enco-type coord-type shape-vector)))
-         (sbesize (or (sub-byte-element-type varray) 1))
+         (sbsize (sub-byte-element-type varray))
+         (sbesize (if sbsize (/ 64 sbsize) 1))
          (interval (/ total-size sbesize *workers-count*))
          (default-indexer (lambda (index)
                             (lambda ()
@@ -523,6 +524,7 @@
                                                 (* sbesize (- (ceiling (* interval (1+ index)))
                                                               start-intervals))
                                                 (- total-size start-at))))
+                                ;; (print (list :cc count interval start-intervals start-at sbesize))
                                 (loop :for i :from start-at :to (1- (+ start-at count))
                                       :do (funcall to-call i))))))
          (flat-indexer-table
@@ -627,7 +629,6 @@
       ;; first element is generated - figure out a better way to do this
       (setf to-subrender (or (subrendering-p varray)
                              (subrendering-base varray)))
-
       (if output-shape
           (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
               (let* ((prototype (prototype-of varray))
@@ -667,7 +668,7 @@
                      (process (or (and is-not-defaulting (first process-pair))
                                   (second process-pair)))
                      (threaded-count 0))
-                ;; (print (list :pro process-pair))
+                ;; (print (list :pro divisions sbesize sbsize))
                 ;; (print (list :out (type-of output) (type-of varray)
                 ;;              divisions division-size sbesize sbsize
                 ;;              (typep varray 'vader-composing)
@@ -675,13 +676,13 @@
                 ;;                (vacmp-threadable varray))))
                 ;; (print (list :ts to-subrender (setf april::ggt varray)))
                 (loop :for d :below divisions
-                      :do (if ;; (or (and (typep varray 'vader-composing)
-                              ;;          (not (vacmp-threadable varray)))
-                              ;;     ;; don't thread when rendering the output of operators composed
-                              ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                              ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                              ;;           :never (null (lparallel.kernel::running-category worker))))
-                           t
+                      :do (if (or (and (typep varray 'vader-composing)
+                                       (not (vacmp-threadable varray)))
+                                  ;; don't thread when rendering the output of operators composed
+                                  ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                  (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                        :never (null (lparallel.kernel::running-category worker))))
+                           ;; t
                            (funcall (funcall process d))
                            (progn (incf threaded-count)
                                   (lparallel::submit-task
