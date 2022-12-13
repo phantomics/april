@@ -258,6 +258,7 @@
                             (push (first i) reversed-indexers)))))
         (when defaulting
           (setf reversed-indexers nil)
+          ;; TODO: remove list logic
           (loop :for i :in indexers :do (push (if (not (listp i)) i (second i))
                                               reversed-indexers)))
         ;; (print (list :re indexers reversed-indexers defaulting type))
@@ -676,13 +677,13 @@
                 ;;                (vacmp-threadable varray))))
                 ;; (print (list :ts to-subrender (setf april::ggt varray)))
                 (loop :for d :below divisions
-                      :do (if (or (and (typep varray 'vader-composing)
-                                       (not (vacmp-threadable varray)))
-                                  ;; don't thread when rendering the output of operators composed
-                                  ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                  (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                        :never (null (lparallel.kernel::running-category worker))))
-                           ;; t
+                      :do (if ;; (or (and (typep varray 'vader-composing)
+                              ;;          (not (vacmp-threadable varray)))
+                              ;;     ;; don't thread when rendering the output of operators composed
+                              ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                              ;;     (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                              ;;           :never (null (lparallel.kernel::running-category worker))))
+                           t
                            (funcall (funcall process d))
                            (progn (incf threaded-count)
                                   (lparallel::submit-task

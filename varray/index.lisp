@@ -55,46 +55,46 @@
                       (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-      (let ((encoder-chain
-              (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
-                       :pass)
-                  (loop :for dx :below irank
-                        :append (let ((dim (- irank 1 dx))
-                                      (sum (+ (aref span dx) (aref pad dx))))
-                                  (unless (zerop sum)
-                                    (let ((encoder (gethash (list iwidth itype dim) ; dx)
-                                                            indexer-table-encoded)))
-                                      (when encoder (list (funcall encoder sum)))))))))
-            (default-indexer
-              (if output-shorter
-                  ;; choose shorter path depending on whether input or output are larger, and
-                  ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
-                  ;; to respect the segmentation of the elements
-                  (lambda (i)
-                    (let ((oindex 0) (remaining i) (valid t))
-                      ;; calculate row-major offset for outer array dimensions
-                      (loop :for i :below irank :while valid :for od :in odims
-                            :for ifactor :across id-factors :for ofactor :across od-factors
-                            :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                                  (let ((adj-index (- index (aref span i))))
-                                    (setf valid (when (< -1 adj-index od)
-                                                  (incf oindex (* ofactor adj-index))
-                                                  (setq remaining remainder))))))
-                      (when valid oindex)))
-                  (lambda (i)
-                    (let ((iindex 0) (remaining i) (valid t))
-                      ;; calculate row-major offset for outer array dimensions
-                      (loop :for i :below irank :while valid
-                            :for ifactor :across id-factors :for ofactor :across od-factors
-                            :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                                  (let ((adj-index (+ (aref span i)
-                                                      (- index (aref pad i)))))
-                                    (setf valid (when (< -1 adj-index (aref span (+ i irank)))
-                                                  (incf iindex (* ifactor adj-index))
-                                                  (setq remaining remainder))))))
-                      (when valid iindex))))))
+      (or (and iwidth itype
+               ;; (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
+               ;;          :pass)
+               (loop :for dx :below irank
+                     :append (let ((dim (- irank 1 dx))
+                                   (sum (+ (aref span dx) (aref pad dx))))
+                               (unless (zerop sum)
+                                 (let ((encoder (gethash (list iwidth itype dim) ; dx)
+                                                         indexer-table-encoded)))
+                                   (when encoder (funcall encoder sum)))))))
+          (if output-shorter
+              ;; choose shorter path depending on whether input or output are larger, and
+              ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+              ;; to respect the segmentation of the elements
+              (lambda (i)
+                (let ((oindex 0) (remaining i) (valid t))
+                  ;; calculate row-major offset for outer array dimensions
+                  (loop :for i :below irank :while valid :for od :in odims
+                        :for ifactor :across id-factors :for ofactor :across od-factors
+                        :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+                              (let ((adj-index (- index (aref span i))))
+                                (setf valid (when (< -1 adj-index od)
+                                              (incf oindex (* ofactor adj-index))
+                                              (setq remaining remainder))))))
+                  (when valid oindex)))
+              (lambda (i)
+                (let ((iindex 0) (remaining i) (valid t))
+                  ;; calculate row-major offset for outer array dimensions
+                  (loop :for i :below irank :while valid
+                        :for ifactor :across id-factors :for ofactor :across od-factors
+                        :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                              (let ((adj-index (+ (aref span i)
+                                                  (- index (aref pad i)))))
+                                (setf valid (when (< -1 adj-index (aref span (+ i irank)))
+                                              (incf iindex (* ifactor adj-index))
+                                              (setq remaining remainder))))))
+                  (when valid iindex))))))
         ;; (print (list :enc encoder-chain))
-        (list encoder-chain default-indexer)))))
+    ;; (list encoder-chain default-indexer)
+    ))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
@@ -169,10 +169,10 @@
       (if degrees
           ;; TODO: implement a system for accelerated rotation when degrees are an array
           (if (integerp degrees)
-              (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
-                                          indexer-table-encoded-idegree)))
-                      (when match (funcall match degrees rlen)))
-                    (funcall default-function increment vset-size degrees rlen))
+              ;; (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
+              ;;                             indexer-table-encoded-idegree)))
+              ;;         (when match (funcall match degrees rlen)))
+              (funcall default-function increment vset-size degrees rlen)
               (lambda (i)
                 (the (unsigned-byte 62)
                      (+ (the (unsigned-byte 62) (mod i increment))
