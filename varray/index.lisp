@@ -55,14 +55,14 @@
                       (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-      (or (and iwidth itype
-               ;; (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
-               ;;          :pass)
+      (or (and output-shorter (not (eq :assign output-shorter))
+               (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx)))) t)
+          (and iwidth itype
                (loop :for dx :below irank
                      :append (let ((dim (- irank 1 dx))
                                    (sum (+ (aref span dx) (aref pad dx))))
                                (unless (zerop sum)
-                                 (let ((encoder (gethash (list iwidth itype dim) ; dx)
+                                 (let ((encoder (gethash (list iwidth itype dim)
                                                          indexer-table-encoded)))
                                    (when encoder (funcall encoder sum)))))))
           (if output-shorter
@@ -91,10 +91,7 @@
                                 (setf valid (when (< -1 adj-index (aref span (+ i irank)))
                                               (incf iindex (* ifactor adj-index))
                                               (setq remaining remainder))))))
-                  (when valid iindex))))))
-        ;; (print (list :enc encoder-chain))
-    ;; (list encoder-chain default-indexer)
-    ))
+                  (when valid iindex))))))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
