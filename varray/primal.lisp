@@ -86,12 +86,15 @@
                                    (lambda (index)
                                      (declare (type (unsigned-byte 62) index))
                                      ;; (the (unsigned-byte 64) (+ origin index))
+                                     ;; (print (list :oo (+ origin index)
+                                     ;;              (funcall converter (+ origin index))))
                                      (the (unsigned-byte 64) (funcall converter (+ origin index)))))
                                (lambda (index)
                                  (declare (type (unsigned-byte 62) index))
                                  (the (unsigned-byte 64)
                                       (+ origin (the (unsigned-byte 62)
                                                      (funcall converter (floor index repeat))))))))))
+    ;; (print (list :pr params))
     (case (getf params :format)
       (:encoded (setf (getf params :format) :linear)
        (generator-of vvector nil params))
@@ -172,7 +175,10 @@
           :do (multiple-value-bind (item remainder) (floor remaining f)
                 (setf (aref output ix) (+ item (vads-io (vacov-reference vvector)))
                       remaining remainder)))
-    (lambda (index) (aref output index))))
+    (case (getf params :base-format)
+      (:encoded)
+      (:linear)
+      (t (lambda (index) (aref output index))))))
 
 (defclass vapri-coordinate-identity (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
   ((%shape :accessor vapci-shape
@@ -201,9 +207,12 @@
 
 (defmethod generator-of ((varray vapri-coordinate-identity) &optional indexers params)
   "Each index returns a coordinate vector."
-  (lambda (index) (make-instance 'vapri-coordinate-vector
-                                 :reference varray :index index)))
-
+  (case (getf params :base-format)
+    (:encoded)
+    (:linear)
+    (t (lambda (index) (make-instance 'vapri-coordinate-vector
+                                      :reference varray :index index)))))
+    
 (defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
   ((%reference :accessor vaxv-reference
                :initform nil
@@ -253,4 +262,7 @@
                         (if window (if (>= 1 irank) ref-index
                                        (mod ref-index wsegment))
                             (* ref-index rlen))))))
-      (lambda (index) (funcall ref-indexer (+ delta (* index increment)))))))
+      (case (getf params :base-format)
+        (:encoded)
+        (:linear)
+        (t (lambda (index) (funcall ref-indexer (+ delta (* index increment)))))))))

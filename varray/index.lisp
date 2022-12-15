@@ -26,7 +26,7 @@
                                    (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   
-  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype)
+  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype &optional is-flat)
     "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
     ;; (print (list :is inverse dims dimensions output-shorter span padding))
     (let* ((scalar (not dims))
@@ -55,8 +55,11 @@
                       (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-      (or (and output-shorter (not (eq :assign output-shorter))
-               (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx)))) t)
+      (or (and (not is-flat)
+               (loop :for p :across pad :always (zerop p))
+               (not (eq :assign output-shorter))
+               (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
+               t)
           (and iwidth itype
                (loop :for dx :below irank
                      :append (let ((dim (- irank 1 dx))
@@ -81,6 +84,7 @@
                                               (setq remaining remainder))))))
                   (when valid oindex)))
               (lambda (i)
+                ;; (print (list :ii i))
                 (let ((iindex 0) (remaining i) (valid t))
                   ;; calculate row-major offset for outer array dimensions
                   (loop :for i :below irank :while valid

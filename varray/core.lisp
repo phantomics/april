@@ -302,6 +302,7 @@
             (converter (join-indexers2 params)))
        ;; (print (list :ff params factors decoder converter array (shape-of array)))
        (lambda (index)
+         ;; (print (list :iit index (funcall converter index) (funcall decoder index)))
          (let ((index-out (funcall decoder (funcall converter index))))
            (when (< index-out array-size) (row-major-aref array index-out))))))
     (:linear (let ((converter (join-indexers2 params)))
@@ -622,14 +623,17 @@
 
     ;; (print (list :rr metadata coordinate-type en-type))
     
-    (let ((gen ;; (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
-               ;;                                :format :encoded :base-format :encoded :indexers nil))
-               nil))
-    
+    (let ((gen ;; (and coordinate-type en-type
+               ;;      (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+               ;;                                     :format :encoded :base-format :encoded :indexers nil)))
+            ))
+
       (multiple-value-bind (indexer is-not-defaulting)
           (if gen (values gen t)
               (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
-        
+
+        ;; (print (list :g gen coordinate-type en-type is-not-defaulting))
+                   
         (when (and (typep varray 'vader-select)
                    (< 0 (size-of varray)) (functionp indexer))
           (funcall indexer 0))
@@ -704,7 +708,6 @@
                              ;;              (subrendering-p varray)))
                              (if (and (zerop (rank-of rendered))
                                       (or (not (arrayp rendered))
-                                          ;; (print (subrendering-p varray))
                                           (and (typep varray 'vacomp-reduce)
                                                (subrendering-p varray))))
                                  ;; handle the case of {,/⍵}/3⍴⊂⍳3
