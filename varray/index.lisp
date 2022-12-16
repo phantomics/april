@@ -60,6 +60,16 @@
                (not (eq :assign output-shorter))
                (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
                t)
+          ;; (and iwidth itype
+          ;;      (loop :for dx :below irank
+          ;;            :append (let ((dim (- irank 1 dx)) ;; TODO: change to collect if not returning lists
+          ;;                          (sum (+ (aref span dx) (aref pad dx))))
+          ;;                      (unless (zerop sum)
+          ;;                        (let* ((encoder (gethash (list iwidth itype dim)
+          ;;                                                 indexer-table-encoded))
+          ;;                               (e-out (when encoder (funcall encoder sum))))
+          ;;                          ;; (print (list :cc encoder (funcall encoder sum)))
+          ;;                          (if (listp encoder) encoder (list encoder)))))))
           (and iwidth itype
                (loop :for dx :below irank
                      :append (let ((dim (- irank 1 dx))
@@ -67,6 +77,7 @@
                                (unless (zerop sum)
                                  (let ((encoder (gethash (list iwidth itype dim)
                                                          indexer-table-encoded)))
+                                   (print (list :cc encoder (funcall encoder sum)))
                                    (when encoder (funcall encoder sum)))))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and

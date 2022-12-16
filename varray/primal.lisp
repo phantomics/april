@@ -57,7 +57,9 @@
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-integer-progression) &optional indexers params)
   (declare (ignore params indexers) (optimize (speed 3) (safety 0)))
-  (let* ((converter (join-indexers2 params))
+  (let* (;; (converter (join-indexers2 params))
+         ;; (converter (join-indexers2 indexers))
+         (converter #'identity)
          (origin (the (unsigned-byte 62) (vapip-origin vvector)))
          (offset (the (unsigned-byte 62) (vapip-offset vvector)))
          (factor (the real (vapip-factor vvector)))
