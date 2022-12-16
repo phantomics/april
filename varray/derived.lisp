@@ -84,7 +84,10 @@
   (varray-prototype varray))
 
 (defmethod generator-of ((varray vader-subarray) &optional indexers params)
-  (varray-generator varray))
+  (case (getf params :base-format)
+    (:encoded)
+    (:linear)
+    (t (varray-generator varray))))
 
 (defclass vader-operate (vad-subrendering varray-derived vad-on-axis vad-with-io)
   ((%params :accessor vaop-params
@@ -1215,8 +1218,6 @@
                                 (mod index input-size)))
              (lambda (index) (declare (ignore index)) 0))))))
 
-;; 4 5⍴⍳3  1 3⌷2 3 4⍴⍳5  (2 2⍴6 7 1 2)⍷2 3 4⍴⍳9  (2 5⍴'RADIUS')⍸3 4 5⍴'BOXCAR'  ,[1 2]2 3 3⍴⍳12
-
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
     (if (zerop output-size)
@@ -1231,6 +1232,7 @@
                           ;; (push (decode-rmi enco-type coord-type (rank-of varray)
                           ;;                   (get-dimensional-factors (shape-of varray) t))
                           ;;       (getf params :indexers))
+                          ;; (print :gg)
                           (generator-of varray
                                         (cons (decode-rmi enco-type coord-type (rank-of varray)
                                                           (get-dimensional-factors (shape-of varray) t))
@@ -1238,7 +1240,7 @@
                                         params)))
               (:linear (let ((indexer (indexer-of varray params)))
                          (push indexer (getf params :indexers))
-                         (generator-of (vader-base varray) ; nil
+                         (generator-of (vader-base varray)
                                        (cons indexer indexers)
                                        params)))
               (t (let ((indexer (indexer-of varray params)))
@@ -1858,13 +1860,15 @@
                              :into total :collect total))
          (indexers (make-array base-size
                                :initial-contents (loop :for i :below base-size 
-                                                       :collect (generator-of (funcall base-indexer i)))))
+                                                       :collect (generator-of (funcall base-indexer i)
+                                                                              indexers params))))
          (ifactors (make-array base-size
                                :initial-contents (loop :for i :below base-size 
                                                        :collect (let ((a (funcall base-indexer i)))
                                                                   (if (or (arrayp a) (varrayp a))
                                                                       (reverse (get-dimensional-factors
                                                                                 (shape-of a)))))))))
+    ;; (print (list :cc indexers))
     
     (case (getf params :base-format)
       (:encoded)
@@ -1873,6 +1877,7 @@
            (let ((remaining orig-index) (sum 0) (sub-indices) (array-index 0)
                  (axis-offset (abs (- axis (1- (length (shape-of varray))))))
                  (row-major-index) (source-array))
+             ;; (print (list :oo ofactors orig-index axis-offset))
              (loop :for ofactor :across ofactors :for fx :from 0
                    :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                          (setf remaining remainder)
@@ -2501,8 +2506,10 @@
                                             enco-type coord-type)
                                 these-indexers)
                           (setf (getf params :format) :encoded))
-                        (unless (eq t indexer) (push indexer these-indexers))
-                        ;; (print (list :aa (vader-base varray)))
+                        ;; (print (list :ti these-indexers indexer))
+                        (unless (eq t indexer)
+                          (setf these-indexers (append indexer these-indexers)))
+                        ;; (print (list :aa (vader-base varray) these-indexers))
                         (generator-of (vader-base varray)
                                       (append these-indexers indexers) params)))))
         (:linear (when (loop :for item :across (vasec-pad varray) :always (zerop item))
@@ -2513,8 +2520,10 @@
                                    nil (getf (getf params :gen-meta) :index-width)
                                    (getf (getf params :gen-meta) :index-type))))
                      (when indexer
-                       (unless (eq t indexer) (push indexer (getf params :indexers)))
-                       (generator-of (vader-base varray) nil params)))))
+                       ;; (unless (eq t indexer) (push indexer (getf params :indexers)))
+                       (generator-of (vader-base varray)
+                                     (cons indexer indexers)
+                                     params)))))
         (t (let ((indexer (indexer-of varray params)))
              (if (loop :for item :across (vasec-pad varray) :always (zerop item))
                  (if (zerop (size-of varray))

@@ -77,8 +77,16 @@
                                (unless (zerop sum)
                                  (let ((encoder (gethash (list iwidth itype dim)
                                                          indexer-table-encoded)))
-                                   (print (list :cc encoder (funcall encoder sum)))
-                                   (when encoder (funcall encoder sum)))))))
+                                   (when encoder (list (funcall encoder sum))))))))
+          ;; (and iwidth itype
+          ;;      (loop :for dx :below irank
+          ;;            :append (let ((dim (- irank 1 dx))
+          ;;                          (sum (+ (aref span dx) (aref pad dx))))
+          ;;                      (unless (zerop sum)
+          ;;                        (let ((encoder (gethash (list iwidth itype dim)
+          ;;                                                indexer-table-encoded)))
+          ;;                          (print (list :cc encoder (funcall encoder sum)))
+          ;;                          (when encoder (funcall encoder sum)))))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
               ;; always iterate over output in the case of sub-7-bit arrays as this is necessary

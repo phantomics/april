@@ -383,6 +383,7 @@
                        (funcall this-indexer (funcall composite-indexer index))))))
 
 (defmethod generator-of :around ((varray varray) &optional indexers params)
+  ;; (print (list :ggg indexers))
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
         (if (not (functionp this-generator))
@@ -639,7 +640,7 @@
                ;;      (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
                ;;                                     :format :encoded :base-format :encoded :indexers nil)))
             ))
-
+      
       (multiple-value-bind (indexer is-not-defaulting)
           (if gen (values gen t)
               (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
