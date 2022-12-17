@@ -190,10 +190,6 @@
       (if degrees
           ;; TODO: implement a system for accelerated rotation when degrees are an array
           (if (integerp degrees)
-              ;; (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
-              ;;                             indexer-table-encoded-idegree)))
-              ;;         (when match (funcall match degrees rlen)))
-              ;; (funcall default-function increment vset-size degrees rlen)
               (if (= irank 1) ;; replace this case with linear optimized
                   (funcall default-function increment vset-size degrees rlen)
                   (let ((match (gethash (list iwidth itype (- irank 1 axis))
@@ -366,14 +362,14 @@
           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
               (let ((match (gethash (list iwidth itype irank)
                                     indexer-table-regular-encoded)))
-                (list (when match (funcall match indices-vector))
-                      (lambda (i)
-                        (let* ((remaining i) (oindex 0))
-                          (loop :for od :across od-factors :for s :across s-factors
-                                :collect (multiple-value-bind (index remainder) (floor remaining od)
-                                           (incf oindex (* index s))
-                                           (setq remaining remainder)))
-                          oindex)))))
+                (or (when match (funcall match indices-vector))
+                    (lambda (i)
+                      (let* ((remaining i) (oindex 0))
+                        (loop :for od :across od-factors :for s :across s-factors
+                              :collect (multiple-value-bind (index remainder) (floor remaining od)
+                                         (incf oindex (* index s))
+                                         (setq remaining remainder)))
+                        oindex)))))
           ;; handle diagonal array traversals
           (if is-inverse
               (lambda (i)
@@ -398,3 +394,9 @@
                                       (loop :for a :in indices :for ax :from 0 :when (= a ox)
                                             :do (incf iindex (* index (aref id-factors ax))))))
                           iindex)))))))))
+
+;; 1 2 3 4
+;; 4 3 2 1
+;; 2 1 3 4
+;; 3 4 2 1
+;; 4 3 2 1

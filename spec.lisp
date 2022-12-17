@@ -1433,7 +1433,8 @@
              (is "(1 0 0) (1 1 0 1 0)⊂¨'abc' 'a|b|c'"
                  #(#("abc") #("a" "|b" "|c")))
              (is "~∘3¨@2⊢(2 3) (3) (2 4) (1 5) (3)" #(#(2 3) #() #(2 4) #(1 5) 3))
-             (is "(⊂'ab'),¨1⍴⊂⊂,'c'" #(#(#\a #\b "c")))))
+             (is "(⊂'ab'),¨1⍴⊂⊂,'c'" #(#(#\a #\b "c")))
+             (is "+/¨{1⊂↑⍵}⍴¨2 2⍴⊂'abc'" #(#2A((3 3) (3 3))))))
   (⍨ (has :title "Commute")
      (lateral (lambda (operand) `(operate-commuting (sub-lex ,operand))))
      (tests (is "5-⍨10" 5)
