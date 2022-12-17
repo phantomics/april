@@ -625,7 +625,7 @@
 
     (setf (getf metadata :index-width) linear-index-type)))
 
-(defmethod render ((varray varray))
+(defmethod render ((varray varray)) ;; +/¨{1⊂↑⍵}⍴¨2 2⍴⊂'abc'
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
          (spec (specify varray))
@@ -636,10 +636,12 @@
 
     ;; (print (list :rr metadata coordinate-type en-type))
     
-    (let ((gen ;; (and coordinate-type en-type
-               ;;      (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
-               ;;                                     :format :encoded :base-format :encoded :indexers nil)))
+    (let ((gen (and coordinate-type en-type
+                    (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+                                                   :format :encoded :base-format :encoded :indexers nil)))
             ))
+
+      ;;(setq gen nil)
       
       (multiple-value-bind (indexer is-not-defaulting)
           (if gen (values gen t)

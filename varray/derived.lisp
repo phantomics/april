@@ -1201,8 +1201,8 @@
 (defmethod indexer-of ((varray vader-reshape) &optional params)
    "Index a reshaped array."
   ;; (declare (ignore params) (optimize (speed 3) (safety 0)))
-  (get-promised
-   (varray-generator varray)
+  ;; (get-promised
+  ;;  (varray-generator varray)
    (let* ((base-indexer (base-indexer-of varray params))
           (input-size (the (unsigned-byte 62)
                            (max (the bit 1)
@@ -1216,7 +1216,7 @@
                               (lambda (index)
                                 ;; (print (list :in index input-size))
                                 (mod index input-size)))
-             (lambda (index) (declare (ignore index)) 0))))))
+             (lambda (index) (declare (ignore index)) 0)))))
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
@@ -1860,8 +1860,7 @@
                              :into total :collect total))
          (indexers (make-array base-size
                                :initial-contents (loop :for i :below base-size 
-                                                       :collect (generator-of (funcall base-indexer i)
-                                                                              indexers params))))
+                                                       :collect (generator-of (funcall base-indexer i)))))
          (ifactors (make-array base-size
                                :initial-contents (loop :for i :below base-size 
                                                        :collect (let ((a (funcall base-indexer i)))
