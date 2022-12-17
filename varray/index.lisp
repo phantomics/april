@@ -186,13 +186,20 @@
            (rlen (nth axis idims))
            (increment (reduce #'* (nthcdr (1+ axis) idims)))
            (vset-size (the t (* increment rlen))))
+      ;; (print (list :ia (list iwidth itype axis)))
       (if degrees
           ;; TODO: implement a system for accelerated rotation when degrees are an array
           (if (integerp degrees)
               ;; (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
               ;;                             indexer-table-encoded-idegree)))
               ;;         (when match (funcall match degrees rlen)))
-              (funcall default-function increment vset-size degrees rlen)
+              ;; (funcall default-function increment vset-size degrees rlen)
+              (if (= irank 1) ;; replace this case with linear optimized
+                  (funcall default-function increment vset-size degrees rlen)
+                  (let ((match (gethash (list iwidth itype (- irank 1 axis))
+                                        indexer-table-encoded-idegree)))
+                    (if match (funcall match degrees rlen)
+                        (funcall default-function increment vset-size degrees rlen))))
               (lambda (i)
                 (the (unsigned-byte 62)
                      (+ (the (unsigned-byte 62) (mod i increment))

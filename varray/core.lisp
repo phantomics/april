@@ -641,7 +641,7 @@
                                                    :format :encoded :base-format :encoded :indexers nil)))
             ))
 
-      ;;(setq gen nil)
+      (setq gen nil)
       
       (multiple-value-bind (indexer is-not-defaulting)
           (if gen (values gen t)
