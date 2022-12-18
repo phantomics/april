@@ -308,16 +308,13 @@
             (factors (get-dimensional-factors (shape-of array) t))
             (decoder (decode-rmi (getf gen-params :index-width) (getf gen-params :index-type)
                                  (array-rank array) factors))
-            ;; (converter (join-indexers2 params))
-            (converter (join-indexers2 indexers))
-            )
+            (converter (join-indexers2 indexers)))
        ;; (print (list :ff params factors decoder converter array (shape-of array)))
        (lambda (index)
          ;; (print (list :iit index (funcall converter index) (funcall decoder index)))
          (let ((index-out (funcall decoder (funcall converter index))))
            (when (< index-out array-size) (row-major-aref array index-out))))))
-    (:linear (let (;; (converter (join-indexers2 params))
-                   (converter (join-indexers2 indexers)))
+    (:linear (let ((converter (join-indexers2 indexers)))
                (lambda (index)
                  (let ((array-size (size-of array))
                        (index-out (funcall converter index)))
@@ -612,12 +609,12 @@
                           ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
                           ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                           ;; 4x16 or 2x32 dimension indices
-                          (loop :for w :in '(16 32 64) :when (>= w (* (or (getf metadata :max-rank)
-                                                                          output-rank)
+                          (loop :for w :in '(16 32 64) :when (>= w (* ;; output-rank
+                                                                      (length (getf metadata :max-shape))
                                                                       coordinate-type))
                                 :return w))))
 
-    ;; (print (list :out metadata output-rank coordinate-type encoding-type))
+    ;; (print (list :out metadata output-rank coordinate-type encoding-type ))
     
     (when (getf metadata :gen-meta)
       (setf (getf (rest (getf metadata :gen-meta)) :index-type) coordinate-type
@@ -641,13 +638,13 @@
                                                    :format :encoded :base-format :encoded :indexers nil)))
             ))
 
-      (setq gen nil)
+      ;; (setq gen nil)
       
       (multiple-value-bind (indexer is-not-defaulting)
           (if gen (values gen t)
               (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
 
-        ;; (print (list :g gen coordinate-type en-type is-not-defaulting))
+        ;; (print (list :g gen coordinate-type en-type is-not-defaulting metadata))
                    
         (when (and (typep varray 'vader-select)
                    (< 0 (size-of varray)) (functionp indexer))

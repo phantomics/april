@@ -385,18 +385,20 @@
                   (when valid factor)))
               (let ((match (gethash (list iwidth itype (1- irank))
                                     indexer-table-diagonal-encoded)))
-                (list (when match (funcall match indices-vector))
-                      (lambda (i)
-                        (let ((remaining i) (iindex 0))
-                          (loop :for ox :from 0 :for of :across od-factors
-                                :do (multiple-value-bind (index remainder) (floor remaining of)
-                                      (setq remaining remainder)
-                                      (loop :for a :in indices :for ax :from 0 :when (= a ox)
-                                            :do (incf iindex (* index (aref id-factors ax))))))
-                          iindex)))))))))
+                ;; (print (list :mm match iwidth is-diagonal od-factors indices))
+                (if iwidth (when match (funcall match indices-vector))
+                    (lambda (i)
+                      (let ((remaining i) (iindex 0))
+                        (loop :for ox :from 0 :for of :across od-factors
+                              :do (multiple-value-bind (index remainder) (floor remaining of)
+                                    (setq remaining remainder)
+                                    (loop :for a :in indices :for ax :from 0 :when (= a ox)
+                                          :do (incf iindex (* index (aref id-factors ax))))))
+                        iindex)))))))))
 
 ;; 1 2 3 4
-;; 4 3 2 1
 ;; 2 1 3 4
 ;; 3 4 2 1
 ;; 4 3 2 1
+
+;; 1 2 3 4 → 4 2 1 3
