@@ -3363,7 +3363,7 @@
                               (mod (row-major-aref arg i) dimension)))
                       out))))))
   (case (getf params :base-format)
-    (:encoded)
+    ;; (:encoded)
     (:encoded (when (not (shape-of (vads-argument varray)))
                 ;; disabled for non-scalar left arguments; TODO: can this be changed?
                 (let* ((enco-type (getf (getf params :gen-meta) :index-width))
@@ -3496,8 +3496,8 @@
                                              'vector)
                                      (- argument (vads-io varray))))
                                (and (vads-argument varray) (vaperm-is-diagonal varray))
-                               enco-type ;; coord-type
-                               (when (not (vaperm-is-diagonal varray)) coord-type)
+                               enco-type coord-type
+                               ;;(when (not (vaperm-is-diagonal varray)) coord-type)
                                assigning))
                      (all-indexers))
                 (when indexer

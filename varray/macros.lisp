@@ -21,7 +21,6 @@
              (process-var-range (form vars &optional params key-ints var-widths)
                (if vars
                    (destructuring-bind (var-type var-symbol &rest rest-vars) vars
-                     ;; (print (list :vt var-type var-symbol rest-vars (getf widths var-type)))
                      (case var-type
                        (:rank
                         (loop :for i :below (floor (getf params :base-width)

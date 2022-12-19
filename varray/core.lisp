@@ -582,7 +582,6 @@
                                                                start-intervals))
                                                  (- total-size start-at))))
                                  (coords (funcall encoder start-at)))
-                            ;; (print (list :dd start-intervals start-at count coords))
                             (loop :for i :below count
                                   :do (funcall to-call coords)
                                       (when (< i (1- count))
