@@ -60,16 +60,6 @@
                (not (eq :assign output-shorter))
                (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
                t)
-          ;; (and iwidth itype
-          ;;      (loop :for dx :below irank
-          ;;            :append (let ((dim (- irank 1 dx)) ;; TODO: change to collect if not returning lists
-          ;;                          (sum (+ (aref span dx) (aref pad dx))))
-          ;;                      (unless (zerop sum)
-          ;;                        (let* ((encoder (gethash (list iwidth itype dim)
-          ;;                                                 indexer-table-encoded))
-          ;;                               (e-out (when encoder (funcall encoder sum))))
-          ;;                          ;; (print (list :cc encoder (funcall encoder sum)))
-          ;;                          (if (listp encoder) encoder (list encoder)))))))
           (and iwidth itype
                (loop :for dx :below irank
                      :append (let ((dim (- irank 1 dx))
@@ -78,15 +68,6 @@
                                  (let ((encoder (gethash (list iwidth itype dim)
                                                          indexer-table-encoded)))
                                    (when encoder (list (funcall encoder sum))))))))
-          ;; (and iwidth itype
-          ;;      (loop :for dx :below irank
-          ;;            :append (let ((dim (- irank 1 dx))
-          ;;                          (sum (+ (aref span dx) (aref pad dx))))
-          ;;                      (unless (zerop sum)
-          ;;                        (let ((encoder (gethash (list iwidth itype dim)
-          ;;                                                indexer-table-encoded)))
-          ;;                          (print (list :cc encoder (funcall encoder sum)))
-          ;;                          (when encoder (funcall encoder sum)))))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
               ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -419,18 +400,19 @@
                                   (setq remaining remainder
                                         factor (or factor index)))))
                   (when valid factor)))
-              (let ((match (gethash (list iwidth itype (1- irank))
-                                    indexer-table-diagonal-encoded)))
+              
                 ;; (print (list :mm match iwidth is-diagonal indices od-factors id-factors indices-vector))
-                (if iwidth (when match (funcall match indices-vector (length od-factors)))
-                    (lambda (i)
-                      (let ((remaining i) (iindex 0))
-                        (loop :for ox :from 0 :for of :across od-factors
-                              :do (multiple-value-bind (index remainder) (floor remaining of)
-                                    (setq remaining remainder)
-                                    (loop :for a :in indices :for ax :from 0 :when (= a ox)
-                                          :do (incf iindex (* index (aref id-factors ax))))))
-                        iindex)))))))))
+              (if iwidth (let ((match (gethash (list iwidth itype (1- irank))
+                                               indexer-table-diagonal-encoded)))
+                           (when match (funcall match indices-vector (length od-factors))))
+                  (lambda (i)
+                    (let ((remaining i) (iindex 0))
+                      (loop :for ox :from 0 :for of :across od-factors
+                            :do (multiple-value-bind (index remainder) (floor remaining of)
+                                  (setq remaining remainder)
+                                  (loop :for a :in indices :for ax :from 0 :when (= a ox)
+                                        :do (incf iindex (* index (aref id-factors ax))))))
+                      iindex))))))))
 
 ;; 1 2 3 4
 ;; 2 1 3 4
