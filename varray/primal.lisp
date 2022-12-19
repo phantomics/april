@@ -57,12 +57,14 @@
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-integer-progression) &optional indexers params)
   (declare (ignore params indexers) (optimize (speed 3) (safety 0)))
-  (get-promised (varray-generator vvector)
-                (let ((origin (the (unsigned-byte 62) (vapip-origin vvector)))
-                      (offset (the (unsigned-byte 62) (vapip-offset vvector)))
-                      (factor (the real (vapip-factor vvector)))
-                      (repeat (the (unsigned-byte 62) (vapip-repeat vvector))))
-                  (funcall (if (or (and (integerp factor) (= 1 factor))
+  (let* (;; (converter (join-indexers2 params))
+         ;; (converter (join-indexers2 indexers))
+         (converter #'identity)
+         (origin (the (unsigned-byte 62) (vapip-origin vvector)))
+         (offset (the fixnum (vapip-offset vvector)))
+         (factor (the real (vapip-factor vvector)))
+         (repeat (the (unsigned-byte 62) (vapip-repeat vvector)))
+         (indexer (funcall (if (or (and (integerp factor) (= 1 factor))
                                    (and (typep factor 'single-float) (= 1.0 factor))
                                    (and (typep factor 'double-float) (= 1.0d0 factor)))
                                (if (zerop offset)
@@ -85,11 +87,21 @@
                                    #'identity
                                    (lambda (index)
                                      (declare (type (unsigned-byte 62) index))
-                                     (the (unsigned-byte 64) (+ origin index))))
+                                     ;; (the (unsigned-byte 64) (+ origin index))
+                                     ;; (print (list :oo (+ origin index)
+                                     ;;              (funcall converter (+ origin index))))
+                                     (the (unsigned-byte 64) (funcall converter (+ origin index)))))
                                (lambda (index)
                                  (declare (type (unsigned-byte 62) index))
                                  (the (unsigned-byte 64)
-                                      (+ origin (the (unsigned-byte 62) (floor index repeat))))))))))
+                                      (+ origin (the (unsigned-byte 62)
+                                                     (funcall converter (floor index repeat))))))))))
+    ;; (print (list :pr params))
+    (case (getf params :format)
+      (:encoded (setf (getf params :format) :linear)
+       (generator-of vvector nil params))
+      (:linear indexer)
+      (t indexer))))
 
 (deftype fast-iota-sum-fixnum ()
   "The largest integer that can be supplied to fast-iota-sum without causing a fixnum overflow"
@@ -165,7 +177,10 @@
           :do (multiple-value-bind (item remainder) (floor remaining f)
                 (setf (aref output ix) (+ item (vads-io (vacov-reference vvector)))
                       remaining remainder)))
-    (lambda (index) (aref output index))))
+    (case (getf params :base-format)
+      (:encoded)
+      (:linear)
+      (t (lambda (index) (aref output index))))))
 
 (defclass vapri-coordinate-identity (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
   ((%shape :accessor vapci-shape
@@ -194,9 +209,12 @@
 
 (defmethod generator-of ((varray vapri-coordinate-identity) &optional indexers params)
   "Each index returns a coordinate vector."
-  (lambda (index) (make-instance 'vapri-coordinate-vector
-                                 :reference varray :index index)))
-
+  (case (getf params :base-format)
+    (:encoded)
+    (:linear)
+    (t (lambda (index) (make-instance 'vapri-coordinate-vector
+                                      :reference varray :index index)))))
+    
 (defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
   ((%reference :accessor vaxv-reference
                :initform nil
@@ -226,25 +244,27 @@
                           (nth (vaxv-axis varray) (shape-of (vaxv-reference varray)))))))
 
 (defmethod generator-of ((varray vapri-axis-vector) &optional indexers params)
-  (get-promised (varray-generator varray)
-                (let* ((axis (vaxv-axis varray))
-                       (window (vaxv-window varray))
-                       (wsegment)
-                       (ref-index (vaxv-index varray))
-                       (ref-indexer (generator-of (vaxv-reference varray)))
-                       (irank (rank-of (vaxv-reference varray)))
-                       (idims (shape-of (vaxv-reference varray)))
-                       (rlen (nth axis idims))
-                       (increment (reduce #'* (nthcdr (1+ axis) idims))))
-                  (loop :for dim :in idims :for dx :from 0
-                        :when (and window (= dx axis))
-                          :do (setq wsegment (- dim (1- window))))
-                  (let ((delta (+ (if window (* rlen (floor ref-index wsegment))
-                                      (if (= 1 increment)
-                                          0 (* (floor ref-index increment)
-                                               (- (* increment rlen) increment))))
-                                  (if (/= 1 increment) ref-index
-                                      (if window (if (>= 1 irank) ref-index
-                                                     (mod ref-index wsegment))
-                                          (* ref-index rlen))))))
-                    (lambda (index) (funcall ref-indexer (+ delta (* index increment))))))))
+  (let* ((axis (vaxv-axis varray))
+         (window (vaxv-window varray))
+         (wsegment)
+         (ref-index (vaxv-index varray))
+         (ref-indexer (generator-of (vaxv-reference varray)))
+         (irank (rank-of (vaxv-reference varray)))
+         (idims (shape-of (vaxv-reference varray)))
+         (rlen (nth axis idims))
+         (increment (reduce #'* (nthcdr (1+ axis) idims))))
+    (loop :for dim :in idims :for dx :from 0
+          :when (and window (= dx axis))
+            :do (setq wsegment (- dim (1- window))))
+    (let ((delta (+ (if window (* rlen (floor ref-index wsegment))
+                        (if (= 1 increment)
+                            0 (* (floor ref-index increment)
+                                 (- (* increment rlen) increment))))
+                    (if (/= 1 increment) ref-index
+                        (if window (if (>= 1 irank) ref-index
+                                       (mod ref-index wsegment))
+                            (* ref-index rlen))))))
+      (case (getf params :base-format)
+        (:encoded)
+        (:linear)
+        (t (lambda (index) (funcall ref-indexer (+ delta (* index increment)))))))))

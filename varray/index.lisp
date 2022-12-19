@@ -26,7 +26,7 @@
                                    (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   
-  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype)
+  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype &optional is-flat)
     "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
     ;; (print (list :is inverse dims dimensions output-shorter span padding))
     (let* ((scalar (not dims))
@@ -55,46 +55,47 @@
                       (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
-      (let ((encoder-chain
-              (or (and (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
-                       :pass)
-                  (loop :for dx :below irank
-                        :append (let ((dim (- irank 1 dx))
-                                      (sum (+ (aref span dx) (aref pad dx))))
-                                  (unless (zerop sum)
-                                    (let ((encoder (gethash (list iwidth itype dim) ; dx)
-                                                            indexer-table-encoded)))
-                                      (when encoder (list (funcall encoder sum)))))))))
-            (default-indexer
-              (if output-shorter
-                  ;; choose shorter path depending on whether input or output are larger, and
-                  ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
-                  ;; to respect the segmentation of the elements
-                  (lambda (i)
-                    (let ((oindex 0) (remaining i) (valid t))
-                      ;; calculate row-major offset for outer array dimensions
-                      (loop :for i :below irank :while valid :for od :in odims
-                            :for ifactor :across id-factors :for ofactor :across od-factors
-                            :do (multiple-value-bind (index remainder) (floor remaining ifactor)
-                                  (let ((adj-index (- index (aref span i))))
-                                    (setf valid (when (< -1 adj-index od)
-                                                  (incf oindex (* ofactor adj-index))
-                                                  (setq remaining remainder))))))
-                      (when valid oindex)))
-                  (lambda (i)
-                    (let ((iindex 0) (remaining i) (valid t))
-                      ;; calculate row-major offset for outer array dimensions
-                      (loop :for i :below irank :while valid
-                            :for ifactor :across id-factors :for ofactor :across od-factors
-                            :do (multiple-value-bind (index remainder) (floor remaining ofactor)
-                                  (let ((adj-index (+ (aref span i)
-                                                      (- index (aref pad i)))))
-                                    (setf valid (when (< -1 adj-index (aref span (+ i irank)))
-                                                  (incf iindex (* ifactor adj-index))
-                                                  (setq remaining remainder))))))
-                      (when valid iindex))))))
-        ;; (print (list :enc encoder-chain))
-        (list encoder-chain default-indexer)))))
+      (or (and (not is-flat)
+               (loop :for p :across pad :always (zerop p))
+               (not (eq :assign output-shorter))
+               (loop :for dx :below irank :always (zerop (+ (aref span dx) (aref pad dx))))
+               t)
+          (and iwidth itype
+               (loop :for dx :below irank
+                     :append (let ((dim (- irank 1 dx))
+                                   (sum (+ (aref span dx) (aref pad dx))))
+                               (unless (zerop sum)
+                                 (let ((encoder (gethash (list iwidth itype dim)
+                                                         indexer-table-encoded)))
+                                   (when encoder (list (funcall encoder sum))))))))
+          (if output-shorter
+              ;; choose shorter path depending on whether input or output are larger, and
+              ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
+              ;; to respect the segmentation of the elements
+              (lambda (i)
+                (let ((oindex 0) (remaining i) (valid t))
+                  ;; calculate row-major offset for outer array dimensions
+                  (loop :for i :below irank :while valid :for od :in odims
+                        :for ifactor :across id-factors :for ofactor :across od-factors
+                        :do (multiple-value-bind (index remainder) (floor remaining ifactor)
+                              (let ((adj-index (- index (aref span i))))
+                                (setf valid (when (< -1 adj-index od)
+                                              (incf oindex (* ofactor adj-index))
+                                              (setq remaining remainder))))))
+                  (when valid oindex)))
+              (lambda (i)
+                ;; (print (list :ii i))
+                (let ((iindex 0) (remaining i) (valid t))
+                  ;; calculate row-major offset for outer array dimensions
+                  (loop :for i :below irank :while valid
+                        :for ifactor :across id-factors :for ofactor :across od-factors
+                        :do (multiple-value-bind (index remainder) (floor remaining ofactor)
+                              (let ((adj-index (+ (aref span i)
+                                                  (- index (aref pad i)))))
+                                (setf valid (when (< -1 adj-index (aref span (+ i irank)))
+                                              (incf iindex (* ifactor adj-index))
+                                              (setq remaining remainder))))))
+                  (when valid iindex))))))))
 
 (let ((default-function
         (lambda (increment vset-size degrees rlen)
@@ -156,6 +157,28 @@
                                           (the (unsigned-byte +cindex-width+)
                                                (if (> rlen out) out (- out rlen)))))
                                    (byte +cindex-width+ +address-fraction+)
+                                   i)))))))))
+      (indexer-table-encoded-flip
+        (intraverser
+         (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
+          :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
+         (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
+                        function)
+              (lambda (rlen)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (unsigned-byte +sub-base-width+) rlen))
+                ;; (let ((byte-offset (* +cindex-width+ dindex)))
+                ;; (print (list :fn degrees rlen +cindex-width+ +eindex-width+ +address-fraction+))
+                (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+                     (lambda (i)
+                       (declare (type (unsigned-byte +eindex-width+) i))
+                       (let ((iindex (the (unsigned-byte +cindex-width+)
+                                          (ldb (byte +cindex-width+ +address-fraction+)
+                                               i))))
+                         (the (unsigned-byte +eindex-width+)
+                              (dpb (the (unsigned-byte +cindex-width+)
+                                        (- rlen 1 iindex))
+                                   (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   (declare (ignore indexer-table-linear-idegree))
   
@@ -166,13 +189,16 @@
            (rlen (nth axis idims))
            (increment (reduce #'* (nthcdr (1+ axis) idims)))
            (vset-size (the t (* increment rlen))))
+      ;; (print (list :ia (list iwidth itype axis)))
       (if degrees
           ;; TODO: implement a system for accelerated rotation when degrees are an array
           (if (integerp degrees)
-              (list (let ((match (gethash (list iwidth itype (- irank 1 axis))
-                                          indexer-table-encoded-idegree)))
-                      (when match (funcall match degrees rlen)))
-                    (funcall default-function increment vset-size degrees rlen))
+              (if (= irank 1) ;; replace this case with linear optimized
+                  (funcall default-function increment vset-size degrees rlen)
+                  (let ((match (gethash (list iwidth itype (- irank 1 axis))
+                                        indexer-table-encoded-idegree)))
+                    (if match (funcall match degrees rlen)
+                        (funcall default-function increment vset-size degrees rlen))))
               (lambda (i)
                 (the (unsigned-byte 62)
                      (+ (the (unsigned-byte 62) (mod i increment))
@@ -188,11 +214,14 @@
                           (the (unsigned-byte 62)
                                (* increment (the fixnum (mod (the fixnum (+ degree (floor i increment)))
                                                              rlen)))))))))
-          (lambda (i)
-            (+ (mod i increment)
-               (* vset-size (floor i vset-size))
-               (* increment (abs (- (mod (floor i increment) rlen)
-                                    (1- rlen))))))))))
+          (if iwidth (let ((match (gethash (list iwidth itype (- irank 1 axis))
+                                           indexer-table-encoded-flip)))
+                       (funcall match rlen))
+              (lambda (i)
+                (+ (mod i increment)
+                   (* vset-size (floor i vset-size))
+                   (* increment (abs (- (mod (floor i increment) rlen)
+                                        (1- rlen)))))))))))
 
 (let ((indexer-table-regular-linear
         (intraverser
@@ -226,7 +255,6 @@
                  (declare (optimize (speed 3) (safety 0))
                           (type (simple-array (unsigned-byte 8) (+rank-plus+))
                                 indices)) ;; TODO: fix hardcoded type
-                 ;; (print (list :in indices))
                  (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
                       (lambda (i)
                         (declare (type (unsigned-byte +eindex-width+) i))
@@ -240,57 +268,69 @@
                                                     i)
                                                (byte +cindex-width+ (* n +cindex-width+))
                                                iindex)))
-                          ;; (print (format nil "#x~8,'0X" i))
-                          ;; (print (format nil "#x~8,'0X~%" iindex))
                           iindex)))))))
-      (indexer-table-diagonal-linear
-        (intraverser
-         (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
-                        ;; :rank +rank+
-          :rank-width +rank-width+)
-         (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-                         ;; (simple-array (unsigned-byte +rank-width+) (+rank+))
-                         vector vector vector)
-                        function)
-              (lambda (od-factors id-factors indices)
-                (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
-                     (lambda (i)
-                       (declare (optimize (speed 3) (safety 0))
-                                (type (unsigned-byte +lindex-width+) i))
-                       (let ((iindex (the (unsigned-byte +lindex-width+) 0))
-                             (remaining (the (unsigned-byte +lindex-width+) i)))
-                         (loop :for ox :from 0 :for of :across od-factors
-                               :do (multiple-value-bind (index remainder) (floor remaining of)
-                                     (loop :for a :of-type (unsigned-byte +rank-width+)
-                                             :across indices
-                                           :for ax :from 0 :when (= a ox)
-                                           :do (incf iindex (* index (aref id-factors ax))))
-                                     (setq remaining remainder)))
-                         (the (unsigned-byte +lindex-width+) iindex))))))))
+      ;; (indexer-table-diagonal-linear
+      ;;   (intraverser
+      ;;    (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+ 
+      ;;                   ;; :rank +rank+
+      ;;     :rank-width +rank-width+)
+      ;;    (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+      ;;                    ;; (simple-array (unsigned-byte +rank-width+) (+rank+))
+      ;;                    vector vector vector)
+      ;;                   function)
+      ;;         (lambda (od-factors id-factors indices)
+      ;;           (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+      ;;                (lambda (i)
+      ;;                  (declare (optimize (speed 3) (safety 0))
+      ;;                           (type (unsigned-byte +lindex-width+) i))
+      ;;                  (let ((output (the (unsigned-byte +lindex-width+) 0))
+      ;;                        (remaining (the (unsigned-byte +lindex-width+) i)))
+      ;;                    (loop :for ox :from 0 :for of :across od-factors
+      ;;                          :do (multiple-value-bind (index remainder) (floor remaining of)
+      ;;                                (loop :for a :of-type (unsigned-byte +rank-width+)
+      ;;                                        :across indices
+      ;;                                      :for ax :from 0 :when (= a ox)
+      ;;                                      :do (incf output (* index (aref id-factors ax))))
+      ;;                                (setq remaining remainder)))
+      ;;                    (the (unsigned-byte +lindex-width+) output))))))))
+      ;; (lambda (i)
+      ;;   (let ((remaining i) (iindex 0))
+      ;;     (loop :for ox :from 0 :for of :across od-factors
+      ;;           :do (multiple-value-bind (index remainder) (floor remaining of)
+      ;;                 (setq remaining remainder)
+      ;;                 (loop :for a :in indices :for ax :from 0 :when (= a ox)
+      ;;                       :do (incf iindex (* index (aref id-factors ax))))))
+      ;;     iindex))
       (indexer-table-diagonal-encoded
         (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
           :rank +rank+ :rank-width +rank-width+)
-         (the (function ((unsigned-byte +rank-width+)
-                         (simple-array (unsigned-byte +rank-width+) (+rank+)))
+         (the (function ((simple-array (unsigned-byte +rank-width+) (+rank+))
+                         (unsigned-byte +rank-width+))
                         function)
-              (lambda (indices)
+              (lambda (indices out-rank)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (unsigned-byte 8) out-rank) ;; TODO: 8-bit hardcoded
+                         (type (simple-array (unsigned-byte 8)) indices)
+                         )
                 (let ((input-rank (length indices)))
+                  (declare (type (unsigned-byte 8) input-rank))
                   (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
                        (lambda (i)
-                         (declare (optimize (speed 3) (safety 0))
-                                  (type (unsigned-byte +eindex-width+) i))
-                         (let ((iindex (the (unsigned-byte +eindex-width+) 0)))
-                           (loop :for d :below input-rank :for ox :from 0
-                                 :do (let ((this-index (ldb (byte +cindex-width+
-                                                                  (* d +cindex-width+))
-                                                            i)))
-                                       (loop :for a :in indices :for ax :from 0 :when (= a ox)
-                                             :do (setf iindex (dpb this-index
-                                                                   (byte +cindex-width+
-                                                                         (* ax +cindex-width+))
-                                                                   iindex)))))
-                           (the (unsigned-byte +eindex-width+) iindex))))))))))
+                         (declare (type (unsigned-byte +eindex-width+) i))
+                         (let ((output (the (unsigned-byte +eindex-width+) 0)))
+                           (loop :for a :of-type (unsigned-byte 8) :across indices
+                                 :for ax :of-type (unsigned-byte 8) :from 0
+                                 :do (setf output (the (unsigned-byte +eindex-width+)
+                                                       (dpb (ldb (byte +cindex-width+
+                                                                       (* +cindex-width+
+                                                                          (- out-rank 1 a)))
+                                                                 i)
+                                                            (byte +cindex-width+
+                                                                  (* +cindex-width+
+                                                                     (- input-rank 1 ax)))
+                                                            output))))
+                           (the (unsigned-byte +eindex-width+) output))))))))))
   
   (defun indexer-permute (idims odims alpha is-diagonal iwidth itype &optional is-inverse)
     "Return indices of an array permuted as with the [⍉ permute] function."
@@ -339,14 +379,14 @@
           (if is-inverse #'identity ;; selective assignment assigns all elements in a regular permute case
               (let ((match (gethash (list iwidth itype irank)
                                     indexer-table-regular-encoded)))
-                (list (when match (funcall match indices-vector))
-                      (lambda (i)
-                        (let* ((remaining i) (oindex 0))
-                          (loop :for od :across od-factors :for s :across s-factors
-                                :collect (multiple-value-bind (index remainder) (floor remaining od)
-                                           (incf oindex (* index s))
-                                           (setq remaining remainder)))
-                          oindex)))))
+                (or (when match (funcall match indices-vector))
+                    (lambda (i)
+                      (let* ((remaining i) (oindex 0))
+                        (loop :for od :across od-factors :for s :across s-factors
+                              :collect (multiple-value-bind (index remainder) (floor remaining od)
+                                         (incf oindex (* index s))
+                                         (setq remaining remainder)))
+                        oindex)))))
           ;; handle diagonal array traversals
           (if is-inverse
               (lambda (i)
@@ -360,14 +400,23 @@
                                   (setq remaining remainder
                                         factor (or factor index)))))
                   (when valid factor)))
-              (let ((match (gethash (list iwidth itype (1- irank))
-                                    indexer-table-diagonal-encoded)))
-                (list (when match (funcall match indices-vector))
-                      (lambda (i)
-                        (let ((remaining i) (iindex 0))
-                          (loop :for ox :from 0 :for of :across od-factors
-                                :do (multiple-value-bind (index remainder) (floor remaining of)
-                                      (setq remaining remainder)
-                                      (loop :for a :in indices :for ax :from 0 :when (= a ox)
-                                            :do (incf iindex (* index (aref id-factors ax))))))
-                          iindex)))))))))
+              
+                ;; (print (list :mm match iwidth is-diagonal indices od-factors id-factors indices-vector))
+              (if iwidth (let ((match (gethash (list iwidth itype (1- irank))
+                                               indexer-table-diagonal-encoded)))
+                           (when match (funcall match indices-vector (length od-factors))))
+                  (lambda (i)
+                    (let ((remaining i) (iindex 0))
+                      (loop :for ox :from 0 :for of :across od-factors
+                            :do (multiple-value-bind (index remainder) (floor remaining of)
+                                  (setq remaining remainder)
+                                  (loop :for a :in indices :for ax :from 0 :when (= a ox)
+                                        :do (incf iindex (* index (aref id-factors ax))))))
+                      iindex))))))))
+
+;; 1 2 3 4
+;; 2 1 3 4
+;; 3 4 2 1
+;; 4 3 2 1
+
+;; 1 2 3 4 → 4 2 1 3
