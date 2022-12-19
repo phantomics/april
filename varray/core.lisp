@@ -246,7 +246,7 @@
   (if indexers (let ((rev (reverse indexers)))
                  (lambda (index)
                    (let ((index-out index))
-                     (loop :for f :in rev :do (setf index-out (funcall f index-out)))
+                     (loop :for i :in rev :do (setf index-out (funcall i index-out)))
                      index-out)))
       #'identity))
 
@@ -315,7 +315,6 @@
                        (funcall this-indexer (funcall composite-indexer index))))))
 
 (defmethod generator-of :around ((varray varray) &optional indexers params)
-  ;; (print (list :ggg indexers))
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
         (if (not (functionp this-generator))
@@ -541,12 +540,9 @@
                           ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
                           ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                           ;; 4x16 or 2x32 dimension indices
-                          (loop :for w :in '(16 32 64) :when (>= w (* ;; output-rank
-                                                                      (length (getf metadata :max-shape))
-                                                                      coordinate-type))
-                                :return w))))
-
-    ;; (print (list :out metadata output-rank coordinate-type encoding-type ))
+                          (loop :for w :in '(16 32 64)
+                                :when (>= w (* coordinate-type (length (getf metadata :max-shape))))
+                                  :return w))))
     
     (when (getf metadata :gen-meta)
       (setf (getf (rest (getf metadata :gen-meta)) :index-type) coordinate-type
@@ -567,8 +563,7 @@
     
     (let ((gen (and coordinate-type en-type
                     (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
-                                                   :format :encoded :base-format :encoded :indexers nil)))
-            ))
+                                                   :format :encoded :base-format :encoded :indexers nil)))))
 
       ;; (setq gen nil)
       

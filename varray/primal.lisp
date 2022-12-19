@@ -61,7 +61,7 @@
          ;; (converter (join-indexers2 indexers))
          (converter #'identity)
          (origin (the (unsigned-byte 62) (vapip-origin vvector)))
-         (offset (the (unsigned-byte 62) (vapip-offset vvector)))
+         (offset (the fixnum (vapip-offset vvector)))
          (factor (the real (vapip-factor vvector)))
          (repeat (the (unsigned-byte 62) (vapip-repeat vvector)))
          (indexer (funcall (if (or (and (integerp factor) (= 1 factor))

@@ -1865,7 +1865,6 @@
                                                                   (if (or (arrayp a) (varrayp a))
                                                                       (reverse (get-dimensional-factors
                                                                                 (shape-of a)))))))))
-    ;; (print (list :cc indexers))
     
     (case (getf params :base-format)
       (:encoded)
@@ -2257,9 +2256,6 @@
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
                  (vader-base varray) (if new-span sub-base base)))))
-
-     ;; (when (vasec-span varray)
-     ;;   (print (list :vv (vasec-span varray) (vasec-pad varray))))
      
      (unless (vasec-span varray)
        ;; this will usually apply to a section object without another section as its base
@@ -2448,10 +2444,8 @@
                                             enco-type coord-type)
                                 these-indexers)
                           (setf (getf params :format) :encoded))
-                        ;; (print (list :ti these-indexers indexer))
                         (unless (eq t indexer)
                           (setf these-indexers (append indexer these-indexers)))
-                        ;; (print (list :aa (vader-base varray) these-indexers))
                         (generator-of (vader-base varray)
                                       (append these-indexers indexers) params)))))
         (:linear (when (loop :for item :across (vasec-pad varray) :always (zerop item))
@@ -2462,7 +2456,6 @@
                                    nil (getf (getf params :gen-meta) :index-width)
                                    (getf (getf params :gen-meta) :index-type))))
                      (when indexer
-                       ;; (unless (eq t indexer) (push indexer (getf params :indexers)))
                        (generator-of (vader-base varray) (cons indexer indexers)
                                      params)))))
         (t (let ((indexer (indexer-of varray params)))
@@ -3054,11 +3047,10 @@
     (lambda (index)
       (if (= index assigned-index)
           (if (vapick-selector varray)
-              (make-instance
-               'vader-select :base (funcall base-indexer index)
-                             :index-origin (vads-io varray)
-                             :assign (vapick-assign varray)
-                             :selector (vapick-selector varray))
+              (make-instance 'vader-select :base (funcall base-indexer index)
+                                           :index-origin (vads-io varray)
+                                           :assign (vapick-assign varray)
+                                           :selector (vapick-selector varray))
               (if (vapick-function varray)
                   (funcall (vapick-function varray)
                            (funcall base-indexer index) (vapick-assign varray))
@@ -3119,7 +3111,8 @@
                                           :selector (vapick-selector varray))
                            (make-instance
                             'vader-pick :base (funcall base-indexer this-index)
-                                        :argument (vads-argument varray) :index-origin (vads-io varray)
+                                        :argument (vads-argument varray)
+                                        :index-origin (vads-io varray)
                                         :assign (vapick-assign varray)
                                         :assign-path-index (1+ (vapick-apath-index varray))))
                        (funcall base-indexer index)))))
