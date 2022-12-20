@@ -25,10 +25,13 @@
 
 ;;; User variables
 
+;; (defgroup aprepl nil
+;;   "Interaction mode for Emacs Lisp."
+;;   :group 'lisp)
+
 (defgroup aprepl nil
   "Interaction mode for Emacs Lisp."
-  :group 'lisp)
-
+  :group 'apl)
 
 (defcustom aprepl-noisy t
   "If non-nil, ApREPL will beep on error."
@@ -110,13 +113,13 @@ such as `edebug-defun' to work with such inputs."
 (defvar aprepl-stored-multiline-input ""
   "A string of multiline input, constructed as a user enters a dfn or multiline statement.")
 
-(defvaralias 'april-apl-repl-mode-hook 'aprepl-mode-hook)
+;; (defvaralias 'april-apl-repl-mode-hook 'aprepl-mode-hook)
 
-(defcustom aprepl-mode-hook nil
-  "Hooks to be run when ApREPL (`april-apl-repl-mode') is started."
-  :options '(eldoc-mode)
-  :type 'hook
-  :group 'aprepl)
+;; (defcustom aprepl-mode-hook nil
+;;   "Hooks to be run when ApREPL (`april-apl-repl-mode') is started."
+;;   :options '() ; '(eldoc-mode)
+;;   :type 'hook
+;;   :group 'aprepl)
 
 (defvar aprepl-match-data nil
   "Match data saved at the end of last command.")
@@ -139,7 +142,7 @@ such as `edebug-defun' to work with such inputs."
 (defvaralias 'april-apl-repl-mode-map 'aprepl-map)
 (defvar aprepl-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\t" 'aprepl-tab)
+    ;; (define-key map "\t" 'aprepl-tab)
     (define-key map "\C-m" 'aprepl-return)
     (define-key map "\e\C-m" 'aprepl-return-for-effect)
     (define-key map "\C-j" 'aprepl-send-input)
@@ -170,17 +173,17 @@ such as `edebug-defun' to work with such inputs."
 
 ;;; Completion stuff
 
-(defun aprepl-tab ()
-  "Indent or complete."
-  (interactive)
-  (if (or (eq (preceding-char) ?\n)
-          (eq (char-syntax (preceding-char)) ?\s))
-      (aprepl-indent-line)))
+;; (defun aprepl-tab ()
+;;   "Indent or complete."
+;;   (interactive)
+;;   (if (or (eq (preceding-char) ?\n)
+;;           (eq (char-syntax (preceding-char)) ?\s))
+;;       (aprepl-indent-line)))
 
-(defun aprepl-indent-line nil
-  "Indent the current line as Lisp code if it is not a prompt line."
-  (when (save-excursion (comint-bol t) (bolp))
-    (lisp-indent-line)))
+;; (defun aprepl-indent-line nil
+;;   "Indent the current line as Lisp code if it is not a prompt line."
+;;   (when (save-excursion (comint-bol t) (bolp))
+;;     (lisp-indent-line)))
 
 ;;; Working buffer manipulation
 
@@ -262,40 +265,6 @@ simply inserts a newline."
 ;;   (or (string= string "")
 ;;       (string-match-p "\\`[ \t\n]*\\(?:;.*\\)*\\'" string)))
 
-;;; Common Lisp IDE support
-
-(declare-function slime-connected-p "ext:slime" ())
-(declare-function slime-eval-async "ext:slime" (sexp &optional cont package))
-
-(defun aprepl--slime-lisp-eval-async (str cont)
-  "Evaluate STR in the Slime REPL and call CONT with the result."
-  (slime-eval-async `(swank:eval-and-grab-output ,str) cont))
-
-(declare-function sly-connected-p "ext:sly" ())
-(declare-function sly-eval-async "ext:sly" (sexp &optional cont package env))
-
-(defun aprepl--sly-lisp-eval-async (str cont)
-  "Evaluate STR in the Sly REPL and call CONT with the result."
-  ;; TODO: Prevent elision of long strings.
-  (sly-eval-async `(slynk:eval-and-grab-output ,str) cont))
-
-(defvar aprepl--lisp-ide nil
-  "Symbol corresponding to the Common Lisp IDE in use.")
-
-(defvar aprepl--lisp-connected-p-function nil
-  "Function used for checking if the Common Lisp REPL is connected.")
-
-(defvar aprepl--lisp-eval-async-function nil
-  "Function used for evaluating Common Lisp expressions asynchronously.")
-
-(defun aprepl--lisp-connected-p ()
-  "Return non-nil if the Common Lisp REPL is connected."
-  (funcall aprepl--lisp-connected-p-function))
-
-(defun aprepl--lisp-eval-async (str &optional cont)
-  "Evaluate STR in the Common Lisp REPL and call CONT with the result."
-  (funcall aprepl--lisp-eval-async-function str cont))
-
 ;;; Evaluation
 
 (defun aprepl-standard-output-impl (process)
@@ -367,13 +336,13 @@ nonempty, then flushes the buffer."
                    (aprepl-complete-output output)))
                 ((string-equal command "makews")
                  (let ((wsname (car args)))
-                   (aprepl--lisp-eval-async
-                    (substring-no-properties
-                     (format "(april:april-create-workspace %s)" wsname))
-                    (lambda (result)
-                      (cl-destructuring-bind (out value) result
-                        (insert output (substring value 1 -1))
-                        (aprepl-complete-output output))))))
+                   (slime-eval-async `(swank:eval-and-grab-output
+                                       ,(substring-no-properties
+                                         (format "(april:april-create-workspace %s)" wsname)))
+                     (lambda (result)
+                       (cl-destructuring-bind (out value) result
+                         (insert output (substring value 1 -1))
+                         (aprepl-complete-output output))))))
                 ((string-equal command "off")
                  (setq terminated t)
                  (princ "April REPL buffer closed.")
@@ -402,23 +371,24 @@ nonempty, then flushes the buffer."
 
         (if (and (= 0 aprepl-closure-balance-braces)
                  (= 0 aprepl-closure-balance-brackets))
-            (aprepl--lisp-eval-async
-             (substring-no-properties
-              (format "(april:april (with (:space %s) (:state :output-printed :only)) \"%s\")"
-                      aprepl-workspace (concat aprepl-stored-multiline-input string)))
-             (lambda (result)
-               (cl-destructuring-bind (out value) result
-                 (push-mark)
-                 (setq aprepl-stored-multiline-input "")
-                 (insert output out)
-                 ;; don't insert the extra newline when there's no output, i.e. for assignments
-                 (when (< 2 (length value))
-                   (insert output (substring
-                                   value 1 (if (char-equal ?\n (aref value (+ -2 (length value))))
-                                               -2 -1)))
-                   (insert output ?\n))
-                 (insert output aprepl-prompt-internal)
-                 (aprepl-set-pm (point-max)))))
+            (slime-eval-async
+                `(swank:eval-and-grab-output
+                  ,(substring-no-properties
+                    (format "(april:april (with (:space %s) (:state :output-printed :only)) \"%s\")"
+                            aprepl-workspace (concat aprepl-stored-multiline-input string))))
+              (lambda (result)
+                (cl-destructuring-bind (out value) result
+                  (push-mark)
+                  (setq aprepl-stored-multiline-input "")
+                  (insert output out)
+                  ;; don't insert the extra newline when there's no output, i.e. for assignments
+                  (when (< 2 (length value))
+                    (insert output (substring
+                                    value 1 (if (char-equal ?\n (aref value (+ -2 (length value))))
+                                                -2 -1)))
+                    (insert output ?\n))
+                  (insert output aprepl-prompt-internal)
+                  (aprepl-set-pm (point-max)))))
           (progn (setf aprepl-stored-multiline-input
                        (concat aprepl-stored-multiline-input string "\n"))
                  (insert output aprepl-prompt-internal)
@@ -507,8 +477,8 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
   (set (make-local-variable 'paragraph-start) comint-prompt-regexp)
   (setq comint-input-sender 'aprepl-input-sender)
   (setq comint-process-echoes nil)
-  (add-function :before-until (local 'eldoc-documentation-function)
-                #'elisp-eldoc-documentation-function)
+  ;; (add-function :before-until (local 'eldoc-documentation-function)
+  ;;               #'elisp-eldoc-documentation-function)
   (set (make-local-variable 'aprepl-prompt-internal) aprepl-prompt)
   (set (make-local-variable 'comint-prompt-read-only) aprepl-prompt-read-only)
   (setq comint-get-old-input 'aprepl-get-old-input)
@@ -518,7 +488,7 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
   (setq-local comment-start "⍝")
   (setq-local comment-use-syntax t)
 
-  (set (make-local-variable 'indent-line-function) 'aprepl-indent-line)
+  ;; (set (make-local-variable 'indent-line-function) 'aprepl-indent-line)
   (set (make-local-variable 'aprepl-working-buffer) (current-buffer))
   (set (make-local-variable 'fill-paragraph-function) 'lisp-fill-paragraph)
 
@@ -546,22 +516,23 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
     (set (make-local-variable 'comint-inhibit-carriage-motion) t)
 
     (insert "\n\n")
-    (aprepl--lisp-eval-async ;; print header selected and formatted with April banner function
-     (substring-no-properties
-      (format "(april::display-banner :width %s)" (floor (* 0.85 (window-total-width)))))
-     (lambda (result)
-       (cl-destructuring-bind (out value) result
-         (insert (substring value 1 -1))
-         (insert "\n\n")
-         (aprepl-set-pm (point-max))
-         (unless comint-use-prompt-regexp
-           (let ((inhibit-read-only t))
-             (add-text-properties
-              (point-min) (point-max)
-              '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
-         (comint-output-filter (aprepl-process) aprepl-prompt-internal)
-         (set-marker comint-last-input-start (aprepl-pm))
-         (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter))))))
+    (slime-eval-async ;; print header selected and formatted with April banner function
+        `(swank:eval-and-grab-output
+          ,(substring-no-properties
+            (format "(april::display-banner :width %s)" (floor (* 0.85 (window-total-width))))))
+      (lambda (result)
+        (cl-destructuring-bind (out value) result
+          (insert (substring value 1 -1))
+          (insert "\n\n")
+          (aprepl-set-pm (point-max))
+          (unless comint-use-prompt-regexp
+            (let ((inhibit-read-only t))
+              (add-text-properties
+               (point-min) (point-max)
+               '(rear-nonsticky t field output inhibit-line-move-field-capture t))))
+          (comint-output-filter (aprepl-process) aprepl-prompt-internal)
+          (set-marker comint-last-input-start (aprepl-pm))
+          (set-process-filter (get-buffer-process (current-buffer)) 'comint-output-filter))))))
 
 (defun aprepl-get-old-input nil
   ;; Return the previous input surrounding point
@@ -630,32 +601,16 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
 ;; Check whether REPL is able to run
 
 (defun aprepl-check-system-ready-then (do-next)
-  "Check if it's possible to run ApREPL, and call DO-NEXT if so.
-In other words, call DO-NEXT if Slime or Sly is running and
-April's system is loaded."
-  ;; No need to ‘require’ Slime or Sly, since the user has to run one
-  ;; before ApREPL anyway.
-  (unless aprepl--lisp-ide
-    (cond
-     ((member 'slime features)
-      (setq aprepl--lisp-ide 'slime
-            aprepl--lisp-connected-p-function #'slime-connected-p
-            aprepl--lisp-eval-async-function #'aprepl--slime-lisp-eval-async))
-     ((member 'sly features)
-      (setq aprepl--lisp-ide 'sly
-            aprepl--lisp-connected-p-function #'sly-connected-p
-            aprepl--lisp-eval-async-function #'aprepl--sly-lisp-eval-async))
-     (t (error "No Common Lisp IDE found; load one with M-x slime or M-x sly"))))
-  (unless (aprepl--lisp-connected-p)
-    (cl-ecase aprepl--lisp-ide
-      (slime (error "Slime is not running; start it with M-x slime"))
-      (sly (error "Sly is not running; start it with M-x sly"))))
-  (aprepl--lisp-eval-async
-   "(asdf:system-registered-p 'april)"
-   (lambda (result)
-     (cl-destructuring-bind (_out value) result
-       (if (string= "NIL" (upcase value))
-           (error "The Common Lisp REPL is running but April is not loaded; evaluate (asdf:load-system 'april) in the REPL to load it")
+  "Check whether it's possible to run ApREPL, i.e. make sure that Slime is running and April's system is loaded."
+  (if (slime-connected-p)
+      (slime-eval-async
+          `(swank:eval-and-grab-output "(asdf:find-system 'april nil)")
+        (lambda (result)
+          (cl-destructuring-bind (out value) result
+            (if (string= "NIL" (upcase value))
+                (princ "Slime is running but April is not loaded. Please evaluate (asdf:load-system 'april) in the Slime REPL.")
+              (funcall do-next)))))
+    (princ "Slime is not running. Please start it, i.e. with M-x slime.")))
 
 ;;; User command
 
