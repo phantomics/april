@@ -149,8 +149,8 @@ such as `edebug-defun' to work with such inputs."
     (define-key map "\e\C-x" 'eval-defun)         ; for consistency with
     ;; These bindings are from `lisp-mode-shared-map' -- can you inherit
     ;; from more than one keymap??
-    (define-key map "\e\C-q" 'indent-sexp)
-    (define-key map "\177" 'backward-delete-char-untabify)
+    ;; (define-key map "\e\C-q" 'indent-sexp)
+    ;; (define-key map "\177" 'backward-delete-char-untabify)
     ;; Some convenience bindings for setting the working buffer
     (define-key map "\C-c\C-b" 'aprepl-change-working-buffer)
     (define-key map "\C-c\C-f" 'aprepl-display-working-buffer)
@@ -332,7 +332,7 @@ nonempty, then flushes the buffer."
           (cond ((string-equal command "setws")
                  (let ((wsname (car args)))
                    (setq aprepl-workspace wsname)
-                   (insert (format "Now using workspace ｢%s｣." (upcase wsname)))
+                   (insert (format "Now using workspace [%s]." (upcase wsname)))
                    (aprepl-complete-output output)))
                 ((string-equal command "makews")
                  (let ((wsname (car args)))
@@ -426,6 +426,170 @@ This is meant to be checked when the Slime hook for loading April is run."
   :type 'boolean
   :group 'aprepl)
 
+(defvar aprepl--symbols
+  '(;; Top row
+    ;; `
+    ("lozenge" "◊" "`")
+    ("diamond" "⋄" "`")
+    ("stencil" "⌺" "`")
+    ;; 1
+    ("diaeresis" "¨" "1")
+    ;; 2
+    ("macron" "¯" "2")
+    ("del-tilde" "⍫" "@")
+    ;; 3
+    ("less-than" "<" "3")
+    ("del-stile" "⍒" "#")
+    ;; 4
+    ("less-than-or-equal-to" "≤" "4")
+    ("delta-stile" "⍋" "$")
+    ;; 5
+    ("equals" "=" "5")
+    ("circle-stile" "⌽" "%")
+    ;; 6
+    ("greater-than-or-equal-to" "≥" "6")
+    ("circle-backslash" "⍉" "^")
+    ;; 7
+    ("greater-than" ">" "7")
+    ("circled-minus" "⊖" "&")
+    ;; 8
+    ("not-equal-to" "≠" "8")
+    ("circle-star" "⍟" "*")
+    ;; 9
+    ("logical-or" "∨" "9")
+    ("down-caret-tilde" "⍱" "(")
+    ;; 0
+    ("logical-and" "∧" "0")
+    ("up-caret-tilde" "⍲" ")")
+    ;; -
+    ("multiplication-sign" "×" "-")
+    ("exclamation-mark" "!" "_")
+    ;; =
+    ("division-sign" "÷" "=")
+    ("quad-divide" "⌹" "+")
+
+    ;; First row
+    ;; q
+    ("question-mark" "?" "q")
+    ;; w
+    ("omega" "⍵" "w")
+    ("omega-underbar" "⍹" "W")
+    ;; e
+    ("epsilon" "∊" "e")
+    ("epsilon-underbar" "⍷" "E")
+    ;; r
+    ("rho" "⍴" "r")
+    ;; t
+    ("tilde" "∼" "t")
+    ("tilde-diaeresis" "⍨" "T")
+    ;; y
+    ("uparrow" "↑" "y")
+    ("yen-sign" "¥" "Y")
+    ;; u
+    ("downarrow" "↓" "u")
+    ;; i
+    ("iota" "⍳" "i")
+    ("iota-underbar" "⍸" "I")
+    ;; o
+    ("circle" "○" "o")
+    ("circle-diaeresis" "⍥" "O")
+    ;; p
+    ("star-operator" "⋆" "p")
+    ("star-operator-default" "*" "p")
+    ("star-diaeresis" "⍣" "P")
+    ;; [
+    ("leftarrow" "←" "[")
+    ("quote-quad" "⍞" "{")
+    ;; ]
+    ("rightarrow" "→" "]")
+    ("zilde" "⍬" "}")
+    ;; \
+    ("right-tack" "⊢" "\\")
+    ("left-tack" "⊣" "|")
+
+    ;; Second row
+    ;; a
+    ("alpha" "⍺" "a")
+    ("alpha-underbar" "⍶" "A")
+    ;; s
+    ("left-ceiling" "⌈" "s")
+    ;; d
+    ("left-floor" "⌊" "d")
+    ;; f
+    ("underscore" "_" "f")
+    ("del-tilde" "⍫" "F")
+    ;; g
+    ("nabla" "∇" "g")
+    ;; h
+    ("increment" "∆" "h")
+    ("delta-underbar" "⍙" "H")
+    ;; j
+    ("ring-operator" "∘" "j")
+    ("jot-diaeresis" "⍤" "J")
+    ;; k
+    ("apostrophe" "'" "k")
+    ("quad-equals" "⌸" "K")
+    ;; l
+    ("quad" "⎕" "l")
+    ("squish-quad" "⌷" "L")
+    ;; ;
+    ("down-tack-jot" "⍎" ";")
+    ("identical-to" "≡" ":")
+    ;; '
+    ("up-tack-jot" "⍕" "'")
+    ("not-identical-to" "≢" "\"")
+
+    ;; Third row
+    ;; z
+    ("subset-of" "⊂" "z")
+    ("subset-of-equal" "⊆" "z")
+    ;; x
+    ("superset-of" "⊃" "x")
+    ("greek-letter-chi" "χ" "X")
+    ;; c
+    ("intersection" "∩" "c")
+    ("left-shoe-stile" "⍧" "C")
+    ;; v
+    ("union" "∪" "v")
+    ;; b
+    ("up-tack" "⊥" "b")
+    ("pipe-tilde" "⍭" "B")
+    ;; n
+    ("down-tack" "⊤" "n")
+    ;; m
+    ("divides" "|" "m")
+    ;; ,
+    ("shoe-jot" "⍝" ",")
+    ("comma-bar" "⍪" "<")
+    ;; .
+    ("backslash-bar" "⍀" ">")
+    ;; /
+    ("slash-bar" "⌿" "/")
+    ("quad-colon" "⍠" "?")
+    
+    ;; Extras
+    ("pi" "π")
+    ("root" "√")
+    ("inverted-exclamation-mark" "¡")
+    ("quad-backslash" "⍂")
+    ("inverted-question-mark" "¿"))
+  "List of symbols for `aprepl-mode'.")
+
+(defvar aprepl-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    (cl-loop for s in aprepl--symbols
+          for char = (cl-second s)
+          when char
+          do (modify-syntax-entry (aref char 0) "." table))
+    (modify-syntax-entry (aref "⍝" 0) "<" table)
+    (modify-syntax-entry ?\n ">" table)
+    (modify-syntax-entry ?\' "\"" table)
+    ;; (modify-syntax-entry (aref "∆" 0) "w" table)
+    ;; (modify-syntax-entry (aref "⍙" 0) "w" table)
+    (modify-syntax-entry ?\\ "." table)
+    table)
+  "Syntax table for `aprepl-mode'.")
+
 ;;; Major mode
 
 (define-derived-mode april-apl-repl-mode comint-mode "APREPL"
@@ -470,11 +634,11 @@ The behavior of ApREPL may be customized with the following variables:
 
 Customized bindings may be defined in `aprepl-map', which currently contains:
 \\{aprepl-map}"
-  :syntax-table emacs-lisp-mode-syntax-table
+  :syntax-table aprepl-mode-syntax-table
 
-  (setq comint-prompt-regexp (concat "^" (regexp-quote aprepl-prompt)))
-  (set (make-local-variable 'paragraph-separate) "\\'")
-  (set (make-local-variable 'paragraph-start) comint-prompt-regexp)
+  ;; (setq comint-prompt-regexp (concat "^" (regexp-quote aprepl-prompt)))
+  ;; (set (make-local-variable 'paragraph-separate) "\\'")
+  ;; (set (make-local-variable 'paragraph-start) comint-prompt-regexp)
   (setq comint-input-sender 'aprepl-input-sender)
   (setq comint-process-echoes nil)
   ;; (add-function :before-until (local 'eldoc-documentation-function)
@@ -486,11 +650,11 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
   (setq mode-line-process '(":%s on " (:eval (buffer-name aprepl-working-buffer))))
   ;; Useful for `hs-minor-mode'.
   (setq-local comment-start "⍝")
-  (setq-local comment-use-syntax t)
+  ;; (setq-local comment-use-syntax t)
 
   ;; (set (make-local-variable 'indent-line-function) 'aprepl-indent-line)
   (set (make-local-variable 'aprepl-working-buffer) (current-buffer))
-  (set (make-local-variable 'fill-paragraph-function) 'lisp-fill-paragraph)
+  ;; (set (make-local-variable 'fill-paragraph-function) 'lisp-fill-paragraph)
 
   (set (make-local-variable 'aprepl-match-data) nil)
 
