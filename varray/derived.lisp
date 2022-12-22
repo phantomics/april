@@ -795,11 +795,7 @@
                                      base-indexer (funcall base-indexer index))))))))))))))
 
 (defclass vader-random (varray-derived vad-with-rng vad-with-io)
-  ((%cached :accessor varand-cached
-            :initform nil
-            :initarg :cached
-            :documentation "Cached randomized array data."))
-  (:metaclass va-class)
+  nil (:metaclass va-class)
   (:documentation "An array of randomized elements as from the [? random] function."))
 
 (defmethod etype-of ((varray vader-random))
@@ -823,6 +819,33 @@
                                                  double-float-epsilon)))
           (error "The right argument to ? can only contain non-negative integers or floats."))))
 
+(defmethod shape-of ((varray vader-random))
+  (get-promised
+   (varray-shape varray)
+   (let* ((rngs (vads-rng varray))
+          (base-indexer (indexer-of (vader-base varray)))
+          (gen-name (getf (rest rngs) :rng))
+          (generator (or (getf (rest rngs) gen-name)
+                         (setf (getf (rest rngs) gen-name)
+                               (if (eq :system gen-name)
+                                   :system (random-state:make-generator gen-name)))))
+          (seed (getf (rest rngs) :seed)))
+
+     ;; randomized array content is generated synchronously
+     ;; and cached in case a random seed is in use
+     (when (and ; seed
+            (not (vader-content varray)))
+       (setf (vader-content varray)
+             (make-array (size-of (vader-base varray))
+                         :element-type (etype-of varray)))
+       (loop :for i :below (size-of (vader-base varray))
+             :do (setf (row-major-aref (vader-content varray) i)
+                       (apl-random-process (if (not (functionp base-indexer))
+                                               base-indexer (funcall base-indexer i))
+                                           (vads-io varray) generator))))
+     
+     (shape-of (vader-base varray)))))
+
 (defmethod generator-of ((varray vader-random) &optional indexers params)
   (let* ((rngs (vads-rng varray))
          (base-indexer (base-indexer-of varray))
@@ -834,19 +857,6 @@
                               (if (eq :system gen-name)
                                   :system (random-state:make-generator gen-name)))))
          (seed (getf (rest rngs) :seed)))
-
-    ;; randomized array content is generated synchronously
-    ;; and cached in case a random seed is in use
-    (when (and ; seed
-           (not (varand-cached varray)))
-      (setf (varand-cached varray)
-            (make-array (size-of (vader-base varray))
-                        :element-type (etype-of varray)))
-      (loop :for i :below (size-of (vader-base varray))
-            :do (setf (row-major-aref (varand-cached varray) i)
-                      (apl-random-process (if (not (functionp base-indexer))
-                                              base-indexer (funcall base-indexer i))
-                                          (vads-io varray) generator))))
     
     (case (getf params :base-format)
       (:encoded)
@@ -855,7 +865,7 @@
            (if scalar-base (apl-random-process (funcall base-indexer index) (vads-io varray)
                                                generator)
                (if t ; seed
-                   (row-major-aref (varand-cached varray) index)
+                   (row-major-aref (vader-content varray) index)
                    (apl-random-process (funcall base-indexer index) (vads-io varray)
                                        generator))))))))
 
@@ -880,44 +890,42 @@
   0)
 
 (defmethod shape-of ((varray vader-deal))
-  (if (/= 1 (reduce #'* (shape-of (vads-argument varray))))
-      (error "Both arguments to ? must be non-negative integers.")
-      (let* ((arg-indexer (generator-of (vads-argument varray)))
-             (length (if (not (functionp arg-indexer))
-                         arg-indexer (funcall arg-indexer 0))))
-        (if (integerp length) (list length)
-            (error "Both arguments to ? must be non-negative integers.")))))
+  (get-promised
+   (varray-shape varray)
+   (let* ((rngs (vads-rng varray))
+          (base-indexer (generator-of (vader-base varray)))
+          (count (if (not (functionp base-indexer))
+                     base-indexer (funcall base-indexer 0)))
+          (gen-name (getf (rest rngs) :rng))
+          (generator (or (getf (rest rngs) gen-name)
+                         (setf (getf (rest rngs) gen-name)
+                               (if (eq :system gen-name)
+                                   :system (random-state:make-generator gen-name)))))
+          (arg-indexer (generator-of (vads-argument varray)))
+          (vector (make-array count :element-type (etype-of varray))))
+     
+     (setf (vader-content varray) vector)
+     (dotimes (x (length vector))
+       (setf (aref vector x) (+ x (vads-io varray))))
+     
+     (loop :for i :from count :downto 2
+           :do (rotatef (aref vector (if (eq :system generator)
+                                         (random i)
+                                         (random-state:random-int generator 0 (1- i))))
+                        (aref vector (1- i))))
+     
+     (if (/= 1 (reduce #'* (shape-of (vads-argument varray))))
+         (error "Both arguments to ? must be non-negative integers.")
+         (let ((length (if (not (functionp arg-indexer))
+                           arg-indexer (funcall arg-indexer 0))))
+           (if (integerp length) (list length)
+               (error "Both arguments to ? must be non-negative integers.")))))))
 
 (defmethod generator-of ((varray vader-deal) &optional indexer params)
-  (let* ((rngs (vads-rng varray))
-         (base-indexer (generator-of (vader-base varray)))
-         (count (if (not (functionp base-indexer))
-                    base-indexer (funcall base-indexer 0)))
-         (gen-name (getf (rest rngs) :rng))
-         (generator (or (getf (rest rngs) gen-name)
-                        (setf (getf (rest rngs) gen-name)
-                              (if (eq :system gen-name)
-                                  :system (random-state:make-generator gen-name)))))
-         (arg-indexer (generator-of (vads-argument varray)))
-         (length (if (not (functionp arg-indexer))
-                     arg-indexer (funcall arg-indexer 0)))
-         (vector (make-array count :element-type (etype-of varray))))
-    
-    (setf (vadeal-cached varray) vector)
-    (dotimes (x (length vector))
-      (setf (aref vector x) (+ x (vads-io varray))))
-    
-    (loop :for i :from count :downto 2
-          :do (rotatef (aref vector (if (eq :system generator)
-                                        (random i)
-                                        (random-state:random-int generator 0 (1- i))))
-                       (aref vector (1- i))))
-    
-    (case (getf params :base-format)
-      (:encoded)
-      (:linear)
-      (t (lambda (index)
-           (aref (vadeal-cached varray) index))))))
+  (case (getf params :base-format)
+    (:encoded)
+    (:linear)
+    (t (lambda (index) (aref (vader-content varray) index)))))
 
 (defclass vader-without (varray-derived vad-with-argument vad-limitable)
   nil (:metaclass va-class)

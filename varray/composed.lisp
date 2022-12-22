@@ -196,6 +196,7 @@
                   (not out-dims) (arrayp (vacmp-omega varray)))
              ;; reverse the argument vector in the case of a scalar function;
              ;; this also applies in the case of the next two clauses
+             ;; (print (list :dd (vacmp-omega varray)))
              (case (getf params :base-format)
                (:encoded)
                (:linear)
