@@ -897,9 +897,8 @@
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
                                (when output-vars
-                                 (list (cons 'values (mapcar (lambda (return-var)
-                                                               (intern (lisp->camel-case return-var) space))
-                                                             output-vars)))))
+                                 (funcall (of-utilities idiom :process-multiple-outputs)
+                                          output-vars space (not (assoc :unrendered options)))))
                        (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
                           :by #'cddr :collect (string-upcase key))
                        options system-vars vars-declared stored-refs space)))))))

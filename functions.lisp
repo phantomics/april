@@ -402,11 +402,16 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
+;; {acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5
+
 (defun invert-assigned-varray (object &optional order)
   "Generate the inverted deferred computation object that serves to verify indices in a selection array implementing assignment by selection, like the one expressed by {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99."
+  ;; (print (list :ob object))
   (if (varrayp object)
       (invert-assigned-varray (typecase object (vacomp-each (varray::vacmp-omega object))
-                                (t (varray::vader-base object)))
+                                        (t (let ((base (varray::vader-base object)))
+                                             (if (not (typep base 'varray::varray-primal))
+                                                 base (render-varrays base)))))
                               (typecase object (vader-identity order)
                                 ;; omit identity objects, this is for selective
                                 ;; assignment cases like ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
@@ -807,6 +812,11 @@
                                 (funcall function arg))))
                 arg))))))
 
+;; -1 1 -2 -2 -2 1 1 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 1 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2
+;; ¯1 1 ¯2 ¯2 ¯2 1 1 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
+;; (⊃,/1+0×2 6 7 11 27 40 44)@2 6 7 11 27 40 44⊢¯1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
+
+
 (defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
   (lambda (omega &optional alpha environment blank)
@@ -814,6 +824,9 @@
     (let ((orank (varray::rank-of omega))
           (left-fn (when (functionp left) left))
           (right-fn (when (functionp right) right)))
+      ;; (print (list :rr right :ll left))
+      (setf april::iib left)
+      ;; {next←⊂4 9 29 42 ⋄ back←⊃,/1+0×next ⋄ back@(⊃,/next)⊢⍵} ¯1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
       (if (and left-fn (or right-fn (= 1 (varray::rank-of right))
                            (not (or (arrayp right) (varray::varrayp right)))))
           (if right-fn (make-instance 'vader-select
@@ -836,11 +849,13 @@
           (if right-fn (make-instance 'vader-select
                                       :base omega :index-origin index-origin :assign-if right-fn
                                       :calling left-fn :assign (if left-fn alpha left))
-              (make-instance 'vader-select
+              (setf april::iit (make-instance 'vader-select
                              :base omega :index-origin index-origin
-                             :calling left-fn :assign (if left-fn alpha left)
+                             :calling left-fn
+                             ;; :assign (render-varrays (if left-fn alpha left))
+                             :assign (if left-fn alpha left)
                              :argument (cons right (loop :for i :below (- orank (rank-of right))
-                                                         :collect nil))))))))
+                                                         :collect nil)))))))))
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."

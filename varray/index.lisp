@@ -413,10 +413,3 @@
                                   (loop :for a :in indices :for ax :from 0 :when (= a ox)
                                         :do (incf iindex (* index (aref id-factors ax))))))
                       iindex))))))))
-
-;; 1 2 3 4
-;; 2 1 3 4
-;; 3 4 2 1
-;; 4 3 2 1
-
-;; 1 2 3 4 → 4 2 1 3

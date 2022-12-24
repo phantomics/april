@@ -699,7 +699,7 @@
                                                                      (funcall sub-selector index)))))
                                        valid)))
                        ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
-                       ;; (print (list :se set-indexer oindex))
+                       ;; (print (list :se set (funcall (generator-of set) 0) set-indexer oindex base-indexer))
                        (if (numberp oindex)
                            (if valid (if (vasel-calling varray)
                                          (let ((original (if (not (functionp base-indexer))
@@ -3027,15 +3027,21 @@
             (setf (vapick-reference varray)
                   ;; the 'vader-pick clause handles nested pick references like 2⊃⊃⊃{,/⍵}/3⍴⊂⍳3
                   (let ((indexer (if (not (functionp base-indexer))
-                                     base-indexer (if (zerop (size-of base))
-                                                      (prototype-of base)
-                                                      (let ((bix (funcall base-indexer 0)))
-                                                        ;; (print (list :ba base bix))
-                                                        (if (or (not (arrayp bix))
-                                                                ;; TODO: special mix case, generalize
-                                                                (not (typep base 'vader-mix))
-                                                                )
-                                                            bix (row-major-aref bix 0)))))))
+                                     (if (or (shape-of base-indexer)
+                                             (and (not (varrayp base-indexer))
+                                                  (not (functionp base-indexer))))
+                                         ;; return just the base indexer in cases like ⊃3
+                                         base-indexer (funcall (generator-of base-indexer) 0))
+                                     ;; otherwise return the 1st element, as for ⊃,/1+0×⊂1 2 3
+                                     (if (zerop (size-of base))
+                                         (prototype-of base)
+                                         (let ((bix (funcall base-indexer 0)))
+                                           ;; (print (list :ba base bix))
+                                           (if (or (not (arrayp bix))
+                                                   ;; TODO: special mix case, generalize
+                                                   (not (typep base 'vader-mix))
+                                                   )
+                                               bix (row-major-aref bix 0)))))))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
@@ -3127,6 +3133,7 @@
            
            (let* ((this-reference (fetch-reference varray (vader-base varray)))
                   (this-indexer (generator-of this-reference))) ;; IPV-TODO: generator bug!
+             ;; (print (list :ii this-indexer (vader-base varray) this-reference (render this-reference)))
              (if (varrayp this-indexer)
                  (generator-of this-indexer)
                  (if (not (arrayp this-indexer))

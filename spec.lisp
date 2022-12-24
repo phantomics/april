@@ -203,6 +203,15 @@
                          (when (not (boundp (intern symbol space)))
                            (proclaim (list 'special (intern symbol space)))
                            (set (intern symbol space) nil)))))
+            ;; build multiple output of April expression, rendering unless (:unrendered) option is passed
+            :process-multiple-outputs
+            (lambda (outputs space &optional will-render)
+              (list (cons 'values (mapcar (lambda (return-var)
+                                            (let ((symbol (intern (lisp->camel-case return-var)
+                                                                  space)))
+                                              (if (not will-render)
+                                                  symbol (list 'render-varrays symbol))))
+                                          outputs))))
             :build-variable-declarations #'build-variable-declarations
             :build-compiled-code #'build-compiled-code
             :assign-val-sym 'ws-assign-val :assign-fun-sym 'ws-assign-fun)
@@ -1898,7 +1907,7 @@
        "{⊢⍤1(⊢⍤1)⍵}⍳3" #(1 2 3))
   (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
   (for "Operator composition calling accumulating function."
-       "{acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵⋄⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5" #(1 2 3 4 5 4 3 2 1 2 3 4 3 2 3))
+       "{acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5" #(1 2 3 4 5 4 3 2 1 2 3 4 3 2 3))
   (for "Two-element monadic atop function train." "(↓⌽)4 5⍴⍳20"
        #(#(5 4 3 2 1) #(10 9 8 7 6) #(15 14 13 12 11) #(20 19 18 17 16)))
   (for "Two-element dyadic atop function train." "'mississippi'(⍸∊)'sp'" #(3 4 6 7 9 10))
