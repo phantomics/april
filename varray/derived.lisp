@@ -2223,7 +2223,7 @@
                   (setf (aref new-span (if negative position pre-position))
                         (if negative (+ (aref new-span position)
                                         (min 0 (+ a (aref new-pad position))))
-                            (min a (aref new-span position)))
+                            (+ a (aref new-span pre-position)))
                         (aref new-pad (if negative position pre-position))
                         (if negative (max 0 (+ (aref new-pad position) a))
                             (max 0 (- (aref new-pad pre-position) a))))))

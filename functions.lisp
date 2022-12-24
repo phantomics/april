@@ -812,11 +812,6 @@
                                 (funcall function arg))))
                 arg))))))
 
-;; -1 1 -2 -2 -2 1 1 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 -2 1 -2 -2 -2 1 -2 -2 -2 -2 -2 -2 -2
-;; ¯1 1 ¯2 ¯2 ¯2 1 1 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
-;; (⊃,/1+0×2 6 7 11 27 40 44)@2 6 7 11 27 40 44⊢¯1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
-
-
 (defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."
   (lambda (omega &optional alpha environment blank)
