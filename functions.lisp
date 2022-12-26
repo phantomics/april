@@ -512,7 +512,7 @@
                                         (row-major-aref omega base)
                                         (render-varrays
                                          (funcall (if (not sao-copy)
-                                                      fn-rendered (getf fn-meta :inverse-right))
+                                                      function (getf fn-meta :inverse-right))
                                                   (row-major-aref
                                                    output (+ base (* increment (1- vector-index))))
                                                   (row-major-aref

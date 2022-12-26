@@ -476,7 +476,6 @@
                                                 (* sbesize (- (ceiling (* interval (1+ index)))
                                                               start-intervals))
                                                 (- total-size start-at))))
-                                ;; (print (list :cc count interval start-intervals start-at sbesize))
                                 (loop :for i :from start-at :to (1- (+ start-at count))
                                       :do (funcall to-call i))))))
          (flat-indexer-table
@@ -551,7 +550,7 @@
 
     (setf (getf metadata :index-width) linear-index-type)))
 
-(defmethod render ((varray varray)) ;; +/¨{1⊂↑⍵}⍴¨2 2⍴⊂'abc'
+(defmethod render ((varray varray))
   (let* ((output-shape (shape-of varray))
          (output-rank (length output-shape))
          (spec (specify varray))
