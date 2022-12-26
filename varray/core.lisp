@@ -530,7 +530,8 @@
                                         :when (< (getf metadata :max-size) (expt 2 w))
                                           :return w))
                                 t))
-         (coordinate-type (when (and (> output-rank 1)
+         (coordinate-type (when (and output-rank (> output-rank 1)
+                                     (getf metadata :max-dim)
                                      (not (eq t linear-index-type)))
                             (loop :for w :in '(8 16 32 64)
                                   :when (< (getf metadata :max-dim) (expt 2 w))
@@ -627,13 +628,13 @@
                   ;;                (vacmp-threadable varray))))
                   ;; (print (list :ts to-subrender (setf april::ggt varray)))
                   (loop :for d :below divisions
-                        :do (if ;; (or (and (typep varray 'vader-composing)
-                                ;;       (not (vacmp-threadable varray)))
-                                ;;  ;; don't thread when rendering the output of operators composed
-                                ;;  ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                ;;  (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                ;;        :never (null (lparallel.kernel::running-category worker))))
-                             t
+                        :do (if (or (and (typep varray 'vader-composing)
+                                      (not (vacmp-threadable varray)))
+                                 ;; don't thread when rendering the output of operators composed
+                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
+                                       :never (null (lparallel.kernel::running-category worker))))
+                             ;;t
                              (funcall (funcall process d))
                              (progn (incf threaded-count)
                                     (lparallel::submit-task
