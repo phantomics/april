@@ -96,10 +96,9 @@
   (let* ((cname (class-name this-class))
          (fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase cname))
                         *package-name-string*)))
-    (if (not (fboundp fname))
-        (call-next-method)
-        (or (apply (symbol-function fname) params)
-            (call-next-method)))))
+    (if (fboundp fname) (or (apply (symbol-function fname) params)
+                            (call-next-method))
+        (call-next-method))))
 
 (defun get-dimensional-factors (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."

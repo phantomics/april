@@ -625,9 +625,9 @@
 
 (defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
-  (let ((fn-right (when (functionp right) right))
-        (fn-left (when (functionp left) left))
-        (temp))
+  (let ((temp)
+        (fn-right (when (functionp right) right))
+        (fn-left (when (functionp left) left)))
     (lambda (omega &optional alpha environment blank)
       (declare (ignore environment blank)) ;; blank allows the case of :get-metadata nil arguments
       (if (eq :get-metadata omega)
@@ -658,8 +658,10 @@
                                      (funcall (or fn-right fn-left)
                                               (if fn-right omega right)
                                               (if fn-left omega left)))))))
-          (if (and fn-right fn-left) ;; TODO: the force render is needed for i.e. ⌊10_000×+∘÷/40/1
-              (let ((processed (render-varrays (funcall fn-right omega))))
+          (if (and fn-right fn-left) ;; IPV-TODO: the force render is needed for i.e. ⌊10_000×+∘÷/40/1
+              (let ((processed ;; (render-varrays (funcall fn-right omega))
+                               (funcall fn-right omega)
+                               ))
                 (if alpha (funcall fn-left processed alpha)
                     (funcall fn-left processed)))
               (if alpha (error "This function does not take a left argument.")
@@ -845,11 +847,11 @@
           (if right-fn (make-instance 'vader-select
                                       :base omega :index-origin index-origin :assign-if right-fn
                                       :calling left-fn :assign (if left-fn alpha left))
-              (setf april::iit (make-instance 'vader-select
+              (make-instance 'vader-select
                              :base omega :index-origin index-origin
                              :calling left-fn :assign (if left-fn alpha left)
                              :argument (cons right (loop :for i :below (- orank (rank-of right))
-                                                         :collect nil)))))))))
+                                                         :collect nil))))))))
 
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
