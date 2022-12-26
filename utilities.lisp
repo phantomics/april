@@ -173,7 +173,7 @@
                            (declare (ignore character))
                            (list 'inws (read stream t nil t))))
 
-;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
+;; this reader macro expands to (inwsd symbol) for reader-friendly printing of compiled code
 (set-macro-character #\⊑ (lambda (stream character)
                            (declare (ignore character))
                            (list 'inwsd (read stream t nil t))))
@@ -299,7 +299,7 @@
             (proclaim '(special ,symbol)))
           (setf (symbol-value ',symbol) ,value)))
 
-(defmacro ws-assign-fun (symbol value)
+ (defmacro ws-assign-fun (symbol value)
   "Assignment macro for use with (:store-fun) directive."
   (let ((params (gensym)) (call-params (gensym))
         (item (gensym)) (this-fn (gensym)))
@@ -777,8 +777,9 @@
                                                                                 (rest namespace)))
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
-                             `(setf ,symbol (render-varrays ,set-to))
-                             ;; `(setf ,symbol ,set-to) ;; TOGGLE ASSIGNING VARRAYS
+                             ;; toggle rendering varrays on assignment
+                             ;; `(setf ,symbol (render-varrays ,set-to))
+                             `(setf ,symbol ,set-to) 
                              ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
@@ -796,8 +797,8 @@
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle selective assignments, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
-                      (render-varrays ,(append symbol (list :assign value)
-                                               (if by (list :calling by))))))
+                      ,(append symbol (list :assign value)
+                               (if by (list :calling by)))))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
@@ -915,16 +916,36 @@
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
 
-(defmacro avec (&rest items)
-  "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-  (let ((type))
-    (loop :for item :in items :while (not (eq t type))
-       :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
-                                                                        (> 0 item))
-                                                                    item (max 16 item))))))
-    `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
-                 :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items)))))
+;; (defmacro avec (&rest items)
+;;   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
+;;   (let ((type) (contains-varrays))
+;;     (loop :for item :in items :while (not (eq t type))
+;;           :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
+;;                                                                            (> 0 item))
+;;                                                                        item (max 16 item))))
+;;                  contains-varrays (or contains-varrays (varrayp item))))
+;;     (if t ; contains-varrays
+;;         `(make-array ,(length items) ;; enclose each array included in an APL vector
+;;                      :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items))
+;;                      ;; :initial-contents (list ,@items)
+;;                      )
+;;         `(make-array ,(length items) :element-type (quote ,type) :initial-contents (list ,@items)))))
 
+(defun avec (&rest items)
+  "This function returns an APL vector; in the case of virtual arrays within the vector, a subrendering virtual container vector is returned."
+  (let ((type) (contains-varrays))
+    (loop :for item :in items :while (or (not contains-varrays) (not (eq t type)))
+          :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
+                                                                           (> 0 item))
+                                                                       item (max 16 item))))
+                    contains-varrays (or contains-varrays (varrayp item))))
+    (if contains-varrays
+        (let ((item-vector (make-array (length items) :element-type type :initial-contents items)))
+          (make-instance
+           'varray::vader-subarray :base item-vector :shape (shape-of item-vector)
+                                   :subrendering t :generator (varray::generator-of item-vector)))
+        (make-array (length items) :element-type type :initial-contents items))))
+  
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
   (ignore-errors ;; if number parsing fails, just return nil
@@ -1122,9 +1143,9 @@
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
          
-         (arguments (loop :for arg :in arguments :collect (if (and (not axes-present)
-                                                                   (not (symbolp arg)))
+         (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
                                                               arg `(render-varrays ,arg)))))
+    ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
@@ -1600,6 +1621,7 @@ It remains here as a standard against which to compare methods for composing APL
          (tags-matching (loop :for tag :in (symbol-value branches-sym)
                            :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
     (flet ((process-tags (form)
+             ;; process tags for implementation of [→ branch]ing code
              (loop :for sub-form :in form
                 :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
                                        (not (symbolp (second sub-form)))))
@@ -2031,14 +2053,11 @@ It remains here as a standard against which to compare methods for composing APL
                                                          :inverse-right :inverse))
                                             ,arg1 ,(funcall to-wrap form))))))))))))))
 
-(defmacro plain-ref (function &optional axes is-virtual)
+(defmacro plain-ref (function &optional axes)
   "Wrap a lexical function; this is needed to implement some meta-functionality."
   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)) (a (gensym)))
     `(labels ((,this-fn (&rest ,args)
-                ,@(unless is-virtual
-                    `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
-                ;; IPV-TODO: just one bug caused by this
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
                     ;; passing this option will return the core function again
@@ -2170,8 +2189,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                 `(plain-ref
                                                   ,(wrap-meta glyph-char :monadic (second implementation)
                                                               (rest (assoc 'monadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes)
-                                                  ,(getf primary-metadata :virtual-support))))
+                                                  ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (dyadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-dyadic)
@@ -2186,8 +2204,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                 `(plain-ref
                                                   ,(wrap-meta glyph-char :dyadic (second implementation)
                                                               (rest (assoc 'dyadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes)
-                                                  ,(getf primary-metadata :virtual-support))))
+                                                  ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (ambivalent (incf fn-count 2)
                                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)

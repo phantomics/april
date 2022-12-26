@@ -304,8 +304,8 @@
 (defun at-index (index-origin axes)
   "Find the value(s) at the given index or indices in an array. Used to implement [⌷ index]."
   (lambda (omega alpha)
-    (setf omega (render-varrays omega))
-    (if (not (arrayp omega))
+    (if (and (not (arrayp omega))
+             (not (varrayp omega)))
         (if (and (numberp alpha) (= index-origin alpha))
             omega (error "Invalid index."))
         (make-virtual
@@ -402,11 +402,8 @@
                      output)
             (+ index (if ext-index 0 1)))))
 
-;; {acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5
-
 (defun invert-assigned-varray (object &optional order)
   "Generate the inverted deferred computation object that serves to verify indices in a selection array implementing assignment by selection, like the one expressed by {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99."
-  ;; (print (list :ob object))
   (if (varrayp object)
       (invert-assigned-varray (typecase object (vacomp-each (varray::vacmp-omega object))
                                         (t (let ((base (varray::vader-base object)))
@@ -526,7 +523,7 @@
                                     (setq value (if (not value) (disclose original)
                                                     (funcall fn-rendered value (disclose original))))))))
                 (setf (row-major-aref output i) value)))
-            (render-varrays output))))))
+            output)))))
 
 (defun operate-each (operand)
   (op-compose 'vacomp-each :left operand))
@@ -819,8 +816,6 @@
     (let ((orank (varray::rank-of omega))
           (left-fn (when (functionp left) left))
           (right-fn (when (functionp right) right)))
-      ;; (print (list :rr right :ll left))
-      (setf april::iib left)
       ;; {next←⊂4 9 29 42 ⋄ back←⊃,/1+0×next ⋄ back@(⊃,/next)⊢⍵} ¯1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
       (if (and left-fn (or right-fn (= 1 (varray::rank-of right))
                            (not (or (arrayp right) (varray::varrayp right)))))
@@ -835,9 +830,15 @@
                                         (funcall left-fn mod-array))))
                 (make-instance 'vader-select
                                :base omega :index-origin index-origin
-                               :assign (funcall (if (and (not (arrayp right)) (> 2 orank)
+                               :assign (funcall (if (and (not (or (arrayp right) (varrayp right)))
+                                                         (> 2 orank)
                                                          (not (zerop (varray::rank-of out-sub-array))))
                                                     #'enclose #'identity)
+                                                ;; enclose the right operans if it's not an array,
+                                                ;; omega has a rank greater than 2 and the operands' output
+                                                ;; has a rank greater than 1; this is needed for i.e.
+                                                ;; ∪∘1@5⊢(2 3) (3) (2 4) (1 5) (3)
+                                                ;; TODO: can this logic be refined?
                                                 (render-varrays out-sub-array))
                                ;; IPV-TODO: removing this force render causes a bug, figure it out
                                :argument (cons right (loop :for i :below (1- orank) :collect nil)))))
@@ -846,9 +847,7 @@
                                       :calling left-fn :assign (if left-fn alpha left))
               (setf april::iit (make-instance 'vader-select
                              :base omega :index-origin index-origin
-                             :calling left-fn
-                             ;; :assign (render-varrays (if left-fn alpha left))
-                             :assign (if left-fn alpha left)
+                             :calling left-fn :assign (if left-fn alpha left)
                              :argument (cons right (loop :for i :below (- orank (rank-of right))
                                                          :collect nil)))))))))
 
