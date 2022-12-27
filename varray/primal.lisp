@@ -215,30 +215,6 @@
     (t (lambda (index) (make-instance 'vapri-coordinate-vector
                                       :reference varray :index index)))))
 
-(defgeneric inverse-count-to (array index-origin)
-  (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
-
-(defmethod inverse-count-to ((item t) index-origin)
-  (if (and (vectorp item) (loop :for v :across item :for i :from index-origin
-                                :always (and (numberp v) (= v i))))
-      (length item)
-      (error "Attempted to invoke inverse [⍳ index] on something other than an integer progression vector.")))
-
-(defmethod inverse-count-to ((varray varray-derived) index-origin)
-  (inverse-count-to (render varray) index-origin))
-
-(defmethod inverse-count-to ((varray vader-identity) index-origin)
-  (inverse-count-to (vader-base varray) index-origin))
-
-(defmethod inverse-count-to ((varray vapri-integer-progression) index-origin)
-  ;; TODO: this does not get invoked by for instance ⍳⍣¯1⊢⍳9 because of the identity varray
-  (if (and (= 1 (vapip-repeat varray))
-           (= 1 (vapip-factor varray))
-           (= index-origin (vapip-origin varray)))
-      (+ (- (vapip-origin varray) index-origin)
-         (vapip-number varray))
-      (error "Attempted to invoke inverse [⍳ index] on an altered integer progression vector.")))
-
 (defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
   ((%reference :accessor vaxv-reference
                :initform nil
