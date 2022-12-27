@@ -274,6 +274,7 @@
                               ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
                               ;; (print (list :vv value))
                               ;; (print (list :win window window-reversed))
+                              ;; (print (list :dd delta window-reversed))
                               (if window-reversed (loop :for ix :below window
                                                         :do (let ((item (process-item i ix delta)))
                                                               (setq value (if (not value) item

@@ -293,6 +293,10 @@
                        function `(function ,function))
                   ,args)))))
 
+(defun render-varrays (item)
+  (if (not (typep item 'varray))
+      item (render item)))
+
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."
   `(progn (unless (boundp ',symbol)
@@ -1124,10 +1128,6 @@
           (loop :for i :across (first axis-list) :do (setf (aref output ix) (- i io)
                                                            ix (1+ ix)))
           output))))
-
-(defun render-varrays (item)
-  (if (not (typep item 'varray))
-      item (render item)))
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."

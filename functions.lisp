@@ -658,10 +658,8 @@
                                      (funcall (or fn-right fn-left)
                                               (if fn-right omega right)
                                               (if fn-left omega left)))))))
-          (if (and fn-right fn-left) ;; IPV-TODO: the force render is needed for i.e. ⌊10_000×+∘÷/40/1
-              (let ((processed ;; (render-varrays (funcall fn-right omega))
-                               (funcall fn-right omega)
-                               ))
+          (if (and fn-right fn-left)
+              (let ((processed (funcall fn-right omega)))
                 (if alpha (funcall fn-left processed alpha)
                     (funcall fn-left processed)))
               (if alpha (error "This function does not take a left argument.")
@@ -792,12 +790,12 @@
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
               (let ((arg omega) (prior-arg omega))
-                (loop :for index :from 0 :while (or (zerop index)
-                                                    (zerop (render-varrays
-                                                            (funcall determinant prior-arg arg))))
-                   :do (setq prior-arg arg
-                             arg (if alpha (funcall function arg alpha)
-                                     (funcall function arg))))
+                (loop :for index :from 0
+                      :while (or (zerop index)
+                                 (zerop (render-varrays (funcall determinant prior-arg arg))))
+                      :do (setq prior-arg arg
+                                arg (if alpha (funcall function arg alpha)
+                                        (funcall function arg))))
                 arg)
               ;; otherwise, run the operand function on the value(s) a number
               ;; of times equal to the absolute determinant value, inverting
