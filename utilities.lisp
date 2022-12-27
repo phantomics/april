@@ -576,116 +576,120 @@
 
 (defun at-path (object path &key (value) (value-nil) (set-by))
   "Get or set values within a namespace (structured as a ptree), handling arrays within the namespace according to array indices within the namespace path or eliding arrays in the absence of specific coordinates."
-  (setf value (render-varrays value))
-  (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
-      (apply-scalar (lambda (item) (at-path item path))
-                    object)
-      (if (= 1 (length path)) ;; path is one element long, as for a
-          (if (symbolp (first path))
-              (if (or value value-nil) ;; path is assigned a value, as for a←X
-                  (progn (if (and object (symbolp object))
-                             (if set-by (setf (getf (symbol-value object) (first path))
-                                              (funcall set-by value
-                                                       (getf (symbol-value object) (first path))))
-                                 (setf (getf (symbol-value object) (first path)) value))
-                             (if (arrayp object) ;; handle elided assignment of array elements
-                                 (progn (dotimes (i (size object))
-                                          (setf (getf (row-major-aref object i) (first path))
-                                                (if set-by (funcall set-by value
-                                                                    (getf (row-major-aref object i)
-                                                                          (first path)))
-                                                    value)))
-                                        object)
-                                 (setf (getf object (first path))
-                                       (if set-by (funcall set-by value (getf object (first path)))
-                                           value))))
-                         object)
-                  ;; path is just referenced, not assigned, as for a
-                  (if (arrayp object) ;; handle elision of arrays
-                      (let ((output (make-array (dims object))))
-                        (dotimes (i (size output))
-                          (let ((original (row-major-aref object i)))
-                            (setf (row-major-aref output i)
-                                  (getf (row-major-aref original i) (first path)))))
-                        output)
-                      (getf (if (not (symbolp object)) object (symbol-value object))
-                            (first path))))
-              (nth-value 1 (achoose object (first path) ;; path is a set of coordinates, as for [1]
-                                    :set value :set-nil value-nil :modify-input t
-                                    :set-by (or set-by (lambda (a b) (declare (ignore a)) b)))))
-          (let ((object (if (not (symbolp object))
-                            object (symbol-value object))))
-            (if (or value value-nil)
-                (if (= 2 (length path)) ;; path is 2 long and assigned a value
-                    (if (symbolp (first path))
-                        (if (symbolp (second path)) ;; elements 1 and 2 are symbols, as for a.b←X
-                            (if (arrayp object)
-                                (progn (dotimes (i (size object)) ;; handle elision
-                                         (setf (getf (row-major-aref object i) (first path))
-                                               (at-path (getf (row-major-aref object i) (first path))
-                                                        (rest path) :value value :value-nil value-nil
-                                                                    :set-by set-by)))
-                                       object)
-                                (let ((this-object (getf object (first path))))
-                                  (if (arrayp this-object) ;; handle elision
-                                      (progn (at-path this-object (rest path)
-                                                      :value value :value-nil value-nil :set-by set-by)
-                                             this-object)
-                                      (setf (getf this-object (second path)) value
-                                            (getf object (first path)) this-object))))
-                            (if (arrayp object) ;; second element is coords, as for a[1]←x
-                                (let ((this-object object))
-                                  (dotimes (i (size this-object))
-                                    (setf (row-major-aref this-object i)
-                                          (at-path (row-major-aref this-object i)
-                                                   path :value value :value-nil value-nil
-                                                        :set-by set-by)))
-                                  this-object)
-                                (let ((this-object (at-path (getf object (first path))
-                                                            (rest path) :value value :value-nil value-nil
-                                                                        :set-by set-by)))
-                                  (setf (getf object (first path)) this-object)
-                                  object)))
-                        ;; first element is coords and second element may be symbol or coords,
-                        ;; as for [1].b←X or [1][2]←X
-                        (nth-value 1 (achoose object (first path)
-                                              :set value :set-nil value-nil :modify-input t
-                                              :set-by (lambda (a b)
-                                                        (at-path a (rest path) :value b
-                                                                               :set-by set-by)))))
-                    ;; path is more than two elements long and assigned a value
-                    (if (not (symbolp (first path)))
-                        ;; first elem is array coordinates, as for [1]...←X
-                        (progn (achoose object (first path)
-                                        :set value :set-nil value-nil :modify-input t
-                                        :set-by (when (rest path)
-                                                  (lambda (a b)
-                                                    (at-path a (rest path) :value b :value-nil value-nil
-                                                                           :set-by set-by))))
-                               object)
-                        ;; first elem is a symbol, as for a...←X
-                        (if (arrayp object)
-                            (progn (dotimes (i (size object)) ;; handle elision
-                                     (setf (getf (row-major-aref object i) (first path))
-                                           (at-path (getf (row-major-aref object i) (first path))
-                                                    (rest path) :value value :value-nil value-nil
-                                                                :set-by set-by)))
-                                   object)
-                            (if (not (symbolp (second path)))
-                                (setf (getf object (first path))
-                                      (at-path (getf object (first path)) (rest path)
-                                               :value value :value-nil value-nil :set-by set-by))
-                                (at-path (getf object (first path)) (rest path)
-                                         :value value :value-nil value-nil :set-by set-by)))))
-                ;; path is over 1 element long and not assigned a value, like a.b, a.b.c, a[1].c, etc...
-                (if (symbolp (first path)) ;; first element is a symbol as for a...
-                    (if (arrayp object) (dotimes (i (size object)) ;; handle elision
-                                          (at-path (getf (row-major-aref object i) (first path))
-                                                   (rest path)))
-                        (at-path (getf object (first path)) (rest path)))
-                    ;; first element is coordinates like [1]...
-                    (at-path (achoose object (first path))
-                             (rest path))))))))
+  (let ((value (render-varrays value)))
+    (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
+        (apply-scalar (lambda (item) (at-path item path))
+                      object)
+        (if (= 1 (length path)) ;; path is one element long, as for a
+            (if (symbolp (first path))
+                (if (or value value-nil) ;; path is assigned a value, as for a←X
+                    (progn (if (and object (symbolp object))
+                               (if set-by (setf (getf (symbol-value object) (first path))
+                                                (funcall set-by value
+                                                         (getf (symbol-value object) (first path))))
+                                   (setf (getf (symbol-value object) (first path)) value))
+                               (if (arrayp object) ;; handle elided assignment of array elements
+                                   (progn (dotimes (i (size object))
+                                            (setf (getf (row-major-aref object i) (first path))
+                                                  (if set-by (funcall set-by value
+                                                                      (getf (row-major-aref object i)
+                                                                            (first path)))
+                                                      value)))
+                                          object)
+                                   (setf (getf object (first path))
+                                         (if set-by (funcall set-by value (getf object (first path)))
+                                             value))))
+                           object)
+                    ;; path is just referenced, not assigned, as for a
+                    (if (arrayp object) ;; handle elision of arrays
+                        (let ((output (make-array (dims object))))
+                          (dotimes (i (size output))
+                            (let ((original (row-major-aref object i)))
+                              (setf (row-major-aref output i)
+                                    (getf (row-major-aref original i) (first path)))))
+                          output)
+                        (getf (if (not (symbolp object)) object (symbol-value object))
+                              (first path))))
+                (nth-value 1 (achoose object (first path) ;; path is a set of coordinates, as for [1]
+                                      :set value :set-nil value-nil :modify-input t
+                                      :set-by (or set-by (lambda (a b) (declare (ignore a)) b)))))
+            (let ((object (if (not (symbolp object))
+                              object (symbol-value object))))
+              (if (or value value-nil)
+                  (if (= 2 (length path)) ;; path is 2 long and assigned a value
+                      (if (symbolp (first path))
+                          (if (symbolp (second path)) ;; elements 1 and 2 are symbols, as for a.b←X
+                              (if (arrayp object)
+                                  (progn (dotimes (i (size object)) ;; handle elision
+                                           (setf (getf (row-major-aref object i) (first path))
+                                                 (at-path (getf (row-major-aref object i) (first path))
+                                                          (rest path) :value value :value-nil value-nil
+                                                          :set-by set-by)))
+                                         object)
+                                  (let ((this-object (getf object (first path))))
+                                    (if (arrayp this-object) ;; handle elision
+                                        (progn (at-path this-object (rest path)
+                                                        :value value :value-nil value-nil
+                                                        :set-by set-by)
+                                               this-object)
+                                        (setf (getf this-object (second path)) value
+                                              (getf object (first path)) this-object))))
+                              (if (arrayp object) ;; second element is coords, as for a[1]←x
+                                  (let ((this-object object))
+                                    (dotimes (i (size this-object))
+                                      (setf (row-major-aref this-object i)
+                                            (at-path (row-major-aref this-object i)
+                                                     path :value value :value-nil value-nil
+                                                     :set-by set-by)))
+                                    this-object)
+                                  (let ((this-object (at-path (getf object (first path))
+                                                              (rest path)
+                                                              :value value :value-nil value-nil
+                                                              :set-by set-by)))
+                                    (setf (getf object (first path)) this-object)
+                                    object)))
+                          ;; first element is coords and second element may be symbol or coords,
+                          ;; as for [1].b←X or [1][2]←X
+                          (nth-value 1 (achoose object (first path)
+                                                :set value :set-nil value-nil :modify-input t
+                                                :set-by (lambda (a b)
+                                                          (at-path a (rest path) :value b
+                                                                                 :set-by set-by)))))
+                      ;; path is more than two elements long and assigned a value
+                      (if (not (symbolp (first path)))
+                          ;; first elem is array coordinates, as for [1]...←X
+                          (progn (achoose object (first path)
+                                          :set value :set-nil value-nil :modify-input t
+                                          :set-by (when (rest path)
+                                                    (lambda (a b)
+                                                      (at-path a (rest path)
+                                                               :value b :value-nil value-nil
+                                                               :set-by set-by))))
+                                 object)
+                          ;; first elem is a symbol, as for a...←X
+                          (if (arrayp object)
+                              (progn (dotimes (i (size object)) ;; handle elision
+                                       (setf (getf (row-major-aref object i) (first path))
+                                             (at-path (getf (row-major-aref object i) (first path))
+                                                      (rest path) :value value :value-nil value-nil
+                                                                  :set-by set-by)))
+                                     object)
+                              (if (not (symbolp (second path)))
+                                  (setf (getf object (first path))
+                                        (at-path (getf object (first path)) (rest path)
+                                                 :value value :value-nil value-nil :set-by set-by))
+                                  (at-path (getf object (first path)) (rest path)
+                                           :value value :value-nil value-nil :set-by set-by)))))
+                  ;; path is over 1 element long and not assigned a value,
+                  ;; like a.b, a.b.c, a[1].c, etc...
+                  (if (symbolp (first path)) ;; first element is a symbol as for a...
+                      (if (arrayp object) (dotimes (i (size object)) ;; handle elision
+                                            (at-path (getf (row-major-aref object i) (first path))
+                                                     (rest path)))
+                          (at-path (getf object (first path)) (rest path)))
+                      ;; first element is coordinates like [1]...
+                      (at-path (achoose object (first path))
+                               (rest path)))))))))
 
 (defmacro a-set (symbol value &key (by) (axes))
   "This is macro is used to build variable assignment forms and includes logic for strand assignment."
@@ -1145,6 +1149,7 @@
          
          (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
                                                               arg `(render-varrays ,arg)))))
+    ;; { ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22 - fails without rendered args
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))

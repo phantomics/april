@@ -576,11 +576,13 @@
           (push i (gethash item key-table))))
       (let ((item-sets (loop :for key :in (reverse key-list)
                              :collect (funcall function
-                                               (if alpha (choose omega
-                                                                 (cons (apply #'vector
-                                                                              (reverse
-                                                                               (gethash key key-table)))
-                                                                       elisions))
+                                               (if alpha
+                                                   (make-instance
+                                                    'vader-select :base omega
+                                                    :argument (cons (apply #'vector
+                                                                           (reverse
+                                                                            (gethash key key-table)))
+                                                                    elisions))
                                                    (let ((items (funcall indices-of key keys)))
                                                      (make-array (length items)
                                                                  :initial-contents (reverse items))))

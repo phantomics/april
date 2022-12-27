@@ -1209,22 +1209,20 @@
 (defmethod indexer-of ((varray vader-reshape) &optional params)
    "Index a reshaped array."
   ;; (declare (ignore params) (optimize (speed 3) (safety 0)))
-  ;; (get-promised
-  ;;  (varray-generator varray)
    (let* ((base-indexer (base-indexer-of varray params))
           (input-size (the (unsigned-byte 62)
                            (max (the bit 1)
                                 (the fixnum (size-of (vader-base varray))))))
           (output-shape (shape-of varray))
           (output-size (the (unsigned-byte 62) (reduce #'* output-shape))))
-     (if (not (functionp base-indexer))
-         (lambda (index) (declare (ignore index)) base-indexer)
+     (if (functionp base-indexer)
          (if output-shape (if (<= output-size input-size)
                               #'identity
                               (lambda (index)
                                 ;; (print (list :in index input-size))
                                 (mod index input-size)))
-             (lambda (index) (declare (ignore index)) 0)))))
+             (lambda (index) (declare (ignore index)) 0))
+         (lambda (index) (declare (ignore index)) base-indexer))))
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
@@ -3042,6 +3040,7 @@
                                                    (not (typep base 'vader-mix))
                                                    )
                                                bix (row-major-aref bix 0)))))))
+                    ;; (print (list :ind indexer base))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
@@ -3792,26 +3791,3 @@
 
 (defmethod generator-of ((varray vader-identity) &optional indexers params)
   (generator-of (vader-base varray) indexers params))
-
-(defgeneric inverse-count-to (array index-origin)
-  (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
-
-(defmethod inverse-count-to ((item t) index-origin)
-  (if (and (vectorp item) (loop :for v :across item :for i :from index-origin
-                                :always (and (numberp v) (= v i))))
-      (length item)
-      (error "Attempted to invoke inverse [⍳ index] on something other than an integer progression vector.")))
-
-(defmethod inverse-count-to ((varray varray-derived) index-origin)
-  (inverse-count-to (render varray) index-origin))
-
-(defmethod inverse-count-to ((varray vader-identity) index-origin)
-  (inverse-count-to (vader-base varray) index-origin))
-
-(defmethod inverse-count-to ((varray vapri-integer-progression) index-origin)
-  ;; TODO: this does not get invoked by for instance ⍳⍣¯1⊢⍳9 because of the identity varray
-  (if (and (= 1 (vapip-repeat varray))
-           (= 1 (vapip-factor varray))
-           (= index-origin (vapip-origin varray)))
-      (+ index-origin (vapip-number varray))
-      (error "Attempted to invoke inverse [⍳ index] on an altered integer progression vector.")))
