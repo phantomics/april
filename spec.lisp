@@ -210,7 +210,7 @@
                                             (let ((symbol (intern (lisp->camel-case return-var)
                                                                   space)))
                                               (if (not will-render)
-                                                  symbol (list 'vrender symbol))))
+                                                  symbol `(process-ns-output (vrender ,symbol)))))
                                           outputs))))
             :build-variable-declarations #'build-variable-declarations
             :build-compiled-code #'build-compiled-code

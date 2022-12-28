@@ -881,6 +881,12 @@
                                    ,this-val))))
                      (process-symbols symbols value))))))))
 
+(defun process-ns-output (item)
+  "Process a namespace for output, rendering all virtual arrays within."
+  (if (not (listp item))
+      item (loop :for i :in item :collect (if (listp i) (process-ns-output i)
+                                              (vrender i)))))
+
 (defmacro a-out (form &key (print-to) (output-printed) (unrendered)
                         (print-assignment) (print-precision) (with-newline))
   "Generate code to output the result of APL evaluation, with options to print an APL-formatted text string expressing said result and/or return the text string as a result."
@@ -891,7 +897,7 @@
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
     ;; don't render if the (:unrendered) option has been passed
-    `(let* ((,result ,(if unrendered form `(vrender ,form)))
+    `(let* ((,result ,(if unrendered form `(process-ns-output (vrender ,form))))
             (,printout ,(when (and (or print-to output-printed))
                           ;; don't print the results of assignment unless the :print-assignment
                           ;; option is set, as done when compiling a ⎕← expression
@@ -1135,6 +1141,7 @@
          
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
                                                                   ;; (member arg '(⍵ ⍺))
+                                                                  ;; (not (member arg '(⍵ ⍺)))
                                                                   )
                                                               arg `(render-varrays ,arg)))))
     ;; (print (list :aa arguments))
@@ -1154,7 +1161,7 @@
                                                                (cddr function)))))))
                `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
-                         ,function ,arg-list))))))
+                         ,function ,arg-list))))))1
 
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
