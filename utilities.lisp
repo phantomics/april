@@ -1152,7 +1152,6 @@
                                                                   )
                                                               arg `(render-varrays ,arg)))))
     ;; (print (list :aa arguments))
-    ;; { ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22 - fails without rendered args
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))
