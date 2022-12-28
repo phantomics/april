@@ -295,7 +295,7 @@
 
 (defun render-varrays (item)
   (if (not (typep item 'varray))
-      item (render item)))
+      item (vrender item)))
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."
@@ -1285,18 +1285,23 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro apl-if (&rest each-clause)
   "Expands to an APL-style if-statement where clauses are evaluated depending on whether given expressions evaluate to 1 or 0."
-  (let ((condition (gensym)))
+  (let ((condition (gensym)) (output (gensym)))
     (labels ((build-clauses (clauses)
-               `(let ((,condition (disclose-atom (render-varrays ,(first clauses)))))
-                  (if (not (is-unitary ,condition))
-                      (error "Predicates within an [$ if] statement must be unitary or scalar.")
-                      (if (not (zerop (disclose-atom ,condition)))
-                          ,(second clauses)
-                          ,(if (third clauses)
-                               (if (fourth clauses)
-                                   (build-clauses (cddr clauses))
-                                   (third clauses))
-                               (make-array nil)))))))
+               `(let* ((,condition ,(first clauses))
+                       (,output (if (or (zerop (rank-of ,condition))
+                                        (= 1 (size-of ,condition)))
+                                    (disclose-atom (render-varrays ,condition))
+                                    (error "Predicates within an [$ if] statement must be unitary or scalar."))))
+                  ;; (if (not (is-unitary ,condition))
+                  ;;     (error "Predicates within an [$ if] statement must be unitary or scalar.")
+                  ;; (print (list :co ,condition ,output))
+                  (if (not (zerop ,output))
+                      ,(second clauses)
+                      ,(if (third clauses)
+                           (if (fourth clauses)
+                               (build-clauses (cddr clauses))
+                               (third clauses))
+                           (make-array nil))))))
       (build-clauses each-clause))))
 
 (defmacro scalar-function (function &rest meta)

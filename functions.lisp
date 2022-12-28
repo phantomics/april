@@ -342,8 +342,8 @@
 (defun format-array (print-precision)
   "Use (aplesque:array-impress) to print an array and return the resulting character array, with the option of specifying decimal precision. Used to implement monadic and dyadic [⍕ format]."
   (lambda (omega &optional alpha)
-    (let ((omega (render-varrays omega))
-          (alpha (render-varrays alpha)))
+    (let ((omega (vrender omega))
+          (alpha (vrender alpha)))
       (when (and alpha (not (integerp alpha)))
         (error (concatenate 'string "The left argument to ⍕ must be an integer specifying"
                             " the precision at which to print floating-point numbers.")))
@@ -359,8 +359,8 @@
 (defun format-array-uncollated (print-precision-default)
   "Generate a function using (aplesque:array-impress) to print an array in matrix form without collation. Used to implement ⎕FMT."
   (lambda (input &optional print-precision)
-    (let ((input (render-varrays input))
-          (print-precision (or (render-varrays print-precision)
+    (let ((input (vrender input))
+          (print-precision (or (vrender print-precision)
                                print-precision-default))
           (is-not-nested t))
       (when (and print-precision (not (integerp print-precision)))
@@ -679,7 +679,7 @@
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha environment blank)
     (declare (ignore environment blank))
-    (let* ((rank (render-varrays rank))
+    (let* ((rank (disclose-atom (vrender rank)))
            (odims (shape-of omega)) (adims (shape-of alpha))
            (orank (varray::rank-of omega)) (arank (varray::rank-of alpha))
            (fn-meta (funcall function :get-metadata nil))
@@ -787,7 +787,7 @@
                          (if (numberp determinant)
                              (operate-to-power (lambda () (- determinant)) function)
                              (operate-to-power fetch-determinant inverse-function))))
-        (let ((determinant (render-varrays (funcall fetch-determinant))))
+        (let ((determinant (disclose-atom (vrender (funcall fetch-determinant)))))
           (if (functionp determinant)
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
@@ -818,7 +818,6 @@
     (let ((orank (varray::rank-of omega))
           (left-fn (when (functionp left) left))
           (right-fn (when (functionp right) right)))
-      ;; {next←⊂4 9 29 42 ⋄ back←⊃,/1+0×next ⋄ back@(⊃,/next)⊢⍵} ¯1 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2 ¯2
       (if (and left-fn (or right-fn (= 1 (varray::rank-of right))
                            (not (or (arrayp right) (varray::varrayp right)))))
           (if right-fn (make-instance 'vader-select
@@ -836,7 +835,7 @@
                                                          (> 2 orank)
                                                          (not (zerop (varray::rank-of out-sub-array))))
                                                     #'enclose #'identity)
-                                                ;; enclose the right operans if it's not an array,
+                                                ;; enclose the right operand if it's not an array,
                                                 ;; omega has a rank greater than 2 and the operands' output
                                                 ;; has a rank greater than 1; this is needed for i.e.
                                                 ;; ∪∘1@5⊢(2 3) (3) (2 4) (1 5) (3)
@@ -859,7 +858,7 @@
     (declare (ignore alpha environment blank))
     (setq omega (render-varrays omega)
           right-value (render-varrays right-value))
-    (let ((left-fn-mod (lambda (o a) (render (funcall left-function o a)))))
+    (let ((left-fn-mod (lambda (o a) (render-varrays (funcall left-function o a)))))
       (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
                                         :collect (if (= i 0) index nil))))
         (if (not (or (and (< 2 (rank right-value))

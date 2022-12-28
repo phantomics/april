@@ -659,6 +659,9 @@
                      (if (not (functionp indexer))
                          indexer (funcall indexer 0))))))))
 
+(defun vrender (object)
+  (render object))
+
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
   (let* ((section-count (min section-count size))
