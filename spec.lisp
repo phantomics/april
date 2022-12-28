@@ -1254,7 +1254,7 @@
         (:demo-profile :title "Special Function Demos"
                        :description "These functions expose features of the language that aren't directly related to computing or transforming array values."))
   (⊢ (has :titles ("Identity" "Right"))
-     (ambivalent (λω (make-instance 'vader-identity :base omega))
+     (ambivalent #'get-identity-of
                  (λωα (declare (ignore alpha))
                       (make-instance 'vader-identity :base omega)))
      (meta (primary :virtual-support t)

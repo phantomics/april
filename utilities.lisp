@@ -1147,8 +1147,11 @@
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
          
-         (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
+         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
+                                                                  ;; (member arg '(⍵ ⍺))
+                                                                  )
                                                               arg `(render-varrays ,arg)))))
+    ;; (print (list :aa arguments))
     ;; { ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22 - fails without rendered args
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
