@@ -318,8 +318,7 @@
                  ;; from params so that the imported function can be called correctly
                  (if (eq :get-metadata (first ,call-params))
                      (list :meta-stuff nil)
-                     (apply ,this-fn (loop :for ,item :in ,call-params :when ,item
-                                           :collect (funcall #'april::render-varrays ,item))))))))))
+                     (apply ,this-fn ,call-params))))))))
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
@@ -720,7 +719,7 @@
                 ((string= "*RNGS*" (string symbol))
                  (let ((valsym (gensym)) (seed (gensym))
                        (rngindex (gensym)) (rngname (gensym)))
-                   `(let ((,valsym (render-varrays ,value)))
+                   `(let ((,valsym (vrender ,value)))
                       (if (or (integerp ,valsym)
                               (and (vectorp ,valsym) (= 1 (length ,valsym))))
                           (let ((,seed (disclose-atom ,valsym)))
@@ -842,6 +841,8 @@
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
                                 `(let ((,this-val (render-varrays ,values)))
+                                   ;; IPV-TODO: currently threaded assignment requires rendering
+                                   ;; of the input vector; can this be improved?
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
@@ -890,7 +891,7 @@
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
     ;; don't render if the (:unrendered) option has been passed
-    `(let* ((,result ,(if unrendered form `(render-varrays ,form)))
+    `(let* ((,result ,(if unrendered form `(vrender ,form)))
             (,printout ,(when (and (or print-to output-printed))
                           ;; don't print the results of assignment unless the :print-assignment
                           ;; option is set, as done when compiling a ⎕← expression
@@ -923,21 +924,6 @@
   (aops:each (lambda (member) (if (not (and (arrayp member) (< 1 (rank member))))
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
-
-;; (defmacro avec (&rest items)
-;;   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-;;   (let ((type) (contains-varrays))
-;;     (loop :for item :in items :while (not (eq t type))
-;;           :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
-;;                                                                            (> 0 item))
-;;                                                                        item (max 16 item))))
-;;                  contains-varrays (or contains-varrays (varrayp item))))
-;;     (if t ; contains-varrays
-;;         `(make-array ,(length items) ;; enclose each array included in an APL vector
-;;                      :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items))
-;;                      ;; :initial-contents (list ,@items)
-;;                      )
-;;         `(make-array ,(length items) :element-type (quote ,type) :initial-contents (list ,@items)))))
 
 (defun avec (&rest items)
   "This function returns an APL vector; in the case of virtual arrays within the vector, a subrendering virtual container vector is returned."
@@ -1227,8 +1213,11 @@ It remains here as a standard against which to compare methods for composing APL
                 (getf fn-meta :implicit-args)
                 (when (and axes (or (getf fn-meta :axes)
                                     (eq :dyadic args)))
-                  (list (if is-scalar `(apply-scalar #'- (render-varrays ,(caar axes)) index-origin)
-                            (cons 'list (list (cons 'render-varrays (first axes)))))))))))
+                  (list (if is-scalar `(make-instance
+                                        'vader-operate :function #'-
+                                                       ;; :params (list :lexical-reference #\-)
+                                                       :base (list ,(caar axes) index-origin))
+                            (cons 'list (first axes)))))))))
 
 (defmacro value-meta-process (form)
   "Assign array metadata appropriately to arrays resulting from scalar operations along with newly assigned arrays. Currently this is used to migrate array prototypes, as for operations like 1+0↑⊂3 3⍴⍳9."
@@ -1288,20 +1277,21 @@ It remains here as a standard against which to compare methods for composing APL
   (let ((condition (gensym)) (output (gensym)))
     (labels ((build-clauses (clauses)
                `(let* ((,condition ,(first clauses))
-                       (,output (if (or (zerop (rank-of ,condition))
-                                        (= 1 (size-of ,condition)))
-                                    (disclose-atom (render-varrays ,condition))
-                                    (error "Predicates within an [$ if] statement must be unitary or scalar."))))
+                       (,output
+                         (if (or (zerop (rank-of ,condition))
+                                 (= 1 (size-of ,condition)))
+                             (disclose-atom (vrender ,condition))
+                             (error "Predicates within an [$ if] statement must be unitary or scalar."))))
                   ;; (if (not (is-unitary ,condition))
                   ;;     (error "Predicates within an [$ if] statement must be unitary or scalar.")
                   ;; (print (list :co ,condition ,output))
-                  (if (not (zerop ,output))
-                      ,(second clauses)
+                  (if (zerop ,output)
                       ,(if (third clauses)
                            (if (fourth clauses)
                                (build-clauses (cddr clauses))
                                (third clauses))
-                           (make-array nil))))))
+                           (make-array nil))
+                      ,(second clauses)))))
       (build-clauses each-clause))))
 
 (defmacro scalar-function (function &rest meta)
@@ -1388,7 +1378,7 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defun coerce-or-get-type (array &optional type-index)
   "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕DT."
-  (let ((array (render-varrays array))
+  (let ((array (vrender array))
         (types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
                  (-3 (unsigned-byte 7)) (3 (unsigned-byte 8)) (-4 (unsigned-byte 15))
                  (4 (unsigned-byte 16)) (-5 (unsigned-byte 31)) (5 (unsigned-byte 32))
@@ -1641,12 +1631,12 @@ It remains here as a standard against which to compare methods for composing APL
                                           (when (assoc (second sub-form) tags-matching)
                                             (list 'go (second (assoc (second sub-form) tags-matching))))
                                           (if (third sub-form)
-                                              `(let ((,branch-index (render-varrays ,(third sub-form))))
+                                              `(let ((,branch-index (vrender ,(third sub-form))))
                                                  (cond ,@(loop :for tag :in (second sub-form)
                                                             :counting tag :into tix
                                                             :collect `((= ,branch-index ,tix)
                                                                        (go ,tag)))))
-                                              `(let ((,branch-index (render-varrays ,(second sub-form))))
+                                              `(let ((,branch-index (vrender ,(second sub-form))))
                                                  (cond ,@(loop :for tag :in tags-matching
                                                             :when (and (listp tag)
                                                                        (member (second tag) tags-found))

@@ -210,7 +210,7 @@
                                             (let ((symbol (intern (lisp->camel-case return-var)
                                                                   space)))
                                               (if (not will-render)
-                                                  symbol (list 'render-varrays symbol))))
+                                                  symbol (list 'vrender symbol))))
                                           outputs))))
             :build-variable-declarations #'build-variable-declarations
             :build-compiled-code #'build-compiled-code
@@ -1292,7 +1292,7 @@
             (is "⍕'a'" #\a)))
   (⍎ (has :title "Evaluate")
      (monadic (λω (eval (vex-program *april-idiom* `((state :print-output nil) (:space ,+workspace-name+))
-                                     (string (render-varrays omega))))))
+                                     (string (vrender omega))))))
      (meta (primary :implicit-args (+workspace-name+)))
      (tests (is "⍎'1+1'" 2)
             (is "⍎'5','+3 2 1'" #(8 7 6))

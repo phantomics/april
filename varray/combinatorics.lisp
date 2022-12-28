@@ -38,7 +38,7 @@
                                      (second base) (vader-base (second base)))))
                      (make-instance 'vader-enclose :base (funcall function first second))))
                   ((and (or iota-first iota-second)
-                        (member lex-ref arith-functions :test #'char=)
+                        lex-ref (member lex-ref arith-functions :test #'char=)
                         (not (and iota-second (char= #\÷ lex-ref))))
                    (destructuring-bind (iota number) (if iota-second base (reverse base))
                      (make-instance 'vapri-integer-progression
