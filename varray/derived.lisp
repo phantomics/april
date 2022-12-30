@@ -734,10 +734,12 @@
                                                             (eelement (unless (arrayp bindex)
                                                                         (funcall eindexer index))))
                                                        (if eelement
-                                                           (if (loop :for e :across (getf selector-eindices
-                                                                                          :eindices)
-                                                                     :never (= e eelement))
-                                                               bindex (vasel-assign varray))
+                                                           (let* ((eindices (getf selector-eindices
+                                                                                  :eindices))
+                                                                  (egen (generator-of eindices)))
+                                                             (if (loop :for e :below (size-of eindices)
+                                                                       :never (= eelement (funcall egen e)))
+                                                                 bindex (vasel-assign varray)))
                                                            (progn
                                                              (setf (vads-subrendering varray) t)
                                                              (make-instance
