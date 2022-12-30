@@ -550,8 +550,7 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
-  (if (and ;;nil
-           (typep varray 'varray-derived)
+  (if (and (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))
                (vads-rendered varray)))
@@ -669,9 +668,9 @@
                                  (if (not (functionp indexer))
                                      indexer (funcall indexer 0))))))
               (if (not (typep varray 'varray-derived))
-                  output (setf (vader-content varray) output))))))))
-
-;; stamps¨50 51 52 53  g path 2 1  g path (1 2)(4 5)
+                  output (progn (when (typep varray 'vad-render-mutable)
+                                  (setf (vads-rendered varray) t))
+                                (setf (vader-content varray) output)))))))))
 
 (defun vrender (object)
   "A public-facing interface to the render method."

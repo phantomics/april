@@ -813,7 +813,7 @@
                    ;; handle multiple assignments like a b c←1 2 3
                    (labels ((process-symbols (sym-list values)
                               (let* ((this-val (gensym))
-                                     (this-generator (gensym))
+                                     ;; (this-generator (gensym))
                                      (assigning-xfns (and (listp values) (eql 'a-call (first values))
                                                           (listp (second values))
                                                           (eql 'function (caadr values))
@@ -844,7 +844,7 @@
                                 `(let ((,this-val (render-varrays ,values))
                                        ;; (,this-generator (generator-of ,values))
                                        )
-                                   ;; (declare (ignorable ,this-val ,this-generator))
+                                   ;;(declare (ignorable ,this-val ,this-generator))
                                    ;; IPV-TODO: currently threaded assignment requires rendering
                                    ;; of the input vector; can this be improved?
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
@@ -1180,7 +1180,7 @@
                                                                (cddr function)))))))
                `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
-                         ,function ,arg-list))))))1
+                         ,function ,arg-list))))))
 
 #|
 This is a minimalistic implementation of (a-call) that doesn't perform any function composition.

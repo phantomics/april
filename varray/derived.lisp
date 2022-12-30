@@ -3220,7 +3220,7 @@
 (defmethod etype-of ((varray vader-unique))
   (declare (ignore varray))
   t)
-
+ 
 (defmethod shape-of ((varray vader-unique))
   (get-promised (varray-shape varray)
                 (let ((this-indexer (generator-of varray)))
@@ -3286,7 +3286,7 @@
                                      (+ remainder (* cell-size (aref (vauni-indices varray)
                                                                      count))))))))))))
 
-(defclass vader-union (varray-derived vad-limitable)
+(defclass vader-union (varray-derived vad-limitable vad-render-mutable)
   nil (:metaclass va-class)
   (:documentation "An array intersection as from the [∩ union] function."))
 
