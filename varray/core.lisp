@@ -550,116 +550,131 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
-  (let* ((output-shape (shape-of varray))
-         (output-rank (length output-shape))
-         (spec (specify varray))
-         (metadata (metadata-of varray))
-         (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
-         (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
-         (default-generator) (to-subrender))
+  (if (and ;;nil
+           (typep varray 'varray-derived)
+           (vader-content varray)
+           (or (not (typep varray 'vad-render-mutable))
+               (vads-rendered varray)))
+      (vader-content varray)
+      (let* ((output-shape (shape-of varray))
+             (output-rank (length output-shape))
+             (spec (specify varray))
+             (metadata (metadata-of varray))
+             (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+             (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
+             (default-generator) (to-subrender))
 
-    ;; (print (list :rr metadata coordinate-type en-type))
-    
-    (let ((gen (and coordinate-type en-type
-                    (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
-                                                   :format :encoded :base-format :encoded :indexers nil)))))
+        ;; (print (list :rr metadata coordinate-type en-type))
+        
+        (let ((gen (and coordinate-type en-type
+                        (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+                                                       :format :encoded :base-format :encoded :indexers nil)))))
 
-      ;; (setq gen nil)
-      
-      (multiple-value-bind (indexer is-not-defaulting)
-          (if gen (values gen t)
-              (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
+          (multiple-value-bind (indexer is-not-defaulting)
+              (if gen (values gen t)
+                  (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
 
-        ;; (print (list :g gen coordinate-type en-type is-not-defaulting metadata))
-                   
-        (when (and (typep varray 'vader-select)
-                   (< 0 (size-of varray)) (functionp indexer))
-          (funcall indexer 0))
-        ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
-        ;; first element is generated - figure out a better way to do this
-        (setf to-subrender (or (subrendering-p varray)
-                               (subrendering-base varray)))
-        (if output-shape
-            (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
-                (let* ((prototype (prototype-of varray))
-                       (out-meta (when (arrayp prototype)
-                                   (make-array 1 :initial-contents
-                                               (list (list :empty-array-prototype prototype))))))
-                  ;; a nil element type results in a t-type array;
-                  ;; nil types may occur from things like +/⍬
-                  (if out-meta (make-array output-shape :displaced-to out-meta)
-                      (make-array output-shape :element-type (or (etype-of varray) t))))
-                (let* ((output (make-array output-shape :element-type (etype-of varray)))
-                       (dfactors (when en-type (get-dimensional-factors output-shape t)))
-                       ;; the decoder function converts non-row-major index formats like
-                       ;; sub-byte-encoded coordinate vectors back to row-major indices
-                       ;; to reference elements in the output array
-                       (render-index
-                         (multiple-value-bind (decoder default-decoder)
-                             (if (or (not is-not-defaulting) (not en-type))
-                                 #'identity (decode-rmi en-type coordinate-type output-rank dfactors))
-                           (let ((decoder (or decoder default-decoder)))
-                             (if to-subrender
-                                 (lambda (i)
-                                   (let ((indexed (if (not (functionp indexer))
-                                                      indexer (funcall indexer i))))
-                                     (setf (row-major-aref output (funcall decoder i))
-                                           (render indexed))))
-                                 (lambda (i)
-                                   (setf (row-major-aref output (funcall decoder i))
-                                         (if (not (functionp indexer))
-                                             indexer (funcall indexer i))))))))
-                       (sbsize (sub-byte-element-type varray))
-                       (sbesize (if sbsize (/ 64 sbsize) 1))
-                       (wcadj *workers-count*)
-                       (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
-                       (lpchannel (lparallel::make-channel))
-                       (process-pair (get-indexing-function varray dfactors divisions render-index))
-                       (process (or (and is-not-defaulting (first process-pair))
-                                    (second process-pair)))
-                       (threaded-count 0))
-                  ;; (print (list :pro divisions sbesize sbsize))
-                  ;; (print (list :out (type-of output) (type-of varray)
-                  ;;              divisions division-size sbesize sbsize
-                  ;;              (typep varray 'vader-composing)
-                  ;;              (when (typep varray 'vader-composing)
-                  ;;                (vacmp-threadable varray))))
-                  ;; (print (list :ts to-subrender (setf april::ggt varray)))
-                  (loop :for d :below divisions
-                        :do (if (or (and (typep varray 'vader-composing)
-                                      (not (vacmp-threadable varray)))
-                                 ;; don't thread when rendering the output of operators composed
-                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                 (loop :for worker :across (lparallel.kernel::workers lparallel::*kernel*)
-                                       :never (null (lparallel.kernel::running-category worker))))
-                             ;;t
-                             (funcall (funcall process d))
-                             (progn (incf threaded-count)
-                                    (lparallel::submit-task
-                                     lpchannel (funcall process d)))))
-                  (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
-                  output))
-            (funcall (if (subrendering-p varray)
-                         (lambda (item)
-                           (let ((rendered (render item)))
-                             ;; (print (list :rr rendered item varray
-                             ;;              (subrendering-p varray)))
-                             (if (and (zerop (rank-of rendered))
-                                      (or (not (arrayp rendered))
-                                          (and (typep varray 'vacomp-reduce)
-                                               (subrendering-p varray))))
-                                 ;; handle the case of {,/⍵}/3⍴⊂⍳3
-                                 rendered (enclose rendered))))
-                         (lambda (item)
-                           (let ((rendered (render item)))
-                             (if (or (not (shape-of rendered))
-                                     (typep varray 'vader-mix) ;; put these in a superclass
-                                     (typep varray 'vader-pick))
-                                 rendered (enclose rendered)))))
-                     (if (not (functionp indexer))
-                         indexer (funcall indexer 0))))))))
+            ;; (print (list :g gen coordinate-type en-type is-not-defaulting metadata))
+            
+            (when (and (typep varray 'vader-select)
+                       (< 0 (size-of varray)) (functionp indexer))
+              (funcall indexer 0))
+            ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
+            ;; first element is generated - figure out a better way to do this
+            (setf to-subrender (or (subrendering-p varray)
+                                   (subrendering-base varray)))
+            (let ((output
+                    (if output-shape
+                        (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
+                            (let* ((prototype (prototype-of varray))
+                                   (out-meta (when (arrayp prototype)
+                                               (make-array 1 :initial-contents
+                                                           (list (list :empty-array-prototype prototype))))))
+                              ;; a nil element type results in a t-type array;
+                              ;; nil types may occur from things like +/⍬
+                              (if out-meta (make-array output-shape :displaced-to out-meta)
+                                  (make-array output-shape :element-type (or (etype-of varray) t))))
+                            (let* ((output (make-array output-shape :element-type (etype-of varray)))
+                                   (dfactors (when en-type (get-dimensional-factors output-shape t)))
+                                   ;; the decoder function converts non-row-major index formats like
+                                   ;; sub-byte-encoded coordinate vectors back to row-major indices
+                                   ;; to reference elements in the output array
+                                   (render-index
+                                     (multiple-value-bind (decoder default-decoder)
+                                         (if (or (not is-not-defaulting) (not en-type))
+                                             #'identity (decode-rmi en-type coordinate-type
+                                                                    output-rank dfactors))
+                                       (let ((decoder (or decoder default-decoder)))
+                                         (if to-subrender
+                                             (lambda (i)
+                                               (let ((indexed (if (not (functionp indexer))
+                                                                  indexer (funcall indexer i))))
+                                                 (setf (row-major-aref output (funcall decoder i))
+                                                       (render indexed))))
+                                             (lambda (i)
+                                               (setf (row-major-aref output (funcall decoder i))
+                                                     (if (not (functionp indexer))
+                                                         indexer (funcall indexer i))))))))
+                                   (sbsize (sub-byte-element-type varray))
+                                   (sbesize (if sbsize (/ 64 sbsize) 1))
+                                   (wcadj *workers-count*)
+                                   (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
+                                   (lpchannel (lparallel::make-channel))
+                                   (process-pair (get-indexing-function varray dfactors
+                                                                        divisions render-index))
+                                   (process (or (and is-not-defaulting (first process-pair))
+                                                (second process-pair)))
+                                   (threaded-count 0))
+                              ;; (print (list :pro divisions sbesize sbsize))
+                              ;; (print (list :out (type-of output) (type-of varray)
+                              ;;              divisions division-size sbesize sbsize
+                              ;;              (typep varray 'vader-composing)
+                              ;;              (when (typep varray 'vader-composing)
+                              ;;                (vacmp-threadable varray))))
+                              ;; (print (list :ts to-subrender (setf april::ggt varray)))
+                              (loop :for d :below divisions
+                                    :do (if (or (and (typep varray 'vader-composing)
+                                                     (not (vacmp-threadable varray)))
+                                                ;; don't thread when rendering the output of operators composed
+                                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                                (loop :for worker
+                                                        :across (lparallel.kernel::workers
+                                                                 lparallel::*kernel*)
+                                                      :never (null (lparallel.kernel::running-category
+                                                                    worker))))
+                                            ;;t
+                                            (funcall (funcall process d))
+                                            (progn (incf threaded-count)
+                                                   (lparallel::submit-task
+                                                    lpchannel (funcall process d)))))
+                              (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
+                              output))
+                        (funcall (if (subrendering-p varray)
+                                     (lambda (item)
+                                       (let ((rendered (render item)))
+                                         ;; (print (list :rr rendered item varray
+                                         ;;              (subrendering-p varray)))
+                                         (if (and (zerop (rank-of rendered))
+                                                  (or (not (arrayp rendered))
+                                                      (and (typep varray 'vacomp-reduce)
+                                                           (subrendering-p varray))))
+                                             ;; handle the case of {,/⍵}/3⍴⊂⍳3
+                                             rendered (enclose rendered))))
+                                     (lambda (item)
+                                       (let ((rendered (render item)))
+                                         (if (or (not (shape-of rendered))
+                                                 (typep varray 'vader-mix) ;; put these in a superclass
+                                                 (typep varray 'vader-pick))
+                                             rendered (enclose rendered)))))
+                                 (if (not (functionp indexer))
+                                     indexer (funcall indexer 0))))))
+              (if (not (typep varray 'varray-derived))
+                  output (setf (vader-content varray) output))))))))
+
+;; stamps¨50 51 52 53  g path 2 1  g path (1 2)(4 5)
 
 (defun vrender (object)
+  "A public-facing interface to the render method."
   (render object))
 
 (defun segment-length (size section-count)
@@ -739,7 +754,7 @@
                   :documentation "Whether the array contains nested elements to be subrendered.")
    (%content :accessor vader-content
              :initform nil
-             :initarg :inverse
+             :initarg :content
              :documentation "Cached rendered content of the array."))
   (:metaclass va-class)
   (:documentation "A derived array: a virtual array derived from another array."))

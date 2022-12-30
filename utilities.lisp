@@ -813,6 +813,7 @@
                    ;; handle multiple assignments like a b c←1 2 3
                    (labels ((process-symbols (sym-list values)
                               (let* ((this-val (gensym))
+                                     (this-generator (gensym))
                                      (assigning-xfns (and (listp values) (eql 'a-call (first values))
                                                           (listp (second values))
                                                           (eql 'function (caadr values))
@@ -840,7 +841,10 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values)))
+                                `(let ((,this-val (render-varrays ,values))
+                                       ;; (,this-generator (generator-of ,values))
+                                       )
+                                   ;; (declare (ignorable ,this-val ,this-generator))
                                    ;; IPV-TODO: currently threaded assignment requires rendering
                                    ;; of the input vector; can this be improved?
                                    ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
@@ -850,11 +854,21 @@
                                            (cond ((and (listp sym) (not (eql 'inws (first sym))))
                                                   (list (process-symbols
                                                          sym `(if (not (vectorp ,this-val))
-                                                                  ,this-val (aref ,this-val ,sx)))))
+                                                                  ,this-val (aref ,this-val ,sx))))
+                                                  ;; (list (process-symbols
+                                                  ;;        sym `(if (= 1 (size-of ,values))
+                                                  ;;                 ,values (funcall ,this-generator
+                                                  ;;                                  ,sx))))
+                                                  )
                                                  ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (vectorp ,this-val)
                                                                       (aref ,this-val sx)
-                                                                      (disclose ,this-val))))))
+                                                                      (disclose ,this-val)))))
+                                                  ;; `((or ⍺ (setf ⍺ (if (= 1 (size-of ,values))
+                                                  ;;                     ,values
+                                                  ;;                     (funcall ,this-generator
+                                                  ;;                              ,sx)))))
+                                                  )
                                                  ((eql '⍵ sym)
                                                   `(error "The [⍵ right argument] cannot ~a"
                                                           "have a default assignment."))
@@ -877,7 +891,12 @@
                                                                        ,args)))))))
                                                   (t `((setf ,sym (if (vectorp ,this-val)
                                                                       (aref ,this-val ,sx)
-                                                                      (disclose ,this-val)))))))
+                                                                      (disclose ,this-val))))
+                                                     ;; `((setf ,sym (if (= 1 (size-of ,values))
+                                                     ;;                  ,values
+                                                     ;;                  (funcall ,this-generator
+                                                     ;;                           ,sx))))
+                                                     )))
                                    ,this-val))))
                      (process-symbols symbols value))))))))
 

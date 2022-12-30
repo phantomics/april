@@ -71,6 +71,14 @@
   nil (:metaclass va-class)
   (:documentation "Superclass of indefinite array transformations whose output can be dimensionally limited to avoid needless computation."))
 
+(defclass vad-render-mutable ()
+  ((%rendered :accessor vads-rendered
+              :initform nil
+              :initarg :rendered
+              :documentation "Whether the array has been rendered."))
+  (:metaclass va-class)
+  (:documentation "Superclass of array transformations whose content may be changed in place upon rendering and whose rendered/non-rendered status must therefore be tracked."))
+
 ;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
 (defclass vader-subarray (vad-subrendering varray-derived)
   ((%index :accessor vasv-index
@@ -1569,7 +1577,7 @@
                                                   base-indexer (funcall base-indexer index)))
                    1 0)))))))
 
-(defclass vader-where (varray-derived vad-with-io vad-with-dfactors vad-limitable)
+(defclass vader-where (varray-derived vad-with-io vad-with-dfactors vad-limitable vad-render-mutable)
   nil (:metaclass va-class)
   (:documentation "The coordinates of array elements equal to 1 as from the [⍸ where] function."))
 
@@ -1583,21 +1591,23 @@
 
 (defmethod shape-of ((varray vader-where))
   (get-promised (varray-shape varray)
-                (let ((this-indexer (generator-of varray))
-                      (base-indexer (generator-of (vader-base varray))))
-                  (declare (ignore this-indexer))
-                  (let ((shape (or (shape-of (vader-content varray))
-                                   (list (if (and (not (functionp base-indexer))
-                                                  (integerp base-indexer)
-                                                  (= 1 base-indexer))
-                                             1 0)))))
-                    (unless (vads-dfactors varray)
-                      (setf (vads-dfactors varray)
-                            (get-dimensional-factors (shape-of (vader-base varray)) t)))
-                    (when (second (shape-of (vader-base varray)))
-                      ;; set array to subrender if it will return coordinate vector objects
-                      (setf (vads-subrendering varray) t))
-                    shape))))
+                (progn (if (second (shape-of (vader-base varray)))
+                           ;; set array to subrender if it will return coordinate vector objects
+                           (setf (vads-subrendering varray) t)
+                           ;; the array's rendered status can be set to true if it contains
+                           ;; integers, since they will be IO-adjusted upon generation
+                           (setf (vads-rendered varray) t))
+                       (generator-of varray)
+                       (let* ((base-indexer (generator-of (vader-base varray)))
+                              (shape (or (shape-of (vader-content varray))
+                                         (list (if (and (not (functionp base-indexer))
+                                                        (integerp base-indexer)
+                                                        (= 1 base-indexer))
+                                                   1 0)))))
+                         (unless (vads-dfactors varray)
+                           (setf (vads-dfactors varray)
+                                 (get-dimensional-factors (shape-of (vader-base varray)) t)))
+                         shape))))
 
 (defmethod generator-of ((varray vader-where) &optional indexers params)
   (let* ((base-shape (shape-of (vader-base varray)))
@@ -1620,15 +1630,18 @@
           (let ((output (make-array match-count
                                     :element-type (list 'integer 0 (size-of (vader-base varray))))))
             (loop :for in :in indices :for ix :from (1- match-count) :downto 0
-                  :do (setf (aref output ix) in))
+                  :do (setf (aref output ix) (+ in (if (not (vads-rendered varray))
+                                                       0 (vads-io varray)))))
             (setf (vader-content varray) output))))
+    ;; (print (list :rr (vads-rendered varray) (vader-content varray)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
       (t (lambda (index)
            (if (zerop base-rank) (make-array 0)
                (if (= 1 base-rank)
-                   (+ (vads-io varray) (aref (vader-content varray) index))
+                   (+ ;; (vads-io varray)
+                      (aref (vader-content varray) index))
                    (make-instance 'vapri-coordinate-vector
                                   :reference varray :index (aref (vader-content varray) index)))))))))
 
@@ -2429,7 +2442,7 @@
           (let ((indexed (funcall indexer index)))
             (if (not layers-below) indexed
                 ;; handle the next layer, as for x←⍳9 ⋄ (2↑4↓x)←99 ⋄ x
-                (let ((inext (funcall base-indexer index)))
+                (let ((inext (funcall indexer index)))
                   (when inext (if (eq :pick layers-below)
                                   inext (funcall indexer inext))))))))
       (case (getf params :base-format)
@@ -3186,6 +3199,7 @@
                                                       (array-compare (first contents) c)))
                                 (incf match-count)
                                 (list (first contents))))))
+            ;; (print (list :ma matches))
             (setf (vader-content varray)
                   (make-array match-count :initial-contents matches
                                           :element-type (apply #'type-in-common
