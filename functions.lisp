@@ -406,18 +406,17 @@
 
 (defun invert-assigned-varray (object &optional order)
   "Generate the inverted deferred computation object that serves to verify indices in a selection array implementing assignment by selection, like the one expressed by {na←3⍴⊂⍳4 ⋄ (1↑⊃na[1])←⍵ ⋄ na} 99."
-  (if (varrayp object)
+  (if (and (varrayp object)
+           (not (typep object 'varray::varray-primal)))
       (invert-assigned-varray (typecase object (vacomp-each (varray::vacmp-omega object))
-                                        (t (let ((base (varray::vader-base object)))
-                                             (if (not (typep base 'varray::varray-primal))
-                                                 base (render-varrays base)))))
+                                        (t (varray::vader-base object)))
                               (typecase object (vader-identity order)
-                                ;; omit identity objects, this is for selective
-                                ;; assignment cases like ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
-                                (vader-select (append order (list object)))
-                                (vader-pick (append order (list object)))
-                                ;; pick and select objects are shifted to the end of the list
-                                (t (cons object order))))
+                                        ;; omit identity objects, this is for selective
+                                        ;; assignment cases like ⍺←⊢ ⋄ (⍺ ⍺⍺ X)←Y
+                                        (vader-select (append order (list object)))
+                                        (vader-pick (append order (list object)))
+                                        ;; pick and select objects are shifted to the end of the list
+                                        (t (cons object order))))
       (let ((output) (ivec))
         (loop :for o :in order
               :do (typecase o (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
@@ -434,6 +433,7 @@
 (defun assign-by-selection (function value omega &key index-origin)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
+    ;; (print (list :bb (setf rri base-object) ivec))
     (typecase base-object
       (varray::vader-select
        (setf (varray::vasel-assign base-object) value)
