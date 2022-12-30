@@ -293,16 +293,14 @@
 
 (defun count-to (index index-origin)
   "Implementation of APL's [⍳ index] function."
-  (let ((index-shape (shape-of index))
-        (integer-index (if (integerp index)
-                           index (when (not (or (and (not (arrayp index))
-                                                     (not (varrayp index)))
-                                                (< 1 (size-of index))))
-                                   (let ((generator (generator-of index)))
-                                     (vrender (if (not (functionp generator))
-                                                  generator (funcall generator 0))))))))
-    (if integer-index
-        (make-instance 'vapri-integer-progression :number integer-index :origin index-origin)
+  (let ((int-index (if (integerp index)
+                       index (when (not (or (and (not (arrayp index))
+                                                 (not (varrayp index)))
+                                            (< 1 (size-of index))))
+                               (let ((generator (generator-of index)))
+                                 (if (not (functionp generator))
+                                     generator (funcall generator 0)))))))
+    (if int-index (make-instance 'vapri-integer-progression :number int-index :origin index-origin)
         (make-instance 'vapri-coordinate-identity :shape index :index-origin index-origin))))
 
 (defun at-index (index-origin axes)

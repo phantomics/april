@@ -47,12 +47,11 @@
 (defmethod shape-of ((vvector vapri-integer-progression))
   ;; TODO: it's still possible to create something like ⍳¯5, the error doesn't happen
   ;; until it's rendered - is there a better way to implement this check?
-  (when (not (and (integerp (vapip-number vvector))
-                  (or (zerop (vapip-number vvector))
-                      (plusp (vapip-number vvector)))))
-    (error "The argument to [⍳ index] must be an integer 0 or higher."))
-  (get-promised (varray-shape vvector) (list (* (vapip-number vvector)
-                                                (vapip-repeat vvector)))))
+  (let ((number (setf (vapip-number vvector)
+                      (render (vapip-number vvector)))))
+    (when (not (and (integerp number) (or (zerop number) (plusp number))))
+      (error "The argument to [⍳ index] must be an integer 0 or higher."))
+    (get-promised (varray-shape vvector) (list (* number (vapip-repeat vvector))))))
 
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-integer-progression) &optional indexers params)
