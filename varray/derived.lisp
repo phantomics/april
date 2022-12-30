@@ -3199,7 +3199,6 @@
                                                       (array-compare (first contents) c)))
                                 (incf match-count)
                                 (list (first contents))))))
-            ;; (print (list :ma matches))
             (setf (vader-content varray)
                   (make-array match-count :initial-contents matches
                                           :element-type (apply #'type-in-common
@@ -3276,7 +3275,6 @@
       (:encoded)
       (:linear)
       (t (lambda (index)
-           ;; (print (list :inde index (etype-of varray) (shape-of varray)))
            (if (not (functionp base-indexer))
                base-indexer
                (if (= 1 base-rank)
