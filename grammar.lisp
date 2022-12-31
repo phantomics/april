@@ -1079,8 +1079,9 @@
                                       selection-axes
                                       `(mapcar (lambda (array)
                                                  (when array
-                                                   (apply-scalar #'- (render-varrays array)
-                                                                 index-origin)))
+                                                   (make-instance
+                                                    'vader-operate :base (list array index-origin)
+                                                    :function #'-)))
                                                ,(getf (cddr (third form)) :argument))))))))
              
              (set-assn-sym selection-form)
