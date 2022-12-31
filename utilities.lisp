@@ -1357,21 +1357,20 @@ It remains here as a standard against which to compare methods for composing APL
         (assignment-output (gensym)) (assigned-array (gensym)) (to-set (gensym)))
     (if (not axis-sets)
         body (enclose-axes
-              (if set `(let ((,to-set ,set))
-                         (multiple-value-bind (,assignment-output ,assigned-array)
-                             (achoose ,body (mapcar (lambda (array)
-                                                      (when array (apply-scalar
-                                                                   #'- (render-varrays array)
-                                                                   index-origin)))
-                                                    (list ,@axes))
-                                      :set-nil ,set-nil :set ,to-set ,@(when set-by (list :set-by set-by))
-                                      ;; setting the modify-input parameter so that the original value
-                                      ;; is modified in place if possible
-                                      ,@(if reference (list :reference reference))
-                                      :modify-input t)
-                           (when ,assigned-array (setf ,body ,assigned-array))
-                           ,assignment-output))
-                  `(make-virtual 'vader-select :base ,body
+              (if set `(let* ((,to-set ,set))
+                         (setf
+                          ,body
+                          (make-instance
+                           'vader-select :base ,body :assign ,to-set
+                           ,@(when set-by (list :calling set-by))
+                           :argument (mapcar (lambda (array)
+                                               (when array
+                                                 (make-instance
+                                                  'vader-operate :function #'-
+                                                  :base (list array index-origin))))
+                                             (list ,@axes))))
+                         ,to-set)
+                  `(make-virtual 'vader-select :base ,body :subrendering t
                                                :argument (list ,@axes) :index-origin index-origin))
               (rest axis-sets)))))
 

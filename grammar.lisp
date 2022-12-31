@@ -1149,9 +1149,14 @@
                                    (set insym nil))))))
                  (if (and function (not xfns-assigned))
                      (if (listp syms) ;; handle namespace paths
-                         `(a-set ,symbol ,value :by (lambda (item item2)
-                                                      (render-varrays
-                                                       (a-call ,function item item2))))
+                         (let ((item (gensym)) (item2 (gensym)))
+                           ;; namespace path assignments are always rendered
+                           ;; because if assigning to a namespace that's inside an array,
+                           ;; there's no guarantee that the namespace will have its values
+                           ;; rendered on output - TODO: can this be done only in the case
+                           ;; of paths that direct into an array?
+                           `(a-set ,symbol ,value :by (lambda (,item ,item2)
+                                                        (vrender (a-call ,function ,item ,item2)))))
                          ;; handle assignment by function as with a+←10;
                          ;; note that this reassigns the variable at its top scope level
                          (let ((assigned (gensym)))
