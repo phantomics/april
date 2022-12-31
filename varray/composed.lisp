@@ -122,7 +122,7 @@
              :initarg :reverse
              :documentation "Is subarray to be traversed in reverse order?."))
   (:metaclass va-class)
-  (:documentation "An element of a split array as from the [↓ split] function."))
+  (:documentation "A subarray created as part of a [/ reduce] operation."))
 
 (defmethod prototype-of ((varray vader-subarray-reduce))
   (declare (ignore params))
