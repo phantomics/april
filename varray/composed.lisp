@@ -289,6 +289,106 @@
                                 (setf (vads-subrendering varray) nil))
                               value))))))))))))
 
+(defclass vacomp-scan (vad-subrendering vader-composing vad-invertable
+                       vad-on-axis vad-with-io vad-with-default-axis)
+  nil (:metaclass va-class)
+  (:documentation "A scan-composed array as with the [\\ scan] operator."))
+
+(defmethod prototype-of ((varray vacomp-scan))
+  0)
+
+(defmethod shape-of ((varray vacomp-scan))
+  (get-promised (varray-shape varray)
+                (let ((base-shape (shape-of (vacmp-omega varray))))
+                  (when (and (vads-default-axis varray)
+                             (not (vads-axis varray)))
+                    (setf (vads-axis varray) (vads-default-axis varray)))
+                  (when (varrayp (vads-axis varray))
+                    (setf (vads-axis varray) (render (vads-axis varray))))
+                  (setf (vads-axis varray)
+                        ;; TODO: what's sending an ⎕IO of 0 here for ⌊10000×+∘÷/40/1 ?
+                        (max 0 (if (vads-axis varray)
+                                   (- (vads-axis varray) (vads-io varray))
+                                   (1- (length base-shape)))))
+                  base-shape)))
+
+(defmethod generator-of ((varray vacomp-scan) &optional indexers params)
+  ;; (defun operate-scanning (function index-origin last-axis inverse &key axis)
+  "Scan a function across an array along a given axis. Used to implement the [\\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
+  ;; (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
+  ;;(declare (ignore environment))
+  (let* ((odims (shape-of varray))
+         (omega (render (vacmp-omega varray)))
+         (axis (vads-axis varray)))
+    ;; (print (shape-of varray))
+    ;; (print (list :ax axis))
+    (when (not (vader-content varray))
+      (if (not (arrayp omega))
+          (if (eq :get-metadata omega)
+              (list ;; :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
+                    ;;            (operate-scanning inverse-function index-origin last-axis t :axis axis))
+                    :valence :monadic)
+              (setf (vader-content varray)
+                    (if (not (eq :reassign-axes omega))
+                        omega ;; (operate-scanning function index-origin last-axis inverse :axis alpha)
+                        )))
+          (let* ((fn-rendered (lambda (o a) (render (funcall (vacmp-left varray) o a))))
+                 (rlen (nth axis odims))
+                 (increment (reduce #'* (nthcdr (1+ axis) odims)))
+                 (fn-meta (handler-case (funcall (vacmp-left varray) :get-metadata nil)
+                            (error nil)))
+                 (output (make-array odims))
+                 (sao-copy))
+            (when (getf fn-meta :scan-alternating)
+              (setq sao-copy (make-array (shape-of omega)))
+              (dotimes (i (size-of omega))
+                (let ((vector-index (mod (floor i increment) rlen))
+                      (base (+ (mod i increment)
+                               (* increment rlen (floor i (* increment rlen))))))
+                  (setf (row-major-aref sao-copy (+ base (* increment vector-index)))
+                        (if (zerop (mod vector-index 2))
+                            (row-major-aref omega (+ base (* increment vector-index)))
+                            (apply-scalar (getf fn-meta :scan-alternating)
+                                          (row-major-aref
+                                           omega (+ base (* increment vector-index)))))))))
+            (dotimes (i (size-of output))
+              ;; (declare (optimize (safety 1)))
+              (let ((value) (vector-index (mod (floor i increment) rlen))
+                    (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
+                (if (vads-inverse varray)
+                    (let ((original (disclose (row-major-aref
+                                               omega (+ base (* increment vector-index))))))
+                      (setq value (if (zerop vector-index)
+                                      original
+                                      (funcall fn-rendered original
+                                               (disclose
+                                                (row-major-aref
+                                                 omega (+ base (* increment (1- vector-index)))))))))
+                    ;; faster method for commutative functions
+                    ;; NOTE: xdotimes will not work with this method
+                    (if (or sao-copy (getf fn-meta :commutative))
+                        (setf value (if (zerop vector-index)
+                                        (row-major-aref omega base)
+                                        (render
+                                         (funcall (if (not sao-copy)
+                                                      (vacmp-left varray)
+                                                      (getf fn-meta :inverse-right))
+                                                  (row-major-aref
+                                                   output (+ base (* increment (1- vector-index))))
+                                                  (row-major-aref
+                                                   (or sao-copy omega)
+                                                   (+ base (* increment vector-index)))))))
+                        (loop :for ix :from vector-index :downto 0
+                              :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
+                                    (setq value (if (not value) (disclose original)
+                                                    (funcall fn-rendered value (disclose original))))))))
+                (setf (row-major-aref output i) value)))
+            (setf (vader-content varray) output))))
+      (case (getf params :base-format)
+        (:encoded)
+        (:linear)
+        (t (generator-of (vader-content varray))))))
+
 (defclass vacomp-each (vad-subrendering vader-composing)
   nil (:metaclass va-class)
   (:documentation "An each-composed array as with the [¨ each] operator."))

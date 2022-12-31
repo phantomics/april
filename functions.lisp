@@ -457,7 +457,7 @@
                                                     (funcall function omega)))))))
 
 (defun operate-scanning (function index-origin last-axis inverse &key axis)
-  "Scan a function across an array along a given axis. Used to implement the [\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
+  "Scan a function across an array along a given axis. Used to implement the [\\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
     (declare (ignore environment))
     (let ((omega (render-varrays omega))
