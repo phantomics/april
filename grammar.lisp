@@ -137,10 +137,10 @@
                       (not (member this-item (getf (rest (getf (getf properties :special) :closure-meta))
                                                    :var-refs))))
              (push this-item (getf (rest (getf (getf properties :special) :closure-meta)) :var-refs)))
-           (if (not (member (intern (string-upcase this-item) *package-name-string*)
-                            (rest (assoc :function (idiom-symbols *april-idiom*)))))
-               (resolve-path this-item space properties)
-               (intern (string-upcase this-item))))
+           (if (member (intern (string-upcase this-item) *package-name-string*)
+                       (rest (assoc :function (idiom-symbols *april-idiom*))))
+               (intern (string-upcase this-item))
+               (resolve-path this-item space properties)))
           ((and (symbolp this-item) (getf properties :match-all-syms))
            this-item))))
 
@@ -349,7 +349,6 @@
 
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
-  ;; (print (list :el elements))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (when elements
         (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
@@ -541,10 +540,6 @@
                                      (let ((exp-operator (build-operator (list (first tokens))
                                                                          :params params :space space
                                                                          :valence :pivotal :axes axes)))
-                                       ;; (print (list :el elements))
-                                       ;; (when (and (listp elements) (listp (first (last elements)))
-                                       ;;            (eql 'a-call (caar (last elements))))
-                                       ;;   (print (list :ab (first (last elements)))))
                                        (destructuring-bind (operand &optional argument)
                                            (if (not (and (listp elements)
                                                          (listp (first (last elements)))
@@ -733,7 +728,7 @@
                           :initial initial :space space :params params
                           :found-function (if (not (characterp exp-function))
                                               exp-function (build-call-form exp-function :dyadic axes)))
-                           #|TODO: clause for overloaded operators like /|#))))))
+                         #|TODO: clause for overloaded operators like /|#))))))
           ;; this clause continues a function composition that started in previous iterations
           ((and initial (listp (first tokens)) (eq :fn (caar tokens))
                 (not (eq :no-assign initial))
@@ -851,8 +846,8 @@
                                    ,@(if (and (not axes)
                                               (eq :lateral operator-type))
                                          '((declare (ignorable axes)))
-                                         (if (eq :pivotal operator-type)
-                                             '((declare (ignorable left right)))))
+                                         (when (eq :pivotal operator-type)
+                                           '((declare (ignorable left right)))))
                                    ,(multiple-value-bind (op-form op-postargs)
                                         (apply (symbol-function
                                                 (intern (format nil "APRIL-LEX-OP-~a" found-operator)
@@ -919,11 +914,6 @@
                              :space space :left t :params (append (list :match-all-syms t) params))
               (when initial-token-unstrandable
                 (setf remaining2 (rest tokens)))
-              ;; (print (list :sym symbol remaining tokens
-              ;;              (not (and (or (symbolp function)
-              ;;                            (and (listp function)
-              ;;                                 (member (first function) '(inws inwsd))))
-              ;;                        (not remaining)))))
               (multiple-value-bind (symbol remaining2)
                   (if (all-symbols-p symbol) (values symbol remaining2)
                       (build-value (if (not (and (or (symbolp function)
@@ -944,7 +934,7 @@
                                                     (build-value nil :axes axes :elements elements
                                                                      :space space :params params)
                                                     :params params :space space
-                                                    :function (if symbol function)))
+                                                    :function (when symbol function)))
                                    :space space :params params))))))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
@@ -1265,7 +1255,7 @@
                          (when left `((a-call ,left ,omega)))))))))
 
 (defun fnexp-backup (form &key space params)
-  "If a value build produces an pivotal function composition, it is built as a function. Needed for cases like fn←{2+⍵}⍣3 ⋄ fn 5."
+  "If a value build produces a pivotal function composition, it is built as a function. Needed for cases like fn←{2+⍵}⍣3 ⋄ fn 5."
   (if (not (and (listp form) (listp (first form)) (eq :fn (caar form))
                 (eq :pass (cadar form))))
       form (build-function form :initial t :space space :params params)))
