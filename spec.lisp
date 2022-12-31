@@ -1388,9 +1388,9 @@
             (is "-⌿⍤2⊢2 2 1⍴⍳4" #2A((-1) (-1)))
             (is "-⌿⍤3⊢2 2 1⍴⍳4" #2A((-2) (-2)))))
   (\\ (has :title "Scan")
-      (lateral (lambda (operand) (values ;; `(operate-scanning ,operand index-origin t nil)
-                                         `(op-compose 'vacomp-scan :left (sub-lex ,operand)
-                                                                   :index-origin index-origin)
+      (lateral (lambda (operand) (values `(op-compose 'vacomp-scan :left (sub-lex ,operand)
+                                                                   :index-origin index-origin
+                                                                   :inverse nil)
                                          '(:axis))))
       (tests (is "÷\\5" 5)
              (is "+\\1 2 3 4 5" #(1 3 6 10 15))
@@ -1399,10 +1399,10 @@
              (is "-\\2 3 4⍴⍳24" #3A(((1 -1 2 -2) (5 -1 6 -2) (9 -1 10 -2))
                                     ((13 -1 14 -2) (17 -1 18 -2) (21 -1 22 -2))))))
   (⍀ (has :title "Scan First")
-     (lateral (lambda (operand) (values ;; `(operate-scanning ,operand index-origin nil nil)
-                                        `(op-compose 'vacomp-scan :left (sub-lex ,operand)
+     (lateral (lambda (operand) (values `(op-compose 'vacomp-scan :left (sub-lex ,operand)
                                                                   :index-origin index-origin
-                                                                  :default-axis index-origin)
+                                                                  :default-axis index-origin
+                                                                  :inverse nil)
                                         '(:axis))))
      (tests (is "+⍀1 2 3 4 5" #(1 3 6 10 15))
             (is "+⍀3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))

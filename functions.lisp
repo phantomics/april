@@ -456,76 +456,6 @@
                                       :selector (if ivec (list :ebase ivec :eindices base-object)
                                                     (funcall function omega)))))))
 
-(defun operate-scanning (function index-origin last-axis inverse &key axis)
-  "Scan a function across an array along a given axis. Used to implement the [\\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
-  (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
-    (declare (ignore environment))
-    (let ((omega (render-varrays omega))
-          (alpha (render-varrays alpha)))
-      (if (not (arrayp omega))
-          (if (eq :get-metadata omega)
-              (list :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
-                               (operate-scanning inverse-function index-origin last-axis t :axis axis))
-                    :valence :monadic)
-              (if (not (eq :reassign-axes omega))
-                  omega (operate-scanning function index-origin last-axis inverse :axis alpha)))
-          (let* ((odims (dims omega))
-                 (fn-rendered (lambda (o a) (render-varrays (funcall function o a))))
-                 (axis (when axis (list (render-varrays (first axis)))))
-                 (axis (or (and (first axis) (- (first axis) index-origin))
-                           (if (not last-axis) 0 (1- (rank omega)))))
-                 (rlen (nth axis odims))
-                 (increment (reduce #'* (nthcdr (1+ axis) odims)))
-                 (fn-meta (handler-case (funcall function :get-metadata nil) (error nil)))
-                 (output (make-array odims))
-                 (sao-copy))
-            (when (getf fn-meta :scan-alternating)
-              (setq sao-copy (make-array (dims omega)))
-              (xdotimes sao-copy (i (size omega))
-                (let ((vector-index (mod (floor i increment) rlen))
-                      (base (+ (mod i increment)
-                               (* increment rlen (floor i (* increment rlen))))))
-                  (setf (row-major-aref sao-copy (+ base (* increment vector-index)))
-                        (if (zerop (mod vector-index 2))
-                            (row-major-aref omega (+ base (* increment vector-index)))
-                            (apply-scalar (getf fn-meta :scan-alternating)
-                                          (row-major-aref
-                                           omega (+ base (* increment vector-index)))))))))
-            (xdotimes output (i (size output) :synchronous-if (or (not (side-effect-free function))
-                                                                  sao-copy (getf fn-meta :commutative)))
-              ;; (dotimes (i (size output))
-              (declare (optimize (safety 1)))
-              (let ((value) (vector-index (mod (floor i increment) rlen))
-                    (base (+ (mod i increment) (* increment rlen (floor i (* increment rlen))))))
-                (if inverse
-                    (let ((original (disclose (row-major-aref
-                                               omega (+ base (* increment vector-index))))))
-                      (setq value (if (zerop vector-index)
-                                      original
-                                      (funcall fn-rendered original
-                                               (disclose
-                                                (row-major-aref
-                                                 omega (+ base (* increment (1- vector-index)))))))))
-                    ;; faster method for commutative functions
-                    ;; NOTE: xdotimes will not work with this method
-                    (if (or sao-copy (getf fn-meta :commutative))
-                        (setq value (if (zerop vector-index)
-                                        (row-major-aref omega base)
-                                        (render-varrays
-                                         (funcall (if (not sao-copy)
-                                                      function (getf fn-meta :inverse-right))
-                                                  (row-major-aref
-                                                   output (+ base (* increment (1- vector-index))))
-                                                  (row-major-aref
-                                                   (or sao-copy omega)
-                                                   (+ base (* increment vector-index)))))))
-                        (loop :for ix :from vector-index :downto 0
-                              :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
-                                    (setq value (if (not value) (disclose original)
-                                                    (funcall fn-rendered value (disclose original))))))))
-                (setf (row-major-aref output i) value)))
-            output)))))
-
 (defun operate-each (operand)
   (op-compose 'vacomp-each :left operand))
 
@@ -804,12 +734,12 @@
               ;; of times equal to the absolute determinant value, inverting
               ;; the operand function if the determinant value is negative
               (let ((arg omega)
-                    (function (if (<= 0 determinant)
+                    (function2 (if (<= 0 determinant)
                                   function (if alpha (getf (funcall function :get-metadata nil) :inverse)
                                                (getf (funcall function :get-metadata) :inverse)))))
                 (dotimes (index (abs determinant))
-                  (setq arg (if alpha (funcall function arg alpha)
-                                (funcall function arg))))
+                  (setq arg (if alpha (funcall function2 arg alpha)
+                                (funcall function2 arg))))
                 arg))))))
 
 (defun operate-at (right left index-origin)

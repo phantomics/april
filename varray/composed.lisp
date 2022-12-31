@@ -53,6 +53,7 @@
 (defun op-compose (type &rest args)
   (when (getf args :axis)
     (setf (getf args :axis) (first (getf args :axis))))
+  ;; TODO: inversion system for operators could use more work, the below is clunky
   (labels ((this (omega &optional alpha)
              (if (eq :reassign-axes omega)
                  (let ((last-key))
@@ -67,6 +68,10 @@
                                  (list :left-meta (funcall (getf args :left) :get-metadata))
                                  (list :right-meta (funcall (getf args :right) :get-metadata)))
                          (append (list :operator-reference type)
+                                 (when (member :inverse args)
+                                   (list :inverse (lambda (omega &optional alpha)
+                                                    (apply #'make-instance type :omega omega :alpha alpha
+                                                           :inverse t args))))
                                  (funcall (getf args :left) :get-metadata)))))))
     #'this))
 
@@ -271,10 +276,6 @@
                                             (if (/= 1 increment) i
                                                 (if window (if (>= 1 irank) i (mod i wsegment))
                                                     (* i rlen))))))
-                              ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
-                              ;; (print (list :vv value))
-                              ;; (print (list :win window window-reversed))
-                              ;; (print (list :dd delta window-reversed))
                               (if window-reversed (loop :for ix :below window
                                                         :do (let ((item (process-item i ix delta)))
                                                               (setq value (if (not value) item
@@ -320,19 +321,17 @@
   (let* ((odims (shape-of varray))
          (omega (render (vacmp-omega varray)))
          (axis (vads-axis varray)))
-    ;; (print (shape-of varray))
-    ;; (print (list :ax axis))
     (when (not (vader-content varray))
       (if (not (arrayp omega))
           (if (eq :get-metadata omega)
-              (list ;; :inverse (let ((inverse-function (getf (funcall function :get-metadata nil) :inverse)))
-                    ;;            (operate-scanning inverse-function index-origin last-axis t :axis axis))
-                    :valence :monadic)
+              (list :valence :monadic)
               (setf (vader-content varray)
                     (if (not (eq :reassign-axes omega))
                         omega ;; (operate-scanning function index-origin last-axis inverse :axis alpha)
                         )))
-          (let* ((fn-rendered (lambda (o a) (render (funcall (vacmp-left varray) o a))))
+          (let* ((fn-rendered (if (vads-inverse varray)
+                                  (getf (funcall (vacmp-left varray) :get-metadata nil) :inverse)
+                                  (vacmp-left varray)))
                  (rlen (nth axis odims))
                  (increment (reduce #'* (nthcdr (1+ axis) odims)))
                  (fn-meta (handler-case (funcall (vacmp-left varray) :get-metadata nil)
@@ -367,17 +366,16 @@
                     ;; faster method for commutative functions
                     ;; NOTE: xdotimes will not work with this method
                     (if (or sao-copy (getf fn-meta :commutative))
-                        (setf value (if (zerop vector-index)
-                                        (row-major-aref omega base)
-                                        (render
-                                         (funcall (if (not sao-copy)
-                                                      (vacmp-left varray)
-                                                      (getf fn-meta :inverse-right))
-                                                  (row-major-aref
-                                                   output (+ base (* increment (1- vector-index))))
-                                                  (row-major-aref
-                                                   (or sao-copy omega)
-                                                   (+ base (* increment vector-index)))))))
+                        (setf value
+                              (if (zerop vector-index)
+                                  (row-major-aref omega base)
+                                  (render (funcall (if (not sao-copy) (vacmp-left varray)
+                                                       (getf fn-meta :inverse-right))
+                                                   (row-major-aref
+                                                    output (+ base (* increment (1- vector-index))))
+                                                   (row-major-aref (or sao-copy omega)
+                                                                   (+ base (* increment
+                                                                              vector-index)))))))
                         (loop :for ix :from vector-index :downto 0
                               :do (let ((original (row-major-aref omega (+ base (* ix increment)))))
                                     (setq value (if (not value) (disclose original)

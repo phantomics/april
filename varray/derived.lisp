@@ -3782,12 +3782,12 @@
           (t (lambda (i)
                (let ((result 0) (factor 1))
                  (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
-                       :do (incf result (* factor (if (not (functionp base-indexer))
-                                                      base-indexer (funcall base-indexer
-                                                                            (min i (1- ovector))))))
-                           (setq factor (* factor (if (not (functionp arg-indexer))
-                                                      arg-indexer (funcall arg-indexer
-                                                                           (min i (1- av2)))))))
+                       :do (incf result (* factor (render (if (not (functionp base-indexer))
+                                                              base-indexer (funcall base-indexer
+                                                                                    (min i (1- ovector)))))))
+                           (setq factor (* factor (render (if (not (functionp arg-indexer))
+                                                              arg-indexer (funcall arg-indexer
+                                                                                   (min i (1- av2))))))))
                  result)))))))
 
 (defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless vad-reindexing)
