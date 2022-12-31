@@ -1399,7 +1399,10 @@
              (is "-\\2 3 4⍴⍳24" #3A(((1 -1 2 -2) (5 -1 6 -2) (9 -1 10 -2))
                                     ((13 -1 14 -2) (17 -1 18 -2) (21 -1 22 -2))))))
   (⍀ (has :title "Scan First")
-     (lateral (lambda (operand) (values `(operate-scanning ,operand index-origin nil nil)
+     (lateral (lambda (operand) (values ;; `(operate-scanning ,operand index-origin nil nil)
+                                        `(op-compose 'vacomp-scan :left (sub-lex ,operand)
+                                                                  :index-origin index-origin
+                                                                  :default-axis index-origin)
                                         '(:axis))))
      (tests (is "+⍀1 2 3 4 5" #(1 3 6 10 15))
             (is "+⍀3 4⍴⍳12" #2A((1 2 3 4) (6 8 10 12) (15 18 21 24)))
