@@ -522,36 +522,15 @@
   (lambda (omega alpha &optional environment blank)
     (declare (ignore environment blank))
     (if (eq :get-metadata omega)
-        (let* ((operand-meta (funcall operand :get-metadata nil))
-               (operand-inverse (getf operand-meta :inverse))
-               ;; TODO: create lazy inverse outer product
-               (operand-irendering (lambda (o a) (render-varrays (funcall operand-inverse o a)))))
-          (list :inverse-right (lambda (omega alpha)
-                                 (inverse-outer-product (render-varrays alpha) operand-irendering
-                                                        (render-varrays omega)
-                                                        (side-effect-free operand)))
-                :inverse (lambda (omega alpha)
-                           (inverse-outer-product (render-varrays omega) operand-irendering
-                                                  nil (side-effect-free operand)
-                                                  alpha))))
+        (list :inverse-right (lambda (omega alpha)
+                               (make-instance 'vacomp-produce
+                                              :right (getf (funcall operand :get-metadata nil) :inverse)
+                                              :left :outer :inverse t :omega omega :alpha alpha))
+              :inverse (lambda (omega alpha)
+                         (make-instance 'vacomp-produce
+                                        :right (getf (funcall operand :get-metadata nil) :inverse)
+                                        :left :outer :inverse :left :omega alpha :alpha omega)))
         (make-instance 'vacomp-produce :right operand :left :outer :omega omega :alpha alpha))))
-
-(defun operate-producing-inner (right left)
-  "Generate a function producing an inner product. Used to implement [. inner product]."
-  (lambda (alpha omega &optional environment blank)
-    (declare (ignore environment blank))
-    (if (or (zerop (varray::size-of omega))
-            (zerop (varray::size-of alpha)))
-        (if (or (< 1 (varray::rank-of omega)) (< 1 (varray::rank-of alpha)))
-            (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
-            (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
-                  (if (functionp identity) (funcall identity) identity))
-                (error "Left operand given to [. inner product] has no identity.")))
-        (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
-                           (error () nil))))
-          (array-inner-product omega alpha right left (and (side-effect-free right)
-                                                           (side-effect-free left))
-                               (not is-scalar))))))
 
 (defun operate-beside (right left)
   "Generate a function by linking together two functions or a function curried with an argument. Used to implement [∘ compose]."
@@ -707,7 +686,15 @@
   (lambda (omega &optional alpha environment blank)
     (declare (ignore environment blank))
     (if (eq omega :get-metadata)
-        (list :inverse (let* ((determinant (render-varrays (funcall fetch-determinant)))
+        (list :inverse (let* ((raw-determinant (funcall fetch-determinant))
+                              (determinant
+                                (if (shape-of raw-determinant)
+                                    (error "The right operand of [⍣ power] must be either a ~a"
+                                           "function or a scalar integer.")
+                                    (if (functionp raw-determinant)
+                                        (lambda (omega alpha)
+                                          (zerop (vrender (funcall raw-determinant omega alpha))))
+                                        (vrender raw-determinant))))
                               (inverse-function (if (not (numberp determinant))
                                                     (getf (if alpha (funcall function :get-metadata nil)
                                                               (funcall function :get-metadata))
@@ -715,14 +702,21 @@
                          (if (numberp determinant)
                              (operate-to-power (lambda () (- determinant)) function)
                              (operate-to-power fetch-determinant inverse-function))))
-        (let ((determinant (disclose-atom (vrender (funcall fetch-determinant)))))
+        (let* ((raw-determinant (funcall fetch-determinant))
+               (determinant (if (shape-of raw-determinant)
+                                (error "The right operand of [⍣ power] must be either a ~a"
+                                       "function or a scalar integer.")
+                                (if (functionp raw-determinant)
+                                    (lambda (omega alpha)
+                                      (zerop (vrender (funcall raw-determinant omega alpha))))
+                                    (vrender raw-determinant)))))
           (if (functionp determinant)
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
               (let ((arg omega) (prior-arg omega))
                 (loop :for index :from 0
                       :while (or (zerop index)
-                                 (zerop (render-varrays (funcall determinant prior-arg arg))))
+                                 (funcall determinant prior-arg arg))
                       :do (setq prior-arg arg
                                 arg (if alpha (funcall function arg alpha)
                                         (funcall function arg))))
@@ -758,17 +752,19 @@
                      (out-sub-array (if alpha (funcall left-fn mod-array alpha)
                                         (funcall left-fn mod-array))))
                 (make-instance 'vader-select
-                               :base omega :index-origin index-origin
+                               :base omega :index-origin index-origin :subrendering t
                                :assign (funcall (if (and (not (or (arrayp right) (varrayp right)))
                                                          (> 2 orank)
                                                          (not (zerop (varray::rank-of out-sub-array))))
-                                                    #'enclose #'identity)
+                                                    (lambda (omega)
+                                                      (make-instance 'vader-enclose :base omega))
+                                                    #'identity)
                                                 ;; enclose the right operand if it's not an array,
                                                 ;; omega has a rank greater than 2 and the operands' output
                                                 ;; has a rank greater than 1; this is needed for i.e.
                                                 ;; ∪∘1@5⊢(2 3) (3) (2 4) (1 5) (3)
                                                 ;; TODO: can this logic be refined?
-                                                (render-varrays out-sub-array))
+                                                out-sub-array)
                                ;; IPV-TODO: removing this force render causes a bug, figure it out
                                :argument (cons right (loop :for i :below (1- orank) :collect nil)))))
           (if right-fn (make-instance 'vader-select

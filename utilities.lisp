@@ -855,6 +855,7 @@
                                                   (list (process-symbols
                                                          sym `(if (not (vectorp ,this-val))
                                                                   ,this-val (aref ,this-val ,sx))))
+                                                  ;; IPV-TODO: slow for ↓fmt tree ⍳15, what's the fix?
                                                   ;; (list (process-symbols
                                                   ;;        sym `(if (= 1 (size-of ,values))
                                                   ;;                 ,values (funcall ,this-generator

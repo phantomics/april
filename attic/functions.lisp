@@ -664,6 +664,23 @@
                 (setf (row-major-aref output i) value)))
             output)))))
 
+(defun operate-producing-inner (right left)
+  "Generate a function producing an inner product. Used to implement [. inner product]."
+  (lambda (alpha omega &optional environment blank)
+    (declare (ignore environment blank))
+    (if (or (zerop (varray::size-of omega))
+            (zerop (varray::size-of alpha)))
+        (if (or (< 1 (varray::rank-of omega)) (< 1 (varray::rank-of alpha)))
+            (vector) ;; inner product with an empty array of rank > 1 gives an empty vector
+            (or (let ((identity (getf (funcall left :get-metadata nil) :id)))
+                  (if (functionp identity) (funcall identity) identity))
+                (error "Left operand given to [. inner product] has no identity.")))
+        (let ((is-scalar (handler-case (getf (funcall right :get-metadata nil) :scalar)
+                           (error () nil))))
+          (array-inner-product omega alpha right left (and (side-effect-free right)
+                                                           (side-effect-free left))
+                               (not is-scalar))))))
+
 (defun operate-at-rank (rank function)
   "Generate a function applying a function to sub-arrays of the arguments. Used to implement [⍤ rank]."
   (lambda (omega &optional alpha environment blank)
