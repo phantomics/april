@@ -785,8 +785,8 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             ;; `(setf ,symbol (render-varrays ,set-to))
-                             `(setf ,symbol ,set-to) 
+                             `(setf ,symbol (render-varrays ,set-to))
+                             ;; `(setf ,symbol ,set-to) 
                              ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths

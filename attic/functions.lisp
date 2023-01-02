@@ -859,6 +859,34 @@
                                                (declare (ignorable new))
                                                (if alpha (funcall left-fn old alpha)
                                                    (funcall left-fn old)))))))))))
+
+(defun operate-stenciling (right-value left-function)
+  "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
+  (lambda (omega &optional alpha environment blank)
+    (declare (ignore alpha environment blank))
+    (setq omega (render-varrays omega)
+          right-value (render-varrays right-value))
+    (let ((left-fn-mod (lambda (o a) (render-varrays (funcall left-function o a)))))
+      (flet ((iaxes (value index) (loop :for x :below (rank-of value) :for i :from 0
+                                        :collect (if (= i 0) index nil))))
+        (if (not (or (and (< 2 (rank right-value))
+                          (error "The right operand of [⌺ stencil] may not have more than 2 dimensions."))
+                     (and (not left-function)
+                          (error "The left operand of [⌺ stencil] must be a function."))))
+            (let ((window-dims (if (not (arrayp right-value))
+                                   (vector right-value)
+                                   (if (= 1 (rank right-value))
+                                       right-value (choose right-value (iaxes right-value 0)))))
+                  (movement (if (not (arrayp right-value))
+                                (vector 1)
+                                (if (= 2 (rank right-value))
+                                    (choose right-value (iaxes right-value 1))
+                                    (make-array (length right-value) :element-type 'fixnum
+                                                                     :initial-element 1)))))
+              (mix-arrays (rank omega)
+                          (stencil omega left-fn-mod window-dims movement
+                                   (side-effect-free left-function)))))))))
+
 (defun operate-stenciling (right-value left-function)
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (lambda (omega &optional alpha environment blank)
