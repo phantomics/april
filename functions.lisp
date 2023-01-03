@@ -700,36 +700,39 @@
                          (if (numberp determinant)
                              (operate-to-power (lambda () (- determinant)) function)
                              (operate-to-power fetch-determinant inverse-function))))
-        (let* ((raw-determinant (funcall fetch-determinant))
-               (determinant (if (shape-of raw-determinant)
-                                (error "The right operand of [⍣ power] must be either a ~a"
-                                       "function or a scalar integer.")
-                                (if (functionp raw-determinant)
-                                    (lambda (omega alpha)
-                                      (zerop (vrender (funcall raw-determinant omega alpha))))
-                                    (vrender raw-determinant)))))
-          (if (functionp determinant)
+        (let ((raw-determinant (funcall fetch-determinant)))
+          (if (functionp raw-determinant)
               ;; if the determinant is a function, loop until the result of its
               ;; evaluation with the current and prior values is zero
-              (let ((arg omega) (prior-arg omega))
-                (loop :for index :from 0
-                      :while (or (zerop index)
-                                 (funcall determinant prior-arg arg))
-                      :do (setq prior-arg arg
-                                arg (if alpha (funcall function arg alpha)
-                                        (funcall function arg))))
-                arg)
+              (let ((determinant (lambda (omega alpha)
+                                   (let ((raw-result (funcall raw-determinant omega alpha)))
+                                     (if (shape-of raw-result)
+                                         (error "The qualifier to end evaluation of a [⍣ power]-composed ~a"
+                                                "function must be an integer.")
+                                         (zerop (vrender raw-result)))))))
+                (let ((arg omega) (prior-arg omega))
+                  (loop :for index :from 0
+                        :while (or (zerop index)
+                                   (funcall determinant prior-arg arg))
+                        :do (setq prior-arg arg
+                                  arg (if alpha (funcall function arg alpha)
+                                          (funcall function arg))))
+                  arg))
               ;; otherwise, run the operand function on the value(s) a number
               ;; of times equal to the absolute determinant value, inverting
               ;; the operand function if the determinant value is negative
-              (let ((arg omega)
-                    (function2 (if (<= 0 determinant)
-                                  function (if alpha (getf (funcall function :get-metadata nil) :inverse)
-                                               (getf (funcall function :get-metadata) :inverse)))))
-                (dotimes (index (abs determinant))
-                  (setq arg (if alpha (funcall function2 arg alpha)
-                                (funcall function2 arg))))
-                arg))))))
+              (let ((determinant (if (shape-of raw-determinant)
+                                     (error "The right operand of [⍣ power] must be either a ~a"
+                                            "function or a scalar integer.")
+                                     (vrender raw-determinant))))
+                (let ((arg omega)
+                      (function2 (if (<= 0 determinant)
+                                     function (if alpha (getf (funcall function :get-metadata nil) :inverse)
+                                                  (getf (funcall function :get-metadata) :inverse)))))
+                  (dotimes (index (abs determinant))
+                    (setq arg (if alpha (funcall function2 arg alpha)
+                                  (funcall function2 arg))))
+                  arg)))))))
 
 (defun operate-at (right left index-origin)
   "Generate a function applying a function at indices in an array specified by a given index or meeting certain conditions. Used to implement [@ at]."

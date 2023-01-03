@@ -550,7 +550,7 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
-  (if (and nil ; (typep varray 'varray-derived)
+  (if (and (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))
                (vads-rendered varray)))
@@ -667,7 +667,7 @@
                                              rendered (enclose rendered)))))
                                  (if (not (functionp indexer))
                                      indexer (funcall indexer 0))))))
-              (if t ; (not (typep varray 'varray-derived))
+              (if (not (typep varray 'varray-derived))
                   output (progn (when (typep varray 'vad-render-mutable)
                                   (setf (vads-rendered varray) t))
                                 (setf (vader-content varray) output)))))))))
