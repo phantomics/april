@@ -88,7 +88,7 @@
 (defgeneric specify (varray)
   (:documentation "Specify calculation methods for a virtual array's transformation."))
 
-(defgeneric render (varray)
+(defgeneric render (varray &rest params)
   (:documentation "Render a virtual array into memory."))
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
@@ -286,8 +286,9 @@
 (defmethod metadata-of ((varray varray))
   (varray-meta varray))
 
-(defmethod render ((item t))
+(defmethod render ((item t) &rest params)
   "Rendering a non-virtual array object simply returns the object."
+  (declare (ignore params))
   item)
 
 (defun subrendering-base (item)
@@ -454,7 +455,7 @@
   ;; TODO: when encoded indexing is disabled, the following will fail:
   ;; (april::april-f (with (:space array-lib-space)) "(2 1)(2 1)(2 1)(2 1) from ta4")
   ;; why does this happen?
-  (let* ((metadata (metadata-of varray))
+  (let* ((metadata (getf (metadata-of varray) :shape))
          (enco-type (getf (rest (getf metadata :gen-meta)) :index-width))
          (coord-type (getf (rest (getf metadata :gen-meta)) :index-type))
          (output-rank (rank-of varray))
@@ -521,7 +522,7 @@
           default-indexer)))
 
 (defmethod specify ((varray varray))
-  (let* ((metadata (metadata-of varray))
+  (let* ((metadata (getf (metadata-of varray) :shape))
          (output-rank (rank-of varray))
          (linear-index-type (or (when (getf metadata :max-size)
                                   (loop :for w :in '(8 16 32 64)
@@ -549,7 +550,8 @@
 
     (setf (getf metadata :index-width) linear-index-type)))
 
-(defmethod render ((varray varray))
+(defmethod render ((varray varray) &rest params)
+  (declare (ignorable params));; TODO: remove
   (if (and (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))
@@ -558,7 +560,7 @@
       (let* ((output-shape (shape-of varray))
              (output-rank (length output-shape))
              (spec (specify varray))
-             (metadata (metadata-of varray))
+             (metadata (getf (metadata-of varray) :shape))
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
              (default-generator) (to-subrender))
@@ -566,12 +568,12 @@
         ;; (print (list :rr metadata coordinate-type en-type))
         
         (let ((gen (and coordinate-type en-type
-                        (generator-of varray nil (list :gen-meta (rest (getf (varray-meta varray) :gen-meta))
+                        (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
                                                        :format :encoded :base-format :encoded :indexers nil)))))
 
           (multiple-value-bind (indexer is-not-defaulting)
               (if gen (values gen t)
-                  (generator-of varray nil (rest (getf (varray-meta varray) :gen-meta))))
+                  (generator-of varray nil (rest (getf metadata :gen-meta))))
 
             ;; (print (list :g gen coordinate-type en-type is-not-defaulting metadata))
             
@@ -672,9 +674,9 @@
                                   (setf (vads-rendered varray) t))
                                 (setf (vader-content varray) output)))))))))
 
-(defun vrender (object)
+(defun vrender (object &rest params)
   "A public-facing interface to the render method."
-  (render object))
+  (apply #'render object params))
 
 (defun segment-length (size section-count)
   "Create a vector of lengths and start points for segments of a vector to be processed in parallel."
@@ -688,18 +690,6 @@
                                             size (aref start-points (1+ i)))
                                         (aref start-points i))))
     (values start-points section-lengths)))
-
-(defmacro get-promised-hash (object form)
-  `(if ,object (force ,object)
-       (progn (setf ,object (promise))
-              (fulfill ,object ,form)
-              (force ,object))))
-
-;; (defmacro get-promised (object form)
-;;   `(if ,object (force ,object)
-;;        (progn (setf ,object (promise))
-;;               (fulfill ,object ,form)
-;;               (force ,object))))
 
 (defmacro get-promised (object form)
   `(if ,object (force ,object)
@@ -768,13 +758,14 @@
           (1+ (vader-layer (vader-base varray))))))
 
 (defmethod shape-of :around ((varray varray-derived))
-  (let ((this-shape (call-next-method)))
-    (if (varray-meta varray)
-        this-shape
+  (let* ((this-shape (call-next-method))
+         (metadata (metadata-of varray))
+         (shape-meta (getf metadata :shape)))
+    (if shape-meta this-shape
         (let* ((this-rank (length this-shape))
                (this-size (reduce #'* this-shape))
                (base-meta (when (typep (vader-base varray) 'varray-derived)
-                            (varray-meta (vader-base varray))))
+                            (getf (metadata-of (vader-base varray)) :shape)))
                (base-shape (or (getf base-meta :max-shape)
                                (shape-of (vader-base varray))))
                (max-dim (or (getf base-meta :max-dim)
@@ -795,12 +786,11 @@
                                     :collect (let ((item (if (>= sx this-rank)
                                                              s (max s (nth sx this-shape)))))
                                                (setf max-dim (max item max-dim))
-                                               item))))
-          
-          (setf (getf (varray-meta varray) :max-size) (max this-size base-size)
-                (getf (varray-meta varray) :max-shape) max-shape
-                (getf (varray-meta varray) :max-dim) max-dim
-                (getf (varray-meta varray) :gen-meta) generator-meta)
+                                               item)))
+                (getf (getf (varray-meta varray) :shape) :max-size) (max this-size base-size)
+                (getf (getf (varray-meta varray) :shape) :max-shape) max-shape
+                (getf (getf (varray-meta varray) :shape) :max-dim) max-dim
+                (getf (getf (varray-meta varray) :shape) :gen-meta) generator-meta)
           this-shape))))
 
 (defmethod etype-of ((varray varray-derived))

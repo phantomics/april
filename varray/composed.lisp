@@ -9,7 +9,6 @@
   "Use a function's metadata to check whether it has side effects. Needed for multithreaded operators - the functions composed with operators must be free of side effects for multithreading."
   (let ((fn-meta (handler-case (funcall function :get-metadata)
                    (error () nil))))
-    ;; (print (list :ffnn fn-meta))
     (and fn-meta (listp fn-meta)
          (or (member :side-effects fn-meta)
              (member :lexical-reference fn-meta)
@@ -61,8 +60,7 @@
                                                                  a (first alpha))
                                     :do (setf last-key a)))
                    #'this)
-                 (if (not (eq :get-metadata omega))
-                     (apply #'make-instance type :omega omega :alpha alpha args)
+                 (if (eq :get-metadata omega)
                      (if (getf args :right)
                          (append (list :operator-reference type)
                                  (list :left-meta (funcall (getf args :left) :get-metadata))
@@ -72,7 +70,8 @@
                                    (list :inverse (lambda (omega &optional alpha)
                                                     (apply #'make-instance type :omega omega :alpha alpha
                                                            :inverse t args))))
-                                 (funcall (getf args :left) :get-metadata)))))))
+                                 (funcall (getf args :left) :get-metadata)))
+                     (apply #'make-instance type :omega omega :alpha alpha args)))))
     #'this))
 
 (defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io vad-with-default-axis)
@@ -93,7 +92,6 @@
                              (not (vads-axis varray)))
                     (setf (vads-axis varray) (vads-default-axis varray)))
                   (let* ((base-shape (shape-of (vacmp-omega varray)))
-                         ;; (base-size (size-of (vacmp-omega varray)))
                          (window (when (vacmp-alpha varray)
                                    (setf (vacmp-alpha varray)
                                          (disclose-unitary (render (vacmp-alpha varray))))))
@@ -754,7 +752,7 @@
                                          (aref base-dims index)))))))))))
 
 (defmethod generator-of ((varray vacomp-stencil) &optional indexers params)
-  (setf (vacmp-omega varray) (render (vacmp-omega varray)))
+  (setf (vacmp-omega varray) (render (vacmp-omega varray))) ;; TODO: can this render be eliminated?
   (let* ((irank (rank-of (vacmp-omega varray)))
          (idims (apply #'vector (shape-of (vacmp-omega varray))))
          (this-shape (shape-of varray)) ;; must derive shape before fetching window-dims

@@ -1254,19 +1254,20 @@
         (:demo-profile :title "Special Function Demos"
                        :description "These functions expose features of the language that aren't directly related to computing or transforming array values."))
   (⊢ (has :titles ("Identity" "Right"))
-     (ambivalent #'get-identity-of
+     (ambivalent ;; #'get-identity-of
+                 (λω (make-instance 'vader-identity :base omega))
                  (λωα (declare (ignore alpha))
                       (make-instance 'vader-identity :base omega)))
      (meta (primary :virtual-support t)
-           (monadic :inverse #'identity)
-           (dyadic :inverse (λωα (declare (ignore alpha)) ;; omega
+           (monadic :inverse (λω (make-instance 'vader-identity :base omega)))
+           (dyadic :inverse (λωα (declare (ignore alpha))
                                  (make-instance 'vader-identity :base omega))
                    :selective-assignment-passthrough t))
      (tests (is "⊢77" 77)
             (is "55⊢77" 77)))
   (⊣ (has :titles ("Empty" "Left"))
-     (ambivalent (λω omega)
-                 (λωα (declare (ignore omega)) alpha))
+     (ambivalent (λω (make-instance 'vader-identity :base omega :inverse t))
+                 (λωα (make-instance 'vader-identity :base alpha :inverse t)))
      (meta (primary :virtual-support t))
      (tests (is "⊣77" 77)
             (is "55⊣77" 55)))

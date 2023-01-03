@@ -2485,7 +2485,8 @@
                      (generator-of (vader-base varray)
                                    (if (or (not indexer) (eq t indexer))
                                        indexers (cons indexer indexers))
-                                   (rest (getf (varray-meta varray) :gen-meta))))
+                                   ;; (rest (getf (varray-meta varray) :gen-meta))
+                                   ))
                  (let* ((composite-indexer (or (join-indexers indexers) #'identity))
                         (arg (vads-argument varray))
                         (size (size-of varray))
@@ -2506,8 +2507,9 @@
                                              (funcall composite-indexer index))))
                        ;; (print (list :iin composite-indexer index indexed :base (vader-base varray)))
                        (if indexed (let ((generator (generator-of (vader-base varray)
-                                                                  nil (rest (getf (varray-meta varray)
-                                                                                  :gen-meta)))))
+                                                                  nil ;; (rest (getf (varray-meta varray)
+                                                                      ;;             :gen-meta))
+                                                                  )))
                                      (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
                                          (if (zerop index) indexed prototype)
                                          (if (not (functionp generator))
@@ -3444,12 +3446,11 @@
   ((%is-diagonal :accessor vaperm-is-diagonal
                  :initform nil
                  :initarg :is-diagonal
-                 :documentation "Whether this permutation is diagonal."))
+                 :documentation "Whether this permutation is diagonal, as from 1 1 2⍉2 3 4⍴⍳9."))
   (:metaclass va-class)
   (:documentation "A permuted array as from the [⍉ permute] function."))
 
 (defmethod shape-of ((varray vader-permute))
-  "The shape of a permuted array."
   (get-promised
    (varray-shape varray)
    (let* ((base-shape (shape-of (vader-base varray)))
@@ -3497,11 +3498,7 @@
                                              :collect (max 0 (- a (vads-io varray))))
                                        'vector)
                                (- argument (vads-io varray))))
-                         ;; (not (or (not (vads-argument varray))
-                         ;;          (vaperm-is-diagonal varray)))
                          (and (vads-argument varray) (vaperm-is-diagonal varray))
-                         ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-width)
-                         ;; (getf (rest (getf (varray-meta varray) :gen-meta)) :index-type)
                          nil nil assigning))))
 
 (defmethod generator-of ((varray vader-permute) &optional indexers params)
@@ -3790,7 +3787,7 @@
                                                                                    (min i (1- av2))))))))
                  result)))))))
 
-(defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless vad-reindexing)
+(defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless vad-reindexing vad-invertable)
   nil (:metaclass va-class)
   (:documentation "The identity of an array as from the [⊢ identity] function."))
 
@@ -3810,11 +3807,24 @@
 (defmethod generator-of ((varray vader-identity) &optional indexers params)
   (generator-of (vader-base varray) indexers params))
 
-(defun get-identity-of (object)
-  "Build a vader-identity object or force rendering of any virtual array preceded by ⊢⊢, as with ⊢⊢3 4⍴⍳9."
-  (if (typep object 'varray::vader-identity)
-      (render (varray::vader-base object))
-      (make-instance 'vader-identity :base object)))
+(defmethod initialize-instance :after ((varray vader-identity) &key)
+  "Condense successive right and left identities (like ⊢⊣3 4⍴⍳9) into a single identity with the deferred rendering metadata flag activated."
+  (let ((to-defer) (base (vader-base varray)))
+    (labels ((get-sub-base (va)
+               (if (typep (vader-base va) 'vader-identity)
+                   (progn (when (vads-inverse (vader-base va))
+                            (setf to-defer t))
+                          (get-sub-base (vader-base va)))
+                   (vader-base va))))
+      (when (typep base 'vader-identity)
+        (setf (getf (varray-meta varray) :may-defer-rendering) t
+              (vader-base varray) (get-sub-base base))))))
+
+(defmethod render ((varray vader-identity) &rest params)
+  "A special non-rendering render method for "
+  (if (and (getf params :may-be-deferred)
+           (getf (varray-meta varray) :may-defer-rendering))
+      varray (call-next-method)))
 
 (defgeneric inverse-count-to (array index-origin)
   (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))
