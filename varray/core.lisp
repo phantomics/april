@@ -550,7 +550,7 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray))
-  (if (and (typep varray 'varray-derived)
+  (if (and nil ; (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))
                (vads-rendered varray)))
@@ -632,16 +632,16 @@
                               ;;                (vacmp-threadable varray))))
                               ;; (print (list :ts to-subrender (setf april::ggt varray)))
                               (loop :for d :below divisions
-                                    :do (if (or (and (typep varray 'vader-composing)
-                                                     (not (vacmp-threadable varray)))
-                                                ;; don't thread when rendering the output of operators composed
-                                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                                (loop :for worker
-                                                        :across (lparallel.kernel::workers
-                                                                 lparallel::*kernel*)
-                                                      :never (null (lparallel.kernel::running-category
-                                                                    worker))))
-                                            ;;t
+                                    :do (if ;; (or (and (typep varray 'vader-composing)
+                                            ;;          (not (vacmp-threadable varray)))
+                                            ;;     ;; don't thread when rendering the output of operators composed
+                                            ;;     ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                            ;;     (loop :for worker
+                                            ;;             :across (lparallel.kernel::workers
+                                            ;;                      lparallel::*kernel*)
+                                            ;;           :never (null (lparallel.kernel::running-category
+                                            ;;                         worker))))
+                                            t
                                             (funcall (funcall process d))
                                             (progn (incf threaded-count)
                                                    (lparallel::submit-task
@@ -667,7 +667,7 @@
                                              rendered (enclose rendered)))))
                                  (if (not (functionp indexer))
                                      indexer (funcall indexer 0))))))
-              (if (not (typep varray 'varray-derived))
+              (if t ; (not (typep varray 'varray-derived))
                   output (progn (when (typep varray 'vad-render-mutable)
                                   (setf (vads-rendered varray) t))
                                 (setf (vader-content varray) output)))))))))
