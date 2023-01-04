@@ -1299,7 +1299,7 @@
                                new-layer)
                       uniform possible-depth))))))
 
-(defmethod indexer-of ((varray vader-depth) &optional params)
+(defmethod generator-of ((varray vader-depth) &optional indexers params)
   "Index an array depth value."
   (let ((shape (or (shape-of (vader-base varray))
                    (varrayp (vader-base varray))
@@ -1384,14 +1384,13 @@
 
 (defmethod generator-of ((varray vader-compare) &optional indexers params)
   "Index a reshaped array."
-  (let ((base-indexer (base-indexer-of varray params)))
+  (let ((omega (render (aref (vader-base varray) 0)))
+        (alpha (render (aref (vader-base varray) 1))))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
       (t (lambda (index) (if (funcall (if (vads-inverse varray) #'not #'identity)
-                                      (varray-compare (funcall base-indexer 0)
-                                                      (funcall base-indexer 1)
-                                                      (vads-ct varray)))
+                                      (varray-compare omega alpha (vads-ct varray)))
                              1 0))))))
 
 (defclass vader-enlist (varray-derived vad-limitable)
@@ -3824,7 +3823,6 @@
                               (get-sub-base (vader-base va)))
                        (vader-base va))))
           (let ((sub-base (get-sub-base varray)))
-            ;; (print (list :tr to-render))
             (setf (getf (varray-meta varray) :may-defer-rendering) to-defer
                   (vader-base varray) (funcall (if to-render #'render #'identity)
                                                sub-base))))))))

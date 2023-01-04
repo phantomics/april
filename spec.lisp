@@ -545,7 +545,7 @@
      (ambivalent (λω (make-instance 'vader-depth :base omega))
                  (λωα (make-instance 'vader-compare :base (vector omega alpha)
                                                     :comparison-tolerance comparison-tolerance)))
-     (meta (primary :implicit-args (comparison-tolerance)))
+     (meta (primary :virtual-support t :implicit-args (comparison-tolerance)))
      (tests (is "≡1" 0)
             (is "≡⍳3" 1)
             (is "≡(1 2)(3 4)" 2)
@@ -564,7 +564,7 @@
                  (λωα (make-instance
                        'vader-compare :base (vector omega alpha) :inverse t
                                       :comparison-tolerance comparison-tolerance)))
-     (meta (primary :implicit-args (comparison-tolerance) :virtual-support t))
+     (meta (primary :virtual-support t :implicit-args (comparison-tolerance)))
      (tests (is "≢2" 1)
             (is "≢1 2 3" 3)
             (is "≢2 3 4⍴⍳9" 2)

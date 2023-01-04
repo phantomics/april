@@ -785,7 +785,8 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             `(setf ,symbol (render-varrays ,set-to))
+                             ;; `(setf ,symbol (render-varrays ,set-to))
+                             `(setf ,symbol (vrender ,set-to :may-be-deferred t))
                              ;; `(setf ,symbol ,set-to) 
                              ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
@@ -950,16 +951,6 @@
   (aops:each (lambda (member) (if (not (and (arrayp member) (< 1 (rank member))))
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
-
-;; (defmacro avec (&rest items)
-;;   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-;;   (let ((type))
-;;     (loop :for item :in items :while (not (eq t type))
-;;        :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
-;;                                                                         (> 0 item))
-;;                                                                     item (max 16 item))))))
-;;     `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
-;;                  :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items)))))
 
 (defun avec (&rest items)
   "This function returns an APL vector; in the case of virtual arrays within the vector, a subrendering virtual container vector is returned."
@@ -1169,11 +1160,8 @@
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
          
-         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
-                                                                  ;; (member arg '(⍵ ⍺))
-                                                                  ;; (not (member arg '(⍵ ⍺)))
-                                                                  )
-                                                              arg `(render-varrays ,arg)))))
+         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
+                                                              arg `(vrender ,arg  :may-be-deferred t)))))
     ;; (print (list :aa arguments))
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
@@ -2119,8 +2107,6 @@ It remains here as a standard against which to compare methods for composing APL
         (d-meta (when (member (first fn-dyadic) '(fn-meta scalar-function))
                   (cddr fn-dyadic))))
     `(labels ((,this-fn (&rest ,args)
-                ,@(unless is-virtual
-                    `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
                 ;; IPV-TODO: the one of the biggest force-render points
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
