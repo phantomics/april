@@ -573,7 +573,7 @@
   (∊ (has :titles ("Enlist" "Membership"))
      (ambivalent (λω (make-instance 'vader-enlist :base omega))
                  (λωα (make-instance 'vader-membership :base alpha :argument omega)))
-     (primary :virtual-support t)
+     (meta (primary :virtual-support t))
      (tests (is "∊2" #(2))
             (is "∊2 2 2⍴⍳9" #(1 2 3 4 5 6 7 8))
             (is "∊⊂2 3" #(2 3))
@@ -1273,7 +1273,7 @@
             (is "55⊣77" 55)))
   (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (format-array print-precision) (format-array print-precision))
-     (meta (primary :implicit-args (print-precision)))
+     (meta (primary :virtual-support t :implicit-args (print-precision)))
      (tests (is "↓⍕3 4⍴⍳9" #("1 2 3 4"
                              "5 6 7 8"
                              "9 1 2 3"))
