@@ -3808,17 +3808,23 @@
   (generator-of (vader-base varray) indexers params))
 
 (defmethod initialize-instance :after ((varray vader-identity) &key)
-  "Condense successive right and left identities (like ⊢⊣3 4⍴⍳9) into a single identity with the deferred rendering metadata flag activated."
-  (let ((to-defer) (base (vader-base varray)))
-    (labels ((get-sub-base (va)
-               (if (typep (vader-base va) 'vader-identity)
-                   (progn (when (vads-inverse (vader-base va))
-                            (setf to-defer t))
-                          (get-sub-base (vader-base va)))
-                   (vader-base va))))
-      (when (typep base 'vader-identity)
-        (setf (getf (varray-meta varray) :may-defer-rendering) t
-              (vader-base varray) (get-sub-base base))))))
+  "Condense successive right and left identities (like ⊢⊣3 4⍴⍳9) into a single identity with the deferred rendering metadata flag activated. Successive right identities (like ⊢⊢3 4⍴⍳9) will force rendering."
+  (let ((base (vader-base varray)))
+    (when (typep base 'vader-identity)
+      (let ((to-defer) (to-render))
+        (labels ((get-sub-base (va)
+                   (if (typep (vader-base va) 'vader-identity)
+                       (progn (when (not (vads-inverse va))
+                                (if (vads-inverse (vader-base va))
+                                    (setf to-defer t)
+                                    (setf to-render t)))
+                              (get-sub-base (vader-base va)))
+                       (vader-base va))))
+          (let ((sub-base (get-sub-base varray)))
+            ;; (print (list :tr to-render))
+            (setf (getf (varray-meta varray) :may-defer-rendering) to-defer
+                  (vader-base varray) (funcall (if to-render #'render #'identity)
+                                               sub-base))))))))
 
 (defmethod render ((varray vader-identity) &rest params)
   "A special non-rendering render method for "

@@ -785,7 +785,8 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             `(setf ,symbol (render-varrays ,set-to))
+                             ;; `(setf ,symbol (render-varrays ,set-to))
+                             `(setf ,symbol (vrender ,set-to :may-be-deferred t))
                              ;; `(setf ,symbol ,set-to) 
                              ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
@@ -950,16 +951,6 @@
   (aops:each (lambda (member) (if (not (and (arrayp member) (< 1 (rank member))))
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
-
-;; (defmacro avec (&rest items)
-;;   "This macro returns an APL vector, disclosing data within that are meant to be individual atoms."
-;;   (let ((type))
-;;     (loop :for item :in items :while (not (eq t type))
-;;        :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
-;;                                                                         (> 0 item))
-;;                                                                     item (max 16 item))))))
-;;     `(make-array (list ,(length items)) ;; enclose each array included in an APL vector
-;;                  :element-type (quote ,type) :initial-contents (mapcar #'render-varrays (list ,@items)))))
 
 (defun avec (&rest items)
   "This function returns an APL vector; in the case of virtual arrays within the vector, a subrendering virtual container vector is returned."
