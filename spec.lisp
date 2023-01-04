@@ -561,9 +561,8 @@
             (is "('a',⍬)≡1↑'amy'" 1)))
   (≢ (has :titles ("First Dimension" "Not Match"))
      (ambivalent (λω (make-instance 'vader-first-dim :base omega))
-                 (λωα (make-instance
-                       'vader-compare :base (vector omega alpha) :inverse t
-                                      :comparison-tolerance comparison-tolerance)))
+                 (λωα (make-instance 'vader-compare :base (vector omega alpha) :inverse t
+                                                    :comparison-tolerance comparison-tolerance)))
      (meta (primary :virtual-support t :implicit-args (comparison-tolerance)))
      (tests (is "≢2" 1)
             (is "≢1 2 3" 3)

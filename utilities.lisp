@@ -858,18 +858,20 @@
                                                                   ,this-val (aref ,this-val ,sx))))
                                                   ;; IPV-TODO: slow for ↓fmt tree ⍳15, what's the fix?
                                                   ;; (list (process-symbols
-                                                  ;;        sym `(if (= 1 (size-of ,values))
-                                                  ;;                 ,values (funcall ,this-generator
-                                                  ;;                                  ,sx))))
+                                                  ;;        sym `(vrender (if (= 1 (size-of ,values))
+                                                  ;;                          ,values (funcall ,this-generator
+                                                  ;;                                           ,sx))
+                                                  ;;                      :may-be-deferred t)))
                                                   )
                                                  ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (vectorp ,this-val)
                                                                       (aref ,this-val sx)
                                                                       (disclose ,this-val)))))
-                                                  ;; `((or ⍺ (setf ⍺ (if (= 1 (size-of ,values))
-                                                  ;;                     ,values
-                                                  ;;                     (funcall ,this-generator
-                                                  ;;                              ,sx)))))
+                                                  ;; `((or ⍺ (setf ⍺ (vrender (if (= 1 (size-of ,values))
+                                                  ;;                              ,values
+                                                  ;;                              (funcall ,this-generator
+                                                  ;;                                       ,sx))
+                                                  ;;                          :may-be-deferred t))))
                                                   )
                                                  ((eql '⍵ sym)
                                                   `(error "The [⍵ right argument] cannot ~a"
@@ -1162,7 +1164,6 @@
          
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
                                                               arg `(vrender ,arg :may-be-deferred t)))))
-    ;; (print (list :aa arguments))
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))
@@ -2097,7 +2098,7 @@ It remains here as a standard against which to compare methods for composing APL
                            (apply ,function ,args)))))
        #',this-fn)))
 
-(defmacro amb-ref (fn-monadic fn-dyadic &optional axes is-virtual)
+(defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
   (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym)) (a (gensym))
         (m-scalar (when (eq 'scalar-function (first fn-monadic)) '(:scalar t)))
@@ -2248,8 +2249,7 @@ It remains here as a standard against which to compare methods for composing APL
                                                           ,(wrap-meta glyph-char :ambivalent
                                                                       (third implementation)
                                                                       (rest (assoc 'dyadic spec-meta)))
-                                                          ,(getf primary-metadata :axes)
-                                                          ,(getf primary-metadata :virtual-support))))
+                                                          ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
