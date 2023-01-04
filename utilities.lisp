@@ -1161,7 +1161,7 @@
                             (eql 'apply-scalar (first (third function)))))
          
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
-                                                              arg `(vrender ,arg  :may-be-deferred t)))))
+                                                              arg `(vrender ,arg :may-be-deferred t)))))
     ;; (print (list :aa arguments))
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
