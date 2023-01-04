@@ -785,9 +785,8 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             ;; `(setf ,symbol (render-varrays ,set-to))
                              `(setf ,symbol (vrender ,set-to :may-be-deferred t))
-                             ;; `(setf ,symbol ,set-to) 
+                             ;; `(setf ,symbol ,set-to)
                              ))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
@@ -805,8 +804,9 @@
                     (eql 'quote (caadr symbol)) (eql 'vader-select (cadadr symbol)))
                ;; handle selective assignments, using process-path to handle the paths
                `(setf ,(getf (cddr symbol) :base)
-                      (render-varrays ,(append symbol (list :assign value)
-                                               (if by (list :calling by))))))
+                      (vrender ,(append symbol (list :assign value)
+                                        (if by (list :calling by)))
+                               :may-be-deferred t)))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
               (t (let ((symbols (if (not (eql 'avec (first symbol)))
