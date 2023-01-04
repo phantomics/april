@@ -1407,7 +1407,7 @@
                       (shape-of (vader-content varray))))))
 
 (defmethod generator-of ((varray vader-enlist) &optional indexers params)
-  (let ((base-indexer (generator-of (vader-base varray))))
+  (let ((base-indexer (generator-of (render (vader-base varray)))))
     (if (not (vader-content varray))
         (let ((first-item (if (not (functionp base-indexer))
                               base-indexer (funcall base-indexer 0))))
@@ -1463,7 +1463,8 @@
   'bit)
 
 (defmethod generator-of ((varray vader-membership) &optional indexers params)
-  (let ((base-indexer (base-indexer-of varray)))
+  (let ((base-indexer (generator-of (render (vader-base varray)))))
+  ;; (let ((base-indexer (generator-of (vader-base varray))))
     (labels ((compare (item1 item2)
                (if (and (characterp item1) (characterp item2))
                    (char= item1 item2)
@@ -1484,10 +1485,12 @@
                           (if (not (loop :for i :below (array-total-size argument)
                                          :never (compare base-indexer (row-major-aref argument i))))
                               1 0))))))
+      ;; (print (list :mm 35 (vamem-to-search varray) base-indexer))
       (case (getf params :base-format)
         (:encoded)
         (:linear)
         (t (lambda (index)
+             ;; (print (list :in index))
              (if (arrayp (vamem-to-search varray))
                  (let ((found))
                    (loop :for ix :below (size-of (vamem-to-search varray)) :while (not found)
@@ -3003,6 +3006,7 @@
              (path-indexer (generator-of path))
              (path-length (size-of path))
              (base-indexer (generator-of base)))
+        ;; (print (list :pa path))
         (if path
             (let ((path-value (get-path-value varray (if (not (functionp path-indexer))
                                                          path-indexer (funcall path-indexer
@@ -3827,10 +3831,12 @@
                                                sub-base))))))))
 
 (defmethod render ((varray vader-identity) &rest params)
-  "A special non-rendering render method for "
+  "A special non-rendering render method for [⊢/⊣ identity], to be used when ⊢⊣X is invoked to defer rendering."
   (if (and (getf params :may-be-deferred)
            (getf (varray-meta varray) :may-defer-rendering))
-      varray (call-next-method)))
+      ;; a new vader-identify instance is created without the :may-defer-rendering flag
+      (make-instance 'vader-identity :base (vader-base varray))
+      (call-next-method)))
 
 (defgeneric inverse-count-to (array index-origin)
   (:documentation "Invert an [⍳ index] function, returning the right argument passed to ⍳."))

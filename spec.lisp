@@ -545,7 +545,8 @@
      (ambivalent (λω (make-instance 'vader-depth :base omega))
                  (λωα (make-instance 'vader-compare :base (vector omega alpha)
                                                     :comparison-tolerance comparison-tolerance)))
-     (meta (primary :implicit-args (comparison-tolerance)))
+     (meta (primary ;; :virtual-support t
+                    :implicit-args (comparison-tolerance)))
      (tests (is "≡1" 0)
             (is "≡⍳3" 1)
             (is "≡(1 2)(3 4)" 2)
@@ -573,7 +574,7 @@
   (∊ (has :titles ("Enlist" "Membership"))
      (ambivalent (λω (make-instance 'vader-enlist :base omega))
                  (λωα (make-instance 'vader-membership :base alpha :argument omega)))
-     (primary :virtual-support t)
+     (meta (primary :virtual-support t))
      (tests (is "∊2" #(2))
             (is "∊2 2 2⍴⍳9" #(1 2 3 4 5 6 7 8))
             (is "∊⊂2 3" #(2 3))
@@ -1254,8 +1255,7 @@
         (:demo-profile :title "Special Function Demos"
                        :description "These functions expose features of the language that aren't directly related to computing or transforming array values."))
   (⊢ (has :titles ("Identity" "Right"))
-     (ambivalent ;; #'get-identity-of
-                 (λω (make-instance 'vader-identity :base omega))
+     (ambivalent (λω (make-instance 'vader-identity :base omega))
                  (λωα (declare (ignore alpha))
                       (make-instance 'vader-identity :base omega)))
      (meta (primary :virtual-support t)
@@ -1273,7 +1273,7 @@
             (is "55⊣77" 55)))
   (⍕ (has :titles ("Format" "Format At Precision"))
      (ambivalent (format-array print-precision) (format-array print-precision))
-     (meta (primary :implicit-args (print-precision)))
+     (meta (primary :virtual-support t :implicit-args (print-precision)))
      (tests (is "↓⍕3 4⍴⍳9" #("1 2 3 4"
                              "5 6 7 8"
                              "9 1 2 3"))

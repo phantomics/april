@@ -785,7 +785,6 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             ;; `(setf ,symbol (render-varrays ,set-to))
                              `(setf ,symbol (vrender ,set-to :may-be-deferred t))
                              ;; `(setf ,symbol ,set-to) 
                              ))))))
@@ -858,18 +857,20 @@
                                                                   ,this-val (aref ,this-val ,sx))))
                                                   ;; IPV-TODO: slow for ↓fmt tree ⍳15, what's the fix?
                                                   ;; (list (process-symbols
-                                                  ;;        sym `(if (= 1 (size-of ,values))
-                                                  ;;                 ,values (funcall ,this-generator
-                                                  ;;                                  ,sx))))
+                                                  ;;        sym `(vrender (if (= 1 (size-of ,values))
+                                                  ;;                          ,values (funcall ,this-generator
+                                                  ;;                                           ,sx))
+                                                  ;;                      :may-be-deferred t)))
                                                   )
                                                  ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (vectorp ,this-val)
                                                                       (aref ,this-val sx)
                                                                       (disclose ,this-val)))))
-                                                  ;; `((or ⍺ (setf ⍺ (if (= 1 (size-of ,values))
-                                                  ;;                     ,values
-                                                  ;;                     (funcall ,this-generator
-                                                  ;;                              ,sx)))))
+                                                  ;; `((or ⍺ (setf ⍺ (vrender (if (= 1 (size-of ,values))
+                                                  ;;                              ,values
+                                                  ;;                              (funcall ,this-generator
+                                                  ;;                                       ,sx))
+                                                  ;;                          :may-be-deferred t))))
                                                   )
                                                  ((eql '⍵ sym)
                                                   `(error "The [⍵ right argument] cannot ~a"
@@ -1159,13 +1160,10 @@
          (axes-present (and (listp function) (eql 'apl-fn-s (first function))
                             (third function) (listp (third function))
                             (eql 'apply-scalar (first (third function)))))
-         
-         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
-                                                                  ;; (member arg '(⍵ ⍺))
-                                                                  ;; (not (member arg '(⍵ ⍺)))
-                                                                  )
-                                                              arg `(render-varrays ,arg)))))
-    ;; (print (list :aa arguments))
+         ;; render arguments represented by symbols i.e. {3 4⍴⍵} ⍳10
+         ;; unless explicitly deferred as with {3 4⍴⍳⊢⊣⍵} ⍳10
+         (arguments (loop :for arg :in arguments :collect (if (not (symbolp arg))
+                                                              arg `(vrender ,arg :may-be-deferred t)))))
     ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))
@@ -2109,6 +2107,8 @@ It remains here as a standard against which to compare methods for composing APL
                   (cddr fn-monadic)))
         (d-meta (when (member (first fn-dyadic) '(fn-meta scalar-function))
                   (cddr fn-dyadic))))
+    (when (not is-virtual)
+      (print (list :fm fn-monadic)))
     `(labels ((,this-fn (&rest ,args)
                 ,@(unless is-virtual
                     `((setq ,args (loop :for ,a :in ,args :collect (render-varrays ,a)))))
