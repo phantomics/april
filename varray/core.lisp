@@ -551,7 +551,7 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray) &rest params)
-  (declare (ignorable params));; TODO: remove
+  (declare (ignore params))
   (if (and (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))

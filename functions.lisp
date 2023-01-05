@@ -251,7 +251,7 @@
         (unless (vectorp alpha)
           (error "The left argument to [~ without] must be a vector.")))
     (let ((included)
-          (omega-vector (if (or (vectorp omega)(not (arrayp omega)))
+          (omega-vector (if (or (vectorp omega) (not (arrayp omega)))
                             (disclose omega)
                             (make-array (array-total-size omega)
                                         :displaced-to omega :element-type (element-type omega)))))
