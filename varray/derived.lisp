@@ -2621,11 +2621,13 @@
     (case (getf params :base-format)
       (:encoded)
       (:linear)
-      (t (lambda (index)
+      (t ;; (lambda (index)
            (if (vectorp intervals)
-               (if (< 0 output-size)
-                   ;; (lambda (index)
-                     (let* ((this-shape (loop :for dim :in base-shape :for dx :from 0
+               ;;(lambda (index)
+                 (if (< 0 output-size)
+                   (lambda (index)
+                     ;; (identity
+                      (let* ((this-shape (loop :for dim :in base-shape :for dx :from 0
                                               :collect (if (/= dx axis)
                                                            dim (aref intervals (1+ index)))))
                             (sub-indexer (funcall partition-indexer index this-shape))
@@ -2635,10 +2637,11 @@
                                            (apl-array-prototype first-item))))
                        ;; (print (list :tt index this-shape))
                        (make-instance 'vader-subarray :prototype prototype :generator sub-indexer
-                                                      :shape (or this-shape '(1)) :base (vader-base varray)))
+                                                      :shape (or this-shape '(1)) :base (vader-base varray))))
                    (make-instance 'vader-subarray :prototype (prototype-of (vader-base varray))
                                                   :shape output-shape :base (vader-base varray)))
-               (if (not inner-shape)
+               (lambda (index)
+                 (if (not inner-shape)
                    (if (vads-axis varray)
                        (if (not (functionp base-indexer))
                            base-indexer ;; (lambda (index)
@@ -3038,7 +3041,8 @@
                                              (and (not (varrayp base-indexer))
                                                   (not (functionp base-indexer))))
                                          ;; return just the base indexer in cases like ⊃3
-                                         base-indexer (funcall (generator-of base-indexer) 0))
+                                         (or base-indexer (prototype-of base))
+                                         (funcall (generator-of base-indexer) 0))
                                      ;; otherwise return the 1st element, as for ⊃,/1+0×⊂1 2 3
                                      (if (zerop (size-of base))
                                          (prototype-of base)
@@ -3047,7 +3051,7 @@
                                                    ;; TODO: special mix case, generalize
                                                    (not (typep base 'vader-mix)))
                                                bix (row-major-aref bix 0)))))))
-                    ;; (print (list :ind indexer base (shape-of base)))
+                    ;; (print (list :ind indexer base (shape-of base) (prototype-of base)))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
@@ -3263,15 +3267,15 @@
     (case (getf params :base-format)
       (:encoded)
       (:linear)
-      (t (if (not (functionp base-gen))
-             base-gen
+      (t (if (functionp base-gen)
              (if (= 1 base-rank)
                  (lambda (index) (funcall base-gen (aref (vauni-indices varray) index)))
                  (lambda (index)
                    (multiple-value-bind (count remainder) (floor index cell-size)
                      (row-major-aref (vader-content varray)
                                      (+ remainder (* cell-size (aref (vauni-indices varray)
-                                                                     count))))))))))))
+                                                                     count)))))))
+             base-gen)))))
 
 (defclass vader-union (varray-derived vad-limitable vad-render-mutable)
   nil (:metaclass va-class)
