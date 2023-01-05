@@ -2161,6 +2161,7 @@
 (defmethod prototype-of ((varray vader-section))
   (get-promised (varray-prototype varray)
                 (progn (generator-of varray)
+                       (print (list :pro))
                        (varray-prototype varray))))
 
 (defmethod shape-of ((varray vader-section))
@@ -2384,7 +2385,9 @@
                                                       (getf params :assigning))
                                      (funcall (getf params :toggle-toplevel-subrendering))
                                      :pick)))
-           base-indexer (base-indexer-of varray params))
+           base-indexer (base-indexer-of varray params)
+           ;; base-indexer (generator-of (vader-base varray))
+           )
      
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
                                       (vasec-span varray) (vasec-pad varray)
@@ -2393,15 +2396,20 @@
                          (setf (varray-prototype varray)
                                (if (or (zerop size) (zerop base-size))
                                    (prototype-of (vader-base varray))
-                                   (let ((indexed (if (functionp indexer)
-                                                      (funcall indexer 0) 0)))
+                                   (let ((indexed (funcall #'identity ;; base-indexer
+                                                           (if (functionp indexer)
+                                                               (funcall indexer 0) 0))))
+                                     ;; (print (list :in indexer indexed (render (vader-base varray))
+                                     ;;              base-indexer))
                                      (if indexed
                                          (if (not (functionp base-indexer))
-                                             (prototype-of base-indexer)
+                                             (aplesque:make-empty-array (render base-indexer))
+                                             ;; (prototype-of base-indexer)
                                              (aplesque:make-empty-array
                                               (render (funcall base-indexer indexed))))
                                          (prototype-of (vader-base varray)))))))))
        ;; (print (list :ba base-indexer assigning indexer))
+       ;; 4↑(3 4⍴⍳12) 8 9
        (if assigning (lambda (index)
                        (declare (type integer index))
                        (let ((indexed (funcall indexer index)))
@@ -2488,10 +2496,11 @@
                                :when (minusp a) :do (incf scalar-index (* f (1- d))))
                          (when (minusp arg) (incf scalar-index (1- (first (shape-of varray)))))))
                    ;; IPV-TODO: figure out how to allow n-rank mixed positive-negative takes for scalars
-                   (lambda (index) 
+                   (lambda (index)
                      (let ((indexed (funcall (if (functionp indexer) indexer #'identity)
                                              (funcall composite-indexer index))))
-                       ;; (print (list :iin indexer composite-indexer index indexed :base (vader-base varray)
+                       ;; (print (list :pro (varray-prototype varray)))
+                       ;; (print (list :iin varray indexer composite-indexer index indexed :base (vader-base varray)
                        ;;              prototype))
                        (if indexed (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
                                        (if (zerop index) indexed prototype)
@@ -2623,11 +2632,9 @@
       (:linear)
       (t ;; (lambda (index)
            (if (vectorp intervals)
-               ;;(lambda (index)
-                 (if (< 0 output-size)
+               (if (< 0 output-size)
                    (lambda (index)
-                     ;; (identity
-                      (let* ((this-shape (loop :for dim :in base-shape :for dx :from 0
+                     (let* ((this-shape (loop :for dim :in base-shape :for dx :from 0
                                               :collect (if (/= dx axis)
                                                            dim (aref intervals (1+ index)))))
                             (sub-indexer (funcall partition-indexer index this-shape))
@@ -2635,32 +2642,35 @@
                             (prototype (if (varrayp first-item)
                                            (prototype-of first-item)
                                            (apl-array-prototype first-item))))
-                       ;; (print (list :tt index this-shape))
                        (make-instance 'vader-subarray :prototype prototype :generator sub-indexer
                                                       :shape (or this-shape '(1)) :base (vader-base varray))))
                    (make-instance 'vader-subarray :prototype (prototype-of (vader-base varray))
                                                   :shape output-shape :base (vader-base varray)))
-               (lambda (index)
-                 (if (not inner-shape)
+               (if (not inner-shape)
+                   (lambda (index)
                    (if (vads-axis varray)
-                       (if (not (functionp base-indexer))
-                           base-indexer ;; (lambda (index)
-                                          (funcall base-indexer index))
-                       (render (vader-base varray)))
-                   (if (not (functionp base-indexer))
-                       base-indexer ;; (lambda (index)
-                                      (let* ((sub-indexer (funcall offset-indexer index))
-                                             (first-item (funcall sub-indexer 0))
-                                             (prototype (if (not output-shape)
-                                                            (aplesque::make-empty-array
-                                                             (vader-base varray))
-                                                            (if (varrayp first-item)
-                                                                (prototype-of first-item)
-                                                                (apl-array-prototype first-item)))))
-                                        (make-instance 'vader-subarray
-                                                       :prototype prototype
-                                                       :base (vader-base varray)
-                                                       :shape inner-shape :generator sub-indexer))))))))))
+                       ;; (lambda (index)
+                         (if (not (functionp base-indexer))
+                             base-indexer ;; (lambda (index)
+                             (funcall base-indexer index))
+                       ;; (render (vader-base varray))
+                       (vader-base varray)
+                       ))
+                   (if (functionp base-indexer)
+                       (lambda (index)
+                         (let* ((sub-indexer (funcall offset-indexer index))
+                                (first-item (funcall sub-indexer 0))
+                                (prototype (if (not output-shape)
+                                               (aplesque::make-empty-array
+                                                (vader-base varray))
+                                               (if (varrayp first-item)
+                                                   (prototype-of first-item)
+                                                   (apl-array-prototype first-item)))))
+                           (make-instance 'vader-subarray
+                                          :prototype prototype
+                                          :base (vader-base varray)
+                                          :shape inner-shape :generator sub-indexer)))
+                       base-indexer)))))))
 
 (defclass vader-partition (vad-subrendering varray-derived vad-on-axis vad-with-io
                            vad-with-argument vad-maybe-shapeless)
