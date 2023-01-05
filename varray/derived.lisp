@@ -1895,22 +1895,22 @@
                                sub-indices)))
              (setf source-array (funcall base-indexer array-index)
                    row-major-index
-                   (if (or (arrayp source-array)
-                           (varrayp source-array))
-                       (if to-laminate
-                           (loop :for si :in sub-indices :for ix :from 0
-                                 :summing (* si (or (nth (max 0 (if (< ix axis-offset)
-                                                                    ix (1- ix)))
-                                                         (aref ifactors array-index))
-                                                    1))
-                                   :into rmi :finally (return rmi))
-                           (loop :for si :in (loop :for si :in sub-indices :for sx :from 0
-                                                   :when (or (= (length out-shape)
-                                                                (length (shape-of source-array)))
-                                                             (/= sx axis-offset))
-                                                     :collect si)
-                                 :for df :in (aref ifactors array-index)
-                                 :summing (* si df) :into rmi :finally (return rmi)))))
+                   (when (or (arrayp source-array)
+                             (varrayp source-array))
+                     (if to-laminate
+                         (loop :for si :in sub-indices :for ix :from 0
+                               :summing (* si (or (nth (max 0 (if (< ix axis-offset)
+                                                                  ix (1- ix)))
+                                                       (aref ifactors array-index))
+                                                  1))
+                                 :into rmi :finally (return rmi))
+                         (loop :for si :in (loop :for si :in sub-indices :for sx :from 0
+                                                 :when (or (= (length out-shape)
+                                                              (length (shape-of source-array)))
+                                                           (/= sx axis-offset))
+                                                   :collect si)
+                               :for df :in (aref ifactors array-index)
+                               :summing (* si df) :into rmi :finally (return rmi)))))
              (if (not (functionp (aref indexers array-index)))
                  (disclose (aref indexers array-index))
                  (let ((indexed (funcall (aref indexers array-index) row-major-index)))
