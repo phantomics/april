@@ -1758,34 +1758,33 @@
   (:documentation "A catenated array as from the [, catenate] function."))
 
 (defmethod etype-of ((varray vader-catenate))
-  (let ((base-indexer (generator-of (vader-base varray)))
+  (let ((base-gen (generator-of (vader-base varray)))
         (base-size (size-of (vader-base varray))))
     (apply #'type-in-common (loop :for i :below base-size
-                                  :when (< 0 (size-of (funcall base-indexer i)))
-                                    :collect (etype-of (funcall base-indexer i))))))
+                                  :when (< 0 (size-of (funcall base-gen i)))
+                                    :collect (etype-of (funcall base-gen i))))))
 
-(defmethod prototype-of ((varray vader-catenate))
-  (let ((base-indexer (generator-of (vader-base varray))))
-    (when base-indexer
-      (prototype-of (funcall base-indexer 0)))))
+(defmethod prototype-of ((varray vader-catenate)) ;; TODO: how does this handle multiple args as for ,/X?
+  (let ((base-gen (generator-of (vader-base varray))))
+    (when base-gen (prototype-of (funcall base-gen 0)))))
 
 (defmethod shape-of ((varray vader-catenate))
   (get-promised
    (varray-shape varray)
    (let* ((ref-shape) (uneven)
-          (base-indexer (generator-of (vader-base varray)))
+          (base-gen (generator-of (vader-base varray)))
           (base-size (size-of (vader-base varray)))
           (each-shape (loop :for i :below base-size
-                            :collect (let* ((a (funcall base-indexer i))
+                            :collect (let* ((a (funcall base-gen i))
                                             (shape (shape-of a)))
                                        ;; (shape-of) must be called before checking whether an
                                        ;; array subrenders since (shape-of) determines whether a
                                        ;; catenated array subrenders
-                                       (if (or (subrendering-p a)
-                                               (subrendering-base a))
-                                           (setf (vads-subrendering varray) t))
-                                       (if (or (varrayp a) (arrayp a))
-                                           shape))))
+                                       (when (or (subrendering-p a)
+                                                 (subrendering-base a))
+                                         (setf (vads-subrendering varray) t))
+                                       (when (or (varrayp a) (arrayp a))
+                                         shape))))
           (max-rank (reduce #'max (mapcar #'length each-shape)))
           (axis (setf (vads-axis varray)
                       (disclose-unitary (render (vads-axis varray)))))
@@ -1895,8 +1894,7 @@
                                sub-indices)))
              (setf source-array (funcall base-indexer array-index)
                    row-major-index
-                   (when (or (arrayp source-array)
-                             (varrayp source-array))
+                   (when (or (arrayp source-array) (varrayp source-array))
                      (if to-laminate
                          (loop :for si :in sub-indices :for ix :from 0
                                :summing (* si (or (nth (max 0 (if (< ix axis-offset)
@@ -1911,11 +1909,11 @@
                                                    :collect si)
                                :for df :in (aref ifactors array-index)
                                :summing (* si df) :into rmi :finally (return rmi)))))
-             (if (not (functionp (aref indexers array-index)))
-                 (disclose (aref indexers array-index))
+             (if (functionp (aref indexers array-index))
                  (let ((indexed (funcall (aref indexers array-index) row-major-index)))
                    (if (not (subrendering-p indexed))
-                       indexed (render indexed))))))))))
+                       indexed (render indexed)))
+                 (disclose (aref indexers array-index)))))))))
 
 (defclass vader-mix (varray-derived vad-on-axis vad-with-io)
   ((%shape-indices :accessor vamix-shape-indices
@@ -1961,47 +1959,46 @@
                             base-indexer (generator-of base-indexer)))
           (max-rank 0) (each-shape))
      ;; (print (list :ba base-shape (render base) (shape-of base)))
-     (cond
-       ((and (not (functionp base-indexer))
-             (not (arrayp base-indexer))
-             (not (varrayp base-indexer)))
-        base-shape) ;; handle the ↑⍬ case
-       ((not base-shape)
-        ;; (print (list :bb base base-indexer))
-        (setf (vamix-cached-elements varray) (funcall base-indexer 0))
-        (shape-of (vamix-cached-elements varray)))
-       (t (loop :for ix :below (reduce #'* base-shape)
-                :do (let ((member (funcall base-indexer ix)))
-                      (setf max-rank (max max-rank (length (shape-of member))))
-                      (push (shape-of member) each-shape)))
-          (let ((out-shape) (shape-indices)
-                (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
-            (loop :for shape :in each-shape
-                  :do (loop :for d :in shape :for dx :from 0
-                            :do (setf (aref max-shape dx)
-                                      (max d (aref max-shape dx)))))
+     (cond ((and (not (functionp base-indexer))
+                 (not (arrayp base-indexer))
+                 (not (varrayp base-indexer)))
+            base-shape) ;; handle the ↑⍬ case
+           ((not base-shape)
+            ;; (print (list :bb base base-indexer))
+            (setf (vamix-cached-elements varray) (funcall base-indexer 0))
+            (shape-of (vamix-cached-elements varray)))
+           (t (loop :for ix :below (reduce #'* base-shape)
+                    :do (let ((member (funcall base-indexer ix)))
+                          (setf max-rank (max max-rank (length (shape-of member))))
+                          (push (shape-of member) each-shape)))
+              (let ((out-shape) (shape-indices)
+                    (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
+                (loop :for shape :in each-shape
+                      :do (loop :for d :in shape :for dx :from 0
+                                :do (setf (aref max-shape dx)
+                                          (max d (aref max-shape dx)))))
 
-            (setf axis (setf (vads-axis varray)
-                             (if (eq :last axis) (length base-shape)
-                                 (ceiling (- axis (vads-io varray))))))
-            ;; push the outer shape elements to the complete shape
-            (loop :for odim :in base-shape :for ix :from 0
-                  :do (when (= ix axis)
-                        (loop :for ms :across max-shape :for mx :from 0
-                              :do (push ms out-shape)
-                                  (push (+ mx (length base-shape)) shape-indices)))
-                      (push odim out-shape)
-                      (push ix shape-indices))
-            
-            (when (= axis (length base-shape))
-              ;; push the inner shape elements if for the last axis
-              (loop :for ms :across max-shape :for mx :from 0
-                    :do (push ms out-shape)
-                        (push (+ mx (length base-shape)) shape-indices)))
+                (setf axis (setf (vads-axis varray)
+                                 (if (eq :last axis) (length base-shape)
+                                     (ceiling (- axis (vads-io varray))))))
+                ;; push the outer shape elements to the complete shape
+                (loop :for odim :in base-shape :for ix :from 0
+                      :do (when (= ix axis)
+                            (loop :for ms :across max-shape :for mx :from 0
+                                  :do (push ms out-shape)
+                                      (push (+ mx (length base-shape)) shape-indices)))
+                          (push odim out-shape)
+                          (push ix shape-indices))
+                
+                (when (= axis (length base-shape))
+                  ;; push the inner shape elements if for the last axis
+                  (loop :for ms :across max-shape :for mx :from 0
+                        :do (push ms out-shape)
+                            (push (+ mx (length base-shape)) shape-indices)))
 
-            (setf (vamix-shape-indices varray) (reverse shape-indices))
-            
-            (reverse out-shape)))))))
+                (setf (vamix-shape-indices varray) (reverse shape-indices))
+                
+                (reverse out-shape)))))))
 
 (defmethod generator-of ((varray vader-mix) &optional indexers params)
   (let* ((oshape (shape-of varray))
@@ -2472,9 +2469,7 @@
                        (lambda (index) (declare (ignore index)) prototype))
                      (generator-of (vader-base varray)
                                    (if (or (not indexer) (eq t indexer))
-                                       indexers (cons indexer indexers))
-                                   ;; (rest (getf (varray-meta varray) :gen-meta))
-                                   ))
+                                       indexers (cons indexer indexers))))
                  (let* ((composite-indexer (or (join-indexers indexers) #'identity))
                         (arg (vads-argument varray))
                         (size (size-of varray))
@@ -2494,12 +2489,9 @@
                      (let ((indexed (funcall (if (functionp indexer) indexer #'identity)
                                              (funcall composite-indexer index))))
                        ;; (print (list :iin composite-indexer index indexed :base (vader-base varray)))
-                       (if indexed (let ((generator (generator-of (vader-base varray)
-                                                                  nil ;; (rest (getf (varray-meta varray)
-                                                                      ;;             :gen-meta))
-                                                                  )))
-                                     (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
-                                         (if (zerop index) indexed prototype)
+                       (if indexed (if (not (numberp indexed)) ;; IPV-TODO: remove after refactor ?
+                                       (if (zerop index) indexed prototype)
+                                       (let ((generator (generator-of (vader-base varray))))
                                          (if (not (functionp generator))
                                              indexed (funcall generator indexed))))
                            prototype))))))))))
@@ -2520,10 +2512,10 @@
         t (assign-element-type base))))
 
 (defmethod prototype-of ((varray vader-enclose))
-  (if (not (zerop (size-of varray)))
-      (call-next-method)
+  (if (zerop (size-of varray))
       (make-instance 'vader-expand :argument 0 :axis :last :base (vader-base varray)
-                                   :index-origin (vads-io varray))))
+                                   :index-origin (vads-io varray))
+      (call-next-method)))
 
 (defmethod shape-of ((varray vader-enclose))
   (get-promised (varray-shape varray)
@@ -2558,9 +2550,9 @@
                             (incf (first intervals) (- axis-size input-offset))
                             (error "Size of partitions exceeds size of input array on axis ~w." axis)))
                       
-                      (setf (vads-shapeset varray) (or (when positions
-                                                         (coerce (reverse intervals) 'vector))
-                                                       t))
+                      (setf (vads-shapeset varray)
+                            (or (when positions (coerce (reverse intervals) 'vector))
+                                t))
 
                       (if positions (list (1- (length intervals)))
                           (when axis (let ((outer-shape) (inner-shape)
