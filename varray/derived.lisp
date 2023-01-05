@@ -2402,14 +2402,14 @@
                                      ;; (print (list :in indexer indexed (render (vader-base varray))
                                      ;;              base-indexer))
                                      (if indexed
-                                         (if (not (functionp base-indexer))
+                                         (if (functionp base-indexer)
+                                             (aplesque:make-empty-array
+                                              (render (funcall base-indexer indexed)))
                                              (aplesque:make-empty-array (render base-indexer))
                                              ;; (prototype-of base-indexer)
-                                             (aplesque:make-empty-array
-                                              (render (funcall base-indexer indexed))))
+                                             )
                                          (prototype-of (vader-base varray)))))))))
        ;; (print (list :ba base-indexer assigning indexer))
-       ;; 4↑(3 4⍴⍳12) 8 9
        (if assigning (lambda (index)
                        (declare (type integer index))
                        (let ((indexed (funcall indexer index)))
@@ -2980,12 +2980,15 @@
 (defun get-path-value (varray index base)
   (if (numberp index)
       (- index (vads-io varray))
-      (let ((ix 0)
-            (iindexer (if (shape-of index) (generator-of index)
-                          (generator-of (funcall (generator-of index) 0))))
-            (index-length (if (shape-of index) (size-of index)
-                              (size-of (funcall (generator-of index) 0))))
-            (factors (get-dimensional-factors (shape-of base))))
+      (let* ((ix 0)
+             (igen (generator-of index))
+             (iindexer (if (shape-of index) (generator-of index)
+                           (generator-of (if (not (functionp igen))
+                                             igen (funcall igen 0)))))
+             (index-length (if (shape-of index) (size-of index)
+                               (size-of (if (not (functionp igen))
+                                            igen (funcall igen 0)))))
+             (factors (get-dimensional-factors (shape-of base))))
         (loop :for f :in factors :for s :below index-length
               :do (incf ix (* f (- (if (not (functionp iindexer))
                                        iindexer (funcall iindexer s))
@@ -3007,6 +3010,7 @@
                                                          path-indexer (funcall path-indexer
                                                                                (or path-index 0)))
                                               base)))
+              ;; (print (list :pt path-value path-index path path-index))
               (if path-index (if (/= path-index (1- path-length))
                                  (fetch-reference varray (funcall base-indexer path-value)
                                                   path (1+ (or path-index 0)))
@@ -3042,7 +3046,8 @@
                                          (or (arrayp indexer) (varrayp indexer)))
                                 (setf (vads-subrendering varray) t))
                               indexer)
-                            (fetch-reference varray (funcall base-indexer path-value)
+                            (fetch-reference varray (if (not (functionp base-indexer))
+                                                        base-indexer (funcall base-indexer path-value))
                                              path (1+ (or path-index 0)))))))
             (setf (vapick-reference varray)
                   ;; the 'vader-pick clause handles nested pick references like 2⊃⊃⊃{,/⍵}/3⍴⊂⍳3
