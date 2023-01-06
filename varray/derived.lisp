@@ -2654,7 +2654,7 @@
                                                   :shape output-shape :base (vader-base varray)))
                (if (not inner-shape)
                    (lambda (index)
-                   (if (vads-axis varray)
+                     (if (vads-axis varray)
                        ;; (lambda (index)
                          (if (not (functionp base-indexer))
                              base-indexer ;; (lambda (index)
@@ -3072,7 +3072,8 @@
                                                    ;; TODO: special mix case, generalize
                                                    (not (typep base 'vader-mix)))
                                                bix (row-major-aref bix 0)))))))
-                    ;; (print (list :ind indexer base (shape-of base) (prototype-of base)))
+                    ;; (print (list :ind indexer base-indexer base (shape-of base) (prototype-of base)
+                    ;;              (render indexer)))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
@@ -3080,7 +3081,7 @@
                     indexer))))))
 
 (defgeneric assign-reference (varray base &optional path path-indexer path-index))
-
+;; ↓dsp 3 3⍴⊂2 2⍴⍳4  0 in (1 1⍴⊂)⍣4⊢0  stpaths¨g∘span¨⍳⍴g
 (defmethod assign-reference ((varray vader-pick) base &optional path path-indexer path-index)
   (let ((base-indexer (generator-of base))
         (assigned-index (if (not path)
@@ -3092,10 +3093,9 @@
     (lambda (index)
       (if (= index assigned-index)
           (if (vapick-selector varray)
-              (make-instance 'vader-select :base (funcall base-indexer index)
-                                           :index-origin (vads-io varray)
-                                           :assign (vapick-assign varray)
-                                           :selector (vapick-selector varray))
+              (make-instance
+               'vader-select :base (funcall base-indexer index) :index-origin (vads-io varray)
+                             :assign (vapick-assign varray) :selector (vapick-selector varray))
               (if (vapick-function varray)
                   (funcall (vapick-function varray)
                            (funcall base-indexer index) (vapick-assign varray))
@@ -3162,7 +3162,8 @@
                        (funcall base-indexer index)))))
            
            (let* ((this-reference (fetch-reference varray (vader-base varray)))
-                  (this-indexer (generator-of this-reference))) ;; IPV-TODO: generator bug!
+                  (this-indexer (if (typep this-reference 'vader-enclose)
+                                    this-reference (generator-of this-reference)))) ;; IPV-TODO: generator bug!
              ;; (print (list :ii this-indexer (vader-base varray) this-reference (render this-reference)))
              (if (varrayp this-indexer)
                  (generator-of this-indexer)
