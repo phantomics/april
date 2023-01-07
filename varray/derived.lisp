@@ -2655,13 +2655,9 @@
                (if (not inner-shape)
                    (lambda (index)
                      (if (vads-axis varray)
-                       ;; (lambda (index)
                          (if (not (functionp base-indexer))
-                             base-indexer ;; (lambda (index)
-                             (funcall base-indexer index))
-                       ;; (render (vader-base varray))
-                       (vader-base varray)
-                       ))
+                             base-indexer (funcall base-indexer index))
+                         (vader-base varray)))
                    (if (functionp base-indexer)
                        (lambda (index)
                          (let* ((sub-indexer (funcall offset-indexer index))
@@ -2673,8 +2669,7 @@
                                                    (prototype-of first-item)
                                                    (apl-array-prototype first-item)))))
                            (make-instance 'vader-subarray
-                                          :prototype prototype
-                                          :base (vader-base varray)
+                                          :prototype prototype :base (vader-base varray)
                                           :shape inner-shape :generator sub-indexer)))
                        base-indexer)))))))
 
@@ -3127,7 +3122,6 @@
                 (shape-of ref))))))
 
 (defmethod generator-of ((varray vader-pick) &optional indexers params)
-  ;; (print (list :ii (vapick-selector varray) (vapick-assign varray)))
   (case (getf params :base-format)
     (:encoded)
     (:linear)
