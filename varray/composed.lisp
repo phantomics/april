@@ -207,13 +207,14 @@
                     (declare (optimize (safety 1)))
                     (let* ((output (funcall (vacmp-left varray)
                                             :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                                                 (vacmp-omega varray))))
-                           (out-indexer (generator-of output)))
+                                                                 (vacmp-omega varray)))))
                       ;; pass the indexer through for a shapeless output as from +/⍳5;
                       ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
                       (if (shape-of output)
-                          output (if (not (functionp out-indexer))
-                                     out-indexer (funcall out-indexer i))))))))
+                          ;; TODO: a (generator-of) as part of an indexer is a big problem
+                          output (let ((out-indexer (generator-of output)))
+                                   (if (not (functionp out-indexer))
+                                       out-indexer (funcall out-indexer i)))))))))
             ((and (or scalar-fn (and catenate-fn (not window)))
                   (= (- axis (vads-io varray))
                      (length out-dims))
