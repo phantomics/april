@@ -1240,9 +1240,9 @@ It remains here as a standard against which to compare methods for composing APL
                 (when (and axes (or (getf fn-meta :axes)
                                     (eq :dyadic args)))
                   (list (if is-scalar `(make-instance
-                                        'vader-operate :function #'-
-                                                       ;; :params (list :lexical-reference #\-)
-                                                       :base (list ,(caar axes) index-origin))
+                                        'vader-calculate :function #'-
+                                        ;; :params (list :lexical-reference #\-)
+                                                         :base (list ,(caar axes) index-origin))
                             (cons 'list (first axes)))))))))
 
 (defmacro value-meta-process (form)
@@ -1329,11 +1329,11 @@ It remains here as a standard against which to compare methods for composing APL
          (declare (ignorable ,ax-sym))
          (case (first ,args)
            (:get-metadata ,(append '(list :scalar t) meta))
-           (:arg-vector (make-instance 'vader-operate
+           (:arg-vector (make-instance 'vader-calculate
                                        :base (second ,args) :index-origin 0 :params (list ,@meta)
                                        :axis ,ax-sym :function ,fn-quoted))
            (:call-scalar (apply ,fn-quoted (rest ,args)))
-           (t (make-instance 'vader-operate
+           (t (make-instance 'vader-calculate
                              :base (if (not ,ax-sym) ,args (butlast ,args))
                              :function ,fn-quoted :index-origin 0 :axis ,ax-sym
                              :params (list ,@meta))))))))
@@ -1366,7 +1366,7 @@ It remains here as a standard against which to compare methods for composing APL
                            :argument (mapcar (lambda (array)
                                                (when array
                                                  (make-instance
-                                                  'vader-operate :function #'-
+                                                  'vader-calculate :function #'-
                                                   :base (list array index-origin))))
                                              (list ,@axes))))
                          ,to-set)

@@ -4,7 +4,7 @@
 (defpackage #:varray
   (:use #:cl)
   (:export #:varray #:varrayp #:etype-of #:shape-of #:size-of #:rank-of #:generator-of
-           #:vrender #:vapri-integer-progression #:vapri-coordinate-identity #:vader-operate
+           #:vrender #:vapri-integer-progression #:vapri-coordinate-identity #:vader-calculate
            #:vader-select #:vader-random #:vader-deal #:vader-without #:vader-umask
            #:vader-index #:vader-shape #:vader-reshape #:vader-depth #:vader-first-dim
            #:vader-compare #:vader-enlist #:vader-membership #:vader-find #:vader-where

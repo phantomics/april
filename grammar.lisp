@@ -1070,8 +1070,8 @@
                                       `(mapcar (lambda (array)
                                                  (when array
                                                    (make-instance
-                                                    'vader-operate :base (list array index-origin)
-                                                    :function #'-)))
+                                                    'vader-calculate :base (list array index-origin)
+                                                                     :function #'-)))
                                                ,(getf (cddr (third form)) :argument))))))))
              
              (set-assn-sym selection-form)
