@@ -131,21 +131,21 @@
                       (apl-array-prototype first-item)))))
 
 (defmethod generator-of ((varray vader-subarray-reduce) &optional indexers params)
-  (let ((base-indexer (generator-of (vader-base varray) indexers params)))
+  (let ((base-gen (generator-of (vader-base varray) indexers params)))
     (if (vasbr-reverse varray)
         (let ((this-length (1- (first (shape-of varray)))))
           (case (getf params :base-format)
             (:encoded)
             (:linear)
             (t (lambda (index)
-                 (funcall base-indexer (+ (* (- this-length index) (vasv-index varray))
-                                          (vasbr-delta varray)))))))
+                 (funcall base-gen (+ (* (- this-length index) (vasv-index varray))
+                                      (vasbr-delta varray)))))))
         (case (getf params :base-format)
           (:encoded)
           (:linear)
           (t (lambda (index)
-               (funcall base-indexer (+ (* index (vasv-index varray))
-                                        (vasbr-delta varray)))))))))
+               (funcall base-gen (+ (* index (vasv-index varray))
+                                    (vasbr-delta varray)))))))))
 
 (defmethod generator-of ((varray vacomp-reduce) &optional indexers params)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
@@ -478,14 +478,13 @@
 (defmethod generator-of ((varray vader-subarray-displaced) &optional indexers params)
   (declare (ignore params))
   (let ((interval (reduce #'* (shape-of varray)))
-        (base-indexer (generator-of (vader-base varray) indexers params)))
+        (base-gen (generator-of (vader-base varray) indexers params)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
-      (t (if (not (functionp base-indexer))
-             base-indexer (lambda (index)
-                            (funcall base-indexer
-                                     (+ index (* interval (vasv-index varray))))))))))
+      (t (if (not (functionp base-gen))
+             base-gen (lambda (index)
+                        (funcall base-gen (+ index (* interval (vasv-index varray))))))))))
 #|
 (defun inverse-outer-product (input function right-original &optional threaded left-original)
   "Find the inverse outer product of an array with a function and a given outer product argument."
@@ -680,7 +679,7 @@
   (prototype-of (vacmp-omega (vader-base varray)))) ;; TODO: fix this to proto from individual frame
 
 (defmethod generator-of ((varray vader-stencil-window) &optional indexers params)
-  (let* ((base-indexer (generator-of (vacmp-omega (vader-base varray))))
+  (let* ((base-gen (generator-of (vacmp-omega (vader-base varray))))
          (idims (apply #'vector (shape-of (vacmp-omega (vader-base varray)))))
          (this-rank (rank-of varray))
          (prototype (prototype-of varray))
@@ -713,7 +712,7 @@
                              (incf ox)
                              (unless (< -1 a-index idim)
                                (setf valid nil))))))
-             (if (not valid) prototype (funcall base-indexer rmi))))))))
+             (if (not valid) prototype (funcall base-gen rmi))))))))
 
 (defclass vader-stencil-margin (varray-derived vad-with-argument)
   ((%index :accessor vaste-index
