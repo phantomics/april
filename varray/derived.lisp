@@ -2902,8 +2902,8 @@
                 (let* ((arg-rendered (render (vads-argument varray)))
                        ;; TODO: why can't (vector item) be used below?
                        (arg-vector (if (not (typep arg-rendered 'sequence))
-                                       arg-rendered (coerce arg-rendered 'vector)))
-                       (base-indexer (base-indexer-of varray))) ;; TODO: remove base-indexer-of
+                                       arg-rendered (coerce arg-rendered 'vector))))
+                  (shape-of varray) ;; needed to replace :last axis with actual last axis index
                   (when (or (integerp arg-rendered)
                             (< 0 (size-of arg-vector)))
                     (indexer-expand arg-vector (shape-of (vader-base varray))

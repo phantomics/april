@@ -68,9 +68,6 @@
 (defgeneric indexer-of (varray &optional params)
   (:documentation "Get an indexing function for an array."))
 
-(defgeneric base-indexer-of (varray &optional params)
-  (:documentation "Get an indexing function for a virtual array's base."))
-
 (defgeneric sub-indexer-of (varray)
   (:documentation "Get a sub-indexing function for an array."))
 
@@ -835,18 +832,3 @@
 (defmethod shape-of ((varray varray-derived))
   "The default shape of a derived array is the same as the original array."
   (get-promised (varray-shape varray) (shape-of (vader-base varray))))
-
-(defmethod base-indexer-of ((varray varray-derived) &optional params)
-  "The default shape of a derived array is the same as the original array."
-  (let ((this-shape (shape-of varray)))
-    (generator-of (vader-base varray) nil
-                  (append (list :shape-deriving (if (typep varray 'vader-reshape)
-                                                  (shape-of varray)
-                                                  (if (and (typep varray 'vader-section)
-                                                           (= 1 (size-of (vads-argument varray))))
-                                                      (funcall (lambda (item)
-                                                                 (if (typep item 'sequence)
-                                                                     (coerce item 'list)
-                                                                     (list item)))
-                                                               (render (vads-argument varray))))))
-                        params))))
