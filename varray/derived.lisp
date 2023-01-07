@@ -1929,11 +1929,11 @@
 (defmethod etype-of ((varray vader-mix))
   (let ((base-gen (generator-of (vader-base varray))))
     ;; (or (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
-    ;;                                   :when (and (functionp base-indexer)
-    ;;                                              (< 0 (size-of (funcall base-indexer aix))))
-    ;;                                     :collect (etype-of (funcall base-indexer aix))
-    ;;                                   :when (not (functionp base-indexer))
-    ;;                                     :collect (assign-element-type base-indexer)))
+    ;;                                   :when (and (functionp base-gen)
+    ;;                                              (< 0 (size-of (funcall base-gen aix))))
+    ;;                                     :collect (etype-of (funcall base-gen aix))
+    ;;                                   :when (not (functionp base-gen))
+    ;;                                     :collect (assign-element-type base-gen)))
     ;;     t)
     ;; above is very slow
     t
@@ -2388,7 +2388,7 @@
                                                            (if (functionp indexer)
                                                                (funcall indexer 0) 0))))
                                      ;; (print (list :in indexer indexed (render (vader-base varray))
-                                     ;;              base-indexer))
+                                     ;;              base-gen))
                                      (if indexed
                                          (if (functionp base-gen)
                                              (aplesque:make-empty-array
@@ -2924,12 +2924,9 @@
                        (composite-indexer (join-indexers indexers)))
                    (lambda (index)
                      (let ((indexed (funcall indexer (funcall composite-indexer index))))
-                       ;; (print (list :pro (prototype-of varray)))
-                       (if (not indexed) prototype
-                           ;; (print (list :gen index generator indexed))
-                           ;; (print (list :cc indexed generator is-negative))
-                           (if (not (functionp generator))
-                               generator (funcall generator indexed))))))
+                       (if (not indexed)
+                           prototype (if (not (functionp generator))
+                                         generator (funcall generator indexed))))))
                  (generator-of (vader-base varray)
                                (cons indexer indexers))))))))
 
