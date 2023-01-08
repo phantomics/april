@@ -1923,7 +1923,9 @@
                  (make-instance 'vader-subarray :prototype (prototype-of (vader-base varray))
                                                 :shape output-shape :base (vader-base varray)))
              (if (not inner-shape)
-                 ;; test case: ⊃,/,⍬{{,⊂⍵}¨⍺∘,∘⊂¨⍳⍴⍵} (1 1⍴⊂)⍣1⊢0
+                 ;; test case: (april-c (with (:unrendere)) "{⊃,/,,∘⊂¨⍵}" #2A((#(#*11))))
+                 ;; (april-c (with (:unrendere)) "{⊃,∘⊂¨⍵}" #2A((#(#*11))))
+                 
                  ;; (if (vads-axis varray)
                  ;;     (lambda (index) (if (not (functionp base-gen))
                  ;;                         base-gen (funcall base-gen index)))
@@ -2381,10 +2383,13 @@
       (shape-of (vader-base varray))
       (if (zerop (size-of (vader-base varray)))
           (shape-of (prototype-of (vader-base varray)))
-          
           (let* ((ref (fetch-reference varray (vader-base varray)))
                  (this-indexer (generator-of ref)))
-            (if (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
+            ;; (print (list :re ref (shape-of ref) (generator-of ref)))
+            (if (and (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
+                     (not (typep ref 'vader-pare)))
+                ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
+                ;; is there another way to do this? 
                 (if (arrayp this-indexer)
                     (shape-of (row-major-aref this-indexer 0))
                     (when (arrayp ref)
@@ -2426,12 +2431,16 @@
                        (funcall base-gen index)))))
            
            (let* ((this-ref (fetch-reference varray (vader-base varray)))
-                  (this-gen (if (typep this-ref 'vader-enclose)
-                                    this-ref (generator-of this-ref)))) ;; IPV-TODO: generator bug!
+                  (this-gen (if (or (typep this-ref 'vader-enclose)
+                                    (typep this-ref 'vader-pare))
+                                ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
+                                ;; is there another way to do this?
+                                this-ref (generator-of this-ref)))) ;; IPV-TODO: generator bug!
              ;; TODO: there's a problem with the pick in i.e. 0 in (1 1⍴⊂)⍣4⊢0 (in array-lib-space)
              ;; when the vader-enclose generator just returns its base with no enclosing function,
              ;; find out what's wrong - rewriting of the enclose and pick classes may be needed
-             ;; (print (list :ii this-indexer (vader-base varray) this-ref (render this-ref)))
+             ;; (print (list :ii this-gen (vader-base varray) this-ref (render this-ref)
+             ;;              (shape-of varray)))
              (if (varrayp this-gen)
                  (generator-of this-gen)
                  (if (not (arrayp this-gen))

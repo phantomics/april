@@ -1,9 +1,9 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:Varray -*-
-;;;; derived.lisp
+;;;; calculate.lisp
 
 (in-package #:varray)
 
-"Definitions of virtual arrays derived from other arrays, implementing most APL array processing functions."
+"Definition of virtual array element implementing calculations over arrays, as for 1+1 2 3."
 
 (defclass vader-calculate (vad-subrendering varray-derived vad-on-axis vad-with-io)
   ((%params :accessor vaop-params
