@@ -13,6 +13,7 @@
                (:file "index")
                (:file "primal")
                (:file "derived")
+               (:file "calculate")
                (:file "select")
                (:file "combinatorics")
                (:file "composed")))
