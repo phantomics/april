@@ -567,7 +567,7 @@
         (let ((gen (and coordinate-type en-type
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
                                                        :format :encoded :base-format :encoded :indexers nil)))))
-
+          ;; (print (list :ge gen))
           (multiple-value-bind (indexer is-not-defaulting)
               (if gen (values gen t)
                   (generator-of varray nil (rest (getf metadata :gen-meta))))

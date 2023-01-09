@@ -12,7 +12,7 @@
            #:vader-mix #:vader-split #:vader-section #:vader-enclose #:vader-partition
            #:vader-pick #:vader-intersection #:vader-unique #:vader-union #:vader-turn
            #:vader-permute #:vader-expand #:vader-grade #:vader-matrix-inverse
-           #:vader-matrix-divide #:vader-encode #:vader-decode #:vader-identity
+           #:vader-matrix-divide #:vader-encode #:vader-decode #:vader-identity #:vader-subarray
            #:vader-subarray-displaced #:vader-composing #:op-compose #:vacomp-reduce
            #:vacomp-scan #:vacomp-each #:vacomp-produce #:vacomp-stencil
            #:inverse-count-to #:varray-compare)

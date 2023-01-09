@@ -965,8 +965,8 @@
     (if contains-varrays
         (let ((item-vector (make-array (length items) :element-type type :initial-contents items)))
           (make-instance
-           'varray::vader-subarray :base item-vector :shape (shape-of item-vector)
-                                   :subrendering t :generator (varray::generator-of item-vector)))
+           'vader-subarray :base item-vector :shape (shape-of item-vector)
+                           :subrendering t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
   
 (defun parse-apl-number-string (number-string &optional component-of)
