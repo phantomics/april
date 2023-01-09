@@ -2346,7 +2346,7 @@
                                                    (not (typep base 'vader-mix)))
                                                bix (row-major-aref bix 0)))))))
                     ;; (print (list :ind indexer base-gen base (shape-of base) (prototype-of base)
-                    ;;              (render indexer)))
+                    ;;              (render indexer) (render base)))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
@@ -2438,6 +2438,7 @@
            
            (let* ((this-ref (fetch-reference varray (vader-base varray)))
                   (this-gen (if (or (typep this-ref 'vader-enclose)
+                                    (typep this-ref 'vacomp-reduce)
                                     (typep this-ref 'vader-pare))
                                 ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
                                 ;; is there another way to do this?
@@ -2448,6 +2449,10 @@
              ;; (print (list :ii this-gen (vader-base varray) this-ref (render this-ref)
              ;;              (shape-of varray)))
              (if (varrayp this-gen)
+                 ;; the below clause fixes the case of 0 in (1 1⍴⊂)⍣4⊢0 in array-lib-space,
+                 ;; but causes more problems to manifest
+                 ;; (and (varrayp this-gen)
+                 ;;      (not (typep (vader-base varray) 'vacomp-reduce)))
                  (generator-of this-gen)
                  (if (not (arrayp this-gen))
                      this-gen (generator-of (row-major-aref this-gen
