@@ -517,7 +517,8 @@
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
     (when (and (typep (vader-base varray) 'vader-subarray)
-               (vads-subrendering (vader-base varray)))
+               (vads-subrendering (vader-base varray))
+               (< (size-of (vader-base varray)) (size-of varray)))
       ;; render the base if it's a subarray with subrendering enabled, as for
       ;; 2 2⍴(⊂2 2⍴⍳4) 2 3, where the enclosed subarray will otherwise attempt to render twice
       ;; and cause a race condition - TODO: is there a more efficient way to do this?
@@ -1846,8 +1847,8 @@
                             (error "Size of partitions exceeds size of input array on axis ~w." axis)))
                       
                       (setf (vads-shapeset varray)
-                            (or (when positions (coerce (reverse intervals) 'vector))
-                                t))
+                            (if (not positions)
+                                t (coerce (reverse intervals) 'vector)))
 
                       (if positions (list (1- (length intervals)))
                           (when axis (let ((outer-shape) (inner-shape)
@@ -2317,9 +2318,9 @@
                                                    ;; TODO: condense successive picks like ⍵⊃⊃ into one
                                                    (let ((bix (funcall base-gen 0)))
                                                      ;; (print (list :ib bix path-value))
-                                                     (if (not (arrayp bix))
-                                                         (funcall (generator-of bix) path-value)
-                                                         (row-major-aref bix path-value)))
+                                                     (if (arrayp bix)
+                                                         (row-major-aref bix path-value)
+                                                         (funcall (generator-of bix) path-value)))
                                                    (funcall base-gen path-value)))))
                               (when (and (not (shape-of indexer))
                                          (or (arrayp indexer) (varrayp indexer)))
@@ -2336,11 +2337,14 @@
                                                   (not (functionp base-gen))))
                                          ;; return just the base indexer in cases like ⊃3
                                          (or base-gen (prototype-of base))
-                                         (funcall (generator-of base-gen) 0))
+                                         (let ((sub-gen (generator-of base-gen)))
+                                           (if (not (functionp sub-gen))
+                                               sub-gen (funcall (generator-of base-gen) 0))))
                                      ;; otherwise return the 1st element, as for ⊃,/1+0×⊂1 2 3
                                      (if (zerop (size-of base))
                                          (prototype-of base)
                                          (let ((bix (funcall base-gen 0)))
+                                           ;; (print (list :bb bix))
                                            (if (or (not (arrayp bix))
                                                    ;; TODO: special mix case, generalize
                                                    (not (typep base 'vader-mix)))
@@ -2351,7 +2355,9 @@
                                (or (arrayp indexer)
                                    (varrayp indexer)))
                       (setf (vads-subrendering varray) t))
-                    indexer))))))
+                    (if (typep indexer 'vader-pick)
+                        base-gen
+                        indexer)))))))
 
 (defgeneric assign-reference (varray base &optional path path-indexer path-index))
 
@@ -2438,7 +2444,7 @@
            
            (let* ((this-ref (fetch-reference varray (vader-base varray)))
                   (this-gen (if (or (typep this-ref 'vader-enclose)
-                                    (typep this-ref 'vacomp-reduce)
+                                    ;; (typep this-ref 'vacomp-reduce)
                                     (typep this-ref 'vader-pare))
                                 ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
                                 ;; is there another way to do this?
@@ -2448,6 +2454,7 @@
              ;; find out what's wrong - rewriting of the enclose and pick classes may be needed
              ;; (print (list :ii this-gen (vader-base varray) this-ref (render this-ref)
              ;;              (shape-of varray)))
+             ;; (setf april::ggh this-gen)
              (if (varrayp this-gen)
                  ;; the below clause fixes the case of 0 in (1 1⍴⊂)⍣4⊢0 in array-lib-space,
                  ;; but causes more problems to manifest
