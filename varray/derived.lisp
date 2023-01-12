@@ -2284,13 +2284,11 @@
              (path-indexer (generator-of path))
              (path-length (size-of path))
              (base-gen (generator-of base)))
-        ;; (print (list :pa path))
         (if path
             (let ((path-value (get-path-value varray (if (not (functionp path-indexer))
                                                          path-indexer (funcall path-indexer
                                                                                (or path-index 0)))
                                               base)))
-              ;; (print (list :pt path-value path-index path path-index))
               (if path-index (if (/= path-index (1- path-length))
                                  (fetch-reference varray (funcall base-gen path-value)
                                                   path (1+ (or path-index 0)))
@@ -2331,33 +2329,36 @@
                                              path (1+ (or path-index 0)))))))
             (setf (vapick-reference varray)
                   ;; the 'vader-pick clause handles nested pick references like 2⊃⊃⊃{,/⍵}/3⍴⊂⍳3
-                  (let ((indexer (if (not (functionp base-gen))
+                  (let ((indexer (if (functionp base-gen)
+                                     ;; return the 1st element, as for ⊃,/1+0×⊂1 2 3
+                                     (if (zerop (size-of base))
+                                         (prototype-of base)
+                                         (let ((bix (funcall base-gen 0)))
+                                           ;; (print (list :bb bix (size-of base)))
+                                           (if (typep bix 'vader-pick)
+                                               ;; needed for i.e. 0 in (1 1⍴⊂)⍣4⊢0
+                                               base-gen (if (or (not (arrayp bix))
+                                                                ;; TODO: special mix case, generalize
+                                                                (not (typep base 'vader-mix)))
+                                                            bix (row-major-aref bix 0)))))
                                      (if (or (shape-of base-gen)
                                              (and (not (varrayp base-gen))
                                                   (not (functionp base-gen))))
                                          ;; return just the base indexer in cases like ⊃3
                                          (or base-gen (prototype-of base))
                                          (let ((sub-gen (generator-of base-gen)))
-                                           (if (not (functionp sub-gen))
-                                               sub-gen (funcall (generator-of base-gen) 0))))
-                                     ;; otherwise return the 1st element, as for ⊃,/1+0×⊂1 2 3
-                                     (if (zerop (size-of base))
-                                         (prototype-of base)
-                                         (let ((bix (funcall base-gen 0)))
-                                           ;; (print (list :bb bix))
-                                           (if (or (not (arrayp bix))
-                                                   ;; TODO: special mix case, generalize
-                                                   (not (typep base 'vader-mix)))
-                                               bix (row-major-aref bix 0)))))))
+                                           (if (functionp sub-gen)
+                                               (funcall (generator-of base-gen) 0)
+                                               (if (= 1 (size-of base-gen))
+                                                   ;; handle the case of i.e. ⊃⊃,/⊂⊂⍳3
+                                                   base-gen sub-gen)))))))
                     ;; (print (list :ind indexer base-gen base (shape-of base) (prototype-of base)
                     ;;              (render indexer) (render base)))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
                       (setf (vads-subrendering varray) t))
-                    (if (typep indexer 'vader-pick)
-                        base-gen
-                        indexer)))))))
+                    indexer))))))
 
 (defgeneric assign-reference (varray base &optional path path-indexer path-index))
 
