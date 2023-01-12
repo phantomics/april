@@ -399,6 +399,8 @@
                        (ashape (shape-of (vacmp-alpha varray)))
                        (osize (reduce #'* oshape))
                        (asize (reduce #'* ashape)))
+                  ;; (print (list :oo (vacmp-omega varray) (vacmp-alpha varray)
+                  ;;              oshape ashape (render (vacmp-alpha varray))))
                   (if oshape (if (not ashape)
                                  oshape (if (= 1 osize)
                                             (if (zerop asize) oshape ashape)
@@ -559,6 +561,7 @@
                    (lambda (index)
                      (let ((avix (floor index ovectors))
                            (ovix (mod index ovectors)))
+                       ;; (print (list :aai aindexer alpha))
                        (if (= 0 orank arank)
                            (funcall (vacmp-right varray) omega alpha)
                            (make-instance
@@ -575,7 +578,8 @@
                                                               'vader-subarray-reduce
                                                               :delta ovix :index ovectors
                                                               :base omega :shape oshape))
-                                                  :alpha (if (not (functionp aindexer))
+                                                  :alpha (if (and (not (functionp aindexer))
+                                                                  (not (shape-of aindexer)))
                                                              aindexer
                                                              (make-instance 'vader-subarray-displaced
                                                                             :base alpha :index avix

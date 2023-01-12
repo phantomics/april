@@ -1930,9 +1930,7 @@
                  (make-instance 'vader-subarray :prototype (prototype-of (vader-base varray))
                                                 :shape output-shape :base (vader-base varray)))
              (if (not inner-shape)
-                 ;; test case: (april-c (with (:unrendere)) "{⊃,/,,∘⊂¨⍵}" #2A((#(#*11))))
-                 ;; (april-c (with (:unrendere)) "{⊃,∘⊂¨⍵}" #2A((#(#*11))))
-                 
+ 
                  ;; (if (vads-axis varray)
                  ;;     (lambda (index) (if (not (functionp base-gen))
                  ;;                         base-gen (funcall base-gen index)))
