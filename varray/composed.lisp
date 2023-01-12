@@ -151,8 +151,11 @@
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
   (let ((irank (rank-of (vacmp-omega varray)))
         (osize (size-of (vacmp-omega varray))))
+    ;; (print (list :ii irank (vacmp-omega varray)))
     (if (or (> 2 osize) (vacred-unitary varray))
-        (if (zerop irank) (generator-of (vacmp-omega varray))
+        (if (zerop irank)
+            (generator-of (vacmp-omega varray))
+            ;; (vacmp-omega varray)
             ;; return just the omega indexer in cases like +/2 2 1⍴'a'
             (if (zerop osize)
                 (let ((fn-meta (funcall (vacmp-left varray) :get-metadata nil)))
@@ -381,10 +384,10 @@
                                                     (funcall fn-rendered value (disclose original))))))))
                 (setf (row-major-aref output i) value)))
             (setf (vader-content varray) output))))
-      (case (getf params :base-format)
-        (:encoded)
-        (:linear)
-        (t (generator-of (vader-content varray))))))
+    (case (getf params :base-format)
+      (:encoded)
+      (:linear)
+      (t (generator-of (vader-content varray))))))
 
 (defclass vacomp-each (vad-subrendering vader-composing)
   nil (:metaclass va-class)
@@ -561,7 +564,6 @@
                    (lambda (index)
                      (let ((avix (floor index ovectors))
                            (ovix (mod index ovectors)))
-                       ;; (print (list :aai aindexer alpha))
                        (if (= 0 orank arank)
                            (funcall (vacmp-right varray) omega alpha)
                            (make-instance
@@ -580,6 +582,9 @@
                                                               :base omega :shape oshape))
                                                   :alpha (if (and (not (functionp aindexer))
                                                                   (not (shape-of aindexer)))
+                                                             ;; TODO: can the functionp condition be
+                                                             ;; removed? May need to revist operators'
+                                                             ;; enclose logic
                                                              aindexer
                                                              (make-instance 'vader-subarray-displaced
                                                                             :base alpha :index avix
