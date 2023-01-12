@@ -155,7 +155,8 @@
     (if (or (> 2 osize) (vacred-unitary varray))
         (if (zerop irank)
             (generator-of (vacmp-omega varray))
-            ;; (vacmp-omega varray)
+            ;; (lambda (index) (declare (ignore index)) (vacmp-omega varray))
+            ;; (vacmp-omega varray) ;; TODO: change the function return to return just the omega
             ;; return just the omega indexer in cases like +/2 2 1⍴'a'
             (if (zerop osize)
                 (let ((fn-meta (funcall (vacmp-left varray) :get-metadata nil)))
