@@ -1096,7 +1096,12 @@
             (is "⍴0 1 0 1/0 4⍴0" #(0 2))
             (is "⍴5/0 4⍴0" #(0 20))
             (is "⍴2 3/[2]0 2 0⍴0" #(0 5 0))
-            (is "⍴0/2 3 4⍴⍳9" #(2 3 0))))
+            (is "⍴0/2 3 4⍴⍳9" #(2 3 0))
+            (is "+/⊂⊂⍳3" #0A#0A#(1 2 3))
+            (is "+/,⊂⊂⍳3" #0A#0A#(1 2 3))
+            (is "+/⍬,⊂⊂⍳3" #0A#0A#(1 2 3))
+            (is "+/1⍴⊂⍳3" #0A#(1 2 3))
+            (is "↑+/⍬,⊂⊂⍳3" #0A#(1 2 3))))
   (⌿ (has :title "Replicate First")
      (dyadic (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
                                                :inverse t :axis (or (first axes) index-origin))))
