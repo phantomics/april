@@ -1208,7 +1208,7 @@
                  (let ((indexed (funcall (aref indexers array-index) row-major-index)))
                    (if (not (subrendering-p indexed))
                        indexed (render indexed)))
-                 (disclose (aref indexers array-index)))))))))
+                 (aref indexers array-index))))))))
 
 (defclass vader-mix (varray-derived vad-on-axis vad-with-io)
   ((%shape-indices :accessor vamix-shape-indices
@@ -1255,7 +1255,6 @@
                  (not (varrayp base-gen)))
             base-shape) ;; handle the ↑⍬ case
            ((not base-shape)
-            ;; (print (list :bb base base-gen))
             (setf (vamix-cached-elements varray)
                   (if (not (functionp base-gen))
                       base-gen (funcall base-gen 0)))
@@ -1312,7 +1311,10 @@
       (:linear)
       (t (if (not oshape) ;; if the argument is a scalar
              (if (not (functionp oindexer)) ;; a scalar value like 5
-                 (lambda (i) (declare (ignore i)) (disclose oindexer))
+                 ;; (lambda (i) (declare (ignore i)) (disclose oindexer))
+                 (if (or (not (varrayp oindexer))
+                         (typep (vader-base varray) 'vader-enclose))
+                     oindexer (make-instance 'vader-pick :base (vader-base varray)))
                  ;; TODO: change indexer-of for rank 0 arrays to obviate this
                  (let* ((indexed (funcall oindexer 0))
                         (iindexer (generator-of indexed))
@@ -1351,8 +1353,7 @@
                                   (irank (length ishape))
                                   (doffset (- inner-rank irank))
                                   (iindex 0))
-                             (if (not (shape-of varray))
-                                 (when (zerop (reduce #'+ inner-indices)) iindexer)
+                             (if (shape-of varray)
                                  (progn (loop :for i :in inner-indices :for ix :from 0 :while iindex
                                               :do (if (< ix doffset) (if (not (zerop i))
                                                                          (setf iindex nil))
@@ -1363,7 +1364,9 @@
                                                           (setf iindex nil))))
                                         (if (not iindex) prototype
                                             (if (not (functionp iindexer))
-                                                iindexer (funcall iindexer iindex))))))))))))))))
+                                                iindexer (funcall iindexer iindex))))
+                                 (when (zerop (reduce #'+ inner-indices)) iindexer)
+                                 ))))))))))))
 
 (defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:metaclass va-class)
@@ -1931,15 +1934,15 @@
                                                 :shape output-shape :base (vader-base varray)))
              (if (not inner-shape)
  
-                 ;; (if (vads-axis varray)
-                 ;;     (lambda (index) (if (not (functionp base-gen))
-                 ;;                         base-gen (funcall base-gen index)))
-                 ;;     (vader-base varray))
-                 (lambda (index)
-                   (if (vads-axis varray)
-                       (if (not (functionp base-gen))
-                           base-gen (funcall base-gen index))
-                       (vader-base varray)))
+                 (if (vads-axis varray)
+                     (lambda (index) (if (not (functionp base-gen))
+                                         base-gen (funcall base-gen index)))
+                     (vader-base varray))
+                 ;; (lambda (index)
+                 ;;   (if (vads-axis varray)
+                 ;;       (if (not (functionp base-gen))
+                 ;;           base-gen (funcall base-gen index))
+                 ;;       (vader-base varray)))
                  (if (functionp base-gen)
                      (lambda (index)
                        (let* ((sub-indexer (funcall offset-indexer index))
