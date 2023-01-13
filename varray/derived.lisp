@@ -1932,31 +1932,24 @@
                                                     :shape (or this-shape '(1)) :base (vader-base varray))))
                  (make-instance 'vader-subarray :prototype (prototype-of (vader-base varray))
                                                 :shape output-shape :base (vader-base varray)))
-             (if (not inner-shape)
- 
+             (if inner-shape (if (functionp base-gen)
+                                 (lambda (index)
+                                   (let* ((sub-indexer (funcall offset-indexer index))
+                                          (first-item (funcall sub-indexer 0))
+                                          (prototype (if (not output-shape)
+                                                         (aplesque::make-empty-array
+                                                          (vader-base varray))
+                                                         (if (varrayp first-item)
+                                                             (prototype-of first-item)
+                                                             (apl-array-prototype first-item)))))
+                                     (make-instance 'vader-subarray
+                                                    :prototype prototype :base (vader-base varray)
+                                                    :shape inner-shape :generator sub-indexer)))
+                                 base-gen)
                  (if (vads-axis varray)
-                     (lambda (index) (if (not (functionp base-gen))
-                                         base-gen (funcall base-gen index)))
-                     (vader-base varray))
-                 ;; (lambda (index)
-                 ;;   (if (vads-axis varray)
-                 ;;       (if (not (functionp base-gen))
-                 ;;           base-gen (funcall base-gen index))
-                 ;;       (vader-base varray)))
-                 (if (functionp base-gen)
-                     (lambda (index)
-                       (let* ((sub-indexer (funcall offset-indexer index))
-                              (first-item (funcall sub-indexer 0))
-                              (prototype (if (not output-shape)
-                                             (aplesque::make-empty-array
-                                              (vader-base varray))
-                                             (if (varrayp first-item)
-                                                 (prototype-of first-item)
-                                                 (apl-array-prototype first-item)))))
-                         (make-instance 'vader-subarray
-                                        :prototype prototype :base (vader-base varray)
-                                        :shape inner-shape :generator sub-indexer)))
-                     base-gen)))))))
+                     (if (not (functionp base-gen))
+                         base-gen (lambda (index) (funcall base-gen index)))
+                     (vader-base varray))))))))
 
 (defclass vader-partition (vad-subrendering varray-derived vad-on-axis vad-with-io
                            vad-with-argument vad-maybe-shapeless)
@@ -2446,7 +2439,6 @@
            
            (let* ((this-ref (fetch-reference varray (vader-base varray)))
                   (this-gen (if (or (typep this-ref 'vader-enclose)
-                                    ;; (typep this-ref 'vacomp-reduce)
                                     (typep this-ref 'vader-pare))
                                 ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
                                 ;; is there another way to do this?
@@ -2456,12 +2448,7 @@
              ;; find out what's wrong - rewriting of the enclose and pick classes may be needed
              ;; (print (list :ii this-gen (vader-base varray) this-ref (render this-ref)
              ;;              (shape-of varray)))
-             ;; (setf april::ggh this-gen)
              (if (varrayp this-gen)
-                 ;; the below clause fixes the case of 0 in (1 1⍴⊂)⍣4⊢0 in array-lib-space,
-                 ;; but causes more problems to manifest
-                 ;; (and (varrayp this-gen)
-                 ;;      (not (typep (vader-base varray) 'vacomp-reduce)))
                  (generator-of this-gen)
                  (if (not (arrayp this-gen))
                      this-gen (generator-of (row-major-aref this-gen
@@ -2809,19 +2796,15 @@
                                              'vector)
                                      (- argument (vads-io varray))))
                                (and (vads-argument varray) (vaperm-is-diagonal varray))
-                               enco-type coord-type
-                               ;;(when (not (vaperm-is-diagonal varray)) coord-type)
-                               assigning))
+                               enco-type coord-type assigning))
                      (all-indexers))
                 (when indexer
-                  ;; (print (list :ind all-indexers))
                   (when (eq :linear (getf params :format))
                     (push (encode-rmi (get-dimensional-factors (shape-of varray) t)
                                       enco-type coord-type)
                           all-indexers)
                     (setf (getf params :format) :encoded))
                   (push indexer all-indexers)
-                  ;; (print (list :ggg indexer all-indexers))
                   (generator-of (vader-base varray) (append all-indexers indexers)
                                 params))))
     (:linear)
