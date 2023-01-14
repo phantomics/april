@@ -1249,7 +1249,7 @@
           (base-shape (shape-of base))
           (base-gen (generator-of base))
           (max-rank 0) (each-shape))
-     ;; (print (list :ba base-gen base-shape (render base) (shape-of base)))
+     ;; (print (list :ba base base-gen base-shape (render base) (shape-of base)))
      (cond ((and (not (functionp base-gen))
                  (not (arrayp base-gen))
                  (not (varrayp base-gen)))
@@ -1260,7 +1260,8 @@
                       base-gen (funcall base-gen 0)))
             (shape-of (vamix-cached-elements varray)))
            (t (loop :for ix :below (reduce #'* base-shape)
-                    :do (let ((member (funcall base-gen ix)))
+                    :do (let ((member (if (not (functionp base-gen))
+                                          base-gen (funcall base-gen ix))))
                           (setf max-rank (max max-rank (length (shape-of member))))
                           (push (shape-of member) each-shape)))
               (let ((out-shape) (shape-indices)
@@ -1306,6 +1307,8 @@
          (iofactors (get-dimensional-factors outer-shape t)))
     ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
     ;; (print (list :os oshape oindexer (render oindexer)))
+    ;; (if (not (functionp oindexer))
+    ;;     (setf oindexer (generator-of oindexer)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
@@ -1341,7 +1344,7 @@
                                        (setf remaining remainder)
                                        (if (> orank di) (push this-index outer-indices)
                                            (push this-index inner-indices))))
-
+                           ;; (print (list :oin oindexer))
                            (let* ((inner-indices (reverse inner-indices))
                                   (oindex (unless iarray
                                             (loop :for i :in (reverse outer-indices)
@@ -1365,8 +1368,7 @@
                                         (if (not iindex) prototype
                                             (if (not (functionp iindexer))
                                                 iindexer (funcall iindexer iindex))))
-                                 (when (zerop (reduce #'+ inner-indices)) iindexer)
-                                 ))))))))))))
+                                 (when (zerop (reduce #'+ inner-indices)) iindexer)))))))))))))
 
 (defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:metaclass va-class)

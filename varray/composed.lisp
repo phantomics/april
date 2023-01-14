@@ -458,7 +458,13 @@
              (lambda (index)
                (funcall (vacmp-left varray)
                         (if (not (functionp oindexer))
-                            oindexer (funcall oindexer (if oshape index 0))))))))))
+                            oindexer (funcall oindexer (if oshape index 0)))))
+             ;; (if (not (functionp oindexer)) ;; ∧/,∘.=⍨⍤1⊢⍉↑{⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+             ;;     (funcall (vacmp-left varray) oindexer)
+             ;;     (funcall (vacmp-left varray)
+             ;;                (if nil ; (not (functionp oindexer))
+             ;;                    oindexer (funcall oindexer (if oshape index 0)))))
+             )))))
 
 (defclass vacomp-produce (vad-subrendering vader-composing vad-with-io
                           vad-with-default-axis vad-invertable)
