@@ -1104,7 +1104,8 @@
             (is "↑+/⍬,⊂⊂⍳3" #0A#(1 2 3))
             (is "+/1 1 1⍴1" #2A((1)))
             (is "+/1 1⍴1" #(1))
-            (is "+/2 2 1⍴'a'" #2A((#\a #\a) (#\a #\a)))))
+            (is "+/2 2 1⍴'a'" #2A((#\a #\a) (#\a #\a)))
+            (is "⊃,/(⊂1 1)/¨⊂2 3" #(2 3))))
   (⌿ (has :title "Replicate First")
      (dyadic (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
                                                :inverse t :axis (or (first axes) index-origin))))
