@@ -1101,7 +1101,10 @@
             (is "+/,⊂⊂⍳3" #0A#0A#(1 2 3))
             (is "+/⍬,⊂⊂⍳3" #0A#0A#(1 2 3))
             (is "+/1⍴⊂⍳3" #0A#(1 2 3))
-            (is "↑+/⍬,⊂⊂⍳3" #0A#(1 2 3))))
+            (is "↑+/⍬,⊂⊂⍳3" #0A#(1 2 3))
+            (is "+/1 1 1⍴1" #2A((1)))
+            (is "+/1 1⍴1" #(1))
+            (is "+/2 2 1⍴'a'" #2A((#\a #\a) (#\a #\a)))))
   (⌿ (has :title "Replicate First")
      (dyadic (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
                                                :inverse t :axis (or (first axes) index-origin))))
@@ -1122,7 +1125,8 @@
                                     (2 3 4 5 6) (2 3 4 5 6) (2 3 4 5 6)))
             (is "1 ¯2 3 ¯4 5⌿[2]3 5⍴⍳5" #2A((1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
                                             (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)
-                                            (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))))
+                                            (1 0 0 3 3 3 0 0 0 0 5 5 5 5 5)))
+            (is "+⌿1 2 2⍴'a'" #2A((#\a #\a) (#\a #\a)))))
   (\\ (has :title "Expand")
       (dyadic (λωα (make-instance 'vader-expand :base omega :argument alpha :index-origin index-origin
                                                 :axis (or (first axes) :last))))
