@@ -25,9 +25,9 @@ FH,←  ⊂'Press [G] for the next generation, [R] to restart or [Q] to quit.'
 FH,←  ⊂'Press [G] to see the next generation, [R] to restart with a random matrix or [Q] to quit.'
    ⍝ footer headers with varying widths for use depending on terminal width
 
-GC ← 'Generation:'  ⍝ generation caption
+GC ← 'Generation:' ⍝ generation index caption
 
-F  ← {↑(⊂⍵),⊂GC}¨FH ⍝ append generation line to each footer
+F  ← {↑⍵ GC}¨FH    ⍝ append generation index line to each footer
 
 GI ← 0    ⍝ generation index
 FB ← '━'  ⍝ footer boundary character
@@ -45,13 +45,13 @@ GCL       ← 1+≢GC ⍝ width of generation label field
 
 G ← ' ' {(⍺,0)⍪⍵[1;] {(⍪⍸×⍵),⍨⍪⍺⌷⍨⊂⍵~0} ⍵[2;] {⍺{⍵×⍵≤⍴⍺}⍺⍳⍵} {2⊥,(2 2⍴0)⍷3 3⍴(9⍴2)⊤⍵}¨⍳2*9} decodings
   ⍝ map of binary decodings of stencil matrices to box characters
-G ⍪← (csIndex⊃xChars),⍪xDecInts
+G⍪← (csIndex⊃xChars),⍪xDecInts
 M ← ⍬ ⍝ the character matrix
 ")
 
 (defun build-screen (height width)
-  (setf *glyphs* (make-array (* height width)
-                             :element-type 'character :initial-element #\ )
+  (setf *glyphs*    (make-array (* height width)
+                                :element-type 'character :initial-element #\ )
         *bg-colors* (when (>= ncurses:colors 256)
                       (make-array (* height width)
                                   :element-type '(unsigned-byte 8) :initial-element 0)))
@@ -96,9 +96,9 @@ M[⍳H-3;]←G trace L   ⍝ assign main display area containing box-traces of c
 M[H;GCL+⍳12]←12↑⍕GI  ⍝ print generation number; supports up to 12 digits
 ")
 
-          (pdotimes (i field-size) (funcall updater i glyphs colors))
           ;; print the active life field in parallel, omitting the last 3 rows
-            
+          (pdotimes (i field-size) (funcall updater i glyphs colors))
+          
           ;; print just the generation index unless a rebuild is happened and it
           ;; should be printed along with the rest of the screen footer
           (if rebuilding (pdotimes (i (* width 3))
