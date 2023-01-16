@@ -368,9 +368,9 @@
                "the precision at which to print floating-point numbers."))
       ;; only right-indent if this is a nested array; this is important for box-drawing functions
       (when (arrayp input)
-        (xdotimes input (x (size input))
-          (when (arrayp (row-major-aref input x))
-            (setf is-not-nested nil))))
+        (loop :for x :below (size input) :while is-not-nested
+              :do (when (arrayp (row-major-aref input x))
+                    (setf is-not-nested nil))))
       (funcall (lambda (output)
                  (if (/= 1 (rank output))
                      output (array-promote output)))

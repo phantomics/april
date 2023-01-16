@@ -12,6 +12,13 @@
 (deftype ava-size () `(integer 0 ,(1- array-total-size-limit)))
 
 (defparameter *workers-count* (max 1 (1- (serapeum:count-cpus :default 2))))
+(defvar *april-parallel-kernel*)
+
+(defun make-threading-kernel-if-absent ()
+  "Create a kernel for multithreaded executuion via lparallel if none is present."
+  (unless lparallel:*kernel*
+    (setf lparallel:*kernel* (setf *april-parallel-kernel*
+                                   (lparallel:make-kernel *workers-count* :name "april-language-kernel")))))
 
 (defparameter *package-name-string* (package-name *package*))
 
@@ -549,6 +556,7 @@
 
 (defmethod render ((varray varray) &rest params)
   (declare (ignore params))
+  (make-threading-kernel-if-absent)
   (if (and (typep varray 'varray-derived)
            (vader-content varray)
            (or (not (typep varray 'vad-render-mutable))

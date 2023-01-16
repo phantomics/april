@@ -23,7 +23,7 @@
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 (defparameter *package-name-string* (package-name *package*))
 
-(defvar *april-parallel-kernel*)
+;; (defvar *april-parallel-kernel*)
 
 (defvar *demo-packages*
   (append '(april-demo.ncurses)
@@ -88,11 +88,11 @@
       (if (zerop (length output))
 	  1 (read-from-string output)))))
 
-(defun make-threading-kernel-if-absent ()
-  "Create a kernel for multithreaded executuion via lparallel if none is present."
-  (unless lparallel:*kernel*
-    (setq lparallel:*kernel* (setq *april-parallel-kernel*
-                                   (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
+;; (defun make-threading-kernel-if-absent ()
+;;   "Create a kernel for multithreaded executuion via lparallel if none is present."
+;;   (unless lparallel:*kernel*
+;;     (setq lparallel:*kernel* (setq *april-parallel-kernel*
+;;                                    (lparallel:make-kernel (count-cpus) :name "april-language-kernel")))))
 
 (defmacro sub-lex (item) item)
 
@@ -164,7 +164,7 @@
         (funcall (lambda (form)
                    ;; create an lparallel kernel if none is present; this is done at
                    ;; runtime so April's compilation doesn't entail the creation of a kernel
-                   (push '(make-threading-kernel-if-absent) (cdddr form))
+                   ;; (push '(make-threading-kernel-if-absent) (cdddr form))
                    form)
                  (replace-symbols (first body)))))))
 
@@ -1419,8 +1419,8 @@ It remains here as a standard against which to compare methods for composing APL
                (if (or (not (arrayp array))
                        (equalp type (element-type array)))
                    array (let ((output (make-array (dims array) :element-type type)))
-                           (xdotimes output (i (size array)) (setf (row-major-aref output i)
-                                                                   (coerce (row-major-aref array i) type)))
+                           (dotimes (i (size array)) (setf (row-major-aref output i)
+                                                           (coerce (row-major-aref array i) type)))
                            output))))))
 
 (defun scalar-code-char (input) ;; TODO: add left arg? 'UTF-8', 16 or 32
@@ -1601,7 +1601,10 @@ It remains here as a standard against which to compare methods for composing APL
                       (with (:meta :inverse (alambda ,(if arguments arguments `(⍵ &optional ⍺)) (with nil)
                                               ,(if (= 1 (length form))
                                                    (if (listp (first form))
-                                                       (invert-function (first form))
+                                                       (or (invert-function (first form))
+                                                           ;; TODO: have invert-function pass feedback
+                                                           ;; on why inversion isn't possible
+                                                           '(error "This function cannot be inverted."))
                                                        '(error "This function cannot be inverted."))
                                                    '(error "This function cannot be inverted as it ~a"
                                                      "contains more than one statement.")))
