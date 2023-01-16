@@ -569,8 +569,6 @@
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
              (default-generator) (to-subrender))
-
-        ;; (print (list :rr metadata coordinate-type en-type))
         
         (let ((gen (and coordinate-type en-type
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))

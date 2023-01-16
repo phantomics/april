@@ -260,6 +260,7 @@
     (let* ((symbol-string (string-upcase symbol))
            (idiom-symbol (intern (format nil "*~a-IDIOM*" symbol-string)
                                  (symbol-package symbol)))
+           (lexicons-form (list 'idiom-lexicons idiom-symbol))
            (demo-forms (build-profile symbol subspecs :demo (rest (assoc :demo (of-subspec profiles)))))
            (test-forms (build-profile symbol subspecs :test (rest (assoc :test (of-subspec profiles)))))
            (timed-forms (build-profile symbol subspecs :time (rest (assoc :time (of-subspec profiles)))))
@@ -293,8 +294,12 @@
                       (idiom-symbols ,idiom-symbol)
                       (append (idiom-symbols ,idiom-symbol)
                               ,(list 'quote (of-subspec symbols)))
-                      (idiom-lexicons ,idiom-symbol)
-                      (quote ,idiom-list))
+                      ;; ,lexicons-form
+                      ;; (quote ,idiom-list)
+                      ,@(loop :for (key val) :on idiom-list :by #'cddr :when val
+                              :append `((getf ,lexicons-form ,key)
+                                        (append ',val (getf ,lexicons-form ,key))))
+                      )
                 ,@(if (not extension)
                       `((defmacro ,(intern symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)
