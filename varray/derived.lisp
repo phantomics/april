@@ -499,7 +499,6 @@
 
 (defmethod indexer-of ((varray vader-reshape) &optional params)
    "Index a reshaped array."
-  ;; (declare (ignore params) (optimize (speed 3) (safety 0)))
    (let* ((base-gen (generator-of (vader-base varray)))
           (input-size (the (unsigned-byte 62)
                            (max (the bit 1)
@@ -516,12 +515,12 @@
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
-    (when (and (typep (vader-base varray) 'vader-subarray)
+    (when (and (typep (vader-base varray) 'vad-subrendering)
                (vads-subrendering (vader-base varray))
                (< (size-of (vader-base varray)) (size-of varray)))
       ;; render the base if it's a subarray with subrendering enabled, as for
-      ;; 2 2⍴(⊂2 2⍴⍳4) 2 3, where the enclosed subarray will otherwise attempt to render twice
-      ;; and cause a race condition - TODO: is there a more efficient way to do this?
+      ;; 2 2⍴(⊂2 2⍴⍳4) 2 3 or 2 3⍴⊂2 2⍴⍳4, where the enclosed subarray will otherwise attempt to
+      ;; render twice and cause a race condition - TODO: is there a more efficient way to do this?
       (render (vader-base varray)))
     (if (zerop output-size)
         (let ((prototype (prototype-of varray)))
