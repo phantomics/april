@@ -32,7 +32,7 @@
 (let ((training-data) (training-labels) (test-data) (test-labels))
   (defun load-idx-files ()
     "Load data from .idx files in input/ directory into four variables."
-    (setq training-data (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
+    (setf training-data (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
                                                                           "input/train-images.idx3-ubyte"))
           training-labels (idx-file-to-array (asdf:system-relative-pathname *package-symbol*
                                                                             "input/train-labels.idx1-ubyte"))
@@ -57,7 +57,7 @@
                             (teimgs (get-test-data)) (telabs (get-test-labels)))))
          "
 {
-⎕←3 3 3
+
 epochs    ← 10
 batchSize ← 1
 trainings ← 5 ⍝ 1000

@@ -28,6 +28,12 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## April Media and Publications
 
+### ArrayCast interview
+[Developer interview exploring April's history and features](https://www.arraycast.com/episodes/episode23-andrew-sengul)
+
+### APL Seeds Presentation
+[Presentation of April at Dyalog's APL Seeds '22 conference](https://youtube.com/watch?v=Wxaqu8E83gE)
+
 ### LispNYC April compiler presentation
 [Video outline and panel discussion showing early April design](https://youtube.com/watch?v=AUEIgfj9koc)
 
@@ -36,7 +42,7 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## Compatibility with Common Lisp Implementations
 
-April puts the numeric and array processing capabilities of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Clasp, Allegro CL and LispWorks but SBCL and CCL are the only implementations that are completely free of compatibility problems. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
+April puts the numeric and array processing capabilities of Common Lisp to the test. It has been verified to work with SBCL, CCL, ECL, ABCL, Clasp, Allegro CL and LispWorks. SBCL and CCL are considered fully compatible with no special provisions made in order to function. ECL and Clasp pass all tests with the help of some specific provisions addressing their differences from other CL implementations. ABCL passes all main tests with the help of some special provisions and all dfn tests except those in the tree library, which cannot be loaded due to limitations of the underlying Java virtual machine. Allegro CL and LispWorks both have a few compatibility issues causing failures of dfn tests. [See this document for a list of all differences in functionality between implementations.](./compatibility-notes.md)
 
 ## Automatic Installation
 
@@ -97,7 +103,7 @@ If you would like a quick tour of the language, April includes a function that w
 * (april (demo))
 ```
 
-The * indicates a REPL prompt. Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
+The `*` indicates a REPL prompt. Prepare for a long read. The demo content that gets printed will tell you the name(s) of the operations that correspond to each symbol and will hopefully give you some idea of what each one does.
 
 ### How to Enter APL Characters
 
@@ -119,7 +125,7 @@ Evaluating an APL expression is as simple as:
 #(3 4 5)
 ```
 
-As above, the * indicates a REPL prompt and the text below is the expression's output.
+As above, the `*` indicates a REPL prompt and the text below is the expression's output.
 
 The macro `(april-f)` (short for april-format) will evaluate any APL string passed to it as the sole argument, returning the final result. Using `(april-f)` will also produce a printout of the output in APL's traditional array printing style, which appears before the actual output value. You can see above how the `3 4 5` is printed out before the value `#(3 4 5)`. APL-style printed arrays are easier to read than Lisp's style of printing arrays; APL can use a simpler style to express its output because it doesn't have as many different data types and structures as Lisp.
 
@@ -353,7 +359,7 @@ The `(april-c)` macro can also be used to compose inline operators with function
 
 Note that in operators where a right operand is expected (i.e. those that contain a `⍵⍵` or `⍹` symbol), two operands are expected following the code string. In an operator taking only a left operand, whose code doesn't include `⍵⍵` or `⍹`, one operand is expected following the code string. The arguments to `(april-c)` for an operator are in the order `⍺⍺/⍶ (⍵⍵/⍹ if present) ⍵ (⍺ if present)`. The left operand comes first in the arguments because all operators must have a left operand, but they may or may not have a right operand.
 
-Keep in mind that standard Common Lisp functions like `(+)` do not operate on entire arrays like APL functions do. In order to pass scalar functions into April via `(april-c)` that can be composed with operators and work as you expect scalar functions to when doing operations like `- 3 +/⍳5`, you must pass those functions' symbols through the `(scalar-function)` macro as seen above with `(scalar-function -)`.
+Keep in mind that standard Common Lisp functions like `#'+` do not operate on entire arrays like APL functions do. In order to pass scalar functions into April via `(april-c)` that can be composed with operators and work as you expect scalar functions to when doing operations like `- 3 +/⍳5`, you must pass those functions' symbols through the `(scalar-function)` macro as seen above with `(scalar-function -)`.
 
 ## Parameter reference
 
@@ -937,7 +943,7 @@ Below is an example of items shared between workspaces.
          "V1←10 ⋄ V2←20 ⋄ F←{10×⍺÷⍵} ⋄ G←⍴∘,")
 ...
 
-* (april (with (:space second-space) (:compile-onl))
+* (april (with (:space second-space))
          "A B ← 'FIRST-SPACE' ⎕XWV 'V1' 'V2'
           H I ← 'FIRST-SPACE' ⎕XWF 'F' 'G'
           A B H I A B")
@@ -998,7 +1004,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libaries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each library package has its own set of tests. You can load the libraries by evaluating `(load-libs)` and run the tests for each demo by evaluating `(run-lib-tests)` within the `april` package. The library tests contain many complex functions that generate large arrays, giving the computer a workout. On slower systems these tests may take some time to complete.
+April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libraries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each library package has its own set of tests. You can load the libraries by evaluating `(load-libs)` and run the tests for each demo by evaluating `(run-lib-tests)` within the `april` package. The library tests contain many complex functions that generate large arrays, giving the computer a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 
@@ -1015,6 +1021,8 @@ For Lisp developers who interact with the language through Vim, a plugin called 
 ## Enabling APL Input Universally in GNU/Linux
 
 For GNU/Linux users who'd like use APL characters outside of a customized editor, refer to [this page](https://aplwiki.com/wiki/Typing_glyphs_on_Linux) on the APL Wiki. After following the instructions there you'll be able to use your keyboard's right Alt key as a modifier to enter APL characters. For instance, you enter can the iota character `⍳` by pressing the `right Alt + i`, the rho character `⍴` by pressing the `right Alt + r` and so on.
+
+Another option for GNU/Linux APL input is to enter `setxkbmap us,apl -option grp:win_switch` in a terminal. The keyboard's win keys will become modifiers that allow you to enter APL characters when held down. Typing `Win+r` will produce `⍴`, for example, and typing `Win+%` will produce `⌽`.
 
 ## Thanks to:
 
