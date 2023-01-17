@@ -2912,15 +2912,37 @@
   (generator-of varray)
   (shape-of (vamdiv-cached varray)))
 
+;; linear regression, least squares using matrix divide
+;; coef ← (⍉⍵) +.× ⍵
+;; cons ← ⍺ +.× ⍵
+;; cons ⌹ coef
+(defun linear-regression (omega alpha)
+  "Linear regression for coefficient matrix ⍵ and constants ⍺. Used to implement dyadic [⌹ matrix divide] for an overspecified system"
+  (let ((coef (array-inner-product (permute-axes omega nil)
+                                   omega (lambda (a1 a2) (apply-scalar #'* a1 a2))
+                                   #'+ t))
+        (cons (array-inner-product alpha omega (lambda (a1 a2) (apply-scalar #'* a1 a2))
+                                   #'+ t)))
+    (matrix-divide coef cons)))
+
+(defun matrix-divide (omega alpha)
+  "Divide two matrices. Used to implement dyadic [⌹ matrix divide]."
+  ;; if there are more rows than columns the system is over-specifed, use linear-regression
+  ;; TODO: what does dyalog do for (⍴⍴⍵) > 2?
+  (let ((rho (shape-of omega)))
+    (if (> (nth 0 rho) (nth 1 rho))
+	(linear-regression omega alpha)
+	(array-inner-product (invert-matrix omega) alpha
+			     (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
+			     #'+ t))))
+
 (defmethod generator-of ((varray vader-matrix-divide) &optional indexers params)
-  (let* ((content (when (shape-of (vader-base varray))
+  (let* ((base-shape (shape-of (vader-base varray)))
+         (content (when base-shape
                     (or (vamdiv-cached varray)
                         (setf (vamdiv-cached varray)
-                              (array-inner-product
-                               (invert-matrix (render (vader-base varray)))
-                               (render (vads-argument varray))
-                               (lambda (arg1 arg2) (apply-scalar #'* arg1 arg2))
-                               #'+ t))))))
+                              (matrix-divide (render (vader-base varray))
+                                             (render (vads-argument varray))))))))
     (case (getf params :base-format)
       (:encoded)
       (:linear)

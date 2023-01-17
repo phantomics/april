@@ -294,12 +294,11 @@
                       (idiom-symbols ,idiom-symbol)
                       (append (idiom-symbols ,idiom-symbol)
                               ,(list 'quote (of-subspec symbols)))
-                      ;; ,lexicons-form
-                      ;; (quote ,idiom-list)
+                      ;; assign each part of the lexicon, appending to an existing lexicon if present
+                      ;; so the spec may either create or append to an idiom (as for (extend-vex-idiom))
                       ,@(loop :for (key val) :on idiom-list :by #'cddr :when val
                               :append `((getf ,lexicons-form ,key)
-                                        (append ',val (getf ,lexicons-form ,key))))
-                      )
+                                        (append ',val (getf ,lexicons-form ,key)))))
                 ,@(if (not extension)
                       `((defmacro ,(intern symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)

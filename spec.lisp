@@ -1200,7 +1200,10 @@
             (is "⌹2 2⍴4 9 8 2" #2A((-1/32 9/64) (1/8 -1/16)))
             (is "⌹4 2⍴1 3 ¯4 9" #2A((3/14 -1/14 3/14 -1/14) (2/21 1/42 2/21 1/42)))
             (is "35 89 79⌹3 3⍴3 1 4 1 5 9 2 6 5" #(193/90 739/90 229/45))
-            (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))))
+            (is "(3 2⍴1 2 3 6 9 10)⌹3 3⍴1 0 0 1 1 0 1 1 1" #2A((1 2) (2 4) (6 4)))
+            ;; linear regression tests
+            (is "5 1 4 2 8 ⌹ 1,⍪⍳5" #(19/10 7/10))
+            (is "6 5 7 10 ⌹ 1,⍪⍳4" #(7/2 7/5))))
   (⊤ (has :title "Encode")
      (dyadic (λωα (make-instance 'vader-encode :base omega :argument alpha)))
      (meta (dyadic :id 0 :inverse (λωα (make-instance 'vader-decode :base omega :argument alpha))))
