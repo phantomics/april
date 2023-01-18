@@ -152,6 +152,7 @@
   (let* ((omega (vacmp-omega varray))
          (irank (rank-of omega))
          (osize (size-of omega)))
+    ;; (render omega) ;; causes bug with +/,⊂⊂⍳3
     ;; (print (list :ii irank omega))
     (if (or (> 2 osize) (vacred-unitary varray))
         (if (zerop irank)
@@ -236,6 +237,16 @@
                           output (let ((out-indexer (generator-of output)))
                                    (if (not (functionp out-indexer))
                                        out-indexer (funcall out-indexer i)))))))))
+            ;; ((and scalar-fn (not out-dims) (varrayp (vacmp-omega varray)))
+            ;;  ;; reverse the argument vector in the case of a scalar function;
+            ;;  ;; this also applies in the case of the next two clauses
+            ;;  ;; (print (list :dd (vacmp-omega varray)))
+            ;;  ;; causes bugs with -⌿⍤1⊢1 2 2⍴⍳4  1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1  { ee ← +/ {5⍴⍵}¨ ⋄ ee ⍵} ⍳9
+            ;;  ;; (≠/⊢) 1 2 3 3 2 4
+            ;;  (case (getf params :base-format)
+            ;;    (:encoded)
+            ;;    (:linear)
+            ;;    (t (generator-of (funcall (vacmp-left varray) :arg-vector (render (vacmp-omega varray)))))))
             ((and (or scalar-fn (and catenate-fn (not window)))
                   (= (- axis (vads-io varray))
                      (length out-dims))
@@ -253,6 +264,10 @@
                                                         :displaced-to (vacmp-omega varray)
                                                         :displaced-index-offset (* i rlen))))))))
             (t (flet ((process-item (i ix delta)
+                        ;; (when (and (getf fn-meta :lexical-reference)
+                        ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
+                        ;;   (print (list :ind window omega-indexer
+                        ;;                (funcall omega-indexer (+ delta (* ix increment))))))
                         (if (not (functionp omega-indexer))
                             omega-indexer (funcall omega-indexer (+ delta (* ix increment))))))
                  (if (or scalar-fn catenate-fn)
@@ -271,7 +286,10 @@
                                                 (if window (if (>= 1 irank) i (mod i wsegment))
                                                     (* i rlen))))))
                               ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
-                              
+                              ;; (when (and (getf fn-meta :lexical-reference)
+                              ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
+                              ;;   (print (list :ind window omega-indexer
+                              ;;                (funcall omega-indexer (+ delta (* 0 increment))))))
                               (if window-reversed
                                   (loop :for ix :below window
                                         :do (setf (aref value (- ax-interval (incf valix)))
@@ -279,10 +297,9 @@
                                   (loop :for ix :from (1- ax-interval) :downto 0
                                         :do (setf (aref value (- ax-interval (incf valix)))
                                                   (process-item i ix delta))))
-                              (setf value (funcall (vacmp-left varray)
-                                                   :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                                                        value)))
-                              value))))
+                              (funcall (vacmp-left varray)
+                                       :arg-vector (funcall (if scalar-fn #'reverse #'identity)
+                                                            value))))))
                      (case (getf params :base-format)
                        (:encoded)
                        (:linear)
