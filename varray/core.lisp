@@ -805,8 +805,6 @@
                 (getf (getf (varray-meta varray) :shape) :gen-meta) generator-meta)
           this-shape))))
 
-;; costs1 ← ↑(72 99 88)(23 30 35)(51 59 84) ⋄ assign costs1
-
 (defmethod generator-of :around ((varray varray-derived) &optional indexers params)
   "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
   ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
