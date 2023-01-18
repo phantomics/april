@@ -318,9 +318,6 @@
         this-indexer (lambda (index)
                        (funcall this-indexer (funcall composite-indexer index))))))
 
-;; ∊2 2 2⍴⍳9  ⍸3=2 3 4⍴⍳9  ↑[0.5]2 3⍴(2 5⍴⍳9)(4 3 2 1)(4 3⍴⍳8)  4↑0↑⊂2 2⍴(⊂2 2⍴⍳4) 2 3
-;; 8↑3⍴⊂0 0 0⍴1  4 (⊂1 3)⊃6⍴⊂3 4⍴⍳12
-
 (defmethod generator-of :around ((varray varray) &optional indexers params)
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
@@ -331,17 +328,6 @@
               (lambda (index)
                 (let ((index-out index))
                   (funcall this-generator (funcall composite-indexer index)))))))))
-
-(defmethod generator-of :around ((varray varray-derived) &optional indexers params)
-  "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
-  ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
-  (or ;; (case (getf params :base-format)
-      ;;   (:encoded)
-      ;;   (:linear)
-      ;;   (t (and (or (not (typep varray 'vad-render-mutable))
-      ;;               (vads-rendered varray))
-      ;;           (generator-of (vader-content varray)))))
-      (call-next-method)))
 
 (let ((encoder-table
         (intraverser
@@ -775,6 +761,14 @@
     (setf (vader-layer varray) ;; count layers from a non-derived array
           (1+ (vader-layer (vader-base varray))))))
 
+(defmethod etype-of ((varray varray-derived))
+  "The default shape of a derived array is the same as its base array."
+  (if (varrayp (vader-base varray))
+      (etype-of (vader-base varray))
+      (if (arrayp (vader-base varray))
+          (array-element-type (vader-base varray))
+          (assign-element-type (vader-base varray)))))
+
 (defmethod shape-of :around ((varray varray-derived))
   (let* ((this-shape (call-next-method))
          (metadata (metadata-of varray))
@@ -811,13 +805,32 @@
                 (getf (getf (varray-meta varray) :shape) :gen-meta) generator-meta)
           this-shape))))
 
-(defmethod etype-of ((varray varray-derived))
-  "The default shape of a derived array is the same as its base array."
-  (if (varrayp (vader-base varray))
-      (etype-of (vader-base varray))
-      (if (arrayp (vader-base varray))
-          (array-element-type (vader-base varray))
-          (assign-element-type (vader-base varray)))))
+;; costs1 ← ↑(72 99 88)(23 30 35)(51 59 84) ⋄ assign costs1
+
+(defmethod generator-of :around ((varray varray-derived) &optional indexers params)
+  "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
+  ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
+  ;; (when (typep varray 'vacomp-each)
+  ;;   (print (list :vv varray (vader-content varray) (vacmp-omega varray))))
+  (or (case (getf params :base-format)
+        (:encoded)
+        (:linear)
+        (t (and (not (typep varray 'vader-subarray)) ;; TODO: this is crude, is there a better way
+                (not (typep varray 'vader-enclose))  ;; to control for behavior of these cases?
+                (not (typep varray 'vader-shape))
+                (not (typep varray 'vader-calculate))
+                (not (typep varray 'vacomp-scan))
+                (not (typep varray 'vacomp-reduce))
+                (not (typep varray 'vader-enlist))
+                (not (and (typep varray 'vacomp-each)
+                          (typep (vacmp-omega varray) 'vacomp-each)))
+                (not (typep varray 'vader-grade))
+                (or (not (typep varray 'vad-render-mutable))
+                    (vads-rendered varray))
+                ;; nil
+                ;; (print (list :ty varray (type-of (vader-content varray))))
+                (generator-of (vader-content varray)))))
+      (call-next-method)))
 
 (defmethod prototype-of ((varray varray-derived))
   (let ((shape (shape-of varray)))
