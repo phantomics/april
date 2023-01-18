@@ -318,15 +318,30 @@
         this-indexer (lambda (index)
                        (funcall this-indexer (funcall composite-indexer index))))))
 
+;; ∊2 2 2⍴⍳9  ⍸3=2 3 4⍴⍳9  ↑[0.5]2 3⍴(2 5⍴⍳9)(4 3 2 1)(4 3⍴⍳8)  4↑0↑⊂2 2⍴(⊂2 2⍴⍳4) 2 3
+;; 8↑3⍴⊂0 0 0⍴1  4 (⊂1 3)⊃6⍴⊂3 4⍴⍳12
+
 (defmethod generator-of :around ((varray varray) &optional indexers params)
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
+        ;; (print (list :tg this-generator))
         (if (not (functionp this-generator))
             this-generator
             (let ((composite-indexer (join-indexers indexers)))
               (lambda (index)
                 (let ((index-out index))
                   (funcall this-generator (funcall composite-indexer index)))))))))
+
+(defmethod generator-of :around ((varray varray-derived) &optional indexers params)
+  "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
+  ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
+  (or ;; (case (getf params :base-format)
+      ;;   (:encoded)
+      ;;   (:linear)
+      ;;   (t (and (or (not (typep varray 'vad-render-mutable))
+      ;;               (vads-rendered varray))
+      ;;           (generator-of (vader-content varray)))))
+      (call-next-method)))
 
 (let ((encoder-table
         (intraverser

@@ -684,9 +684,7 @@
   (get-promised (varray-shape varray)
                 (let ((this-indexer (generator-of varray)))
                   (declare (ignore this-indexer))
-                  (if (eq :raveled (vader-content varray))
-                      (list (size-of (vader-base varray)))
-                      (shape-of (vader-content varray))))))
+                  (shape-of (vader-content varray)))))
 
 (defmethod generator-of ((varray vader-enlist) &optional indexers params)
   (let ((base-gen (generator-of (vader-base varray))))
@@ -699,7 +697,8 @@
             (setf (vader-content varray)
                   (make-array 1 :initial-element first-item :element-type (etype-of first-item)))
             (if (not (eq t (etype-of (vader-base varray))))
-                (setf (vader-content varray) :raveled)
+                (setf (vader-content varray)
+                      (make-instance 'vader-pare :base (vader-base varray)))
                 (let ((index 0) (length 0)
                       (input (render (vader-base varray)))
                       (derivative-count (when (getf params :shape-deriving)
@@ -727,8 +726,7 @@
     (case (getf params :base-format)
       (:encoded)
       (:linear)
-      (t (if (eq :raveled (vader-content varray))
-             base-gen (lambda (index) (aref (vader-content varray) index)))))))
+      (t (generator-of (vader-content varray))))))
 
 (defclass vader-membership (varray-derived vad-with-argument)
   ((%to-search :accessor vamem-to-search
@@ -2521,12 +2519,11 @@
  
 (defmethod shape-of ((varray vader-unique))
   (get-promised (varray-shape varray)
-                (let ((this-indexer (generator-of varray)))
-                  (declare (ignore this-indexer))
-                  (if (vader-content varray)
-                      (cons (length (vauni-indices varray))
-                            (rest (shape-of (vader-content varray))))
-                      (list (length (vauni-indices varray)))))))
+                (progn (generator-of varray)
+                       (if (vader-content varray)
+                           (cons (length (vauni-indices varray))
+                                 (rest (shape-of (vader-content varray))))
+                           (list (length (vauni-indices varray)))))))
 
 (defmethod generator-of ((varray vader-unique) &optional indexer params)
   (let* ((base-shape (shape-of (vader-base varray)))
