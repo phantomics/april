@@ -808,14 +808,13 @@
 (defmethod generator-of :around ((varray varray-derived) &optional indexers params)
   "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
   ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
-  ;; (when (typep varray 'vacomp-each)
-  ;;   (print (list :vv varray (vader-content varray) (vacmp-omega varray))))
+  ;; (when (typep varray 'vader-enclose)
+  ;;   (print (list :vv varray (vader-content varray) (vader-base varray))))
   (or (case (getf params :base-format)
         (:encoded)
         (:linear)
         (t (and (not (typep varray 'vader-subarray)) ;; TODO: this is crude, is there a better way
-                (not (typep varray 'vader-enclose))  ;; to control for behavior of these cases?
-                (not (typep varray 'vader-shape))
+                (not (typep varray 'vader-shape)) ;; to control for behavior of these cases?
                 (not (typep varray 'vader-calculate))
                 (not (typep varray 'vacomp-scan))
                 (not (typep varray 'vacomp-reduce))
