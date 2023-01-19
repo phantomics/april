@@ -110,7 +110,7 @@
                                         0)))
                             (if (char= char quote-delimiter)
                                 (setf quoted (not quoted))
-                                (when (not quoted)
+                                (unless quoted
                                   (if (< 3 mx) (incf (aref nesting (- 6 mx)))
                                       (if (< 0 mx 4)
                                           (if (< 0 (aref nesting (- 3 mx)))
@@ -200,7 +200,7 @@
                                            #'dummy-nargument-function))
                   (progn (when (fboundp (intern symbol space))
                            (fmakunbound (intern symbol space)))
-                         (when (not (boundp (intern symbol space)))
+                         (unless (boundp (intern symbol space))
                            (proclaim (list 'special (intern symbol space)))
                            (set (intern symbol space) nil)))))
             ;; build multiple output of April expression, rendering unless (:unrendered) option is passed

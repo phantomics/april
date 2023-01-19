@@ -49,7 +49,7 @@
   ;; until it's rendered - is there a better way to implement this check?
   (let ((number (setf (vapip-number vvector)
                       (render (vapip-number vvector)))))
-    (when (not (and (integerp number) (or (zerop number) (plusp number))))
+    (unless (and (integerp number) (or (zerop number) (plusp number)))
       (error "The argument to [⍳ index] must be an integer 0 or higher."))
     (get-promised (varray-shape vvector) (list (* number (vapip-repeat vvector))))))
 

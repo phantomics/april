@@ -347,30 +347,32 @@
   'bit)
 
 (defmethod shape-of ((varray vader-inverse-where))
-  (let ((base (vader-base varray)))
-    (typecase base
-      (vapri-integer-progression
-       (if (and (= 1 (vapip-repeat base))
-                (= 1 (vapip-factor base))
-                (= (vads-io varray) (vapip-origin base)))
-           (list (+ (vads-io varray) (vapip-number varray)))
-           (error "Attempted to invoke inverse [⍸ where] on an altered integer progression vector.")))
-      (vapri-coordinate-identity (vapci-shape base))
-      (vader-where (shape-of (vader-base base)))
-      (array (let* ((rank (if (not (vectorp (aref base 0)))
-                              1 (length (aref base 0))))
-                    (dims (make-array rank :initial-element 0)))
-               (if (= 1 rank)
-                   (list (aref base (1- (length base))))
-                   (progn (dotimes (i (array-total-size base))
-                            (if (= rank (length (row-major-aref base i)))
-                                (loop :for b :across (row-major-aref base i) :for i :from 0
-                                      :when (not (and (integerp b) (or (zerop b) (plusp b))))
-                                        :do (error "t")
-                                      :when (> b (aref dims i)) :do (setf (aref dims i) b))
-                                (error "This array contains inconsistent coordinate vectors and cannot be an argument to the inverse [⍸ where] function.")))
-                          (coerce dims 'list)))))
-      (t (error "The inverse [⍸ where] function cannot be applied to this object.")))))
+  (get-promised
+   (varray-shape varray)
+   (let ((base (vader-base varray)))
+     (typecase base
+       (vapri-integer-progression
+        (if (and (= 1 (vapip-repeat base))
+                 (= 1 (vapip-factor base))
+                 (= (vads-io varray) (vapip-origin base)))
+            (list (+ (vads-io varray) (vapip-number varray)))
+            (error "Attempted to invoke inverse [⍸ where] on an altered integer progression vector.")))
+       (vapri-coordinate-identity (vapci-shape base))
+       (vader-where (shape-of (vader-base base)))
+       (array (let* ((rank (if (not (vectorp (aref base 0)))
+                               1 (length (aref base 0))))
+                     (dims (make-array rank :initial-element 0)))
+                (if (= 1 rank)
+                    (list (aref base (1- (length base))))
+                    (progn (dotimes (i (array-total-size base))
+                             (if (= rank (length (row-major-aref base i)))
+                                 (loop :for b :across (row-major-aref base i) :for i :from 0
+                                       :when (not (and (integerp b) (or (zerop b) (plusp b))))
+                                         :do (error "t")
+                                       :when (> b (aref dims i)) :do (setf (aref dims i) b))
+                                 (error "This array contains inconsistent coordinate vectors and cannot be an argument to the inverse [⍸ where] function.")))
+                           (coerce dims 'list)))))
+       (t (error "The inverse [⍸ where] function cannot be applied to this object."))))))
 
 (defmethod generator-of ((varray vader-inverse-where) &optional indexers params)
   (let ((base (vader-base varray)))
@@ -1318,7 +1320,6 @@
       (:linear)
       (t (if (not oshape) ;; if the argument is a scalar
              (if (not (functionp oindexer)) ;; a scalar value like 5
-                 ;; (lambda (i) (declare (ignore i)) (disclose oindexer))
                  (if (or (not (varrayp oindexer))
                          (typep (vader-base varray) 'vader-enclose))
                      oindexer (make-instance 'vader-pick :base (vader-base varray)))
@@ -1330,16 +1331,20 @@
                    (if (and (typep (vader-base varray) 'varray)
                             (not (shape-of (vader-base varray))))
                        (generator-of (vader-base varray))
-                       (lambda (i) (declare (ignore i)) sub-index))))
+                       sub-index)))
              (if (not (shape-of (vader-base varray)))
                  ;; pass through the indexer of enclosed arrays as for ↑⊂2 4
                  (generator-of (vamix-cached-elements varray))
                  (if (vamix-cached-elements varray)
                      (lambda (index) (row-major-aref (vamix-cached-elements varray) index))
-                     (let* ((iarray (unless (shape-of varray)
-                                      (render (vader-base varray))))
+                     (let* ((base (vader-base varray))
+                            (iarray (unless (shape-of varray) (render base)))
                             (ishape (when iarray (copy-list (shape-of iarray))))
                             (iifactors (when iarray (get-dimensional-factors ishape)))
+                            (generators (unless iarray
+                                          (coerce (loop :for i :below (size-of base)
+                                                        :collect (generator-of (funcall oindexer i)))
+                                                  'vector)))
                             (prototype (prototype-of varray)))
                        (lambda (index)
                          (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
@@ -1348,7 +1353,6 @@
                                        (setf remaining remainder)
                                        (if (> orank di) (push this-index outer-indices)
                                            (push this-index inner-indices))))
-                           ;; (print (list :oin oindexer))
                            (let* ((inner-indices (reverse inner-indices))
                                   (oindex (unless iarray
                                             (loop :for i :in (reverse outer-indices)
@@ -1356,23 +1360,23 @@
                                   (iarray (or iarray (funcall oindexer oindex)))
                                   (ishape (or ishape (copy-list (shape-of iarray))))
                                   (iifactors (or iifactors (get-dimensional-factors ishape)))
-                                  (iindexer (generator-of iarray)) ;; TODO: remove from indexer
+                                  (this-gen (aref generators oindex))
                                   (irank (length ishape))
                                   (doffset (- inner-rank irank))
                                   (iindex 0))
                              (if (shape-of varray)
                                  (progn (loop :for i :in inner-indices :for ix :from 0 :while iindex
-                                              :do (if (< ix doffset) (if (not (zerop i))
-                                                                         (setf iindex nil))
+                                              :do (if (< ix doffset) (unless (zerop i)
+                                                                       (setf iindex nil))
                                                       (if (< i (first ishape))
                                                           (progn (incf iindex (* i (first iifactors)))
                                                                  (setf ishape (rest ishape)
                                                                        iifactors (rest iifactors)))
                                                           (setf iindex nil))))
-                                        (if (not iindex) prototype
-                                            (if (not (functionp iindexer))
-                                                iindexer (funcall iindexer iindex))))
-                                 (when (zerop (reduce #'+ inner-indices)) iindexer)))))))))))))
+                                        (if iindex (if (not (functionp this-gen))
+                                                       this-gen (funcall this-gen iindex))
+                                            prototype))
+                                 (when (zerop (reduce #'+ inner-indices)) this-gen)))))))))))))
 
 (defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:metaclass va-class)
@@ -1873,7 +1877,7 @@
 (defmethod generator-of ((varray vader-enclose) &optional indexers params)
   (let* ((base-shape (shape-of (vader-base varray)))
          (output-shape (shape-of varray))
-         (output-size (reduce #'* output-shape))
+         (output-size (size-of varray))
          (inner-shape (vaenc-inner-shape varray))
          (axis (or (vads-axis varray)
                    (max 0 (1- (length base-shape)))))
@@ -2392,22 +2396,24 @@
       (prototype-of (fetch-reference varray (vader-base varray)))))
 
 (defmethod shape-of ((varray vader-pick))
-  (if (vapick-assign varray)
-      (shape-of (vader-base varray))
-      (if (zerop (size-of (vader-base varray)))
-          (shape-of (prototype-of (vader-base varray)))
-          (let* ((ref (fetch-reference varray (vader-base varray)))
-                 (this-indexer (generator-of ref)))
-            ;; (print (list :re ref (shape-of ref) (generator-of ref)))
-            (if (and (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
-                     (not (typep ref 'vader-pare)))
-                ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
-                ;; is there another way to do this? 
-                (if (arrayp this-indexer)
-                    (shape-of (row-major-aref this-indexer 0))
-                    (when (arrayp ref)
-                      (shape-of ref)))
-                (shape-of ref))))))
+  (get-promised
+   (varray-shape varray)
+   (if (vapick-assign varray)
+       (shape-of (vader-base varray))
+       (if (zerop (size-of (vader-base varray)))
+           (shape-of (prototype-of (vader-base varray)))
+           (let* ((ref (fetch-reference varray (vader-base varray)))
+                  (this-indexer (generator-of ref)))
+             ;; (print (list :re ref (shape-of ref) (generator-of ref)))
+             (if (and (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
+                      (not (typep ref 'vader-pare)))
+                 ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
+                 ;; is there another way to do this? 
+                 (if (arrayp this-indexer)
+                     (shape-of (row-major-aref this-indexer 0))
+                     (when (arrayp ref)
+                       (shape-of ref)))
+                 (shape-of ref)))))))
 
 (defmethod generator-of ((varray vader-pick) &optional indexers params)
   (case (getf params :base-format)
@@ -2866,11 +2872,7 @@
       (t (lambda (index) (aref (vader-content varray) index))))))
 
 (defclass vader-matrix-inverse (varray-derived)
-  ((%cached :accessor vaminv-cached
-            :initform nil
-            :initarg :cached
-            :documentation "Cached inverse matrix elements."))
-  (:metaclass va-class)
+  nil (:metaclass va-class)
   (:documentation "A matrix-inverse array as from the [⌹ matrix inverse] function."))
 
 (defmethod etype-of ((varray vader-matrix-inverse))
@@ -2878,13 +2880,13 @@
   t)
 
 (defmethod shape-of ((varray vader-matrix-inverse))
-  (generator-of varray)
-  (shape-of (vaminv-cached varray)))
+  (unless (vader-content varray) (generator-of varray))
+  (shape-of (vader-content varray)))
 
 (defmethod generator-of ((varray vader-matrix-inverse) &optional indexers params)
   (let* ((content (when (shape-of (vader-base varray))
-                    (or (vaminv-cached varray)
-                        (setf (vaminv-cached varray)
+                    (or (vader-content varray)
+                        (setf (vader-content varray)
                               (funcall (if (and (= 2 (rank-of (vader-base varray)))
                                                 (reduce #'= (shape-of (vader-base varray))))
                                            #'invert-matrix #'left-invert-matrix)
@@ -2901,11 +2903,7 @@
                  (lambda (index) (/ (funcall base-gen index)))))))))
 
 (defclass vader-matrix-divide (varray-derived vad-with-argument)
-  ((%cached :accessor vamdiv-cached
-            :initform nil
-            :initarg :cached
-            :documentation "Cached divided matrix elements."))
-  (:metaclass va-class)
+  nil (:metaclass va-class)
   (:documentation "A matrix-divided array as from the [⌹ matrix divide] function."))
 
 (defmethod etype-of ((varray vader-matrix-divide))
@@ -2913,8 +2911,8 @@
   t)
 
 (defmethod shape-of ((varray vader-matrix-divide))
-  (generator-of varray)
-  (shape-of (vamdiv-cached varray)))
+  (unless (vader-content varray) (generator-of varray))
+  (shape-of (vader-content varray)))
 
 ;; linear regression, least squares using matrix divide
 ;; coef ← (⍉⍵) +.× ⍵
@@ -2943,8 +2941,8 @@
 (defmethod generator-of ((varray vader-matrix-divide) &optional indexers params)
   (let* ((base-shape (shape-of (vader-base varray)))
          (content (when base-shape
-                    (or (vamdiv-cached varray)
-                        (setf (vamdiv-cached varray)
+                    (or (vader-content varray)
+                        (setf (vader-content varray)
                               (matrix-divide (render (vader-base varray))
                                              (render (vads-argument varray))))))))
     (case (getf params :base-format)

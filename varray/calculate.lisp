@@ -39,6 +39,7 @@
                              (elt (vader-base varray) 0)))
              (first-shape (shape-of first-item))
              (first-indexer (generator-of first-item)))
+        ;; (print (list :fs first-shape))
         (if (zerop (reduce #'* first-shape))
             (prototype-of (render first-item))
             (if first-shape

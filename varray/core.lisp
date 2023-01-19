@@ -323,11 +323,9 @@
       (let ((this-generator (call-next-method)))
         ;; (print (list :tg this-generator))
         (if (not (functionp this-generator))
-            this-generator
-            (let ((composite-indexer (join-indexers indexers)))
-              (lambda (index)
-                (let ((index-out index))
-                  (funcall this-generator (funcall composite-indexer index)))))))))
+            this-generator (let ((composite-indexer (join-indexers indexers)))
+                             (lambda (index)
+                               (funcall this-generator (funcall composite-indexer index))))))))
 
 (let ((encoder-table
         (intraverser
@@ -569,7 +567,7 @@
              (metadata (getf (metadata-of varray) :shape))
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
-             (default-generator) (to-subrender))
+             (to-subrender))
         
         (let ((gen (and coordinate-type en-type
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
@@ -770,7 +768,7 @@
           (assign-element-type (vader-base varray)))))
 
 (defmethod shape-of :around ((varray varray-derived))
-  (let* ((this-shape (call-next-method))
+  (let* ((this-shape (lparallel::force (call-next-method)))
          (metadata (metadata-of varray))
          (shape-meta (getf metadata :shape)))
     (if shape-meta this-shape
@@ -779,7 +777,7 @@
                (base-meta (when (typep (vader-base varray) 'varray-derived)
                             (getf (metadata-of (vader-base varray)) :shape)))
                (base-shape (or (getf base-meta :max-shape)
-                               (shape-of (vader-base varray))))
+                               (lparallel::force (shape-of (vader-base varray)))))
                (max-dim (or (getf base-meta :max-dim)
                             (reduce #'max (or base-shape '(0)))))
                (base-rank (length base-shape))

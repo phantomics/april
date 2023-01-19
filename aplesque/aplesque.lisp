@@ -1930,7 +1930,7 @@
     ;;     (error "invert-matrix () - matrices not of the same size"))
 
     ;; copy in-matrix to out-matrix if they are not the same
-    (when (not (equal in-matrix out-matrix))
+    (unless (equal in-matrix out-matrix)
       (do ((i 0 (1+ i)))
           ((>= i dim))    
         (do ((j 0 (1+ j)))
@@ -1993,7 +1993,7 @@
       ;; reduce matrix
       (do ((i 0 (1+ i)))
           ((>= i dim)) 
-        (when (not (equal i k))
+        (unless (equal i k)
           (setf temp (aref out-matrix i k))
           (do ((j 0 (1+ j)))
               ((>= j dim)) 

@@ -735,7 +735,7 @@
                                                 (random-state:make-generator
                                                  ,rngname ,seed)))
                                         (getf (rest ,symbol) :seed)
-                                        (when (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                        (unless (and (vectorp ,seed) (zerop (length ,seed)))
                                           ,seed)))))
                           (if (and (vectorp ,valsym) (= 2 (length ,valsym)))
                               (let* ((,seed (aref ,valsym 0)) (,rngindex (aref ,valsym 1))
@@ -754,7 +754,7 @@
                                                   (random-state:make-generator
                                                    ,rngname ,seed)))
                                           (getf (rest ,symbol) :seed)
-                                          (when (not (and (vectorp ,seed) (zerop (length ,seed))))
+                                          (unless (and (vectorp ,seed) (zerop (length ,seed)))
                                             ,seed))))
                               (error "The [⎕RL random link] value can only be set as an ~a"
                                      "integer or a 2-element vector."))))))

@@ -64,9 +64,9 @@
   "Extend allocation behavior of expand class; allows for 3/⍳3 to produce a repeating integer progression vector instead of a vader-expand instance."
   (typecase base
     (vapri-integer-progression
-     (let ((rendered-argument (when (not (shape-of argument)) (render argument))))
+     (let ((rendered-argument (unless (shape-of argument) (render argument))))
        (when (integerp rendered-argument)
          (make-instance 'vapri-integer-progression
-                        :number (vapip-number base)  :origin (vapip-origin base)
+                        :number (vapip-number base) :origin (vapip-origin base)
                         :offset (vapip-offset base) :factor (vapip-factor base)
                         :repeat (* rendered-argument (vapip-repeat base))))))))

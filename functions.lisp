@@ -294,9 +294,9 @@
 (defun count-to (index index-origin)
   "Implementation of APL's [⍳ index] function."
   (let ((int-index (if (integerp index)
-                       index (when (not (or (and (not (arrayp index))
-                                                 (not (varrayp index)))
-                                            (< 1 (size-of index))))
+                       index (unless (or (and (not (arrayp index))
+                                              (not (varrayp index)))
+                                         (< 1 (size-of index)))
                                (let ((generator (generator-of index)))
                                  (if (not (functionp generator))
                                      generator (funcall generator 0)))))))

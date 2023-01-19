@@ -77,7 +77,7 @@
 (defun indexer-expand (degrees dims axis compress-mode is-inverse)
   "Return indices of an array expanded as with the [/ compress] or [\\ expand] functions."
   ;; TODO: more speedup is possible here in the case of a scalar degree argument
-  (let* ((oned (when (not (arrayp degrees)) degrees))
+  (let* ((oned (unless (arrayp degrees) degrees))
          (degrees (if (arrayp degrees) degrees
                       (when (integerp degrees) (vector degrees))))
          (d-count (length degrees))
@@ -226,7 +226,7 @@
                              'vector))
          (indices (if alpha (progn (if (vectorp alpha)
                                        (loop :for i :across alpha :for id :in idims :for ix :from 0
-                                             :do (when (not (member i positions))
+                                             :do (unless (member i positions)
                                                      ;; if a duplicate position is found,
                                                      ;; a diagonal section is being performed
                                                    (push i positions)

@@ -175,7 +175,7 @@
                          (let* ((ogen (generator-of omega))
                                 (oitem (if (not (functionp ogen))
                                            ogen (funcall ogen 0))))
-                           ;; (print (list :os ogen omega (shape-of omega) oitem (size-of oitem)))
+                           ;; (print (list :eee ogen oitem))
                            (if (and (/= 1 (size-of omega))
                                     (= 1 (size-of oitem)))
                                (if (not (or (arrayp oitem) (varrayp oitem)))
@@ -183,9 +183,10 @@
                                (if (and (typep oitem 'vader-enclose)
                                         (not (typep omega 'vacomp-each)))
                                    (make-instance 'vader-enclose :base oitem)
+                                   ;; (enclose (render oitem))
                                    ogen))))))))
         (let* ((odims (shape-of (vacmp-omega varray)))
-               (omega-indexer (generator-of (vacmp-omega varray)))
+               (ogen (generator-of (vacmp-omega varray)))
                (out-dims (shape-of varray))
                (axis (or (vads-axis varray) (1- (length odims))))
                (rlen (nth axis odims))
@@ -194,7 +195,6 @@
                (window-reversed (and window (> 0 window)))
                (window (when window (abs window)))
                (wsegment)
-               (non-nested (not (eq t (etype-of (vacmp-omega varray)))))
                (fn-meta (funcall (vacmp-left varray) :get-metadata nil))
                ;; check whether fn-meta is a list since train-composed functions and some
                ;; others won't return a metadata list; TODO: a better way to do this?
@@ -222,21 +222,15 @@
              ;; reverse the argument vector in the case of a scalar function;
              ;; this also applies in the case of the next two clauses
              ;; (print (list :dd (vacmp-omega varray)))
-             (case (getf params :base-format)
-               (:encoded)
-               (:linear)
-               (t (lambda (i)
-                    (declare (optimize (safety 1)))
-                    (let* ((output (funcall (vacmp-left varray)
-                                            :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                                                 (vacmp-omega varray)))))
-                      ;; pass the indexer through for a shapeless output as from +/⍳5;
-                      ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
-                      (if (shape-of output)
-                          ;; TODO: a (generator-of) as part of an indexer is a big problem
-                          output (let ((out-indexer (generator-of output)))
-                                   (if (not (functionp out-indexer))
-                                       out-indexer (funcall out-indexer i)))))))))
+             (let ((output (funcall (vacmp-left varray)
+                                    :arg-vector (funcall (if scalar-fn #'reverse #'identity)
+                                                         (vacmp-omega varray)))))
+               (case (getf params :base-format)
+                 (:encoded)
+                 (:linear)
+                 ;; pass the indexer through for a shapeless output as from +/⍳5;
+                 ;; pass the output object through for an output with a shape as from +/(1 2 3)(4 5 6)
+                 (t (if (shape-of output) output (generator-of output))))))
             ;; ((and scalar-fn (not out-dims) (varrayp (vacmp-omega varray)))
             ;;  ;; reverse the argument vector in the case of a scalar function;
             ;;  ;; this also applies in the case of the next two clauses
@@ -263,13 +257,15 @@
                                                    rlen :element-type (etype-of (vacmp-omega varray))
                                                         :displaced-to (vacmp-omega varray)
                                                         :displaced-index-offset (* i rlen))))))))
-            (t (flet ((process-item (i ix delta)
-                        ;; (when (and (getf fn-meta :lexical-reference)
-                        ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
-                        ;;   (print (list :ind window omega-indexer
-                        ;;                (funcall omega-indexer (+ delta (* ix increment))))))
-                        (if (not (functionp omega-indexer))
-                            omega-indexer (funcall omega-indexer (+ delta (* ix increment))))))
+            (t (let* ((ogen (generator-of (render omega)))
+                      ;; TODO: this render provides a speedup but it isn't ideal, can it be removed?
+                      ;; also prevents race condition with -/(⊢⊢2,⍨⊂⍪⍳3)+.*¨2
+                      (process-item (if (functionp ogen)
+                                        (lambda (ix delta)
+                                          (funcall ogen (+ delta (* ix increment))))
+                                        (lambda (ix delta)
+                                          (declare (ignore ix delta))
+                                          ogen))))
                  (if (or scalar-fn catenate-fn)
                      (case (getf params :base-format)
                        (:encoded)
@@ -288,15 +284,18 @@
                               ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
                               ;; (when (and (getf fn-meta :lexical-reference)
                               ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
-                              ;;   (print (list :ind window omega-indexer
-                              ;;                (funcall omega-indexer (+ delta (* 0 increment))))))
+                              ;;   (print (list :eoeo value)))
                               (if window-reversed
                                   (loop :for ix :below window
                                         :do (setf (aref value (- ax-interval (incf valix)))
-                                                  (process-item i ix delta)))
+                                                  (funcall process-item ix delta)))
                                   (loop :for ix :from (1- ax-interval) :downto 0
                                         :do (setf (aref value (- ax-interval (incf valix)))
-                                                  (process-item i ix delta))))
+                                                  (funcall process-item ix delta))))
+                              ;; (when (and (getf fn-meta :lexical-reference)
+                              ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
+                              ;;   (print (list :ind window ogen
+                              ;;                (funcall ogen (+ delta (* 0 increment))))))
                               (funcall (vacmp-left varray)
                                        :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                             value))))))
@@ -314,12 +313,12 @@
                                                 (if window (if (>= 1 irank) i (mod i wsegment))
                                                     (* i rlen))))))
                               (if window-reversed (loop :for ix :below window
-                                                        :do (let ((item (process-item i ix delta)))
+                                                        :do (let ((item (funcall process-item ix delta)))
                                                               (setq value (if (not value) item
                                                                               (funcall (vacmp-left varray)
                                                                                        value item)))))
                                   (loop :for ix :from (1- ax-interval) :downto 0
-                                        :do (let ((item (process-item i ix delta)))
+                                        :do (let ((item (funcall process-item ix delta)))
                                               (setq value (if (not value) item
                                                               (funcall (vacmp-left varray)
                                                                        value item))))))
@@ -358,7 +357,7 @@
   (let* ((odims (shape-of varray))
          (omega (render (vacmp-omega varray)))
          (axis (vads-axis varray)))
-    (when (not (vader-content varray))
+    (unless (vader-content varray)
       (if (not (arrayp omega))
           (if (eq :get-metadata omega)
               (list :valence :monadic)
@@ -550,6 +549,7 @@
       (t (if (not (functionp base-gen))
              base-gen (lambda (index)
                         (funcall base-gen (+ index (* interval (vasv-index varray))))))))))
+
 #|
 (defun inverse-outer-product (input function right-original &optional threaded left-original)
   "Find the inverse outer product of an array with a function and a given outer product argument."
@@ -580,6 +580,7 @@
          (ascalar (unless (shape-of alpha)
                     (if (not (functionp aindexer))
                         aindexer (funcall aindexer 0)))))
+    ;; (print (list :om omega (render alpha)))
     (if is-outer
         (case (getf params :base-format)
           (:encoded)
