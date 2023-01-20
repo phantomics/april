@@ -100,8 +100,7 @@
                                      ;; TODO: what's sending an ⎕IO of 0 here for ⌊10000×+∘÷/40/1 ?
                                      (max 0 (if (vads-axis varray)
                                                 (- (vads-axis varray) (vads-io varray))
-                                                (1- (length base-shape))))))
-                         (output))
+                                                (1- (length base-shape)))))))
                     (loop :for b :in base-shape :for ix :from 0 :when (/= ix axis) :collect b
                           :when (and (= ix axis) (= 1 b)) :do (setf (vacred-unitary varray) t)
                             :when (and window (= ix axis)) :collect (- b (1- window)))))))
@@ -123,7 +122,6 @@
   (:documentation "A subarray created as part of a [/ reduce] operation."))
 
 (defmethod prototype-of ((varray vader-subarray-reduce))
-  (declare (ignore params))
   (get-promised (varray-prototype varray)
                 (let* ((generator (generator-of varray))
                        (first-item (funcall generator 0)))
@@ -149,6 +147,7 @@
 
 (defmethod generator-of ((varray vacomp-reduce) &optional indexers params)
   "Reduce an array along by a given function along a given dimension, optionally with a window interval."
+  (declare (ignore indexers))
   (let* ((omega (vacmp-omega varray))
          (irank (rank-of omega))
          (osize (size-of omega)))
@@ -185,8 +184,8 @@
                                    (make-instance 'vader-enclose :base oitem)
                                    ;; (enclose (render oitem))
                                    ogen))))))))
-        (let* ((odims (shape-of (vacmp-omega varray)))
-               (ogen (generator-of (vacmp-omega varray)))
+        (let* ((odims (shape-of omega))
+               (ogen (generator-of omega))
                (out-dims (shape-of varray))
                (axis (or (vads-axis varray) (1- (length odims))))
                (rlen (nth axis odims))
@@ -207,9 +206,8 @@
                                  (member (getf fn-meta :lexical-reference)
                                          '(#\, #\⍪ #\∩) :test #'char=)))
                (ax-interval (or window rlen))
-               (increment-diff (- (* increment rlen) increment))
-               ;; TODO: create a better way to determine the catenate function
-               )
+               (increment-diff (- (* increment rlen) increment)))
+          ;; TODO: create a better way to determine the catenate function
           (loop :for dim :in odims :for dx :from 0
                 :when (and window (= dx axis))
                   :do (setq wsegment (- dim (1- window))))
@@ -257,20 +255,20 @@
                                                    rlen :element-type (etype-of (vacmp-omega varray))
                                                         :displaced-to (vacmp-omega varray)
                                                         :displaced-index-offset (* i rlen))))))))
-            (t (let* ((ogen (generator-of (render omega)))
-                      ;; TODO: this render provides a speedup but it isn't ideal, can it be removed?
-                      ;; also prevents race condition with -/(⊢⊢2,⍨⊂⍪⍳3)+.*¨2
-                      (process-item (if (functionp ogen)
-                                        (lambda (ix delta)
-                                          (funcall ogen (+ delta (* ix increment))))
-                                        (lambda (ix delta)
-                                          (declare (ignore ix delta))
-                                          ogen))))
-                 (if (or scalar-fn catenate-fn)
-                     (case (getf params :base-format)
-                       (:encoded)
-                       (:linear)
-                       (t (lambda (i)
+            (t (if (or scalar-fn catenate-fn)
+                   (case (getf params :base-format)
+                     (:encoded)
+                     (:linear)
+                     (t (let* ((ogen (generator-of (render omega)))
+                               ;; TODO: this render provides a speedup but it isn't ideal, can it be removed?
+                               ;; also prevents race condition with -/(⊢⊢2,⍨⊂⍪⍳3)+.*¨2
+                               (process-item (if (functionp ogen)
+                                                 (lambda (ix delta)
+                                                   (funcall ogen (+ delta (* ix increment))))
+                                                 (lambda (ix delta)
+                                                   (declare (ignore ix delta))
+                                                   ogen))))
+                          (lambda (i)
                             ;; in the case of a scalar function that can take entire vectors as an argument
                             (declare (optimize (safety 1)))
                             (let ((valix 0)
@@ -282,9 +280,6 @@
                                                 (if window (if (>= 1 irank) i (mod i wsegment))
                                                     (* i rlen))))))
                               ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
-                              ;; (when (and (getf fn-meta :lexical-reference)
-                              ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
-                              ;;   (print (list :eoeo value)))
                               (if window-reversed
                                   (loop :for ix :below window
                                         :do (setf (aref value (- ax-interval (incf valix)))
@@ -292,39 +287,41 @@
                                   (loop :for ix :from (1- ax-interval) :downto 0
                                         :do (setf (aref value (- ax-interval (incf valix)))
                                                   (funcall process-item ix delta))))
-                              ;; (when (and (getf fn-meta :lexical-reference)
-                              ;;            (char= #\∧ (getf fn-meta :lexical-reference)))
-                              ;;   (print (list :ind window ogen
-                              ;;                (funcall ogen (+ delta (* 0 increment))))))
                               (funcall (vacmp-left varray)
                                        :arg-vector (funcall (if scalar-fn #'reverse #'identity)
-                                                            value))))))
+                                                            value)))))))
                      (case (getf params :base-format)
                        (:encoded)
                        (:linear)
-                       (t (lambda (i) ;; in the case of other functions
-                            (declare (optimize (safety 1)))
-                            (let ((value)
-                                  (delta (+ (if window (* rlen (floor i wsegment))
-                                                (if (= 1 increment)
-                                                    0 (* (floor i increment)
-                                                         (- (* increment rlen) increment))))
-                                            (if (/= 1 increment) i
-                                                (if window (if (>= 1 irank) i (mod i wsegment))
-                                                    (* i rlen))))))
-                              (if window-reversed (loop :for ix :below window
-                                                        :do (let ((item (funcall process-item ix delta)))
-                                                              (setq value (if (not value) item
-                                                                              (funcall (vacmp-left varray)
-                                                                                       value item)))))
-                                  (loop :for ix :from (1- ax-interval) :downto 0
-                                        :do (let ((item (funcall process-item ix delta)))
-                                              (setq value (if (not value) item
-                                                              (funcall (vacmp-left varray)
-                                                                       value item))))))
-                              (when (typep value 'vacomp-reduce)
-                                (setf (vads-subrendering varray) nil))
-                              value))))))))))))
+                       (t (let ((process-item (if (functionp ogen)
+                                                  (lambda (ix delta)
+                                                    (funcall ogen (+ delta (* ix increment))))
+                                                  (lambda (ix delta)
+                                                    (declare (ignore ix delta))
+                                                    ogen))))
+                            (lambda (i) ;; in the case of other functions
+                              (declare (optimize (safety 1)))
+                              (let ((value)
+                                    (delta (+ (if window (* rlen (floor i wsegment))
+                                                  (if (= 1 increment)
+                                                      0 (* (floor i increment)
+                                                           (- (* increment rlen) increment))))
+                                              (if (/= 1 increment) i
+                                                  (if window (if (>= 1 irank) i (mod i wsegment))
+                                                      (* i rlen))))))
+                                (if window-reversed (loop :for ix :below window
+                                                          :do (let ((item (funcall process-item ix delta)))
+                                                                (setq value (if (not value) item
+                                                                                (funcall (vacmp-left varray)
+                                                                                         value item)))))
+                                    (loop :for ix :from (1- ax-interval) :downto 0
+                                          :do (let ((item (funcall process-item ix delta)))
+                                                (setq value (if (not value) item
+                                                                (funcall (vacmp-left varray)
+                                                                         value item))))))
+                                (when (typep value 'vacomp-reduce)
+                                  (setf (vads-subrendering varray) nil))
+                                value))))))))))))
 
 (defclass vacomp-scan (vad-subrendering vader-composing vad-invertable
                        vad-on-axis vad-with-io vad-with-default-axis)
@@ -353,7 +350,7 @@
   ;; (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
   ;; (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
-  ;;(declare (ignore environment))
+  (declare (ignore indexers))
   (let* ((odims (shape-of varray))
          (omega (render (vacmp-omega varray)))
          (axis (vads-axis varray)))
@@ -451,8 +448,8 @@
                           ashape))))
 
 (defmethod generator-of ((varray vacomp-each) &optional indexers params)
-  (let ((this-shape (shape-of varray))
-        (oshape (shape-of (vacmp-omega varray)))
+  (declare (ignore indexers))
+  (let ((oshape (shape-of (vacmp-omega varray)))
         (ashape (shape-of (vacmp-alpha varray)))
         (threaded (side-effect-free (vacmp-left varray))))
     ;; TODO: logic to determine threading needs work, then reenable it
@@ -473,15 +470,23 @@
                          (ai (if ai index 0)))
                      `(if (functionp oindexer)
                           (if (functionp aindexer)
-                              (lambda (,index)
-                                (funcall (vacmp-left varray) (funcall oindexer ,oi)
-                                         (funcall aindexer ,ai)))
-                              (lambda (,index)
-                                (funcall (vacmp-left varray) (funcall oindexer ,oi)
-                                         aindexer)))
+                              ,(if (or (symbolp oi) (symbolp ai))
+                                   `(lambda (,index)
+                                      (funcall (vacmp-left varray) (funcall oindexer ,oi)
+                                               (funcall aindexer ,ai)))
+                                   `(funcall (vacmp-left varray) (funcall oindexer ,oi)
+                                             (funcall aindexer ,ai)))
+                              ,(if (symbolp oi)
+                                   `(lambda (,index)
+                                      (funcall (vacmp-left varray) (funcall oindexer ,oi)
+                                               aindexer))
+                                   `(funcall (vacmp-left varray) (funcall oindexer ,oi)
+                                             aindexer)))
                           (if (functionp aindexer)
-                              (lambda (,index)
-                                (funcall (vacmp-left varray) oindexer (funcall aindexer ,ai)))
+                              ,(if (symbolp ai)
+                                   `(lambda (,index)
+                                      (funcall (vacmp-left varray) oindexer (funcall aindexer ,ai)))
+                                   `(funcall (vacmp-left varray) oindexer (funcall aindexer ,ai)))
                               (funcall (vacmp-left varray) oindexer aindexer))))))
         (case (getf params :base-format)
           (:encoded)
@@ -531,7 +536,6 @@
   (:documentation "An element of a split array as from the [↓ split] function."))
 
 (defmethod prototype-of ((varray vader-subarray-displaced))
-  (declare (ignore params))
   (let* ((gen (generator-of varray))
          (first-item (if (not (functionp gen))
                          gen (funcall (generator-of varray) 0))))
@@ -540,7 +544,6 @@
         (apl-array-prototype first-item))))
 
 (defmethod generator-of ((varray vader-subarray-displaced) &optional indexers params)
-  (declare (ignore params))
   (let ((interval (reduce #'* (shape-of varray)))
         (base-gen (generator-of (vader-base varray) indexers params)))
     (case (getf params :base-format)
@@ -567,6 +570,7 @@
 |#
 
 (defmethod generator-of ((varray vacomp-produce) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((omega (vacmp-omega varray))
          (alpha (vacmp-alpha varray))
          (osize (size-of omega)) (asize (size-of alpha))
@@ -682,12 +686,12 @@
   (:documentation "A stencil-composed array as with the [⌺ stencil] operator."))
 
 (defmethod prototype-of ((varray vacomp-stencil))
-  (let ((this-indexer (generator-of varray)))
-    (if t ; (zerop (size-of varray))
-        ;; TODO: should prototype reflect both arguments?
-        (prototype-of (vacmp-omega varray))
-        ;; (prototype-of (funcall this-indexer 0))
-        )))
+  ;; (let ((this-indexer (generator-of varray)))
+  ;; (if t ; (zerop (size-of varray))
+      ;; TODO: should prototype reflect both arguments?
+      (prototype-of (vacmp-omega varray))
+      ;; (prototype-of (funcall this-indexer 0))
+      )
 
 (defmethod shape-of ((varray vacomp-stencil))
   (get-promised
@@ -706,15 +710,15 @@
                     (and (not left-function)
                          (error "The left operand of [⌺ stencil] must be a function."))))
            (let ((idims (shape-of (vacmp-omega varray)))
-                 (window-dims (if (not (arrayp right-value))
-                                  (vector right-value)
+                 (window-dims (if (arrayp right-value)
                                   (if (= 1 (rank-of right-value))
-                                      right-value (get-row right-value 0))))
-                 (movement (if (not (arrayp right-value))
-                               (vector 1)
+                                      right-value (get-row right-value 0))
+                                  (vector right-value)))
+                 (movement (if (arrayp right-value)
                                (if (= 2 (rank-of right-value)) (get-row right-value 1)
                                    (make-array (length right-value) :element-type 'fixnum
-                                                                    :initial-element 1)))))
+                                                                    :initial-element 1))
+                               (vector 1))))
              (setf (vacst-movement varray)
                    (if (= omega-rank (length movement))
                        movement (coerce (loop :for s :in omega-shape :for i :from 0
@@ -728,11 +732,11 @@
                                                               s (aref window-dims i)))
                                            'vector))
                    (vacst-base-dims varray) (coerce omega-shape 'vector))
-             (loop :for dim :below (length window-dims) :for dx :from 0
-                   :collect (ceiling (- (/ (nth dim idims) (aref movement dim))
+             (loop :for dim :below (length window-dims) :for id :in idims :for dx :from 0
+                   :collect (ceiling (- (/ id (aref movement dim))
                                         (if (and (evenp (aref window-dims dim))
                                                  (or (= 1 (aref movement dim))
-                                                     (oddp (nth dim idims))))
+                                                     (oddp id)))
                                             1 0))))))))))
 
 (defclass vader-stencil-window (varray-derived)
@@ -747,6 +751,7 @@
   (prototype-of (vacmp-omega (vader-base varray)))) ;; TODO: fix this to proto from individual frame
 
 (defmethod generator-of ((varray vader-stencil-window) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((base-gen (generator-of (vacmp-omega (vader-base varray))))
          (idims (apply #'vector (shape-of (vacmp-omega (vader-base varray)))))
          (this-rank (rank-of varray))
@@ -801,6 +806,7 @@
   ) ;; 8-bit elements for efficiency - TODO: is a different type better?
 
 (defmethod generator-of ((varray vader-stencil-margin) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((base-dims (vacst-base-dims (vader-base varray)))
          (win-index (vaste-index varray))
          (win-dims (vacst-win-dims (vader-base varray)))
@@ -819,6 +825,7 @@
                                          (aref base-dims index)))))))))))
 
 (defmethod generator-of ((varray vacomp-stencil) &optional indexers params)
+  (declare (ignore indexers))
   (setf (vacmp-omega varray) (render (vacmp-omega varray))) ;; TODO: can this render be eliminated?
   (let* ((irank (rank-of (vacmp-omega varray)))
          (idims (apply #'vector (shape-of (vacmp-omega varray))))
