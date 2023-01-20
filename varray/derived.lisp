@@ -92,6 +92,7 @@
   (varray-prototype varray))
 
 (defmethod generator-of ((varray vader-subarray) &optional indexers params)
+  (declare (ignore indexers))
   (case (getf params :base-format)
     (:encoded)
     (:linear)
@@ -136,7 +137,8 @@
                         (setf (getf (rest rngs) gen-name)
                               (if (eq :system gen-name)
                                   :system (random-state:make-generator gen-name)))))
-         (seed (getf (rest rngs) :seed)))
+         ;; (seed (getf (rest rngs) :seed))
+         )
     
      ;; randomized array content is generated synchronously
      ;; and cached in case a random seed is in use
@@ -157,10 +159,11 @@
       (t (lambda (index)
            (if scalar-base (apl-random-process (funcall base-gen index) (vads-io varray)
                                                generator)
-               (if t ; seed
-                   (row-major-aref (vader-content varray) index)
-                   (apl-random-process (funcall base-gen index) (vads-io varray)
-                                       generator))))))))
+               (row-major-aref (vader-content varray) index)
+               ;; (if seed (row-major-aref (vader-content varray) index)
+               ;;     (apl-random-process (funcall base-gen index) (vads-io varray)
+               ;;                         generator))
+               ))))))
 
 (defclass vader-deal (varray-derived vad-with-argument vad-with-rng vad-with-io)
   ((%cached :accessor vadeal-cached
@@ -192,7 +195,8 @@
                         (if (integerp length) (list length)
                             (error "Both arguments to ? must be non-negative integers.")))))))
 
-(defmethod generator-of ((varray vader-deal) &optional indexer params)
+(defmethod generator-of ((varray vader-deal) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((rngs (vads-rng varray))
          (base-gen (generator-of (vader-base varray)))
          (count (if (not (functionp base-gen))
@@ -232,7 +236,8 @@
                   (declare (ignore this-indexer))
                   (shape-of (vader-content varray)))))
 
-(defmethod generator-of ((varray vader-without) &optional indexer params)
+(defmethod generator-of ((varray vader-without) &optional indexers params)
+  (declare (ignore indexers))
   (flet ((compare (o a)
            (funcall (if (and (characterp a) (characterp o))
                         #'char= (if (and (numberp a) (numberp o))
@@ -301,7 +306,8 @@
                   (declare (ignore this-indexer))
                   (shape-of (vader-content varray)))))
 
-(defmethod generator-of ((varray vader-umask) &optional indexer params)
+(defmethod generator-of ((varray vader-umask) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((derivative-count (when (and (varray-shape varray)
                                       (listp (varray-shape varray)))
                              (reduce #'* (varray-shape varray))))
@@ -920,8 +926,6 @@
                                             (listp (varray-shape varray)))
                                    (reduce #'* (varray-shape varray))))
                (base-gen (generator-of (vader-base varray)))
-               (output-length (if derivative-count (min derivative-count (first base-shape))
-                                  (first base-shape)))
                (indices) (match-count 0))
           (loop :for i :below (size-of (vader-base varray))
                 :while (or (not derivative-count) (< match-count derivative-count))
@@ -969,7 +973,6 @@
          (argument (render (vads-argument varray))) ;; TODO: rendering needed?
          (arg-shape (shape-of argument))
          (base-rendered (when (second arg-shape) (render (vader-base varray))))
-         (arg-indexer (generator-of argument))
          (increment (when (second arg-shape)
                       (/ (reduce #'* (shape-of base-rendered))
                          (reduce #'* (shape-of varray)))))
@@ -1042,8 +1045,7 @@
                  (if (zerop (size-of axis))
                      (append base-shape (list 1))
                      (let ((output) (reducing) (prev-axis)
-                           (axis (copy-list axis))
-                           (shape base-shape))
+                           (axis (copy-list axis)))
                        (loop :for s :in base-shape :for ix :from 0
                              :do (if reducing
                                      (if axis (if (/= (first axis) (1+ prev-axis))
@@ -1242,7 +1244,7 @@
   (:documentation "A mixed array as from the [↑ mix] function."))
 
 (defmethod etype-of ((varray vader-mix))
-  (let ((base-gen (generator-of (vader-base varray))))
+  ;; (let ((base-gen (generator-of (vader-base varray))))
     ;; (or (apply #'type-in-common (loop :for aix :below (size-of (vader-base varray))
     ;;                                   :when (and (functionp base-gen)
     ;;                                              (< 0 (size-of (funcall base-gen aix))))
@@ -1252,7 +1254,7 @@
     ;;     t)
     ;; above is very slow
     t
-    ))
+    )
 
 (defmethod prototype-of ((varray vader-mix))
   (let ((base-gen (generator-of (vader-base varray))))
@@ -1361,7 +1363,7 @@
                                                   'vector)))
                             (prototype (prototype-of varray)))
                        (lambda (index)
-                         (let ((remaining index) (row-major-index) (outer-indices) (inner-indices))
+                         (let ((remaining index) (outer-indices) (inner-indices))
                            (loop :for ofactor :across ofactors :for di :in dim-indices :for fx :from 0
                                  :do (multiple-value-bind (this-index remainder) (floor remaining ofactor)
                                        (setf remaining remainder)
@@ -1425,7 +1427,6 @@
   (:documentation "An element of a split array as from the [↓ split] function."))
 
 (defmethod prototype-of ((varray vader-subarray-split))
-  (declare (ignore params))
   (get-promised (varray-prototype varray)
                 (let ((first-item (funcall (generator-of varray) 0)))
                   (if (varrayp first-item) (prototype-of first-item)
@@ -1500,10 +1501,7 @@
      (when (typep base 'vader-section)
        ;; merge successive section objects into a single object applying to the base of the
        ;; first section object, so only one array transform happens for cases like 4 3↑1 1↓4 5⍴⍳20
-       (let* ((base-axis (vads-axis base))
-              (argument (vads-argument varray))
-              (base-shape (shape-of base))
-              (base-arg (vads-argument base))
+       (let* ((argument (vads-argument varray))
               (base-span (vasec-span base))
               (base-pad (vasec-pad base))
               (base-rank (* 1/2 (length base-span)))
@@ -2557,7 +2555,8 @@
                                  (rest (shape-of (vader-content varray))))
                            (list (length (vauni-indices varray)))))))
 
-(defmethod generator-of ((varray vader-unique) &optional indexer params)
+(defmethod generator-of ((varray vader-unique) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((base-shape (shape-of (vader-base varray)))
          (cell-size (reduce #'* (rest base-shape)))
          (base-size (size-of (vader-base varray)))
@@ -2979,8 +2978,7 @@
                                       (not (shape-of (vads-argument varray)))))
                             (shape-of (vads-argument varray))
                             (let* ((base (render (vader-base varray)))
-                                   (max-base (unless (shape-of base) base))
-                                   (arg (render (vads-argument varray))))
+                                   (max-base (unless (shape-of base) base)))
                               (unless max-base
                                 (setf max-base 0)
                                 (dotimes (i (size-of base))
@@ -3104,16 +3102,15 @@
         (case (getf params :base-format)
           (:encoded)
           (:linear)
-          (t (lambda (i)
-               (let ((result 0) (factor 1))
-                 (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
-                       :do (incf result (* factor (render (if (not (functionp base-gen))
-                                                              base-gen (funcall base-gen
-                                                                                (min i (1- ovector)))))))
-                           (setq factor (* factor (render (if (not (functionp arg-gen))
-                                                              arg-gen (funcall arg-gen
-                                                                               (min i (1- av2))))))))
-                 result)))))))
+          (t (let ((result 0) (factor 1))
+               (loop :for i :from (1- (if (< 1 av2) av2 ovector)) :downto 0
+                     :do (incf result (* factor (render (if (not (functionp base-gen))
+                                                            base-gen (funcall base-gen
+                                                                              (min i (1- ovector)))))))
+                         (setq factor (* factor (render (if (not (functionp arg-gen))
+                                                            arg-gen (funcall arg-gen
+                                                                             (min i (1- av2))))))))
+               result))))))
 
 (defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless vad-reindexing vad-invertable)
   nil (:metaclass va-class)
