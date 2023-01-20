@@ -1691,7 +1691,6 @@
    (let* ((assigning (getf params :for-selective-assign))
           (base-gen (generator-of (vader-base varray)))
           (size (size-of varray))
-          (is-inverse (vads-inverse varray))
           (base-size (size-of (vader-base varray)))
           (layers-below (when assigning
                           (typecase (vader-base varray) (vader-section t)
@@ -1702,7 +1701,7 @@
           
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
                                       (vasec-span varray) (vasec-pad varray)
-                                      is-inverse assigning nil nil t)))
+                                      assigning nil nil t)))
        (unless assigning
          (setf (varray-prototype varray)
                (if (or (zerop size) (zerop base-size))
@@ -1733,7 +1732,7 @@
   (if (getf params :for-selective-assign)
       (let ((indexer (indexer-section (shape-of (vader-base varray))
                                       (vasec-span varray) (vasec-pad varray)
-                                      (vads-inverse varray) :assign nil nil))
+                                      :assign nil nil))
             (layers-below (typecase (vader-base varray)
                             (vader-section t)
                             (vader-pick (setf (vapick-assign (vader-base varray))
@@ -1755,7 +1754,6 @@
                            (indexer (indexer-section
                                      (shape-of (vader-base varray))
                                      (vasec-span varray) (vasec-pad varray)
-                                     (vads-inverse varray)
                                      nil enco-type coord-type))
                            (these-indexers))
                       (when indexer
@@ -1772,7 +1770,6 @@
                    (let ((indexer (indexer-section
                                    (shape-of (vader-base varray))
                                    (vasec-span varray) (vasec-pad varray)
-                                   (vads-inverse varray)
                                    nil (getf (getf params :gen-meta) :index-width)
                                    (getf (getf params :gen-meta) :index-type))))
                      (when indexer

@@ -305,8 +305,7 @@
 
 (defmacro ws-assign-fun (symbol value)
   "Assignment macro for use with (:store-fun) directive."
-  (let ((params (gensym)) (call-params (gensym))
-        (item (gensym)) (this-fn (gensym)))
+  (let ((params (gensym)) (call-params (gensym)) (this-fn (gensym)))
     `(let ((,this-fn ,value))
        (unless (boundp ',symbol)
          (proclaim '(special ,symbol)))
@@ -543,7 +542,7 @@
           (let ((this-item (gensym)) (other (gensym)))
             (if processor ;; if there's a processor, this path is being used for assignment
                 (enclose-axes item (first key-list)
-                              :set value :set-nil (not value)
+                              :set value
                               :set-by `(lambda (,this-item ,other)
                                          ,(process-path this-item (rest key-list) processor other)
                                          ,this-item))
@@ -1158,10 +1157,6 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (axes-present (and (listp function) (eql 'apl-fn-s (first function))
-                            (third function) (listp (third function))
-                            (eql 'apply-scalar (first (third function)))))
-         
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
                                                               arg `(vrender ,arg :may-be-deferred t)))))
     ;; (print (list :aa arguments))
@@ -1351,10 +1346,9 @@ It remains here as a standard against which to compare methods for composing APL
   `(if (not (characterp ,reference))
        ,symbol (intern (string-upcase ,reference) ,*package-name-string*)))
 
-(defun enclose-axes (body axis-sets &key (set) (set-by) (set-nil) (reference))
+(defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
-  (let ((axes (first axis-sets))
-        (assignment-output (gensym)) (assigned-array (gensym)) (to-set (gensym)))
+  (let ((axes (first axis-sets)) (to-set (gensym)))
     (if (not axis-sets)
         body (enclose-axes
               (if set `(let* ((,to-set ,set))
@@ -2086,7 +2080,7 @@ It remains here as a standard against which to compare methods for composing APL
 (defmacro plain-ref (function &optional axes)
   "Wrap a lexical function; this is needed to implement some meta-functionality."
   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
-  (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)) (a (gensym)))
+  (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
     `(labels ((,this-fn (&rest ,args)
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
@@ -2103,7 +2097,7 @@ It remains here as a standard against which to compare methods for composing APL
 
 (defmacro amb-ref (fn-monadic fn-dyadic &optional axes)
   "Generate a function aliasing a lexical function which may be monadic or dyadic; an ambivalent reference."
-  (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym)) (a (gensym))
+  (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
         (m-scalar (when (eq 'scalar-function (first fn-monadic)) '(:scalar t)))
         (d-scalar (when (eq 'scalar-function (first fn-dyadic)) '(:scalar t)))
         (m-meta (when (member (first fn-monadic) '(fn-meta scalar-function))

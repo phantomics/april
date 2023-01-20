@@ -26,11 +26,10 @@
                                    (byte +cindex-width+ +address-fraction+)
                                    i))))))))))
   
-  (defun indexer-section (dims span pad is-inverse output-shorter iwidth itype &optional is-flat)
+  (defun indexer-section (dims span pad output-shorter iwidth itype &optional is-flat)
     "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
     ;; (print (list :is inverse dims dimensions output-shorter span padding))
-    (let* ((scalar (not dims))
-           (dims (or dims '(1)))
+    (let* ((dims (or dims '(1)))
            (isize (reduce #'* dims)) (irank (length dims))
            (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                     :initial-contents dims))
@@ -38,7 +37,6 @@
                         :collect (+ (- (aref span (+ ix irank)) sp)
                                     (aref pad ix)
                                     (aref pad (+ ix irank)))))
-           (osize (reduce #'* odims))
            (last-dim)
            (id-factors (make-array irank :element-type 'fixnum))
            (od-factors (make-array irank :element-type 'fixnum)))
@@ -223,28 +221,28 @@
                    (* increment (abs (- (mod (floor i increment) rlen)
                                         (1- rlen)))))))))))
 
-(let ((indexer-table-regular-linear
-        (intraverser
-         (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
-          ;; :rank +rank+
-          :rank-width +rank-width+)
-         (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-                         ;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
-                         vector vector
-                         )
-                        function)
-              (lambda (od-factors s-factors)
-                (declare (optimize (speed 3) (safety 0)))
-                (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
-                     (lambda (i)
-                       (declare (type (unsigned-byte +lindex-width+) i))
-                       (let* ((remaining (the (unsigned-byte +lindex-width+) i))
-                              (oindex (the (unsigned-byte +lindex-width+) 0)))
-                         (loop :for od :across od-factors :for s :across s-factors
-                               :collect (multiple-value-bind (index remainder) (floor remaining od)
-                                          (incf oindex (* index s))
-                                          (setq remaining remainder)))
-                         oindex)))))))
+(let (;; (indexer-table-regular-linear
+      ;;   (intraverser
+      ;;    (:lindex-width +lindex-width+ :sub-base-width +sub-base-width+
+      ;;     ;; :rank +rank+
+      ;;     :rank-width +rank-width+)
+      ;;    (the (function (;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+      ;;                    ;; (simple-array (unsigned-byte +sub-base-width+) (+rank+))
+      ;;                    vector vector
+      ;;                    )
+      ;;                   function)
+      ;;         (lambda (od-factors s-factors)
+      ;;           (declare (optimize (speed 3) (safety 0)))
+      ;;           (the (function ((unsigned-byte +lindex-width+)) (unsigned-byte +lindex-width+))
+      ;;                (lambda (i)
+      ;;                  (declare (type (unsigned-byte +lindex-width+) i))
+      ;;                  (let* ((remaining (the (unsigned-byte +lindex-width+) i))
+      ;;                         (oindex (the (unsigned-byte +lindex-width+) 0)))
+      ;;                    (loop :for od :across od-factors :for s :across s-factors
+      ;;                          :collect (multiple-value-bind (index remainder) (floor remaining od)
+      ;;                                     (incf oindex (* index s))
+      ;;                                     (setq remaining remainder)))
+      ;;                    oindex)))))))
       (indexer-table-regular-encoded
         (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
