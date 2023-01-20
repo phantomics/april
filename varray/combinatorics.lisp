@@ -9,6 +9,7 @@
        (arith-functions (append add-sub-functions mul-div-functions)))
   (defun extend-allocator-vader-calculate (&key base axis function index-origin params)
     "Extend allocation behavior of operate class; currently, this allows for things like 1+⍳9 returning a modified integer progression vector rather than an instance of the vader-calculate class."
+    (declare (ignore axis index-origin))
     ;; (print (list :ba base params))
     (typecase base
       (list
@@ -62,6 +63,7 @@
 
 (defun extend-allocator-vader-expand (&key base argument index-origin inverse axis)
   "Extend allocation behavior of expand class; allows for 3/⍳3 to produce a repeating integer progression vector instead of a vader-expand instance."
+  (declare (ignore axis index-origin inverse))
   (typecase base
     (vapri-integer-progression
      (let ((rendered-argument (unless (shape-of argument) (render argument))))

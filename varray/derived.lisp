@@ -407,10 +407,10 @@
          (t (lambda (index) (row-major-aref (vader-content varray) index))))))))
 
 (defclass vader-index (varray-derived vad-with-argument vad-with-io)
-  ((%base-cache :accessor vaix-base-cache
-                :initform nil
-                :initarg :base-cache
-                :documentation "Cached items to search in array.")
+  ((%cache :accessor vaix-cache
+           :initform nil
+           :initarg :cache
+           :documentation "Cached items to search in array.")
    (%set :accessor vaix-set
          :initform nil
          :initarg :set
@@ -437,8 +437,8 @@
                        (setf (vaix-set varray) (render (vads-argument varray)))))
          (arg-cell-size (reduce #'* (rest (shape-of argument))))
          (major-cells-count (when (/= 1 arg-cell-size) (first (shape-of argument))))
-         (base (when major-cells-count (or (vaix-base-cache varray)
-                                           (setf (vaix-base-cache varray)
+         (base (when major-cells-count (or (vaix-cache varray)
+                                           (setf (vaix-cache varray)
                                                  (render (vader-base varray)))))))
     (if major-cells-count ;; if comparing sub-arrays
         (case (getf params :base-format)
@@ -510,20 +510,21 @@
                       (list arg)))))
 
 (defmethod indexer-of ((varray vader-reshape) &optional params)
-   "Index a reshaped array."
-   (let* ((base-gen (generator-of (vader-base varray)))
-          (input-size (the (unsigned-byte 62)
-                           (max (the bit 1)
-                                (the fixnum (size-of (vader-base varray))))))
-          (output-shape (shape-of varray))
-          (output-size (the (unsigned-byte 62) (reduce #'* output-shape))))
-     (if (shape-of (vader-base varray))
-         (if output-shape (if (<= output-size input-size)
-                              #'identity (lambda (index) (mod index input-size)))
-             (lambda (index) (declare (ignore index)) 0))
-         (if (functionp base-gen)
-             (lambda (index) (declare (ignore index)) 0)
-             (lambda (index) (declare (ignore index)) base-gen)))))
+  "Index a reshaped array."
+  (declare (ignore params))
+  (let* ((base-gen (generator-of (vader-base varray)))
+         (input-size (the (unsigned-byte 62)
+                          (max (the bit 1)
+                               (the fixnum (size-of (vader-base varray))))))
+         (output-shape (shape-of varray))
+         (output-size (the (unsigned-byte 62) (reduce #'* output-shape))))
+    (if (shape-of (vader-base varray))
+        (if output-shape (if (<= output-size input-size)
+                             #'identity (lambda (index) (mod index input-size)))
+            (lambda (index) (declare (ignore index)) 0))
+        (if (functionp base-gen)
+            (lambda (index) (declare (ignore index)) 0)
+            (lambda (index) (declare (ignore index)) base-gen)))))
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
@@ -553,13 +554,17 @@
                              (generator-of (vader-base varray)
                                            (cons (indexer-of varray params) indexers)
                                            params)
-                             (lambda (index) (if (not (functionp base-gen))
-                                                 base-gen (funcall base-gen 0)))))
+                             (lambda (index)
+                               (declare (ignore index))
+                               (if (not (functionp base-gen))
+                                   base-gen (funcall base-gen 0)))))
                 (t (if (shape-of (vader-base varray))
                        (let ((indexer (indexer-of varray params)))
                          (generator-of (vader-base varray) (cons indexer indexers)))
-                       (lambda (index) (if (not (functionp base-gen))
-                                           base-gen (funcall base-gen 0)))))))))))
+                       (lambda (index)
+                         (declare (ignore index))
+                         (if (not (functionp base-gen))
+                             base-gen (funcall base-gen 0)))))))))))
 
 (defclass vader-depth (varray-derived)
   nil (:metaclass va-class)
@@ -579,8 +584,7 @@
 
 (defun varray-depth (input &optional layer (uniform t) possible-depth)
   "Find the maximum depth of nested arrays within an array."
-  (let ((shape (shape-of input))
-        (indexer (generator-of input)))
+  (let ((indexer (generator-of input)))
     ;; (print (list :ind indexer))
     (flet ((vap (item) (or (arrayp item) (varrayp item))))
       (if (not (functionp indexer))
@@ -607,7 +611,7 @@
 
 (defmethod generator-of ((varray vader-depth) &optional indexers params)
   "Index an array depth value."
-  (declare (ignore indexers))
+  (declare (ignore indexers params))
   (if (not (or (shape-of (vader-base varray))
                (varrayp (vader-base varray))
                (arrayp (vader-base varray))))
@@ -639,36 +643,35 @@
     
 (defun varray-compare (item1 item2 &optional comparison-tolerance)
   "Perform a deep comparison of two APL arrays, which may be multidimensional or nested."
-  (flet ((vap (item) (or (arrayp item) (varrayp item))))
-    (let ((shape1 (shape-of item1))
-          (shape2 (shape-of item2))
-          (rank1 (rank-of item1))
-          (rank2 (rank-of item2))
-          (indexer1 (generator-of item1))
-          (indexer2 (generator-of item2)))
-      (if shape1 (and shape2 (= rank1 rank2)
-                      (loop :for d1 :in shape1 :for d2 :in shape2 :always (= d1 d2))
-                      ;; compared arrays must be either character or non-character to match
-                      (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
-                          (if (not (member (etype-of item1) '(character base-char)))
-                              (not (member (etype-of item2) '(character base-char)))
-                              (member (etype-of item2) '(character base-char))))
-                      ;; TODO: this can be optimized - currently the
-                      ;; function check happens for every element
-                      (loop :for i :below (size-of item1)
-                            :always (varray-compare (if (not (functionp indexer1))
-                                                        indexer1 (funcall indexer1 i))
-                                                    (if (not (functionp indexer2))
-                                                        indexer2 (funcall indexer2 i)))))
-          (unless shape2
-            (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
-                     (> comparison-tolerance (abs (- indexer1 indexer2))))
-                (and (numberp indexer1)
-                     (numberp indexer2)
-                     (= item1 indexer2))
-                (and (characterp indexer1)
-                     (characterp indexer2)
-                     (char= item1 indexer2))))))))
+  (let ((shape1 (shape-of item1))
+        (shape2 (shape-of item2))
+        (rank1 (rank-of item1))
+        (rank2 (rank-of item2))
+        (indexer1 (generator-of item1))
+        (indexer2 (generator-of item2)))
+    (if shape1 (and shape2 (= rank1 rank2)
+                    (loop :for d1 :in shape1 :for d2 :in shape2 :always (= d1 d2))
+                    ;; compared arrays must be either character or non-character to match
+                    (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
+                        (if (not (member (etype-of item1) '(character base-char)))
+                            (not (member (etype-of item2) '(character base-char)))
+                            (member (etype-of item2) '(character base-char))))
+                    ;; TODO: this can be optimized - currently the
+                    ;; function check happens for every element
+                    (loop :for i :below (size-of item1)
+                          :always (varray-compare (if (not (functionp indexer1))
+                                                      indexer1 (funcall indexer1 i))
+                                                  (if (not (functionp indexer2))
+                                                      indexer2 (funcall indexer2 i)))))
+        (unless shape2
+          (or (and comparison-tolerance (floatp indexer1) (floatp indexer2)
+                   (> comparison-tolerance (abs (- indexer1 indexer2))))
+              (and (numberp indexer1)
+                   (numberp indexer2)
+                   (= item1 indexer2))
+              (and (characterp indexer1)
+                   (characterp indexer2)
+                   (char= item1 indexer2)))))))
 
 (defclass vader-compare (varray-derived vad-with-ct vad-invertable)
   nil (:metaclass va-class)
@@ -808,10 +811,10 @@
              :initform nil
              :initarg :pattern
              :documentation "Pattern to find.")
-   (%cached :accessor vafind-cached
-            :initform nil
-            :initarg :cached
-            :documentation "Cached data to search."))
+   (%cached  :accessor vafind-cached
+             :initform nil
+             :initarg :cached
+             :documentation "Cached data to search."))
   (:metaclass va-class)
   (:documentation "An array of search matches as from the [⍷ find] function."))
 
@@ -1154,7 +1157,7 @@
          (if (zerop max-rank) ;; the ref-shape can be left as is if all elements are scalar
              ref-shape (loop :for dx :below (1+ (length ref-shape))
                              :collect (if (< dx axis) (nth dx ref-shape)
-                                          (if (= dx axis) base-size ; (length (vader-base varray))
+                                          (if (= dx axis) base-size
                                               (nth (1- dx) ref-shape)))))
          (loop :for d :in ref-shape :for dx :from 0
                :collect (if (/= dx axis)
@@ -1472,10 +1475,10 @@
           :initform nil
           :initarg :span
           :documentation "The start and end points of the section within the base array.")
-   (%pad :accessor vasec-pad
-         :initform nil
-         :initarg :pad
-         :documentation "The number of prototype elements padding the output in each dimension."))
+   (%pad  :accessor vasec-pad
+          :initform nil
+          :initarg :pad
+          :documentation "The number of prototype elements padding the output in each dimension."))
   (:metaclass va-class)
   (:documentation "A sectioned array as from the [↑ take] or [↓ drop] functions."))
 
@@ -1496,6 +1499,7 @@
           (iorigin (vads-io varray))
           (axis (vads-axis varray))
           (ax-generator (generator-of (vads-axis varray)))
+          (base-shape (shape-of base))
           (limited-shape))
 
      (when (typep base 'vader-section)
@@ -1595,7 +1599,7 @@
            (let ((shape (list (abs arg-indexer))))
              (setf (varray-shape base) shape)
              (generator-of base)
-             (let ((base-shape (shape-of base))
+             (let (;; (base-shape (shape-of base))
                    (base-rank (rank-of base)))
                (setf (vasec-span varray)
                      (make-array (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))
@@ -1611,7 +1615,7 @@
            
            (let* ((base-rank (rank-of base))
                   (span-offset (max 1 base-rank))
-                  (base-shape (copy-list (shape-of base)))
+                  (base-shape (copy-list base-shape))
                   ;; the shape of the base is only needed for [↓ drop]
                   (pre-shape (coerce (loop :for b :below (max (length base-shape)
                                                               (if (not arg-shape) 1 (first arg-shape)))
@@ -1685,11 +1689,8 @@
   (get-promised
    (varray-generator varray)
    (let* ((assigning (getf params :for-selective-assign))
-          (this-base (when assigning (vader-base varray)))
           (base-gen (generator-of (vader-base varray)))
           (size (size-of varray))
-          (iorigin (vads-io varray))
-          (axis (vads-axis varray))
           (is-inverse (vads-inverse varray))
           (base-size (size-of (vader-base varray)))
           (layers-below (when assigning
@@ -1701,24 +1702,19 @@
           
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
                                       (vasec-span varray) (vasec-pad varray)
-                                      is-inverse assigning nil nil t))
-            (prototype (unless assigning
-                         (setf (varray-prototype varray)
-                               (if (or (zerop size) (zerop base-size))
-                                   (prototype-of (vader-base varray))
-                                   (let ((indexed (funcall #'identity ;; base-gen
-                                                           (if (functionp indexer)
-                                                               (funcall indexer 0) 0))))
-                                     ;; (print (list :in indexer indexed (render (vader-base varray))
-                                     ;;              base-gen))
-                                     (if indexed
-                                         (if (functionp base-gen)
-                                             (aplesque:make-empty-array
-                                              (render (funcall base-gen indexed)))
-                                             (aplesque:make-empty-array (render base-gen))
-                                             ;; (prototype-of base-gen)
-                                             )
-                                         (prototype-of (vader-base varray)))))))))
+                                      is-inverse assigning nil nil t)))
+       (unless assigning
+         (setf (varray-prototype varray)
+               (if (or (zerop size) (zerop base-size))
+                   (prototype-of (vader-base varray))
+                   (let ((indexed (funcall #'identity
+                                           (if (functionp indexer)
+                                               (funcall indexer 0) 0))))
+                     (if indexed (if (functionp base-gen)
+                                     (aplesque:make-empty-array
+                                      (render (funcall base-gen indexed)))
+                                     (aplesque:make-empty-array (render base-gen)))
+                         (prototype-of (vader-base varray)))))))
        ;; (print (list :ba base-gen assigning indexer))
        (if assigning (lambda (index)
                        (declare (type integer index))
@@ -1792,9 +1788,6 @@
                                        indexers (cons indexer indexers))))
                  (let* ((composite-indexer (or (join-indexers indexers) #'identity))
                         (arg (vads-argument varray))
-                        (size (size-of varray))
-                        (is-negative (when (or (numberp arg) (and (vectorp arg) (= 1 (length arg))))
-                                       (minusp (disclose-unitary (vads-argument varray)))))
                         (scalar-index (unless (shape-of (vader-base varray)) 0))
                         (prototype (prototype-of varray))
                         (base-gen (generator-of (vader-base varray))))
@@ -2070,7 +2063,7 @@
                (vapart-params varray)))
       (if (shape-of varray)
           (generator-of (vader-base varray))
-          (lambda (index) (vader-base varray)))
+          (vader-base varray))
       (let* ((idims (shape-of (vader-base varray)))
              (partitions (getf (vapart-params varray) :partitions))
              (intervals (getf (vapart-params varray) :intervals))
@@ -2159,16 +2152,14 @@
                                 (= 1 degrees-count)))
                         (loop :for d :in base-shape :for dx :from 0
                               :collect (if (/= dx axis) d (* d (disclose-unitary degrees))))
-                        (if (not degrees-count)
-                            (loop :for d :below base-rank :for dx :from 0
-                                  :collect (if (= dx axis) 0 d))
-                            (if (and degrees-count (/= degrees-count (nth axis base-shape)))
-                                (error "Compression degrees must equal size of array in dimension to compress.")
-                                (let ((output-size (loop :for d :below degrees-count
-                                                         :summing (if (not (arrayp degrees))
-                                                                      degrees (aref degrees d)))))
-                                  (loop :for d :in base-shape :for dx :from 0
-                                        :collect (if (= dx axis) output-size d)))))))
+                        (when degrees-count
+                          (if (and degrees-count (/= degrees-count (nth axis base-shape)))
+                              (error "Compression degrees must equal size of array in dimension to compress.")
+                              (let ((output-size (loop :for d :below degrees-count
+                                                       :summing (if (not (arrayp degrees))
+                                                                    degrees (aref degrees d)))))
+                                (loop :for d :in base-shape :for dx :from 0
+                                      :collect (if (= dx axis) output-size d)))))))
                 (if (or (not degrees-count)
                         (= 1 degrees-count)
                         (not (arrayp degrees)))

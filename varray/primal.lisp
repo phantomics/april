@@ -55,7 +55,7 @@
 
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-integer-progression) &optional indexers params)
-  (declare (ignore params indexers) (optimize (speed 3) (safety 0)))
+  (declare (ignore indexers) (optimize (speed 3) (safety 0)))
   (let* (;; (converter (join-indexers2 params))
          ;; (converter (join-indexers2 indexers))
          (converter #'identity)
@@ -68,6 +68,7 @@
                                    (and (typep factor 'double-float) (= 1.0d0 factor)))
                                (if (zerop offset)
                                    #'identity (lambda (fn)
+                                                (declare (type function fn))
                                                 (lambda (item) (+ offset (funcall fn item)))))
                                (if (integerp factor)
                                    (lambda (fn) (lambda (item)
@@ -169,6 +170,7 @@
                 (list (length (vads-dfactors (vacov-reference vvector))))))
 
 (defmethod generator-of ((vvector vapri-coordinate-vector) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((dfactors (vads-dfactors (vacov-reference vvector)))
          (output (make-array (length dfactors) :element-type (etype-of vvector)))
          (remaining (vacov-index vvector)))
@@ -208,6 +210,7 @@
 
 (defmethod generator-of ((varray vapri-coordinate-identity) &optional indexers params)
   "Each index returns a coordinate vector."
+  (declare (ignore indexers))
   (case (getf params :base-format)
     (:encoded)
     (:linear)
@@ -243,6 +246,7 @@
                           (nth (vaxv-axis varray) (shape-of (vaxv-reference varray)))))))
 
 (defmethod generator-of ((varray vapri-axis-vector) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((axis (vaxv-axis varray))
          (window (vaxv-window varray))
          (wsegment)

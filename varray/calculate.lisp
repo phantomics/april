@@ -75,7 +75,7 @@
 (defmethod shape-of ((varray vader-calculate))
   (get-promised
    (varray-shape varray)
-   (let ((shape) (sub-shape)
+   (let ((shape)
          (base-size (if (listp (vader-base varray))
                         (length (vader-base varray))
                         (size-of (vader-base varray))))
@@ -149,6 +149,7 @@
        shape))))
 
 (defmethod generator-of ((varray vader-calculate) &optional indexers params)
+  (declare (ignore indexers))
   (case (getf params :base-format)
     (:encoded)
     (:linear)
