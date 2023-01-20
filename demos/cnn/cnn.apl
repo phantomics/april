@@ -102,8 +102,11 @@ backmulticonv ← {
   (d_out weights in bias) ← ⍵
 
   d_in   ← +⌿d_out {backin ⍺ ⍵ in}⍤((⍴⍴in),(⍴⍴in))⊢weights
+
   d_w    ← {⍵ conv in}⍤(⍴⍴in)⊢d_out
+
   d_bias ← backbias⍤(⍴⍴in)⊢d_out
+
 
   d_in d_w d_bias
 }
@@ -166,6 +169,6 @@ train ← {
   ]
 }
 
-timeFactors  ← 24 60 60 1000
+timeFactors ← 24 60 60 1000
   
 formatElapsed ← {1↓⊃,/2 2 2 3{(':.'[⍺-2]),⍺{⍵,⍨(⍺-⍴⍵)⍴'0'}⍕⍵}¨timeFactors⊤⍵-⍨timeFactors⊥¯4↑⎕ts}

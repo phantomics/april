@@ -60,8 +60,8 @@
 
 epochs    ← 10
 batchSize ← 1
-trainings ← 5 ⍝ 1000
-tests     ← 5 ⍝ 10000
+trainings ← 100 ⍝ 1000
+tests     ← 10 ⍝ 10000
 rate      ← 0.05
 k1        ← 6 5 5⍴÷25.0
 b1        ← 6⍴÷6.0
