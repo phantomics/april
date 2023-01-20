@@ -6,14 +6,14 @@
 "Definition of virtual array element implementing calculations over arrays, as for 1+1 2 3."
 
 (defclass vader-calculate (vad-subrendering varray-derived vad-on-axis vad-with-io)
-  ((%params :accessor vaop-params
-            :initform nil
-            :initarg :params
-            :documentation "Parameters for scalar operation to be performed.")
-   (%function :accessor vaop-function
-              :initform nil
-              :initarg :function
-              :documentation "Function to be applied to derived array element(s).")
+  ((%params    :accessor vaop-params
+               :initform nil
+               :initarg :params
+               :documentation "Parameters for scalar operation to be performed.")
+   (%function  :accessor vaop-function
+               :initform nil
+               :initarg :function
+               :documentation "Function to be applied to derived array element(s).")
    (%sub-shape :accessor vaop-sub-shape
                :initform nil
                :initarg :sub-shape
