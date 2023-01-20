@@ -145,10 +145,10 @@
                :initform nil
                :initarg :reference
                :documentation "The array to which this coordinate vector belongs.")
-   (%index :accessor vacov-index
-           :initform 0
-           :initarg :index
-           :documentation "The row-major index of the referenced array this coordinate vector represents."))
+   (%index     :accessor vacov-index
+               :initform 0
+               :initarg :index
+               :documentation "The row-major index of the referenced array this coordinate vector represents."))
   (:metaclass va-class)
   (:documentation "Coordinate vector - a vector of the integer coordinates corresponding to a given row-major index in an array."))
 
@@ -222,18 +222,18 @@
                :initform nil
                :initarg :reference
                :documentation "The array to which this axis vector belongs.")
-   (%axis :accessor vaxv-axis
-          :initform nil
-          :initarg :axis
-          :documentation "The axis along which the axis vector leads.")
-   (%window :accessor vaxv-window
-            :initform nil
-            :initarg :window
-            :documentation "The window of division along the axis.")
-   (%index :accessor vaxv-index
-           :initform nil
-           :initarg :index
-           :documentation "This axis vector's index within the reference array reduced along the axis."))
+   (%axis      :accessor vaxv-axis
+               :initform nil
+               :initarg :axis
+               :documentation "The axis along which the axis vector leads.")
+   (%window    :accessor vaxv-window
+               :initform nil
+               :initarg :window
+               :documentation "The window of division along the axis.")
+   (%index     :accessor vaxv-index
+               :initform nil
+               :initarg :index
+               :documentation "This axis vector's index within the reference array reduced along the axis."))
   (:metaclass va-class)
   (:documentation "A sub-vector along an axis of an array."))
 

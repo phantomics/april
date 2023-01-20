@@ -6,26 +6,26 @@
 "Definition of the virtual array manifesting selections and sub-assignments of arrays, used to implement indexing and selective assignment."
 
 (defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
-  ((%assign :accessor vasel-assign
-            :initform nil
-            :initarg :assign
-            :documentation "Item(s) to be assigned to selected indices in array.")
-   (%assign-if :accessor vasel-assign-if
-               :initform nil
-               :initarg :assign-if
-               :documentation "Function to select items to be assigned as for ⌽@(<∘5)⊢⍳9.")
+  ((%assign       :accessor vasel-assign
+                  :initform nil
+                  :initarg :assign
+                  :documentation "Item(s) to be assigned to selected indices in array.")
+   (%assign-if    :accessor vasel-assign-if
+                  :initform nil
+                  :initarg :assign-if
+                  :documentation "Function to select items to be assigned as for ⌽@(<∘5)⊢⍳9.")
    (%assign-shape :accessor vasel-assign-shape
                   :initform nil
                   :initarg :assign-shape
                   :documentation "Shape of area to be assigned, eliding 1-sized dimensions.")
-   (%calling :accessor vasel-calling
-             :initform nil
-             :initarg :calling
-             :documentation "Function to be called on original and assigned index values.")
-   (%selector :accessor vasel-selector
-              :initform nil
-              :initarg :selector
-              :documentation "Object implementing selection function for array."))
+   (%calling      :accessor vasel-calling
+                  :initform nil
+                  :initarg :calling
+                  :documentation "Function to be called on original and assigned index values.")
+   (%selector     :accessor vasel-selector
+                  :initform nil
+                  :initarg :selector
+                  :documentation "Object implementing selection function for array."))
   (:metaclass va-class))
 
 (defmethod etype-of ((varray vader-select))
@@ -78,6 +78,7 @@
                                     (vader-base varray))))))))
 
 (defmethod generator-of ((varray vader-select) &optional indexers params)
+  (declare (ignore indexers))
   (let* ((indices)
          (iarray-factors)
          (base-gen (generator-of (vader-base varray)))
@@ -88,19 +89,17 @@
          (selector-eindices (when (listp (vasel-selector varray))
                               (vasel-selector varray)))
          (eindexer (when selector-eindices (generator-of (getf selector-eindices :ebase))))
-         (index-selector (unless selector-eindices (vasel-selector varray)))
-         (sub-shape (shape-of index-selector))
-         (is-picking)
-         (sub-selector (multiple-value-bind (sselector is-pick)
-                           (generator-of index-selector nil
-                                         (list :for-selective-assign
-                                               (or (shape-of (vasel-assign varray)) t)
-                                               :assigning set
-                                               :toggle-toplevel-subrendering
-                                               (lambda (&optional abc)
-                                                 (setf (vads-subrendering varray) t))))
-                         (when is-pick (setf is-picking t))
-                         sselector))
+         (index-selector (unless selector-eindices (let ((is (vasel-selector varray)))
+                                                     ;; must get shape of selector at this point
+                                                     (shape-of is)
+                                                     is)))
+         (sub-selector (generator-of index-selector nil
+                                     (list :for-selective-assign
+                                           (or (shape-of (vasel-assign varray)) t)
+                                           :assigning set
+                                           :toggle-toplevel-subrendering
+                                           (lambda ()
+                                             (setf (vads-subrendering varray) t)))))
          (ofactors (unless set (get-dimensional-factors idims t)))
          (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t))
          (adims (shape-of (vasel-assign varray)))
@@ -142,7 +141,7 @@
                          :for ix :from 0 :while valid
                          :do (if (numberp in)
                                  (incf oindex (* ifactor (- in (vads-io varray))))
-                                 (if in (let ((matched-index) (sub-index 0) (aindex index))
+                                 (if in (let ((matched-index) (sub-index 0))
                                           (if (or (and (vectorp in) (< 0 (length in)))
                                                   (and (or (arrayp in) (varrayp in))
                                                        (not (shape-of in))))
@@ -357,10 +356,8 @@
                        ;; for example {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
                        (when index-selector
                          (setf valid (when (and (or valid (not (vads-argument varray)))
-                                                (or (typep index-selector 'vader-pick)
-                                                    (setf oindex (if (numberp valid)
-                                                                     (funcall sub-selector valid)
-                                                                     (funcall sub-selector index)))))
+                                                (setf oindex (funcall sub-selector (if (numberp valid)
+                                                                                       valid index))))
                                        valid)))
                        ;; (print (list :val index valid oindex (shape-of oindex) selector-eindices))
                        ;; (print (list :se set (funcall (generator-of set) 0) set-indexer oindex base-gen))
@@ -417,16 +414,14 @@
                                (if (not (functionp base-gen))
                                    base-gen (funcall base-gen index)))
                            
-                           (let ((index-shape (first (shape-of oindex))))
+                           (progn
                              (setf (vads-subrendering varray) t)
                              (if valid
                                  (if (typep oindex 'varray::varray)
                                      ;; in the case of an [¨ each]-composed assignment by selection
                                      ;; like {A←'RANDOM' 'CHANCE' ⋄ (2↑¨A)←⍵ ⋄ A} '*'
                                      (let ((sub-indexer (generator-of (vader-base varray)))
-                                           (assign-indexer (generator-of (vasel-assign varray)))
-                                           (each-target (when (typep index-selector 'vacomp-each)
-                                                          (vacmp-omega index-selector))))
+                                           (assign-indexer (generator-of (vasel-assign varray))))
                                        (make-instance 'vader-select
                                                       :base (funcall sub-indexer index)
                                                       :index-origin (vads-io varray)

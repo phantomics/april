@@ -411,10 +411,10 @@
            :initform nil
            :initarg :cache
            :documentation "Cached items to search in array.")
-   (%set :accessor vaix-set
-         :initform nil
-         :initarg :set
-         :documentation "Cached items to search in array."))
+   (%set   :accessor vaix-set
+           :initform nil
+           :initarg :set
+           :documentation "Cached items to search in array."))
   (:metaclass va-class)
   (:documentation "An indexed array as from the [⍳ index of] function."))
 
@@ -1778,8 +1778,7 @@
         (t (let ((indexer (indexer-of varray params)))
              (if (loop :for item :across (vasec-pad varray) :always (zerop item))
                  (if (zerop (size-of varray))
-                     (let ((prototype (prototype-of varray)))
-                       (lambda (index) (declare (ignore index)) prototype))
+                     (prototype-of varray)
                      (generator-of (vader-base varray)
                                    (if (or (not indexer) (eq t indexer))
                                        indexers (cons indexer indexers))))

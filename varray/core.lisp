@@ -30,10 +30,10 @@
   t)
 
 (defclass varray ()
-  ((%shape :accessor varray-shape
-           :initform nil
-           :initarg :shape
-           :documentation "The array's shape - typically populated by a (shape-of) method.")
+  ((%shape     :accessor varray-shape
+               :initform nil
+               :initarg :shape
+               :documentation "The array's shape - typically populated by a (shape-of) method.")
    (%generator :accessor varray-generator
                :initform nil
                :initarg :generator
@@ -42,10 +42,10 @@
                :initform nil
                :initarg :prototype
                :documentation "The array's prototype - typically populated by a (prototype-of) method.")
-   (%meta :accessor varray-meta
-          :initform nil
-          :initarg :meta
-          :documentation "Metadata for the array."))
+   (%meta      :accessor varray-meta
+               :initform nil
+               :initarg :meta
+               :documentation "Metadata for the array."))
   (:metaclass va-class)
   (:documentation "Virtual array - the ancestor class for all virtual array objects."))
 
@@ -731,22 +731,22 @@
   (:documentation "A primal array: a virtual array defined wholly by its parameters, not derived from another array."))
 
 (defclass varray-derived (varray)
-  ((%base :accessor vader-base
-          :initform nil
-          :initarg :base
-          :documentation "The array from which the array is derived.")
-   (%layer :accessor vader-layer
-           :initform 0
-           :initarg :layer
-           :documentation "The number of derived virtual arrays downstream of this array.")
+  ((%base         :accessor vader-base
+                  :initform nil
+                  :initarg :base
+                  :documentation "The array from which the array is derived.")
+   (%layer        :accessor vader-layer
+                  :initform 0
+                  :initarg :layer
+                  :documentation "The number of derived virtual arrays downstream of this array.")
    (%subrendering :accessor vads-subrendering
                   :initform nil
                   :initarg :subrendering
                   :documentation "Whether the array contains nested elements to be subrendered.")
-   (%content :accessor vader-content
-             :initform nil
-             :initarg :content
-             :documentation "Cached rendered content of the array."))
+   (%content      :accessor vader-content
+                  :initform nil
+                  :initarg :content
+                  :documentation "Cached rendered content of the array."))
   (:metaclass va-class)
   (:documentation "A derived array: a virtual array derived from another array."))
 

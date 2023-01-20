@@ -7,20 +7,20 @@
 
 ;; The idiom object defines a vector language instance with glyph lexicons and a set of processing utilities.
 (defclass idiom ()
-  ((name :accessor idiom-name
-         :initarg :name)
-   (system :accessor idiom-system
-           :initform nil
-           :initarg :system)
-   (symbols :accessor idiom-symbols
-            :initform nil
-            :initarg :symbols)
+  ((name      :accessor idiom-name
+              :initarg :name)
+   (system    :accessor idiom-system
+              :initform nil
+              :initarg :system)
+   (symbols   :accessor idiom-symbols
+              :initform nil
+              :initarg :symbols)
    (utilities :accessor idiom-utilities
               :initform nil
               :initarg :utilities)
-   (lexicons :accessor idiom-lexicons
-             :initform nil
-             :initarg :lexicons)))
+   (lexicons  :accessor idiom-lexicons
+              :initform nil
+              :initarg :lexicons)))
 
 (defmacro local-idiom (symbol)
   "Shorthand macro to output the name of a Vex idiom in the local package."
