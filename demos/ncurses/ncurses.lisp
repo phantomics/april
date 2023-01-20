@@ -65,15 +65,14 @@ M ← ⍬ ⍝ the character matrix
        (update-without-color (index glyphs colors)
          (declare (ignore colors))
          (setf (aref *glyphs* index) (row-major-aref glyphs index))))
-  (let ((field-size 0) (gen-offset 0))
+  (let ((dheight 0) (dwidth 0) (field-size 0) (gen-offset 0))
     (defun render (height width &optional randomize)
-      (let* ((rebuilding (or (not *glyphs*)
-                             (/= (* height width) (array-total-size *glyphs*))))
-             (updater (if *bg-colors* #'update-with-color #'update-without-color)))
-        
+      (let ((rebuilding (or (not *glyphs*) (/= height dheight) (/= width dwidth))))
         (when rebuilding
           (build-screen height width)
-          (setf field-size (* width (- height 3))
+          (setf dheight height ;; record display dimensions to check them in subsequent renders
+                dwidth width 
+                field-size (* width (- height 3))                
                 gen-offset (april-c (with (:space ncurses-demo-space)) "{(⍺×⍵-1)+1+≢GC}"
                                     height width)))
         
@@ -97,13 +96,14 @@ M[H;GCL+⍳12]←12↑⍕GI  ⍝ print generation number; supports up to 12 digi
 ")
 
           ;; print the active life field in parallel, omitting the last 3 rows
-          (pdotimes (i field-size) (funcall updater i glyphs colors))
-          
-          ;; print just the generation index unless a rebuild is happened and it
-          ;; should be printed along with the rest of the screen footer
-          (if rebuilding (pdotimes (i (* width 3))
-                           (update-without-color (+ i field-size) glyphs colors))
-              (dotimes (i 12) (update-without-color (+ gen-offset i) glyphs colors))))))))
+          (let ((updater (if *bg-colors* #'update-with-color #'update-without-color)))
+            (pdotimes (i field-size) (funcall updater i glyphs colors))
+            
+            ;; print just the generation index unless a rebuild has happened and it
+            ;; should be printed along with the rest of the screen footer
+            (if rebuilding (pdotimes (i (* width 3))
+                             (update-without-color (+ i field-size) glyphs colors))
+                (dotimes (i 12) (update-without-color (+ gen-offset i) glyphs colors)))))))))
 
 ;; since nothing is supposed to happen between key presses (during the
 ;; "nil" event), set input-blocking to t, instead of a timeout of 100 ms.
