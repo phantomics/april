@@ -24,24 +24,24 @@
 (defclass vader-composing (varray-derived)
   ((%left  :accessor vacmp-left
            :initform nil
-           :initarg :left
+           :initarg  :left
            :documentation "Left function composed with operator.")
    (%right :accessor vacmp-right
            :initform nil
-           :initarg :right
+           :initarg  :right
            :documentation "Right function composed with operator.")
    (%omega :accessor vacmp-omega
            :initform nil
-           :initarg :omega
+           :initarg  :omega
            :documentation "Right argument to composed function.")
    (%alpha :accessor vacmp-alpha
            :initform nil
-           :initarg :alpha
+           :initarg  :alpha
            :documentation "Left argument to composed function.")
-   (%threadable :accessor vacmp-threadable
-                :initform t
-                :initarg :threadable
-                :documentation "Whether this operation is threadable; i.e. operand functions lack side effects."))
+   (%async :accessor vacmp-async
+           :initform t
+           :initarg  :async
+           :documentation "Whether this operation is asynchronous; i.e. operand functions lack side effects."))
   (:metaclass va-class)
   (:documentation "An array produced by an operator-composed function."))
 
@@ -77,7 +77,7 @@
 (defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io vad-with-default-axis)
   ((%unitary :accessor vacred-unitary
              :initform nil
-             :initarg :unitary
+             :initarg  :unitary
              :documentation "Whether the array measures only one unit along the axis to be reduced."))
   (:metaclass va-class)
   (:documentation "A reduce-composed array as with the [/ reduce] operator."))
@@ -106,17 +106,17 @@
                             :when (and window (= ix axis)) :collect (- b (1- window)))))))
 
 (defclass vader-subarray-reduce (vader-subarray)
-  ((%window :accessor vasbr-window
-            :initform nil
-            :initarg :window
-            :documentation "Window length for subarray to reduce.")
-   (%delta :accessor vasbr-delta
-           :initform nil
-           :initarg :delta
-           :documentation "Delta for subarray to reduce.")
+  ((%window  :accessor vasbr-window
+             :initform nil
+             :initarg  :window
+             :documentation "Window length for subarray to reduce.")
+   (%delta   :accessor vasbr-delta
+             :initform nil
+             :initarg  :delta
+             :documentation "Delta for subarray to reduce.")
    (%reverse :accessor vasbr-reverse
              :initform nil
-             :initarg :reverse
+             :initarg  :reverse
              :documentation "Is subarray to be traversed in reverse order?."))
   (:metaclass va-class)
   (:documentation "A subarray created as part of a [/ reduce] operation."))
@@ -453,7 +453,7 @@
         (ashape (shape-of (vacmp-alpha varray)))
         (threaded (side-effect-free (vacmp-left varray))))
     ;; TODO: logic to determine threading needs work, then reenable it
-    (unless threaded (setf (vacmp-threadable varray) nil))
+    (unless threaded (setf (vacmp-async varray) nil))
     ;; (print (list :th threaded oshape ashape ;; (shape-of varray)
     ;;              (type-of (vacmp-omega varray))
     ;;              (type-of (vacmp-alpha varray))
@@ -654,33 +654,33 @@
                                                                             :shape ashape)))))))))))))))
 
 (defclass vacomp-stencil (vad-subrendering vader-composing vad-with-io)
-  ((%base-dims :accessor vacst-base-dims
-               :initform nil
-               :initarg :base-dims
-               :documentation "Vector of base array's dimensions.")
-   (%win-dims :accessor vacst-win-dims
-              :initform nil
-              :initarg :win-dims
-              :documentation "Dimensions for windows within stencil.")
+  ((%base-dims   :accessor vacst-base-dims
+                 :initform nil
+                 :initarg  :base-dims
+                 :documentation "Vector of base array's dimensions.")
+   (%win-dims    :accessor vacst-win-dims
+                 :initform nil
+                 :initarg  :win-dims
+                 :documentation "Dimensions for windows within stencil.")
    (%win-offsets :accessor vacst-win-offsets
                  :initform nil
-                 :initarg :win-offsets
+                 :initarg  :win-offsets
                  :documentation "Space offsets for windows within stencil.")
    (%win-factors :accessor vacst-win-factors
                  :initform nil
-                 :initarg :win-factors
+                 :initarg  :win-factors
                  :documentation "Dimensional factors for stencil window.")
-   (%movement :accessor vacst-movement
-              :initform nil
-              :initarg :movement
-              :documentation "Stencil's movement parameters.")
-   (%in-factors :accessor vacst-in-factors
-                :initform nil
-                :initarg :in-factors
-                :documentation "Dimensional factors for stencil input.")
+   (%movement    :accessor vacst-movement
+                 :initform nil
+                 :initarg  :movement
+                 :documentation "Stencil's movement parameters.")
+   (%in-factors  :accessor vacst-in-factors
+                 :initform nil
+                 :initarg  :in-factors
+                 :documentation "Dimensional factors for stencil input.")
    (%out-factors :accessor vacst-out-factors
                  :initform nil
-                 :initarg :out-factors
+                 :initarg  :out-factors
                  :documentation "Dimensional factors for stencil output."))
   (:metaclass va-class)
   (:documentation "A stencil-composed array as with the [⌺ stencil] operator."))
