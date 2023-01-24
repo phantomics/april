@@ -17,6 +17,7 @@
 (define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
 
 (defvar *function-identities* nil)
+(defvar *value-composable-lexical-operators* nil)
 
 ;; the names of library functions that curry functions having axes with index-origin, needed for the λχ macro
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
@@ -2077,16 +2078,29 @@ It remains here as a standard against which to compare methods for composing APL
                                                          :inverse-right :inverse))
                                             ,arg1 ,(funcall to-wrap form))))))))))))))
 
+;; (defmacro plain-ref (function &optional axes)
+;;   "Wrap a lexical function; this is needed to implement some meta-functionality."
+;;   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
+;;   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
+;;     `(labels ((,this-fn (&rest ,args)
+;;                 ,@(when axes `((when (eq :assign-axes (first ,args))
+;;                                  (setq ,axes (second ,args)
+;;                                        ,args (cddr ,args)))))
+;;                 (apply ,function ,args)))
+;;        #',this-fn)))
+
 (defmacro plain-ref (function &optional axes)
   "Wrap a lexical function; this is needed to implement some meta-functionality."
   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
     `(labels ((,this-fn (&rest ,args)
+                ;; (print (list :gg ,args))
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
                     ;; passing this option will return the core function again
                     ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
                     (lambda (&rest ,iargs)
+                      ;; (print (list :gg ,iargs))
                       (apply #',this-fn (append (list :assign-axes (second ,args))
                                                 ,iargs)))
                     (progn ,@(when axes `((when (eq :assign-axes (first ,args))

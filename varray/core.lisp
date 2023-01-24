@@ -37,7 +37,7 @@
    (%generator :accessor varray-generator
                :initform nil
                :initarg :generator
-               :documentation "The array's generator - typically populated by an (generator-of) method.")
+               :documentation "The array's generator - typically populated by a (generator-of) method.")
    (%prototype :accessor varray-prototype
                :initform nil
                :initarg :prototype
@@ -88,6 +88,9 @@
 
 (defgeneric get-reduced (varray function)
   (:documentation "Get the result of an array reduced using a particular function."))
+
+(defgeneric assign-rank (varray rank)
+  (:documentation "Assign a rank at which to process a virtual array, implementing cases of function composition using the [⍤ rank] operator."))
 
 (defgeneric specify (varray)
   (:documentation "Specify calculation methods for a virtual array's transformation."))
@@ -289,6 +292,11 @@
 
 (defmethod metadata-of ((varray varray))
   (varray-meta varray))
+
+(defmethod assign-rank ((item t) rank)
+  (declare (ignore item rank))
+  "The default case of rank assignment is to return nil."
+  nil)
 
 (defmethod render ((item t) &rest params)
   "Rendering a non-virtual array object simply returns the object."

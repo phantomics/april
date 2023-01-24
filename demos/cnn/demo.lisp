@@ -11,12 +11,12 @@
   (type 0 :type 8)
   (rank 0 :type 8)
   (dimensions #() :type (simple-array (unsigned-byte 32) (rank)))
-  (data #() :type (eval (case type (#x08 `(simple-array (unsigned-byte 8) (,(april-c "{×/⍵}" dimensions))))
-                              (#x09 `(simple-array (signed-byte 8) (,(april-c "{×/⍵}" dimensions))))
-                              (#x0b `(simple-array (signed-byte 16) (,(april-c "{×/⍵}" dimensions))))
-                              (#x0c `(simple-array (signed-byte 32) (,(april-c "{×/⍵}" dimensions))))
-                              (#x0d `(simple-array single-float (,(april-c "{×/⍵}" dimensions))))
-                              (#x0e `(simple-array double-float (,(april-c "{×/⍵}" dimensions))))))))
+  (data #() :type (eval (case type (#x08 `(simple-array (unsigned-byte 8) (,(reduce #'* dimensions))))
+                              (#x09 `(simple-array (signed-byte 8) (,(reduce #'* dimensions))))
+                              (#x0b `(simple-array (signed-byte 16) (,(reduce #'* dimensions))))
+                              (#x0c `(simple-array (signed-byte 32) (,(reduce #'* dimensions))))
+                              (#x0d `(simple-array single-float (,(reduce #'* dimensions))))
+                              (#x0e `(simple-array double-float (,(reduce #'* dimensions))))))))
 
 (defun idx-file-to-array (file-path)
   "Load the contents of an .idx file into an array."
@@ -50,7 +50,7 @@
 (april-load (with (:space cnn-demo-space))
             (asdf:system-relative-pathname (intern (package-name *package*) "KEYWORD") "cnn.apl"))
 
-(defun train ()
+(defun train-and-test ()
   "Train a convolutional neural network with a set of training data and test it against another dataset."
   (april (with (:space cnn-demo-space)
                (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
@@ -99,4 +99,4 @@ correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
 ⎕ ← '  ' ⋄ ⎕ ← 'Total time: ',formatElapsed startTime ⋄ ⎕ ← '  '
 
 } 0")
-  :tests-complete)
+  "Neural network test complete.")

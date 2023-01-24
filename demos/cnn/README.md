@@ -26,7 +26,7 @@ Next, evaluate:
 * (load-idx-files)
 "Data loaded."
 
-* (train)
+* (train-and-test)
 Running Zhang with 10 epochs, batch size 1,
 5 training images, 10000 tests and a rate of 0.05
  

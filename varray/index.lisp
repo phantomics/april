@@ -28,29 +28,31 @@
   
   (defun indexer-section (dims span pad output-shorter iwidth itype &optional is-flat)
     "Return indices of an array sectioned as with the [↑ take] or [↓ drop] functions."
-    ;; (print (list :is inverse dims dimensions output-shorter span padding))
-    (let* ((dims (or dims '(1)))
-           (isize (reduce #'* dims)) (irank (length dims))
+    (let* ((arank (length dims))
+           (dims (or dims '(1)))
+           (irank (length dims))
+           (isize (reduce #'* dims))
            (idims (make-array irank :element-type (if (zerop isize) t (list 'integer 0 isize))
                                     :initial-contents dims))
-           (odims (loop :for ix :below irank :for sp :across span
-                        :collect (+ (- (aref span (+ ix irank)) sp)
+           (orank (* 1/2 (length span)))
+           (odims (loop :for ix :below orank :for sp :across span
+                        :collect (+ (- (aref span (+ ix orank)) sp)
                                     (aref pad ix)
-                                    (aref pad (+ ix irank)))))
+                                    (aref pad (+ ix orank)))))
            (last-dim)
            (id-factors (make-array irank :element-type 'fixnum))
-           (od-factors (make-array irank :element-type 'fixnum)))
-      
+           (od-factors (make-array orank :element-type 'fixnum)))
+
       ;; generate dimensional factors vectors for input and output
       (loop :for dx :below irank
             :do (let ((d (aref idims (- irank 1 dx))))
                   (setf (aref id-factors (- irank 1 dx))
                         (if (zerop dx) 1 (* last-dim (aref id-factors (- irank dx))))
                         last-dim d)))
-
+      
       (loop :for d :in (reverse odims) :for dx :from 0
-            :do (setf (aref od-factors (- irank 1 dx))
-                      (if (zerop dx) 1 (* last-dim (aref od-factors (- irank dx))))
+            :do (setf (aref od-factors (- orank 1 dx))
+                      (if (zerop dx) 1 (* last-dim (aref od-factors (- orank dx))))
                       last-dim d))
       ;; (print (list :pad odims irank dims span pad idims odims id-factors od-factors))
       (or (and (not is-flat)
@@ -66,6 +68,13 @@
                                  (let ((encoder (gethash (list iwidth itype dim)
                                                          indexer-table-encoded)))
                                    (when encoder (list (funcall encoder sum))))))))
+          ;; when indexing the take of a scalar, test for the one index that will return the scalar
+          (and (zerop arank)
+               (not (loop :for s :across span :always (zerop s)))
+               (let ((at-index (loop :for p :across pad :for f :across od-factors :for d :in odims
+                                     ;; :do (print (list f (1- d) (signum p)))
+                                     :summing (* f (1- d) (signum p)) :into index :finally (return index))))
+                 (lambda (index) (when (= index at-index) index))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
               ;; always iterate over output in the case of sub-7-bit arrays as this is necessary
@@ -82,7 +91,6 @@
                                               (setq remaining remainder))))))
                   (when valid oindex)))
               (lambda (i)
-                ;; (print (list :ii i))
                 (let ((iindex 0) (remaining i) (valid t))
                   ;; calculate row-major offset for outer array dimensions
                   (loop :for i :below irank :while valid

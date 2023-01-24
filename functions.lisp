@@ -587,14 +587,8 @@
     (let* ((rank (disclose-atom (vrender rank)))
            (odims (shape-of omega)) (adims (shape-of alpha))
            (orank (varray::rank-of omega)) (arank (varray::rank-of alpha))
-           (fn-meta (funcall function :get-metadata nil))
            ;; if alpha is nil the monadic metadata will be fetched, otherwise the dyadic data will be
-           (rank (if (not (arrayp rank))
-                     (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
-                         (make-array 3 :initial-contents (list (max 0 (+ rank orank))
-                                                               (max 0 (+ rank (if alpha arank orank)))
-                                                               (max 0 (+ rank orank))))
-                         (make-array 3 :initial-element rank))
+           (rank (if (arrayp rank)
                      (if (= 1 (size rank))
                          (make-array 3 :initial-element (row-major-aref rank 0))
                          (if (= 2 (size rank))
@@ -603,18 +597,20 @@
                              (if (= 3 (size rank))
                                  rank (when (or (< 1 (rank rank)) (< 3 (size rank)))
                                         (error "Right operand of [⍤ rank] must be a scalar integer or ~a"
-                                               "integer vector no more than 3 elements long.")))))))
+                                               "integer vector no more than 3 elements long.")))))
+                     (if (> 0 rank) ;; handle a negative rank as for ,⍤¯1⊢2 3 4⍴⍳24
+                         (make-array 3 :initial-contents (list (max 0 (+ rank orank))
+                                                               (max 0 (+ rank (if alpha arank orank)))
+                                                               (max 0 (+ rank orank))))
+                         (make-array 3 :initial-element rank))))
            (ocrank (aref rank 2))
            (acrank (aref rank 1))
            (omrank (aref rank 0))
-           (orankdelta (- orank (if alpha ocrank omrank)))
-           (odivs (when (<= 0 orankdelta) (make-array (subseq odims 0 orankdelta))))
-           (odiv-dims (when odivs (subseq odims orankdelta)))
-           (arankdelta (- arank acrank))
-           (adivs (when (and alpha (<= 0 arankdelta))
-                    (make-array (subseq adims 0 arankdelta))))
-           (adiv-dims (when adivs (subseq adims arankdelta))))
-
+           (fn-meta (funcall function :get-metadata nil))
+           (operand-lex-ref (getf fn-meta :lexical-reference)))
+      ;; (princ (list :ar rank (shape-of omega) (shape-of alpha) (getf fn-meta :lexical-reference) omega))
+      ;; (princ #\Newline)
+      
       (when (or (not (and (integerp ocrank) (or (zerop ocrank) (plusp ocrank))))
                 (not (and (integerp acrank) (or (zerop acrank) (plusp acrank))))
                 (not (and (integerp omrank) (or (zerop omrank) (plusp omrank)))))
@@ -624,53 +620,65 @@
       (when (and (not alpha) (eq :dyadic (getf fn-meta :valence)))
         (error "Function composed with [⍤ rank] must have a left argument."))
 
-      (if (eq omega :get-metadata)
-          (append fn-meta (list :composed-by #\⍤))
-          (if (and (getf fn-meta :on-axis)
-                   (= 1 (if alpha ocrank omrank)))
-              ;; if the composed function is directly equivalent to a function that operates
-              ;; across an axis, as ⊖⍤1 and ⌽⍤1 are to ⌽, just reassign the axis
-              (apply (if (eq :last (getf fn-meta :on-axis))
-                         function (funcall function :reassign-axes (list (max orank arank))))
-                     omega (when alpha (list alpha)))
-              (flet ((generate-divs (div-array ref-array div-dims)
-                       (let ((ref-indexer (varray::generator-of ref-array)))
-                         (dotimes (i (size div-array))
-                           (setf (row-major-aref div-array i)
-                                 (if (zerop (rank div-array)) ref-array
-                                     (if (not div-dims) (funcall ref-indexer i)
-                                         (make-instance 'varray::vader-subarray-displaced
-                                                        :shape div-dims :index i
-                                                        :base ref-array))))))))
-                (when odivs (generate-divs odivs omega odiv-dims))
-                (if alpha (progn (when adivs (generate-divs adivs alpha adiv-dims))
-                                 (if (not (or odivs adivs))
-                                     ;; if alpha and omega are scalar, just call the function on them
-                                     (funcall function omega alpha)
-                                     (let ((output (make-array (shape-of (if (> (rank-of odivs)
-                                                                                (rank-of adivs))
-                                                                             odivs adivs)))))
-                                       (dotimes (i (size output))
-                                         (let ((this-odiv (if (not odivs)
-                                                              omega (if (zerop (rank odivs))
-                                                                        (aref odivs)
-                                                                        (row-major-aref odivs i))))
-                                               (this-adiv (if (not adivs)
-                                                              alpha (if (zerop (rank adivs))
-                                                                        (aref adivs)
-                                                                        (row-major-aref adivs i)))))
-                                           (setf (row-major-aref output i)
-                                                 (funcall function this-odiv this-adiv))))
-                                       (make-instance 'vader-mix :base output :subrendering t
-                                                                 :axis (max (rank odivs) (rank adivs))))))
-                    (if (not odivs) ;; as above for an omega value alone
-                        (funcall function omega)
-                        (let ((output (make-array (dims odivs))))
-                          (dotimes (i (size output))
-                            (setf (row-major-aref output i)
-                                  (funcall function (row-major-aref odivs i))))
-                          (make-instance 'vader-mix :base output :subrendering t
-                                         :axis (varray::rank-of output)))))))))))
+      (cond ((eq omega :get-metadata)
+             (append fn-meta (list :composed-by #\⍤)))
+            ((and operand-lex-ref (char= #\⍉ operand-lex-ref))
+             ;; compose the [⍉ permute] function
+             (assign-rank (apply function omega (when alpha (list alpha)))
+                          omrank))
+            ((and (getf fn-meta :on-axis)
+                  (or (= 1 (if alpha ocrank omrank))
+                      (and operand-lex-ref (char= #\⌽ operand-lex-ref))))
+             ;; if the composed function is directly equivalent to a function that operates
+             ;; across an axis, as ⊖⍤1 and ⌽⍤1 are to ⌽, just reassign the axis
+             (assign-rank (apply function omega (when alpha (list alpha)))
+                          omrank))
+            (t (let* ((orankdelta (- orank (if alpha ocrank omrank)))
+                      (odivs (when (<= 0 orankdelta) (make-array (subseq odims 0 orankdelta))))
+                      (odiv-dims (when odivs (subseq odims orankdelta)))
+                      (arankdelta (- arank acrank))
+                      (adivs (when (and alpha (<= 0 arankdelta))
+                               (make-array (subseq adims 0 arankdelta))))
+                      (adiv-dims (when adivs (subseq adims arankdelta))))
+                 (flet ((generate-divs (div-array ref-array div-dims)
+                          (let ((ref-indexer (varray::generator-of ref-array)))
+                            (dotimes (i (size div-array))
+                              (setf (row-major-aref div-array i)
+                                    (if (zerop (rank div-array)) ref-array
+                                        (if (not div-dims) (funcall ref-indexer i)
+                                            (make-instance 'varray::vader-subarray-displaced
+                                                           :shape div-dims :index i
+                                                           :base ref-array))))))))
+                   (when odivs (generate-divs odivs omega odiv-dims))
+                   (if alpha (progn (when adivs (generate-divs adivs alpha adiv-dims))
+                                    (if (not (or odivs adivs))
+                                        ;; if alpha and omega are scalar, just call the function on them
+                                        (funcall function omega alpha)
+                                        (let ((output (make-array (shape-of (if (> (rank-of odivs)
+                                                                                   (rank-of adivs))
+                                                                                odivs adivs)))))
+                                          (dotimes (i (size output))
+                                            (let ((this-odiv (if (not odivs)
+                                                                 omega (if (zerop (rank odivs))
+                                                                           (aref odivs)
+                                                                           (row-major-aref odivs i))))
+                                                  (this-adiv (if (not adivs)
+                                                                 alpha (if (zerop (rank adivs))
+                                                                           (aref adivs)
+                                                                           (row-major-aref adivs i)))))
+                                              (setf (row-major-aref output i)
+                                                    (funcall function this-odiv this-adiv))))
+                                          (make-instance 'vader-mix :base output :subrendering t
+                                                                    :axis (max (rank odivs)
+                                                                               (rank adivs))))))
+                       (if (not odivs) ;; as above for an omega value alone
+                           (funcall function omega)
+                           (let ((output (make-array (dims odivs))))
+                             (dotimes (i (size output))
+                               (setf (row-major-aref output i)
+                                     (funcall function (row-major-aref odivs i))))
+                             (make-instance 'vader-mix :base output :subrendering t
+                                                       :axis (varray::rank-of output))))))))))))
 
 (defun operate-atop (right-fn left-fn)
   "Generate a function applying two functions to a value in succession. Used to implement [⍤ atop]."

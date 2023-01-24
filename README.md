@@ -834,7 +834,7 @@ April makes available the following APL system variables, constants and function
 ⎕IO ⎕CT ⎕PP ⎕DIV ⎕RL ⎕A ⎕D ⎕TS ⎕NS ⎕CS ⎕UCS ⎕FMT
 ```
 
-Additionally, April exposes this special system variable not found in other APL implementations:
+Additionally, April exposes these system variables and function not found in other APL implementations:
 
 ```
 ⎕OST ⎕DT ⎕XWV ⎕XWF ⎕XWO

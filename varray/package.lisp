@@ -3,7 +3,7 @@
 
 (defpackage #:varray
   (:use #:cl)
-  (:export #:varray #:varrayp #:etype-of #:shape-of #:size-of #:rank-of #:generator-of
+  (:export #:varray #:varrayp #:etype-of #:shape-of #:size-of #:rank-of #:generator-of #:assign-rank
            #:vrender #:vapri-integer-progression #:vapri-coordinate-identity #:vader-calculate
            #:vader-select #:vader-random #:vader-deal #:vader-without #:vader-umask
            #:vader-index #:vader-shape #:vader-reshape #:vader-depth #:vader-first-dim
