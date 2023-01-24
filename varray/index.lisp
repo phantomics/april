@@ -71,9 +71,15 @@
           ;; when indexing the take of a scalar, test for the one index that will return the scalar
           (and (zerop arank)
                (not (loop :for s :across span :always (zerop s)))
-               (let ((at-index (loop :for p :across pad :for f :across od-factors :for d :in odims
-                                     ;; :do (print (list f (1- d) (signum p)))
-                                     :summing (* f (1- d) (signum p)) :into index :finally (return index))))
+               (let ((at-index (loop :for d :in odims :for i :from 0
+                                     :for p :across pad :for f :across od-factors
+                                     ;; :do (print (list :ee f (1- d) (- d 1 (aref pad (+ i orank))) (signum p)))
+                                     ;; :summing (* f (1- d) (signum p)) :into index :finally (return index)
+                                     :summing (* f (signum p)
+                                                 (- d 1 (aref pad (+ i orank))))
+                                       :into index :finally (return index)
+                                     )))
+                 ;; (print (list :pd span pad))
                  (lambda (index) (when (= index at-index) index))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
