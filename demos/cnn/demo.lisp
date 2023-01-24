@@ -50,35 +50,12 @@
   (defun get-test-data () test-data)
   (defun get-test-labels () test-labels)
 
-;;   (april (with (:space cnn-demo-space))
-;;          "
-;; epochs    ← 10
-;; batchSize ← 1
-;; trainings ← 100 ⍝ 1000
-;; tests     ← 10 ⍝ 10000
-;; rate      ← 0.05
-;; k1        ← 6 5 5⍴÷25.0
-;; b1        ← 6⍴÷6.0
-;; k2        ← 12 6 5 5⍴÷150.0
-;; b2        ← 12⍴÷12.0
-;; fc        ← 10 12 1 4 4⍴÷192.0
-;; b         ← 10⍴÷10.0
-;; ")
-  )
-
-(defun train-and-test ()
-  "Train a convolutional neural network with a set of training data and test it against another dataset."
-  (april (with (:space cnn-demo-space)
-               (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
-                            (teimgs (get-test-data)) (telabs (get-test-labels)))))
-
+  (april (with (:space cnn-demo-space))
          "
-{
-
 epochs    ← 10
 batchSize ← 1
 trainings ← 100 ⍝ 1000
-tests     ← 20 ⍝ 10000
+tests     ← 40 ⍝ 10000
 rate      ← 0.05
 k1        ← 6 5 5⍴÷25.0
 b1        ← 6⍴÷6.0
@@ -86,11 +63,18 @@ k2        ← 12 6 5 5⍴÷150.0
 b2        ← 12⍴÷12.0
 fc        ← 10 12 1 4 4⍴÷192.0
 b         ← 10⍴÷10.0
-index     ← 1
-startTime ← timeFactors⊥¯4↑⎕ts
+startTime ← ⍬
+"))
 
-⎕ ← 'Running Zhang with ',(⍕epochs),' epochs, batch size ',(⍕batchSize),','
-⎕ ← (⍕trainings),' training images, ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
+(defun train ()
+  "Train a convolutional neural network with a set of training data and test it against another dataset."
+  (april (with (:space cnn-demo-space)
+               (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels)))))
+         "
+index ← 1
+
+⎕ ← 'Training Zhang with ',(⍕epochs),' epochs, batch size ',(⍕batchSize)
+⎕ ← 'and ',(⍕trainings),' training images.'
 ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 
 (k1 b1 k2 b2 fc b) ← {
@@ -99,37 +83,111 @@ startTime ← timeFactors⊥¯4↑⎕ts
   (e k1 b1 k2 b2 fc b) ← train (0 0), ⍵, rate trimgs trlabs trainings
 
   ⎕ ← 'Training epoch ',({⍵,⍨'0'⍴⍨(⍴⍕epochs)-⍴⍵}⍕index),' completed in ',formatElapsed t
-  ⎕ ← 'Average error after training: ',(⍕e) ⋄ ⎕ ← '  '
+  ⎕ ← 'Average error after training: ',⍕e ⋄ ⎕ ← '  '
   index+←1
 
   k1 b1 k2 b2 fc b
 }⍣epochs⊢k1 b1 k2 b2 fc b
+")
+  "Neural network training complete.")
 
-⎕ ← 'Training complete, now running tests...'
+(defun test ()
+  "Train a convolutional neural network with a set of training data and test it against another dataset."
+  (april (with (:space cnn-demo-space)
+               (:state :in ((teimgs (get-test-data)) (telabs (get-test-labels)))))
+         "
+⎕ ← 'Testing Zhang with ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
+⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 
 t       ← timeFactors⊥¯4↑⎕ts
 correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
 
 ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 ⎕ ← 'Recognition testing completed in ',formatElapsed t
-⎕ ← (⍕correct),' images out of ',(⍕tests),' recognized correctly'
-⎕ ← '  ' ⋄ ⎕ ← 'Total time: ',formatElapsed startTime ⋄ ⎕ ← '  '
-
-} 0")
+⎕ ← (⍕correct),' images out of ',(⍕tests),' recognized correctly.'
+⍝ ⎕ ← '  ' ⋄ ⎕ ← 'Total time: ',formatElapsed startTime ⋄ ⎕ ← '  '
+")
   "Neural network test complete.")
+
+(defun train-and-test ()
+  (april (with (:space cnn-demo-space)) "startTime ← timeFactors⊥¯4↑⎕ts")
+  (train)
+  (format t "~%Training complete, now running tests...~%~%")
+  (test)
+  (april (with (:space cnn-demo-space)) "⎕ ← '  ' ⋄ ⎕ ← 'Total time: ',formatElapsed startTime ⋄ ⎕ ← '  '"))
+
 
 ;; (defun train ()
 ;;   "Train a convolutional neural network with a set of training data and test it against another dataset."
 ;;   (april (with (:space cnn-demo-space)
 ;;                (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels)))))
+;;          "
+;; {
+;; index ← 1
+
+;; ⎕ ← 'Training Zhang with ',(⍕epochs),' epochs, batch size ',(⍕batchSize)
+;; ⎕ ← 'and ',(⍕trainings),' training images.'
+;; ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
+
+;; (k1 b1 k2 b2 fc b) ← {
+;;   t ← timeFactors⊥¯4↑⎕ts
+
+;;   (e k1 b1 k2 b2 fc b) ← train (0 0), ⍵, rate trimgs trlabs trainings
+
+;;   ⎕ ← 'Training epoch ',({⍵,⍨'0'⍴⍨(⍴⍕epochs)-⍴⍵}⍕index),' completed in ',formatElapsed t
+;;   ⎕ ← 'Average error after training: ',⍕e ⋄ ⎕ ← '  '
+;;   index+←1
+
+;;   k1 b1 k2 b2 fc b
+;; }⍣epochs⊢k1 b1 k2 b2 fc b
+;; } 0")
+;;   "Neural network training complete.")
+
+;; (defun test ()
+;;   "Train a convolutional neural network with a set of training data and test it against another dataset."
+;;   (april (with (:space cnn-demo-space)
+;;                (:state :in ((teimgs (get-test-data)) (telabs (get-test-labels)))))
+;;          "
+;; {
+;; ⎕ ← 'Testing Zhang with ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
+;; ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
+
+;; t       ← timeFactors⊥¯4↑⎕ts
+;; correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
+
+;; ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
+;; ⎕ ← 'Recognition testing completed in ',formatElapsed t
+;; ⎕ ← (⍕correct),' images out of ',(⍕tests),' recognized correctly.'
+;; ⍝ ⎕ ← '  ' ⋄ ⎕ ← 'Total time: ',formatElapsed startTime ⋄ ⎕ ← '  '
+
+;; } 0")
+;;   "Neural network test complete.")
+
+;; (defun train-and-test ()
+;;   "Train a convolutional neural network with a set of training data and test it against another dataset."
+;;   (april (with (:space cnn-demo-space)
+;;                (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
+;;                             (teimgs (get-test-data)) (telabs (get-test-labels)))))
 
 ;;          "
 ;; {
+
+;; epochs    ← 10
+;; batchSize ← 1
+;; trainings ← 100 ⍝ 1000
+;; tests     ← 20 ⍝ 10000
+;; rate      ← 0.05
+;; k1        ← 6 5 5⍴÷25.0
+;; b1        ← 6⍴÷6.0
+;; k2        ← 12 6 5 5⍴÷150.0
+;; b2        ← 12⍴÷12.0
+;; fc        ← 10 12 1 4 4⍴÷192.0
+;; b         ← 10⍴÷10.0
 ;; index     ← 1
 ;; startTime ← timeFactors⊥¯4↑⎕ts
 
-;; ⎕ ← 'Training Zhang with ',(⍕epochs),' epochs, batch size ',(⍕batchSize),', and'
-;; ⎕ ← (⍕trainings),' training images.'
+;; ⎕ ← 'Running Zhang with ',(⍕epochs),' epochs, batch size ',(⍕batchSize),','
+;; ⎕ ← (⍕trainings),' training images, ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
 ;; ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  '
 
 ;; (k1 b1 k2 b2 fc b) ← {
@@ -143,19 +201,8 @@ correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
 
 ;;   k1 b1 k2 b2 fc b
 ;; }⍣epochs⊢k1 b1 k2 b2 fc b
-;; } 0")
-;;   "Neural network training complete.")
 
-;; (defun test ()
-;;   "Train a convolutional neural network with a set of training data and test it against another dataset."
-;;   (april (with (:space cnn-demo-space)
-;;                (:state :in ((trimgs (get-training-data)) (trlabs (get-training-labels))
-;;                             (teimgs (get-test-data)) (telabs (get-test-labels)))))
-
-;;          "
-;; {
-;; ⎕ ← 'Testing Zhang with ',(⍕tests),' tests and a rate of ',(⍕rate),'.'
-;; ⎕ ← '  ' ⋄ ⎕ ← '--' ⋄ ⎕ ← '  
+;; ⎕ ← 'Training complete, now running tests...'
 
 ;; t       ← timeFactors⊥¯4↑⎕ts
 ;; correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
@@ -167,8 +214,3 @@ correct ← +/telabs = teimgs testZhang⍤2⊢k1 b1 k2 b2 fc b
 
 ;; } 0")
 ;;   "Neural network test complete.")
-
-;; (defun train-and-test ()
-;;   (train)
-;;   (format t "~%Training complete, now running tests...~%")
-;;   (test))
