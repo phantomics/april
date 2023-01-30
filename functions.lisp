@@ -475,7 +475,7 @@
   "Generate a function applying a function to items grouped by a criterion. Used to implement [⌸ key]."
   (lambda (omega &optional alpha environment)
     (declare (ignore environment))
-    (let* ((keys (or alpha omega))
+    (let* ((keys (vrender (or alpha omega)))
            (keys-dims (varray::shape-of keys))
            (increment (reduce #'* (rest keys-dims)))
            (sub-shape (when (< 1 increment) (list increment)))

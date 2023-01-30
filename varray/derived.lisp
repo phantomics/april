@@ -1523,6 +1523,9 @@
                                     ( after-span (aref new-span position))
                                     (before-pad  (aref new-pad  pre-position))
                                     ( after-pad  (aref new-pad  position)))
+                    ;; (when (not (vads-inverse base))
+                    ;;   (print (list :ud (vads-argument varray)
+                    ;;                (vads-argument base) base-span base-pad (shape-of sub-base))))
                     (let ((remaining a) (negative (minusp a)))
                       (if negative
                           (if (< 0 (+ remaining after-pad))
@@ -1579,7 +1582,8 @@
                    (let ((ax (if (eq :last axis) 0 (- axis iorigin))))
                      (if is-inverse (update-drop argument (+ ax base-rank) ax)
                          (update-take argument (+ ax base-rank) ax)))))
-           ;; (print (list :ns new-span new-pad))
+           ;; (when (not (vads-inverse base))
+           ;;   (print (list :ns new-span new-pad)))
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
                  (vader-base varray) (if new-span sub-base base)))))

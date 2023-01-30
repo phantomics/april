@@ -148,6 +148,7 @@
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
+    ;; (print (list :it this-item))
     (if (listp this-item)
         ;; process a function specification starting with :fn
         (if (eq :fn (first this-item))
@@ -1071,7 +1072,7 @@
                                                  (when array
                                                    (make-instance
                                                     'vader-calculate :base (list array index-origin)
-                                                                     :function #'-)))
+                                                    :function #'-)))
                                                ,(getf (cddr (third form)) :argument))))))))
              
              (set-assn-sym selection-form)
@@ -1147,27 +1148,27 @@
                                (if xfns-assigned (setf (symbol-function insym)
                                                        #'dummy-nargument-function)
                                    (set insym nil))))))
-                 (if (and function (not xfns-assigned))
-                     (if (listp syms) ;; handle namespace paths
-                         (let ((item (gensym)) (item2 (gensym)))
-                           ;; namespace path assignments are always rendered
-                           ;; because if assigning to a namespace that's inside an array,
-                           ;; there's no guarantee that the namespace will have its values
-                           ;; rendered on output - TODO: can this be done only in the case
-                           ;; of paths that direct into an array?
-                           `(a-set ,symbol ,value :by (lambda (,item ,item2)
-                                                        (vrender (a-call ,function ,item ,item2)))))
-                         ;; handle assignment by function as with a+←10;
-                         ;; note that this reassigns the variable at its top scope level
-                         (let ((assigned (gensym)))
-                           (reg-side-effect (list :assign-dynamic (intern (string syms) space))
-                                            (getf (getf params :special) :closure-meta))
-                           `(let ((,assigned (a-call ,function ,value ,symbol)))
-                              (when (boundp (quote (inwsd ,(intern (string syms)))))
-                                (setf (symbol-value (quote (inwsd ,(intern (string syms)))))
-                                      ,assigned))
-                              (setq ,symbol ,assigned))))
-                     `(a-set ,set-symbol ,value)))))))
+               (if (and function (not xfns-assigned))
+                   (if (listp syms) ;; handle namespace paths
+                       (let ((item (gensym)) (item2 (gensym)))
+                         ;; namespace path assignments are always rendered
+                         ;; because if assigning to a namespace that's inside an array,
+                         ;; there's no guarantee that the namespace will have its values
+                         ;; rendered on output - TODO: can this be done only in the case
+                         ;; of paths that direct into an array?
+                         `(a-set ,symbol ,value :by (lambda (,item ,item2)
+                                                      (vrender (a-call ,function ,item ,item2)))))
+                       ;; handle assignment by function as with a+←10;
+                       ;; note that this reassigns the variable at its top scope level
+                       (let ((assigned (gensym)))
+                         (reg-side-effect (list :assign-dynamic (intern (string syms) space))
+                                          (getf (getf params :special) :closure-meta))
+                         `(let ((,assigned (a-call ,function ,value ,symbol)))
+                            (when (boundp (quote (inwsd ,(intern (string syms)))))
+                              (setf (symbol-value (quote (inwsd ,(intern (string syms)))))
+                                    ,assigned))
+                            (setq ,symbol ,assigned))))
+                   `(a-set ,set-symbol ,value)))))))
 
 (defun compose-function-assignment (symbol function &key space params)
   "Compose a function assignment."
@@ -1197,11 +1198,18 @@
           (reg-symfn-call function space (getf (getf params :special) :closure-meta))
           (when (getf (rest (getf (getf params :special) :closure-meta)) :side-effects)
             (push symbol (getf (rest (getf (getf params :special) :closure-meta)) :side-effecting-functions)))
-          ;; (print (list :pa params))
           `(a-set ,(if (eql '⍺ symbol) ;; handle the ⍺←function case
                        symbol (if in-closure `(inws ,symbol)                    
                                   `(symbol-function '(inwsd ,symbol))))
-                  ,function))
+                  ,(if (not (and (listp function) (member (first function) '(inws inwsd))
+                                 (symbolp (second function))))
+                       ;; if the function being aliased is within a namespace path, detect this
+                       ;; by looking for the . character and checking for the presence of the function
+                       ;; NOTE: this is predicated on the . character being used as the path separator
+                       function (let* ((fn-str (string (second function)))
+                                       (dot-pos (position #\. fn-str)))
+                                  (if (not (and dot-pos (fboundp (intern fn-str space))))
+                                      function `(function (inwsd ,(second function))))))))
         (when (and (listp symbol) (eql 'nspath (first symbol)))
           ;; handle the case of function assignment within a namespace like a.bc←{⍵+1}
           (let ((path-symbol (intern (format-nspath (rest symbol)) space)))

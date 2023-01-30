@@ -905,6 +905,7 @@
                      (process-symbols symbols value))))))))
 
 (defun process-ns-output (item)
+  ;; TODO: the use of this should change; NSes should have rendered content by default
   "Process a namespace for output, rendering all virtual arrays within."
   (if (not (listp item))
       item (loop :for i :in item :collect (if (listp i) (process-ns-output i)

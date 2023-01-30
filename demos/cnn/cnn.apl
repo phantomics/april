@@ -24,7 +24,7 @@ avg           ← {(+/÷≢),⍵}
 
 maxpos        ← {(,⍵)⍳⌈/,⍵}
               ⍝ Maxpos of the array of shape [10,1,1,1,...] where values are either 0 or 1
-              ⍝ First elements of the indices of the array sorted in the descendingn order.
+              ⍝ First elements of the indices of the array sorted in the descending order.
               ⍝ Alternative: { (⍸,⍵)[0] }
 
 conv          ← {s←1+(⍴⍵)-⍴⍺ ⋄ ⊃+/,⍺×(⍳⍴⍺){s↑⍺↓⍵}¨⊂⍵}
@@ -68,10 +68,10 @@ backin        ← {d w in←⍵ ⋄ ⊃+/,w{(⍴in)↑(-⍵+⍴d)↑⍺×d}¨⍳
               ⍝ by iv.  Then we take shape(in) elements of that and sum all such
               ⍝ arrays with `+`.
 
-logistic      ← {÷1+*-⍵}
+logistic      ← {÷1.0+*-⍵}
               ⍝ Logistic function is 1/(1+e^(-in))
 
-meansqerr     ← {÷∘2+/,(⍺-⍵)*2}
+meansqerr     ← {÷∘2.0+/,(⍺-⍵)*2.0}
               ⍝ Mean Squared Error
 
 backlogistic  ← {⍺×⍵×1-⍵}
@@ -90,7 +90,7 @@ avgpool       ← {x y←⍴⍵ ⋄ avg⍤2⊢(x÷2)(y÷2)2 2⍴⍉⍤2⊢(x÷2)
               ⍝ For every element in `a` compute an array of shape `f` where all the
               ⍝ elements are the current element of `a` divided (prod f).
 
-backavgpool   ← {2⌿2/⍵÷4}⍤2
+backavgpool   ← {2⌿2/⍵÷4.0}⍤2
               ⍝ We are tempted to specialise average pool for the shape 2 2, as we
               ⍝ don't use anything else and the expression gets really nice
 
@@ -121,7 +121,7 @@ trainZhang ← {
   out   ← logistic multiconv s2 fc b
   d_out ← out-target
   err   ← out meansqerr target
-
+  
   d_s2 d_fc d_b ← backmulticonv (d_out backlogistic out) fc s2 b
 
   d_c2 ← backavgpool d_s2
@@ -130,7 +130,7 @@ trainZhang ← {
   d_s1 d_k2 d_b2 ← backmulticonv bl1 k2 s1 b2
 
   d_c1 ← backavgpool d_s1
-
+  
   _ d_k1 d_b1 ← backmulticonv (d_c1 backlogistic c1) k1 img b1
   d_k1 d_b1 d_k2 d_b2 d_fc d_b err
 }
@@ -156,7 +156,7 @@ train ← {
   target ← convlab⊢i⌷labs
 
   d_k1 d_b1 d_k2 d_b2 d_fc d_b err ← trainZhang img target k1 b1 k2 b2 fc b
-
+  
   k1 ← k1-rate×d_k1
   k2 ← k2-rate×d_k2
   b1 ← b1-rate×d_b1

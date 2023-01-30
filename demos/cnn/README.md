@@ -27,8 +27,8 @@ Next, evaluate:
 "Data loaded."
 
 * (train-and-test)
-Running Zhang with 10 epochs, batch size 1,
-5 training images, 10000 tests and a rate of 0.05
+Training Zhang with 10 epochs, batch size 1
+and 100 training images.
  
 ...
 ```

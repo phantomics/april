@@ -663,7 +663,7 @@
                         (funcall (if (subrendering-p varray)
                                      (lambda (item)
                                        (let ((rendered (render item)))
-                                         ;; (print (list :rr rendered item varray
+                                         ;; (proint (list :rr rendered item varray
                                          ;;              (subrendering-p varray)))
                                          (if (and (zerop (rank-of rendered))
                                                   (or (not (arrayp rendered))
