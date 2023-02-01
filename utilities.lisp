@@ -5,7 +5,7 @@
 
 "Utility functions for April. It's important to understand the difference between the functions and macros provided here and the ones that come from the aplesque package. The faculties provided by aplesque reflect features of APL, but they have uses other than implementing APL. The material here is specifically for use in implementing APL, with utility aside from an APL implementation not accounted for in its design. The functions here are used to implement language mechanics as opposed to functions in the language's standard library; the latter are implemented in functions.lisp."
 
-(defvar *april-idiom*)
+(defvar *april-idiom* nil)
 
 (define-symbol-macro this-idiom *april-idiom*)
 (define-symbol-macro *apl-timestamp* (apl-timestamp))
@@ -2185,12 +2185,14 @@ It remains here as a standard against which to compare methods for composing APL
                                          ,@(loop :for lexicon :in lexicons
                                                  :collect `(push a-char (getf lexicons ,lexicon)))))))))
         (loop :for each-spec :in spec-sets
-              :do (loop :for spec :in (reverse (cddr each-spec))
+              :do (loop :for spec :in (cddr each-spec) ;; (reverse (cddr each-spec))
                         :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
-                              (let* ((spec-type (intern (string (first each-spec))))
+                              (let* ((spec-type (intern (string (first each-spec))
+                                                        *package-name-string*))
                                      (props (rest props))
                                      (glyph-char (aref (string glyph-sym) 0))
-                                     (item-type (intern (string (first implementation))))
+                                     (item-type (intern (string (first implementation))
+                                                        *package-name-string*))
                                      (spec-meta (rest (assoc 'meta rest)))
                                      (primary-metadata (rest (assoc 'primary spec-meta)))
                                      (implicit-args (getf primary-metadata :implicit-args))
@@ -2199,7 +2201,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                                 (if (eql 'statements spec-type)
                                                                     "ST" (if (eql 'operators spec-type)
                                                                              "OP" "FN"))
-                                                                glyph-sym)))
+                                                                glyph-sym)
+                                                        *package-name-string*))
                                      (assigned-form))
                                 (push fn-symbol symbol-set)
                                 (when (getf props :aliases)
@@ -2207,12 +2210,33 @@ It remains here as a standard against which to compare methods for composing APL
                                         :do (let ((alias-symbol
                                                     (intern (format nil "APRIL-LEX-~a-~a"
                                                                     (if (eql 'operators spec-type) "OP" "FN")
-                                                                    alias)))
+                                                                    alias)
+                                                            *package-name-string*))
                                                   (valias-symbol
-                                                    (intern (format nil "APRIL-LEX-VFN-~a" alias))))
+                                                    (intern (format nil "APRIL-LEX-VFN-~a" alias)
+                                                            *package-name-string*)))
                                               (push alias-symbol symbol-set)
                                               (push valias-symbol symbol-set))))
                                 (case item-type
+                                  (alias-of (let ((achar (aref (string (second implementation)) 0))
+                                                  (aliased
+                                                    (intern (format nil "APRIL-LEX-~a-~a"
+                                                                    (if (eql 'statements spec-type)
+                                                                        "ST" (if (eql 'operators spec-type)
+                                                                                 "OP" "FN"))
+                                                                    (second implementation))
+                                                            *package-name-string*)))
+                                              (push `(symbol-function ',aliased) assignment-forms)
+                                              ;; (print (list :ach achar lexicons))
+                                              ;; assign the alias to lexicons according to the lexicon
+                                              ;; membership (as specified in this form or already
+                                              ;; present in the current lexicon) of the character
+                                              ;; that it will alias
+                                              (loop :for (key items) :on lexicons :by #'cddr
+                                                    :when (or (member achar items)
+                                                              (and this-idiom
+                                                                   (of-lexicons this-idiom achar key)))
+                                                      :do (push glyph-char (getf lexicons key)))))
                                   (monadic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-monadic)
                                    (when (eql 'scalar-function (caadr implementation))
@@ -2292,10 +2316,12 @@ It remains here as a standard against which to compare methods for composing APL
                                             (push `(,(if (and (eql 'functions spec-type)
                                                               (eql 'symbolic item-type))
                                                          'symbol-value 'symbol-function)
-                                                    (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias))))
+                                                    (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias)
+                                                                    *package-name-string*)))
                                                   assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))
-                               (cons 'setf assignment-forms))
+                               (cons 'setf assignment-forms)
+                               )
                 (list :fn-count fn-count :op-count op-count))))))
 
 (defmacro specify-demo (title params &rest sections)
@@ -2327,8 +2353,12 @@ It remains here as a standard against which to compare methods for composing APL
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
-  (:import-from :april #:extend-vex-idiom #:process-fnspecs #:scalar-function)
-  (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ))
+  (:import-from :vex #:of-utilities #:of-system)
+  (:import-from :april #:extend-vex-idiom #:process-fnspecs #:scalar-function
+                #:λω #:λωα #:λωχ #:λωαχ #:monadic #:dyadic #:ambivalent
+                #:lateral #:pivotal #:alias-of)
+  (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ
+           #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of))
 
 ;; a secondary package containing tools for specifying April demo packages
 (defpackage #:april.demo-definition-tools

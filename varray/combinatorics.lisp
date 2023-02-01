@@ -5,7 +5,7 @@
 "Special combinatoric rules for virtual arrays, mostly determining object allocations that return a modified form of the base object rather than an instance of the class being invoked."
 
 (let* ((add-sub-functions (list #\+ #\-))
-       (mul-div-functions (list #\× #\÷))
+       (mul-div-functions (list #\×)) ; #\÷))
        (arith-functions (append add-sub-functions mul-div-functions)))
   (defun extend-allocator-vader-calculate (&key base axis function index-origin params)
     "Extend allocation behavior of operate class; currently, this allows for things like 1+⍳9 returning a modified integer progression vector rather than an instance of the vader-calculate class."

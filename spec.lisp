@@ -40,7 +40,8 @@
          :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
                                :comparison-tolerance double-float-epsilon
                                :rngs (list :generators :rng (aref *rng-names* 1)))
-         :variables *system-variables*)
+         :variables *system-variables* :closure-wrapping "()" :function-wrapping "{}"
+         :axis-wrapping "[]")
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -63,10 +64,10 @@
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
-            (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR")))
+            (lambda (char) (or (digit-char-p char) (position char ".．_¯eEjJrR")))
             :match-token-character
             (lambda (char) (or (is-alphanumeric char)
-                               (position char "._⎕∆⍙¯")))
+                               (position char ".．_⎕∆⍙¯")))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
             :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬"))
@@ -75,12 +76,12 @@
             :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹"))
             ;; match characters used to link parts of paths together like namespace.path.to,
             ;; this is needed so that ⍵.path.to will work
-            :match-path-joining-character (lambda (char) (char= #\. char))
+            :match-path-joining-character (lambda (char) (position char ".．"))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
-            :match-overloaded-numeric-character (lambda (char) (char= #\. char))
+            :match-overloaded-numeric-character (lambda (char) (position char ".．"))
             ;; match character(s) used to separate axes
-            :match-axis-separating-character (lambda (char) (char= #\; char))
+            :match-axis-separating-character (lambda (char) (position char ";；"))
             ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
             :prep-code-string
             (lambda (string)
@@ -495,7 +496,9 @@
             (is "'THIS' 'IS' 'A' 'TEST'⍳'IS' 'IT'" #(2 5))
             (is "'RAT' 'CAT' 'DOG'⍳⊂'DOG'" 3)
             (is "(3 3⍴'CATRATDOG')⍳'RAT'" 2)
-            (is "(3 3⍴'CATRATDOG')⍳4 3⍴'RATDOGPIG'" #(2 3 4 2))))
+            (is "(3 3⍴'CATRATDOG')⍳4 3⍴'RATDOGPIG'" #(2 3 4 2))
+            (is "2÷⍨⎕IO-⍨¯10+⍳21"
+                #(-5 -9/2 -4 -7/2 -3 -5/2 -2 -3/2 -1 -1/2 0 1/2 1 3/2 2 5/2 3 7/2 4 9/2 5))))
   (⍴ (has :titles ("Shape" "Reshape"))
      (ambivalent (λω (make-instance 'vader-shape :base omega))
                  (λωα (make-instance 'vader-reshape :base omega :argument alpha)))

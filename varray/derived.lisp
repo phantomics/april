@@ -975,6 +975,7 @@
 
 (defmethod shape-of ((varray vader-interval-index))
   (let ((base-shape (shape-of (vader-base varray))))
+    ;; (PRINT (list :bs base-shape (shape-of (vads-argument varray))))
     (when base-shape (butlast base-shape (1- (length (shape-of (vads-argument varray))))))))
 
 (defmethod generator-of ((varray vader-interval-index) &optional indexers params)
@@ -1012,6 +1013,7 @@
                          (value (funcall base-gen index)))
                      (loop :for item :across argument :while (funcall (alpha-compare #'>) value item)
                            :do (incf count))
+                     ;; (print (list :co count))
                      count))
                  (let ((count 0))
                    (loop :for item :across argument :while (funcall (alpha-compare #'>)

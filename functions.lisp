@@ -196,7 +196,8 @@
 (defun apl-gcd (comparison-tolerance)
   "Implementation of greatest common denominator extended to complex numbers based on the complex-floor function."
   (lambda (omega alpha)
-    (if (or (complexp omega) (complexp alpha))
+    (if (not (or (complexp omega) (complexp alpha)))
+        (funcall (apl-xcy #'gcd) omega alpha)
         (if (zerop (funcall (apl-residue comparison-tolerance)
                             omega alpha))
             alpha (if (or (not (integerp (realpart omega)))
@@ -229,8 +230,7 @@
                                        (if (< (- comparison-tolerance)
                                               (realpart residue)
                                               comparison-tolerance)
-                                           residue (imagpart residue))))))
-        (funcall (apl-xcy #'gcd) omega alpha))))
+                                           residue (imagpart residue)))))))))
 
 (defun apl-lcm (comparison-tolerance)
   "Implementation of lease common multiple extended to complex numbers based on the complex-floor function."

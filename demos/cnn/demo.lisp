@@ -26,8 +26,8 @@
         (if (= 1 (slot-value idx-input 'rank))
             (slot-value idx-input 'data)
             (make-array (loop :for d :across (slot-value idx-input 'dimensions) :collect d)
-                        :displaced-to (slot-value idx-input 'data)
-                        :element-type (array-element-type (slot-value idx-input 'data))))))))
+                        :element-type (array-element-type (slot-value idx-input 'data))
+                        :displaced-to (slot-value idx-input 'data)))))))
 
 (april-load (with (:space cnn-demo-space))
             (asdf:system-relative-pathname (intern (package-name *package*) "KEYWORD") "cnn.apl"))
@@ -101,7 +101,7 @@ tests ← 100 ⍝ 10000
 ⎕ ← ' ' ⋄ ⎕ ← '--' ⋄ ⎕ ← ' '
 
 t       ← timeFactors⊥¯4↑⎕ts
-correct ← +/(⎕←tests↑[0]telabs) = ⎕←(tests↑[0]teimgs) testZhang⍤2⊢k1 b1 k2 b2 fc b
+correct ← +/(tests↑[0]telabs) = (tests↑[0]teimgs) testZhang⍤2⊢k1 b1 k2 b2 fc b
 
 ⎕ ← 'Recognition testing completed in ',formatElapsed t
 ⎕ ← (⍕correct),' images out of ',(⍕tests),' recognized correctly.'
