@@ -1,4 +1,4 @@
 ;;;; package.lisp
 
-(defpackage #:april-ext.jkanji
+(defpackage #:april-xt.uzuki
   (:use #:cl #:april #:april.idiom-extension-tools))

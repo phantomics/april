@@ -291,14 +291,14 @@
                                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
                 ,@assignment-form
                 (setf (idiom-system ,idiom-symbol)
-                      (append (idiom-system ,idiom-symbol)
-                              ,(cons 'list (of-subspec system)))
+                      (append ,(cons 'list (of-subspec system))
+                              (idiom-system ,idiom-symbol))
                       (idiom-utilities ,idiom-symbol)
-                      (append (idiom-utilities ,idiom-symbol)
-                              ,(cons 'list (of-subspec utilities)))
+                      (append ,(cons 'list (of-subspec utilities))
+                              (idiom-utilities ,idiom-symbol))
                       (idiom-symbols ,idiom-symbol)
-                      (append (idiom-symbols ,idiom-symbol)
-                              ,(list 'quote (of-subspec symbols)))
+                      (append ,(list 'quote (of-subspec symbols))
+                              (idiom-symbols ,idiom-symbol))
                       ;; assign each part of the lexicon, appending to an existing lexicon if present
                       ;; so the spec may either create or append to an idiom (as for (extend-vex-idiom))
                       ,@(loop :for (key val) :on idiom-list :by #'cddr :when val
@@ -542,7 +542,8 @@
                                       (append output (loop :for char :below (length glyph)
                                                            :collect (aref glyph char)))))))))
 
-(let ((collected-matched-closing-chars))
+(let ((collected-matched-closing-chars) (axis-string-processor)
+      (match-axis-separator) (match-path-separator) (number-formatter))
   (defun =vex-string (idiom &optional output special-precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
     (let ((string-found) (olnchar) (symbols) (is-function-closure)
@@ -551,33 +552,35 @@
           ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
           (uniform-char) (arg-rooted-path) (fix 0))
       (unless collected-matched-closing-chars
-        ;; generate the string of matched closing and opening characters that wrap code sections;
-        ;; used to identify stray closing characters such as ) without a corresponding (
-        (let ((output)
-              (cw (of-system idiom :closure-wrapping))
-              (fw (of-system idiom :function-wrapping))
-              (aw (of-system idiom :axis-wrapping)))
-          (loop :for i :from (/ (length cw) 2) :to (1- (length cw)) :do (push (aref cw i) output))
-          (loop :for i :from (/ (length fw) 2) :to (1- (length fw)) :do (push (aref fw i) output))
-          (loop :for i :from (/ (length aw) 2) :to (1- (length aw)) :do (push (aref aw i) output))
-          (loop :for i :below (/ (length cw) 2) :do (push (aref cw i) output))
-          (loop :for i :below (/ (length fw) 2) :do (push (aref fw i) output))
-          (loop :for i :below (/ (length aw) 2) :do (push (aref aw i) output))
-          (setf collected-matched-closing-chars (reverse (coerce output 'string)))))
-      (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
-               (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
-               (?numeric-character () (?satisfies (of-utilities idiom :match-numeric-character)))
-               (?token-character   () (?satisfies (of-utilities idiom :match-token-character)))
-               (numeric-string-p (item) (funcall (of-utilities idiom :format-number) item))
-               (pjoin-char-p     (item) (funcall (of-utilities idiom :match-path-joining-character) item))
+        (setf collected-matched-closing-chars (funcall (of-utilities idiom :collect-delimiters) idiom)))
+      
+      (unless axis-string-processor
+        (setf axis-string-processor (funcall (of-utilities idiom :process-axis-string) idiom)))
+      
+      (unless match-axis-separator
+        (setf match-axis-separator
+              (funcall (of-utilities idiom :match-axis-separating-character) idiom)))
+      
+      (unless match-path-separator
+        (setf match-path-separator (funcall (of-utilities idiom :match-path-joining-character) idiom)))
+
+      (unless number-formatter
+        (setf number-formatter (funcall (of-utilities idiom :build-number-formatter) idiom)))
+      
+      (labels ((?blank-character     () (?satisfies (of-utilities idiom :match-blank-character)))
+               (?newline-character   () (?satisfies (of-utilities idiom :match-newline-character)))
+               (?numeric-character   () (?satisfies (of-utilities idiom :match-numeric-character)))
+               (?token-character     () (?satisfies (of-utilities idiom :match-token-character)))
+               (numeric-string-p (item) (funcall number-formatter item))
+               (pjoin-char-p     (item) (funcall match-path-separator item))
                (utoken-p         (item) (funcall (of-utilities idiom :match-uniform-token-character) item))
                (p-or-u-char-p (is-path uniform-char)
                  (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character) item))
                      (lambda (item) (char= uniform-char item))))
-               (=string (&rest delimiters)
+               (=string (delimiters)
                  (let ((lastc) (delimiter) (escape-indices) (char-index 0))
                    (=destructure (_ content)
-                                 (=list (?satisfies (lambda (c) (when (member c delimiters)
+                                 (=list (?satisfies (lambda (c) (when (position c delimiters :test #'char=)
                                                                   (setq delimiter c))))
                                         ;; note: nested quotes must be checked backwards; to determine
                                         ;; whether a delimiter indicates the end of the quote, look at
@@ -619,17 +622,19 @@
                                                                    :displaced-to content)))))))
                (=vex-closure (boundary-chars &key (transform-by) (disallow-linebreaks)
                                                (symbol-collector) (if-confirmed))
-                 (let* ((balance 1)
-                        (char-index 0)
-                        (quoted) (quote-delimiter #\')
+                 (let* ((quoted) (balance 1) (char-index 0)
+                        (string-delimiters (of-system idiom :string-delimiters))
+                        (bclen (length boundary-chars))
+                        (hbclen (floor bclen 2))
                         ;; disallow linebreak overriding opening and closing characters
                         (dllen (when (stringp disallow-linebreaks) (length disallow-linebreaks)))
-                        (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (/ dllen 2))))
-                        (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (/ dllen 2) dllen)))
+                        (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (floor dllen 2))))
+                        (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (floor dllen 2) dllen)))
                         (dlb-overriding-balance 0))
                    (=destructure
                        (_ enclosed _)
-                       (=list (?eq (aref boundary-chars 0))
+                       (=list (?satisfies (lambda (char) (position char boundary-chars
+                                                                   :end hbclen :test #'char=)))
                               ;; for some reason, the first character in the string is iterated over twice here,
                               ;; so the character index is checked and nothing is done for the first character
                               ;; TODO: fix this
@@ -639,7 +644,8 @@
                                                      ;; have to do the zerop check to avoid the double-
                                                      ;; iteration mentioned above
                                                      (when (and (not (zerop char-index))
-                                                                (char= char quote-delimiter))
+                                                                (position char string-delimiters
+                                                                          :test #'char=))
                                                        (setf quoted (not quoted)))
                                                      (when (and disallow-linebreaks
                                                                 (zerop dlb-overriding-balance)
@@ -649,19 +655,21 @@
                                                        (error "Newlines cannot occur within a ~a closure."
                                                               boundary-chars))
                                                      (unless quoted
-                                                       (if (and (char= char (aref boundary-chars 0))
-                                                                (< 0 char-index))
+                                                       (if (and (< 0 char-index)
+                                                                (position char boundary-chars
+                                                                          :end hbclen :test #'char=))
                                                            (incf balance)
-                                                           (when (and (char= char (aref boundary-chars 1))
+                                                           (when (and (position char boundary-chars
+                                                                                :start hbclen :test #'char=)
                                                                       (< 0 char-index))
                                                              (decf balance)))
                                                        (when dlbor-opening-chars
                                                          (if (and (< 0 char-index)
-                                                                  (not (loop :for c :across dlbor-opening-chars
-                                                                             :never (char= char c))))
+                                                                  (position char dlbor-opening-chars
+                                                                            :test #'char=))
                                                              (incf dlb-overriding-balance)
-                                                             (unless (loop :for c :across dlbor-closing-chars
-                                                                           :never (char= char c))
+                                                             (when (position char dlbor-closing-chars
+                                                                             :test #'char=)
                                                                (decf dlb-overriding-balance)))))
                                                      (incf char-index)
                                                      (< 0 balance)))))
@@ -672,7 +680,8 @@
                                                   (declare (ignore remaining))
                                                   (when symbol-collector (funcall symbol-collector meta))
                                                   parsed))))
-                              (?eq (aref boundary-chars 1)))
+                              (?satisfies (lambda (char) (position char boundary-chars
+                                                                   :start hbclen :test #'char=))))
                      (if (zerop balance)
                          (progn (when if-confirmed (funcall if-confirmed))
                                 enclosed)
@@ -682,15 +691,13 @@
                  (let ((errant-char))
                    (=destructure (_ _)
                                  (=list (?satisfies (lambda (char)
-                                                      (when (funcall (of-utilities
-                                                                      idiom :match-axis-separating-character)
-                                                                     char)
+                                                      (when (funcall match-axis-separator char)
                                                         (setq errant-char char))))
                                         (=subseq (%any (?satisfies 'characterp))))
                      (error "Misplaced axis delimiter ~a." errant-char))))
                (=vex-errant-closing-character (boundary-chars)
                  (let ((errant-char) (matching-char)
-                       (chars-count (/ (length boundary-chars) 2)))
+                       (chars-count (floor (length boundary-chars) 2)))
                    (=destructure (_ _)
                                  (=list (?satisfies (lambda (char)
                                                       (loop :for i :across boundary-chars
@@ -712,11 +719,9 @@
                                       meta))))
                (handle-axes ()
                  (lambda (input-string)
-                   (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
-                                              input-string))
-                          (each-axis-code (loop :for axis :in each-axis :collect
-                                                                        (let ((output (process-lines axis)))
-                                                                          (first output)))))
+                   (let* ((each-axis (funcall axis-string-processor input-string))
+                          (each-axis-code (loop :for axis :in each-axis
+                                                :collect (first (process-lines axis)))))
                      (cons :ax each-axis-code))))
                (handle-function (input-string)
                  (destructuring-bind (content meta) (process-lines input-string)
@@ -756,7 +761,7 @@
                                                 :if-confirmed (lambda () (setq is-function-closure t)))
                                   (=vex-errant-axis-separating-character)
                                   (=vex-errant-closing-character collected-matched-closing-chars)
-                                  (=string #\' #\")
+                                  (=string (of-system idiom :string-delimiters))
                                   (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
                                               (lambda (string)
                                                 (let ((char (character string)))
@@ -780,7 +785,7 @@
                                                         (=subseq (%some (?numeric-character))))
                                                     (=subseq (%some (?numeric-character))))
                                               (lambda (string)
-                                                (funcall (of-utilities idiom :format-number)
+                                                (funcall number-formatter
                                                          ;; if there's an overloaded token character passed in
                                                          ;; the special precedent, prepend it to the token
                                                          ;; being processed
@@ -920,7 +925,9 @@
                                     input-vars))
                    (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
                                                                  (string (idiom-name idiom))))
-                                    output-vars)))
+                                    output-vars))
+                   (string-prep (funcall (of-utilities idiom :prep-code-string)
+                                         idiom)))
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
@@ -929,7 +936,7 @@
                                                            system-to-use)
                                                    inline-arguments))
                                         (process-lines
-                                         (funcall (of-utilities idiom :prep-code-string) string)
+                                         (funcall string-prep string)
                                          space (list :call-scope (list :input-vars iv-list
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom

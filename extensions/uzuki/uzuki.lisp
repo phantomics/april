@@ -1,14 +1,15 @@
-;;;; april-ext.jkanji.lisp
+;;;; uzuki.lisp
 
-(in-package #:april-ext.jkanji)
+(in-package #:april-xt.uzuki)
 
 "An extension to April mapping Japanese kanji to the standard APL lexicon."
 
 (extend-vex-idiom
  april::april
+ (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］")
  (utilities :process-fn-op-specs #'process-fnspecs)
  (functions (with (:name :japanese-kanji-function-aliases))
-            (\＋ (has :title "プラス") ;; ｛［（）］｝ ･ ￣ ＇
+            (\＋ (has :title "プラス") ;; ･ ￣＇
                  (alias-of +))        ;; ×⌹.←→
             (\－ (has :title "マイナス")
                  (alias-of -))
@@ -70,9 +71,9 @@
                 (alias-of ⍸))
             (付 (has :title "付ける／フ")
                 (alias-of \,))
-            (立 (has :title "ダイ") ;; meaning fits?
+            (立 (has :title "立つ／リツ")
                 (alias-of ⍪))
-            (取 (has :title "取る")
+            (取 (has :title "取る／シュ")
                 (alias-of ↑))
             (落 (has :title "落とす／ラク")
                 (alias-of ↓))

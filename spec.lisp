@@ -40,8 +40,10 @@
          :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
                                :comparison-tolerance double-float-epsilon
                                :rngs (list :generators :rng (aref *rng-names* 1)))
-         :variables *system-variables* :closure-wrapping "()" :function-wrapping "{}"
-         :axis-wrapping "[]")
+         :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
+         :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
+         :negative-signs "¯" :number-spacers "_"
+         :axis-separators ";；" :path-separators ".．")
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -64,75 +66,101 @@
             :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
-            (lambda (char) (or (digit-char-p char) (position char ".．_¯eEjJrR")))
+            (lambda (char) (or (digit-char-p char) (position char ".．_¯eEjJrR" :test #'char=)))
             :match-token-character
             (lambda (char) (or (is-alphanumeric char)
-                               (position char ".．_⎕∆⍙¯")))
+                               (position char ".．_⎕∆⍙¯" :test #'char=)))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
-            :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬"))
+            :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬" :test #'char=))
             ;; match characters specifically representing function/operator arguments, this is needed
             ;; so ⍵.path.to will work
-            :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹"))
+            :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹" :test #'char=))
             ;; match characters used to link parts of paths together like namespace.path.to,
             ;; this is needed so that ⍵.path.to will work
-            :match-path-joining-character (lambda (char) (position char ".．"))
+            :match-path-joining-character (lambda (idiom)
+                                            (let ((chars (of-system idiom :path-separators)))
+                                              (lambda (char) (position char chars :test #'char=))))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
-            :match-overloaded-numeric-character (lambda (char) (position char ".．"))
+            :match-overloaded-numeric-character (lambda (char) (position char ".．" :test #'char=))
             ;; match character(s) used to separate axes
-            :match-axis-separating-character (lambda (char) (position char ";；"))
+            :match-axis-separating-character (lambda (idiom)
+                                               (let ((chars (of-system idiom :axis-separators)))
+                                                 (lambda (char) (position char chars :test #'char=))))
+            
+            ;; generate the string of matched closing and opening characters that wrap code sections;
+            ;; used to identify stray closing characters such as ) without a corresponding (
+            :collect-delimiters
+            (lambda (idiom)
+              (let ((output) (cw (of-system idiom :closure-wrapping))
+                    (fw (of-system idiom :function-wrapping)) (aw (of-system idiom :axis-wrapping)))
+                (loop :for i :from (/ (length cw) 2) :to (1- (length cw)) :do (push (aref cw i) output))
+                (loop :for i :from (/ (length fw) 2) :to (1- (length fw)) :do (push (aref fw i) output))
+                (loop :for i :from (/ (length aw) 2) :to (1- (length aw)) :do (push (aref aw i) output))
+                (loop :for i :below (/ (length cw) 2) :do (push (aref cw i) output))
+                (loop :for i :below (/ (length fw) 2) :do (push (aref fw i) output))
+                (loop :for i :below (/ (length aw) 2) :do (push (aref aw i) output))
+                (reverse (coerce output 'string))))
             ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
             :prep-code-string
-            (lambda (string)
-              (let ((commented) (osindex 0) (comment-char #\⍝)
-                    (out-string (make-string (length string) :initial-element #\ )))
-                (loop :for char :across string
-                   :do (if commented (when (member char '(#\Newline #\Return) :test #'char=)
-                                       (setf commented nil
-                                             (row-major-aref out-string osindex) char
-                                             osindex (1+ osindex)))
-                           (if (char= char comment-char) (setf commented t)
-                               (setf (row-major-aref out-string osindex) char
-                                     osindex (1+ osindex)))))
-                ;; return displaced string to save time processing blanks
-                (make-array osindex :element-type 'character :displaced-to out-string)))
+            (lambda (idiom)
+              (let ((comment-delimiters (of-system idiom :comment-delimiters)))
+                (lambda (string)
+                  (let ((commented) (osindex 0)
+                        (out-string (make-string (length string) :initial-element #\ )))
+                    (loop :for char :across string
+                          :do (if commented (when (member char '(#\Newline #\Return) :test #'char=)
+                                              (setf commented nil
+                                                    (row-major-aref out-string osindex) char
+                                                    osindex (1+ osindex)))
+                                  (if (position char comment-delimiters :test #'char=)
+                                      (setf commented t)
+                                      (setf (row-major-aref out-string osindex) char
+                                            osindex (1+ osindex)))))
+                    ;; return displaced string to save time processing blanks
+                    (make-array osindex :element-type 'character :displaced-to out-string)))))
             ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
             :process-axis-string
-            (lambda (string)
-              (let ((indices) (last-index) (quoted)
-                    (nesting (vector 0 0 0))
-                    (delimiters "[({])}")
-                    (dllen-plus 7) ;; 1 plus the number of delimiters
-                    (quote-delimiter #\'))
-                (loop :for char :across string :counting char :into charix
-                      :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
-                                              :when (char= d char) :do (return (- dllen-plus dx)))
-                                        0)))
-                            (if (char= char quote-delimiter)
-                                (setf quoted (not quoted))
-                                (unless quoted
-                                  (if (< 3 mx) (incf (aref nesting (- 6 mx)))
-                                      (if (< 0 mx 4)
-                                          (if (< 0 (aref nesting (- 3 mx)))
-                                              (decf (aref nesting (- 3 mx)))
-                                              (error "Each closing ~a must match with an opening ~a."
-                                                     (aref delimiters mx) (aref delimiters (- 3 mx))))
-                                          (when (and (char= char #\;)
-                                                     (zerop (loop :for ncount :across nesting
-                                                                  :summing ncount)))
-                                            (setq indices (cons (1- charix) indices)))))))))
-                (loop :for index :in (reverse (cons (length string) indices))
-                   :counting index :into iix
-                   :collect (make-array (- index (if last-index 1 0)
-                                           (or last-index 0))
-                                        :element-type 'character :displaced-to string
-                                        :displaced-index-offset (if last-index (1+ last-index) 0))
-                   :do (setq last-index index))))
+            (let ((delimiters) (axis-separators) (full-len) (half-len) (nesting (vector 0 0 0)))
+              (lambda (idiom)
+                (unless delimiters
+                  (setf delimiters (reverse (funcall (of-utilities idiom :collect-delimiters) idiom))
+                        full-len (length delimiters)
+                        half-len (/ full-len 2)
+                        axis-separators (of-system idiom :axis-separators)))
+                (lambda (string)
+                  (let ((indices) (last-index) (quoted))
+                    (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
+                    (loop :for char :across string :counting char :into charix
+                          :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
+                                                  :when (char= d char) :do (return (- full-len -1 dx)))
+                                            0)))
+                                (if (position char (of-system idiom :string-delimiters) :test #'char=)
+                                    (setf quoted (not quoted))
+                                    (unless quoted
+                                      (if (< half-len mx) (incf (aref nesting (- full-len mx)))
+                                          (if (<= 1 mx half-len)
+                                              (if (< 0 (aref nesting (- half-len mx)))
+                                                  (decf (aref nesting (- half-len mx)))
+                                                  (error "Each closing ~a must match with an opening ~a."
+                                                         (aref delimiters mx)
+                                                         (aref delimiters (- half-len mx))))
+                                              (when (and (position char axis-separators :test #'char=)
+                                                         (zerop (loop :for ncount :across nesting
+                                                                      :summing ncount)))
+                                                (setq indices (cons (1- charix) indices)))))))))
+                    (loop :for index :in (reverse (cons (length string) indices))
+                          :counting index :into iix
+                          :collect (make-array (- index (if last-index 1 0)
+                                                  (or last-index 0))
+                                               :element-type 'character :displaced-to string
+                                               :displaced-index-offset (if last-index (1+ last-index) 0))
+                          :do (setq last-index index))))))
             ;; macro to process lexical specs of functions and operators
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
-            :format-number #'parse-apl-number-string
+            :build-number-formatter #'generate-apl-number-string-parser
             :format-value #'format-value
             ;; process system state input passed as with (april (with (:state ...)) "...")
             :preprocess-state-input
@@ -273,7 +301,7 @@
             (is "÷2 4 8" #(1/2 1/4 1/8))
             (is "{⎕div←0 ⋄ ÷⍨⍵} 0" 1)
             (is "{⎕div←1 ⋄ ÷⍨⍵} 0" 0)
-            (is "{⎕div←1 ⋄ ÷⍵} 0" 0)))
+            (is "{⎕div←1 ⋄ ÷ ⍵} 0" 0)))
   (⋆ (has :titles ("Exponential" "Power") :aliases (*))
      (ambivalent (scalar-function apl-exp)
                  (scalar-function (reverse-op :dyadic apl-expt)))

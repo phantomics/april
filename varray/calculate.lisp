@@ -207,7 +207,6 @@
                                                            ai (funcall ai 0)))
                                                  (if (not (functionp ai))
                                                      ai (funcall ai 0))))))
-                              ;; (print (list :aa a item (shape-of varray)))
                               (push item subarrays)
                               ;; TODO: this list appending is wasteful for simple ops like 1+2
                               (if (or (arrayp item) (varrayp item))

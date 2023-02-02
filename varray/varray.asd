@@ -15,5 +15,5 @@
                (:file "derived")
                (:file "calculate")
                (:file "select")
-               (:file "combinatorics")
+               (:file "logic")
                (:file "composed")))

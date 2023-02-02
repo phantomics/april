@@ -1207,7 +1207,7 @@
                        ;; by looking for the . character and checking for the presence of the function
                        ;; NOTE: this is predicated on the . character being used as the path separator
                        function (let* ((fn-str (string (second function)))
-                                       (dot-pos (position #\. fn-str)))
+                                       (dot-pos (position #\. fn-str :test #'char=)))
                                   (if (not (and dot-pos (fboundp (intern fn-str space))))
                                       function `(function (inwsd ,(second function))))))))
         (when (and (listp symbol) (eql 'nspath (first symbol)))

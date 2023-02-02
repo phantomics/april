@@ -1,8 +1,8 @@
-;;;; combinatorics.lisp
+;;;; logic.lisp
 
 (in-package #:varray)
 
-"Special combinatoric rules for virtual arrays, mostly determining object allocations that return a modified form of the base object rather than an instance of the class being invoked."
+"Special combinatoric logic for virtual arrays, mostly determining object allocations that return a modified form of the base object rather than an instance of the class being invoked."
 
 (let* ((add-sub-functions (list #\+ #\-))
        (mul-div-functions (list #\×)) ; #\÷))
