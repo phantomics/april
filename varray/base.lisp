@@ -1,9 +1,9 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:Varray -*-
-;;;; core.lisp
+;;;; base.lisp
 
 (in-package #:varray)
 
-"Core classes, methods and specs for virtual arrays."
+"Base classes, methods and specs for virtual arrays."
 
 ;; specialized types for April virtual arrays
 (deftype ava-worker-count () `(integer 0 ,(max 1 (1- (serapeum:count-cpus :default 2)))))
@@ -248,13 +248,36 @@
               (row-major-aref array index))))))
 
 (defun join-indexers (indexers)
-  ;; (print (list :ji indexers))
-  (if indexers (let ((rev (reverse indexers)))
-                 (lambda (index)
-                   (let ((index-out index))
-                     (loop :for i :in rev :do (setf index-out (funcall i index-out)))
-                     index-out)))
-      #'identity))
+  (if (not indexers)
+      #'identity (let ((rev (reverse indexers)))
+                   (lambda (index)
+                     (let ((index-out index))
+                       (loop :for i :in rev :do (setf index-out (funcall i index-out)))
+                       index-out)))))
+
+;; (let ((joiners (intraverser
+;;                 (:eindex-width +eindex-width+)
+;;                 (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+;;                      (lambda (index rev)
+;;                        (declare (optimize (speed 3) (safety 0))
+;;                                 (type (unsigned-byte +eindex-width+) index)
+;;                                 (type list rlen))
+;;                        (let (((the (unsigned-byte +eindex-width+) index-out) index))
+;;                          (loop :for (the (function ((unsigned-byte +eindex-width+))
+;;                                                    (unsigned-byte +eindex-width+))
+;;                                          i)
+;;                                  :in rev :do (setf index-out (funcall i index-out)))
+;;                          index-out))))))
+;;   (defun join-indexers (indexers params)
+;;     (if (not indexers)
+;;         #'identity (let ((rev (reverse indexers))
+;;                          (gen-params (getf params :gen-meta)))
+;;                      (if (getf gen-params :index-width)
+;;                          (gethash joiners (list (getf gen-params :index-width)))
+;;                          (lambda (index)
+;;                            (let ((index-out index))
+;;                              (loop :for i :in rev :do (setf index-out (funcall i index-out)))
+;;                              index-out)))))))
 
 (defmethod generator-of ((item t) &optional indexers params)
   (declare (ignore indexers params))
@@ -360,8 +383,6 @@
   (defun encode-rmi (factors iwidth itype)
     (let ((base-encoder (gethash (list iwidth itype (length factors)) encoder-table)))
       (when base-encoder (funcall base-encoder factors)))))
-
-;; (format t "#x~4,'0X~%" (funcall (encode-rmi :i32 #(12 4 1) 8) 14))
 
 (let ((function-table
         (intraverser

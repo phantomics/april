@@ -59,6 +59,47 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
         (progn (april-c "{⎕←' ⍬_║▐▀'[⎕IO+(0,(1+≢⍉⍵)⍴2)⍪(3,⍵,4)⍪5]}" life-array)
                (list :generation life-generation)))))
 
+#|
+April Progress Bar Printer
+
+This function prints a progress bar to monitor the advance of a process.
+|#
+
+(defun april-print-progress-bar (&key count (width 64) (increments (april "1 2 3÷4")))
+  (let* ((total 0)
+         (indicators "⋄∘○")
+         (interval (/ count (1+ width)))
+         (current-interval interval)
+         (marked-intervals
+           (coerce (april-c "{
+  ⎕IO ← 0
+  ind ← ¯1⌽(⊢<1∘⌽)(⍵×⍺)⍸⍳⍵
+  mrk ← ⍸ind
+  l1  ← ' ╷╓╖'[2,ind,3]
+  l2  ← '─┼╟╢'[2,ind,3]
+  ⊢⊢⍺{⍵{l1[⍺+2+⍳1+≢⍵]←⍵,'%'}⍕⌊100×⍺}¨mrk
+  ⎕←l1 ⋄ ⎕←l2
+  1+mrk
+}"
+                            width increments)
+                   'list))
+         (interval-index 0))
+    (lambda ()
+      (incf total)
+      (if (or (= 1 total) (= count total))
+          (progn (princ (aref indicators 0))
+                 (when (= count total) (princ #\Newline)))
+          (when (> total interval)
+            (incf interval current-interval)
+            (incf interval-index)
+            (if (and marked-intervals (= interval-index (first marked-intervals)))
+                (progn (princ (aref indicators 2))
+                       (setf marked-intervals (rest marked-intervals)))
+                (princ (aref indicators 1))))))))
+
+(quote (let ((advancer (april-print-progress-bar :count 100 :width 64)))
+         (loop :for i :below 100 :do (funcall advancer) (sleep 0.05))))
+
 #| April Banners
 
 Code to print April-related text banners. Currently used to implement welcome text for ApREPL.

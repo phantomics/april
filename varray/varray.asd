@@ -9,7 +9,7 @@
   :depends-on ("aplesque" "serapeum" "lparallel" "random-state")
   :components ((:file "package")
                (:file "macros")
-               (:file "core")
+               (:file "base")
                (:file "index")
                (:file "primal")
                (:file "derived")

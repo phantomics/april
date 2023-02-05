@@ -14,7 +14,9 @@
                #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
                #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
                #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
-               #'realpart #'abs #'imagpart #'phase)))
+               #'realpart #'abs #'imagpart #'phase))
+      (coercing-indices (make-array 6 :element-type '(unsigned-byte 8)
+                                    :initial-contents '(1 2 3 21 22 23))))
   ;; ECL defaults to C's standard acos thus its function must be specially assigned
   (defun call-circular (&optional inverse)
     (lambda (value function-index)
@@ -23,7 +25,7 @@
                                              function-index))))
             (funcall (aref circular-functions vector-index)
                      ;; for some functions, double coercion is not needed
-                     (* value (if (member vector-index '(1 2 3 21 22 23) :test #'=)
+                     (* value (if (position vector-index coercing-indices :test #'=)
                                   1 1.0d0))))
           (error "Invalid argument to [○ circular]; the left argument must be an~a"
                  " integer between ¯12 and 12.")))))
@@ -62,8 +64,10 @@
                   :function-inversion-tests :namespace-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (lambda (char) (member char '(#\  #\Tab #\　) :test #'char=))
-            :match-newline-character (lambda (char) (member char '(#\⋄ #\◊ #\Newline #\Return) :test #'char=))
+ (utilities :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))
+                                     (lambda (char) (position char cstring :test #'char=)))
+            :match-newline-character (let ((cstring (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)))
+                                       (lambda (char) (position char cstring :test #'char=)))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
             (lambda (char) (or (digit-char-p char) (position char ".．_¯eEjJrR" :test #'char=)))
@@ -88,7 +92,6 @@
             :match-axis-separating-character (lambda (idiom)
                                                (let ((chars (of-system idiom :axis-separators)))
                                                  (lambda (char) (position char chars :test #'char=))))
-            
             ;; generate the string of matched closing and opening characters that wrap code sections;
             ;; used to identify stray closing characters such as ) without a corresponding (
             :collect-delimiters

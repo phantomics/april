@@ -4,15 +4,30 @@
 
 "An extension to April mapping Japanese kanji to the standard APL lexicon."
 
+;; add ⍨'s alias to its category
+(push #\向 *value-composable-lexical-operators*)
+;; "｛⎕IOー向投２形向絶牛　馬｝"
+;; ｛出１　馬下.上３　４＝＋折付１　０　¯１続.回［１］１　０　¯１回別込馬｝
+;; 積　点
 (extend-vex-idiom
- april::april
+ april
  (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］")
- (utilities :process-fn-op-specs #'process-fnspecs)
+ (utilities :process-fn-op-specs #'process-fnspecs
+            :format-value (let ((base-function (of-utilities this-idiom :format-value))
+                                (matching-symbols (vector '⍵ '⍹ '⍵⍵ '⍺ '⍶ '⍺⍺)))
+                            ;; aliases of argument/operand symbols with cow/horse derived
+                            ;; characters referencing Gozu and Mezu
+                            (lambda (idiom-name symbols element)
+                              (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
+                                (if sym-pos (aref matching-symbols sym-pos)
+                                    (funcall base-function idiom-name symbols element))))))
  (functions (with (:name :japanese-kanji-function-aliases))
-            (\＋ (has :title "プラス") ;; ･ ￣＇
-                 (alias-of +))        ;; ×⌹.←→
+            (\＋ (has :title "プラス") ;; ･￣＇
+                 (alias-of +))        ;; ⌹.←→
             (\－ (has :title "マイナス")
                  (alias-of -))
+            (倍 (has :title "バイ")
+                (alias-of ×))
             (分 (has :title "分かれる／ブン")
                 (alias-of ÷))
             (巾 (has :title "べき")
@@ -91,10 +106,10 @@
                 (alias-of ⌽))
             (順 (has :title "順列／ジュン")
                 (alias-of ⍉))
-            (折 (has :title "折る／セツ")
-                (alias-of /))
-            (越 (has :title "越える／キョウ")
-                (alias-of \\))
+            ;; (折 (has :title "折る／セツ")
+            ;;     (alias-of /))
+            ;; (越 (has :title "越える／キョウ")
+            ;;     (alias-of \\))
             (昇 (has :title "昇る／ショウ")
                 (alias-of ⍋))
             (降 (has :title "降りる／コウ")
@@ -110,7 +125,12 @@
             (印 (has :title "印刷／イン")
                 (alias-of ⍕))
             (入 (has :title "入力／ニュウ")
-                (alias-of ⍎)))
+                (alias-of ⍎))
+            ;; (之 (has :title "の")
+            ;;     (alias-of ←))
+            ;; (行 (has :title "行く／ギョウ")
+            ;;     (alias-of →))
+            )
  (operators (with (:name :japanese-kanji-operator-aliases))
             (折 (has :title "折る／セツ")
                 (alias-of /))
@@ -122,6 +142,8 @@
                 (alias-of ⍨))
             (集 (has :title "集まる／シュウ")
                 (alias-of ⌸))
+            (積 (has :title "セキ")
+                (alias-of \.))
             (続 (has :title "続く／ゾク")
                 (alias-of ∘))
             (備 (has :title "備える／ビ") ;; meaning fits?
@@ -132,7 +154,7 @@
                 (alias-of ⍥))
             (連 (has :title "連続／レン")
                 (alias-of ⍣))
-            (面 (has :title "おもて／メン")
+            (撰 (has :title "選ぶ／セン")
                 (alias-of @))
             (畳 (has :title "たたみ／ジョウ")
                 (alias-of ⌺)))

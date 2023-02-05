@@ -5,7 +5,7 @@
 
 <!-- /TITLE -->
 
-This extension to April provides Japanese aliases of its characters. It assigns kanji aliases for all function and operator characters, as well as allowing for the use of double-wide enclosing characters like `（）` and `｛｝` in place of their single-width counterparts.
+This extension to April provides Japanese aliases of its characters. It assigns kanji aliases for all function and operator characters, as well as allowing for the use of double-width enclosing characters like `（）` and `｛｝` in place of their single-width counterparts.
 
 Uzuki (the old Japanese name for the month of April) is mostly just a curiosity at this time, but its design may point the way to an alternative lexical system for array programming in ideographic languages. Japanese users already have means to enter kanji on a computer, and thus they may enjoy a lower barrier to entry to the use of April through the use of this extension.
 

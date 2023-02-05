@@ -9,7 +9,7 @@
 
 ;; import the display function from the April's array standard library
 (april (with (:space fnn-demo-space))
-       "display ← 'ARRAY-LIB-SPACE' ⎕XWF 'display'")
+       "display disp ← 'ARRAY-LIB-SPACE' ⎕XWF 'display' 'disp'")
 
 #|
 -- Function --
@@ -255,13 +255,13 @@ Loss Function and Its Derivative
 
 Evaluate this to see a vector of the output from the derivative loss function with a given input and the output of the algorithmically derived loss function given the same input and a given dx value. For example: 
 
-(verify-loss-convergence :input 5 :dx 0.1)  
+(verify-loss-convergence :input 5 :dx 0.1)
 
 * (verify-loss-convergence-series)
 
 Evaluate this to see the same with a series of dx values, optionally with input:
 
-(verify-loss-convergence-series :input 5 :series #(0.1d0 0.01d0 0.001d0)).
+(verify-loss-convergence-series :input 5 :series #(0.1d0 0.01d0 0.001d0))
 
 * (verify-network-output-loss)
 
@@ -282,7 +282,7 @@ f  ← 4∘MSELoss.F
 
 (defun verify-loss-convergence-series (&key (input 3) (series (april "0.1*⍳5")))
   "Evaluate (verify-loss-convergence) for a series of dx values to illustrate their convergence on the output of the derivative function."
-  (verify-loss-convergence input series))
+  (verify-loss-convergence :input input :dx series))
 
 (defun verify-network-output-loss (&key (shape #(2 5 3)) (input 0) (target 0))
   "Check the output of the MSELoss function called on the output of a forward pass with a neural network having optionally specified shape, input and target values."
@@ -319,19 +319,16 @@ This function performs a training iteration on a neural network.
        "
 _Train ← {
   (Ws bs) ← ⍶
-  xs  ← ⍶ (fAct _ForwardPass) ⍵
-  dWs ← dbs ← ⍬ ⍝ is the ⍬ character explained in the tutorial?
-  dx  ← ⍺ dfLoss ⊃⌽xs
-  ⊢⊢(⊢⊣⌽¯1↓xs){
-    W ← ⍵⊃⌽Ws ⋄ b ← ⍵⊃⌽bs ⋄ x ← ⍺
-    
-    dbs ,← ⊂db ← dx×dfAct b+W+.×x
-    ⍝ dx  ⊢← (⍉W)+.×⊃⌽dbs
-    dx  ⊢← db+.×⍨⍉W
-    ⍝ dWs ,← ⊂(⊃⌽dbs)+.×⍉x
-    dWs ,← ⊂db+.×⍉x
-  }¨⊢⊣⍳≢Ws
-  (0.001×⌽dWs) (0.001×⌽dbs)
+  xs      ← ⍶ (fAct _ForwardPass) ⍵
+  dx      ← ⍺ dfLoss ⊃⌽xs
+
+  ⍝ TODO: ⊢⊢ below shouldn't be needed
+  Ws bs-0.001×↓⌽⍉↑⊢⊢{
+    (W b x) ← ⍵⊃¨Ws bs xs
+    db      ← dx×dfAct b+W+.×x
+    dx     ⊢← db+.×⍨⍉W
+    (db+.×⍉x) db
+  }¨⊢⊣⌽⍳≢Ws
 }
 ")
 
@@ -372,7 +369,6 @@ The input and target values will be reshaped into vectors matching the first and
       (setf net-target target
             derived-target (april-c "{⍪⍺⍴⍨⊃⌽⍵}" net-shape target)
             net-state nil))
-    ;; (print (list :ns net-state shape net-shape input net-input))
     (if net-state
         (setf net-state (april (with (:space fnn-demo-space)
                                      (:state :in ((net net-state) (target derived-target)
@@ -449,7 +445,7 @@ The following functions implement tools for importing the MNIST data into arrays
 #|
 ○∘ To Demonstrate ∘○
 
-* (load-digit-training-data)
+* (load-digit-data)
 
 Evaluate this, followed by...
 
@@ -457,7 +453,7 @@ Evaluate this, followed by...
 
 ...to load the MNIST training data and build a neural network. Then:
 
-* (train-digit-network) 
+* (train-digit-network)
 
 Evaluate this to train the network. Optionally, a count argument may be passed if you wish to train the network on a limited subset of the MNIST training data rather than training on all 60,000 images:
 
@@ -470,26 +466,42 @@ The (build-digit-network) function can optionally be passed a set of intermediat
 (build-digit-network 12 18)
 
 Will yield a training network with shape 728 12 18 10. The default shape is 728 16 16 10, which has been found to produce good results with the MNIST digit set, but you can use dimensional inputs to experiment with other structures.
+
+Once the network has been trained, it's ready to be tested against the set of testing images. To do this:
+
+* (test-digit-network)
+
+Evaluate this to test the network against the set of MNIST test images. You can pass a count argument like this:
+
+(test-digit-network 400)
+
+To test against only the first N images in the set. In the above case, only the first 400 images are tested against.
 |#
 
-(let ((net-shape) (net-state) (image-size 0) (training-data) (training-labels)
+(let ((net-shape) (net-state) (image-size 0) (training-data) (training-labels) (test-data) (test-labels)
       ;; tabled vectors representing the target states for the 10 digits
-      (segment-dims) (tdata-segment) (target-arrays (april "(⊂3⎕DT 10 1↑1)⊖¨⍨-⎕IO-⍨⍳10")))
-  (defun load-digit-training-data ()
+      (segment-dims) (tdata-segment) (tsdata-segment) (ovec-length) (output-holder) (oh-segment)
+      (target-arrays (april "(⊂3⎕DT 10 1↑1)⊖¨⍨-⎕IO-⍨⍳10")))
+  (defun load-digit-data ()
     "Load the training dataset of handwritten digit images from MNIST."
     (unless training-data
       (unless (get-training-data)
-        (format t "Loading MNIST training images...~%")
+        (format t "Loading MNIST training and test images...~%")
         (load-idx-files))
       (setf training-data (get-training-data)
             training-labels (get-training-labels)
+            test-data (get-test-data)
+            test-labels (get-test-labels)
             image-size (reduce #'* (rest (array-dimensions training-data)))
             segment-dims (list image-size 1)
             ;; the digit image frames are raveled into 784-element tabled vectors for input
             tdata-segment (make-array segment-dims
                                       :element-type (array-element-type training-data)
-                                      :displaced-to training-data :displaced-index-offset 0)))
-    (april-c "{'Loaded ',(⍕⍴⍵),' MNIST training images with labels.'}" training-labels))
+                                      :displaced-to training-data :displaced-index-offset 0)
+            tsdata-segment (make-array segment-dims
+                                       :element-type (array-element-type test-data)
+                                       :displaced-to test-data :displaced-index-offset 0)))
+    (april-c "{'Loaded ',(⍕≢⍵),' MNIST training images and ',(⍕≢⍺),' test-images with labels.'}" training-labels test-labels))
 
   (defun build-digit-network (&rest intermediate-shape)
     "Generate a neural network with an optionally specified intermediate state (not determined by the input or output shapes)."
@@ -513,9 +525,33 @@ Will yield a training network with shape 728 12 18 10. The default shape is 728 
   (defun set-data-segment (index)
     "Set the designated digit image."
     (adjust-array tdata-segment segment-dims
-                  :displaced-to training-data
-                  :displaced-index-offset (* index image-size)))
+                  :displaced-to training-data :displaced-index-offset (* index image-size)))
+  
+  (defun get-tsdata-segment ()
+    "Retrive the currently designated digit image in the form of a tabled integer vector."
+    tsdata-segment)
 
+  (defun set-tsdata-segment (index)
+    "Set the designated digit image."
+    (adjust-array tsdata-segment segment-dims
+                  :displaced-to test-data :displaced-index-offset (* index image-size)))
+
+  (defun build-output-holder (length)
+    (setf ovec-length (aref net-shape (1- (length net-shape)))
+          output-holder (make-array (list length ovec-length) :element-type 'double-float)
+          oh-segment (make-array ovec-length :element-type 'double-float :displaced-to output-holder)))
+
+  (defun get-output-holder ()
+   output-holder)
+  
+  (defun set-oh-segment (index)
+    (adjust-array oh-segment ovec-length
+                  :element-type 'double-float :displaced-to output-holder
+                  :displaced-index-offset (* index ovec-length)))
+
+  (defun get-oh-segment ()
+    oh-segment)
+  
   (defun verify-mnist-image-pass ()
     "See the output of a forward pass with the currently designated digit within the MNIST training image set."
     (build-digit-network)
@@ -526,24 +562,90 @@ Will yield a training network with shape 728 12 18 10. The default shape is 728 
   (defun train-digit-network (&optional count)
     "Train the created neural net on the set of MNIST images, either up to an optionally specified count or processing all 60,000 images."
     (let ((notice-interval 200)
-          (count (or (and count (min count (length training-labels))
-                     (length training-labels)))))
-      ;; (print (list :dt image-size segment-dims (type-of training-data) (type-of tdata-segment)))
-      ;; (print (list :ns net-state shape net-shape input net-input target net-target))
-      (format t "Training network. Each ⍠ printed means ~a iterations complete.~%" notice-interval)
-      (dotimes (index count)
-        (let ((label (aref training-labels index)))
+          (count (or (and count (min count (length training-labels)))
+                     (length training-labels))))
+      (format t "Training network on ~a images.~%" count)
+      (let ((progress-bar-advancer (april-print-progress-bar :count count)))
+        (dotimes (index count)
           (set-data-segment index)
-          ;; (print (list :td (aref target-arrays label)))
-          ;; (april-c "{⎕←10↑1500⌽,1 1⊃⍵}" net-state)
           (set-net-state (april (with (:space fnn-demo-space)
                                       (:state :in ((net (get-net-state))
-                                                   (target (aref target-arrays label))
+                                                   (target (aref target-arrays (aref training-labels index)))
                                                    (inp (get-data-segment)))))
                                 "target (net _Train) inp"))
-          (when (zerop (mod (1+ index) notice-interval))
-            (princ "⍠ "))
-          ;; (april-c "{⎕←10↑1500⌽,1 1⊃⍵}" net-state)
-          ;; (april-c "{⎕←+/¯0.0=,1 1⊃⍵}" net-state)
-          ))
-      (format nil "Completed ~a training iterations." count))))
+          (funcall progress-bar-advancer))
+        (format nil "Completed ~a training iterations." count))))
+
+  (defun test-digit-network (&optional count)
+    "Test the trained neural network against the database of MNIST test images."
+    (let ((notice-interval 200)
+          (correct-guesses 0)
+          (count (or (and count (min count (length test-labels)))
+                     (length test-labels))))
+      (format t "Testing network on ~a images.~%" count)
+      (build-output-holder count)
+      (let ((output) (progress-bar-advancer (april-print-progress-bar :count count)))
+        (dotimes (index count)
+          (set-tsdata-segment index)
+          (set-oh-segment index)
+          (setf output (april-c (with (:space fnn-demo-space))
+                                "{,⊃⌽⍵ (LeakyReLU.F _ForwardPass) ⍺}"
+                                net-state (get-tsdata-segment)))
+          (loop :for o :across output :for i :from 0 :do (setf (aref oh-segment i) o))
+          (funcall progress-bar-advancer))
+        (format nil "Completed ~a neural network tests." count)))))
+
+(defun analyze-network-output (&optional count)
+  "Print a chart of values reflecting the performance of the completed network test."
+  (april-c (with (:space fnn-demo-space)
+                 (:state :in ((count (or count 0)))))
+           "{
+  c       ← $[count;count;≢⍵]
+  ⎕IO     ← 0
+  labels  ← 'Number' 'Hits' 'Misses' 'Total' 'Hit%'
+  labels ,← 'Avg. Hit Str.' 'Avg. Miss Str.' 'Avg. Missed Str.'
+  labels ,← 'Avg. Divergence' 'Avg. Hit Div.' 'Avg. Miss Div.'
+
+  format  ← {
+    table ← ⍵⍪(≢⍉⍵)↑(⊂'Total'),(+⌿⍵[;1+⍳3]),(+⌿÷≢)⍵[;4+⍳4-⍨≢⍉⍵]
+    ⍝ render the averaged numbers in columns so that the ¯ signs line up
+    labels⍪(3∘⍕¨table[;⍳5]),⍉↑↓¨8∘⍕¨1⊂table[;5+⍳5-⍨≢⍉⍵]
+  }
+
+  ⎕←0 disp format↑{
+            ⍝ ⎕IO ← 0 TODO: doesn't work here
+    (i r) ← ⍵
+    ind   ← ⍒¨r
+          ⍝ ranking vector of match elements by intensity
+    mat   ← i⌷¨r
+          ⍝ intensities of matching elements
+    ord   ← r{⍺[⍵]}¨ind
+          ⍝ elements ranked by intensity
+    hits  ← i=⊃¨ind
+          ⍝ binary vector of correct guesses for number
+    htot  ← +/hits
+          ⍝ total number of hits
+    mtot  ← htot-⍨≢ind
+          ⍝ total number of misses
+    hpct  ← 100×htot÷1.0×≢r
+          ⍝ printed percentage of hits
+    hstr  ← $[0=htot;⍬;(+/÷≢)mat× hits]
+          ⍝ avg. intensity of hits
+    mstr  ← $[0=mtot;⍬;(+/÷≢)mat×~hits]
+          ⍝ avg. intensity of correct element match on a miss
+    mhstr ← $[0=mtot;⍬;(+/÷≢)(⊃¨ord)×~hits]
+          ⍝ avg. intensity of matching elements on misses
+    divr  ← {+/1↓⍵}¨ord
+          ⍝ total divergence (sum of incorrect element intensities) for each try
+    adivr ← (+/÷≢)divr
+          ⍝ average of all divergence values
+    hdivr ← $[0=htot;⍬;(+/÷≢)divr/⍨ hits]
+          ⍝ avg. divergence of hits
+    mdivr ← $[0=mtot;⍬;(+/÷≢)divr/⍨~hits]
+          ⍝ avg. divergence of misses
+
+    i htot mtot (≢r) hpct hstr mstr mhstr adivr hdivr mdivr
+  }¨{⍵[⍋⊃¨⍵]}(c↑⍺){⊂⍺ ⍵}⌸↓c↑⍵
+  'Analysis complete.'
+}"
+           (get-output-holder) (get-test-labels)))

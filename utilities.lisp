@@ -1121,7 +1121,7 @@
          ;; unless they're one element in which case the character is disclosed
          (if (= 3 (length element))
              (aref element 1) (subseq element 1 (1- (length element)))))
-        ((member element '("⍺" "⍵" "⍶" "⍹" "⍺⍺" "⍵⍵" "∇" "∇∇") :test #'string=)
+        ((position element #("⍺" "⍵" "⍶" "⍹" "∇" "⍺⍺" "⍵⍵" "∇∇") :test #'string=)
          ;; alpha and omega characters are directly changed to symbols in the April package
          (values (intern element idiom-name) t))
         (t (or (parse-apl-number-string element)
@@ -2389,12 +2389,15 @@ It remains here as a standard against which to compare methods for composing APL
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
-  (:import-from :vex #:of-utilities #:of-system)
   (:import-from :april #:extend-vex-idiom #:process-fnspecs #:scalar-function
                 #:λω #:λωα #:λωχ #:λωαχ #:monadic #:dyadic #:ambivalent
                 #:lateral #:pivotal #:alias-of)
+  (:import-from :vex #:of-system #:of-utilities)
   (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ
-           #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of))
+           #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of #:of-system #:of-utilities
+           ;; exported symbols
+           #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
+           #:*value-composable-lexical-operators*))
 
 ;; a secondary package containing tools for specifying April demo packages
 (defpackage #:april.demo-definition-tools
