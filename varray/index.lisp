@@ -174,14 +174,14 @@
         (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
-         (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
+         (the (function ((unsigned-byte +sub-base-width+))
                         function)
               (lambda (rlen)
                 (declare (optimize (speed 3) (safety 0))
                          (type (unsigned-byte +sub-base-width+) rlen))
                 ;; (let ((byte-offset (* +cindex-width+ dindex)))
                 ;; (print (list :fn degrees rlen +cindex-width+ +eindex-width+ +address-fraction+))
-                (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
+                (the (function ((unsigned-byte +sub-base-width+)) (unsigned-byte +sub-base-width+))
                      (lambda (i)
                        (declare (type (unsigned-byte +eindex-width+) i))
                        (let ((iindex (the (unsigned-byte +cindex-width+)
@@ -313,12 +313,13 @@
       ;;                 (loop :for a :in indices :for ax :from 0 :when (= a ox)
       ;;                       :do (incf iindex (* index (aref id-factors ax))))))
       ;;     iindex))
+      
       (indexer-table-diagonal-encoded
         (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+
           :rank +rank+ :rank-width +rank-width+)
-         (the (function ((simple-array (unsigned-byte +rank-width+) (+rank+))
-                         (unsigned-byte +rank-width+))
+         (the (function ((simple-array (unsigned-byte 8) (+rank+))
+                         (unsigned-byte 8))
                         function)
               (lambda (indices out-rank)
                 (declare (optimize (speed 3) (safety 0))
@@ -425,3 +426,6 @@
                                   (loop :for a :in indices :for ax :from 0 :when (= a ox)
                                         :do (incf iindex (* index (aref id-factors ax))))))
                       iindex))))))))
+
+
+;; Derived type of (LAMBDA (VARRAY::INDICES VARRAY::OUT-RANK) :IN "/home/quicklisp/quicklisp-controller/dist/build-cache/april/09193fb85c7b4f417b79be2f035e6d37acbb95d0/april-20230201-git/varray/index.lisp") is (FUNCTION ((SIMPLE-ARRAY (UNSIGNED-BYTE 8)) (UNSIGNED-BYTE 8)) (VALUES (FUNCTION ((UNSIGNED-BYTE 16)) (VALUES (UNSIGNED-BYTE 16) &REST T)) &OPTIONAL)), conflicting with its asserted type (FUNCTION ((SIMPLE-ARRAY (UNSIGNED-BYTE 4) (0)) (UNSIGNED-BYTE 4)) (VALUES FUNCTION &REST T))
