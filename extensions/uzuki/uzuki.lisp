@@ -9,6 +9,15 @@
 ;; "｛⎕IOー向投２形向絶牛　馬｝"
 ;; ｛出１　馬下積上３　４＝＋折付１　０　¯１続積回［１］１　０　¯１回別込馬｝
 ;; 積　点
+
+(defmacro uzuki (&rest args)
+  "A macro aliasing April."
+  (cons 'april args))
+
+(defmacro 卯月 (&rest args)
+  "The same macro alias in kanji."
+  (cons 'april args))
+
 (extend-vex-idiom
  april
  (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］"

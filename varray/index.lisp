@@ -9,11 +9,11 @@
         (intraverser
          (:eindex-width +eindex-width+ :cindex-width +cindex-width+ :rank-width +rank-width+
           :sub-base-width +sub-base-width+ :address-fraction +address-fraction+)
-         (the (function ((unsigned-byte +sub-base-width+) (unsigned-byte +sub-base-width+))
+         (the (function ((unsigned-byte +eindex-width+))
                         function)
               (lambda (degrees)
                 (declare (optimize (speed 3) (safety 0))
-                         (type (unsigned-byte +sub-base-width+) degrees))
+                         (type (unsigned-byte +eindex-width+) degrees))
                 (the (function ((unsigned-byte +eindex-width+)) (unsigned-byte +eindex-width+))
                      (lambda (i)
                        (declare (type (unsigned-byte +eindex-width+) i))
