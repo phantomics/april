@@ -426,6 +426,3 @@
                                   (loop :for a :in indices :for ax :from 0 :when (= a ox)
                                         :do (incf iindex (* index (aref id-factors ax))))))
                       iindex))))))))
-
-
-;; Derived type of (LAMBDA (VARRAY::INDICES VARRAY::OUT-RANK) :IN "/home/quicklisp/quicklisp-controller/dist/build-cache/april/09193fb85c7b4f417b79be2f035e6d37acbb95d0/april-20230201-git/varray/index.lisp") is (FUNCTION ((SIMPLE-ARRAY (UNSIGNED-BYTE 8)) (UNSIGNED-BYTE 8)) (VALUES (FUNCTION ((UNSIGNED-BYTE 16)) (VALUES (UNSIGNED-BYTE 16) &REST T)) &OPTIONAL)), conflicting with its asserted type (FUNCTION ((SIMPLE-ARRAY (UNSIGNED-BYTE 4) (0)) (UNSIGNED-BYTE 4)) (VALUES FUNCTION &REST T))
