@@ -5,7 +5,8 @@
 
 "A collection of fun odds and ends demonstrating April APL features."
 
-#| Conway's Game of Life
+#| 
+-- Conway's Game of Life --
 
 An implementation of an old APL standby.
 
@@ -60,23 +61,40 @@ This creates a 10x10 playfield with a glider in the lower right corner; that is,
                (list :generation life-generation)))))
 
 #|
-April Progress Bar Printer
+-- Progress Bar Printer --
 
-This function prints a progress bar to monitor the advance of a process.
+This function prints a progress bar to monitor the advance of a process. It's designed to be used with processes that take multiple steps; it returns a function that should be called upon the completion of each step in the process.
+
+To test the progress bar, evaluate the following:
+
+(let ((advancer (april-print-progress-bar 100)))
+  (loop :for i :below 100 :do (funcall advancer) (sleep 0.05)))
+
+This demonstrates the basic use case of the progress bar. You can also customize it by passing optional arguments:
+
+
+(let ((advancer (april-print-progress-bar 100 :increments (april "1 2÷3")
+                                              :glyphs "⌸⍠╵⊥ ╾┝┥═╤╞╡")))
+  (loop :for i :below 100 :do (funcall advancer) (sleep 0.05)))
+
+This will invoke a progress bar with different demarcations (at each third rather than each quarter) printed with a different set of characters. Try printing progress bars with your own character sets - the possibilities are endless.
 |#
 
-(defun april-print-progress-bar (&key count (width 64) (increments (april "1 2 3÷4")))
+(defun april-print-progress-bar (count &key (increments (april "1 2 3÷4"))
+                                         (width 64) (glyphs "⋄⌺∘○ ╷╓╖─┼╟╢"))
+  "Print a progress bar that will grow toward completion as a process advances."
   (let* ((total 0)
-         (indicators "⋄∘○")
          (interval (/ count (1+ width)))
          (current-interval interval)
          (marked-intervals
-           (coerce (april-c "{
+           (coerce (april-c (with (:state :in ((glyphs glyphs))))
+                            "{
   ⎕IO ← 0
   ind ← ¯1⌽(⊢<1∘⌽)(⍵×⍺)⍸⍳⍵
   mrk ← ⍸ind
-  l1  ← ' ╷╓╖'[2,ind,3]
-  l2  ← '─┼╟╢'[2,ind,3]
+  l1  ← (4↓8↑glyphs)[2,ind,3]
+  l2  ← (¯4 ↑glyphs)[2,ind,3]
+
   ⊢⊢⍺{⍵{l1[⍺+2+⍳1+≢⍵]←⍵,'%'}⍕⌊100×⍺}¨mrk
   ⎕←l1 ⋄ ⎕←l2
   1+mrk
@@ -84,23 +102,25 @@ This function prints a progress bar to monitor the advance of a process.
                             width increments)
                    'list))
          (interval-index 0))
+    ;; the returned advance function should be called upon each iteration of the process
     (lambda ()
-      (incf total)
-      (if (or (= 1 total) (= count total))
-          (progn (princ (aref indicators 0))
-                 (when (= count total) (princ #\Newline)))
-          (when (> total interval)
-            (incf interval current-interval)
-            (incf interval-index)
-            (if (and marked-intervals (= interval-index (first marked-intervals)))
-                (progn (princ (aref indicators 2))
-                       (setf marked-intervals (rest marked-intervals)))
-                (princ (aref indicators 1))))))))
+      (when (< total count)
+        (incf total)
+        (if (= 1 total)
+            (princ (aref glyphs 0))
+            (if (= count total)
+                (progn (princ (aref glyphs 1))
+                       (princ #\Newline))
+                (when (> total interval)
+                  (incf interval current-interval)
+                  (incf interval-index)
+                  (if (and marked-intervals (= interval-index (first marked-intervals)))
+                      (progn (princ (aref glyphs 3))
+                             (setf marked-intervals (rest marked-intervals)))
+                      (princ (aref glyphs 2))))))))))
 
-(quote (let ((advancer (april-print-progress-bar :count 100 :width 64)))
-         (loop :for i :below 100 :do (funcall advancer) (sleep 0.05))))
-
-#| April Banners
+#| 
+-- April Banners --
 
 Code to print April-related text banners. Currently used to implement welcome text for ApREPL.
 |#

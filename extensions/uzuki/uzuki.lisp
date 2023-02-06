@@ -7,11 +7,13 @@
 ;; add ⍨'s alias to its category
 (push #\向 *value-composable-lexical-operators*)
 ;; "｛⎕IOー向投２形向絶牛　馬｝"
-;; ｛出１　馬下.上３　４＝＋折付１　０　¯１続.回［１］１　０　¯１回別込馬｝
+;; ｛出１　馬下積上３　４＝＋折付１　０　¯１続積回［１］１　０　¯１回別込馬｝
 ;; 積　点
 (extend-vex-idiom
  april
- (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］")
+ (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］"
+         :string-delimiters "'\"＇" :number-spacers "_＿"
+         :axis-separators ";；" :path-separators ".．" :negative-signs "¯￣")
  (utilities :process-fn-op-specs #'process-fnspecs
             :format-value (let ((base-function (of-utilities this-idiom :format-value))
                                 (matching-symbols (vector '⍵ '⍹ '⍵⍵ '⍺ '⍶ '⍺⍺)))
@@ -20,10 +22,15 @@
                             (lambda (idiom-name symbols element)
                               (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
                                 (if sym-pos (aref matching-symbols sym-pos)
-                                    (funcall base-function idiom-name symbols element))))))
+                                    (funcall base-function idiom-name symbols element)))))
+            :match-numeric-character
+            (lambda (char) (or (digit-char-p char) (position char ".．_＿¯￣eEjJrR" :test #'char=)))
+            :match-token-character
+            (lambda (char) (or (is-alphanumeric char)
+                               (position char ".．_＿⎕∆⍙¯￣" :test #'char=))))
  (functions (with (:name :japanese-kanji-function-aliases))
-            (\＋ (has :title "プラス") ;; ･￣＇
-                 (alias-of +))        ;; ⌹.←→
+            (\＋ (has :title "プラス") ;; 1￣
+                 (alias-of +))        ;; ⌹←→
             (\－ (has :title "マイナス")
                  (alias-of -))
             (倍 (has :title "バイ")
@@ -106,10 +113,10 @@
                 (alias-of ⌽))
             (順 (has :title "順列／ジュン")
                 (alias-of ⍉))
-            ;; (折 (has :title "折る／セツ")
-            ;;     (alias-of /))
-            ;; (越 (has :title "越える／キョウ")
-            ;;     (alias-of \\))
+            (折 (has :title "折る／セツ")
+                (alias-of /))
+            (越 (has :title "越える／キョウ")
+                (alias-of \\))
             (昇 (has :title "昇る／ショウ")
                 (alias-of ⍋))
             (降 (has :title "降りる／コウ")

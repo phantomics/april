@@ -2186,10 +2186,10 @@ It remains here as a standard against which to compare methods for composing APL
 (defun process-fnspecs (spec-sets)
   "Process a set of function and operator specs, generating lists of their referring characters, recording counts of functions and operators and building their assignment forms."
   (let ((assignment-forms) (symbol-set)
-        (fn-count 0) (op-count 0) (args (gensym))
+        (fn-count 0) (op-count 0) (afn-count 0) (aop-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
                         :functions-scalar-monadic nil :functions-scalar-dyadic nil :operators-lateral nil
-                        :operators-pivotal nil :operators-unitary nil :statements nil)))
+                        :operators-pivotal nil :operators-unitary nil :operators nil :statements nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2235,9 +2235,9 @@ It remains here as a standard against which to compare methods for composing APL
                                      (implicit-args (getf primary-metadata :implicit-args))
                                      (optional-implicit-args (getf primary-metadata :optional-implicit-args))
                                      (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
-                                                                (if (eql 'statements spec-type)
-                                                                    "ST" (if (eql 'operators spec-type)
-                                                                             "OP" "FN"))
+                                                                (case spec-type (functions "FN")
+                                                                      (operators "OP")
+                                                                      (statements "ST"))
                                                                 glyph-sym)
                                                         *package-name-string*))
                                      (assigned-form))
@@ -2246,24 +2246,44 @@ It remains here as a standard against which to compare methods for composing APL
                                   (loop :for alias :in (getf props :aliases)
                                         :do (let ((alias-symbol
                                                     (intern (format nil "APRIL-LEX-~a-~a"
-                                                                    (if (eql 'operators spec-type) "OP" "FN")
+                                                                    (case spec-type (functions "FN")
+                                                                          (operators "OP")
+                                                                          (statements "ST"))
                                                                     alias)
                                                             *package-name-string*))
                                                   (valias-symbol
                                                     (intern (format nil "APRIL-LEX-VFN-~a" alias)
                                                             *package-name-string*)))
+                                              (case spec-type (functions (incf afn-count))
+                                                    (operators (incf aop-count)))
                                               (push alias-symbol symbol-set)
                                               (push valias-symbol symbol-set))))
                                 (case item-type
                                   (alias-of (let ((achar (aref (string (second implementation)) 0))
+                                                  ;; assign an alias symbol to other lexicons containing
+                                                  ;; the aliased symbol depending on what's possible given
+                                                  ;; the spec type within which the alias is assigned;
+                                                  ;; this prevents an alias of [/ reduce] from also
+                                                  ;; being assigned as an alias of [/ replicate]
+                                                  (possible-lexicons
+                                                    (case spec-type
+                                                      (functions '(:functions :functions-monadic
+                                                                   :functions-dyadic :functions-symbolic
+                                                                   :functions-scalar-monadic
+                                                                   :functions-scalar-dyadic))
+                                                      (operators '(:operators :operators-lateral
+                                                                   :operators-pivotal :operators-unitary))
+                                                      (statements '(:statements))))
                                                   (aliased
                                                     (intern (format nil "APRIL-LEX-~a-~a"
-                                                                    (if (eql 'statements spec-type)
-                                                                        "ST" (if (eql 'operators spec-type)
-                                                                                 "OP" "FN"))
+                                                                    (case spec-type (functions "FN")
+                                                                      (operators "OP")
+                                                                      (statements "ST"))
                                                                     (second implementation))
                                                             *package-name-string*)))
                                               (push `(symbol-function ',aliased) assignment-forms)
+                                              (case spec-type (functions (incf afn-count))
+                                                    (operators (incf aop-count)))
                                               ;; (print (list :ach achar lexicons))
                                               ;; assign the alias to lexicons according to the lexicon
                                               ;; membership (as specified in this form or already
@@ -2272,6 +2292,7 @@ It remains here as a standard against which to compare methods for composing APL
                                               (loop :for (key items) :on lexicons :by #'cddr
                                                     :when (or (member achar items)
                                                               (and this-idiom
+                                                                   (member key possible-lexicons :test #'eq)
                                                                    (of-lexicons this-idiom achar key)))
                                                       :do (push glyph-char (getf lexicons key)))))
                                   (monadic (incf fn-count)
@@ -2358,7 +2379,8 @@ It remains here as a standard against which to compare methods for composing APL
                                                   assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))
                                (cons 'setf assignment-forms))
-                (list :fn-count fn-count :op-count op-count))))))
+                (list :fn-count fn-count :op-count op-count
+                      :afn-count afn-count :aop-count aop-count))))))
 
 (defmacro specify-demo (title params &rest sections)
   "This macro is used to specify a set of information and tests for an April demo package, currently used for some of those found in the /demos folder."
@@ -2391,10 +2413,14 @@ It remains here as a standard against which to compare methods for composing APL
 (defpackage #:april.idiom-extension-tools
   (:import-from :april #:extend-vex-idiom #:process-fnspecs #:scalar-function
                 #:λω #:λωα #:λωχ #:λωαχ #:monadic #:dyadic #:ambivalent
-                #:lateral #:pivotal #:alias-of)
+                #:is-alphanumeric #:lateral #:pivotal #:alias-of
+                ;; imported symbols
+                #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
+                #:*value-composable-lexical-operators*)
   (:import-from :vex #:of-system #:of-utilities)
   (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ
-           #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of #:of-system #:of-utilities
+           #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of
+           #:of-system #:of-utilities #:is-alphanumeric
            ;; exported symbols
            #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
            #:*value-composable-lexical-operators*))

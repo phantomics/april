@@ -44,8 +44,7 @@
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
-         :negative-signs "¯" :number-spacers "_"
-         :axis-separators ";；" :path-separators ".．")
+         :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators ".")
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -70,10 +69,10 @@
                                        (lambda (char) (position char cstring :test #'char=)))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
-            (lambda (char) (or (digit-char-p char) (position char ".．_¯eEjJrR" :test #'char=)))
+            (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR" :test #'char=)))
             :match-token-character
             (lambda (char) (or (is-alphanumeric char)
-                               (position char ".．_⎕∆⍙¯" :test #'char=)))
+                               (position char "._⎕∆⍙¯" :test #'char=)))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
             :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬" :test #'char=))
@@ -87,7 +86,7 @@
                                               (lambda (char) (position char chars :test #'char=))))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
-            :match-overloaded-numeric-character (lambda (char) (position char ".．" :test #'char=))
+            :match-overloaded-numeric-character (lambda (char) (position char "." :test #'char=))
             ;; match character(s) used to separate axes
             :match-axis-separating-character (lambda (idiom)
                                                (let ((chars (of-system idiom :axis-separators)))

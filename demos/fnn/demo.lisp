@@ -537,19 +537,23 @@ To test against only the first N images in the set. In the above case, only the 
                   :displaced-to test-data :displaced-index-offset (* index image-size)))
 
   (defun build-output-holder (length)
+    "Build an array to hold the network's output."
     (setf ovec-length (aref net-shape (1- (length net-shape)))
           output-holder (make-array (list length ovec-length) :element-type 'double-float)
           oh-segment (make-array ovec-length :element-type 'double-float :displaced-to output-holder)))
 
   (defun get-output-holder ()
-   output-holder)
+    "Get the contents of the output array."
+    output-holder)
   
   (defun set-oh-segment (index)
+    "Set the index of the output segment to access via the oh-segment variable."
     (adjust-array oh-segment ovec-length
                   :element-type 'double-float :displaced-to output-holder
                   :displaced-index-offset (* index ovec-length)))
 
   (defun get-oh-segment ()
+    "Get the designated output segment."
     oh-segment)
   
   (defun verify-mnist-image-pass ()
@@ -565,7 +569,7 @@ To test against only the first N images in the set. In the above case, only the 
           (count (or (and count (min count (length training-labels)))
                      (length training-labels))))
       (format t "Training network on ~a images.~%" count)
-      (let ((progress-bar-advancer (april-print-progress-bar :count count)))
+      (let ((progress-bar-advancer (april-print-progress-bar count)))
         (dotimes (index count)
           (set-data-segment index)
           (set-net-state (april (with (:space fnn-demo-space)
@@ -584,7 +588,7 @@ To test against only the first N images in the set. In the above case, only the 
                      (length test-labels))))
       (format t "Testing network on ~a images.~%" count)
       (build-output-holder count)
-      (let ((output) (progress-bar-advancer (april-print-progress-bar :count count)))
+      (let ((output) (progress-bar-advancer (april-print-progress-bar count)))
         (dotimes (index count)
           (set-tsdata-segment index)
           (set-oh-segment index)
@@ -630,19 +634,19 @@ To test against only the first N images in the set. In the above case, only the 
     hpct  ← 100×htot÷1.0×≢r
           ⍝ printed percentage of hits
     hstr  ← $[0=htot;⍬;(+/÷≢)mat× hits]
-          ⍝ avg. intensity of hits
+          ⍝ average intensity of hits
     mstr  ← $[0=mtot;⍬;(+/÷≢)mat×~hits]
-          ⍝ avg. intensity of correct element match on a miss
+          ⍝ average intensity of correct element match on a miss
     mhstr ← $[0=mtot;⍬;(+/÷≢)(⊃¨ord)×~hits]
-          ⍝ avg. intensity of matching elements on misses
+          ⍝ average intensity of matching elements on misses
     divr  ← {+/1↓⍵}¨ord
           ⍝ total divergence (sum of incorrect element intensities) for each try
     adivr ← (+/÷≢)divr
           ⍝ average of all divergence values
     hdivr ← $[0=htot;⍬;(+/÷≢)divr/⍨ hits]
-          ⍝ avg. divergence of hits
+          ⍝ average divergence of hits
     mdivr ← $[0=mtot;⍬;(+/÷≢)divr/⍨~hits]
-          ⍝ avg. divergence of misses
+          ⍝ average divergence of misses
 
     i htot mtot (≢r) hpct hstr mstr mhstr adivr hdivr mdivr
   }¨{⍵[⍋⊃¨⍵]}(c↑⍺){⊂⍺ ⍵}⌸↓c↑⍵

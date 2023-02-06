@@ -507,6 +507,8 @@
                                                    :collect `(length ,pset))))
                                   (list "lexical function" ,(getf idiom-data :fn-count))
                                   (list "lexical operator" ,(getf idiom-data :op-count))
+                                  (list "aliased function" ,(getf idiom-data :afn-count))
+                                  (list "aliased operator" ,(getf idiom-data :aop-count))
                                   (list "utility function" ,(* 1/2 (length (of-subspec utilities))))
                                   (list "unit test" ,(+ (loop :for exp :in test-forms
                                                               :counting (eql 'is (first exp)))
