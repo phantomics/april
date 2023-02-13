@@ -11,7 +11,6 @@ dsp pmat ← 'ARRAY-LIB-SPACE' ⎕XWF 'dsp' 'pmat'
 ⍝ From http://dfns.dyalog.com/c_assign.htm
 
 assign ← {                                   ⍝ Hungarian method cost assignment.
-
   step0←{step1(⌽⌈\⌽⍴⍵)↑⍵}                    ⍝ 0: at least as many rows as cols.
 
   step1←{step2↑(↓⍵)-⌊/⍵}                     ⍝ 1: reduce rows by minimum value.

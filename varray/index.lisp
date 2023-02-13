@@ -73,13 +73,10 @@
                (not (loop :for s :across span :always (zerop s)))
                (let ((at-index (loop :for d :in odims :for i :from 0
                                      :for p :across pad :for f :across od-factors
-                                     ;; :do (print (list :ee f (1- d) (- d 1 (aref pad (+ i orank))) (signum p)))
-                                     ;; :summing (* f (1- d) (signum p)) :into index :finally (return index)
                                      :summing (* f (signum p)
                                                  (- d 1 (aref pad (+ i orank))))
                                        :into index :finally (return index)
                                      )))
-                 ;; (print (list :pd span pad))
                  (lambda (index) (when (= index at-index) index))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
@@ -196,7 +193,6 @@
   
   (defun indexer-turn (axis idims iwidth itype &optional degrees)
     "Return indices of an array rotated as with the [⌽ rotate] or [⊖ rotate first] functions."
-    ;; (declare (optimize (speed 3) (safety 0)))
     (let* ((irank (length idims))
            (rlen (nth axis idims))
            (increment (reduce #'* (nthcdr (1+ axis) idims)))
@@ -347,7 +343,6 @@
   
   (defun indexer-permute (idims odims alpha is-diagonal iwidth itype &optional is-inverse)
     "Return indices of an array permuted as with the [⍉ permute] function."
-    ;; (declare (optimize (speed 3) (safety 0)))
     (let* ((irank (length idims))
            (positions) (diagonals) (idims-reduced) (idfactor 1) (odfactor 1)
            (id-factors (make-array irank :element-type '(unsigned-byte 62) ;; TODO: remove hard-coding

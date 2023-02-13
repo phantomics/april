@@ -3,7 +3,7 @@
 
 (in-package #:varray)
 
-"Definition of the virtual array manifesting selections and sub-assignments of arrays, used to implement indexing and selective assignment."
+"Definition of the virtual array manifesting selections and sub-assignments of arrays, used to implement indexing and selective assignment. This virtual array powers all forms of selection, by axes as with X[Y], using [⌷ index], selective assignment as with (X↑Y)←Z or using the [@ at] operator."
 
 (defclass vader-select (varray-derived vad-on-axis vad-with-io vad-with-argument)
   ((%assign       :accessor vasel-assign

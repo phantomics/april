@@ -33,8 +33,8 @@ acc ← { ⊃⍺⍺{(⊂⍺ ⍺⍺⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1�
 
 ⍝ From http://dfns.dyalog.com/c_disp.htm
 
-disp ← { ⎕IO←0                               ⍝ Boxed sketch of nested array.
-  ⍺←⍬ ⋄ dec ctd←2↑⍺                          ⍝ 1:decorated, 1:centred.
+disp ← { ⎕IO←0 ⋄ ⍺←⍬                         ⍝ Boxed sketch of nested array.
+  dec ctd←2↑⍺                                ⍝ 1:decorated, 1:centred.
 
   box←{                                      ⍝ Recursive boxing of nested array.
     isor ⍵:⎕FMT⊂⍵                            ⍝ ⎕or: '∇name'.
@@ -146,7 +146,7 @@ display ← { ⎕IO←0                            ⍝ Boxed display of array.
     top←'─⊖→'[¯1↑⍺],hrz                      ⍝ upper border with axis
     bot←(⊃⍺),hrz                             ⍝ lower border with type
     rgt←'┐│',vrt,'┘'                         ⍝ right side with corners
-    lax←'│⌽↓'[¯1↓1↓⍺],¨⊂vrt    ⍝⍝              ⍝ left side(s) with axes,
+    lax←'│⌽↓'[¯1↓1↓⍺],¨⊂vrt                  ⍝ left side(s) with axes,
     lft←⍉'┌',(↑lax),'└'                      ⍝ ... and corners
     lft,(top⍪⍵⍪bot),rgt                      ⍝ fully boxed array
   }
@@ -159,7 +159,7 @@ display ← { ⎕IO←0                            ⍝ Boxed display of array.
   type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
   line←{(49=⎕DT 1⍴⍵)⊃' -'}                   ⍝ underline for atom
 
-  { ⎕IO←0                                         ⍝ recursive boxing of arrays:
+  { ⎕IO←0                                    ⍝ recursive boxing of arrays:
     0=≡⍵:' '⍪(open ⎕FMT ⍵)⍪line ⍵            ⍝ simple scalar
     1 ⍬≡(≡⍵)(⍴⍵):'∇' 0 0 box ⎕FMT ⍵          ⍝ object rep: ⎕OR
     1=≡⍵:(deco ⍵)box open ⎕FMT open ⍵        ⍝ simple array

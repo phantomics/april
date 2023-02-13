@@ -393,8 +393,6 @@
 
 (defun reg-symfn-call (function space meta-form)
   "Add a reference to a call to a symbolic function to a closure metadata object."
-  ;; (print (list :ff function meta-form))
-  ;; (print :ff)
   (when (and meta-form function (listp function))
     (if (eql 'sub-lex (first function))
         (reg-symfn-call (second function) space meta-form)
@@ -1007,33 +1005,6 @@
       (setf (symbol-function 'parse-apl-number-string) #'nparser)
       #'nparser)))
 
-;; (defun parse-apl-number-string (number-string &optional component-of)
-;;   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
-;;   (ignore-errors ;; if number parsing fails, just return nil
-;;     (let ((nstring (string-upcase (regex-replace-all "[_]" number-string ""))))
-;;       (if (and (not (eql 'complex component-of))
-;;                (position #\J nstring :test #'char=))
-;;           (let ((halves (cl-ppcre:split #\J nstring)))
-;;             (when (and (= 2 (length halves))
-;;                        (< 0 (length (first halves)))
-;;                        (< 0 (length (second halves))))
-;;               (complex (parse-apl-number-string (first halves) 'complex)
-;;                        (parse-apl-number-string (second halves) 'complex))))
-;;           (if (position #\E nstring :test #'char=)
-;;               (let ((exp-float (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
-;;                                                           :float-format 'double-float)))
-;;                 (if (< double-float-epsilon (nth-value 1 (floor exp-float)))
-;;                     exp-float (let ((halves (mapcar #'parse-apl-number-string (cl-ppcre:split #\E nstring))))
-;;                                 (floor (* (first halves) (expt 10 (second halves)))))))
-;;               (if (and (not (eql 'rational component-of))
-;;                        (position #\R nstring :test #'char=))
-;;                   (let ((halves (cl-ppcre:split #\R nstring)))
-;;                     (/ (parse-apl-number-string (first halves) 'rational)
-;;                        (parse-apl-number-string (second halves) 'rational)))
-;;                   ;; the macron character is converted to the minus sign
-;;                   (parse-number:parse-number (regex-replace-all "[¯]" nstring "-")
-;;                                              :float-format 'double-float)))))))
-
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
   (cond ((complexp number)
@@ -1198,7 +1169,6 @@
                                           :functions-scalar-monadic))))
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
                                                               arg `(vrender ,arg :may-be-deferred t)))))
-    ;; (print (list :aa arguments))
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
@@ -1206,7 +1176,7 @@
         (progn (when (and (listp function) (eql 'nspath (first function)))
                  (let* ((ns-sym (intern "*NS-POINT*" (package-name (symbol-package (second function)))))
                         (namespace (if (boundp ns-sym) (symbol-value ns-sym))))
-                   (when namespace (setq function
+                   (when namespace (setf function
                                          (cons 'nspath (append (if (listp namespace) namespace
                                                                    (list namespace))
                                                                (list (intern (string (second function))
@@ -1215,17 +1185,6 @@
                `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
                          ,function ,arg-list))))))
-
-#|
-This is a minimalistic implementation of (a-call) that doesn't perform any function composition.
-It remains here as a standard against which to compare methods for composing APL functions.
-
-(defmacro a-call (function &rest arguments)
-  `(,(if (and (listp function)
-              (eql 'scalar-function (first function)))
-         'apply-scalar 'funcall)
-    ,function  ,@arguments))
-|#
 
 (defmacro ac-wrap (type form)
   "Wrap a function form in a function that calls it via (a-call). Used for specification of inverse scalar functions."
@@ -1342,9 +1301,6 @@ It remains here as a standard against which to compare methods for composing APL
                                  (= 1 (size-of ,condition)))
                              (disclose-atom (vrender ,condition))
                              (error "Predicates within an [$ if] statement must be unitary or scalar."))))
-                  ;; (if (not (is-unitary ,condition))
-                  ;;     (error "Predicates within an [$ if] statement must be unitary or scalar.")
-                  ;; (print (list :co ,condition ,output))
                   (if (zerop ,output)
                       ,(if (third clauses)
                            (if (fourth clauses)
@@ -2030,7 +1986,6 @@ It remains here as a standard against which to compare methods for composing APL
            this-form))
         ((guard symbol (member symbol '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵)))
          ;; handle argument symbols, adding them to the closure-meta list
-         ;; (print (list :sy symbol closure-meta))
          (unless closure-meta
            ;; create the meta form if not present, needed for cases like 2{⍶⋄⍹}3⊢10
            (setf closure-meta (list :arg-syms nil)))
@@ -2115,17 +2070,6 @@ It remains here as a standard against which to compare methods for composing APL
                                                               (not (eql arg1 '⍺)))
                                                          :inverse-right :inverse))
                                             ,arg1 ,(funcall to-wrap form))))))))))))))
-
-;; (defmacro plain-ref (function &optional axes)
-;;   "Wrap a lexical function; this is needed to implement some meta-functionality."
-;;   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
-;;   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
-;;     `(labels ((,this-fn (&rest ,args)
-;;                 ,@(when axes `((when (eq :assign-axes (first ,args))
-;;                                  (setq ,axes (second ,args)
-;;                                        ,args (cddr ,args)))))
-;;                 (apply ,function ,args)))
-;;        #',this-fn)))
 
 (defmacro plain-ref (function &optional axes)
   "Wrap a lexical function; this is needed to implement some meta-functionality."
@@ -2284,7 +2228,6 @@ It remains here as a standard against which to compare methods for composing APL
                                               (push `(symbol-function ',aliased) assignment-forms)
                                               (case spec-type (functions (incf afn-count))
                                                     (operators (incf aop-count)))
-                                              ;; (print (list :ach achar lexicons))
                                               ;; assign the alias to lexicons according to the lexicon
                                               ;; membership (as specified in this form or already
                                               ;; present in the current lexicon) of the character

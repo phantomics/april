@@ -431,7 +431,6 @@
 (defun assign-by-selection (function value omega &key index-origin)
   "Assign to elements of an array selected by a function. Used to implement (3↑x)←5 etc."
   (multiple-value-bind (base-object ivec) (invert-assigned-varray (funcall function omega))
-    ;; (print (list :bb (setf rri base-object) ivec))
     (typecase base-object
       (varray::vader-select
        (setf (varray::vasel-assign base-object) value)
@@ -608,8 +607,6 @@
            (omrank (aref rank 0))
            (fn-meta (funcall function :get-metadata nil))
            (operand-lex-ref (getf fn-meta :lexical-reference)))
-      ;; (princ (list :ar rank (shape-of omega) (shape-of alpha) (getf fn-meta :lexical-reference) omega))
-      ;; (princ #\Newline)
       
       (when (or (not (and (integerp ocrank) (or (zerop ocrank) (plusp ocrank))))
                 (not (and (integerp acrank) (or (zerop acrank) (plusp acrank))))

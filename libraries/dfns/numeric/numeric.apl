@@ -184,7 +184,6 @@ rational ← {                                 ⍝ Rational approximation to rea
 ⍝ From http://dfns.dyalog.com/c_roman.htm
 
 roman ← {                                    ⍝ Roman numeral arithmetic.
-
   num←{⎕IO←0 ⋄ {⍵+.××0.5+×⍵-1↓⍵,0}(,⍉1 5∘.×10*⍳4)[7|'IVXLCDMivxlcdm'⍳⍵]}
   fmt←{⎕IO←0 ⋄ ~∘' ',1 0 0⍉(' '⍪3 4⍴'MCXI DLV ')[(0 4 2 2⊤0 16 20 22 24 32 36 38 39 28)[;⍵⊤⍨4⍴10];]}
 
@@ -324,8 +323,7 @@ kcell ← {                                    ⍝ Relationship between point an
 
 ⍝ From http://dfns.dyalog.com/c_kball.htm
 
-kball ← {                                    ⍝ Relationship between point and k-ball.
-  ⍺←1
+kball ← { ⍺←1                                ⍝ Relationship between point and k-ball.
   r←⊃⍺ ⋄ p←1/⍵                               ⍝ Default is ball w/radius 1 at origin.
   c←(≢p)↑1↓⍺                                 ⍝ Remaining coordinates are center.
   ×↑-/(⍉p-[⎕IO]c)r+.*¨2                      ⍝ Perform signum difference.
@@ -429,7 +427,6 @@ roots ← {                                    ⍝ Roots of quadratic.
 ⍝ From http://dfns.dyalog.com/c_polar.htm
 
 polar ← {                                    ⍝ Polar from/to cartesian coordinates.
-
   pol_car←{                                  ⍝ polar from cartesian (default).
     radius←{(+⌿⍵*2)*0.5}                     ⍝ radius (pythagorus).
 
@@ -466,8 +463,7 @@ poly ← { 2 1∘.○(○2÷⍵)×(⍳⍵)-⍳1 }
 
 ⍝ From http://dfns.dyalog.com/c_xtimes.htm
 
-xtimes ← { ⎕IO←0                             ⍝ Fast multi-digit product using FFT.
-  m←0
+xtimes ← { ⎕IO←0 ⋄ m←0                       ⍝ Fast multi-digit product using FFT.
   xroots    ← {×\1,1↓(⍵÷2)⍴¯1*2÷⍵}
   cube      ← {⍵⍴⍨2⍴⍨⌊2⍟⍴⍵}
   extend    ← {(2*⌈2⍟¯1+(⍴⍺)+⍴⍵)↑¨⍺ ⍵}
@@ -476,6 +472,7 @@ xtimes ← { ⎕IO←0                             ⍝ Fast multi-digit product 
   iFFT      ← {(⍴⍵)÷⍨,(cube+xroots⍴⍵)floop cube ⍵}
   rconvolve ← {(¯1+(⍴⍺)+⍴⍵)↑iFFT⊃×/FFT¨⍺ extend ⍵}
   carry     ← {1↓+⌿1 0⌽0,0 10⊤⍵}
+
   (+/∧\0=t)↓t←carry⍣≡0,⌊0.5+9○⍺ rconvolve ⍵
 }
 

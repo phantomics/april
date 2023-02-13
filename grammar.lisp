@@ -148,7 +148,6 @@
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
                            (symbol-value (intern "*NS-POINT*" space)))))
-    ;; (print (list :it this-item))
     (if (listp this-item)
         ;; process a function specification starting with :fn
         (if (eq :fn (first this-item))

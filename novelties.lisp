@@ -83,10 +83,10 @@ This will invoke a progress bar with different demarcations (at each third rathe
 (defun april-print-progress-bar (count &key (increments (april "1 2 3÷4"))
                                          (width 64) (glyphs "⋄⌺∘○ ╷╓╖─┼╟╢"))
   "Print a progress bar that will grow toward completion as a process advances."
-  (let* ((total 0) (printed 0) (interval-index 0) (current-interval 0)
-         (breadth (* width count))
-         (marked-intervals (april-c (with (:state :in ((glyphs glyphs))))
-                                    "{
+  (let ((total 0) (printed 0) (interval-index 0) (current-interval 0)
+        (breadth (* width count))
+        (marked-intervals (april-c (with (:state :in ((glyphs glyphs))))
+                                   "{
   ⎕IO ← 0
   mrk ← 1+⍸ind ← ¯1⌽(⊢<1∘⌽)(⍵×int ← ⍺[⍋⍺])⍸⍳⍵-2
       ⍝ locations of marked intervals, with width minus 2 for enclosing chars
@@ -98,7 +98,7 @@ This will invoke a progress bar with different demarcations (at each third rathe
 
   mrk ⍝ return indices of marked increments
 }"
-                                    width increments)))
+                                   width increments)))
     ;; the returned advance function should be called upon each iteration of the process
     (lambda ()
       (when (< total breadth)

@@ -1525,9 +1525,6 @@
                                     ( after-span (aref new-span position))
                                     (before-pad  (aref new-pad  pre-position))
                                     ( after-pad  (aref new-pad  position)))
-                    ;; (when (not (vads-inverse base))
-                    ;;   (print (list :ud (vads-argument varray)
-                    ;;                (vads-argument base) base-span base-pad (shape-of sub-base))))
                     (let ((remaining a) (negative (minusp a)))
                       (if negative
                           (if (< 0 (+ remaining after-pad))
@@ -1584,8 +1581,6 @@
                    (let ((ax (if (eq :last axis) 0 (- axis iorigin))))
                      (if is-inverse (update-drop argument (+ ax base-rank) ax)
                          (update-take argument (+ ax base-rank) ax)))))
-           ;; (when (not (vads-inverse base))
-           ;;   (print (list :ns new-span new-pad)))
            (setf (vasec-span varray) new-span
                  (vasec-pad varray) new-pad
                  (vader-base varray) (if new-span sub-base base)))))
@@ -1595,7 +1590,6 @@
        (let* ((base-rank (rank-of base))
               ;; length of span/pad vectors
               (sp-length (* 2 (max (or base-rank 1) (or (first arg-shape) 1)))))
-         ;; (print (list :br base-rank))
          (if (zerop base-rank)
              (let ((sp-offset (/ sp-length 2)))
                (setf (vasec-span varray)
@@ -1603,8 +1597,6 @@
                      (vasec-pad varray)
                      (make-array sp-length :element-type 'fixnum :initial-element 0))
                (when (not is-inverse)
-                 ;; (loop :for s :from sp-offset :to (1- sp-length)
-                 ;;       :do (setf (aref (vasec-span varray) s) 1))
                  (loop :for s :below sp-offset
                        :do (let ((a (if (not (functionp arg-indexer))
                                         arg-indexer (funcall arg-indexer s))))
@@ -1634,17 +1626,12 @@
                  
                  (let* ((span-offset (max 1 base-rank))
                         (base-shape (copy-list base-shape))
-                        (specified-rank (+ (size-of (vads-argument varray))
-                                           (if (listp axis) (length axis) 0)))
                         ;; the shape of the base is only needed for [↓ drop]
                         (pre-shape (coerce (loop :for b :below (max (length base-shape)
                                                                     (if (not arg-shape) 1 (first arg-shape)))
                                                  :for i :from 0
                                                  :collect (or (nth b base-shape) (if (zerop i) 0 0)))
                                            'vector)))
-                   ;; (when (and base-shape (/= specified-rank base-rank))
-                   ;;   (error "The right argument to [↑ take] or [↓ drop] must either have a rank the same as the length of the left argument or be scalar."))
-                   ;; (print (list :bs base-shape pre-shape specified-rank))
                    (setf (vasec-span varray)
                          (make-array sp-length :element-type 'fixnum :initial-element 0)
                          (vasec-pad varray)
@@ -1658,7 +1645,6 @@
                    ;; populate the span and padding vectors according to the arguments
                    ;; and the dimensions of the input array
                    (flet ((process-element (arg ax orig element)
-                            ;; (print (list :pe arg ax orig element))
                             (if is-inverse
                                 (progn (when (< 0 base-rank)
                                          (setf (aref (vasec-span varray)
@@ -1738,7 +1724,6 @@
                                       (render (funcall base-gen indexed)))
                                      (aplesque:make-empty-array (render base-gen)))
                          (prototype-of (vader-base varray)))))))
-       ;; (print (list :ba base-gen assigning indexer))
        (if assigning (lambda (index)
                        (declare (type integer index))
                        (let ((indexed (funcall indexer index)))
@@ -1823,9 +1808,6 @@
                    (lambda (index)
                      (let ((indexed (funcall (if (functionp indexer) indexer #'identity)
                                              (funcall composite-indexer index))))
-                       ;; (print (list :pro indexed (varray-prototype varray)))
-                       ;; (print (list :iin varray indexer composite-indexer index indexed :base (vader-base varray)
-                       ;;              prototype))
                        (if indexed (if (numberp indexed) ;; IPV-TODO: remove after refactor ?
                                        (if (not (functionp base-gen))
                                            indexed (funcall base-gen indexed))
@@ -1869,9 +1851,11 @@
                                           (or (first (last base-shape)) 1)))
                            (input-offset 0) (intervals (list 0)))
                       (when positions
-                        (dotimes (i (if (is-unitary positions) (or (first (last base-shape)) 1)
+                        (dotimes (i (if (is-unitary positions)
+                                        (or (first (last base-shape)) 1)
                                         (length positions)))
-                          (let ((p (if (is-unitary positions) (disclose-unitary positions)
+                          (let ((p (if (is-unitary positions)
+                                       (disclose-unitary positions)
                                        (aref positions i))))
                             (if (zerop p) (progn (incf (first intervals))
                                                  (incf input-offset))
@@ -2384,8 +2368,6 @@
                                                (if (= 1 (size-of base-gen))
                                                    ;; handle the case of i.e. ⊃⊃,/⊂⊂⍳3
                                                    base-gen sub-gen)))))))
-                    ;; (print (list :ind indexer base-gen base (shape-of base) (prototype-of base)
-                    ;;              (render indexer) (render base)))
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
