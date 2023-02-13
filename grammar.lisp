@@ -207,7 +207,8 @@
                                                 (rest this-item)
                                                 (append current-path (rest this-item))))))
                 (list 'inwsd (intern nspath *package-name-string*)))))
-        (if (keywordp this-item) ;; (eq this-item :outer-product-designator)
+        (if (and (keywordp this-item)
+                 (not (eq this-item :empty-array)))
             this-item
             (when (and (symbolp this-item)
                        (not (getf properties :glyph)))
@@ -362,18 +363,10 @@
                                     (loop :for i :below (length elements) :collect nil)
                                     (rest (getf (getf params :special) :closure-meta)))
                       axes))
-      (cond ((and (not left)
-                  ;; (listp (first tokens)) (eq :fn (caar tokens))
-                  ;; (characterp (cadar tokens)) (char= #\← (cadar tokens))
-                  (eq :special-lexical-form-assign (first tokens))
-                  )
+      (cond ((and (not left) (eq :special-lexical-form-assign (first tokens)))
              ;; if a ← is encountered, this is a value assignment form
              (complete-value-assignment (rest tokens) elements space params axes))
-            ((and (not left)
-                  ;; (listp (first tokens)) (eq :fn (caar tokens))
-                  ;; (characterp (cadar tokens)) (char= #\→ (cadar tokens))
-                  (eq :special-lexical-form-branch (first tokens))
-                  )
+            ((and (not left) (eq :special-lexical-form-branch (first tokens)))
              (complete-branch-composition (rest tokens)
                                           (build-value nil :elements elements :axes axes
                                                        :space space :params params)
@@ -687,9 +680,7 @@
                                   remaining :space space :params params :initial initial
                                             :found-function (compose-function-lateral
                                                              exp-operator nil exp-value axes))
-                       (unless ;; (and (listp (second tokens)) (eq :fn (caadr tokens))
-                               ;;      (characterp (cadadr tokens)) (char= #\← (cadadr tokens)))
-                         (eq :special-lexical-form-assign (second tokens))
+                       (unless (eq :special-lexical-form-assign (second tokens))
                          ;; if a lateral operator is encountered followed by ←, the operator is being
                          ;; assigned and the current form is not valid as a function, so return nil
                          (multiple-value-bind (exp-function remaining)
@@ -732,9 +723,7 @@
                                                (values (compose-function-lateral exp-operator
                                                                                  val-fn nil axes)
                                                        remaining))))))))))))
-                 (if ;; (and (listp (first tokens)) (eq :fn (caar tokens))
-                     ;;      (characterp (cadar tokens)) (char= #\← (cadar tokens)))
-                     (eq :special-lexical-form-assign (first tokens))
+                 (if (eq :special-lexical-form-assign (first tokens))
                      (values nil tokens)
                      (let ((exp-function (process-function (first tokens) params space)))
                        (when exp-function
@@ -745,11 +734,8 @@
                                               exp-function (build-call-form exp-function :dyadic axes)))
                          #|TODO: clause for overloaded operators like /|#))))))
           ;; this clause continues a function composition that started in previous iterations
-          ((and initial ;; (listp (first tokens)) (eq :fn (caar tokens))
-                (eq :special-lexical-form-assign (first tokens))
-                (not (eq :no-assign initial))
-                ;; (characterp (cadar tokens)) (char= #\← (cadar tokens))
-                )
+          ((and initial (eq :special-lexical-form-assign (first tokens))
+                (not (eq :no-assign initial)))
            ;; if a ← is encountered, this becomes a function assignment form
            (if (third tokens) (error "Nothing can follow a function assignment.")
                (compose-function-assignment (second tokens) found-function :space space :params params)))
@@ -818,11 +804,7 @@
                                                    :space space :params params :valence valence))))
       ;; if an operator has been registered, the only subsequent material that may still resolve
       ;; as an operator is an operator assignment like k←⌸, and only if this is the initial form
-      (if (not (and initial
-                    (eq :special-lexical-form-assign (first tokens))
-                    ;; (listp (first tokens)) (eq :fn (caar tokens))
-                    ;; (characterp (cadar tokens)) (char= #\← (cadar tokens))
-                    ))
+      (if (not (and initial (eq :special-lexical-form-assign (first tokens))))
           (values found-operator tokens)
           (let* ((assign-symbol (if (getf (getf params :special) :closure-meta)
                                     (process-operator (second tokens) params space)

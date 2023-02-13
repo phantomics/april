@@ -1695,16 +1695,12 @@
              (let ((processed) (guard-encountered) (agets-encountered))
                (loop :for item :in form-content :for ix :from 0 :while (and (not guard-encountered)
                                                                             (not agets-encountered))
-                     ;; (april (with (:state :print-to out-str) (:space unit-test-staging)) "⎕←x←1 2 3")
-                     ;; {n←v←3/⊂5⍴0 ⋄ n[(1 1)]←⍵ ⋄ v[(⊂1 1)]←⍵ ⋄ n,v} 5
                      :do (let ((guard-sym-index)
                                (processed-form (lexer-postprocess item idiom space form-meta)))
                            (loop :for d :in processed-form :for dx :from 0
                                  :when (eq d :guard-indicator) :do (setq guard-sym-index dx)
                                  :when (and (= dx (- (length processed-form) 2))
-                                            (and ;; (listp d) (eq :fn (first d))
-                                                 ;; (characterp (second d)) (char= #\← (second d))
-                                                 (eq d :special-lexical-form-assign)
+                                            (and (eq d :special-lexical-form-assign)
                                                  (not (and (= 3 (length processed-form))
                                                            (numberp (nth (1- dx) processed-form))))
                                                  (let ((assigned (nth (1- dx) processed-form))
@@ -1814,7 +1810,6 @@
       (match tokens
         ((list (guard axes-form (and (listp axes-form) (eq :ax (first axes-form))))
                (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
-               ;; '(:fn #\←)
                :special-lexical-form-assign
                (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
          ;; handle function currying with axes, like ax←,[1.5]
@@ -1977,9 +1972,7 @@
                         symbols-valid))))
            (let* ((assignment-indices)
                   (items (loop :for item :in list :for ix :from 0
-                               :do (when ;; (and (listp item) (eq :fn (first item)) 
-                                         ;;      (characterp (second item)) (char= #\← (second item)))
-                                     (eq item :special-lexical-form-assign)
+                               :do (when (eq item :special-lexical-form-assign)
                                      (push ix assignment-indices))
                                :collect (lexer-postprocess item idiom space closure-meta-form))))
              (loop :for index :in (reverse assignment-indices)
@@ -2006,13 +1999,7 @@
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
   (let ((previous-token) (token-list (or token-list (list :tokens))))
     (loop :for token :in tokens
-          :do (when (and previous-token
-                         (eq previous-token :special-lexical-form-assign)
-                         ;; (listp previous-token)
-                         ;; (eql :fn (first previous-token))
-                         ;; (characterp (second previous-token))
-                         ;; (char= #\← (second previous-token))
-                         )
+          :do (when (eq previous-token :special-lexical-form-assign)
                 ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
                 ;; be added to the list to hoist if eligible
                 (setq in-assignment-context t))

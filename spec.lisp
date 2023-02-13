@@ -2055,7 +2055,7 @@
   (for "Indexed element of above array."
        "{⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(#0A#(1 5) 3))
   (for "Fibonacci sequence generated using [∇ self] for self-reference within a function."
-       "{(⍵=1)∨⍵=2 : 1 ⋄ (∇ (⍵-2))+∇ (⍵-1)}¨⍳12" #(1 1 2 3 5 8 13 21 34 55 89 144))
+       "{(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12" #(1 1 2 3 5 8 13 21 34 55 89 144))
   (for "Locally-scoped function used with lateral operator within if-statement."
        "(⍳3){ g←{5+⍵} ⋄ b←-∘5 ⋄ h←{12×$[~2|⍺;b¨⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"
        #(#(84 96 108) #(-24 -12 0) #(108 120 132)))
