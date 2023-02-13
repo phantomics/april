@@ -6,8 +6,6 @@
 
 ;; add ⍨'s alias to its category
 (push #\向 *value-composable-lexical-operators*)
-;; "｛⎕IOー向投２形向絶牛　馬｝"
-;; ｛出１　馬下積上３　４＝＋折付１　０　￣１続積回［１］１　０　￣１回別込馬｝
 ;; 積　点
 
 (defmacro uzuki (&rest args)
@@ -32,7 +30,6 @@
                             ;; characters referencing Gozu and Mezu
                             (lambda (idiom-name symbols element)
                               (let ((sym-pos (position (aref element 0) "月有朋日旦昌")))
-                                ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
                                 (if sym-pos (aref matching-symbols sym-pos)
                                     (funcall base-function idiom-name symbols element)))))
             :match-numeric-character
@@ -181,3 +178,6 @@
              (叉 (has :title "また／サ")
                  (alias-of $))))
 
+;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
+;; "｛⎕IOー向投２形向絶牛　馬｝"
+;; ｛出１　馬下積上３　４＝＋折付１　０　￣１続積回［１］１　０　￣１回別込馬｝

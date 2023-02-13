@@ -2133,7 +2133,8 @@
         (fn-count 0) (op-count 0) (afn-count 0) (aop-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
                         :functions-scalar-monadic nil :functions-scalar-dyadic nil :operators-lateral nil
-                        :operators-pivotal nil :operators-unitary nil :operators nil :statements nil)))
+                        :operators-pivotal nil :operators-unitary nil :operators nil :statements nil
+                        :symbolic-lexical-forms nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2290,6 +2291,14 @@
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
+                                   (push (second implementation) (getf lexicons :symbolic-lexical-forms))
+                                   (push glyph-char (getf lexicons :symbolic-lexical-forms))
+                                   (when (getf props :aliases)
+                                     (loop :for alias :in (getf props :aliases)
+                                           :do (let ((a-char (aref (string alias) 0)))
+                                                 (push (second implementation)
+                                                       (getf lexicons :symbolic-lexical-forms))
+                                                 (push a-char (getf lexicons :symbolic-lexical-forms)))))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
                                            :do (let ((a-char (aref (string alias) 0)))
