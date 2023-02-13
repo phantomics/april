@@ -26,8 +26,6 @@
                                      (lambda (char) (position char cstring :test #'char=)))
             :format-value (let ((base-function (of-utilities this-idiom :format-value))
                                 (matching-symbols (vector '⍵ '⍹ '⍵⍵ '⍺ '⍶ '⍺⍺)))
-                            ;; aliases of argument/operand symbols with cow/horse derived
-                            ;; characters referencing Gozu and Mezu
                             (lambda (idiom-name symbols element)
                               (let ((sym-pos (position (aref element 0) "月有朋日旦昌")))
                                 (if sym-pos (aref matching-symbols sym-pos)
@@ -38,7 +36,7 @@
             (lambda (char) (or (is-alphanumeric char)
                                (position char ".．_＿⎕∆⍙¯￣" :test #'char=))))
  (functions (with (:name :japanese-kanji-function-aliases))
-            (\＋ (has :title "プラス") ;; ⌹←→
+            (\＋ (has :title "プラス")
                  (alias-of +))
             (\－ (has :title "マイナス")
                  (alias-of -))
@@ -130,6 +128,8 @@
                 (alias-of ⍋))
             (降 (has :title "降りる／コウ")
                 (alias-of ⍒))
+            (逆 (has :title "ギャク")
+                (alias-of ⌹))
             (符 (has :title "符号／フ")
                 (alias-of ⊤))
             (復 (has :title "復号／フク")
@@ -142,11 +142,10 @@
                 (alias-of ⍕))
             (入 (has :title "入力／ニュウ")
                 (alias-of ⍎))
-            ;; (之 (has :title "の")
-            ;;     (alias-of ←))
-            ;; (行 (has :title "行く／ギョウ")
-            ;;     (alias-of →))
-            )
+            (之 (has :title "の")
+                (alias-of ←))
+            (行 (has :title "行く／ギョウ")
+                (alias-of →)))
  (operators (with (:name :japanese-kanji-operator-aliases))
             (折 (has :title "折る／セツ")
                 (alias-of /))
@@ -178,6 +177,8 @@
              (叉 (has :title "また／サ")
                  (alias-of $))))
 
+;; aliases of argument/operand symbols with cow/horse derived
+;; characters referencing Gozu and Mezu
 ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
 ;; "｛⎕IOー向投２形向絶牛　馬｝"
 ;; ｛出１　馬下積上３　４＝＋折付１　０　￣１続積回［１］１　０　￣１回別込馬｝

@@ -2128,10 +2128,11 @@
   "Process a set of function and operator specs, generating lists of their referring characters, recording counts of functions and operators and building their assignment forms."
   (let ((assignment-forms) (symbol-set)
         (fn-count 0) (op-count 0) (afn-count 0) (aop-count 0) (args (gensym))
-        (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
-                        :functions-scalar-monadic nil :functions-scalar-dyadic nil :operators-lateral nil
-                        :operators-pivotal nil :operators-unitary nil :operators nil :statements nil
-                        :symbolic-forms nil)))
+        (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil
+                        :functions-symbolic nil :functions-scalar-monadic nil
+                        :functions-scalar-dyadic nil :operators nil :operators-lateral nil
+                        :operators-pivotal nil :operators-unitary nil
+                        :statements nil :symbolic-forms nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2152,9 +2153,8 @@
                                    (cons '&optional (append (rest implicit-args)
                                                      (if axis-arg (list axis-arg))
                                                      optional-implicit-args)))
-                           (if (eq :get-metadata ,(first implicit-args))
-                               (quote ,primary-meta)
-                               ,form))))))
+                           (if (not (eq :get-metadata ,(first implicit-args)))
+                               ,form (quote ,primary-meta)))))))
       (macrolet ((push-char-and-aliases (&rest lexicons)
                    `(progn ,@(loop :for lexicon :in lexicons
                                    :collect `(push glyph-char (getf lexicons ,lexicon)))
@@ -2164,7 +2164,7 @@
                                          ,@(loop :for lexicon :in lexicons
                                                  :collect `(push a-char (getf lexicons ,lexicon)))))))))
         (loop :for each-spec :in spec-sets
-              :do (loop :for spec :in (cddr each-spec) ;; (reverse (cddr each-spec))
+              :do (loop :for spec :in (cddr each-spec)
                         :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
                               (let* ((spec-type (intern (string (first each-spec))
                                                         *package-name-string*))
@@ -2177,12 +2177,15 @@
                                      (implicit-args (getf primary-metadata :implicit-args))
                                      (optional-implicit-args (getf primary-metadata :optional-implicit-args))
                                      (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
-                                                                (case spec-type (functions "FN")
-                                                                      (operators "OP")
-                                                                      (statements "ST"))
+                                                                (case spec-type
+                                                                  (functions
+                                                                   (if (eq item-type 'symbolic)
+                                                                       "SY" "FN"))
+                                                                  (operators "OP")
+                                                                  (statements "ST"))
                                                                 glyph-sym)
                                                         *package-name-string*))
-                                     (assigned-form))
+                                     (assigned-form) (is-symbolic-alias))
                                 (push fn-symbol symbol-set)
                                 (when (getf props :aliases)
                                   (loop :for alias :in (getf props :aliases)
@@ -2201,29 +2204,47 @@
                                               (push alias-symbol symbol-set)
                                               (push valias-symbol symbol-set))))
                                 (case item-type
-                                  (alias-of (let ((achar (aref (string (second implementation)) 0))
-                                                  ;; assign an alias symbol to other lexicons containing
-                                                  ;; the aliased symbol depending on what's possible given
-                                                  ;; the spec type within which the alias is assigned;
-                                                  ;; this prevents an alias of [/ reduce] from also
-                                                  ;; being assigned as an alias of [/ replicate]
-                                                  (possible-lexicons
-                                                    (case spec-type
-                                                      (functions '(:functions :functions-monadic
-                                                                   :functions-dyadic :functions-symbolic
-                                                                   :functions-scalar-monadic
-                                                                   :functions-scalar-dyadic))
-                                                      (operators '(:operators :operators-lateral
-                                                                   :operators-pivotal :operators-unitary))
-                                                      (statements '(:statements))))
-                                                  (aliased
-                                                    (intern (format nil "APRIL-LEX-~a-~a"
-                                                                    (case spec-type (functions "FN")
-                                                                      (operators "OP")
-                                                                      (statements "ST"))
-                                                                    (second implementation))
-                                                            *package-name-string*)))
-                                              (push `(symbol-function ',aliased) assignment-forms)
+                                  (alias-of (let* ((achar (aref (string (second implementation)) 0))
+                                                   ;; assign an alias symbol to other lexicons containing
+                                                   ;; the aliased symbol depending on what's possible given
+                                                   ;; the spec type within which the alias is assigned;
+                                                   ;; this prevents an alias of [/ reduce] from also
+                                                   ;; being assigned as an alias of [/ replicate]
+                                                   (possible-lexicons
+                                                     (case spec-type
+                                                       (functions '(:functions :functions-monadic
+                                                                    :functions-dyadic :functions-symbolic
+                                                                    :functions-scalar-monadic
+                                                                    :functions-scalar-dyadic :symbolic-forms))
+                                                       (operators '(:operators :operators-lateral
+                                                                    :operators-pivotal :operators-unitary))
+                                                       (statements '(:statements))))
+                                                   (symbolic-alias
+                                                     (and (eq spec-type 'functions)
+                                                          (of-lexicons this-idiom achar :symbolic-forms)))
+                                                   (aliased
+                                                     (intern (format nil "APRIL-LEX-~a-~a"
+                                                                     (case spec-type
+                                                                       (functions
+                                                                        (if symbolic-alias "SY" "FN"))
+                                                                       (operators "OP")
+                                                                       (statements "ST"))
+                                                                     (second implementation))
+                                                             *package-name-string*)))
+                                              (when symbolic-alias
+                                                ;; reassign fn-symbol in the case of symbolic alias,
+                                                ;; since the april-lex-sy-X symbol is the one that should
+                                                ;; be assigned; its default form must also be removed
+                                                ;; from the symbol set with the correct form added
+                                                (setf symbol-set (remove fn-symbol symbol-set))
+                                                (setf fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
+                                                                                glyph-sym)
+                                                                        *package-name-string*))
+                                                (push fn-symbol symbol-set))
+                                              (push (if (setf is-symbolic-alias symbolic-alias)
+                                                        `(symbol-value ',aliased)
+                                                        `(symbol-function ',aliased))
+                                                    assignment-forms)
                                               (case spec-type (functions (incf afn-count))
                                                     (operators (incf aop-count)))
                                               ;; assign the alias to lexicons according to the lexicon
@@ -2288,7 +2309,7 @@
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
-                                   (push (second implementation) (getf lexicons :symbolic-forms))
+                                   ;; (push (second implementation) (getf lexicons :symbolic-forms))
                                    (push glyph-char (getf lexicons :symbolic-forms))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
@@ -2312,11 +2333,14 @@
                                   (unitary (incf op-count)
                                    (push-char-and-aliases :operators :operators-unitary :statements)
                                    (push (second implementation) assignment-forms)))
-                                (push `(,(if (and (eql 'functions spec-type)
-                                                  (eql 'symbolic item-type))
+
+                                (push `(,(if (or is-symbolic-alias
+                                                 (and (eql 'functions spec-type)
+                                                      (eql 'symbolic item-type)))
                                              'symbol-value 'symbol-function)
                                         (quote ,fn-symbol))
                                       assignment-forms)
+
                                 (when (getf props :aliases)
                                   (loop :for alias :in (getf props :aliases)
                                         :do (push assigned-form assignment-forms)

@@ -770,9 +770,12 @@
                                                   (unless olnchar
                                                     (or (and (not (of-lexicons idiom char :operators))
                                                              (not (of-lexicons idiom char :statements))
-                                                             (getf (getf (idiom-lexicons idiom)
-                                                                         :symbolic-forms)
-                                                                   char))
+                                                             (of-lexicons idiom char :symbolic-forms)
+                                                             (symbol-value
+                                                              (intern (format nil "~a-LEX-SY-~a"
+                                                                              (idiom-name idiom)
+                                                                              char)
+                                                                      (string (idiom-name idiom)))))
                                                         (append (list (if (of-lexicons idiom char :statements)
                                                                           :st (if (of-lexicons idiom char
                                                                                                :operators)
@@ -784,8 +787,9 @@
                                                                     (list (if (of-lexicons idiom char
                                                                                            :operators-pivotal)
                                                                               :pivotal
-                                                                              (if (of-lexicons idiom char
-                                                                                               :operators-lateral)
+                                                                              (if (of-lexicons
+                                                                                   idiom char
+                                                                                   :operators-lateral)
                                                                                   :lateral :unitary))))
                                                                 (list char)))))))
                                   (=transform (%and (?test (#'numeric-string-p)
