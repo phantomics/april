@@ -74,8 +74,6 @@
                      (apply #'make-instance type :omega omega :alpha alpha args)))))
     #'this))
 
-
-
 (defclass vacomp-each (vad-subrendering vader-composing)
   nil (:metaclass va-class)
   (:documentation "An each-composed array as with the [¨ each] operator."))
@@ -555,22 +553,6 @@
              base-gen (lambda (index)
                         (funcall base-gen (+ index (* interval (vasv-index varray))))))))))
 
-#|
-(defun inverse-outer-product (input function right-original &optional threaded left-original)
-  "Find the inverse outer product of an array with a function and a given outer product argument."
-  (let* ((original (or left-original right-original))
-         (interval (reduce #'* (dims original)))
-         (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
-                                 (butlast (dims input) (rank original))))))
-    (xdotimes output (i (size output) :synchronous-if (not threaded))
-      (let ((input-index (* i (if left-original 1 interval))))
-        (setf (row-major-aref output i)
-              (nest (funcall function (disclose (row-major-aref input input-index))
-                             (disclose (row-major-aref original 0)))))))
-    (funcall (if (zerop (rank output)) #'disclose #'identity)
-             output)))
-|#
-
 (defmethod generator-of ((varray vacomp-produce) &optional indexers params)
   (declare (ignore indexers))
   (let* ((omega (vacmp-omega varray))
@@ -620,8 +602,7 @@
             (:linear)
             (t (if (or (zerop osize) (zerop asize))
                    (if (or (< 1 orank) (< 1 arank))
-                       #()
-                       ;; inner product with an empty array of rank > 1 gives an empty vector
+                       #() ;; inner product with an empty array of rank > 1 gives an empty vector
                        (or (let ((identity (getf (funcall (vacmp-left varray) :get-metadata nil)
                                                  :id)))
                              (if (functionp identity) (funcall identity) identity))
@@ -881,5 +862,3 @@
            (funcall (vacmp-left varray)
                     (make-instance 'vader-stencil-window :shape wd-list :base varray :index index)
                     (make-instance 'vader-stencil-margin :shape edge-shape :base varray :index index)))))))
-
-;; (1 2 3) (2 3 4)∘.⌽[1]⊂3 3⍴⍳9 NOT IN DYALOG?

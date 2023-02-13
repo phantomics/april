@@ -7,7 +7,7 @@
 ;; add ⍨'s alias to its category
 (push #\向 *value-composable-lexical-operators*)
 ;; "｛⎕IOー向投２形向絶牛　馬｝"
-;; ｛出１　馬下積上３　４＝＋折付１　０　¯１続積回［１］１　０　¯１回別込馬｝
+;; ｛出１　馬下積上３　４＝＋折付１　０　￣１続積回［１］１　０　￣１回別込馬｝
 ;; 積　点
 
 (defmacro uzuki (&rest args)
@@ -24,12 +24,15 @@
          :string-delimiters "'\"＇" :number-spacers "_＿"
          :axis-separators ";；" :path-separators ".．" :negative-signs "¯￣")
  (utilities :process-fn-op-specs #'process-fnspecs
+            :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))
+                                     (lambda (char) (position char cstring :test #'char=)))
             :format-value (let ((base-function (of-utilities this-idiom :format-value))
                                 (matching-symbols (vector '⍵ '⍹ '⍵⍵ '⍺ '⍶ '⍺⍺)))
                             ;; aliases of argument/operand symbols with cow/horse derived
                             ;; characters referencing Gozu and Mezu
                             (lambda (idiom-name symbols element)
-                              (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
+                              (let ((sym-pos (position (aref element 0) "月有朋日旦昌")))
+                                ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
                                 (if sym-pos (aref matching-symbols sym-pos)
                                     (funcall base-function idiom-name symbols element)))))
             :match-numeric-character
@@ -38,8 +41,8 @@
             (lambda (char) (or (is-alphanumeric char)
                                (position char ".．_＿⎕∆⍙¯￣" :test #'char=))))
  (functions (with (:name :japanese-kanji-function-aliases))
-            (\＋ (has :title "プラス") ;; 1￣
-                 (alias-of +))        ;; ⌹←→
+            (\＋ (has :title "プラス") ;; ⌹←→
+                 (alias-of +))
             (\－ (has :title "マイナス")
                  (alias-of -))
             (倍 (has :title "バイ")

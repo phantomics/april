@@ -63,7 +63,7 @@
                   :function-inversion-tests :namespace-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))
+ (utilities :match-blank-character (let ((cstring (coerce '(#\  #\Tab) 'string)))
                                      (lambda (char) (position char cstring :test #'char=)))
             :match-newline-character (let ((cstring (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)))
                                        (lambda (char) (position char cstring :test #'char=)))
@@ -86,7 +86,7 @@
                                               (lambda (char) (position char chars :test #'char=))))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
-            :match-overloaded-numeric-character (lambda (char) (position char "." :test #'char=))
+            :match-overloaded-numeric-character (lambda (char) (char= char #\.))
             ;; match character(s) used to separate axes
             :match-axis-separating-character (lambda (idiom)
                                                (let ((chars (of-system idiom :axis-separators)))
@@ -107,12 +107,13 @@
             ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
             :prep-code-string
             (lambda (idiom)
-              (let ((comment-delimiters (of-system idiom :comment-delimiters)))
+              (let ((nlstring (coerce '(#\Newline #\Return) 'string))
+                    (comment-delimiters (of-system idiom :comment-delimiters)))
                 (lambda (string)
                   (let ((commented) (osindex 0)
                         (out-string (make-string (length string) :initial-element #\ )))
                     (loop :for char :across string
-                          :do (if commented (when (member char '(#\Newline #\Return) :test #'char=)
+                          :do (if commented (when (position char nlstring :test #'char=)
                                               (setf commented nil
                                                     (row-major-aref out-string osindex) char
                                                     osindex (1+ osindex)))
@@ -952,9 +953,11 @@
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse #'identity)
            (dyadic :on-axis :last))
-     (tests (is "⊆⍳3" #0A#(1 2 3))
+     (tests (is "⊆ ⍳3" #0A#(1 2 3))
+            (is "⊆⊂⍳3" #0A#(1 2 3))
             (is "⊆1 2 (1 2 3)" #(1 2 #(1 2 3)))
-            (is "⊆'hello'" #0A"hello")
+            (is "⊆ 'hello'" #0A"hello")
+            (is "⊆⊂'hello'" #0A"hello")
             (is "⊆'hello' 'how' 'are' 'you'" #("hello" "how" "are" "you"))
             (is "2⊆⍳3" #(#(1 2 3)))
             (is "1 1 0⊆5 6 0" #(#(5 6)))
@@ -1557,7 +1560,7 @@
              (is "⍬∘.=⍬" #2A())
              (is "''∘.=''" #2A())
              (is "fn←{⍺×⍵+1} ⋄ 1 2 3∘.fn 4 5 6" #2A((5 6 7) (10 12 14) (15 18 21)))
-             (is "' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W) ∧ ∧/(+/A∘.=W) = +/A∘.=A } 'dog'" #(0))
+             (is "' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'" #(0))
              (is "⍴+.×⌿?2 30 30⍴1e10" #(30 30))
              (is "'ADG',.,'EIHF' 'BIHC' 'BFEC'" #0A"AEIHFDBIHCGBFEC")
              (is "1 2 3,.-3 3⍴4 5 6" #(#(-3 -2 -1) #(-4 -3 -2) #(-5 -4 -3)))))
@@ -2124,7 +2127,7 @@
   (for "Inverse logarithms." "⌊100×.0000001+(3⍟⍣¯1⊢8),(3∘⍟⍣¯1⊢8),⍟∘3⍣¯1⊢8" #(656100 656100 114))
   (for "Inverse monadic scalar functions." "⌊1000×(+⍣¯1⊢5),(-⍣¯1⊢5),(÷⍣¯1⊢5),(⋆⍣¯1⊢5),⍟⍣¯1⊢5"
        #(5000 -5000 200 1609 148413))
-  (for "Inverse circular ops."   "y←⍳12 ⋄ (5○⍨-y)=y∘○⍣¯1⊢5" #(1 1 1 1 1 1 1 1 1 1 1 1))
+  (for "Inverse circular ops."   "{(5○⍨-⍵)=⍵∘○⍣¯1⊢5} ⍳12" #(1 1 1 1 1 1 1 1 1 1 1 1))
   (for "Inverse indexing." "⍳⍣¯1⊢1 2 3 4 5" 5)
   (for "Inverse where." "(⍸⍣¯1) 4 5 9" #*000110001)
   (for "Another inverse where." "(⍸⍣¯1) (1 2) (2 3)" #2A((0 1 0) (0 0 1)))
@@ -2156,8 +2159,8 @@
   (for "Inversion of commuted outer product, other side." "(1 2 3∘(∘.×))⍣¯1⊢1 2 3∘.×4 5 6" #(4 5 6))
   (for "More complex outer product inversion."
        "(∘.×∘4 5 6)⍣¯1⊢(∘.×∘4 5 6) (1 2 3∘(∘.+)) 10 20 30" #2A((11 21 31) (12 22 32) (13 23 33)))
-  (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'ab'" #("" "a" "b" "ab"))
-  (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵}'abc'"
+  (for "Power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'" #("" "a" "b" "ab"))
+  (for "Longer power set." "{⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'abc'"
        #("" "a" "b" "ab" "c" "ac" "bc" "abc"))
   (for "Inversion of variable-referenced function." "vr←3∘× ⋄ vr⍣¯1⊢24" 8)
   (for "Inversion of arbitrary function." "({3-⍵}⍣¯1⊢8),{⍵-3}⍣¯1⊢8" #(-5 11))
@@ -2709,6 +2712,8 @@ fun 3")) 8))
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
 A not-very-useful scalar function that adds 3 to its argument(s) is specified here.
+
+For a more complete and useful example of idiom extension, see extensions/uzuki.
 
 (extend-vex-idiom
  april

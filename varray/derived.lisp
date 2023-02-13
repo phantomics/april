@@ -2026,9 +2026,10 @@
          (let ((base-type (etype-of (vader-base varray))))
            (when (eq t base-type) ;; array is simple if not t-type
              (let ((is-complex) (base-gen (generator-of (vader-base varray))))
-               (when base-gen (loop :for i :below (size-of (vader-base varray))
-                                    :do (when (shape-of (funcall base-gen i))
-                                          (setf is-complex t)))
+               (when (and base-gen (functionp base-gen))
+                 (loop :for i :below (size-of (vader-base varray))
+                       :do (when (shape-of (funcall base-gen i))
+                             (setf is-complex t)))
                  (when is-complex (shape-of (vader-base varray)))))))
          (if (not (arrayp positions))
              (when (< 1 (size-of (vader-base varray)))
@@ -2082,7 +2083,8 @@
   (declare (ignore indexers))
   (if (not (or (vads-argument varray)
                (vapart-params varray)))
-      (if (shape-of varray)
+      (if (or (shape-of varray) ;; pass through the generator of i.e. ⊂⍳3
+              (typep (vader-base varray) 'vader-enclose))
           (generator-of (vader-base varray))
           (vader-base varray))
       (let* ((idims (shape-of (vader-base varray)))
@@ -2365,7 +2367,6 @@
                                      (if (zerop (size-of base))
                                          (prototype-of base)
                                          (let ((bix (funcall base-gen 0)))
-                                           ;; (print (list :bb bix (size-of base)))
                                            (if (typep bix 'vader-pick)
                                                ;; needed for i.e. 0 in (1 1⍴⊂)⍣4⊢0
                                                base-gen (if (or (not (arrayp bix))
@@ -2431,15 +2432,13 @@
            (shape-of (prototype-of (vader-base varray)))
            (let* ((ref (fetch-reference varray (vader-base varray)))
                   (this-indexer (generator-of ref)))
-             ;; (print (list :re ref (shape-of ref) (generator-of ref)))
              (if (and (not (functionp this-indexer)) ;; handle cases like (scc≡⍳∘≢) (⍳10),⊂⍬
                       (not (typep ref 'vader-pare)))
                  ;; vader-pare covers the case of (april-c "{⊃,∘⊂¨⍵}" #2A((#(#*11)))),
                  ;; is there another way to do this? 
                  (if (arrayp this-indexer)
                      (shape-of (row-major-aref this-indexer 0))
-                     (when (arrayp ref)
-                       (shape-of ref)))
+                     (when (arrayp ref) (shape-of ref)))
                  (shape-of ref)))))))
 
 (defmethod generator-of ((varray vader-pick) &optional indexers params)
@@ -2722,7 +2721,6 @@
                             (mod (row-major-aref arg i) dimension)))
                     out))))))
   (case (getf params :base-format)
-    ;; (:encoded)
     (:encoded (unless (shape-of (vads-argument varray))
                 ;; disabled for non-scalar left arguments; TODO: can this be changed?
                 (let* ((enco-type (getf (getf params :gen-meta) :index-width))
@@ -2967,6 +2965,7 @@
 ;; coef ← (⍉⍵) +.× ⍵
 ;; cons ← ⍺ +.× ⍵
 ;; cons ⌹ coef
+
 (defun linear-regression (omega alpha)
   "Linear regression for coefficient matrix ⍵ and constants ⍺. Used to implement dyadic [⌹ matrix divide] for an overspecified system"
   (let ((coef (array-inner-product (permute-axes omega nil)
@@ -3052,8 +3051,7 @@
                                remaining remainder)))
              (setf value (if (not (functionp base-gen))
                              base-gen (funcall base-gen oindex)))
-
-             ;; (print (list :aa arg-gen value adims (vads-argument varray)))
+             
              (if (and (not (vads-inverse varray)) (not (shape-of (vads-argument varray))))
                  (setf value (nth-value 1 (floor value arg-gen)))
                  (let ((last-base) (element) (aindex) (component 1)
@@ -3186,7 +3184,7 @@
   "A special non-rendering render method for [⊢/⊣ identity], to be used when ⊢⊣X is invoked to defer rendering."
   (if (and (getf params :may-be-deferred)
            (getf (varray-meta varray) :may-defer-rendering))
-      ;; a new vader-identify instance is created without the :may-defer-rendering flag
+      ;; a new vader-identity instance is created without the :may-defer-rendering flag
       (make-instance 'vader-identity :base (vader-base varray))
       (call-next-method)))
 

@@ -83,41 +83,42 @@ This will invoke a progress bar with different demarcations (at each third rathe
 (defun april-print-progress-bar (count &key (increments (april "1 2 3÷4"))
                                          (width 64) (glyphs "⋄⌺∘○ ╷╓╖─┼╟╢"))
   "Print a progress bar that will grow toward completion as a process advances."
-  (let* ((total 0)
-         (interval (/ count (1+ width)))
-         (current-interval interval)
-         (marked-intervals
-           (coerce (april-c (with (:state :in ((glyphs glyphs))))
-                            "{
+  (let* ((total 0) (printed 0) (interval-index 0) (current-interval 0)
+         (breadth (* width count))
+         (marked-intervals (april-c (with (:state :in ((glyphs glyphs))))
+                                    "{
   ⎕IO ← 0
-  ind ← ¯1⌽(⊢<1∘⌽)(⍵×⍺)⍸⍳⍵
-  mrk ← ⍸ind
-  l1  ← (4↓8↑glyphs)[2,ind,3]
-  l2  ← (¯4 ↑glyphs)[2,ind,3]
+  mrk ← 1+⍸ind ← ¯1⌽(⊢<1∘⌽)(⍵×int ← ⍺[⍋⍺])⍸⍳⍵-2
+      ⍝ locations of marked intervals, with width minus 2 for enclosing chars
+      ⍝ intervals are indexed grading up so they can be specified in any order
+  ⎕   ← {(⊃,/⍵)@(⊃,/1+mrk+⍳∘≢¨⍵)⊢(4↓8↑glyphs)[2,ind,3]} ('%',⍨⍕)¨⌊100×int
+      ⍝ characters on line 1: denoted increments
+  ⎕   ← (8↓glyphs)[2,ind,3]
+      ⍝ characters on line 2: span with ticks
 
-  ⊢⊢⍺{⍵{l1[⍺+2+⍳1+≢⍵]←⍵,'%'}⍕⌊100×⍺}¨mrk
-  ⎕←l1 ⋄ ⎕←l2
-  1+mrk
+  mrk ⍝ return indices of marked increments
 }"
-                            width increments)
-                   'list))
-         (interval-index 0))
+                                    width increments)))
     ;; the returned advance function should be called upon each iteration of the process
     (lambda ()
-      (when (< total count)
-        (incf total)
-        (if (= 1 total)
-            (princ (aref glyphs 0))
-            (if (= count total)
-                (progn (princ (aref glyphs 1))
-                       (princ #\Newline))
-                (when (> total interval)
-                  (incf interval current-interval)
-                  (incf interval-index)
-                  (if (and marked-intervals (= interval-index (first marked-intervals)))
-                      (progn (princ (aref glyphs 3))
-                             (setf marked-intervals (rest marked-intervals)))
-                      (princ (aref glyphs 2))))))))))
+      (when (< total breadth)
+        (incf total width)
+        (incf interval-index width)
+        (loop :while (< count interval-index)
+              :do (if (zerop printed)
+                      (princ (aref glyphs 0))
+                      (when (or (/= total breadth)
+                                (< count interval-index))
+                        (if (and (< current-interval (length increments))
+                                 (= printed (aref marked-intervals current-interval)))
+                            (progn (incf current-interval)
+                                   (princ (aref glyphs 3)))
+                            (princ (aref glyphs 2)))))
+                  (incf printed)
+                  (decf interval-index count))
+        (when (= total breadth)
+          (princ (aref glyphs 1))
+          (princ #\Newline))))))
 
 #| 
 -- April Banners --
