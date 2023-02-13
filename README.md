@@ -221,7 +221,7 @@ For the most part, April's syntax and functions follow standard APL conventions.
 
 ;; k-style functions with any number of named arguments
 * (april "monthlyPayment←{[amt;int;len] (len÷⍨amt×int×0.1)+amt÷len} ⋄ monthlyPayment[5000;0.8;12]")
-450.0
+450.0d0
 
 ;; numbered branch points instantiated with →⎕ syntax
 * (april "x←1 ⋄ →1+1 ⋄ x×←11 ⋄ 1→⎕ ⋄ x×←3 ⋄ 2→⎕ ⋄ x×←5 ⋄ 3→⎕ ⋄ x×←7")
@@ -322,6 +322,9 @@ Want to invoke April functions on some variables with less code? You can use the
 
 ```lisp
 * (april-c "{⍺×⍵}" 2 8)
+16
+
+* (april-c "×" 2 8) ;; the same result as above by passing a string containing just '×'
 16
 
 * (april-c "{[a;b;c;d] d↑c⍴a+b}" 3 5 6 10)
@@ -988,7 +991,7 @@ APL has multiple implementations, and there are subtle but significant variation
 
 The other major lexical difference between APL2-family languages and April is that in April, monadic `⊃` implements the disclose function and monadic `↑` implements the mix function; the converse is true in APL2.
 
-Dyalog APL offers users the option of using multiple lexical modes, some of which are more similar to APL2. The variable controlling these modes is referred to as the "migration level." The implementation of migration levels in April is not planned at this time.
+Dyalog APL offers users the option of using multiple lexical modes, some of which are more similar to APL2. The variable controlling the active mode is referred to as the "migration level." The implementation of migration levels in April is not planned at this time.
 
 ## Tests, Demo and the Extended Demo Suite
 
@@ -1004,7 +1007,7 @@ And you can see a demonstration of April language features by entering:
 * (april (demo))
 ```
 
-April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in (this repository's `/libraries` folder)[/libraries], and the demo packages are located in (the `/demos` folder)[/demos], and each library package has its own set of tests. You can load the libraries by evaluating `(load-libs)` and run the tests for each demo by evaluating `(run-lib-tests)` within the `april` package. The library tests contain many complex functions that generate large arrays, giving the computer a workout. On slower systems these tests may take some time to complete.
+April comes with a set of standard libraries and demo packages implementing useful APL functions. The libraries are located in [this repository's `/libraries` folder](/libraries), and the demo packages are located in [the `/demos` folder](/demos), and each library package has its own set of tests. You can load the libraries by evaluating `(load-libs)` and run the tests for each demo by evaluating `(run-lib-tests)` within the `april` package. The library tests contain many complex functions that generate large arrays, giving the computer a workout. On slower systems these tests may take some time to complete.
 
 ## Enabling APL Input in Emacs
 
@@ -1022,7 +1025,7 @@ For Lisp developers who interact with the language through Vim, a plugin called 
 
 For GNU/Linux users who'd like use APL characters outside of a customized editor, refer to [this page](https://aplwiki.com/wiki/Typing_glyphs_on_Linux) on the APL Wiki. After following the instructions there you'll be able to use your keyboard's right Alt key as a modifier to enter APL characters. For instance, you enter can the iota character `⍳` by pressing the `right Alt + i`, the rho character `⍴` by pressing the `right Alt + r` and so on.
 
-Another option for GNU/Linux APL input is to enter `setxkbmap us,apl -option grp:win_switch` in a terminal. The keyboard's win keys will become modifiers that allow you to enter APL characters when held down. Typing `Win+r` will produce `⍴`, for example, and typing `Win+%` will produce `⌽`.
+Another option for GNU/Linux APL input is to enter `setxkbmap us,apl -option grp:win_switch` in a terminal. The keyboard's win keys will become modifiers that allow you to enter APL characters when held down. Typing `Win + r` will produce `⍴`, for example, and typing `Win + %` will produce `⌽`.
 
 ## Thanks to:
 
