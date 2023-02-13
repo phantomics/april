@@ -767,22 +767,27 @@
                                   (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
                                               (lambda (string)
                                                 (let ((char (character string)))
-                                                  (if (not olnchar)
-                                                      (append (list (if (of-lexicons idiom char :statements)
-                                                                        :st (if (of-lexicons idiom char
-                                                                                             :operators)
-                                                                                :op (when (of-lexicons
-                                                                                           idiom char
-                                                                                           :functions)
-                                                                                      :fn))))
-                                                              (if (of-lexicons idiom char :operators)
-                                                                  (list (if (of-lexicons idiom char
-                                                                                         :operators-pivotal)
-                                                                            :pivotal
-                                                                            (if (of-lexicons idiom char
-                                                                                             :operators-lateral)
-                                                                                :lateral :unitary))))
-                                                              (list char))))))
+                                                  (unless olnchar
+                                                    (or (and (not (of-lexicons idiom char :operators))
+                                                             (not (of-lexicons idiom char :statements))
+                                                             (getf (getf (idiom-lexicons idiom)
+                                                                         :symbolic-forms)
+                                                                   char))
+                                                        (append (list (if (of-lexicons idiom char :statements)
+                                                                          :st (if (of-lexicons idiom char
+                                                                                               :operators)
+                                                                                  :op (when (of-lexicons
+                                                                                             idiom char
+                                                                                             :functions)
+                                                                                        :fn))))
+                                                                (if (of-lexicons idiom char :operators)
+                                                                    (list (if (of-lexicons idiom char
+                                                                                           :operators-pivotal)
+                                                                              :pivotal
+                                                                              (if (of-lexicons idiom char
+                                                                                               :operators-lateral)
+                                                                                  :lateral :unitary))))
+                                                                (list char)))))))
                                   (=transform (%and (?test (#'numeric-string-p)
                                                         (=subseq (%some (?numeric-character))))
                                                     (=subseq (%some (?numeric-character))))

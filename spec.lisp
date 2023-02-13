@@ -1367,7 +1367,7 @@
             (is "x←1 ⋄ 3→one two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
             (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
-     (symbolic :outer-product-designator2))
+     (symbolic :outer-product-designator))
   (\: (has :title "Guard Indicator")
       (symbolic :guard-indicator)))
 
@@ -1525,6 +1525,7 @@
                  (if (and (listp left)
                           (symbolp (second left))
                           (string= "∘" (string (second left))))
+                     ;; (eq left :outer-product-designator)
                      `(operate-producing-outer ,right)
                      `(op-compose 'vacomp-produce :right (sub-lex ,right)
                                                   :left (sub-lex ,left) :index-origin index-origin))))

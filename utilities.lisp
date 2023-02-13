@@ -1695,15 +1695,16 @@
              (let ((processed) (guard-encountered) (agets-encountered))
                (loop :for item :in form-content :for ix :from 0 :while (and (not guard-encountered)
                                                                             (not agets-encountered))
+                     ;; (april (with (:state :print-to out-str) (:space unit-test-staging)) "⎕←x←1 2 3")
+                     ;; {n←v←3/⊂5⍴0 ⋄ n[(1 1)]←⍵ ⋄ v[(⊂1 1)]←⍵ ⋄ n,v} 5
                      :do (let ((guard-sym-index)
                                (processed-form (lexer-postprocess item idiom space form-meta)))
                            (loop :for d :in processed-form :for dx :from 0
-                                 :when (and (listp d) (eq :fn (first d))
-                                            (characterp (second d)) (char= #\: (second d)))
-                                   :do (setq guard-sym-index dx)
+                                 :when (eq d :guard-indicator) :do (setq guard-sym-index dx)
                                  :when (and (= dx (- (length processed-form) 2))
-                                            (and (listp d) (eq :fn (first d))
-                                                 (characterp (second d)) (char= #\← (second d))
+                                            (and ;; (listp d) (eq :fn (first d))
+                                                 ;; (characterp (second d)) (char= #\← (second d))
+                                                 (eq d :special-lexical-form-assign)
                                                  (not (and (= 3 (length processed-form))
                                                            (numberp (nth (1- dx) processed-form))))
                                                  (let ((assigned (nth (1- dx) processed-form))
@@ -1813,7 +1814,9 @@
       (match tokens
         ((list (guard axes-form (and (listp axes-form) (eq :ax (first axes-form))))
                (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
-               '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
+               ;; '(:fn #\←)
+               :special-lexical-form-assign
+               (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
          ;; handle function currying with axes, like ax←,[1.5]
          (if (eq :op (first fn-form))
              (let ((valence (second fn-form)))
@@ -1824,7 +1827,7 @@
                                                                       :lop-syms :pop-syms))))
                    (when (is-workspace-value symbol)
                      (error "The name [~a] already designates a value." symbol)))
-               (list axes-form fn-form '(:fn #\←) symbol))
+               (list axes-form fn-form :special-lexical-form-assign symbol))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
                         (progn (when (is-workspace-value symbol)
                                  (makunbound (intern (string symbol) space)))
@@ -1835,9 +1838,10 @@
                       (list (cons :ax (loop :for item :in each-axis
                                             :collect (lexer-postprocess item idiom
                                                                         space closure-meta-form)))
-                            fn-form '(:fn #\←) symbol)))))
+                            fn-form :special-lexical-form-assign symbol)))))
         ((list (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
-               '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍺ ⍺⍺ ⍵⍵))))))
+               :special-lexical-form-assign
+               (guard symbol (and (symbolp symbol) (not (member symbol '(⍺ ⍺⍺ ⍵⍵))))))
          ;; handle function assignments like fn←{⍵+5} or aliasing like fn←+
          (if (characterp (second fn-form))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
@@ -1845,7 +1849,7 @@
                                  (makunbound (intern (string symbol) space)))
                                (setf (symbol-function (intern (string symbol) space))
                                      #'dummy-nargument-function)))
-                    (list fn-form '(:fn #\←) symbol))
+                    (list fn-form :special-lexical-form-assign symbol))
              (if (eq :op (first fn-form)) ;; handle operator aliases like x←⍤
                  (let ((valence (second fn-form)))
                    (if closure-meta (unless (member symbol (getf closure-meta
@@ -1855,7 +1859,7 @@
                                                                           :lop-syms :pop-syms))))
                        (when (is-workspace-value symbol)
                          (error "The name [~a] already designates a value." symbol)))
-                   (list fn-form '(:fn #\←) symbol))
+                   (list fn-form :special-lexical-form-assign symbol))
                  (if (listp (second fn-form))
                      (let ((fn-meta (second fn-form)))
                        (when (and fn-meta closure-meta-form)
@@ -1892,8 +1896,10 @@
                                           (setf (symbol-function (intern (string symbol) space))
                                                 #'dummy-nargument-function)))))
                          (list (list (if is-operator :op :fn) fn-meta processed)
-                               '(:fn #\←) (lexer-postprocess symbol idiom space closure-meta-form))))))))
-        ((list form '(:fn #\←) (guard symbol (and (symbolp symbol) (not (member symbol '(⍵ ⍺))))))
+                               :special-lexical-form-assign
+                               (lexer-postprocess symbol idiom space closure-meta-form))))))))
+        ((list form :special-lexical-form-assign
+               (guard symbol (and (symbolp symbol) (not (member symbol '(⍵ ⍺))))))
          ;; handle other types of function assignment
          (if (symbolp form)
              (if (or (and closure-meta (member form '(⍺⍺ ⍵⍵)))
@@ -1923,7 +1929,7 @@
                                 (push symbol (getf closure-meta :var-syms)))
                  (fmakunbound symbol)))
          (list (lexer-postprocess form idiom space closure-meta-form)
-               '(:fn #\←) (lexer-postprocess symbol idiom space closure-meta-form)))
+               :special-lexical-form-assign (lexer-postprocess symbol idiom space closure-meta-form)))
         ((guard fn-form (and (listp fn-form) (eq :fn (first fn-form))))
          ;; handle function forms like {⍵+5} by themselves, as when called inline
          (let* ((form-meta (when (listp (second fn-form)) (second fn-form)))
@@ -1971,8 +1977,9 @@
                         symbols-valid))))
            (let* ((assignment-indices)
                   (items (loop :for item :in list :for ix :from 0
-                               :do (when (and (listp item) (eq :fn (first item)) 
-                                              (characterp (second item)) (char= #\← (second item)))
+                               :do (when ;; (and (listp item) (eq :fn (first item)) 
+                                         ;;      (characterp (second item)) (char= #\← (second item)))
+                                     (eq item :special-lexical-form-assign)
                                      (push ix assignment-indices))
                                :collect (lexer-postprocess item idiom space closure-meta-form))))
              (loop :for index :in (reverse assignment-indices)
@@ -1999,10 +2006,13 @@
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
   (let ((previous-token) (token-list (or token-list (list :tokens))))
     (loop :for token :in tokens
-          :do (when (and previous-token (listp previous-token)
-                         (eql :fn (first previous-token))
-                         (characterp (second previous-token))
-                         (char= #\← (second previous-token)))
+          :do (when (and previous-token
+                         (eq previous-token :special-lexical-form-assign)
+                         ;; (listp previous-token)
+                         ;; (eql :fn (first previous-token))
+                         ;; (characterp (second previous-token))
+                         ;; (char= #\← (second previous-token))
+                         )
                 ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
                 ;; be added to the list to hoist if eligible
                 (setq in-assignment-context t))
@@ -2134,7 +2144,7 @@
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil :functions-symbolic nil
                         :functions-scalar-monadic nil :functions-scalar-dyadic nil :operators-lateral nil
                         :operators-pivotal nil :operators-unitary nil :operators nil :statements nil
-                        :symbolic-lexical-forms nil)))
+                        :symbolic-forms nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2291,14 +2301,14 @@
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
-                                   (push (second implementation) (getf lexicons :symbolic-lexical-forms))
-                                   (push glyph-char (getf lexicons :symbolic-lexical-forms))
+                                   (push (second implementation) (getf lexicons :symbolic-forms))
+                                   (push glyph-char (getf lexicons :symbolic-forms))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
                                            :do (let ((a-char (aref (string alias) 0)))
                                                  (push (second implementation)
-                                                       (getf lexicons :symbolic-lexical-forms))
-                                                 (push a-char (getf lexicons :symbolic-lexical-forms)))))
+                                                       (getf lexicons :symbolic-forms))
+                                                 (push a-char (getf lexicons :symbolic-forms)))))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
                                            :do (let ((a-char (aref (string alias) 0)))
