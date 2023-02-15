@@ -6,7 +6,6 @@
 
 ;; add ⍨'s alias to its category
 (push #\向 *value-composable-lexical-operators*)
-;; 積　点
 
 (defmacro uzuki (&rest args)
   "A macro aliasing April."
@@ -177,6 +176,7 @@
              (叉 (has :title "また／サ")
                  (alias-of $))))
 
+;; 積　点
 ;; aliases of argument/operand symbols with cow/horse derived
 ;; characters referencing Gozu and Mezu
 ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))

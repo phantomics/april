@@ -2241,6 +2241,9 @@
                                                                                 glyph-sym)
                                                                         *package-name-string*))
                                                 (push fn-symbol symbol-set))
+
+                                              ;; push a symbol-value assignment if aliasing
+                                              ;; a symbolic function like ∘ for ∘.
                                               (push (if (setf is-symbolic-alias symbolic-alias)
                                                         `(symbol-value ',aliased)
                                                         `(symbol-function ',aliased))
@@ -2309,7 +2312,6 @@
                                          assignment-forms))
                                   (symbolic (incf fn-count)
                                    (push-char-and-aliases :functions :functions-symbolic)
-                                   ;; (push (second implementation) (getf lexicons :symbolic-forms))
                                    (push glyph-char (getf lexicons :symbolic-forms))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
@@ -2334,6 +2336,9 @@
                                    (push-char-and-aliases :operators :operators-unitary :statements)
                                    (push (second implementation) assignment-forms)))
 
+                                ;; push a symbol-value assignment if a symbolic
+                                ;; function or its alias is being assigned, otherwise
+                                ;; push a symbol-function assignment
                                 (push `(,(if (or is-symbolic-alias
                                                  (and (eql 'functions spec-type)
                                                       (eql 'symbolic item-type)))

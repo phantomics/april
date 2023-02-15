@@ -74,7 +74,7 @@ This demonstrates the basic use case of the progress bar. You can also customize
 
 
 (let ((advancer (april-print-progress-bar 100 :increments (april "1 2÷3")
-                                              :glyphs "⌸⍠╵⊥ ╾┝┥═╤╞╡")))
+                                              :width 80 :glyphs "⌸⍠╵⊥ ┑┝┥═╤╞╡")))
   (loop :for i :below 100 :do (funcall advancer) (sleep 0.05)))
 
 This will invoke a progress bar with different demarcations (at each third rather than each quarter) printed with a different set of characters. Try printing progress bars with your own character sets - the possibilities are endless.
@@ -91,10 +91,13 @@ This will invoke a progress bar with different demarcations (at each third rathe
   mrk ← 1+⍸ind ← ¯1⌽(⊢<1∘⌽)(⍵×int ← ⍺[⍋⍺])⍸⍳⍵-2
       ⍝ locations of marked intervals, with width minus 2 for enclosing chars
       ⍝ intervals are indexed grading up so they can be specified in any order
-  ⎕   ← {(⊃,/⍵)@(⊃,/1+mrk+⍳∘≢¨⍵)⊢(4↓8↑glyphs)[2,ind,3]} ('%',⍨⍕)¨⌊100×int
+  msk ← (2-⍨/mrk,⍵-2)>≢¨lab ← ('%',⍨⍕)¨⌊100×int↑⍨≢mrk
+      ⍝ a mask used to skip printing increment labels when there isn't enough space
+      ⍝ intervals are omitted from the mask when there isn't room to print the mark
+  ⎕   ← {(⊃,/⍵)@(⊃,/1+(msk/mrk)+⍳∘≢¨⍵)⊢(4↓8↑glyphs)[2,ind,3]} msk/lab
       ⍝ characters on line 1: denoted increments
   ⎕   ← (8↓glyphs)[2,ind,3]
-      ⍝ characters on line 2: span with ticks
+      ⍝ characters on line 2: span with increment marks
 
   mrk ⍝ return indices of marked increments
 }"
@@ -109,7 +112,7 @@ This will invoke a progress bar with different demarcations (at each third rathe
                       (princ (aref glyphs 0))
                       (when (or (/= total breadth)
                                 (< count interval-index))
-                        (if (and (< current-interval (length increments))
+                        (if (and (< current-interval (length marked-intervals))
                                  (= printed (aref marked-intervals current-interval)))
                             (progn (incf current-interval)
                                    (princ (aref glyphs 3)))

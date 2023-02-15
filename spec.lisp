@@ -44,7 +44,8 @@
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
-         :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators ".")
+         :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators "."
+         :newline-characters (coerce '(#\Newline #\Return) 'string))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
@@ -107,7 +108,7 @@
             ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
             :prep-code-string
             (lambda (idiom)
-              (let ((nlstring (coerce '(#\Newline #\Return) 'string))
+              (let ((nlstring (of-system idiom :newline-characters))
                     (comment-delimiters (of-system idiom :comment-delimiters)))
                 (lambda (string)
                   (let ((commented) (osindex 0)
@@ -693,12 +694,12 @@
              (is "(2 3⍴⍳9),[0.5]2 3⍴⍳9" #3A(((1 2 3) (4 5 6)) ((1 2 3) (4 5 6))))
              (is "(2 3⍴⍳9),[2.5]2 3⍴⍳9" #3A(((1 1) (2 2) (3 3)) ((4 4) (5 5) (6 6))))
              (is "'UNDER',[1.0]'-'" "UNDER-")
-             (is "↓'UNDER',[0.5]'-'" #("UNDER"
+             (is "↓'UNDER',[1r2]'-'" #("UNDER"
                                        "-----"))
              (is "↓'HELLO',[1.5]'.'" #("H." "E." "L." "L." "O."))
              (is "(8+2 2 2⍴⍳8),[1.5]2 2 2⍴⍳8" #4A((((9 10) (11 12)) ((1 2) (3 4)))
                                                   (((13 14) (15 16)) ((5 6) (7 8)))))
-             (is "(8+2 2 2⍴⍳8),[2.5]2 2 2⍴⍳8" #4A((((9 10) (1 2)) ((11 12) (3 4)))
+             (is "(8+2 2 2⍴⍳8),[5r2]2 2 2⍴⍳8" #4A((((9 10) (1 2)) ((11 12) (3 4)))
                                                   (((13 14) (5 6)) ((15 16) (7 8)))))
              (is "(8+2 2 2⍴⍳8),[0.5]2 2 2⍴⍳8" #4A((((9 10) (11 12)) ((13 14) (15 16)))
                                                   (((1 2) (3 4)) ((5 6) (7 8)))))))
@@ -2002,6 +2003,7 @@
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Lateral operator defined and used within a funciton."
        "lop←{8 ⍺⍺ 5×2+⍵} ⋄ {× lop ⍵} 5" 280)
+  (for "Simple inline lateral operator." "+{⍵⍵ ⍺⍺/⍵}+⊢3" 3)
   (for "Pivotal operator definition." "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ 2-pop≤⊢3" -1)
   (for "Pivotal operator defined and used within a function."
        "pop←{(⍵ ⍵⍵ ⍺) ⍺⍺ (⍺ ⍵⍵ ⍵)} ⋄ {2-pop≤⊢⍵} 3" -1)
