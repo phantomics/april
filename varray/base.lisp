@@ -604,12 +604,13 @@
       (vader-content varray)
       (let* ((output-shape (shape-of varray))
              (output-rank (length output-shape))
-             ;; (spec (specify varray))
+             (spec (specify varray))
              (metadata (getf (metadata-of varray) :shape))
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
              (to-subrender))
-        (specify varray)
+        ;; (specify varray)
+        (declare (ignore spec))
         
         (let ((gen (and coordinate-type en-type
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
