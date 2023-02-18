@@ -563,7 +563,12 @@
                                  (if alpha (error "This function does not take a left argument.")
                                      (funcall (or fn-right fn-left)
                                               (if fn-right omega right)
-                                              (if fn-left omega left)))))))
+                                              (if fn-left omega left))))))
+                :operator-type :beside
+                :right-meta (when fn-right (apply fn-right :get-metadata (when (or alpha (not fn-left))
+                                                                           (list nil))))
+                :left-meta (when fn-left (apply fn-left :get-metadata (when (or alpha (not fn-right))
+                                                                        (list nil)))))
           (if (and fn-right fn-left)
               (let ((processed (funcall fn-right omega)))
                 (if alpha (funcall fn-left processed alpha)
@@ -787,7 +792,15 @@
   (lambda (omega &optional alpha environment blank)
     (declare (ignore alpha environment blank))
     ;; TODO: make an alternate stencil that's auto-mixed
-    (let ((stenciled (make-instance 'vacomp-stencil
-                                    :omega omega :right right-value :left left-function)))
-      (make-instance 'vader-mix :base (vrender stenciled)
-                                :nested nil :axis (rank-of stenciled)))))
+    (let ((lfn-meta (funcall left-function :get-metadata)))
+      ;; (print (list :fm (funcall left-function :get-metadata)))
+      (if (and (eq :beside (getf lfn-meta :operator-type)) nil
+               (and (characterp (getf (getf lfn-meta :right-meta) :lexical-reference))
+                    (char=  #\⊂ (getf (getf lfn-meta :right-meta) :lexical-reference)))
+               (and (characterp (getf (getf lfn-meta :left-meta)  :lexical-reference))
+                    (char=  #\⊢ (getf (getf lfn-meta :left-meta)  :lexical-reference))))
+          (make-instance 'vacomp-stencil :omega omega :right right-value :left #'identity)
+          (let ((stenciled (make-instance 'vacomp-stencil
+                                          :omega omega :right right-value :left left-function)))
+            (make-instance 'vader-mix :base (vrender stenciled)
+                                      :nested nil :axis (rank-of stenciled))))))
