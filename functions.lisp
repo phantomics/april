@@ -796,9 +796,10 @@
       ;; (print (list :fm (funcall left-function :get-metadata)))
       (if (and (eq :beside (getf lfn-meta :operator-type)) nil
                (and (characterp (getf (getf lfn-meta :right-meta) :lexical-reference))
-                    (char= #\⊂ (getf (getf lfn-meta :right-meta) :lexical-reference)))
-               (and (characterp (getf (getf lfn-meta :left-meta) :lexical-reference))
-                    (char= #\⊢ (getf (getf lfn-meta :left-meta) :lexical-reference))))
+
+                    (char=  #\⊂ (getf (getf lfn-meta :right-meta) :lexical-reference)))
+               (and (characterp (getf (getf lfn-meta :left-meta)  :lexical-reference))
+                    (char=  #\⊢ (getf (getf lfn-meta :left-meta)  :lexical-reference))))
           (make-instance 'vacomp-stencil :omega omega :right right-value :left #'identity)
           (let ((stenciled (make-instance 'vacomp-stencil
                                           :omega omega :right right-value :left left-function)))

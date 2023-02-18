@@ -1211,9 +1211,9 @@
   "Format a function to be called within generated APL code."
   (if (not (characterp glyph-char))
       glyph-char
-      (let* ((fn-meta (handler-case (funcall (symbol-function
-                                              (find-symbol (format nil "APRIL-LEX-FN-~a" glyph-char)
-                                                           *package-name-string*))
+      (let* ((fn-meta (handler-case (funcall (symbol-function (find-symbol
+                                                               (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                               *package-name-string*))
                                              :get-metadata)
                         (error () nil)))
              (is-scalar (of-lexicons *april-idiom* glyph-char
@@ -1228,7 +1228,6 @@
                                     (eq :dyadic args)))
                   (list (if is-scalar `(make-instance
                                         'vader-calculate :function #'-
-                                        ;; :params (list :lexical-reference #\-)
                                                          :base (list ,(caar axes) index-origin))
                             (cons 'list (first axes)))))))))
 
@@ -1404,9 +1403,7 @@
   "Import a value from an external workspace, implementing the ⎕XWV function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
     (flet ((process-string (string)
-             (let ((string (if (stringp string)
-                               string (string string))))
-               (symbol-value (find-symbol string space)))))
+             (symbol-value (find-symbol (coerce string 'string) space))))
       (if (stringp symbol-string)
           (process-string symbol-string)
           (when (listp symbol-string)
@@ -1887,23 +1884,23 @@
                      (and (find-symbol (string form) space)
                           (fboundp (find-symbol (string form) space))))
                  (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                     (progn (setf (symbol-function (intern (string symbol) space))
-                                  #'dummy-nargument-function)
-                            (setf (symbol-value (intern (string symbol) space))
-                                  (list :meta))))
+                     (setf (symbol-function (intern (string symbol) space))
+                           #'dummy-nargument-function
+                           (symbol-value (find-symbol (string symbol) space))
+                           (list :meta)))
                  ;; TODO: add cases for dynamically bound operators
                  (if (and closure-meta (of-meta-hierarchy closure-meta :lop-syms form))
                      (if closure-meta (push symbol (getf closure-meta :lop-syms))
-                         (progn (setf (symbol-function (intern (string symbol) space))
-                                      #'dummy-operator)
-                                (setf (symbol-value (intern (string symbol) space))
-                                      (list :meta :valence :lateral))))
+                         (setf (symbol-function (intern (string symbol) space))
+                               #'dummy-operator
+                               (symbol-value (find-symbol (string symbol) space))
+                               (list :meta :valence :lateral)))
                      (if (and closure-meta (of-meta-hierarchy closure-meta :pop-syms form))
                          (if closure-meta (push symbol (getf closure-meta :pop-syms))
-                             (progn (setf (symbol-function (intern (string symbol) space))
-                                          #'dummy-operator)
-                                    (setf (symbol-value (intern (string symbol) space))
-                                          (list :meta :valence :pivotal))))
+                             (setf (symbol-function (intern (string symbol) space))
+                                   #'dummy-operator
+                                   (symbol-value (find-symbol (string symbol) space))
+                                   (list :meta :valence :pivotal)))
                          (if closure-meta (push symbol (getf closure-meta :var-syms))
                              (fmakunbound symbol)))))
              (if closure-meta (unless (member symbol (getf closure-meta :var-syms))
@@ -2227,8 +2224,8 @@
                                                 ;; since the april-lex-sy-X symbol is the one that should
                                                 ;; be assigned; its default form must also be removed
                                                 ;; from the symbol set with the correct form added
-                                                (setf symbol-set (remove fn-symbol symbol-set))
-                                                (setf fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
+                                                (setf symbol-set (remove fn-symbol symbol-set)
+                                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
                                                                                 glyph-sym)
                                                                         *package-name-string*))
                                                 (push fn-symbol symbol-set))
