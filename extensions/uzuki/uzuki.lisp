@@ -32,8 +32,11 @@
                                 (if sym-pos (aref matching-symbols sym-pos)
                                     (funcall base-function idiom-name symbols element)))))
             :match-token-character
-            (lambda (idiom)
-              (lambda (char) (or (and (is-alphanumeric char)
+            (let ((supplemental-chars))
+              (lambda (char idiom)
+                (when (not supplemental-chars)
+                  (setf supplemental-chars (of-system idiom :supplemental-token-chars)))
+                (or (and (is-alphanumeric char)
                                       (not (or (of-lexicons idiom char :functions)
                                                (of-lexicons idiom char :operators)
                                                (of-lexicons idiom char :statements))))

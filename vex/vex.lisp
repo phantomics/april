@@ -547,9 +547,7 @@
                                       (append output (loop :for char :below (length glyph)
                                                            :collect (aref glyph char)))))))))
 
-(let ((collected-matched-closing-chars) (axis-string-processor)
-      (match-axis-separator) (match-path-separator) (number-formatter)
-      (numeric-char-matcher) (token-char-matcher))
+(let ((collected-matched-closing-chars) (number-formatter))
   (defun =vex-string (idiom &optional output special-precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
     (let ((string-found) (olnchar) (symbols) (is-function-closure)
@@ -559,35 +557,25 @@
           (uniform-char) (arg-rooted-path) (fix 0))
       (unless collected-matched-closing-chars
         (setf collected-matched-closing-chars (funcall (of-utilities idiom :collect-delimiters) idiom)))
-      
-      (unless axis-string-processor
-        (setf axis-string-processor (funcall (of-utilities idiom :process-axis-string) idiom)))
-      
-      (unless match-axis-separator
-        (setf match-axis-separator
-              (funcall (of-utilities idiom :match-axis-separating-character) idiom)))
-      
-      (unless match-path-separator
-        (setf match-path-separator (funcall (of-utilities idiom :match-path-joining-character) idiom)))
 
       (unless number-formatter
         (setf number-formatter (funcall (of-utilities idiom :build-number-formatter) idiom)))
-
-      (unless token-char-matcher
-        (setf token-char-matcher (funcall (of-utilities idiom :match-token-character) idiom)))
-
-      (unless numeric-char-matcher
-        (setf numeric-char-matcher (funcall (of-utilities idiom :match-numeric-character) idiom)))
       
       (labels ((?blank-character     () (?satisfies (of-utilities idiom :match-blank-character)))
                (?newline-character   () (?satisfies (of-utilities idiom :match-newline-character)))
-               (?numeric-character   () (?satisfies numeric-char-matcher))
-               (?token-character     () (?satisfies token-char-matcher))
+               (?numeric-character   () (?satisfies (lambda (i)
+                                                      (funcall (of-utilities idiom :match-numeric-character)
+                                                               i idiom))))
+               (?token-character     () (?satisfies (lambda (i)
+                                                      (funcall (of-utilities idiom :match-token-character)
+                                                               i idiom))))
                (numeric-string-p (item) (funcall number-formatter item))
-               (pjoin-char-p     (item) (funcall match-path-separator item))
+               (pjoin-char-p     (item) (funcall (of-utilities idiom :match-path-joining-character)
+                                                 item idiom))
                (utoken-p         (item) (funcall (of-utilities idiom :match-uniform-token-character) item))
                (p-or-u-char-p (is-path uniform-char)
-                 (if is-path (lambda (item) (funcall token-char-matcher item))
+                 (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character)
+                                                     item idiom))
                      (lambda (item) (char= uniform-char item))))
                (=string (delimiters)
                  (let ((lastc) (delimiter) (escape-indices) (char-index 0))
@@ -702,9 +690,12 @@
                (=vex-errant-axis-separating-character ()
                  (let ((errant-char))
                    (=destructure (_ _)
-                                 (=list (?satisfies (lambda (char)
-                                                      (when (funcall match-axis-separator char)
-                                                        (setq errant-char char))))
+                                 (=list (?satisfies
+                                         (lambda (char)
+                                           (when (funcall (of-utilities
+                                                           idiom :match-axis-separating-character)
+                                                          char idiom)
+                                             (setq errant-char char))))
                                         (=subseq (%any (?satisfies 'characterp))))
                      (error "Misplaced axis delimiter ~a." errant-char))))
                (=vex-errant-closing-character (boundary-chars)
@@ -731,7 +722,8 @@
                                       meta))))
                (handle-axes ()
                  (lambda (input-string)
-                   (let* ((each-axis (funcall axis-string-processor input-string))
+                   (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
+                                              input-string idiom))
                           (each-axis-code (loop :for axis :in each-axis
                                                 :collect (first (process-lines axis)))))
                      (cons :ax each-axis-code))))
@@ -864,110 +856,106 @@
                             output (cons item output))
                         rest special-precedent))))))))
 
-(let ((token-char-matcher))
-  (defun vex-program (idiom options &optional string &rest inline-arguments)
-    "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
-    (let* ((state (rest (assoc :state options)))
-           (print-tokens (assoc :print-tokens options))
-           (space (concatenate 'string (string-upcase (idiom-name idiom))
-                               "-WORKSPACE-" (if (not (second (assoc :space options)))
-                                                 "COMMON" (string-upcase (second (assoc :space options))))))
-           (state-to-use) (system-to-use))
-      
-      (unless token-char-matcher
-        (setf token-char-matcher (funcall (of-utilities idiom :match-token-character) idiom)))
-      
-      (labels ((assign-from (source dest)
-                 (if (not source)
-                     dest (progn (setf (getf dest (first source)) (second source))
-                                 (assign-from (cddr source) dest))))
-               (validate-var-symbol (symbol)
-                 (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
-                   (loop :for c :across string-sym
-                         :always (funcall (of-utilities idiom :match-token-character) c))))
-               (process-lines (string &optional space params output)
-                 (if (zerop (length string))
-                     (funcall (of-utilities idiom :compile-form)
-                              (reverse output) :space space :params params)
-                     (let ((result (funcall (of-utilities idiom :lexer-postprocess)
-                                            (parse string (=vex-string idiom))
-                                            idiom space)))
-                       (when print-tokens (print (first result)))
-                       (process-lines (second result) space params (cons (first result) output)))))
-               (get-item-refs (items-to-store &optional storing-functions)
-                 ;; Function or variable names passed as a string may be assigned literally as long as there are
-                 ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a
-                 ;; variable named |iD| will become id within the idiom. Strings are used instead of pipe-quoting
-                 ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
-                 ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
-                 (loop :for item :in items-to-store
-                       :collect (list (if storing-functions (of-utilities idiom :assign-fun-sym)
-                                          (of-utilities idiom :assign-val-sym))
-                                      (if (validate-var-symbol (first item))
-                                          (let ((symbol (if (and (stringp (first item))
-                                                                 (loop :for c :across (first item)
-                                                                       :never (char= #\- c)))
-                                                            (string (first item))
-                                                            (lisp->camel-case (first item)))))
-                                            ;; if functions or variables are to be stored in their workspace,
-                                            ;; initialize their values so compilation will proceed correctly
-                                            (funcall (of-utilities idiom :process-stored-symbol)
-                                                     symbol space storing-functions)
-                                            (intern symbol))
-                                          (error "Invalid characters present in symbol ~a passed to :~a."
-                                                 (first item) (if storing-functions :store-fun :store-val)))
-                                      (second item)))))
+(defun vex-program (idiom options &optional string &rest inline-arguments)
+  "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
+  (let* ((state (rest (assoc :state options)))
+         (print-tokens (assoc :print-tokens options))
+         (space (concatenate 'string (string-upcase (idiom-name idiom))
+                             "-WORKSPACE-" (if (not (second (assoc :space options)))
+                                               "COMMON" (string-upcase (second (assoc :space options))))))
+         (state-to-use) (system-to-use))
+    
+    (labels ((assign-from (source dest)
+               (if (not source)
+                   dest (progn (setf (getf dest (first source)) (second source))
+                               (assign-from (cddr source) dest))))
+             (validate-var-symbol (symbol)
+               (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
+                 (loop :for c :across string-sym
+                       :always (funcall (of-utilities idiom :match-token-character) c idiom))))
+             (process-lines (string &optional space params output)
+               (if (zerop (length string))
+                   (funcall (of-utilities idiom :compile-form)
+                            (reverse output) :space space :params params)
+                   (let ((result (funcall (of-utilities idiom :lexer-postprocess)
+                                          (parse string (=vex-string idiom))
+                                          idiom space)))
+                     (when print-tokens (print (first result)))
+                     (process-lines (second result) space params (cons (first result) output)))))
+             (get-item-refs (items-to-store &optional storing-functions)
+               ;; Function or variable names passed as a string may be assigned literally as long as there are
+               ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a
+               ;; variable named |iD| will become id within the idiom. Strings are used instead of pipe-quoting
+               ;; because there's no way to tell the difference between symbols ABC and |ABC| after they
+               ;; pass the reader and the uppercase symbol names are converted to lowercase by default.
+               (loop :for item :in items-to-store
+                     :collect (list (if storing-functions (of-utilities idiom :assign-fun-sym)
+                                        (of-utilities idiom :assign-val-sym))
+                                    (if (validate-var-symbol (first item))
+                                        (let ((symbol (if (and (stringp (first item))
+                                                               (loop :for c :across (first item)
+                                                                     :never (char= #\- c)))
+                                                          (string (first item))
+                                                          (lisp->camel-case (first item)))))
+                                          ;; if functions or variables are to be stored in their workspace,
+                                          ;; initialize their values so compilation will proceed correctly
+                                          (funcall (of-utilities idiom :process-stored-symbol)
+                                                   symbol space storing-functions)
+                                          (intern symbol))
+                                        (error "Invalid characters present in symbol ~a passed to :~a."
+                                               (first item) (if storing-functions :store-fun :store-val)))
+                                    (second item)))))
 
-        (symbol-macrolet ((ws-system (symbol-value (find-symbol "*SYSTEM*" space))))
+      (symbol-macrolet ((ws-system (symbol-value (find-symbol "*SYSTEM*" space))))
 
-          (setq state         (funcall (of-utilities idiom :preprocess-state-input) state)
-                state-to-use  (assign-from (getf ws-system :base-state) state-to-use)
-                state-to-use  (assign-from (getf ws-system :state) state-to-use)
-                state-to-use  (assign-from state state-to-use)
-                system-to-use (assign-from ws-system system-to-use)
-                system-to-use (assign-from state system-to-use))
+        (setq state         (funcall (of-utilities idiom :preprocess-state-input) state)
+              state-to-use  (assign-from (getf ws-system :base-state) state-to-use)
+              state-to-use  (assign-from (getf ws-system :state) state-to-use)
+              state-to-use  (assign-from state state-to-use)
+              system-to-use (assign-from ws-system system-to-use)
+              system-to-use (assign-from state system-to-use))
 
-          (if string
-              (let* ((string (if (stringp string)
-                                 ;; just pass the string through if it's not a pathname;
-                                 ;; if it is a pathname, evaluate it in case something like
-                                 ;; (asdf:system-relative-pathname ...) was passed
-                                 string (with-open-file (stream (eval string))
-                                          (apply #'concatenate
-                                                 (cons 'string (loop :for line := (read-line stream nil)
-                                                                     :while line
-                                                                     :append (list line '(#\Newline))))))))
-                     (input-vars (getf state-to-use :in))
-                     (output-vars (getf state-to-use :out))
-                     (stored-refs (append (get-item-refs (rest (assoc :store-val options)))
-                                          (get-item-refs (rest (assoc :store-fun options)) t)))
-                     (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
-                                           state-to-use))
-                     (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
-                                             input-vars space))
-                     (iv-list (mapcar (lambda (return-var) (intern (lisp->camel-case (first return-var))
-                                                                   (string (idiom-name idiom))))
-                                      input-vars))
-                     (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
-                                                                   (string (idiom-name idiom))))
-                                      output-vars))
-                     (string-prep (funcall (of-utilities idiom :prep-code-string)
-                                           idiom)))
-                (funcall (of-utilities idiom :build-compiled-code)
-                         (append (funcall (if output-vars #'values
-                                              (apply (of-utilities idiom :postprocess-compiled)
-                                                     (append (when (assoc :unrendered options)
-                                                               (list :unrendered t))
-                                                             system-to-use)
-                                                     inline-arguments))
-                                          (process-lines
-                                           (funcall string-prep string)
-                                           space (list :call-scope (list :input-vars iv-list
-                                                                         :output-vars ov-list))))
-                                 ;; if multiple values are to be output, add the (values) form at bottom
-                                 (when output-vars
-                                   (funcall (of-utilities idiom :process-multiple-outputs)
-                                            output-vars space (not (assoc :unrendered options)))))
-                         (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
-                               :by #'cddr :collect (string-upcase key))
-                         options system-vars vars-declared stored-refs space))))))))
+        (if string
+            (let* ((string (if (stringp string)
+                               ;; just pass the string through if it's not a pathname;
+                               ;; if it is a pathname, evaluate it in case something like
+                               ;; (asdf:system-relative-pathname ...) was passed
+                               string (with-open-file (stream (eval string))
+                                        (apply #'concatenate
+                                               (cons 'string (loop :for line := (read-line stream nil)
+                                                                   :while line
+                                                                   :append (list line '(#\Newline))))))))
+                   (input-vars (getf state-to-use :in))
+                   (output-vars (getf state-to-use :out))
+                   (stored-refs (append (get-item-refs (rest (assoc :store-val options)))
+                                        (get-item-refs (rest (assoc :store-fun options)) t)))
+                   (system-vars (funcall (of-utilities idiom :system-lexical-environment-interface)
+                                         state-to-use))
+                   (vars-declared (funcall (of-utilities idiom :build-variable-declarations)
+                                           input-vars space))
+                   (iv-list (mapcar (lambda (return-var) (intern (lisp->camel-case (first return-var))
+                                                                 (string (idiom-name idiom))))
+                                    input-vars))
+                   (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
+                                                                 (string (idiom-name idiom))))
+                                    output-vars))
+                   (string-prep (funcall (of-utilities idiom :prep-code-string)
+                                         idiom)))
+              (funcall (of-utilities idiom :build-compiled-code)
+                       (append (funcall (if output-vars #'values
+                                            (apply (of-utilities idiom :postprocess-compiled)
+                                                   (append (when (assoc :unrendered options)
+                                                             (list :unrendered t))
+                                                           system-to-use)
+                                                   inline-arguments))
+                                        (process-lines
+                                         (funcall string-prep string)
+                                         space (list :call-scope (list :input-vars iv-list
+                                                                       :output-vars ov-list))))
+                               ;; if multiple values are to be output, add the (values) form at bottom
+                               (when output-vars
+                                 (funcall (of-utilities idiom :process-multiple-outputs)
+                                          output-vars space (not (assoc :unrendered options)))))
+                       (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
+                             :by #'cddr :collect (string-upcase key))
+                       options system-vars vars-declared stored-refs space)))))))
