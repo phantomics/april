@@ -396,14 +396,14 @@
         ;; of symbolic functions called in the immediate scope
         (let ((h-sym (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
           (if (and (not h-sym) (position (first function) #(inws inwsd) :test #'eql))
-              (push (find-symbol (string (second function)) space)
+              (push (intern (string (second function)) space)
                     (getf (rest meta-form) :symfns-called))
               (if (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))
                   ;; if this function is listed as a side-effecting function in the local scope
                   ;; (as for evaluations like {acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵⋄⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5)
                   ;; push it to the list of side-effecting functions called in the immediate scope
                   (when (symbolp (second function))
-                    (push (find-symbol (string (second function)) space)
+                    (push (intern (string (second function)) space)
                           (getf (rest meta-form) :sefns-called)))
                   (if (eql 'alambda (first function))
                       (let ((fn-meta (rest (second (third function)))))
@@ -1887,23 +1887,23 @@
                      (and (find-symbol (string form) space)
                           (fboundp (find-symbol (string form) space))))
                  (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                     (setf (symbol-function (intern (string symbol) space))
-                           #'dummy-nargument-function
-                           (symbol-value (find-symbol (string symbol) space))
-                           (list :meta)))
+                     (progn (setf (symbol-function (intern (string symbol) space))
+                                  #'dummy-nargument-function)
+                            (setf (symbol-value (intern (string symbol) space))
+                                  (list :meta))))
                  ;; TODO: add cases for dynamically bound operators
                  (if (and closure-meta (of-meta-hierarchy closure-meta :lop-syms form))
                      (if closure-meta (push symbol (getf closure-meta :lop-syms))
-                         (setf (symbol-function (intern (string symbol) space))
-                               #'dummy-operator
-                               (symbol-value (find-symbol (string symbol) space))
-                               (list :meta :valence :lateral)))
+                         (progn (setf (symbol-function (intern (string symbol) space))
+                                      #'dummy-operator)
+                                (setf (symbol-value (intern (string symbol) space))
+                                      (list :meta :valence :lateral))))
                      (if (and closure-meta (of-meta-hierarchy closure-meta :pop-syms form))
                          (if closure-meta (push symbol (getf closure-meta :pop-syms))
-                             (setf (symbol-function (intern (string symbol) space))
-                                   #'dummy-operator
-                                   (symbol-value (find-symbol (string symbol) space))
-                                   (list :meta :valence :pivotal)))
+                             (progn (setf (symbol-function (intern (string symbol) space))
+                                          #'dummy-operator)
+                                    (setf (symbol-value (intern (string symbol) space))
+                                          (list :meta :valence :pivotal))))
                          (if closure-meta (push symbol (getf closure-meta :var-syms))
                              (fmakunbound symbol)))))
              (if closure-meta (unless (member symbol (getf closure-meta :var-syms))
@@ -2227,8 +2227,8 @@
                                                 ;; since the april-lex-sy-X symbol is the one that should
                                                 ;; be assigned; its default form must also be removed
                                                 ;; from the symbol set with the correct form added
-                                                (setf symbol-set (remove fn-symbol symbol-set)
-                                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
+                                                (setf symbol-set (remove fn-symbol symbol-set))
+                                                (setf fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
                                                                                 glyph-sym)
                                                                         *package-name-string*))
                                                 (push fn-symbol symbol-set))
