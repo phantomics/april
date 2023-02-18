@@ -10,7 +10,6 @@
   (defun extend-allocator-vader-calculate (&key base axis function index-origin params)
     "Extend allocation behavior of operate class; currently, this allows for things like 1+⍳9 returning a modified integer progression vector rather than an instance of the vader-calculate class."
     (declare (ignore axis index-origin))
-    ;; (print (list :ba base params))
     (typecase base
       (list
        (cond

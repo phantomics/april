@@ -97,7 +97,6 @@
                                  (the (unsigned-byte 64)
                                       (+ origin (the (unsigned-byte 62)
                                                      (funcall converter (floor index repeat))))))))))
-    ;; (print (list :pr params))
     (case (getf params :format)
       (:encoded (setf (getf params :format) :linear)
        (generator-of vvector nil params))

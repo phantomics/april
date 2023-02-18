@@ -793,14 +793,13 @@
     (declare (ignore alpha environment blank))
     ;; TODO: make an alternate stencil that's auto-mixed
     (let ((lfn-meta (funcall left-function :get-metadata)))
-      ;; (print (list :fm (funcall left-function :get-metadata)))
-      (if (and (eq :beside (getf lfn-meta :operator-type)) nil
+      (if (and (eq :beside (getf lfn-meta :operator-type))
                (and (characterp (getf (getf lfn-meta :right-meta) :lexical-reference))
-
                     (char=  #\⊂ (getf (getf lfn-meta :right-meta) :lexical-reference)))
                (and (characterp (getf (getf lfn-meta :left-meta)  :lexical-reference))
                     (char=  #\⊢ (getf (getf lfn-meta :left-meta)  :lexical-reference))))
-          (make-instance 'vacomp-stencil :omega omega :right right-value :left #'identity)
+          (make-instance 'vacomp-stencil :omega omega :right right-value
+                                         :left (lambda (o a) (declare (ignore a)) o))
           (let ((stenciled (make-instance 'vacomp-stencil
                                           :omega omega :right right-value :left left-function)))
             (make-instance 'vader-mix :base (vrender stenciled)

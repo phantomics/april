@@ -16,6 +16,7 @@ random ← {⎕IO-⍨?2⍴⍨|⍺ ⍵}
        ⍝ create a randomized binary matrix
 life   ← {⊃1 ⍵∨.∧3 4=+/,1 0 ¯1∘.⊖1 0 ¯1⌽¨⊂⍵}
        ⍝ the classic Conway's Game of Life function
+⍝ trace  ← {⍺[;1]⌷⍨⊂⍺[;2]{1⌈⍺{⍵×⍵≤⍴⍺}⍺⍳⍵}{2⊥,⍵}¨⊢⊣⊢∘⊂⌺3 3⊢⍵}
 trace  ← {⍺[;1]⌷⍨⊂⍺[;2]{1⌈⍺{⍵×⍵≤⍴⍺}⍺⍳⍵}{2⊥,⍵}⌺3 3⊢⍵}
        ⍝ use [⌺ stencil] to draw boxes around cells according to matrix decoding maps
 
