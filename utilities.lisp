@@ -14,7 +14,7 @@
                                      (max 0 (1- (rank-of omega)))))
   
 (define-symbol-macro *first-axis-or-nil* (if axes (apply-scalar #'- (first axes) index-origin)))
-(define-symbol-macro *branches* (symbol-value (intern "*BRANCHES*" space)))
+(define-symbol-macro *branches* (symbol-value (find-symbol "*BRANCHES*" space)))
 
 (defvar *function-identities* nil)
 (defvar *value-composable-lexical-operators* nil)
@@ -162,7 +162,7 @@
                                                                                  #(alambda olambda)
                                                                                  :test #'eql))))))
                                       ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
-                                       (list 'quote (intern (string-upcase name) this-package)))
+                                       (list 'quote (find-symbol (string-upcase name) this-package)))
                                       (t item)))))
         (funcall (lambda (form)
                    ;; create an lparallel kernel if none is present; this is done at
@@ -209,8 +209,8 @@
           ,@(loop :for package-symbol :in *library-packages*
                   :append (if (asdf:registered-system package-symbol)
                               (let ((run-function-symbol
-                                      (intern "RUN-TESTS"
-                                              (string-upcase package-symbol))))
+                                      (find-symbol "RUN-TESTS"
+                                                   (string-upcase package-symbol))))
                                 (when (fboundp run-function-symbol)
                                   `((,run-function-symbol)
                                     (incf *lib-tests-run*
@@ -396,14 +396,14 @@
         ;; of symbolic functions called in the immediate scope
         (let ((h-sym (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
           (if (and (not h-sym) (position (first function) #(inws inwsd) :test #'eql))
-              (push (intern (string (second function)) space)
+              (push (find-symbol (string (second function)) space)
                     (getf (rest meta-form) :symfns-called))
               (if (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))
                   ;; if this function is listed as a side-effecting function in the local scope
                   ;; (as for evaluations like {acm←⍬ ⋄ upd←{acm,←⍵} ⋄ {_←{upd ⍵}¨⍵⋄⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5)
                   ;; push it to the list of side-effecting functions called in the immediate scope
                   (when (symbolp (second function))
-                    (push (intern (string (second function)) space)
+                    (push (find-symbol (string (second function)) space)
                           (getf (rest meta-form) :sefns-called)))
                   (if (eql 'alambda (first function))
                       (let ((fn-meta (rest (second (third function)))))
@@ -430,22 +430,26 @@
 
 (defmacro is-workspace-value (item)
   "Checks if a variable is present in the current workspace as a value."
-  `(and (boundp (intern (string ,item) space))
-        (not (fboundp (intern (string ,item) space)))))
+  `(and (find-symbol (string ,item) space)
+        (boundp (find-symbol (string ,item) space))
+        (not (fboundp (find-symbol (string ,item) space)))))
 
 (defmacro is-workspace-function (item)
   "Checks if a variable is present in the current workspace as a function."
-  `(and (fboundp (intern (string ,item) space))
-        (or (not (boundp (intern (string ,item) space)))
-            (not (listp (symbol-value (intern (string ,item) space))))
-            (not (getf (rest (symbol-value (intern (string ,item) space))) :valence)))))
+  `(and (find-symbol (string ,item) space)
+        (fboundp (find-symbol (string ,item) space))
+        (or (not (find-symbol (string ,item) space))
+            (not (boundp (find-symbol (string ,item) space)))
+            (not (listp (symbol-value (find-symbol (string ,item) space))))
+            (not (getf (rest (symbol-value (find-symbol (string ,item) space))) :valence)))))
 
 (defmacro is-workspace-operator (item)
   "Checks if a variable is present in the current workspace as an operator."
-  `(and (fboundp (intern (string ,item) space))
-        (boundp (intern (string ,item) space))
-        (listp (symbol-value (intern (string ,item) space)))
-        (getf (rest (symbol-value (intern (string ,item) space))) :valence)))
+  `(and (find-symbol (string ,item) space)
+        (fboundp (find-symbol (string ,item) space))
+        (boundp (find-symbol (string ,item) space))
+        (listp (symbol-value (find-symbol (string ,item) space)))
+        (getf (rest (symbol-value (find-symbol (string ,item) space))) :valence)))
 
 (defun get-array-meta (array &rest keys)
   "Gets one or more metadata of an array using the displacement reference technique."
@@ -478,9 +482,10 @@
   (if (not path)
       item (if item (follow-path space (rest path)
                                  (getf item (intern (string (first path)) "KEYWORD")))
-               (when (boundp (intern (string (first path)) space))
+               (when (and (find-symbol (string (first path)) space)
+                          (boundp (find-symbol (string (first path)) space)))
                  (follow-path space (rest path)
-                              (symbol-value (intern (string (first path)) space)))))))
+                              (symbol-value (find-symbol (string (first path)) space)))))))
 
 (defun is-alphanumeric (character)
   "Consistently check whether a character is alphanumeric - needed since different CL implementations consider different sets of characters to be alphanumeric as per (alphanumericp)."
@@ -703,7 +708,7 @@
                                                       (and (listp (second value))
                                                            (position (second value) #(inws inwsd)
                                                                      :test #'eql))))))))
-               (ns-sym (intern "*NS-POINT*" (package-name (symbol-package symbol))))
+               (ns-sym (find-symbol "*NS-POINT*" (package-name (symbol-package symbol))))
                (namespace (if (boundp ns-sym) (symbol-value ns-sym)))
                (set-to (if (not is-symbol-value) value `(duplicate ,value))))
           ;; handle assignment of ⍺ or ⍵; ⍺-assignment sets its default value if no right argument is
@@ -876,10 +881,10 @@
                                                                             :on *system-variables*
                                                                           :by #'cddr
                                                                           :collect
-                                                                          (list (intern (string val)
-                                                                                        other-space)
-                                                                                (intern (string val)
-                                                                                        sym-package)))
+                                                                          (list (find-symbol (string val)
+                                                                                             other-space)
+                                                                                (find-symbol (string val)
+                                                                                             sym-package)))
                                                                 (apply (aref ,this-val ,sx)
                                                                        ,args)))))))
                                                   (t `((setf ,sym (if (vectorp ,this-val)
@@ -1080,13 +1085,13 @@
              (aref element 1) (subseq element 1 (1- (length element)))))
         ((position element #("⍺" "⍵" "⍶" "⍹" "∇" "⍺⍺" "⍵⍵" "∇∇") :test #'string=)
          ;; alpha and omega characters are directly changed to symbols in the April package
-         (values (intern element idiom-name) t))
+         (values (find-symbol element idiom-name) t))
         (t (or (parse-apl-number-string element)
                (and (char= #\⎕ (aref element 0))
                     (or (getf (rest (assoc :variable symbols))
-                              (intern (string-upcase element) *package-name-string*))
+                              (find-symbol (string-upcase element) *package-name-string*))
                         (getf (rest (assoc :constant symbols))
-                              (intern (string-upcase element) *package-name-string*))))
+                              (find-symbol (string-upcase element) *package-name-string*))))
                (values (intern element) t)))))
 
 (defun apl-timestamp ()
@@ -1161,7 +1166,8 @@
                    (eql 'change-namespace (second function)))
           `(identity t))
         (progn (when (and (listp function) (eql 'nspath (first function)))
-                 (let* ((ns-sym (intern "*NS-POINT*" (package-name (symbol-package (second function)))))
+                 (let* ((ns-sym (find-symbol "*NS-POINT*"
+                                             (package-name (symbol-package (second function)))))
                         (namespace (if (boundp ns-sym) (symbol-value ns-sym))))
                    (when namespace (setf function
                                          (cons 'nspath (append (if (listp namespace) namespace
@@ -1180,10 +1186,10 @@
 
 (defmacro apl-fn (glyph &rest initial-args)
   "Wrap a glyph referencing a lexical function, and if more parameters are passed, use them as a list of implicit args for the primary function represented by that glyph, the resulting secondary function to be called on the argumants passed in the APL code."
-  (let ((symbol (if (fboundp (intern (concatenate 'string "APRIL-LEX-VFN-" (string glyph))
-                                     *package-name-string*))
-                    (intern (concatenate 'string "APRIL-LEX-VFN-" (string glyph)) *package-name-string*)
-                    (intern (concatenate 'string "APRIL-LEX-FN-" (string glyph)) *package-name-string*))))
+  (let ((symbol (if (fboundp (find-symbol (format nil "APRIL-LEX-VFN-~a" glyph)
+                                          *package-name-string*))
+                    (find-symbol (format nil "APRIL-LEX-VFN-~a" glyph) *package-name-string*)
+                    (find-symbol (format nil "APRIL-LEX-FN-~a" glyph)  *package-name-string*))))
     (if initial-args (cons symbol initial-args)
         (list 'function symbol))))
 
@@ -1205,8 +1211,9 @@
   "Format a function to be called within generated APL code."
   (if (not (characterp glyph-char))
       glyph-char
-      (let* ((fn-meta (handler-case (funcall (symbol-function (intern (format nil "APRIL-LEX-FN-~a" glyph-char)
-                                                                      *package-name-string*))
+      (let* ((fn-meta (handler-case (funcall (symbol-function
+                                              (find-symbol (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                           *package-name-string*))
                                              :get-metadata)
                         (error () nil)))
              (is-scalar (of-lexicons *april-idiom* glyph-char
@@ -1215,7 +1222,7 @@
         ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
         ;; there's a left argument or not
         (append (list (if is-scalar 'apl-fn-s 'apl-fn)
-                      (intern (string glyph-char) *package-name-string*))
+                      (find-symbol (string glyph-char) *package-name-string*))
                 (getf fn-meta :implicit-args)
                 (when (and axes (or (getf fn-meta :axes)
                                     (eq :dyadic args)))
@@ -1315,19 +1322,6 @@
                              :function ,fn-quoted :index-origin 0 :axis ,ax-sym
                              :params (list ,@meta))))))))
 
-(defun validate-arg-unitary (value)
-  "Verify that a form like (vector 5) represents a unitary value."
-  (or (symbolp value)
-      (numberp value)
-      (and (listp value)
-           (or (not (eql 'vector (first value)))
-               (not (third value))))))
-
-(defmacro or-functional-character (reference symbol)
-  "Return a symbol representing a functional character or, if the passed value is not a character, an arbitrary fallback symbol. Used to derive the initial symbol argument for (a-call)."
-  `(if (not (characterp ,reference))
-       ,symbol (intern (string-upcase ,reference) ,*package-name-string*)))
-
 (defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
   (let ((axes (first axis-sets)) (to-set (gensym)))
@@ -1412,8 +1406,7 @@
     (flet ((process-string (string)
              (let ((string (if (stringp string)
                                string (string string))))
-               (when (boundp (intern string space))
-                 (symbol-value (intern string space))))))
+               (symbol-value (find-symbol string space)))))
       (if (stringp symbol-string)
           (process-string symbol-string)
           (when (listp symbol-string)
@@ -1425,8 +1418,8 @@
     (flet ((process-string (string)
              (let ((string (if (stringp string)
                                string (string string))))
-               (when (fboundp (intern string space))
-                 (symbol-function (intern string space))))))
+               (when (fboundp (find-symbol string space))
+                 (symbol-function (find-symbol string space))))))
       (if (stringp symbol-string)
           (process-string symbol-string)
           (when (listp symbol-string)
@@ -1435,8 +1428,8 @@
 (defun external-workspace-operator (symbol-string &optional space-string)
   "Import an operator from an external workspace, implementing the ⎕XWO function."
   (let ((space (concatenate 'string "APRIL-WORKSPACE-" (or space-string "COMMON"))))
-    (when (fboundp (intern symbol-string space))
-      (symbol-function (intern symbol-string space)))))
+    (when (fboundp (find-symbol symbol-string space))
+      (symbol-function (find-symbol symbol-string space)))))
 
 (defun output-value (space form &optional properties closure-meta)
   "Express an APL value in the form of an explicit array specification or a symbol representing an array, supporting axis arguments."
@@ -1446,7 +1439,8 @@
              (if (or (not (symbolp item))
                      (member item *idiom-native-symbols*))
                  item (if (or (of-meta-hierarchy closure-meta :var-syms item)
-                              (not (boundp (intern (string item) space))))
+                              (not (find-symbol (string item) space))
+                              (not (boundp (find-symbol (string item) space))))
                           ;; if a symbol does not represent a lexical variable within the given scope,
                           ;; it must be a dynamic variable so wrap it with ⊑
                           `(inws ,item) `(inwsd ,item))))
@@ -1472,8 +1466,10 @@
                                                 (and (symbolp initial)
                                                      (and (or (of-meta-hierarchy closure-meta
                                                                                  :var-syms initial)
-                                                              (not (fboundp (intern (string initial)
-                                                                                    space)))))))))
+                                                              (not (find-symbol (string initial) space))
+                                                              (not (fboundp (find-symbol
+                                                                             (string initial)
+                                                                             space)))))))))
                                   (if (= 1 (length properties))
                                       (apply-props form (first properties))
                                       (mapcar #'apply-props form properties))
@@ -1622,7 +1618,7 @@
 
 (defun build-compiled-code (exps workspace-symbols options system-vars vars-declared stored-refs space)
   "Return a set of compiled April expressions within the proper context."
-  (let* ((branch-index (gensym "A")) (branches-sym (intern "*BRANCHES*" space))
+  (let* ((branch-index (gensym "A")) (branches-sym (find-symbol "*BRANCHES*" space))
          (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
          (tags-matching (loop :for tag :in (symbol-value branches-sym)
                            :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
@@ -1736,13 +1732,14 @@
            (process-split-sym (symbol)
              (let ((split-segments (cl-ppcre:split "[.]" (string symbol))))
                (if (and (= 2 (length split-segments))
-                        (or (fboundp (intern (first split-segments) space))
-                            (position (intern (first split-segments) *package-name-string*)
+                        (or (and (find-symbol (first split-segments) space)
+                                 (fboundp (find-symbol (first split-segments) space)))
+                            (position (find-symbol (first split-segments) *package-name-string*)
                                       #(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql)
-                            (member (intern (first split-segments) *package-name-string*)
+                            (member (find-symbol (first split-segments) *package-name-string*)
                                     (getf (rest closure-meta-form) :fn-syms))))
                    (list (intern (second split-segments) *package-name-string*)
-                         '(:op :pivotal #\.)
+                         '(:op :pivotal #\.) ;; TODO: this . operator is hardcoded...
                          (intern (first split-segments) *package-name-string*))
                    (cons :pt (mapcar (lambda (item) (intern item *package-name-string*))
                                      split-segments)))))
@@ -1811,10 +1808,10 @@
                      (error "The name [~a] already designates a value." symbol)))
                (list axes-form fn-form :special-lexical-form-assign symbol))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                        (progn (when (is-workspace-value symbol)
-                                 (makunbound (intern (string symbol) space)))
-                               (setf (symbol-function (intern (string symbol) space))
-                                     #'dummy-nargument-function)))
+                        (let ((found-sym (find-symbol (string symbol) space)))
+                          (when (is-workspace-value symbol)
+                            (makunbound found-sym))
+                          (setf (symbol-function found-sym) #'dummy-nargument-function)))
                     (let ((each-axis (rest axes-form)))
                       ;; if the symbol is already bound as a regular function, unbind it
                       (list (cons :ax (loop :for item :in each-axis
@@ -1828,7 +1825,7 @@
          (if (characterp (second fn-form))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
                         (progn (when (is-workspace-value symbol)
-                                 (makunbound (intern (string symbol) space)))
+                                 (makunbound (find-symbol (string symbol) space)))
                                (setf (symbol-function (intern (string symbol) space))
                                      #'dummy-nargument-function)))
                     (list fn-form :special-lexical-form-assign symbol))
@@ -1874,7 +1871,8 @@
                                                             (setf (symbol-function int-symbol)
                                                                   #'dummy-operator))
                                                           (setf (symbol-value int-symbol) fn-meta))
-                                        (unless (fboundp (intern (string symbol) space))
+                                        (unless (and (find-symbol (string symbol) space)
+                                                     (fboundp (find-symbol (string symbol) space)))
                                           (setf (symbol-function (intern (string symbol) space))
                                                 #'dummy-nargument-function)))))
                          (list (list (if is-operator :op :fn) fn-meta processed)
@@ -1886,25 +1884,26 @@
          (if (symbolp form)
              (if (or (and closure-meta (position form #(⍺⍺ ⍵⍵) :test #'eql))
                      (and closure-meta (of-meta-hierarchy closure-meta :fn-syms form))
-                     (fboundp (intern (string form) space)))
+                     (and (find-symbol (string form) space)
+                          (fboundp (find-symbol (string form) space))))
                  (if closure-meta (push symbol (getf closure-meta :fn-syms))
-                     (progn (setf (symbol-function (intern (string symbol) space))
-                                  #'dummy-nargument-function)
-                            (setf (symbol-value (intern (string symbol) space))
-                                  (list :meta))))
+                     (setf (symbol-function (intern (string symbol) space))
+                           #'dummy-nargument-function
+                           (symbol-value (find-symbol (string symbol) space))
+                           (list :meta)))
                  ;; TODO: add cases for dynamically bound operators
                  (if (and closure-meta (of-meta-hierarchy closure-meta :lop-syms form))
                      (if closure-meta (push symbol (getf closure-meta :lop-syms))
-                         (progn (setf (symbol-function (intern (string symbol) space))
-                                      #'dummy-operator)
-                                (setf (symbol-value (intern (string symbol) space))
-                                      (list :meta :valence :lateral))))
+                         (setf (symbol-function (intern (string symbol) space))
+                               #'dummy-operator
+                               (symbol-value (find-symbol (string symbol) space))
+                               (list :meta :valence :lateral)))
                      (if (and closure-meta (of-meta-hierarchy closure-meta :pop-syms form))
                          (if closure-meta (push symbol (getf closure-meta :pop-syms))
-                             (progn (setf (symbol-function (intern (string symbol) space))
-                                          #'dummy-operator)
-                                    (setf (symbol-value (intern (string symbol) space))
-                                          (list :meta :valence :pivotal))))
+                             (setf (symbol-function (intern (string symbol) space))
+                                   #'dummy-operator
+                                   (symbol-value (find-symbol (string symbol) space))
+                                   (list :meta :valence :pivotal)))
                          (if closure-meta (push symbol (getf closure-meta :var-syms))
                              (fmakunbound symbol)))))
              (if closure-meta (unless (member symbol (getf closure-meta :var-syms))
@@ -2228,8 +2227,8 @@
                                                 ;; since the april-lex-sy-X symbol is the one that should
                                                 ;; be assigned; its default form must also be removed
                                                 ;; from the symbol set with the correct form added
-                                                (setf symbol-set (remove fn-symbol symbol-set))
-                                                (setf fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
+                                                (setf symbol-set (remove fn-symbol symbol-set)
+                                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
                                                                                 glyph-sym)
                                                                         *package-name-string*))
                                                 (push fn-symbol symbol-set))

@@ -45,7 +45,7 @@
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
          :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators "."
-         :supplemental-token-chars "._⎕∆⍙¯"
+         :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
@@ -71,7 +71,10 @@
                                        (lambda (char) (position char cstring :test #'char=)))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
-            (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR" :test #'char=)))
+            (lambda (idiom)
+              (lambda (char) (or (digit-char-p char)
+                                 (position char (of-system idiom :supplemental-numeric-chars)
+                                           :test #'char=))))
             :match-token-character
             (lambda (idiom)
               (lambda (char) (or (is-alphanumeric char)
@@ -182,7 +185,7 @@
             (lambda (state)
               ;; the index origin, print precision and output stream values are
               ;; passed into the local lexical environment
-              (append (list (list (intern "OUTPUT-STREAM" *package-name-string*)
+              (append (list (list (find-symbol "OUTPUT-STREAM" *package-name-string*)
                                   (or (getf state :print-to)
                                       (second (getf state :output-stream)))))
                       (loop :for (key value) :on *system-variables* :by #'cddr
@@ -229,16 +232,16 @@
                                 (list :output-printed (getf state :output-printed))))))
             :process-stored-symbol
             (lambda (symbol space is-function)
-              (if is-function (progn (when (and (boundp (intern symbol space))
-                                                (not (fboundp (intern symbol space))))
-                                       (makunbound (intern symbol space)))
-                                     (setf (symbol-function (intern symbol space))
-                                           #'dummy-nargument-function))
-                  (progn (when (fboundp (intern symbol space))
-                           (fmakunbound (intern symbol space)))
-                         (unless (boundp (intern symbol space))
-                           (proclaim (list 'special (intern symbol space)))
-                           (set (intern symbol space) nil)))))
+              (if is-function (let ((found-sym (find-symbol symbol space)))
+                                (when (and found-sym (boundp found-sym)
+                                           (not (fboundp found-sym)))
+                                  (makunbound found-sym))
+                                (setf (symbol-function found-sym) #'dummy-nargument-function))
+                  (let ((found-sym (find-symbol symbol space)))
+                    (when (fboundp found-sym) (fmakunbound found-sym))
+                    (unless (and found-sym (boundp found-sym))
+                      (proclaim (list 'special (intern symbol space)))
+                      (set (intern symbol space) nil)))))
             ;; build multiple output of April expression, rendering unless (:unrendered) option is passed
             :process-multiple-outputs
             (lambda (outputs space &optional will-render)

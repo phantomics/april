@@ -86,9 +86,9 @@
 
 (defun process-lex-tests-for (symbol operator &key (mode :test))
   "Process a set of tests for Vex functions or operators."
-  (let* ((tests (rest (assoc (intern "TESTS" (package-name *package*))
+  (let* ((tests (rest (assoc (find-symbol "TESTS" (package-name *package*))
                              (rest operator))))
-         (props (rest (assoc (intern "HAS" (package-name *package*))
+         (props (rest (assoc (find-symbol "HAS" (package-name *package*))
                              (rest operator))))
          (heading (format nil "[~a] ~a~a~%" (first operator)
                           (if (getf props :title)
@@ -446,12 +446,12 @@
                                                            :by #'cddr
                                                            :collect `(intern ,(string-upcase val)
                                                                              ,,ws-fullname))))
-                                   (unless (boundp (intern "*SYSTEM*" ,,ws-fullname))
-                                     (set (intern "*SYSTEM*" ,,ws-fullname)
+                                   (unless (boundp (find-symbol "*SYSTEM*" ,,ws-fullname))
+                                     (set (find-symbol "*SYSTEM*" ,,ws-fullname)
                                           ,',(cons 'list (of-subspec system)))
                                      ;; TODO: following is APL-specific, move into spec
-                                     (set (intern "*BRANCHES*" ,,ws-fullname) nil)
-                                     (set (intern "*NS-POINT*" ,,ws-fullname) nil)
+                                     (set (find-symbol "*BRANCHES*" ,,ws-fullname) nil)
+                                     (set (find-symbol "*NS-POINT*" ,,ws-fullname) nil)
                                      ,@(loop :for (key val)
                                                :on ,(getf (of-subspec system) :variables) :by #'cddr
                                              :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
@@ -549,7 +549,7 @@
 
 (let ((collected-matched-closing-chars) (axis-string-processor)
       (match-axis-separator) (match-path-separator) (number-formatter)
-      (token-char-matcher))
+      (numeric-char-matcher) (token-char-matcher))
   (defun =vex-string (idiom &optional output special-precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
     (let ((string-found) (olnchar) (symbols) (is-function-closure)
@@ -575,10 +575,13 @@
 
       (unless token-char-matcher
         (setf token-char-matcher (funcall (of-utilities idiom :match-token-character) idiom)))
+
+      (unless numeric-char-matcher
+        (setf numeric-char-matcher (funcall (of-utilities idiom :match-numeric-character) idiom)))
       
       (labels ((?blank-character     () (?satisfies (of-utilities idiom :match-blank-character)))
                (?newline-character   () (?satisfies (of-utilities idiom :match-newline-character)))
-               (?numeric-character   () (?satisfies (of-utilities idiom :match-numeric-character)))
+               (?numeric-character   () (?satisfies numeric-char-matcher))
                (?token-character     () (?satisfies token-char-matcher))
                (numeric-string-p (item) (funcall number-formatter item))
                (pjoin-char-p     (item) (funcall match-path-separator item))
@@ -777,7 +780,6 @@
                                                 (let ((char (character string)))
                                                   (unless olnchar
                                                     (or (and (not (of-lexicons idiom char :operators))
-                                                             ;; (not (of-lexicons idiom char :statements))
                                                              (of-lexicons idiom char :symbolic-forms)
                                                              (symbol-value
                                                               (intern (format nil "~a-LEX-SY-~a"
@@ -916,7 +918,7 @@
                                                  (first item) (if storing-functions :store-fun :store-val)))
                                       (second item)))))
 
-        (symbol-macrolet ((ws-system (symbol-value (intern "*SYSTEM*" space))))
+        (symbol-macrolet ((ws-system (symbol-value (find-symbol "*SYSTEM*" space))))
 
           (setq state         (funcall (of-utilities idiom :preprocess-state-input) state)
                 state-to-use  (assign-from (getf ws-system :base-state) state-to-use)

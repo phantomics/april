@@ -20,12 +20,12 @@
  (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］"
          :string-delimiters "'\"＇" :number-spacers "_＿" :axis-separators ";；"
          :path-separators ".．" :negative-signs "¯￣"
-         :supplemental-token-chars ".．_＿⎕∆⍙¯￣")
+         :supplemental-numeric-chars ".．_＿¯￣eEjJrR" :supplemental-token-chars ".．_＿⎕∆⍙¯￣")
  (utilities :process-fn-op-specs #'process-fnspecs
             :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))
                                      (lambda (char) (position char cstring :test #'char=)))
             :format-value (let ((base-function (of-utilities this-idiom :format-value))
-                                (matching-symbols (vector '⍵ '⍹ '⍵⍵ '⍺ '⍶ '⍺⍺)))
+                                (matching-symbols #(⍵ ⍹ ⍵⍵ ⍺ ⍶ ⍺⍺)))
                             (lambda (idiom-name symbols element)
                               (let ((sym-pos (position (aref element 0) "月有朋日旦昌")))
                                 (if sym-pos (aref matching-symbols sym-pos)

@@ -10,7 +10,7 @@
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
       input-sym ;; lexically-scoped symbols don't get the path prepended, as for {a←⍵ ⋄ a+3} 5
       (let ((path-val (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
-                          (symbol-value (intern "*NS-POINT*" space))))
+                          (symbol-value (find-symbol "*NS-POINT*" space))))
             ;; get the workspace path as set in the current context
             (symbol (if (and (listp input-sym) (eql 'inwsd (first input-sym)))
                         (second input-sym)
@@ -91,11 +91,13 @@
           ((and this-item (listp this-item) (eq :pt (first this-item)))
            (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                           :ns-point)
-                                    (symbol-value (intern "*NS-POINT*" space))))
+                                    (symbol-value (find-symbol "*NS-POINT*" space))))
                   (nspath (format-nspath (if (not current-path)
                                              (rest this-item)
                                              (append current-path (rest this-item))))))
-             (when (or (not nspath) (not (fboundp (intern nspath space)))
+             (when (or (not nspath)
+                       (not (find-symbol nspath space))
+                       (not (fboundp (find-symbol nspath space)))
                        (getf properties :symbol-overriding))
                (resolve-path this-item space properties))))
           ;; process symbol-referenced values
@@ -110,7 +112,7 @@
                         ;; if it's defined locally as a variable, disregard a global function definition
                         (let ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                                       :ns-point)
-                                                (symbol-value (intern "*NS-POINT*" space)))))
+                                                (symbol-value (find-symbol "*NS-POINT*" space)))))
                           (if (not current-path)
                               (not (is-workspace-function this-item))
                               (not (fboundp (intern (format-nspath (append current-path (list this-item)))
@@ -154,7 +156,7 @@
 (defun process-function (this-item &optional properties space)
   "Process a function token."
   (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta)) :ns-point)
-                           (symbol-value (intern "*NS-POINT*" space)))))
+                           (symbol-value (find-symbol "*NS-POINT*" space)))))
     (if (listp this-item)
         ;; process a function specification starting with :fn
         (if (eq :fn (first this-item))
@@ -204,7 +206,7 @@
             (when (eq :pt (first this-item))
               (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                              :ns-point)
-                                       (symbol-value (intern "*NS-POINT*" space))))
+                                       (symbol-value (find-symbol "*NS-POINT*" space))))
                      (nspath (format-nspath (if (not current-path)
                                                 (rest this-item)
                                                 (append current-path (rest this-item))))))
@@ -308,25 +310,25 @@
                    ;; make sure it's not defined locally as a variable
                    (not (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                            :var-syms this-item))
-                   (or (and (fboundp (intern lop-string space))
-                            (boundp (intern lop-string space))
-                            (listp (symbol-value (intern lop-string space)))
-                            (eq :lateral (getf (rest (symbol-value (intern lop-string space)))
-                                               :valence)))
+                   (or (let ((found-sym (find-symbol lop-string space)))
+                         (and (fboundp found-sym)
+                              (boundp found-sym)
+                              (listp (symbol-value found-sym))
+                              (eq :lateral (getf (rest (symbol-value found-sym)) :valence))))
                        (of-meta-hierarchy closure-meta :lop-syms this-item)))
               (if (of-meta-hierarchy closure-meta :lop-syms this-item)
                   (list 'inws (intern lop-string))
                   (list 'inwsd (intern lop-string)))
               (when (and pop-string
-                         (or (and (fboundp (intern pop-string space))
-                                  (boundp (intern pop-string space))
-                                  (listp (symbol-value (intern pop-string space)))
-                                  (eq :pivotal (getf (rest (symbol-value (intern pop-string space)))
-                                                     :valence)))
+                         (or (let ((found-sym (find-symbol pop-string space)))
+                               (and (fboundp found-sym)
+                                    (boundp found-sym)
+                                    (listp (symbol-value found-sym))
+                                    (eq :pivotal (getf (rest (symbol-value found-sym)) :valence))))
                              (of-meta-hierarchy closure-meta :pop-syms this-item)))
-                (if (not (of-meta-hierarchy closure-meta :pop-syms this-item))
-                    (list 'inwsd (intern pop-string))
-                    (list 'inws (intern pop-string)))))))))
+                (if (of-meta-hierarchy closure-meta :pop-syms this-item)
+                    (list 'inws (intern pop-string))
+                    (list 'inwsd (intern pop-string)))))))))
 
 (defun build-axes (elements &key space params)
   "Construct a set of axes from an (:axes) token form."
@@ -338,7 +340,7 @@
 (defun set-namespace-point (path space params)
   "Set the namespace point to be used by the compiler; this point is prepended to all symbols or namespace segments."
   (let* ((current-path (or (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
-                           (symbol-value (intern "*NS-POINT*" space))))
+                           (symbol-value (find-symbol "*NS-POINT*" space))))
          (path-val (when (listp path)
                      (if (eql 'nspath (first path))
                          ;; remove the prepended symbols from the current
@@ -355,7 +357,7 @@
     (if (getf (getf params :special) :closure-meta)
         (setf (getf (rest (getf (getf params :special) :closure-meta)) :ns-point)
               path-val)
-        (setf (symbol-value (intern "*NS-POINT*" space))
+        (setf (symbol-value (find-symbol "*NS-POINT*" space))
               path-val))))
 
 (defun build-value (tokens &key axes elements space params left axes-last)
@@ -410,8 +412,9 @@
                                                         axes)
                                             :axes-last t :space space :params params :left left)))
             ((and (listp (first tokens)) (eq :st (caar tokens))) ; 1 2 3∘.⌽[1]⊂2 3 4⍴⍳9
-             (let ((stm (funcall (symbol-function (intern (format nil "APRIL-LEX-ST-~a" (caddar tokens))
-                                                          *package-name-string*))
+             (let ((stm (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-ST-~a"
+                                                                       (caddar tokens))
+                                                               *package-name-string*))
                                  (first axes))))
                (build-value (rest tokens) :space space :params params
                                           :left left :elements (cons stm elements))))
@@ -657,10 +660,12 @@
                   (value-operand (or (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
                                                         :op-syms-lval (first tokens))
                                      (and (symbolp (first tokens)) (not (getf params :special))
-                                          (boundp (intern (string (first tokens)) space))
-                                          (listp (symbol-value (intern (string (first tokens)) space)))
-                                          (member '⍶ (getf (rest (symbol-value (intern (string (first tokens))
-                                                                                       space)))
+                                          (find-symbol (string (first tokens)) space)
+                                          (boundp (find-symbol (string (first tokens)) space))
+                                          (listp (symbol-value (find-symbol (string (first tokens)) space)))
+                                          (member '⍶ (getf (rest (symbol-value
+                                                                  (find-symbol (string (first tokens))
+                                                                               space)))
                                                            :arg-syms)))
                                      ;; check closure metadata for cases
                                      ;; like (⍳3) {q←{⍶+⍺×⍵} ⋄ ⍵(3 q)3 3 3} 5
@@ -858,8 +863,8 @@
                                            '((declare (ignorable left right)))))
                                    ,(multiple-value-bind (op-form op-postargs)
                                         (apply (symbol-function
-                                                (intern (format nil "APRIL-LEX-OP-~a" found-operator)
-                                                        *package-name-string*))
+                                                (find-symbol (format nil "APRIL-LEX-OP-~a" found-operator)
+                                                             *package-name-string*))
                                                (if (eq :lateral operator-type)
                                                    '(operand) '(right left)))
                                       (append op-form (if axes (if (listp (first axes))
@@ -1011,8 +1016,8 @@
                         ;; operators overloaded as symbolic functional tokens are converted to the
                         ;; correct symbol value here; this is needed for [∘. outer product].
                         (second tokens)
-                        (symbol-value (intern (format nil "APRIL-LEX-SY-~A" (third (second tokens)))
-                                              *package-name-string*)))))
+                        (symbol-value (find-symbol (format nil "APRIL-LEX-SY-~A" (third (second tokens)))
+                                                   *package-name-string*)))))
     (multiple-value-bind (left-function remaining)
         (build-function (cons next-token (cddr tokens)) :space space :params params)
       (multiple-value-bind (left-value remaining)
@@ -1048,14 +1053,16 @@
          ;; is interned in the current working package
          (if (stringp value)
              ;; setq is used instead of a-set because output-stream is a lexical variable
-             `(setq output-stream ,(intern value (package-name *package*)))
+             `(when ,(find-symbol value (package-name *package*))
+                (setq output-stream ,(find-symbol value (package-name *package*))))
              (if (listp value)
                  (destructuring-bind (vector-symbol package-string symbol-string) value
                    (if (and (eql 'avec vector-symbol) (stringp package-string)
                             (stringp symbol-string))
                        ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
                        ;; intern the symbol like (intern "OUT-STR" "APRIL")
-                       `(setq output-stream ,(intern symbol-string package-string))
+                       `(when ,(find-symbol symbol-string package-string)
+                          (setq output-stream ,(find-symbol symbol-string package-string)))
                        (error "Invalid assignment to ⎕OST.")))
                  (error "Invalid assignment to ⎕OST."))))
         ((and (listp symbol) (eql 'make-virtual (first symbol))
@@ -1242,8 +1249,8 @@
   "Compose a function using a lateral operator like [/ reduce]."
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
-              (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
-                                                *package-name-string*))
+              (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-OP-~a" operator)
+                                                     *package-name-string*))
                        (or function value))
               (when axes (list :axis (cons 'list (first axes)))))
       `(a-comp :op ,@(when axes `(:axis (list ,@(first axes))))
@@ -1256,8 +1263,8 @@
   "Compose a function using a pivotal operator like [⍣ power]."
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
-              (funcall (symbol-function (intern (format nil "APRIL-LEX-OP-~a" operator)
-                                                *package-name-string*))
+              (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-OP-~a" operator)
+                                                     *package-name-string*))
                        function1 (or function2 value)))
       `(a-comp :op ,(if (not (symbolp operator))
                         operator `(inws ,operator))
