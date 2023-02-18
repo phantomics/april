@@ -261,7 +261,7 @@
                      ⎕xwv external-workspace-value ⎕xwf external-workspace-function
                      ⎕xwo external-workspace-operator))
  
- ;; APL's set of functions represented by characters
+ ;; APL's set of lexical functions, monadic or dyadic operations represented by a single character
  (functions
   (with (:name :lexical-functions-scalar-numeric)
         (:tests-profile :title "Scalar Numeric Function Tests")
@@ -1374,7 +1374,7 @@
      (symbolic :outer-product-designator)))
 
  ;; APL's lexical operators, which take one or two functions or arrays
- ;; as input and generate a function
+ ;; as input and return a function that can be called on yet other values
  (operators
   (with (:name :lexical-operators-lateral)
         (:tests-profile :title "Lateral Operator Tests")
@@ -2557,7 +2557,9 @@ c   2.56  3
 [Ns.2]      a 1 2     
 3      [Ns.2] a 1     
 "))
- 
+
+ ;; tests of April code involving structures outside the language itself, including configuration
+ ;; parameters that can be passed to the (april) macro
  (arbitrary-test-set
   (with (:name :output-specification-tests)
         (:tests-profile :title "Output Specification Tests"))
@@ -2718,7 +2720,7 @@ fun 3")) 8))
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
 A not-very-useful scalar function that adds 3 to its argument(s) is specified here.
 
-For a more complete and useful example of idiom extension, see extensions/uzuki.
+For a more complete and practical example of idiom extension, see extensions/uzuki.
 
 (extend-vex-idiom
  april

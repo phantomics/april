@@ -77,7 +77,7 @@ This demonstrates the basic use case of the progress bar. You can also customize
                                               :width 80 :glyphs "⌸⍠╵⊥ ┑┝┥═╤╞╡")))
   (loop :for i :below 100 :do (funcall advancer) (sleep 0.05)))
 
-This will invoke a progress bar with different demarcations (at each third rather than each quarter) printed with a different set of characters. Try printing progress bars with your own character sets - the possibilities are endless.
+This will invoke a progress bar with different demarcations (at each third rather than each quarter) printed with a different set of characters. Try printing progress bars with your own character sets - the possibilities are endless. This function is exported from the April package so you can easily use it in applications that depend on April.
 |#
 
 (defun april-print-progress-bar (count &key (increments (april "1 2 3÷4"))

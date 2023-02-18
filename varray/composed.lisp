@@ -74,7 +74,7 @@
                      (apply #'make-instance type :omega omega :alpha alpha args)))))
     #'this))
 
-(defclass vacomp-each (vad-subrendering vader-composing)
+(defclass vacomp-each (vad-nested vader-composing)
   nil (:metaclass va-class)
   (:documentation "An each-composed array as with the [¨ each] operator."))
 
@@ -108,10 +108,6 @@
         (threaded (side-effect-free (vacmp-left varray))))
     ;; TODO: logic to determine threading needs work, then reenable it
     (unless threaded (setf (vacmp-async varray) nil))
-    ;; (print (list :th threaded oshape ashape ;; (shape-of varray)
-    ;;              (type-of (vacmp-omega varray))
-    ;;              (type-of (vacmp-alpha varray))
-    ;;              ))
     (if (and ashape (not oshape))
         (render (vacmp-omega varray))
         (when (and oshape (not ashape))
@@ -159,7 +155,7 @@
                               (if (not (functionp oindexer))
                                   oindexer (funcall oindexer 0)))))))))))
 
-(defclass vacomp-reduce (vad-subrendering vader-composing vad-on-axis vad-with-io vad-with-default-axis)
+(defclass vacomp-reduce (vad-nested vader-composing vad-on-axis vad-with-io vad-with-default-axis)
   ((%unitary :accessor vacred-unitary
              :initform nil
              :initarg  :unitary
@@ -288,15 +284,14 @@
                (catenate-fn (and (listp fn-meta)
                                  (getf fn-meta :lexical-reference)
                                  (not (getf fn-meta :operator-reference))
-                                 (member (getf fn-meta :lexical-reference)
-                                         '(#\, #\⍪ #\∩) :test #'char=)))
+                                 (position (getf fn-meta :lexical-reference)
+                                           ",⍪∩" :test #'char=)))
                (ax-interval (or window rlen))
                (increment-diff (- (* increment rlen) increment)))
           ;; TODO: create a better way to determine the catenate function
           (loop :for dim :in odims :for dx :from 0
                 :when (and window (= dx axis))
                   :do (setq wsegment (- dim (1- window))))
-          ;; (print (list :ws rlen (funcall (vacmp-left varray) :get-metadata nil)))
           (cond
             ((and scalar-fn (typep (vacmp-omega varray) 'vapri-integer-progression))
              (get-reduced (vacmp-omega varray) (vacmp-left varray)))
@@ -304,7 +299,6 @@
                   (not out-dims) (arrayp (vacmp-omega varray)))
              ;; reverse the argument vector in the case of a scalar function;
              ;; this also applies in the case of the next two clauses
-             ;; (print (list :dd (vacmp-omega varray)))
              (let ((output (funcall (vacmp-left varray)
                                     :arg-vector (funcall (if scalar-fn #'reverse #'identity)
                                                          (vacmp-omega varray)))))
@@ -364,7 +358,6 @@
                                             (if (/= 1 increment) i
                                                 (if window (if (>= 1 irank) i (mod i wsegment))
                                                     (* i rlen))))))
-                              ;; (print (list 13 axis out-dims (vacmp-omega varray) value valix))
                               (if window-reversed
                                   (loop :for ix :below window
                                         :do (setf (aref value (- ax-interval (incf valix)))
@@ -405,10 +398,10 @@
                                                                 (funcall (vacmp-left varray)
                                                                          value item))))))
                                 (when (typep value 'vacomp-reduce)
-                                  (setf (vads-subrendering varray) nil))
+                                  (setf (vads-nested varray) nil))
                                 value))))))))))))
 
-(defclass vacomp-scan (vad-subrendering vader-composing vad-invertable
+(defclass vacomp-scan (vad-nested vader-composing vad-invertable
                        vad-on-axis vad-with-io vad-with-default-axis)
   nil (:metaclass va-class)
   (:documentation "A scan-composed array as with the [\\ scan] operator."))
@@ -505,7 +498,7 @@
       (:linear)
       (t (generator-of (vader-content varray))))))
 
-(defclass vacomp-produce (vad-subrendering vader-composing vad-with-io
+(defclass vacomp-produce (vad-nested vader-composing vad-with-io
                           vad-with-default-axis vad-invertable)
   nil (:metaclass va-class)
   (:documentation "A produce-composed array as with the [. inner/outer product] operator."))
@@ -636,7 +629,7 @@
                                                                             :base alpha :index avix
                                                                             :shape ashape)))))))))))))))
 
-(defclass vacomp-stencil (vad-subrendering vader-composing vad-with-io)
+(defclass vacomp-stencil (vad-nested vader-composing vad-with-io)
   ((%base-dims   :accessor vacst-base-dims
                  :initform nil
                  :initarg  :base-dims

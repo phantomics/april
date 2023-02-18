@@ -5,7 +5,7 @@
 
 "Definition of virtual array element implementing calculations over arrays, as for 1+1 2 3."
 
-(defclass vader-calculate (vad-subrendering varray-derived vad-on-axis vad-with-io)
+(defclass vader-calculate (vad-nested varray-derived vad-on-axis vad-with-io)
   ((%params    :accessor vaop-params
                :initform nil
                :initarg :params

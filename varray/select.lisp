@@ -97,9 +97,9 @@
                                      (list :for-selective-assign
                                            (or (shape-of (vasel-assign varray)) t)
                                            :assigning set
-                                           :toggle-toplevel-subrendering
+                                           :toggle-toplevel-nested
                                            (lambda ()
-                                             (setf (vads-subrendering varray) t)))))
+                                             (setf (vads-nested varray) t)))))
          (ofactors (unless set (get-dimensional-factors idims t)))
          (ifactors (get-dimensional-factors (shape-of (vader-base varray)) t))
          (adims (shape-of (vasel-assign varray)))
@@ -180,10 +180,10 @@
                        (let ((indexed (if (not (functionp base-gen))
                                           base-gen (funcall base-gen oindex))))
                          (unless (shape-of varray)
-                           (setf (vads-subrendering varray) t))
+                           (setf (vads-nested varray) t))
                          indexed)
                        (let ((index-shape (first (shape-of oindex))))
-                         (setf (vads-subrendering varray) t)
+                         (setf (vads-nested varray) t)
                          (if (and (numberp (funcall base-gen 0))
                                   (= index-shape (length (shape-of (vader-base varray)))))
                              ;; if the length of the index vector is equal to the rank of the indexed array
@@ -375,7 +375,7 @@
                                                  ;; as for the case of {na←3⍴⊂⍳4 ⋄ (1↑⊃na)←⍵ ⋄ na} 99
                                                  (let ((indexed (if (not (functionp base-gen))
                                                                     base-gen (funcall base-gen oindex))))
-                                                   (setf (vads-subrendering varray) t
+                                                   (setf (vads-nested varray) t
                                                          (vader-base index-selector) indexed
                                                          (vapick-assign index-selector) (vasel-assign varray)
                                                          (vapick-reference index-selector) indexed)
@@ -394,7 +394,7 @@
                                                                        :never (= eelement (funcall egen e)))
                                                                  bindex (vasel-assign varray)))
                                                            (progn
-                                                             (setf (vads-subrendering varray) t)
+                                                             (setf (vads-nested varray) t)
                                                              (make-instance
                                                               'vader-select
                                                               :base bindex :index-origin (vads-io varray)
@@ -415,7 +415,7 @@
                                    base-gen (funcall base-gen index)))
                            
                            (progn
-                             (setf (vads-subrendering varray) t)
+                             (setf (vads-nested varray) t)
                              (if valid
                                  (if (typep oindex 'varray::varray)
                                      ;; in the case of an [¨ each]-composed assignment by selection
@@ -449,7 +449,7 @@
                                                       :assign (if (not (functionp assign-indexer))
                                                                   assign-indexer (funcall assign-indexer
                                                                                           assign-sub-index))
-                                                      :subrendering t ; needed for cases like 3⌈@(⊂1 3)⊢3⍴⊂5⍴1
+                                                      :nested t ; needed for cases like 3⌈@(⊂1 3)⊢3⍴⊂5⍴1
                                                       :assign-shape (vasel-assign-shape varray)
                                                       :calling (vasel-calling varray))))
                                  (if (not (functionp base-gen))

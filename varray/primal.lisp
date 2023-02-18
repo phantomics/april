@@ -130,7 +130,6 @@
 
 (defmethod get-reduced ((vvector vapri-integer-progression) function)
   (let ((fn-meta (funcall function :get-metadata)))
-    ;; (print (list :ff fn-meta))
     (case (getf fn-meta :lexical-reference)
       (#\+ (iota-sum (vapip-number vvector) (vapip-origin vvector)))
       ;; TODO: extend below to support any ⎕IO
@@ -184,7 +183,7 @@
       (:linear)
       (t (lambda (index) (aref output index))))))
 
-(defclass vapri-coordinate-identity (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
+(defclass vapri-coordinate-identity (vad-nested varray-primal vad-with-io vad-with-dfactors)
   ((%shape :accessor vapci-shape
            :initform 1
            :initarg :number
@@ -218,7 +217,7 @@
     (t (lambda (index) (make-instance 'vapri-coordinate-vector
                                       :reference varray :index index)))))
 
-(defclass vapri-axis-vector (vad-subrendering varray-primal vad-with-io vad-with-dfactors)
+(defclass vapri-axis-vector (vad-nested varray-primal vad-with-io vad-with-dfactors)
   ((%reference :accessor vaxv-reference
                :initform nil
                :initarg :reference

@@ -52,10 +52,10 @@
 (defun varrayp (item)
   (typep item 'varray))
 
-(defun subrendering-p (item)
+(defun nested-p (item)
   (and (or (typep item 'varray-derived)
-           (typep item 'vad-subrendering))
-       (vads-subrendering item)))
+           (typep item 'vad-nested))
+       (vads-nested item)))
 
 (defgeneric etype-of (varray)
   (:documentation "Get the element type of an array."))
@@ -247,15 +247,6 @@
             (when (< index (array-total-size array))
               (row-major-aref array index))))))
 
-;; (defun join-indexers (indexers params)
-;;   (declare (ignore params))
-;;   (if (not indexers)
-;;       #'identity (let ((rev (reverse indexers)))
-;;                    (lambda (index)
-;;                      (let ((index-out index))
-;;                        (loop :for i :in rev :do (setf index-out (funcall i index-out)))
-;;                        index-out)))))
-
 (let ((joiners (intraverser
                 (:eindex-width +eindex-width+)
                 (the (function (list)
@@ -338,10 +329,10 @@
   (declare (ignore params))
   item)
 
-(defun subrendering-base (item)
+(defun nested-base (item)
   (when (typep item 'varray-derived)
-    (or (subrendering-p (vader-base item))
-        (subrendering-base (vader-base item)))))
+    (or (nested-p (vader-base item))
+        (nested-base (vader-base item)))))
 
 (defun sub-byte-element-type (varray)
   "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
@@ -595,7 +586,6 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (defmethod render ((varray varray) &rest params)
-  (declare (ignore params))
   (make-threading-kernel-if-absent)
   (if (and (typep varray 'varray-derived)
            (vader-content varray)
@@ -608,8 +598,7 @@
              (metadata (getf (metadata-of varray) :shape))
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
-             (to-subrender))
-        ;; (specify varray)
+             (to-nest))
         (declare (ignore spec))
         
         (let ((gen (and coordinate-type en-type
@@ -626,10 +615,12 @@
             (when (and (typep varray 'vader-select)
                        (< 0 (size-of varray)) (functionp indexer))
               (funcall indexer 0))
-            ;; IPV-TODO: HACK to handle select subrendering, which is only set when the
+            ;; IPV-TODO: HACK to handle select nested, which is only set when the
             ;; first element is generated - figure out a better way to do this
-            (setf to-subrender (or (subrendering-p varray)
-                                   (subrendering-base varray)))
+            (setf to-nest (and (not (getf params :not-nested))
+                               ;; the :not-nested parameter can be passed to prevent nested rendering
+                               (or (nested-p varray) (nested-base varray))))
+            
             (let ((output
                     (if output-shape
                         (if (zerop (the (unsigned-byte 62) (reduce #'* output-shape)))
@@ -652,7 +643,7 @@
                                              #'identity (decode-rmi en-type coordinate-type
                                                                     output-rank dfactors))
                                        (let ((decoder (or decoder default-decoder)))
-                                         (if to-subrender
+                                         (if to-nest
                                              (lambda (i)
                                                (let ((indexed (if (not (functionp indexer))
                                                                   indexer (funcall indexer i))))
@@ -678,7 +669,7 @@
                               ;;              (typep varray 'vader-composing)
                               ;;              (when (typep varray 'vader-composing)
                               ;;                (vacmp-threadable varray))))
-                              ;; (print (list :ts to-subrender (setf april::ggt varray)))
+                              ;; (print (list :ts to-nest (setf april::ggt varray)))
                               (loop :for d :below divisions
                                     :do (if (or (and (typep varray 'vader-composing)
                                                      (not (vacmp-async varray)))
@@ -696,13 +687,13 @@
                                                     lpchannel (funcall process d)))))
                               (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
                               output))
-                        (funcall (if (subrendering-p varray)
+                        (funcall (if (nested-p varray)
                                      (lambda (item)
                                        (let ((rendered (render item)))
                                          (if (and (zerop (rank-of rendered))
                                                   (or (not (arrayp rendered))
                                                       (and (typep varray 'vacomp-reduce)
-                                                           (subrendering-p varray))))
+                                                           (nested-p varray))))
                                              ;; handle the case of {,/⍵}/3⍴⊂⍳3
                                              rendered (enclose rendered))))
                                      (lambda (item)
@@ -744,11 +735,11 @@
 (defmacro get-or-assign-shape (object form)
   `(or (varray-shape ,object) (setf (varray-shape ,object) ,form)))
 
-(defclass vad-subrendering ()
-  ((%subrendering :accessor vads-subrendering
-                  :initform t
-                  :initarg :subrendering
-                  :documentation "Whether the array contains nested elements to be subrendered."))
+(defclass vad-nested ()
+  ((%nested :accessor vads-nested
+            :initform t
+            :initarg :nested
+            :documentation "Whether the array contains nested elements to be subrendered."))
   (:metaclass va-class)
   (:documentation "Superclass of derived arrays containing sub-arrays to be rendered."))
 
@@ -773,22 +764,22 @@
   (:documentation "A primal array: a virtual array defined wholly by its parameters, not derived from another array."))
 
 (defclass varray-derived (varray)
-  ((%base         :accessor vader-base
-                  :initform nil
-                  :initarg :base
-                  :documentation "The array from which the array is derived.")
-   (%layer        :accessor vader-layer
-                  :initform 0
-                  :initarg :layer
-                  :documentation "The number of derived virtual arrays downstream of this array.")
-   (%subrendering :accessor vads-subrendering
-                  :initform nil
-                  :initarg :subrendering
-                  :documentation "Whether the array contains nested elements to be subrendered.")
-   (%content      :accessor vader-content
-                  :initform nil
-                  :initarg :content
-                  :documentation "Cached rendered content of the array."))
+  ((%base    :accessor vader-base
+             :initform nil
+             :initarg :base
+             :documentation "The array from which the array is derived.")
+   (%layer   :accessor vader-layer
+             :initform 0
+             :initarg :layer
+             :documentation "The number of derived virtual arrays downstream of this array.")
+   (%nested  :accessor vads-nested
+             :initform nil
+             :initarg :nested
+             :documentation "Whether the array contains nested elements to be subrendered.")
+   (%content :accessor vader-content
+             :initform nil
+             :initarg :content
+             :documentation "Cached rendered content of the array."))
   (:metaclass va-class)
   (:documentation "A derived array: a virtual array derived from another array."))
 
@@ -872,18 +863,18 @@
   (let ((shape (shape-of varray)))
     ;; (print (list :vd varray (vader-base varray)
     ;;              (print (prototype-of (vader-base varray)))
-    ;;              (subrendering-p varray)
-    ;;              (subrendering-p (vader-base varray))))
+    ;;              (nested-p varray)
+    ;;              (nested-p (vader-base varray))))
     ;; (print (list :ba varray (vader-base varray) shape
     ;;              (render (vader-base varray))))
     (if (or (not shape) (loop :for dim :in shape :never (zerop dim)))
         (if (and (not (or (typep varray 'vader-expand)
                           (typep varray 'vader-catenate)))
-                 ;; TODO: functions that combine an array of arguments shouldn't have base subrendering
+                 ;; TODO: functions that combine an array of arguments shouldn't have base nested
                  ;; checked. Is there a better way to establish this rule?
-                 (subrendering-p (vader-base varray)))
+                 (nested-p (vader-base varray)))
             (aplesque::make-empty-array (disclose (render (vader-base varray))))
-            (if (subrendering-p varray)
+            (if (nested-p varray)
                 (aplesque::make-empty-array (disclose (render (vader-base varray))))
                 ;; (prototype-of (disclose (render (vader-base varray))))
                 (let* ((indexer (generator-of varray))

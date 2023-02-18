@@ -275,7 +275,6 @@
                         (declare (ignorable ,@vals-list))
                         (when (getf (rest ,env) :test-param)
                           (print (list :env ,env)))
-                        ;; ,@body
                         ,@(append (butlast body)
                                   (list (cons 'check-value (last body))))))))
          #'∇self))))
@@ -295,10 +294,6 @@
            (apply ,(if (not (symbolp function))
                        function `(function ,function))
                   ,args)))))
-
-(defun render-varrays (item)
-  (if (not (typep item 'varray))
-      item (vrender item)))
 
 (defmacro ws-assign-val (symbol value)
   "Assignment macro for use with (:store-val) directive."
@@ -382,7 +377,6 @@
 
 (defun of-meta-hierarchy (meta-form key &optional symbol)
   "Fetch a combined list of symbols of a given type at each level of a closure metadata hierarchy. Used to query data collected as part of lexer postprocessing."
-  ;; (print (list :mm key symbol meta-form))
   (if symbol (or (and (getf meta-form key) (member symbol (getf meta-form key) :test #'eql))
                  (and (getf meta-form :parent) (of-meta-hierarchy (rest (getf meta-form :parent)) key symbol)))
       (when (getf meta-form key)
@@ -578,7 +572,7 @@
 
 (defun at-path (object path &key (value) (value-nil) (set-by))
   "Get or set values within a namespace (structured as a ptree), handling arrays within the namespace according to array indices within the namespace path or eliding arrays in the absence of specific coordinates."
-  (let ((value (render-varrays value)))
+  (let ((value (vrender value :may-be-deferred t)))
     (if (and (not value) (not value-nil) (arrayp object) (symbolp (first path)))
         (apply-scalar (lambda (item) (at-path item path))
                       object)
@@ -790,9 +784,7 @@
                                                     ,(intern (string symbol) "KEYWORD"))
                                               ,set-to)
                              ;; toggle rendering varrays on assignment
-                             `(setf ,symbol (vrender ,set-to :may-be-deferred t))
-                             ;; `(setf ,symbol ,set-to)
-                             ))))))
+                             `(setf ,symbol (vrender ,set-to :may-be-deferred t))))))))
         (cond ((and (listp symbol) (eql 'nspath (first symbol)))
                ;; handle assignments within namespaces, using process-path to handle the paths
                (let ((val (gensym)))
@@ -818,7 +810,7 @@
                                     symbol (rest symbol))))
                    ;; handle multiple assignments like a b c←1 2 3
                    (labels ((process-symbols (sym-list values)
-                              (let* ((this-val (gensym))
+                              (let* ((is-nested (gensym)) (this-val (gensym))
                                      ;; (this-generator (gensym))
                                      (assigning-xfns (and (listp values) (eql 'a-call (first values))
                                                           (listp (second values))
@@ -848,9 +840,13 @@
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
-                                `(let ((,this-val (render-varrays ,values))
-                                       ;; (,this-generator (generator-of ,values))
-                                       )
+                                `(let* ((,is-nested ,(loop :for sym
+                                                             :in (if (not (eql 'avec (first sym-list)))
+                                                                     sym-list (rest sym-list))
+                                                           :always (not (and (listp sym)
+                                                                             (not (eql 'inws
+                                                                                       (first sym)))))))
+                                        (,this-val (vrender ,values :not-nested ,is-nested)))
                                    ;;(declare (ignorable ,this-val ,this-generator))
                                    ;; IPV-TODO: currently threaded assignment requires rendering
                                    ;; of the input vector; can this be improved?
@@ -861,24 +857,11 @@
                                            (cond ((and (listp sym) (not (eql 'inws (first sym))))
                                                   (list (process-symbols
                                                          sym `(if (not (vectorp ,this-val))
-                                                                  ,this-val (aref ,this-val ,sx))))
-                                                  ;; IPV-TODO: slow for ↓fmt tree ⍳15, what's the fix?
-                                                  ;; (list (process-symbols
-                                                  ;;        sym `(vrender (if (= 1 (size-of ,values))
-                                                  ;;                          ,values (funcall ,this-generator
-                                                  ;;                                           ,sx))
-                                                  ;;                      :may-be-deferred t)))
-                                                  )
+                                                                  ,this-val (aref ,this-val ,sx)))))
                                                  ((eql '⍺ sym)
                                                   `((or ⍺ (setf ⍺ (if (vectorp ,this-val)
                                                                       (aref ,this-val sx)
-                                                                      (disclose ,this-val)))))
-                                                  ;; `((or ⍺ (setf ⍺ (vrender (if (= 1 (size-of ,values))
-                                                  ;;                              ,values
-                                                  ;;                              (funcall ,this-generator
-                                                  ;;                                       ,sx))
-                                                  ;;                          :may-be-deferred t))))
-                                                  )
+                                                                      (disclose ,this-val))))))
                                                  ((eql '⍵ sym)
                                                   `(error "The [⍵ right argument] cannot ~a"
                                                           "have a default assignment."))
@@ -901,12 +884,7 @@
                                                                        ,args)))))))
                                                   (t `((setf ,sym (if (vectorp ,this-val)
                                                                       (aref ,this-val ,sx)
-                                                                      (disclose ,this-val))))
-                                                     ;; `((setf ,sym (if (= 1 (size-of ,values))
-                                                     ;;                  ,values
-                                                     ;;                  (funcall ,this-generator
-                                                     ;;                           ,sx))))
-                                                     )))
+                                                                      (disclose ,this-val)))))))
                                    ,this-val))))
                      (process-symbols symbols value))))))))
 
@@ -962,7 +940,7 @@
              (aops:split array 1)))
 
 (defun avec (&rest items)
-  "This function returns an APL vector; in the case of virtual arrays within the vector, a subrendering virtual container vector is returned."
+  "This function returns an APL vector; in the case of virtual arrays within the vector, a nested virtual container vector is returned."
   (let ((type) (contains-varrays))
     (loop :for item :in items :while (or (not contains-varrays) (not (eq t type)))
           :do (setq type (type-in-common type (assign-element-type (if (or (not (integerp item))
@@ -973,7 +951,7 @@
         (let ((item-vector (make-array (length items) :element-type type :initial-contents items)))
           (make-instance
            'vader-subarray :base item-vector :shape (shape-of item-vector)
-                           :subrendering t :generator (varray::generator-of item-vector)))
+                           :nested t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
 
 (defun parse-apl-number-string (&rest _)
@@ -1368,7 +1346,7 @@
                                                   :base (list array index-origin))))
                                              (list ,@axes))))
                          ,to-set)
-                  `(make-virtual 'vader-select :base ,body :subrendering t
+                  `(make-virtual 'vader-select :base ,body :nested t
                                                :argument (list ,@axes) :index-origin index-origin))
               (rest axis-sets)))))
 
@@ -2087,13 +2065,11 @@
   ;; TODO: can the functionality here and in amb-ref be factored out and merged?
   (let ((this-fn (gensym)) (args (gensym)) (iargs (gensym)))
     `(labels ((,this-fn (&rest ,args)
-                ;; (print (list :gg ,args))
                 (if (and (eq :reassign-axes (first ,args))
                          (not (third ,args)))
                     ;; passing this option will return the core function again
                     ;; with its axes reassigned; needed for things like ⌽⍤1 optimization
                     (lambda (&rest ,iargs)
-                      ;; (print (list :gg ,iargs))
                       (apply #',this-fn (append (list :assign-axes (second ,args))
                                                 ,iargs)))
                     (progn ,@(when axes `((when (eq :assign-axes (first ,args))
@@ -2330,7 +2306,6 @@
                                    (case spec-type
                                      (functions (push-char-and-aliases :functions :functions-symbolic))
                                      (statements (push-char-and-aliases :statements :statements-symbolic)))
-                                   ;; (push-char-and-aliases :functions :functions-symbolic)
                                    (push glyph-char (getf lexicons :symbolic-forms))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)

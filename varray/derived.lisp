@@ -79,8 +79,8 @@
   (:metaclass va-class)
   (:documentation "Superclass of array transformations whose content may be changed in place upon rendering and whose rendered/non-rendered status must therefore be tracked."))
 
-;; this is subrendering for the case of ≡↓↓2 3⍴⍳6
-(defclass vader-subarray (vad-subrendering varray-derived)
+;; this is nested for the case of ≡↓↓2 3⍴⍳6
+(defclass vader-subarray (vad-nested varray-derived)
   ((%index :accessor vasv-index
            :initform nil
            :initarg :index
@@ -535,10 +535,10 @@
 
 (defmethod generator-of ((varray vader-reshape) &optional indexers params)
   (let ((output-size (size-of varray)))
-    (when (and (typep (vader-base varray) 'vad-subrendering)
-               (vads-subrendering (vader-base varray))
+    (when (and (typep (vader-base varray) 'vad-nested)
+               (vads-nested (vader-base varray))
                (< (size-of (vader-base varray)) (size-of varray)))
-      ;; render the base if it's a subarray with subrendering enabled, as for
+      ;; render the base if it's a subarray with nested enabled, as for
       ;; 2 2⍴(⊂2 2⍴⍳4) 2 3 or 2 3⍴⊂2 2⍴⍳4, where the enclosed subarray will otherwise attempt to
       ;; render twice and cause a race condition - TODO: is there a more efficient way to do this?
       (render (vader-base varray)))
@@ -660,9 +660,9 @@
                     (loop :for d1 :in shape1 :for d2 :in shape2 :always (= d1 d2))
                     ;; compared arrays must be either character or non-character to match
                     (or (< 0 (size-of item1)) ;; 0-size arrays must be of same type, as for ⍬≡''
-                        (if (not (member (etype-of item1) '(character base-char)))
-                            (not (member (etype-of item2) '(character base-char)))
-                            (member (etype-of item2) '(character base-char))))
+                        (if (not (position (etype-of item1) #(character base-char) :test #'eql))
+                            (not (position (etype-of item2) #(character base-char) :test #'eql))
+                            (position (etype-of item2) #(character base-char) :test #'eql)))
                     ;; TODO: this can be optimized - currently the
                     ;; function check happens for every element
                     (loop :for i :below (size-of item1)
@@ -910,7 +910,7 @@
   (get-promised (varray-shape varray)
                 (progn (if (second (shape-of (vader-base varray)))
                            ;; set array to subrender if it will return coordinate vector objects
-                           (setf (vads-subrendering varray) t)
+                           (setf (vads-nested varray) t)
                            ;; the array's rendered status can be set to true if it contains
                            ;; integers, since they will be IO-adjusted upon generation
                            (setf (vads-rendered varray) t))
@@ -1021,7 +1021,7 @@
                          :do (incf count))
                    count)))))))
 
-;; TODO: is subrendering needed here? Check render function
+;; TODO: is nested needed here? Check render function
 (defclass vader-pare (vader-reshape vad-on-axis vad-with-io)
   nil (:metaclass va-class)
   (:documentation "An array with a reduced shape as from the [, catenate] or [⍪ table] functions."))
@@ -1107,9 +1107,9 @@
                                        ;; (shape-of) must be called before checking whether an
                                        ;; array subrenders since (shape-of) determines whether a
                                        ;; catenated array subrenders
-                                       (when (or (subrendering-p a)
-                                                 (subrendering-base a))
-                                         (setf (vads-subrendering varray) t))
+                                       (when (or (nested-p a)
+                                                 (nested-base a))
+                                         (setf (vads-nested varray) t))
                                        (when (or (varrayp a) (arrayp a))
                                          shape))))
           (max-rank (reduce #'max (mapcar #'length each-shape)))
@@ -1239,7 +1239,7 @@
                                :summing (* si df) :into rmi :finally (return rmi)))))
              (if (functionp (aref generators array-index))
                  (let ((indexed (funcall (aref generators array-index) row-major-index)))
-                   (if (not (subrendering-p indexed))
+                   (if (not (nested-p indexed))
                        indexed (render indexed)))
                  (aref generators array-index))))))))
 
@@ -1406,7 +1406,7 @@
                                             prototype))
                                  (when (zerop (reduce #'+ inner-indices)) this-gen)))))))))))))
 
-(defclass vader-split (vad-subrendering varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
+(defclass vader-split (vad-nested varray-derived vad-on-axis vad-with-io vad-maybe-shapeless)
   nil (:metaclass va-class)
   (:documentation "A split array as from the [↓ split] function."))
 
@@ -1706,7 +1706,7 @@
                           (typecase (vader-base varray) (vader-section t)
                                     (vader-pick (setf (vapick-assign (vader-base varray))
                                                       (getf params :assigning))
-                                     (funcall (getf params :toggle-toplevel-subrendering))
+                                     (funcall (getf params :toggle-toplevel-nested))
                                      :pick)))))
           
      (let* ((indexer (indexer-section (shape-of (vader-base varray))
@@ -1746,7 +1746,7 @@
                             (vader-section t)
                             (vader-pick (setf (vapick-assign (vader-base varray))
                                               (getf params :assigning))
-                             (funcall (getf params :toggle-toplevel-subrendering))
+                             (funcall (getf params :toggle-toplevel-nested))
                              :pick))))
         (lambda (index)
           (declare (type integer index))
@@ -1814,7 +1814,7 @@
                                        (if (zerop index) indexed prototype))
                            prototype))))))))))
 
-(defclass vader-enclose (vad-subrendering varray-derived vad-on-axis vad-with-io
+(defclass vader-enclose (vad-nested varray-derived vad-on-axis vad-with-io
                          vad-with-argument vad-maybe-shapeless)
   ((%inner-shape :accessor vaenc-inner-shape
                  :initform nil
@@ -1973,7 +1973,7 @@
                          base-gen (lambda (index) (funcall base-gen index)))
                      (vader-base varray))))))))
 
-(defclass vader-partition (vad-subrendering varray-derived vad-on-axis vad-with-io
+(defclass vader-partition (vad-nested varray-derived vad-on-axis vad-with-io
                            vad-with-argument vad-maybe-shapeless)
   ((%params :accessor vapart-params
             :initform nil
@@ -2319,7 +2319,7 @@
                                                                  (funcall base-gen path-value)))))
                                    (when (and (not (shape-of indexer))
                                               (or (arrayp indexer) (varrayp indexer)))
-                                     (setf (vads-subrendering varray) t))
+                                     (setf (vads-nested varray) t))
                                    indexer))
                   (setf (vapick-reference varray)
                         (if (= 1 path-length)
@@ -2339,7 +2339,7 @@
                                                    (funcall base-gen path-value)))))
                               (when (and (not (shape-of indexer))
                                          (or (arrayp indexer) (varrayp indexer)))
-                                (setf (vads-subrendering varray) t))
+                                (setf (vads-nested varray) t))
                               indexer)
                             (fetch-reference varray (if (not (functionp base-gen))
                                                         base-gen (funcall base-gen path-value))
@@ -2371,7 +2371,7 @@
                     (when (and (shape-of base) (not (shape-of indexer))
                                (or (arrayp indexer)
                                    (varrayp indexer)))
-                      (setf (vads-subrendering varray) t))
+                      (setf (vads-nested varray) t))
                     indexer))))))
 
 (defgeneric assign-reference (varray base &optional path path-indexer path-index))
@@ -2383,7 +2383,7 @@
                                varray (if (not (functionp path-indexer))
                                           path-indexer (funcall path-indexer (or path-index 0)))
                                base))))
-    (setf (vads-subrendering varray) t)
+    (setf (vads-nested varray) t)
     (lambda (index)
       (if (= index assigned-index)
           (if (vapick-selector varray)
@@ -2441,7 +2441,7 @@
                                               path-gen (funcall path-gen
                                                                 (vapick-apath-index varray)))
                                    (vader-base varray))))
-                 (setf (vads-subrendering varray) t)
+                 (setf (vads-nested varray) t)
                  (lambda (index)
                    (if (= index this-index)
                        (if (vapick-selector varray)
@@ -3124,7 +3124,7 @@
                                                                              (min i (1- av2))))))))
                result))))))
 
-(defclass vader-identity (vad-subrendering varray-derived vad-maybe-shapeless vad-reindexing vad-invertable)
+(defclass vader-identity (vad-nested varray-derived vad-maybe-shapeless vad-reindexing vad-invertable)
   nil (:metaclass va-class)
   (:documentation "The identity of an array as from the [⊢ identity] function."))
 

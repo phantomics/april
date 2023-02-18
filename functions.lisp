@@ -313,7 +313,7 @@
         (make-virtual
          'vader-select
          :base omega :index-origin index-origin
-         :argument (let ((alpha (render-varrays alpha))
+         :argument (let ((alpha (vrender alpha :not-nested t))
                          (axis (when axes (if (vectorp (first axes))
                                               ;; the inefficient array-to-list is used here in
                                               ;; case of nested alpha arguments like (⊂1 2 3)⌷...
@@ -512,7 +512,7 @@
                                                      (make-array (length items)
                                                                  :initial-contents (reverse items))))
                                                key))))
-        (make-instance 'vader-mix :base (apply #'vector item-sets) :subrendering t :axis 1)))))
+        (make-instance 'vader-mix :base (apply #'vector item-sets) :nested t :axis 1)))))
 
 (defun operate-producing-outer (operand)
   "Generate a function producing an outer product. Used to implement [∘. outer product]."
@@ -665,7 +665,7 @@
                                                                            (row-major-aref adivs i)))))
                                               (setf (row-major-aref output i)
                                                     (funcall function this-odiv this-adiv))))
-                                          (make-instance 'vader-mix :base output :subrendering t
+                                          (make-instance 'vader-mix :base output :nested t
                                                                     :axis (max (rank odivs)
                                                                                (rank adivs))))))
                        (if (not odivs) ;; as above for an omega value alone
@@ -674,7 +674,7 @@
                              (dotimes (i (size output))
                                (setf (row-major-aref output i)
                                      (funcall function (row-major-aref odivs i))))
-                             (make-instance 'vader-mix :base output :subrendering t
+                             (make-instance 'vader-mix :base output :nested t
                                                        :axis (varray::rank-of output))))))))))))
 
 (defun operate-atop (right-fn left-fn)
@@ -758,7 +758,7 @@
                      (out-sub-array (if alpha (funcall left-fn mod-array alpha)
                                         (funcall left-fn mod-array))))
                 (make-instance 'vader-select
-                               :base omega :index-origin index-origin :subrendering t
+                               :base omega :index-origin index-origin :nested t
                                :assign (funcall (if (and (not (or (arrayp right) (varrayp right)))
                                                          (> 2 orank)
                                                          (not (zerop (varray::rank-of out-sub-array))))
@@ -786,6 +786,8 @@
   "Generate a function applying a function via (aplesque:stencil) to an array. Used to implement [⌺ stencil]."
   (lambda (omega &optional alpha environment blank)
     (declare (ignore alpha environment blank))
-    (let ((stenciled (render-varrays (make-instance 'vacomp-stencil
-                                                    :omega omega :right right-value :left left-function))))
-      (make-instance 'vader-mix :base stenciled :subrendering nil :axis (rank stenciled)))))
+    ;; TODO: make an alternate stencil that's auto-mixed
+    (let ((stenciled (make-instance 'vacomp-stencil
+                                    :omega omega :right right-value :left left-function)))
+      (make-instance 'vader-mix :base (vrender stenciled)
+                                :nested nil :axis (rank-of stenciled)))))
