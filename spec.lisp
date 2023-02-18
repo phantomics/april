@@ -45,6 +45,7 @@
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
          :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators "."
+         :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
@@ -72,8 +73,10 @@
             :match-numeric-character
             (lambda (char) (or (digit-char-p char) (position char "._¯eEjJrR" :test #'char=)))
             :match-token-character
-            (lambda (char) (or (is-alphanumeric char)
-                               (position char "._⎕∆⍙¯" :test #'char=)))
+            (lambda (idiom)
+              (lambda (char) (or (is-alphanumeric char)
+                                 (position char (of-system idiom :supplemental-token-chars)
+                                           :test #'char=))))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
             :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬" :test #'char=))
@@ -1523,13 +1526,11 @@
                        :description "Pivotal operators are so called because they are entered between two operands. Depending on the operator, these operands may be functions or array values, with the combination yielding a new function."))
   (\. (has :title "Inner/Outer Product")
       (pivotal (lambda (right left)
-                 (if (and (listp left)
-                          (symbolp (second left))
-                          (string= "∘" (string (second left))))
-                     ;; (eq left :outer-product-designator)
-                     `(operate-producing-outer ,right)
-                     `(op-compose 'vacomp-produce :right (sub-lex ,right)
-                                                  :left (sub-lex ,left) :index-origin index-origin))))
+                 (if (eq left :outer-product-designator)
+                     `(operate-producing-outer (sub-lex ,right))
+                     `(op-compose 'vacomp-produce
+                                  :right (sub-lex ,right) :left (sub-lex ,left)
+                                  :index-origin index-origin))))
       (tests (is "3+.×5" 15)
              (is "2+.×3 4 5" 24)
              (is "2 3 4+.×8 15 21" 145)

@@ -18,8 +18,9 @@
 (extend-vex-idiom
  april
  (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］"
-         :string-delimiters "'\"＇" :number-spacers "_＿"
-         :axis-separators ";；" :path-separators ".．" :negative-signs "¯￣")
+         :string-delimiters "'\"＇" :number-spacers "_＿" :axis-separators ";；"
+         :path-separators ".．" :negative-signs "¯￣"
+         :supplemental-token-chars ".．_＿⎕∆⍙¯￣")
  (utilities :process-fn-op-specs #'process-fnspecs
             :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))
                                      (lambda (char) (position char cstring :test #'char=)))
@@ -32,12 +33,22 @@
             :match-numeric-character
             (lambda (char) (or (digit-char-p char) (position char ".．_＿¯￣eEjJrR" :test #'char=)))
             :match-token-character
-            (lambda (char) (or (is-alphanumeric char)
-                               (position char ".．_＿⎕∆⍙¯￣" :test #'char=))))
+            (lambda (idiom)
+              (lambda (char) (or (and (is-alphanumeric char)
+                                      (not (or (of-lexicons idiom char :functions)
+                                               (of-lexicons idiom char :operators)
+                                               (of-lexicons idiom char :statements))))
+                                 ;; must check for the character's membership in lexicons since
+                                 ;; kanji and kana register as alphanumeric, otherwise patterns
+                                 ;; like ⎕IO－ won't work
+                                 (position char (of-system idiom :supplemental-token-chars)
+                                           :test #'char=)))))
  (functions (with (:name :japanese-kanji-function-aliases))
             (\＋ (has :title "プラス")
                  (alias-of +))
             (\－ (has :title "マイナス")
+                 (alias-of -))
+            (\ー (has :title "マイナス")
                  (alias-of -))
             (倍 (has :title "バイ")
                 (alias-of ×))
@@ -144,7 +155,9 @@
             (之 (has :title "の")
                 (alias-of ←))
             (行 (has :title "行く／ギョウ")
-                (alias-of →)))
+                (alias-of →))
+            (外 (has :title "ガイ")
+                (alias-of ∘)))
  (operators (with (:name :japanese-kanji-operator-aliases))
             (折 (has :title "折る／セツ")
                 (alias-of /))
@@ -157,6 +170,8 @@
             (集 (has :title "集まる／シュウ")
                 (alias-of ⌸))
             (積 (has :title "セキ")
+                (alias-of \.))
+            (点 (has :title "テン")
                 (alias-of \.))
             (続 (has :title "続く／ゾク")
                 (alias-of ∘))
@@ -180,5 +195,5 @@
 ;; aliases of argument/operand symbols with cow/horse derived
 ;; characters referencing Gozu and Mezu
 ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
-;; "｛⎕IOー向投２形向絶牛　馬｝"
-;; ｛出１　馬下積上３　４＝＋折付１　０　￣１続積回［１］１　０　￣１回別込馬｝
+;; "｛⎕IO ー向投２形向絶日　月｝"
+;; ｛出１　月下点上３　４＝＋折付１　０　￣１外積回［１］１　０　￣１回別込月｝

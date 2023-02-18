@@ -100,7 +100,7 @@
 (defmacro sub-aliasing (form)
   (if (not (or (symbolp form)
                (and (listp form)
-                    (member (first form) '(function)))))
+                    (eql (first form) 'function))))
       form (let ((args (gensym)) (this-meta (gensym)))
              `(if (not (functionp ,form))
                   ,form (lambda (&rest ,args)
@@ -145,7 +145,8 @@
                                                             :collect (list (first l) s))
                                                       (sub-aliasing ,(second item))))))
                                     (if (and (second item) (not (third item))
-                                             (symbolp (second item)) (member (first item) '(inws inwsd)))
+                                             (symbolp (second item)) (position (first item) #(inws inwsd)
+                                                                               :test #'eql))
                                         (let ((istring (string (second item))))
                                           (intern (string (second item))
                                                   (if (and inside-function
@@ -157,8 +158,9 @@
                                         ;; don't lex-intern functions like #'⊏|fn|
                                         (replace-symbols item (and (not (eql 'function (first item)))
                                                                    (or inside-function
-                                                                       (member (first item)
-                                                                               '(alambda olambda)))))))
+                                                                       (position (first item)
+                                                                                 #(alambda olambda)
+                                                                                 :test #'eql))))))
                                       ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
                                        (list 'quote (intern (string-upcase name) this-package)))
                                       (t item)))))
@@ -399,7 +401,7 @@
         ;; if this function is represented by a symbol from the top-level scope, push its symbol to the list
         ;; of symbolic functions called in the immediate scope
         (let ((h-sym (of-meta-hierarchy (rest meta-form) :fn-syms (second function))))
-          (if (and (not h-sym) (member (first function) '(inws inwsd)))
+          (if (and (not h-sym) (position (first function) #(inws inwsd) :test #'eql))
               (push (intern (string (second function)) space)
                     (getf (rest meta-form) :symfns-called))
               (if (of-meta-hierarchy (rest meta-form) :side-effecting-functions (first h-sym))
@@ -491,10 +493,10 @@
   ;; to get an idea of the variance between alphanumeric sets in different CLs, try evaluating:
   ;; (loop :for c :below (expt 2 16) :when (and (code-char c) (alphanumericp (code-char c))) :count c)
   ;; this will show you the difference just in the UCS-2 set (characters in the 16-bit Unicode range)
-  (member (nth-value 1 (cl-unicode:general-category character))
-          '(cl-unicode-names::lu cl-unicode-names::ll cl-unicode-names::lt cl-unicode-names::lm
-            cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
-          :test #'eql))
+  (position (nth-value 1 (cl-unicode:general-category character))
+            #(cl-unicode-names::lu cl-unicode-names::ll cl-unicode-names::lt cl-unicode-names::lm
+              cl-unicode-names::lo cl-unicode-names::nd cl-unicode-names::nl cl-unicode-names::no)
+            :test #'eql))
 
 (defun build-populator (array)
   "Generate a function that will populate array elements with an empty array prototype."
@@ -506,7 +508,10 @@
   "Make a prototype version of an array; all values in the array will be blank spaces for character arrays or zeroes for other types of arrays."
   (if (not (eq t (element-type array)))
       (make-array (dims array) :element-type (element-type array)
-                  :initial-element (if (member (element-type array) '(base-char character)) #\  0))
+                               :initial-element (if (position (element-type array)
+                                                              #(base-char character)
+                                                              :test #'eql)
+                                                    #\  0))
       (let ((output (make-array (dims array))))
         (dotimes (i (size output)) (setf (row-major-aref output i)
                                          (if (not (arrayp (row-major-aref array i)))
@@ -564,7 +569,7 @@
   "Create a string representation of a namespace path from the symbol list implementing that path."
   (if (not items)
       output (let ((this-item (if (and (listp (first items))
-                                       (member (caar items) '(inws inwsd)))
+                                       (position (caar items) #(inws inwsd) :test #'eql))
                                   (cadar items) (when (symbolp (first items))
                                                   (first items)))))
                (when this-item
@@ -697,12 +702,13 @@
     (if (not (listp symbol))
         (let* ((is-symbol-value (or (symbolp value)
                                     (and (listp value)
-                                         (or (member (first value) '(inws inwsd))
+                                         (or (position (first value) #(inws inwsd) :test #'eql)
                                              ;; remember to duplicate an assigned symbol as well
                                              (and (eql 'a-set (first value))
                                                   (or (symbolp (second value))
                                                       (and (listp (second value))
-                                                           (member (second value) '(inws inwsd)))))))))
+                                                           (position (second value) #(inws inwsd)
+                                                                     :test #'eql))))))))
                (ns-sym (intern "*NS-POINT*" (package-name (symbol-package symbol))))
                (namespace (if (boundp ns-sym) (symbol-value ns-sym)))
                (set-to (if (not is-symbol-value) value `(duplicate ,value))))
@@ -759,8 +765,9 @@
                 (t (let ((sym-package (package-name (symbol-package symbol))))
                      (if (and (listp value) (eql 'a-call (first value))
                               (listp (second value)) (eql 'function (caadr value))
-                              (member (cadadr value) '(external-workspace-function
-                                                       external-workspace-operator))
+                              (position (cadadr value) #(external-workspace-function
+                                                         external-workspace-operator)
+                                        :test #'eql)
                               (not (string= "LEX" (subseq sym-package (+ -3 (length sym-package))
                                                           (length sym-package)))))
                          (let ((args (gensym))
@@ -816,9 +823,10 @@
                                      (assigning-xfns (and (listp values) (eql 'a-call (first values))
                                                           (listp (second values))
                                                           (eql 'function (caadr values))
-                                                          (member (cadadr values)
-                                                                  '(external-workspace-function
-                                                                    external-workspace-operator))))
+                                                          (position (cadadr values)
+                                                                    #(external-workspace-function
+                                                                      external-workspace-operator)
+                                                                    :test #'eql)))
                                      (other-space (and assigning-xfns
                                                        (concatenate 'string "APRIL-WORKSPACE-"
                                                                     (first (last values)))))
@@ -1122,9 +1130,10 @@
              (or (eql 'lambda (first reference))
                  (and (symbolp (first reference))
                       (macro-function (first reference))
-                      (not (member (first reference)
-                                   ;; TODO: this will cause a problem if a function is passed and assigned
-                                   '(avec a-call apl-if a-out a-set))))))
+                      (not (position (first reference)
+                                     ;; TODO: this will cause a problem if a function is passed and assigned
+                                     #(avec a-call apl-if a-out a-set)
+                                     :test #'eql)))))
     reference))
 
 (defun extract-axes (process tokens &optional axes)
@@ -1473,14 +1482,14 @@
     (let ((properties (reverse properties)))
       (if form (if (listp form)
                    (let ((initial (first form)))
-                     (if (member initial '(avec achoose inws inwsd))
+                     (if (position initial #(avec achoose inws inwsd) :test #'eql)
                          form (if (not (or (numberp initial)
                                            (listp initial)
                                            (stringp initial)
                                            (characterp initial)
                                            (and (arrayp initial)
                                                 (zerop (size initial)))
-                                           (member initial '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵) :test #'eql)
+                                           (position initial #(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵) :test #'eql)
                                            (and (not (fboundp initial))
                                                 (and (symbolp initial)
                                                      (and (or (of-meta-hierarchy closure-meta
@@ -1518,7 +1527,7 @@
   (let ((arg-symbols (getf closure-meta :arg-syms))
         (side-refs) (var-refs)
         (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
-                             :when (not (or (member sym '(⍺ nil))
+                             :when (not (or (position sym #(⍺ nil) :test #'eql)
                                             (member sym arguments)))
                                :collect `(inws ,sym)))
         (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
@@ -1532,7 +1541,7 @@
                                                                   :pop-syms sym))
                                       :collect `(inws ,(intern (string sym))))))
         (context-vars (loop :for sym :in (getf closure-meta :var-syms)
-                            :when (and (not (member sym '(⍺ nil)))
+                            :when (and (not (position sym #(⍺ nil) :test #'eql))
                                        (not (member sym arguments))
                                        (not (of-meta-hierarchy (rest (getf closure-meta :parent))
                                                                :var-syms sym)))
@@ -1750,8 +1759,8 @@
              (let ((split-segments (cl-ppcre:split "[.]" (string symbol))))
                (if (and (= 2 (length split-segments))
                         (or (fboundp (intern (first split-segments) space))
-                            (member (intern (first split-segments) *package-name-string*)
-                                    '(⍺⍺ ⍵⍵ ∇ ∇∇))
+                            (position (intern (first split-segments) *package-name-string*)
+                                      #(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql)
                             (member (intern (first split-segments) *package-name-string*)
                                     (getf (rest closure-meta-form) :fn-syms))))
                    (list (intern (second split-segments) *package-name-string*)
@@ -1809,9 +1818,9 @@
     (symbol-macrolet ((closure-meta (rest closure-meta-form)))
       (match tokens
         ((list (guard axes-form (and (listp axes-form) (eq :ax (first axes-form))))
-               (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
+               (guard fn-form (and (listp fn-form) (position (first fn-form) #(:fn :op) :test #'eq)))
                :special-lexical-form-assign
-               (guard symbol (and (symbolp symbol) (not (member symbol '(⍺⍺ ⍵⍵))))))
+               (guard symbol (and (symbolp symbol) (not (position symbol #(⍺⍺ ⍵⍵) :test #'eql)))))
          ;; handle function currying with axes, like ax←,[1.5]
          (if (eq :op (first fn-form))
              (let ((valence (second fn-form)))
@@ -1834,9 +1843,9 @@
                                             :collect (lexer-postprocess item idiom
                                                                         space closure-meta-form)))
                             fn-form :special-lexical-form-assign symbol)))))
-        ((list (guard fn-form (and (listp fn-form) (member (first fn-form) '(:fn :op))))
+        ((list (guard fn-form (and (listp fn-form) (position (first fn-form) #(:fn :op) :test #'eql)))
                :special-lexical-form-assign
-               (guard symbol (and (symbolp symbol) (not (member symbol '(⍺ ⍺⍺ ⍵⍵))))))
+               (guard symbol (and (symbolp symbol) (not (position symbol #(⍺ ⍺⍺ ⍵⍵) :test #'eql)))))
          ;; handle function assignments like fn←{⍵+5} or aliasing like fn←+
          (if (characterp (second fn-form))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
@@ -1894,10 +1903,10 @@
                                :special-lexical-form-assign
                                (lexer-postprocess symbol idiom space closure-meta-form))))))))
         ((list form :special-lexical-form-assign
-               (guard symbol (and (symbolp symbol) (not (member symbol '(⍵ ⍺))))))
+               (guard symbol (and (symbolp symbol) (not (position symbol #(⍵ ⍺) :test #'eql)))))
          ;; handle other types of function assignment
          (if (symbolp form)
-             (if (or (and closure-meta (member form '(⍺⍺ ⍵⍵)))
+             (if (or (and closure-meta (position form #(⍺⍺ ⍵⍵) :test #'eql))
                      (and closure-meta (of-meta-hierarchy closure-meta :fn-syms form))
                      (fboundp (intern (string form) space)))
                  (if closure-meta (push symbol (getf closure-meta :fn-syms))
@@ -1955,14 +1964,16 @@
            (list (cons :ax (loop :for item :in each-axis
                                    :collect (lexer-postprocess item idiom space closure-meta-form)))
                  axes-of)))
-        ((guard list (and (listp list) (not (member (first list) '(inws inwsd)))))
+        ((guard list (and (listp list) (not (position (first list)
+                                                      #(inws inwsd) :test #'eql))))
          ;; handle closures like (1,⍳5)
          (labels ((process-symbols (possible-symbols &optional top-level)
                     (let ((symbols-valid t))
                       (when (or top-level (loop :for item :in possible-symbols
                                                 :always (or (symbolp item) (listp item))))
                         (loop :for item :in possible-symbols :while symbols-valid
-                              :do (if (and (symbolp item) (not (member item '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇ ∇∇))))
+                              :do (if (and (symbolp item) (not (position item #(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵ ∇ ∇∇)
+                                                                         :test #'eql)))
                                       (when (and closure-meta
                                                  (not (member item (getf closure-meta :var-syms))))
                                         (push item (getf closure-meta :var-syms)))
@@ -1984,7 +1995,7 @@
            (push (lambda (valence) (setf (second this-form) valence))
                  (getf closure-meta :valence-setters))
            this-form))
-        ((guard symbol (member symbol '(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵)))
+        ((guard symbol (position symbol #(⍺ ⍵ ⍶ ⍹ ⍺⍺ ⍵⍵) :test #'eql))
          ;; handle argument symbols, adding them to the closure-meta list
          (unless closure-meta
            ;; create the meta form if not present, needed for cases like 2{⍶⋄⍹}3⊢10
@@ -2003,9 +2014,9 @@
                 ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
                 ;; be added to the list to hoist if eligible
                 (setq in-assignment-context t))
-              (when (and (listp token) (member (first token) '(:fn :op)))
+              (when (and (listp token) (position (first token) #(:fn :op) :test #'eq))
                 (setq in-assignment-context nil))
-              (if (and (listp token) (not (member (first token) '(:fn :op))))
+              (if (and (listp token) (not (position (first token) #(:fn :op) :test #'eq)))
                   ;; recurse into lists, but not functions contained within a function, otherwise something
                   ;; like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline operator is within it;
                   ;; if an assignment context, that will be passed down to the next level of recursion
@@ -2034,11 +2045,12 @@
              (if (not (or (and (listp arg1) (eql 'a-call (first arg1)))
                           (and (listp arg2) (eql 'a-call (first arg2)))))
                  `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
-                                  ,(if (and (eql arg2 '⍵) (not (member arg1 '(⍵ ⍺))))
+                                  ,(if (and (eql arg2 '⍵) (not (position arg1 #(⍵ ⍺)
+                                                                         :test #'eql)))
                                        :inverse-right :inverse))
-                          ,@(list (if (not (member arg1 '(⍵ ⍺)))
+                          ,@(list (if (not (position arg1 #(⍵ ⍺) :test #'eql))
                                       arg1 (funcall to-wrap arg1))
-                                  (if (not (member arg2 '(⍵ ⍺)))
+                                  (if (not (position arg2 #(⍵ ⍺) :test #'eql))
                                       arg2 (funcall to-wrap arg2))))
                  (if (and (listp arg1) (eql 'a-call (first arg1)))
                      (if (and (listp arg2) (eql 'a-call (first arg2)))
@@ -2052,7 +2064,8 @@
                               arg1 (lambda (form)
                                      `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
                                                       ,(if (and (eql arg2 '⍺)
-                                                                (not (member form '(⍵ ⍺))))
+                                                                (not (position form #(⍵ ⍺)
+                                                                               :test #'eql)))
                                                            :inverse-right :inverse))
                                               ,(funcall to-wrap form)
                                               ,arg2)))))
@@ -2063,7 +2076,8 @@
                            (invert-function
                             arg1 (lambda (form)
                                    `(a-call (inv-fn ,function-form ,@(if arg2 (list t))
-                                                    ,(if (and (member form '(⍵ ⍺))
+                                                    ,(if (and (position form #(⍵ ⍺)
+                                                                        :test #'eql)
                                                               (not (eql arg1 '⍺)))
                                                          :inverse-right :inverse))
                                             ,arg1 ,(funcall to-wrap form))))))))))))))
@@ -2093,9 +2107,9 @@
   (let ((args (gensym)) (iargs (gensym)) (reduced-args (gensym)) (this-fn (gensym))
         (m-scalar (when (eq 'scalar-function (first fn-monadic)) '(:scalar t)))
         (d-scalar (when (eq 'scalar-function (first fn-dyadic)) '(:scalar t)))
-        (m-meta (when (member (first fn-monadic) '(fn-meta scalar-function))
+        (m-meta (when (position (first fn-monadic) #(fn-meta scalar-function) :test #'eql)
                   (cddr fn-monadic)))
-        (d-meta (when (member (first fn-dyadic) '(fn-meta scalar-function))
+        (d-meta (when (position (first fn-dyadic) #(fn-meta scalar-function) :test #'eql)
                   (cddr fn-dyadic))))
     `(labels ((,this-fn (&rest ,args)
                 ;; IPV-TODO: the one of the biggest force-render points
@@ -2395,10 +2409,10 @@
                 ;; imported symbols
                 #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
                 #:*value-composable-lexical-operators*)
-  (:import-from :vex #:of-system #:of-utilities)
+  (:import-from :vex #:of-system #:of-utilities #:of-lexicons)
   (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ
            #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of
-           #:of-system #:of-utilities #:is-alphanumeric
+           #:is-alphanumeric #:of-system #:of-utilities #:of-lexicons
            ;; exported symbols
            #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
            #:*value-composable-lexical-operators*))

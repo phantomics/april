@@ -604,8 +604,8 @@ To test against only the first N images in the set. In the above case, only the 
   (april-c (with (:space fnn-demo-space)
                  (:state :in ((count (or count 0)))))
            "{
-  c       ← $[count;count;≢⍵]
   ⎕IO     ← 0
+  c       ← $[count;count;≢⍵]
   labels  ← 'Number' 'Hits' 'Misses' 'Total' 'Hit%'
   labels ,← 'Avg. Hit Str.' 'Avg. Miss Str.' 'Avg. Missed Str.'
   labels ,← 'Avg. Divergence' 'Avg. Hit Div.' 'Avg. Miss Div.'

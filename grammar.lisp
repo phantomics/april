@@ -25,9 +25,9 @@
                             (list :pt (first (second input-sym)) (third (second input-sym)))
                             input-sym))))
         (if path-val ;; if a context path is set, it must be prepended to the each path resolved
-            (if (and (not (and (listp symbol) (member (first symbol) '(nspath :pt))))
+            (if (and (not (and (listp symbol) (position (first symbol) #(nspath :pt) :test #'eql)))
                      (or (string= "_" (string symbol)) ;; these types of symbols don't get a path prepended
-                         (member symbol '(⍵ ⍺ ⍹ ⍶))
+                         (position symbol #(⍵ ⍺ ⍹ ⍶) :test #'eql)
                          (member symbol *system-variables*)
                          (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                             :var-syms symbol)
@@ -35,7 +35,8 @@
                          (member symbol (assoc :constant (idiom-symbols *april-idiom*)))))
                 symbol
                 (cons 'nspath (append path-val (if (and (listp symbol)
-                                                        (member (first symbol) '(nspath :pt)))
+                                                        (position (first symbol) #(nspath :pt)
+                                                                  :test #'eql))
                                                    (cons (intern (string (if (listp (second symbol))
                                                                              (cadadr symbol)
                                                                              (second symbol)))
@@ -43,8 +44,9 @@
                                                          (cddr symbol))
                                                    (list (intern (string symbol) "KEYWORD"))))))
             (if (or (symbolp symbol)
-                    (and (listp symbol) (member (first symbol) '(inws inwsd))))
-                input-sym (cons 'nspath (cons (if (member (second symbol) '(⍵ ⍺ ⍹ ⍶))
+                    (and (listp symbol) (position (first symbol) #(inws inwsd) :test #'eql)))
+                input-sym (cons 'nspath (cons (if (position (second symbol) #(⍵ ⍺ ⍹ ⍶)
+                                                            :test #'eql)
                                                   (second symbol)
                                                   (list (if (of-meta-hierarchy
                                                              (rest (getf (getf properties :special)
@@ -98,9 +100,9 @@
                (resolve-path this-item space properties))))
           ;; process symbol-referenced values
           ((and (symbolp this-item)
-                (not (member this-item '(:special-lexical-form-assign :special-lexical-form-branch)
-                             :test #'eq))
-                (or (setf is-arg-symbol (member this-item '(⍵ ⍺ ⍹ ⍶) :test #'eql))
+                (not (position this-item #(:special-lexical-form-assign :special-lexical-form-branch)
+                               :test #'eq))
+                (or (setf is-arg-symbol (position this-item #(⍵ ⍺ ⍹ ⍶) :test #'eql))
                     (getf properties :symbol-overriding)
                     (member this-item (getf (getf properties :call-scope) :input-vars))
                     (or (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
@@ -116,7 +118,7 @@
                 (or (getf properties :symbol-overriding)
                     (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                        :var-syms this-item)
-                    (not (or (member this-item '(⍺⍺ ⍵⍵))
+                    (not (or (position this-item #(⍺⍺ ⍵⍵) :test #'eql)
                              (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                                 :fn-syms this-item)
                              (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
@@ -130,7 +132,7 @@
                     (getf properties :symbol-overriding))
                 (not (member (intern (string-upcase this-item) *package-name-string*)
                              (rest (assoc :function (idiom-symbols *april-idiom*)))))
-                (not (member this-item '(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql))
+                (not (position this-item #(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql))
                 (or (not (getf properties :type))
                     (eq :symbol (first (getf properties :type)))))
            ;; store variable references; needed to assess presence of lexical variable references that
@@ -144,8 +146,8 @@
                (intern (string-upcase this-item))
                (resolve-path this-item space properties)))
           ((and (symbolp this-item)
-                (not (member this-item '(:special-lexical-form-assign :special-lexical-form-branch)
-                             :test #'eq))
+                (not (position this-item #(:special-lexical-form-assign :special-lexical-form-branch)
+                               :test #'eq))
                 (getf properties :match-all-syms))
            this-item))))
 
@@ -230,7 +232,8 @@
                      `(inwsd ,this-item))
                     ((eql this-item '∇)
                      '#'∇self)
-                    ((and (member this-item '(⍵⍵ ⍺⍺ ⍺)) ;; recall ⍺ may be a function following ⍺←function
+                    ((and (position this-item #(⍵⍵ ⍺⍺ ⍺) :test #'eql)
+                          ;; recall ⍺ may be a function following ⍺←function
                           (or (not (eql '⍺ this-item))
                               (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                                  :fn-syms this-item)))
@@ -379,7 +382,7 @@
                                                    :left left :params params :elements elements)
                                   tokens)
                      (if (or (and (listp (second tokens))
-                                  (member (caadr tokens) '(:fn :op)))
+                                  (position (caadr tokens) #(:fn :op) :test #'eql))
                              ;; account for cases like ↓[1]'abcde'[2 2⍴2 3]
                              (of-meta-hierarchy (rest (getf (getf params :special) :closure-meta))
                                                 :fn-syms (second tokens))
@@ -413,7 +416,8 @@
                (build-value (rest tokens) :space space :params params
                                           :left left :elements (cons stm elements))))
             (t (let* ((is-closure (and (first tokens) (listp (first tokens))
-                                       (not (member (caar tokens) '(:fn :op :st :pt :ax)))))
+                                       (not (position (caar tokens) #(:fn :op :st :pt :ax)
+                                                      :test #'eql))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
                                        (process-value (first tokens) params space))))
@@ -518,7 +522,8 @@
                                                                         :space space :params params)))
                                            (if (and (not lval)
                                                     (listp function)
-                                                    (member (first function) '(apl-fn apl-fn-s))
+                                                    (position (first function) #(apl-fn apl-fn-s)
+                                                              :test #'eql)
                                                     (= 1 (length (string (second function))))
                                                     (not (of-lexicons *april-idiom*
                                                                       (aref (string (second function)) 0)
@@ -604,7 +609,7 @@
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
-                (not (member (caar tokens) '(:fn :op :st :pt :ax)))
+                (not (position (caar tokens) #(:fn :op :st :pt :ax) :test #'eql))
                 (or (not found-function)
                     (and (listp (caar tokens))
                          (not (setq first-function (build-function (first tokens)
@@ -810,7 +815,8 @@
                                     (process-operator (second tokens) params space)
                                     (list 'inwsd (second tokens))))
                  (assign-sym (when (and (listp assign-symbol)
-                                        (member (first assign-symbol) '(inws inwsd)))
+                                        (position (first assign-symbol) #(inws inwsd)
+                                                  :test #'eql))
                                (second assign-symbol)))
                  (interned-sym (intern (string assign-sym) space))
                  (closure-meta (rest (getf (getf params :special) :closure-meta)))
@@ -871,8 +877,11 @@
   "Complete the compilation of a value assignment; wraps the (compose-value-assignment) function."
   (labels ((all-symbols-p (list) ;; check whether list contains all symbols or lists of symbols
              (if (listp list) (loop :for item :in list
-                                    :always (or (and (symbolp item) (not (member item '(⍺⍺ ⍵⍵))))
-                                                (and (listp item) (member (first item) '(inws inwsd)))
+                                    :always (or (and (symbolp item)
+                                                     (not (position item #(⍺⍺ ⍵⍵) :test #'eql)))
+                                                (and (listp item)
+                                                     (position (first item) #(inws inwsd)
+                                                               :test #'eql))
                                                 (and (listp item) (all-symbols-p item))))
                  (symbolp list))))
     (if (and (= 1 (length tokens))
@@ -898,18 +907,20 @@
                     ;; actually functions from another workspace as for fn1 fn2 ← ⎕XWF 'fn1' 'fn2'
                     (and (listp (first elements)) (eql 'a-call (caar elements))
                          (listp (cadar elements)) (eql 'function (caadar elements))
-                         (member (second (cadar elements)) '(external-workspace-function
-                                                             external-workspace-operator))))
+                         (position (second (cadar elements)) #(external-workspace-function
+                                                               external-workspace-operator)
+                                   :test #'eql)))
                 (values nil tokens)
                 (build-function tokens :space space :params params))
-          (let ((initial-token-unstrandable (member (first tokens) '(to-output))))
+          (let ((initial-token-unstrandable (eql 'to-output (first tokens))))
             (multiple-value-bind (symbol remaining2)
                 ;; attempt to build a list of stranded symbols for assignment, as for d (e f)←7 (8 9);
                 ;; do not build an assignment strand if a ⎕ is present in the vector of names,
                 ;; and there may be other symbols that this rule should apply to
                 (build-value (if (not (and (or (symbolp function)
                                                (and (listp function)
-                                                    (member (first function) '(inws inwsd))))
+                                                    (position (first function) #(inws inwsd)
+                                                              :test #'eql)))
                                            (not remaining)))
                                  remaining (if (not initial-token-unstrandable)
                                                tokens (list (first tokens))))
@@ -920,7 +931,8 @@
                   (if (all-symbols-p symbol) (values symbol remaining2)
                       (build-value (if (not (and (or (symbolp function)
                                                      (and (listp function)
-                                                          (member (first function) '(inws inwsd))))
+                                                          (position (first function) #(inws inwsd)
+                                                                    :test #'eql)))
                                                  (not remaining)))
                                        remaining tokens)
                                    :space space :left t :params params))
@@ -944,7 +956,7 @@
   (multiple-value-bind (branch-from-base remaining)
       (build-value tokens :space space :params params)
     (let ((branch-from (if (or (not (listp branch-from-base))
-                               (not (member (first branch-from-base) '(inws inwsd))))
+                               (not (position (first branch-from-base) #(inws inwsd) :test #'eql)))
                            branch-from-base (second branch-from-base))))
       (values
        (when branch-to
@@ -993,14 +1005,16 @@
   "Exension of (build-value) and (build-function) to process functions composed with pivotal operators."
   (let ((next-token (if (not (and (listp (second tokens)) (eq :op (caadr tokens))
                                   (characterp (third (second tokens)))
-                                  (of-lexicons *april-idiom* (third (second tokens)) :operators-pivotal)))
-                        (second tokens) (list :fn (third (second tokens))))))
-    ;; if the next-token is ∘, it gets converted to its symbolic functional form;
-    ;; this is needed to implement [∘. outer product]
+                                  (of-lexicons *april-idiom* (third (second tokens)) :operators-pivotal)
+                                  (of-lexicons *april-idiom* (third (second tokens)) :functions)
+                                  (of-lexicons *april-idiom* (third (second tokens)) :symbolic-forms)))
+                        ;; operators overloaded as symbolic functional tokens are converted to the
+                        ;; correct symbol value here; this is needed for [∘. outer product].
+                        (second tokens)
+                        (symbol-value (intern (format nil "APRIL-LEX-SY-~A" (third (second tokens)))
+                                              *package-name-string*)))))
     (multiple-value-bind (left-function remaining)
-        (if (equalp next-token '(:fn #\∘))
-            (values (build-function (list next-token) :space space :params params) (cddr tokens))
-            (build-function (cons next-token (cddr tokens)) :space space :params params))
+        (build-function (cons next-token (cddr tokens)) :space space :params params)
       (multiple-value-bind (left-value remaining)
           (if left-function (values nil remaining)
               (build-value (rest tokens) :space space :params params :left t))
@@ -1060,7 +1074,7 @@
                       ;; get the symbol referencing the object to be reassigned,
                       ;; and fetch axes as well if present
                       (if (and (listp (third form))
-                               (member (first (third form)) '(inws inwsd)))
+                               (position (first (third form)) #(inws inwsd) :test #'eql))
                           (setf assign-sym (third form))
                           (if (and (listp (third form))
                                    (eql 'a-call (first (third form))))
@@ -1084,19 +1098,22 @@
                                                 ,value ,assign-sym :index-origin index-origin))
                      ,value))))
         (t (let* ((syms (if (symbolp symbol) symbol
-                            (if (and (listp symbol) (member (first symbol) '(inws inwsd)))
+                            (if (and (listp symbol) (position (first symbol) #(inws inwsd)
+                                                              :test #'eql))
                                 (second symbol) (when (and (listp symbol) (eql 'avec (first symbol)))
                                                   (rest symbol)))))
                   (symbols-list (when (symbolp syms) (list syms)))
-                  (set-symbol (if (and (symbolp syms) (member syms '(⍺ ⍶ ⍺⍺)))
+                  (set-symbol (if (and (symbolp syms) (position syms #(⍺ ⍶ ⍺⍺) :test #'eql))
                                   syms (if (not (or (symbolp symbol) (and (listp symbol)
-                                                                          (member (first symbol)
-                                                                                  '(inws inwsd)))))
+                                                                          (position (first symbol)
+                                                                                    #(inws inwsd)
+                                                                                    :test #'eql))))
                                            symbol (resolve-path symbol space params))))
                   (xfns-assigned (and (listp value) (eql 'a-call (first value))
                                       (listp (second value)) (eql 'function (caadr value))
-                                      (member (cadadr value) '(external-workspace-function
-                                                               external-workspace-operator)))))
+                                      (position (cadadr value) #(external-workspace-function
+                                                                 external-workspace-operator)
+                                                :test #'eql))))
              (labels ((get-symbol-list (list &optional inner)
                         (let ((valid t))
                           (when (listp list)
@@ -1114,7 +1131,8 @@
                                                                             (cons i symbols-list)))
                                                                     i)
                                                              (if (and (listp i)
-                                                                      (member (first i) '(inws inwsd)))
+                                                                      (position (first i) #(inws inwsd)
+                                                                                :test #'eql))
                                                                  (progn (setq symbols-list
                                                                               (cons (second i)
                                                                                     symbols-list))
@@ -1131,9 +1149,9 @@
                                         ;; or operators from an external workspace as with ⎕XWF and ⎕XWO
                                         (not (and (listp value)
                                                   (eql 'a-call (first value))
-                                                  (or (member (second value)
-                                                              '((function external-workspace-function)
-                                                                (function external-workspace-operator))
+                                                  (or (position (second value)
+                                                                #(#'external-workspace-function
+                                                                  #'external-workspace-operator)
                                                               :test #'equalp)))))
                                ;; unbind the symbol as for a function if this
                                ;; variable assignment is made at the top level
@@ -1180,10 +1198,11 @@
           (when (and (boundp i-sym) (not in-closure))
             (error "The name [~a] already designates a value." i-sym))
           (when (and (not in-closure)
-                     (not (member symbol '(⍺ ⍺⍺)))) ;; don't bind assignments to argument symbols
+                     ;; don't bind assignments to argument symbols
+                     (not (position symbol #(⍺ ⍺⍺) :test #'eql)))
             (setf (symbol-function i-sym) #'dummy-nargument-function))
           (when (and (listp function) (symbolp symbol)
-                     (member (first function) '(alambda a-comp))
+                     (position (first function) #(alambda a-comp) :test #'eql)
                      (member symbol (getf (rest (getf (getf params :special) :closure-meta)) :var-syms)))
               ;; for function assignments that aren't apparent to the lexer postprocessor like
               ;; fn←×∘3, it's necessary to remove their references as variables in the closure
@@ -1200,9 +1219,10 @@
           (when (getf (rest (getf (getf params :special) :closure-meta)) :side-effects)
             (push symbol (getf (rest (getf (getf params :special) :closure-meta)) :side-effecting-functions)))
           `(a-set ,(if (eql '⍺ symbol) ;; handle the ⍺←function case
-                       symbol (if in-closure `(inws ,symbol)                    
+                       symbol (if in-closure `(inws ,symbol)
                                   `(symbol-function '(inwsd ,symbol))))
-                  ,(if (not (and (listp function) (member (first function) '(inws inwsd))
+                  ,(if (not (and (listp function) (position (first function) #(inws inwsd)
+                                                            :test #'eql)
                                  (symbolp (second function))))
                        ;; if the function being aliased is within a namespace path, detect this
                        ;; by looking for the . character and checking for the presence of the function
