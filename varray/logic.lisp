@@ -61,6 +61,14 @@
                                                       (funcall function number (vapip-factor iota)))))
                                     :repeat (vapip-repeat iota))))))))))))
 
+(defun extend-allocator-vader-permute (&key base argument index-origin)
+  "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."
+  (declare (ignore axis index-origin))
+  (typecase base
+    (vader-permute
+     (when (and (not argument) (not (vads-argument base)))
+       (vader-base base)))))
+
 (defun extend-allocator-vader-expand (&key base argument index-origin inverse axis)
   "Extend allocation behavior of expand class; allows for 3/⍳3 to produce a repeating integer progression vector instead of a vader-expand instance."
   (declare (ignore axis index-origin inverse))
