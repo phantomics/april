@@ -53,7 +53,8 @@
 (defgeneric of-lexicons (idiom glyph &rest lexicons))
 (defmethod of-lexicons ((idiom idiom) glyph &rest lexicons)
   "Check whether a character belongs to a given Vex lexicon."
-  (loop :for lexicon :in lexicons :always (member glyph (getf (idiom-lexicons idiom) lexicon))))
+  (loop :for lexicon :in lexicons
+        :always (position glyph (getf (idiom-lexicons idiom) lexicon) :test #'char=)))
 
 (defmacro boolean-op (operation)
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
@@ -282,11 +283,11 @@
            (ws-name (gensym)) (ws-fullname (gensym)))
       (multiple-value-bind (idiom-list assignment-form idiom-data)
           (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
-                   (reverse (loop :for subspec :in subspecs
-                                  :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                            (string= "OPERATORS" (string-upcase (first subspec)))
-                                            (string= "STATEMENTS" (string-upcase (first subspec))))
-                                    :collect subspec)))
+                   (loop :for subspec :in subspecs
+                         :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
+                                   (string= "OPERATORS" (string-upcase (first subspec)))
+                                   (string= "STATEMENTS" (string-upcase (first subspec))))
+                           :collect subspec))
         `(progn ,@(unless extension `((proclaim '(special ,idiom-symbol))
                                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
                 ,@assignment-form
@@ -301,9 +302,11 @@
                               (idiom-symbols ,idiom-symbol))
                       ;; assign each part of the lexicon, appending to an existing lexicon if present
                       ;; so the spec may either create or append to an idiom (as for (extend-vex-idiom))
-                      ,@(loop :for (key val) :on idiom-list :by #'cddr :when val
-                              :append `((getf ,lexicons-form ,key)
-                                        (append ',val (getf ,lexicons-form ,key)))))
+                      ,@(reverse (loop :for (key val) :on idiom-list :by #'cddr :when val
+                                       :append `((concatenate 'string (reverse (coerce ',val 'string))
+                                                              (or (getf ,lexicons-form ,key) ""))
+                                                 ;; reversed order, needed to order the lexicon list
+                                                 (getf ,lexicons-form ,key)))))
                 ,@(if (not extension)
                       `((defmacro ,(intern symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)
@@ -753,7 +756,8 @@
                  (incf fix 1)
                  (and (not (< 2 fix))
                       (or (of-lexicons idiom char :functions)
-                          (of-lexicons idiom char :operators)))))
+                          (of-lexicons idiom char :operators)
+                          (of-lexicons idiom char :statements)))))
         (=destructure (_ item _ break rest)
                       (=list (%any (?blank-character))
                              (%or (=vex-closure (of-system idiom :closure-wrapping)
@@ -773,7 +777,7 @@
                                                 (let ((char (character string)))
                                                   (unless olnchar
                                                     (or (and (not (of-lexicons idiom char :operators))
-                                                             (not (of-lexicons idiom char :statements))
+                                                             ;; (not (of-lexicons idiom char :statements))
                                                              (of-lexicons idiom char :symbolic-forms)
                                                              (symbol-value
                                                               (intern (format nil "~a-LEX-SY-~a"

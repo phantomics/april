@@ -2145,8 +2145,8 @@
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil
                         :functions-symbolic nil :functions-scalar-monadic nil
                         :functions-scalar-dyadic nil :operators nil :operators-lateral nil
-                        :operators-pivotal nil :operators-unitary nil
-                        :statements nil :symbolic-forms nil)))
+                        :operators-pivotal nil :statements nil :statements-symbolic nil
+                        :symbolic-forms nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2196,7 +2196,9 @@
                                                                    (if (eq item-type 'symbolic)
                                                                        "SY" "FN"))
                                                                   (operators "OP")
-                                                                  (statements "ST"))
+                                                                  (statements
+                                                                   (if (eq item-type 'symbolic)
+                                                                       "SY" "ST")))
                                                                 glyph-sym)
                                                         *package-name-string*))
                                      (assigned-form) (is-symbolic-alias))
@@ -2231,7 +2233,7 @@
                                                                     :functions-scalar-monadic
                                                                     :functions-scalar-dyadic :symbolic-forms))
                                                        (operators '(:operators :operators-lateral
-                                                                    :operators-pivotal :operators-unitary))
+                                                                    :operators-pivotal))
                                                        (statements '(:statements))))
                                                    (symbolic-alias
                                                      (and (eq spec-type 'functions)
@@ -2325,7 +2327,10 @@
                                                           ,(getf primary-metadata :axes))))
                                          assignment-forms))
                                   (symbolic (incf fn-count)
-                                   (push-char-and-aliases :functions :functions-symbolic)
+                                   (case spec-type
+                                     (functions (push-char-and-aliases :functions :functions-symbolic))
+                                     (statements (push-char-and-aliases :statements :statements-symbolic)))
+                                   ;; (push-char-and-aliases :functions :functions-symbolic)
                                    (push glyph-char (getf lexicons :symbolic-forms))
                                    (when (getf props :aliases)
                                      (loop :for alias :in (getf props :aliases)
@@ -2347,14 +2352,16 @@
                                    (push-char-and-aliases :operators :operators-pivotal)
                                    (push (second implementation) assignment-forms))
                                   (unitary (incf op-count)
-                                   (push-char-and-aliases :operators :operators-unitary :statements)
+                                   (push-char-and-aliases :operators :statements)
                                    (push (second implementation) assignment-forms)))
 
                                 ;; push a symbol-value assignment if a symbolic
                                 ;; function or its alias is being assigned, otherwise
                                 ;; push a symbol-function assignment
                                 (push `(,(if (or is-symbolic-alias
-                                                 (and (eql 'functions spec-type)
+                                                 (and ;; (eql 'functions spec-type)
+                                                  (position spec-type #(functions statements)
+                                                            :test #'eql)
                                                       (eql 'symbolic item-type)))
                                              'symbol-value 'symbol-function)
                                         (quote ,fn-symbol))
@@ -2408,14 +2415,16 @@
                 #:is-alphanumeric #:lateral #:pivotal #:alias-of
                 ;; imported symbols
                 #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
-                #:*value-composable-lexical-operators*)
+                #:*value-composable-lexical-operators*
+                #:primary #:meta #:monadic #:dyadic)
   (:import-from :vex #:of-system #:of-utilities #:of-lexicons)
   (:export #:extend-vex-idiom #:process-fnspecs #:scalar-function #:λω #:λωα #:λωχ #:λωαχ
            #:monadic #:dyadic #:ambivalent #:lateral #:pivotal #:alias-of
            #:is-alphanumeric #:of-system #:of-utilities #:of-lexicons
            ;; exported symbols
            #:this-idiom #:⍺ #:⍶ #:⍺⍺ #:⍵ #:⍹ #:⍵⍵
-           #:*value-composable-lexical-operators*))
+           #:*value-composable-lexical-operators*
+           #:primary #:meta #:monadic #:dyadic))
 
 ;; a secondary package containing tools for specifying April demo packages
 (defpackage #:april.demo-definition-tools

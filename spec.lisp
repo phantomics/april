@@ -1371,9 +1371,7 @@
             (is "x←1 ⋄ 3→one two three ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 7)
             (is "x←1 ⋄ 0→two three     ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7" 1155)))
   (∘ (has :title "Find Outer Product, Not Inner")
-     (symbolic :outer-product-designator))
-  (\: (has :title "Guard Indicator")
-      (symbolic :guard-indicator)))
+     (symbolic :outer-product-designator)))
 
  ;; APL's lexical operators, which take one or two functions or arrays
  ;; as input and generate a function
@@ -1746,7 +1744,9 @@
             (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
             (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
   (⍢ (has :title "Variant") ;; TODO: implement this as a symbol since its use is implicit?
-     (unitary (lambda (axes) (cons 'function-variant axes)))))
+     (unitary (lambda (axes) (cons 'function-variant axes))))
+  (\: (has :title "Guard Indicator")
+      (symbolic :guard-indicator)))
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set
