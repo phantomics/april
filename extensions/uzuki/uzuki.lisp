@@ -4,9 +4,6 @@
 
 "An extension to April mapping Japanese kanji to the standard APL lexicon."
 
-;; add ⍨'s alias to its category
-(push #\向 *value-composable-lexical-operators*)
-
 (defmacro uzuki (&rest args)
   "A macro aliasing April."
   (cons 'april args))
@@ -14,6 +11,9 @@
 (defmacro 卯月 (&rest args)
   "The same macro alias in kanji."
   (cons 'april args))
+
+;; add ⍨'s alias to its category
+(push #\向 *value-composable-lexical-operators*)
 
 (extend-vex-idiom
  april
@@ -190,9 +190,8 @@
              (叉 (has :title "また／サ")
                  (alias-of $))))
 
-;; 積　点
 ;; aliases of argument/operand symbols with cow/horse derived
 ;; characters referencing Gozu and Mezu
 ;; (let ((sym-pos (position (aref element 0) "馬媽馭牛犢牧")))
-;; "｛⎕IO ー向投２形向絶日　月｝"
+;; "｛⎕IOー向投２形向絶日　月｝"
 ;; ｛出１　月下点上３　４＝＋折付１　０　￣１外積回［１］１　０　￣１回別込月｝

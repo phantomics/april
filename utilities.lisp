@@ -1212,7 +1212,8 @@
   (if (not (characterp glyph-char))
       glyph-char
       (let* ((fn-meta (handler-case (funcall (symbol-function (find-symbol
-                                                               (format nil "APRIL-LEX-FN-~a" glyph-char)
+                                                               (format nil "APRIL-LEX-FN-~a"
+                                                                       glyph-char)
                                                                *package-name-string*))
                                              :get-metadata)
                         (error () nil)))
@@ -1222,7 +1223,7 @@
         ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
         ;; there's a left argument or not
         (append (list (if is-scalar 'apl-fn-s 'apl-fn)
-                      (find-symbol (string glyph-char) *package-name-string*))
+                      (intern (string glyph-char) *package-name-string*))
                 (getf fn-meta :implicit-args)
                 (when (and axes (or (getf fn-meta :axes)
                                     (eq :dyadic args)))
