@@ -22,13 +22,6 @@
               :initform nil
               :initarg :lexicons)))
 
-(defmacro local-idiom (symbol)
-  "Shorthand macro to output the name of a Vex idiom in the local package."
-  (let ((sym (intern (format nil "*~a-IDIOM*" (string-upcase symbol))
-                     (string-upcase symbol))))
-    (if (boundp sym)
-        sym `(progn (defvar ,sym) ,sym))))
-
 (defgeneric get-system-meta (idiom property))
 (defmethod get-system-meta ((idiom idiom) property)
   "Retrieve a property of the idiom's system."
@@ -140,58 +133,50 @@
 ;; TODO: this is also April-specific, move it into spec
 (defun process-general-tests-for (symbol test-set &key (mode :test))
   "Process specs for general tests not associated with a specific function or operator."
-  (append (unless (eq :time mode)
-            `((princ ,(format nil "~%~a~a" (cond ((string= "FOR" (string-upcase (first test-set)))
-                                                  "⍎ ")
-                                                 ((string= "FOR-PRINTED" (string-upcase (first test-set)))
-                                                  (if (eq :test mode) "⎕ Printed: " "⎕ ")))
-                              (second test-set)))
-              (format t "~%  _ ~a~%" ,(third test-set))))
-          (list (cond ((and (eq :test mode)
-                            (string= "FOR" (string-upcase (first test-set))))
-                       `(is (,(intern (string-upcase symbol) (package-name *package*))
-                              ,(third test-set))
-                            ,(fourth test-set)
-                            :test #'equalp))
-                      ((and (eq :time mode)
-                            (string= "FOR" (string-upcase (first test-set))))
-                       `(,(intern (string-upcase symbol) (package-name *package*))
-                          ,(third test-set)))
-                      ((and (eq :demo mode)
-                            (string= "FOR" (string-upcase (first test-set))))
-                       `(let ((output (,(intern (string-upcase symbol) (package-name *package*))
-                                        (with (:state :output-printed :only))
-                                        ,(third test-set))))
-                          (princ (concatenate 'string "    "
-                                              (regex-replace-all "[\\n]" output
-                                                                 ,(concatenate 'string '(#\Newline)  "    "))))
-                          (when (or (zerop (length output))
-                                    (not (char= #\Newline (aref output (1- (length output))))))
-                            (princ #\Newline))))
-                      ((and (eq :test mode)
-                            (string= "FOR-PRINTED" (string-upcase (first test-set))))
-                       `(is (,(intern (string-upcase symbol) (package-name *package*))
-                              (with (:state :output-printed :only))
-                              ,(third test-set))
-                            ,(fourth test-set)
-                            :test #'string=))
-                      ((and (eq :time mode)
-                            (string= "FOR-PRINTED" (string-upcase (first test-set))))
-                       `(,(intern (string-upcase symbol) (package-name *package*))
-                          (with (:state :output-printed :only))
-                          ,(third test-set)))
-                      ((and (eq :demo mode)
-                            (string= "FOR-PRINTED" (string-upcase (first test-set))))
-                       `(let ((output (,(intern (string-upcase symbol) (package-name *package*))
-                                        (with (:state :output-printed :only))
-                                        ,(third test-set))))
-                          (princ (concatenate 'string "    "
-                                              (regex-replace-all "[\\n]" output
-                                                                 ,(concatenate 'string '(#\Newline)  "    "))))
-                          (when (or (zerop (length output))
-                                    (not (char= #\Newline (aref output (1- (length output))))))
-                            (princ #\Newline))))))))
-
+  (destructuring-bind (type description expression expected) test-set
+    (let ((type-sym (intern (string-upcase (first test-set)) "KEYWORD")))
+      (append (unless (eq :time mode)
+                `((princ ,(format nil "~%~a~a" (case type-sym (:for "⍎ ")
+                                                     (:for-printed (if (eq mode :test)
+                                                                       "⎕ Printed: " "⎕ ")))
+                                  description))
+                  (format t "~%  _ ~a~%" ,expression)))
+              (let ((idiom-symbol (find-symbol (string-upcase symbol) (package-name *package*))))
+                (list (case type-sym
+                        (:for
+                         (case mode
+                           (:test `(is (,idiom-symbol ,expression) ,expected :test #'equalp))
+                           (:time (list idiom-symbol expression))
+                           (:demo (let ((output (gensym)))
+                                    `(let ((,output (,idiom-symbol (with (:state :output-printed :only))
+                                                                   ,expression)))
+                                       (princ (concatenate 'string "    "
+                                                           (regex-replace-all
+                                                            "[\\n]" ,output
+                                                            ,(concatenate 'string '(#\Newline)
+                                                                          "    "))))
+                                       (when (or (zerop (length ,output))
+                                                 (not (char= #\Newline (aref ,output (1- (length ,output))))))
+                                         (princ #\Newline)))))))
+                        (:for-printed
+                         (case mode
+                           (:test `(is (,idiom-symbol (with (:state :output-printed :only))
+                                                      ,expression)
+                                       ,expected :test #'string=))
+                           (:time `(,idiom-symbol (with (:state :output-printed :only))
+                                                  ,expression))
+                           (:demo (let ((output (gensym)))
+                                    `(let ((,output (,idiom-symbol (with (:state :output-printed :only))
+                                                                   ,expression)))
+                                       (princ (concatenate 'string "    "
+                                                           (regex-replace-all
+                                                            "[\\n]" ,output
+                                                            ,(concatenate 'string '(#\Newline)
+                                                                          "    "))))
+                                       (when (or (zerop (length ,output))
+                                                 (not (char= #\Newline (aref output (1- (length ,output))))))
+                                         (princ #\Newline))))))))))))))
+  
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
   "Process arbitrary tests within a spec containing expressions that are evaluated without being wrapped in an (april ...) form."
   (declare (ignore symbol mode))
@@ -209,8 +194,8 @@
 (defun merge-options (source target)
   "Merge options from multiple Vex specifiction sections into a single set."
   (let ((output (loop :for section :in target
-                   :collect (let ((source-items (rest (assoc (first section) source)))
-                                  (pair-index 0)
+                   :collect (let ((pair-index 0)
+                                  (source-items (rest (assoc (first section) source)))
                                   ;; the osection values are copied from (rest section), otherwise it's
                                   ;; effectively a pass-by-reference and changing osection will change section
                                   (osection (loop :for item :in (rest section) :collect item)))
@@ -218,8 +203,7 @@
                                     :do (when (evenp pair-index)
                                           (setf (getf osection item-name) item-value))
                                         (incf pair-index))
-                              (cons (first section)
-                                    osection)))))
+                              (cons (first section) osection)))))
     (loop :for section :in source :when (not (assoc (first section) target))
        :do (push section output))
     output))
@@ -227,36 +211,29 @@
 (defun build-profile (symbol spec mode section-names)
   "Build a documentation or test profile from a set of section names in a Vex idiom specification."
   (let ((specs (loop :for subspec :in spec
-                  :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                            (string= "OPERATORS" (string-upcase (first subspec)))
-                            (string= "STATEMENTS" (string-upcase (first subspec)))
-                            (string= "ARBITRARY-TEST-SET" (string-upcase (first subspec)))
-                            (string= "TEST-SET" (string-upcase (first subspec))))
-                  :collect subspec)))
+                     :when (position (string-upcase (first subspec))
+                                     #("FUNCTIONS" "OPERATORS" "STATEMENTS" "ARBITRARY-TEST-SET" "TEST-SET")
+                                     :test #'string=)
+                       :collect subspec)))
     (loop :for name :in section-names
-       :append (let* ((subspec (find name specs :test (lambda (id form)
-                                                        (eq id (second (assoc :name (rest (second form)))))))))
-                 (append (cond ((eq :demo mode)
-                                `((format t "~%~%∘○( ~a~%  ( ~a~%"
-                                          ,(getf (rest (assoc :demo-profile (cdadr subspec)))
-                                                 :title)
-                                          ,(getf (rest (assoc :demo-profile (cdadr subspec)))
-                                                 :description))))
-                               ((eq :test mode)
-                                `((format t "~%~%∘○( ~a )○∘~%"
-                                          ,(getf (rest (assoc :tests-profile (cdadr subspec)))
-                                                 :title)))))
-                         (loop :for test-set :in (cddr subspec)
-                            :append (funcall (cond ((or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                                        (string= "OPERATORS" (string-upcase (first subspec)))
-                                                        (string= "STATEMENTS" (string-upcase (first subspec))))
-                                                    #'process-lex-tests-for)
-                                                   ((string= "TEST-SET" (string-upcase (first subspec)))
-                                                    #'process-general-tests-for)
-                                                   ((string= "ARBITRARY-TEST-SET"
-                                                             (string-upcase (first subspec)))
-                                                    #'process-arbitrary-tests-for))
-                                             symbol test-set :mode mode)))))))
+          :append (let* ((subspec (find name specs :test (lambda (id form)
+                                                           (eq id (second (assoc :name (rest (second form))))))))
+                         (spec-type (intern (string-upcase (first subspec)) "KEYWORD")))
+                    (append (case mode
+                              (:demo (let ((profile-spec (rest (assoc :demo-profile (cdadr subspec)))))
+                                       `((format t "~%~%∘○( ~a~%  ( ~a~%" ,(getf profile-spec :title)
+                                                 ,(getf profile-spec :description)))))
+                              (:test `((format t "~%~%∘○( ~a )○∘~%"
+                                               ,(getf (rest (assoc :tests-profile (cdadr subspec)))
+                                                      :title)))))
+                            (loop :for test-set :in (cddr subspec)
+                                  :append (funcall (case spec-type
+                                                     (:functions #'process-lex-tests-for)
+                                                     (:operators #'process-lex-tests-for)
+                                                     (:statements #'process-lex-tests-for)
+                                                     (:test-set #'process-general-tests-for)
+                                                     (:arbitrary-test-set #'process-arbitrary-tests-for))
+                                                   symbol test-set :mode mode)))))))
 
 (defmacro vex-idiom-spec (symbol extension &rest subspecs)
   "Process the specification for a vector language and build functions that generate the code tree."
@@ -264,8 +241,8 @@
                `(rest (assoc ',symbol-string subspecs :test (lambda (x y) (string= (string-upcase x)
                                                                                    (string-upcase y)))))))
     (let* ((symbol-string (string-upcase symbol))
-           (idiom-symbol (intern (format nil "*~a-IDIOM*" symbol-string)
-                                 (symbol-package symbol)))
+           (idiom-symbol (find-symbol (format nil "*~a-IDIOM*" symbol-string)
+                                      (symbol-package symbol)))
            (lexicons-form (list 'idiom-lexicons idiom-symbol))
            (demo-forms (build-profile symbol subspecs :demo (rest (assoc :demo (of-subspec profiles)))))
            (test-forms (build-profile symbol subspecs :test (rest (assoc :test (of-subspec profiles)))))
@@ -308,7 +285,7 @@
                                                  ;; reversed order, needed to order the lexicon list
                                                  (getf ,lexicons-form ,key)))))
                 ,@(if (not extension)
-                      `((defmacro ,(intern symbol-string (symbol-package symbol))
+                      `((defmacro ,(find-symbol symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)
                           ;; this macro is the point of contact between users and the language, used to
                           ;; evaluate expressions and control properties of the language instance
@@ -357,7 +334,7 @@
                             (&rest ,options)
                           ;; an alternate evaluation macro that prints formatted evaluation results
                           ;; as well as returning them
-                          (cons ',(intern symbol-string (symbol-package symbol))
+                          (cons ',(find-symbol symbol-string (symbol-package symbol))
                                 (append (if (second ,options)
                                             (list (cons (caar ,options)
                                                         (merge-options `((:state :print t))
@@ -403,16 +380,17 @@
                           (labels ((,process (,form)
                                      (loop :for ,item :in ,form
                                            :collect (if (and (listp ,item)
-                                                             (or (eql ',(intern symbol-string
-                                                                                (symbol-package symbol))
+                                                             (or (eql ',(find-symbol symbol-string
+                                                                                     (symbol-package symbol))
                                                                       (first ,item))
-                                                                 (eql ',(intern (concatenate 'string
-                                                                                             symbol-string
-                                                                                             "-LOAD")
-                                                                                (symbol-package symbol))
+                                                                 (eql ',(find-symbol
+                                                                         (concatenate 'string
+                                                                                      symbol-string
+                                                                                      "-LOAD")
+                                                                         (symbol-package symbol))
                                                                       (first ,item))
-                                                                 (eql ',(intern printout-sym
-                                                                                (symbol-package symbol))
+                                                                 (eql ',(find-symbol printout-sym
+                                                                                     (symbol-package symbol))
                                                                       (first ,item))))
                                                         (list (first ,item)
                                                               (if (third ,item)
@@ -454,7 +432,7 @@
                                      (set (find-symbol "*NS-POINT*" ,,ws-fullname) nil)
                                      ,@(loop :for (key val)
                                                :on ,(getf (of-subspec system) :variables) :by #'cddr
-                                             :collect `(set (intern ,(string-upcase val) ,,ws-fullname)
+                                             :collect `(set (find-symbol ,(string-upcase val) ,,ws-fullname)
                                                             ,(getf ',(second (getf (of-subspec system)
                                                                                    :workspace-defaults))
                                                                    key)))
@@ -468,12 +446,14 @@
                                                            "-WORKSPACE-" (string-upcase ,ws-name))))
                             `(if (find-package ,,ws-fullname)
                                  (progn (delete-package ,,ws-fullname)
-                                        (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
-                                                    (symbol-package symbol))
+                                        (,',(find-symbol (concatenate 'string symbol-string
+                                                                      "-CREATE-WORKSPACE")
+                                                         (symbol-package symbol))
                                          ,,ws-name)
                                         ,(format nil "The workspace ｢~a｣ has been cleared." ,ws-name))
-                                 (progn (,',(intern (concatenate 'string symbol-string "-CREATE-WORKSPACE")
-                                                    (symbol-package symbol))
+                                 (progn (,',(find-symbol (concatenate 'string symbol-string
+                                                                      "-CREATE-WORKSPACE")
+                                                         (symbol-package symbol))
                                          ,,ws-name)
                                         ,(format nil "No workspace called ｢~a｣ was found to clear; ~a"
                                                  ,ws-name "the workspace has been created..")))))
@@ -600,7 +580,7 @@
                      ;; TODO: is there a better way to do this?
                      (when (or (not (char= delimiter (aref content (1- (length content)))))
                                (and escape-indices (= (first escape-indices)
-                                                      (- (length content) 2))))
+                                                      (+ -2 (length content)))))
                        (error "Syntax error: unbalanced quotes."))
                      (if escape-indices (let ((offset 0)
                                               (outstr (make-array (list (- (length content)
@@ -617,8 +597,8 @@
                                  (make-array 0 :element-type 'character)
                                  (make-array (1- (length content)) :element-type 'character
                                                                    :displaced-to content)))))))
-               (=vex-closure (boundary-chars &key (transform-by) (disallow-linebreaks)
-                                               (symbol-collector) (if-confirmed))
+               (=vex-closure (boundary-chars &key transform-by disallow-linebreaks
+                                               symbol-collector if-confirmed)
                  (let* ((quoted) (balance 1) (char-index 0)
                         (string-delimiters (of-system idiom :string-delimiters))
                         (bclen (length boundary-chars))
@@ -772,10 +752,10 @@
                                                     (or (and (not (of-lexicons idiom char :operators))
                                                              (of-lexicons idiom char :symbolic-forms)
                                                              (symbol-value
-                                                              (intern (format nil "~a-LEX-SY-~a"
-                                                                              (idiom-name idiom)
-                                                                              char)
-                                                                      (string (idiom-name idiom)))))
+                                                              (find-symbol (format nil "~a-LEX-SY-~a"
+                                                                                   (idiom-name idiom)
+                                                                                   char)
+                                                                           (string (idiom-name idiom)))))
                                                         (append (list (if (of-lexicons idiom char :statements)
                                                                           :st (if (of-lexicons idiom char
                                                                                                :operators)

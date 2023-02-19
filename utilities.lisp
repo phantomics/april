@@ -2130,7 +2130,8 @@
                                   #'identity (lambda (fn-form)
                                                `(lambda (&rest ,args)
                                                   (a-call ,fn-form (first ,args)
-                                                          ,@(when (eq :dyadic type) `((second ,args)))))))
+                                                          ,@(when (eq type :dyadic)
+                                                              `((second ,args)))))))
                               (append form metadata (list :valence type :lexical-reference glyph)))
                      `(fn-meta ,form ,@metadata ,@(list :valence type :lexical-reference glyph)))))
            (wrap-implicit (implicit-args optional-implicit-args primary-meta form)
@@ -2153,16 +2154,18 @@
         (loop :for each-spec :in spec-sets
               :do (loop :for spec :in (cddr each-spec)
                         :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
-                              (let* ((spec-type (intern (string (first each-spec))
-                                                        *package-name-string*))
+                              (let* ((spec-type (find-symbol (string (first each-spec))
+                                                             *package-name-string*))
                                      (props (rest props))
-                                     (glyph-char (aref (string glyph-sym) 0))
-                                     (item-type (intern (string (first implementation))
-                                                        *package-name-string*))
+                                     (glyph-string (string glyph-sym))
+                                     (glyph-char (aref glyph-string 0))
+                                     (item-type (find-symbol (string (first implementation))
+                                                             *package-name-string*))
                                      (spec-meta (rest (assoc 'meta rest)))
                                      (primary-metadata (rest (assoc 'primary spec-meta)))
                                      (implicit-args (getf primary-metadata :implicit-args))
-                                     (optional-implicit-args (getf primary-metadata :optional-implicit-args))
+                                     (optional-implicit-args
+                                       (getf primary-metadata :optional-implicit-args))
                                      (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
                                                                 (case spec-type
                                                                   (functions
@@ -2175,7 +2178,11 @@
                                                                 glyph-sym)
                                                         *package-name-string*))
                                      (assigned-form) (is-symbolic-alias))
+
                                 (push fn-symbol symbol-set)
+                                ;; intern the glyph symbol in the package
+                                (intern glyph-string *package-name-string*)
+                                
                                 (when (getf props :aliases)
                                   (loop :for alias :in (getf props :aliases)
                                         :do (let ((alias-symbol
@@ -2188,6 +2195,8 @@
                                                   (valias-symbol
                                                     (intern (format nil "APRIL-LEX-VFN-~a" alias)
                                                             *package-name-string*)))
+                                              ;; intern aliases
+                                              (intern (string alias) *package-name-string*)
                                               (case spec-type (functions (incf afn-count))
                                                     (operators (incf aop-count)))
                                               (push alias-symbol symbol-set)
@@ -2331,10 +2340,9 @@
                                 ;; function or its alias is being assigned, otherwise
                                 ;; push a symbol-function assignment
                                 (push `(,(if (or is-symbolic-alias
-                                                 (and ;; (eql 'functions spec-type)
-                                                  (position spec-type #(functions statements)
-                                                            :test #'eql)
-                                                      (eql 'symbolic item-type)))
+                                                 (and (position spec-type #(functions statements)
+                                                                :test #'eql)
+                                                      (eql item-type 'symbolic)))
                                              'symbol-value 'symbol-function)
                                         (quote ,fn-symbol))
                                       assignment-forms)
@@ -2345,8 +2353,9 @@
                                             (push `(,(if (and (eql 'functions spec-type)
                                                               (eql 'symbolic item-type))
                                                          'symbol-value 'symbol-function)
-                                                    (quote ,(intern (format nil "APRIL-LEX-FN-~a" alias)
-                                                                    *package-name-string*)))
+                                                    (quote ,(find-symbol
+                                                             (format nil "APRIL-LEX-FN-~a" alias)
+                                                             *package-name-string*)))
                                                   assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))
                                (cons 'setf assignment-forms))

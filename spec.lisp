@@ -191,7 +191,7 @@
                                   (or (getf state :print-to)
                                       (second (getf state :output-stream)))))
                       (loop :for (key value) :on *system-variables* :by #'cddr
-                         :collect (list (intern (string-upcase key) *package-name-string*)
+                         :collect (list (find-symbol (string-upcase key) *package-name-string*)
                                         (or (getf state key) `(inwsd ,value))))))
             :lexer-postprocess #'lexer-postprocess
             :compile-form #'compile-form
@@ -1644,7 +1644,8 @@
             (is "fn←{⍵×2} ⋄ fn⍣3⊢4" 32)
             (is "↓⍣2⊢2 2⍴⍳4" #0A#(#(1 2) #(3 4)))
             (is "⌊1_000_000_000×2○⍣=1" 739085133)
-            (is "⌊100_000×{⍵{2.0÷⍨⍵+⍺÷⍵}⍣≡⍵}123456789" 1111111106)))
+            (is "⌊100_000×{⍵{2.0÷⍨⍵+⍺÷⍵}⍣≡⍵}123456789" 1111111106)
+            (is "⌊10_000×1+∘÷⍣=1.0" 16180)))
   (@ (has :title "At")
      (pivotal (lambda (right left) `(operate-at ,right ,left index-origin)))
      (tests (is "20 20@3 8⍳9" #(1 2 20 4 5 6 7 20 9))
