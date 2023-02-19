@@ -18,8 +18,8 @@
 (extend-vex-idiom
  april
  (system :closure-wrapping "（()）" :function-wrapping "｛{}｝" :axis-wrapping "［[]］"
-         :string-delimiters "'\"＇" :number-spacers "_＿" :axis-separators ";；"
-         :path-separators ".．" :negative-signs "¯￣"
+         :string-delimiters "'\"＇" :axis-separators ";；" :path-separators ".．"
+         :negative-signs-pattern "[¯￣]" :number-spacers-pattern "[_＿]"
          :supplemental-numeric-chars ".．_＿¯￣eEjJrR" :supplemental-token-chars ".．_＿⎕∆⍙¯￣")
  (utilities :process-fn-op-specs #'process-fnspecs
             :match-blank-character (let ((cstring (coerce '(#\  #\Tab #\　) 'string)))

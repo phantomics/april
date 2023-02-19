@@ -547,7 +547,7 @@
                                       (append output (loop :for char :below (length glyph)
                                                            :collect (aref glyph char)))))))))
 
-(let ((collected-matched-closing-chars) (number-formatter))
+(let ((collected-matched-closing-chars))
   (defun =vex-string (idiom &optional output special-precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
     (let ((string-found) (olnchar) (symbols) (is-function-closure)
@@ -557,22 +557,19 @@
           (uniform-char) (arg-rooted-path) (fix 0))
       (unless collected-matched-closing-chars
         (setf collected-matched-closing-chars (funcall (of-utilities idiom :collect-delimiters) idiom)))
-
-      (unless number-formatter
-        (setf number-formatter (funcall (of-utilities idiom :build-number-formatter) idiom)))
       
-      (labels ((?blank-character     () (?satisfies (of-utilities idiom :match-blank-character)))
-               (?newline-character   () (?satisfies (of-utilities idiom :match-newline-character)))
-               (?numeric-character   () (?satisfies (lambda (i)
-                                                      (funcall (of-utilities idiom :match-numeric-character)
-                                                               i idiom))))
-               (?token-character     () (?satisfies (lambda (i)
-                                                      (funcall (of-utilities idiom :match-token-character)
-                                                               i idiom))))
-               (numeric-string-p (item) (funcall number-formatter item))
-               (pjoin-char-p     (item) (funcall (of-utilities idiom :match-path-joining-character)
-                                                 item idiom))
-               (utoken-p         (item) (funcall (of-utilities idiom :match-uniform-token-character) item))
+      (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
+               (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
+               (?numeric-character () (?satisfies
+                                         (lambda (i) (funcall (of-utilities idiom :match-numeric-character)
+                                                              i idiom))))
+               (?token-character   () (?satisfies
+                                         (lambda (i) (funcall (of-utilities idiom :match-token-character)
+                                                              i idiom))))
+               (numeric-string-p  (i) (funcall (of-utilities idiom :number-formatter) i))
+               (pjoin-char-p      (i) (funcall (of-utilities idiom :match-path-joining-character)
+                                              i idiom))
+               (utoken-p          (i) (funcall (of-utilities idiom :match-uniform-token-character) i))
                (p-or-u-char-p (is-path uniform-char)
                  (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character)
                                                      item idiom))
@@ -702,13 +699,14 @@
                  (let ((errant-char) (matching-char)
                        (chars-count (floor (length boundary-chars) 2)))
                    (=destructure (_ _)
-                                 (=list (?satisfies (lambda (char)
-                                                      (loop :for i :across boundary-chars
-                                                            :for x :from 0 :to chars-count :when (char= char i)
-                                                            :do (setq errant-char i
-                                                                      matching-char (aref boundary-chars
-                                                                                          (+ x chars-count))))
-                                                      errant-char))
+                                 (=list (?satisfies
+                                         (lambda (char)
+                                           (loop :for i :across boundary-chars
+                                                 :for x :from 0 :to chars-count :when (char= char i)
+                                                 :do (setq errant-char i
+                                                           matching-char (aref boundary-chars
+                                                                               (+ x chars-count))))
+                                           errant-char))
                                         (=subseq (%any (?satisfies 'characterp))))
                      (error "Mismatched enclosing characters; each closing ~a must be preceded by an opening ~a."
                             errant-char matching-char))))
@@ -798,7 +796,7 @@
                                                         (=subseq (%some (?numeric-character))))
                                                     (=subseq (%some (?numeric-character))))
                                               (lambda (string)
-                                                (funcall number-formatter
+                                                (funcall (of-utilities idiom :number-formatter)
                                                          ;; if there's an overloaded token character passed in
                                                          ;; the special precedent, prepend it to the token
                                                          ;; being processed

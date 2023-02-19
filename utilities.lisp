@@ -959,9 +959,42 @@
                            :nested t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
 
-(defun parse-apl-number-string (&rest _)
-  "A dummy function to be replaced by what the below function produces."
-  (declare (ignore _)))
+;; (defun parse-apl-number-string (&rest _)
+;;   "A dummy function to be replaced by what the below function produces."
+;;   (declare (ignore _)))
+
+(defun parse-apl-number-string (number-string &optional component-of)
+  "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
+  (ignore-errors ;; if number parsing fails, just return nil
+   (let ((nstring (string-upcase (regex-replace-all (of-system this-idiom :number-spacers-pattern)
+                                                    number-string ""))))
+     (if (and (not (eql 'complex component-of))
+              (position #\J nstring :test #'char=))
+         (let ((halves (cl-ppcre:split #\J nstring)))
+           (when (and (= 2 (length halves))
+                      (< 0 (length (first halves)))
+                      (< 0 (length (second halves))))
+             (complex (parse-apl-number-string (first halves) 'complex)
+                      (parse-apl-number-string (second halves) 'complex))))
+         (if (position #\E nstring :test #'char=)
+             (let ((exp-float (parse-number:parse-number
+                               (regex-replace-all (of-system this-idiom :negative-signs-pattern)
+                                                  nstring "-")
+                               :float-format 'double-float)))
+               (if (< double-float-epsilon (nth-value 1 (floor exp-float)))
+                   exp-float (let ((halves (mapcar #'parse-apl-number-string
+                                                   (cl-ppcre:split #\E nstring))))
+                               (floor (* (first halves) (expt 10 (second halves)))))))
+             (if (and (not (eql 'rational component-of))
+                      (position #\R nstring :test #'char=))
+                 (let ((halves (cl-ppcre:split #\R nstring)))
+                   (/ (parse-apl-number-string (first halves) 'rational)
+                      (parse-apl-number-string (second halves) 'rational)))
+                 ;; the macron character is converted to the minus sign
+                 (parse-number:parse-number
+                  (regex-replace-all (of-system this-idiom :negative-signs-pattern)
+                                     nstring "-")
+                  :float-format 'double-float)))))))
 
 (defun generate-apl-number-string-parser (idiom)
   "Build a function to parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."

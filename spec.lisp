@@ -44,8 +44,8 @@
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
-         :negative-signs "¯" :number-spacers "_" :axis-separators ";" :path-separators "."
-         :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
+         :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" :axis-separators ";"
+         :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
@@ -172,7 +172,7 @@
             ;; macro to process lexical specs of functions and operators
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
-            :build-number-formatter #'generate-apl-number-string-parser
+            :number-formatter #'parse-apl-number-string
             :format-value #'format-value
             ;; process system state input passed as with (april (with (:state ...)) "...")
             :preprocess-state-input
