@@ -197,7 +197,7 @@
 
 (defun load-libs ()
   "Load the April library packages."
-  (loop :for package-symbol :in *library-packages* :do (asdf:load-system package-symbol)))
+  (dolist (package-symbol *library-packages*) (asdf:load-system package-symbol)))
 
 ;; creating (let) bindings in the macro below causes problems, so these dynamic vars are used
 (defvar *lib-tests-run*)
@@ -407,10 +407,10 @@
                           (getf (rest meta-form) :sefns-called)))
                   (if (eql 'alambda (first function))
                       (let ((fn-meta (rest (second (third function)))))
-                        (loop :for sf :in (second (getf fn-meta :symfns-called))
-                              :do (push sf (getf (rest meta-form) :symfns-called)))
-                        (loop :for se :in (second (getf fn-meta :side-effects))
-                              :do (reg-side-effect se meta-form)))
+                        (dolist (sf (second (getf fn-meta :symfns-called)))
+                          (push sf (getf (rest meta-form) :symfns-called)))
+                        (dolist (se (second (getf fn-meta :side-effects)))
+                              (reg-side-effect se meta-form)))
                       (when (eql 'a-comp (first function))
                         (reg-symfn-call (fourth function) space meta-form)
                         (reg-symfn-call (fifth function) space meta-form)))))))))
@@ -1223,6 +1223,8 @@
         ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
         ;; there's a left argument or not
         (append (list (if is-scalar 'apl-fn-s 'apl-fn)
+                      ;; must intern here because after recompiling the symbols
+                      ;; may not remain interned in the April package
                       (intern (string glyph-char) *package-name-string*))
                 (getf fn-meta :implicit-args)
                 (when (and axes (or (getf fn-meta :axes)
@@ -1541,13 +1543,13 @@
           :do (when (and (not (member value (getf closure-meta :var-syms)))
                          (of-meta-hierarchy closure-meta :var-syms value))
                 (push (list :dyn-mask value) side-refs)))
-    (loop :for vr :in (getf closure-meta :var-refs)
-          :do (if (member vr *system-variables*)
-                  (progn (push (list :dyn-mask vr) side-refs)
-                         (push (list 'inwsd vr) var-refs))
-                  (when (and (not (member vr (getf closure-meta :var-syms)))
-                             (of-meta-hierarchy closure-meta :var-syms vr))
-                    (push (list :lex-ref vr) side-refs))))
+    (dolist (vr (getf closure-meta :var-refs))
+      (if (member vr *system-variables*)
+          (progn (push (list :dyn-mask vr) side-refs)
+                 (push (list 'inwsd vr) var-refs))
+          (when (and (not (member vr (getf closure-meta :var-syms)))
+                     (of-meta-hierarchy closure-meta :var-syms vr))
+            (push (list :lex-ref vr) side-refs))))
 
     ;; explicitly register a side effect in the case of [⎕RL random link] assignment
     (when (member '*rngs* (getf closure-meta :var-syms))
@@ -1762,9 +1764,8 @@
                      (let ((tk (first rest-t)) (pr (first rest-p)) (skip-next))
                        (if pr (if (and (listp pr) (eq :pt (first pr)))
                                   (let ((next-p (second rest-p)))
-                                    (setq in-path t)
-                                    (loop :for pelem :in (reverse (rest pr))
-                                          :do (push pelem path-contents))
+                                    (setf in-path t
+                                          path-contents (append (rest pr) path-contents))
                                     ;; finish processing this path if the next token is also a path,
                                     ;; i.e. for successive namespace refs like 5×myns.a myns.b
                                     (when (and (listp next-p) (eq :pt (first next-p)))
@@ -1851,9 +1852,8 @@
                          (when is-operator
                            (setf (getf (rest fn-meta) :valence) valence)
                            (when (getf (rest fn-meta) :valence-setters)
-                             (loop :for setter :in (getf (rest fn-meta)
-                                                         :valence-setters)
-                                   :do (funcall setter valence)))
+                             (dolist (setter (getf (rest fn-meta) :valence-setters))
+                               (funcall setter valence)))
                            (setf (getf (rest fn-meta) :valence-setters) nil))
                          (if closure-meta (if is-operator
                                               (unless (member symbol (getf closure-meta
@@ -1961,8 +1961,8 @@
                                :do (when (eq item :special-lexical-form-assign)
                                      (push ix assignment-indices))
                                :collect (lexer-postprocess item idiom space closure-meta-form))))
-             (loop :for index :in (reverse assignment-indices)
-                   :do (process-symbols (nthcdr (1+ index) list) t))
+             (dolist (index (reverse assignment-indices))
+               (process-symbols (nthcdr (1+ index) list) t))
              items)))
         ((guard symbol (eql symbol '∇∇))
          ;; handle the ∇∇ symbol, assigning its valence as appropriate
@@ -1984,25 +1984,25 @@
 (defun get-assigned-symbols (tokens space &optional token-list is-nested in-assignment-context)
   "Find a list of symbols within a token list which are assigned with the [← gets] lexical function. Used to find lists of variables to hoist in lambda forms."
   (let ((previous-token) (token-list (or token-list (list :tokens))))
-    (loop :for token :in tokens
-          :do (when (eq previous-token :special-lexical-form-assign)
-                ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
-                ;; be added to the list to hoist if eligible
-                (setq in-assignment-context t))
-              (when (and (listp token) (position (first token) #(:fn :op) :test #'eq))
-                (setq in-assignment-context nil))
-              (if (and (listp token) (not (position (first token) #(:fn :op) :test #'eq)))
-                  ;; recurse into lists, but not functions contained within a function, otherwise something
-                  ;; like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline operator is within it;
-                  ;; if an assignment context, that will be passed down to the next level of recursion
-                  ;; as for a (b c)←⍵
-                  (get-assigned-symbols token space token-list t in-assignment-context)
-                  (when (and in-assignment-context (symbolp token) (not (keywordp token)))
-                    (cond ((and (not (member token *idiom-native-symbols*))
-                                (not (member token token-list)))
-                           (setf (rest token-list)
-                                 (cons token (rest token-list)))))))
-              (setq previous-token token))
+    (dolist (token tokens)
+      (when (eq previous-token :special-lexical-form-assign)
+        ;; once a ← is encountered, we're in an assignment context; symbols found after this point may
+        ;; be added to the list to hoist if eligible
+        (setf in-assignment-context t))
+      (when (and (listp token) (position (first token) #(:fn :op) :test #'eq))
+        (setf in-assignment-context nil))
+      (if (and (listp token) (not (position (first token) #(:fn :op) :test #'eq)))
+          ;; recurse into lists, but not functions contained within a function, otherwise something
+          ;; like {÷{⍺⍺ ⍵}5} will be read as an operator because an inline operator is within it;
+          ;; if an assignment context, that will be passed down to the next level of recursion
+          ;; as for a (b c)←⍵
+          (get-assigned-symbols token space token-list t in-assignment-context)
+          (when (and in-assignment-context (symbolp token) (not (keywordp token)))
+            (cond ((and (not (member token *idiom-native-symbols*))
+                        (not (member token token-list)))
+                   (setf (rest token-list)
+                         (cons token (rest token-list)))))))
+      (setf previous-token token))
     ;; TODO: write tests to ensure variable hoisting is done properly?
     (if is-nested token-list (remove-duplicates (rest token-list)))))
 
@@ -2147,216 +2147,205 @@
                    `(progn ,@(loop :for lexicon :in lexicons
                                    :collect `(push glyph-char (getf lexicons ,lexicon)))
                            (when (getf props :aliases)
-                             (loop :for alias :in (getf props :aliases)
-                                   :do (let ((a-char (aref (string alias) 0)))
-                                         ,@(loop :for lexicon :in lexicons
-                                                 :collect `(push a-char (getf lexicons ,lexicon)))))))))
-        (loop :for each-spec :in spec-sets
-              :do (loop :for spec :in (cddr each-spec)
-                        :do (destructuring-bind (glyph-sym props implementation &rest rest) spec
-                              (let* ((spec-type (find-symbol (string (first each-spec))
-                                                             *package-name-string*))
-                                     (props (rest props))
-                                     (glyph-string (string glyph-sym))
-                                     (glyph-char (aref glyph-string 0))
-                                     (item-type (find-symbol (string (first implementation))
-                                                             *package-name-string*))
-                                     (spec-meta (rest (assoc 'meta rest)))
-                                     (primary-metadata (rest (assoc 'primary spec-meta)))
-                                     (implicit-args (getf primary-metadata :implicit-args))
-                                     (optional-implicit-args
-                                       (getf primary-metadata :optional-implicit-args))
-                                     (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
-                                                                (case spec-type
-                                                                  (functions
-                                                                   (if (eq item-type 'symbolic)
-                                                                       "SY" "FN"))
-                                                                  (operators "OP")
-                                                                  (statements
-                                                                   (if (eq item-type 'symbolic)
-                                                                       "SY" "ST")))
-                                                                glyph-sym)
-                                                        *package-name-string*))
-                                     (assigned-form) (is-symbolic-alias))
+                             (dolist (alias (getf props :aliases))
+                               (let ((a-char (aref (string alias) 0)))
+                                 ,@(loop :for lexicon :in lexicons
+                                         :collect `(push a-char (getf lexicons ,lexicon)))))))))
+        (dolist (each-spec spec-sets)
+          (dolist (spec (cddr each-spec))
+            (destructuring-bind (glyph-sym props implementation &rest rest) spec
+              (let* ((spec-type (find-symbol (string (first each-spec))
+                                             *package-name-string*))
+                     (props (rest props))
+                     (glyph-string (string glyph-sym))
+                     (glyph-char (aref glyph-string 0))
+                     (item-type (find-symbol (string (first implementation))
+                                             *package-name-string*))
+                     (spec-meta (rest (assoc 'meta rest)))
+                     (primary-metadata (rest (assoc 'primary spec-meta)))
+                     (implicit-args (getf primary-metadata :implicit-args))
+                     (optional-implicit-args
+                       (getf primary-metadata :optional-implicit-args))
+                     (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
+                                                (case spec-type
+                                                  (functions (if (eq item-type 'symbolic)
+                                                                 "SY" "FN"))
+                                                  (operators "OP")
+                                                  (statements (if (eq item-type 'symbolic)
+                                                                  "SY" "ST")))
+                                                glyph-sym)
+                                        *package-name-string*))
+                     (assigned-form) (is-symbolic-alias))
 
-                                (push fn-symbol symbol-set)
-                                ;; intern the glyph symbol in the package
-                                (intern glyph-string *package-name-string*)
-                                
-                                (when (getf props :aliases)
-                                  (loop :for alias :in (getf props :aliases)
-                                        :do (let ((alias-symbol
-                                                    (intern (format nil "APRIL-LEX-~a-~a"
-                                                                    (case spec-type (functions "FN")
-                                                                          (operators "OP")
-                                                                          (statements "ST"))
-                                                                    alias)
-                                                            *package-name-string*))
-                                                  (valias-symbol
-                                                    (intern (format nil "APRIL-LEX-VFN-~a" alias)
-                                                            *package-name-string*)))
-                                              ;; intern aliases
-                                              (intern (string alias) *package-name-string*)
-                                              (case spec-type (functions (incf afn-count))
-                                                    (operators (incf aop-count)))
-                                              (push alias-symbol symbol-set)
-                                              (push valias-symbol symbol-set))))
-                                (case item-type
-                                  (alias-of (let* ((achar (aref (string (second implementation)) 0))
-                                                   ;; assign an alias symbol to other lexicons containing
-                                                   ;; the aliased symbol depending on what's possible given
-                                                   ;; the spec type within which the alias is assigned;
-                                                   ;; this prevents an alias of [/ reduce] from also
-                                                   ;; being assigned as an alias of [/ replicate]
-                                                   (possible-lexicons
+                (push fn-symbol symbol-set)
+                ;; intern the glyph symbol in the package
+                (intern glyph-string *package-name-string*)
+                
+                (when (getf props :aliases)
+                  (dolist (alias (getf props :aliases))
+                    (let ((alias-symbol
+                            (intern (format nil "APRIL-LEX-~a-~a"
+                                            (case spec-type (functions "FN")
+                                                  (operators "OP")
+                                                  (statements "ST"))
+                                            alias)
+                                    *package-name-string*))
+                          (valias-symbol
+                            (intern (format nil "APRIL-LEX-VFN-~a" alias)
+                                    *package-name-string*)))
+                      ;; intern aliases
+                      (intern (string alias) *package-name-string*)
+                      (case spec-type (functions (incf afn-count))
+                            (operators (incf aop-count)))
+                      (push alias-symbol symbol-set)
+                      (push valias-symbol symbol-set))))
+                (case item-type
+                  (alias-of (let* ((achar (aref (string (second implementation)) 0))
+                                   ;; assign an alias symbol to other lexicons containing
+                                   ;; the aliased symbol depending on what's possible given
+                                   ;; the spec type within which the alias is assigned;
+                                   ;; this prevents an alias of [/ reduce] from also
+                                   ;; being assigned as an alias of [/ replicate]
+                                   (possible-lexicons
+                                     (case spec-type
+                                       (functions '(:functions :functions-monadic
+                                                    :functions-dyadic :functions-symbolic
+                                                    :functions-scalar-monadic
+                                                    :functions-scalar-dyadic :symbolic-forms))
+                                       (operators '(:operators :operators-lateral
+                                                    :operators-pivotal))
+                                       (statements '(:statements))))
+                                   (symbolic-alias
+                                     (and (eq spec-type 'functions)
+                                          (of-lexicons this-idiom achar :symbolic-forms)))
+                                   (aliased
+                                     (intern (format nil "APRIL-LEX-~a-~a"
                                                      (case spec-type
-                                                       (functions '(:functions :functions-monadic
-                                                                    :functions-dyadic :functions-symbolic
-                                                                    :functions-scalar-monadic
-                                                                    :functions-scalar-dyadic :symbolic-forms))
-                                                       (operators '(:operators :operators-lateral
-                                                                    :operators-pivotal))
-                                                       (statements '(:statements))))
-                                                   (symbolic-alias
-                                                     (and (eq spec-type 'functions)
-                                                          (of-lexicons this-idiom achar :symbolic-forms)))
-                                                   (aliased
-                                                     (intern (format nil "APRIL-LEX-~a-~a"
-                                                                     (case spec-type
-                                                                       (functions
-                                                                        (if symbolic-alias "SY" "FN"))
-                                                                       (operators "OP")
-                                                                       (statements "ST"))
-                                                                     (second implementation))
-                                                             *package-name-string*)))
-                                              (when symbolic-alias
-                                                ;; reassign fn-symbol in the case of symbolic alias,
-                                                ;; since the april-lex-sy-X symbol is the one that should
-                                                ;; be assigned; its default form must also be removed
-                                                ;; from the symbol set with the correct form added
-                                                (setf symbol-set (remove fn-symbol symbol-set)
-                                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a"
-                                                                                glyph-sym)
-                                                                        *package-name-string*))
-                                                (push fn-symbol symbol-set))
+                                                       (functions (if symbolic-alias "SY" "FN"))
+                                                       (operators "OP")
+                                                       (statements "ST"))
+                                                     (second implementation))
+                                             *package-name-string*)))
+                              (when symbolic-alias
+                                ;; reassign fn-symbol in the case of symbolic alias,
+                                ;; since the april-lex-sy-X symbol is the one that should
+                                ;; be assigned; its default form must also be removed
+                                ;; from the symbol set with the correct form added
+                                (setf symbol-set (remove fn-symbol symbol-set)
+                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a" glyph-sym)
+                                                        *package-name-string*))
+                                (push fn-symbol symbol-set))
 
-                                              ;; push a symbol-value assignment if aliasing
-                                              ;; a symbolic function like ∘ for ∘.
-                                              (push (if (setf is-symbolic-alias symbolic-alias)
-                                                        `(symbol-value ',aliased)
-                                                        `(symbol-function ',aliased))
-                                                    assignment-forms)
-                                              (case spec-type (functions (incf afn-count))
-                                                    (operators (incf aop-count)))
-                                              ;; assign the alias to lexicons according to the lexicon
-                                              ;; membership (as specified in this form or already
-                                              ;; present in the current lexicon) of the character
-                                              ;; that it will alias
-                                              (loop :for (key items) :on lexicons :by #'cddr
-                                                    :when (or (member achar items)
-                                                              (and this-idiom
-                                                                   (member key possible-lexicons :test #'eq)
-                                                                   (of-lexicons this-idiom achar key)))
-                                                      :do (push glyph-char (getf lexicons key)))))
-                                  (monadic (incf fn-count)
-                                   (push-char-and-aliases :functions :functions-monadic)
-                                   (when (eql 'scalar-function (caadr implementation))
-                                     (push-char-and-aliases :functions-scalar-monadic))
-                                   (push (setq assigned-form
-                                               (funcall
-                                                (lambda (form)
-                                                  (wrap-implicit implicit-args
-                                                                 optional-implicit-args
-                                                                 primary-metadata form))
-                                                `(plain-ref
-                                                  ,(wrap-meta glyph-char :monadic (second implementation)
-                                                              (rest (assoc 'monadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes))))
-                                         assignment-forms))
-                                  (dyadic (incf fn-count)
-                                   (push-char-and-aliases :functions :functions-dyadic)
-                                   (when (eql 'scalar-function (caadr implementation))
-                                     (push-char-and-aliases :functions-scalar-dyadic))
-                                   (push (setq assigned-form
-                                               (funcall
-                                                (lambda (form)
-                                                  (wrap-implicit implicit-args
-                                                                 optional-implicit-args
-                                                                 primary-metadata form))
-                                                `(plain-ref
-                                                  ,(wrap-meta glyph-char :dyadic (second implementation)
-                                                              (rest (assoc 'dyadic spec-meta)) t)
-                                                  ,(getf primary-metadata :axes))))
-                                         assignment-forms))
-                                  (ambivalent (incf fn-count 2)
-                                   (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
-                                   (when (eql 'scalar-function (caadr implementation))
-                                     (push-char-and-aliases :functions-scalar-monadic))
-                                   (when (eql 'scalar-function (caaddr implementation))
-                                     (push-char-and-aliases :functions-scalar-dyadic))
-                                   (push (setq assigned-form
-                                               (funcall
-                                                (lambda (form)
-                                                  (wrap-implicit implicit-args
-                                                                 optional-implicit-args
-                                                                 primary-metadata form))
-                                                `(amb-ref ,(wrap-meta
-                                                            glyph-char :ambivalent (second implementation)
-                                                            (rest (assoc 'monadic spec-meta)))
-                                                          ,(wrap-meta glyph-char :ambivalent
-                                                                      (third implementation)
-                                                                      (rest (assoc 'dyadic spec-meta)))
-                                                          ,(getf primary-metadata :axes))))
-                                         assignment-forms))
-                                  (symbolic (incf fn-count)
-                                   (case spec-type
-                                     (functions (push-char-and-aliases :functions :functions-symbolic))
-                                     (statements (push-char-and-aliases :statements :statements-symbolic)))
-                                   (push glyph-char (getf lexicons :symbolic-forms))
-                                   (when (getf props :aliases)
-                                     (loop :for alias :in (getf props :aliases)
-                                           :do (let ((a-char (aref (string alias) 0)))
-                                                 (push (second implementation)
-                                                       (getf lexicons :symbolic-forms))
-                                                 (push a-char (getf lexicons :symbolic-forms)))))
-                                   (when (getf props :aliases)
-                                     (loop :for alias :in (getf props :aliases)
-                                           :do (let ((a-char (aref (string alias) 0)))
-                                                 (push a-char (getf lexicons :functions))
-                                                 (push a-char (getf lexicons :functions-symbolic)))))
-                                   (push (setq assigned-form (second implementation))
-                                         assignment-forms))
-                                  (lateral (incf op-count)
-                                   (push-char-and-aliases :operators :operators-lateral)
-                                   (push (second implementation) assignment-forms))
-                                  (pivotal (incf op-count)
-                                   (push-char-and-aliases :operators :operators-pivotal)
-                                   (push (second implementation) assignment-forms))
-                                  (unitary (incf op-count)
-                                   (push-char-and-aliases :operators :statements)
-                                   (push (second implementation) assignment-forms)))
+                              ;; push a symbol-value assignment if aliasing
+                              ;; a symbolic function like ∘ for ∘.
+                              (push (if (setf is-symbolic-alias symbolic-alias)
+                                        `(symbol-value ',aliased)
+                                        `(symbol-function ',aliased))
+                                    assignment-forms)
+                              (case spec-type (functions (incf afn-count))
+                                    (operators (incf aop-count)))
+                              ;; assign the alias to lexicons according to the lexicon
+                              ;; membership (as specified in this form or already
+                              ;; present in the current lexicon) of the character
+                              ;; that it will alias
+                              (loop :for (key items) :on lexicons :by #'cddr
+                                    :when (or (member achar items)
+                                              (and this-idiom
+                                                   (member key possible-lexicons :test #'eq)
+                                                   (of-lexicons this-idiom achar key)))
+                                      :do (push glyph-char (getf lexicons key)))))
+                  (monadic (incf fn-count)
+                   (push-char-and-aliases :functions :functions-monadic)
+                   (when (eql 'scalar-function (caadr implementation))
+                     (push-char-and-aliases :functions-scalar-monadic))
+                   (push (setq assigned-form
+                               (funcall
+                                (lambda (form)
+                                  (wrap-implicit implicit-args optional-implicit-args
+                                                 primary-metadata form))
+                                `(plain-ref
+                                  ,(wrap-meta glyph-char :monadic (second implementation)
+                                              (rest (assoc 'monadic spec-meta)) t)
+                                  ,(getf primary-metadata :axes))))
+                         assignment-forms))
+                  (dyadic (incf fn-count)
+                   (push-char-and-aliases :functions :functions-dyadic)
+                   (when (eql 'scalar-function (caadr implementation))
+                     (push-char-and-aliases :functions-scalar-dyadic))
+                   (push (setq assigned-form
+                               (funcall
+                                (lambda (form)
+                                  (wrap-implicit implicit-args optional-implicit-args
+                                                 primary-metadata form))
+                                `(plain-ref
+                                  ,(wrap-meta glyph-char :dyadic (second implementation)
+                                              (rest (assoc 'dyadic spec-meta)) t)
+                                  ,(getf primary-metadata :axes))))
+                         assignment-forms))
+                  (ambivalent (incf fn-count 2)
+                   (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
+                   (when (eql 'scalar-function (caadr implementation))
+                     (push-char-and-aliases :functions-scalar-monadic))
+                   (when (eql 'scalar-function (caaddr implementation))
+                     (push-char-and-aliases :functions-scalar-dyadic))
+                   (push (setq assigned-form
+                               (funcall
+                                (lambda (form)
+                                  (wrap-implicit implicit-args optional-implicit-args
+                                                 primary-metadata form))
+                                `(amb-ref ,(wrap-meta
+                                            glyph-char :ambivalent (second implementation)
+                                            (rest (assoc 'monadic spec-meta)))
+                                          ,(wrap-meta glyph-char :ambivalent
+                                                      (third implementation)
+                                                      (rest (assoc 'dyadic spec-meta)))
+                                          ,(getf primary-metadata :axes))))
+                         assignment-forms))
+                  (symbolic (incf fn-count)
+                   (case spec-type
+                     (functions (push-char-and-aliases :functions :functions-symbolic))
+                     (statements (push-char-and-aliases :statements :statements-symbolic)))
+                   (push glyph-char (getf lexicons :symbolic-forms))
+                   (when (getf props :aliases)
+                     (dolist (alias (getf props :aliases))
+                       (let ((a-char (aref (string alias) 0)))
+                         (push (second implementation)
+                               (getf lexicons :symbolic-forms))
+                         (push a-char (getf lexicons :symbolic-forms))
+                         (push a-char (getf lexicons :functions))
+                         (push a-char (getf lexicons :functions-symbolic)))))
+                   (push (setq assigned-form (second implementation))
+                         assignment-forms))
+                  (lateral (incf op-count)
+                   (push-char-and-aliases :operators :operators-lateral)
+                   (push (second implementation) assignment-forms))
+                  (pivotal (incf op-count)
+                   (push-char-and-aliases :operators :operators-pivotal)
+                   (push (second implementation) assignment-forms))
+                  (unitary (incf op-count)
+                   (push-char-and-aliases :operators :statements)
+                   (push (second implementation) assignment-forms)))
 
-                                ;; push a symbol-value assignment if a symbolic
-                                ;; function or its alias is being assigned, otherwise
-                                ;; push a symbol-function assignment
-                                (push `(,(if (or is-symbolic-alias
-                                                 (and (position spec-type #(functions statements)
-                                                                :test #'eql)
-                                                      (eql item-type 'symbolic)))
-                                             'symbol-value 'symbol-function)
-                                        (quote ,fn-symbol))
-                                      assignment-forms)
+                ;; push a symbol-value assignment if a symbolic
+                ;; function or its alias is being assigned, otherwise
+                ;; push a symbol-function assignment
+                (push `(,(if (or is-symbolic-alias
+                                 (and (position spec-type #(functions statements)
+                                                :test #'eql)
+                                      (eql item-type 'symbolic)))
+                             'symbol-value 'symbol-function)
+                        (quote ,fn-symbol))
+                      assignment-forms)
 
-                                (when (getf props :aliases)
-                                  (loop :for alias :in (getf props :aliases)
-                                        :do (push assigned-form assignment-forms)
-                                            (push `(,(if (and (eql 'functions spec-type)
-                                                              (eql 'symbolic item-type))
-                                                         'symbol-value 'symbol-function)
-                                                    (quote ,(find-symbol
-                                                             (format nil "APRIL-LEX-FN-~a" alias)
-                                                             *package-name-string*)))
-                                                  assignment-forms)))))))
+                (when (getf props :aliases)
+                  (dolist (alias (getf props :aliases))
+                    (push assigned-form assignment-forms)
+                    (push `(,(if (and (eql 'functions spec-type)
+                                      (eql 'symbolic item-type))
+                                 'symbol-value 'symbol-function)
+                            (quote ,(find-symbol (format nil "APRIL-LEX-FN-~a" alias)
+                                                 *package-name-string*)))
+                          assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))
                                (cons 'setf assignment-forms))
                 (list :fn-count fn-count :op-count op-count

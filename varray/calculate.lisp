@@ -56,7 +56,7 @@
                            (size-of (vader-base varray))))
             (base-gen (generator-of (vader-base varray))))
         ;; TODO: more optimization is possible here
-        (loop :for i :below base-size ; :for item :across (vader-base varray)
+        (loop :for i :below base-size
               :do (let ((item (if base-list (first base-list)
                                   (funcall base-gen i))))
                     (when (< 0 (size-of item))

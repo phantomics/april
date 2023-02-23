@@ -1148,32 +1148,32 @@
                               (when valid out-list))))))
                (or symbols-list (get-symbol-list syms))
                (when symbols-list
-                 (loop :for symbol :in symbols-list
-                       :do (let ((insym (intern (string symbol) space)))
-                             (when (and (is-workspace-function symbol)
-                                        (not (getf (getf params :special) :closure-meta))
-                                        ;; don't cause an error in the case of assignments of functions
-                                        ;; or operators from an external workspace as with ⎕XWF and ⎕XWO
-                                        (not (and (listp value)
-                                                  (eql 'a-call (first value))
-                                                  (or (position (second value)
-                                                                #(#'external-workspace-function
-                                                                  #'external-workspace-operator)
-                                                              :test #'equalp)))))
-                               ;; unbind the symbol as for a function if this
-                               ;; variable assignment is made at the top level
-                               (error "The name [~a] already designates a function." insym))
-                             (when (and (not (boundp insym))
-                                        (not (member symbol (getf (rest (getf (getf params :special)
-                                                                              :closure-meta))
-                                                                  :var-syms))))
-                               ;; only bind dynamic variables in the workspace if the
-                               ;; compiler is at the top level; i.e. not within a
-                               ;; { function }, where bound variables are lexical
-                               (proclaim (list 'special insym))
-                               (if xfns-assigned (setf (symbol-function insym)
-                                                       #'dummy-nargument-function)
-                                   (set insym nil))))))
+                 (dolist (symbol symbols-list)
+                   (let ((insym (intern (string symbol) space)))
+                     (when (and (is-workspace-function symbol)
+                                (not (getf (getf params :special) :closure-meta))
+                                ;; don't cause an error in the case of assignments of functions
+                                ;; or operators from an external workspace as with ⎕XWF and ⎕XWO
+                                (not (and (listp value)
+                                          (eql 'a-call (first value))
+                                          (or (position (second value)
+                                                        #(#'external-workspace-function
+                                                          #'external-workspace-operator)
+                                                        :test #'equalp)))))
+                       ;; unbind the symbol as for a function if this
+                       ;; variable assignment is made at the top level
+                       (error "The name [~a] already designates a function." insym))
+                     (when (and (not (boundp insym))
+                                (not (member symbol (getf (rest (getf (getf params :special)
+                                                                      :closure-meta))
+                                                          :var-syms))))
+                       ;; only bind dynamic variables in the workspace if the
+                       ;; compiler is at the top level; i.e. not within a
+                       ;; { function }, where bound variables are lexical
+                       (proclaim (list 'special insym))
+                       (if xfns-assigned (setf (symbol-function insym)
+                                               #'dummy-nargument-function)
+                           (set insym nil))))))
                (if (and function (not xfns-assigned))
                    (if (listp syms) ;; handle namespace paths
                        (let ((item (gensym)) (item2 (gensym)))

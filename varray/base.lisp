@@ -279,7 +279,7 @@
                                   rev)
                          (lambda (index)
                            (let ((index-out index))
-                             (loop :for i :in rev :do (setf index-out (funcall i index-out)))
+                             (dolist (i rev) (setf index-out (funcall i index-out)))
                              index-out)))))))
 
 (defmethod generator-of ((item t) &optional indexers params)
@@ -605,6 +605,10 @@
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
                                                        :format :encoded :base-format :encoded
                                                        :indexers nil)))))
+          
+          ;; (print (list :ggen (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
+          ;;                                                   :format :tokenized :base-format :tokenized
+          ;;                                                   :indexers nil))))
           ;; (print (list :ge gen))
           (multiple-value-bind (indexer is-not-defaulting)
               (if gen (values gen t)

@@ -1013,7 +1013,6 @@
                          (value (funcall base-gen index)))
                      (loop :for item :across argument :while (funcall (alpha-compare #'>) value item)
                            :do (incf count))
-                     ;; (print (list :co count))
                      count))
                  (let ((count 0))
                    (loop :for item :across argument :while (funcall (alpha-compare #'>)
@@ -1048,32 +1047,33 @@
                    (reduce #'* (rest base-shape)))
              (if (numberp axis)
                  (if (integerp axis)
-                     base-shape (let ((output) (added) (real-axis (ceiling axis)))
-                                  (loop :for s :in base-shape :for ix :from 0
-                                        :do (when (= ix real-axis) (setf added (push 1 output)))
-                                            (push s output))
+                     base-shape (let ((output) (added) (ix 0) (real-axis (ceiling axis)))
+                                  (dolist (s base-shape)
+                                    (when (= ix real-axis) (setf added (push 1 output)))
+                                    (push s output)
+                                    (incf ix))
                                   (unless added (push 1 output))
                                   (reverse output)))
                  (if (zerop (size-of axis))
                      (append base-shape (list 1))
                      (let ((output) (reducing) (prev-axis)
-                           (axis (copy-list axis)))
-                       (loop :for s :in base-shape :for ix :from 0
-                             :do (if reducing
-                                     (if axis (if (/= (first axis) (1+ prev-axis))
-                                                  (error "Invalid axis for [, ravel].")
-                                                  (when (= ix (first axis))
-                                                    (setf (first output)
-                                                          (* s (first output))
-                                                          prev-axis (first axis)
-                                                          axis (rest axis))))
-                                         (progn (push s output)
-                                                (setf reducing nil)))
-                                     (progn (push s output)
-                                            (when (and axis (= ix (first axis)))
-                                              (setf reducing t
-                                                    prev-axis (first axis)
-                                                    axis (rest axis))))))
+                           (ix 0) (axis (copy-list axis)))
+                       (dolist (s base-shape)
+                         (if reducing (if axis (if (/= (first axis) (1+ prev-axis))
+                                                   (error "Invalid axis for [, ravel].")
+                                                   (when (= ix (first axis))
+                                                     (setf (first output)
+                                                           (* s (first output))
+                                                           prev-axis (first axis)
+                                                           axis (rest axis))))
+                                          (progn (push s output)
+                                                 (setf reducing nil)))
+                             (progn (push s output)
+                                    (when (and axis (= ix (first axis)))
+                                      (setf reducing t
+                                            prev-axis (first axis)
+                                            axis (rest axis)))))
+                         (incf ix))
                        (reverse output)))))))))
 
 (defclass vader-catenate (varray-derived vad-on-axis vad-with-argument vad-with-io)
@@ -1124,38 +1124,34 @@
                                       (< double-float-epsilon (nth-value 1 (floor axis)))))))
           (axis (setf (vads-axis varray) (ceiling axis))))
      (if to-laminate
-         (loop :for shape :in each-shape
-               :do (if shape (if ref-shape
-                                 (if (not (and (= (length shape)
-                                                  (length ref-shape))
-                                               (loop :for r :in ref-shape :for a :in shape
-                                                     :always (= a r))))
-                                     (error "Mismatched array dimensions for laminate operation."))
+         (dolist (shape each-shape)
+           (if shape (if ref-shape
+                         (if (not (and (= (length shape) (length ref-shape))
+                                       (loop :for r :in ref-shape :for a :in shape :always (= a r))))
+                             (error "Mismatched array dimensions for laminate operation."))
                                  (setf ref-shape shape))))
-         (loop :for shape :in each-shape
-               :do (if (and shape (< (length ref-shape) (length shape)))
-                       (if (or (not ref-shape)
-                               (and (not uneven)
-                                    (setf uneven (= 1 (- (length shape)
-                                                         (length ref-shape))))))
-                           (if (destructuring-bind (longer-dims shorter-dims)
-                                   (funcall (if (>= (length ref-shape)
-                                                    (length shape))
-                                                #'identity #'reverse)
-                                            (list ref-shape shape))
-                                 (or (not shorter-dims)
-                                     (loop :for ld :in longer-dims :for ax :from 0
-                                           :always (if (< ax axis)
-                                                       (= ld (nth ax shorter-dims))
-                                                       (if (= ax axis)
-                                                           t (= ld (nth (1- ax) shorter-dims)))))))
-                               (setf ref-shape shape)
-                               (error "Mismatched array dimensions."))
-                           (error "Catenated arrays must be at most one rank apart."))
-                       (if (and shape (not (loop :for d :in shape
-                                                 :for s :in ref-shape :for dx :from 0
-                                                 :always (or (= d s) (= dx axis)))))
-                           (error "Mismatched array dimensions.")))))
+         (dolist (shape each-shape)
+           (if (and shape (< (length ref-shape) (length shape)))
+               (if (or (not ref-shape)
+                       (unless uneven (setf uneven (= 1 (- (length shape)
+                                                           (length ref-shape))))))
+                   (if (destructuring-bind (longer-dims shorter-dims)
+                           (funcall (if (>= (length ref-shape) (length shape))
+                                        #'identity #'reverse)
+                                    (list ref-shape shape))
+                         (or (not shorter-dims)
+                             (loop :for ld :in longer-dims :for ax :from 0
+                                   :always (if (< ax axis)
+                                               (= ld (nth ax shorter-dims))
+                                               (if (= ax axis)
+                                                   t (= ld (nth (1- ax) shorter-dims)))))))
+                       (setf ref-shape shape)
+                       (error "Mismatched array dimensions."))
+                   (error "Catenated arrays must be at most one rank apart."))
+               (if (and shape (not (loop :for d :in shape
+                                         :for s :in ref-shape :for dx :from 0
+                                         :always (or (= d s) (= dx axis)))))
+                   (error "Mismatched array dimensions.")))))
 
      ;; if all elements to be catenated are scalar as for 1,2,
      ;; the output length is the same as the input length
@@ -1297,24 +1293,27 @@
                                           base-gen (funcall base-gen ix))))
                           (setf max-rank (max max-rank (length (shape-of member))))
                           (push (shape-of member) each-shape)))
-              (let ((out-shape) (shape-indices)
+              (let ((out-shape) (shape-indices) (dx 0)
                     (max-shape (make-array max-rank :element-type 'fixnum :initial-element 0)))
-                (loop :for shape :in each-shape
-                      :do (loop :for d :in shape :for dx :from 0
-                                :do (setf (aref max-shape dx)
-                                          (max d (aref max-shape dx)))))
-
+                (dolist (shape each-shape)
+                  (setf dx 0)
+                  (dolist (d shape)
+                    (setf (aref max-shape dx) (max d (aref max-shape dx)))
+                    (incf dx)))
+                
                 (setf axis (setf (vads-axis varray)
                                  (if (eq :last axis) (length base-shape)
-                                     (ceiling (- axis (vads-io varray))))))
+                                     (ceiling (- axis (vads-io varray)))))
+                      dx 0)
                 ;; push the outer shape elements to the complete shape
-                (loop :for odim :in base-shape :for ix :from 0
-                      :do (when (= ix axis)
-                            (loop :for ms :across max-shape :for mx :from 0
-                                  :do (push ms out-shape)
-                                      (push (+ mx (length base-shape)) shape-indices)))
-                          (push odim out-shape)
-                          (push ix shape-indices))
+                (dolist (odim base-shape)
+                  (when (= dx axis)
+                    (loop :for ms :across max-shape :for mx :from 0
+                          :do (push ms out-shape)
+                              (push (+ mx (length base-shape)) shape-indices)))
+                  (push odim out-shape)
+                  (push dx shape-indices)
+                  (incf dx))
                 
                 (when (= axis (length base-shape))
                   ;; push the inner shape elements if for the last axis
@@ -1323,7 +1322,6 @@
                             (push (+ mx (length base-shape)) shape-indices)))
 
                 (setf (vamix-shape-indices varray) (reverse shape-indices))
-                
                 (reverse out-shape)))))))
 
 (defmethod generator-of ((varray vader-mix) &optional indexers params)
@@ -1875,13 +1873,14 @@
                                 t (coerce (reverse intervals) 'vector)))
 
                       (if positions (list (1- (length intervals)))
-                          (when axis (let ((outer-shape) (inner-shape)
+                          (when axis (let ((outer-shape) (inner-shape) (dx 0)
                                            (base-shape (shape-of (vader-base varray))))
-                                       (loop :for d :in base-shape :for dx :from 0
-                                             :do (if (if (integerp axis) (not (= dx axis))
-                                                         (loop :for a :across axis :never (= a dx)))
-                                                     (push d outer-shape)
-                                                     (push d inner-shape)))
+                                       (dolist (d base-shape)
+                                         (if (if (integerp axis) (not (= dx axis))
+                                                 (loop :for a :across axis :never (= a dx)))
+                                             (push d outer-shape)
+                                             (push d inner-shape))
+                                         (incf dx))
                                        (setf (vaenc-inner-shape varray) (reverse inner-shape))
                                        (reverse outer-shape))))))))
 
@@ -1901,16 +1900,17 @@
          (offset-indexer
            (lambda (o)
              (lambda (i)
-               (let ((orest o) (irest i) (index 0) (inner-dx 0) (outer-dx 0))
-                 (loop :for f :in ofactors :for fx :from 0
-                       :do (let ((in-outer (if (numberp axis) (/= fx axis)
-                                               (loop :for a :across axis :never (= fx a)))))
-                             (multiple-value-bind (factor remaining)
-                                 (if in-outer (floor orest (aref outer-factors outer-dx))
-                                     (floor irest (aref inner-factors inner-dx)))
-                               (if in-outer (progn (incf outer-dx) (setf orest remaining))
-                                   (progn (incf inner-dx) (setf irest remaining)))
-                               (incf index (* f factor)))))
+               (let ((orest o) (irest i) (index 0) (inner-dx 0) (outer-dx 0) (fx 0))
+                 (dolist (f ofactors)
+                   (let ((in-outer (if (numberp axis) (/= fx axis)
+                                       (loop :for a :across axis :never (= fx a)))))
+                     (multiple-value-bind (factor remaining)
+                         (if in-outer (floor orest (aref outer-factors outer-dx))
+                             (floor irest (aref inner-factors inner-dx)))
+                       (if in-outer (progn (incf outer-dx) (setf orest remaining))
+                           (progn (incf inner-dx) (setf irest remaining)))
+                       (incf index (* f factor))
+                       (incf fx))))
                  (funcall base-gen index)))))
          (each-offset (when (vectorp intervals)
                         (coerce (loop :for i :across intervals :summing i :into s :collect s)
@@ -2625,30 +2625,29 @@
     (if (not (loop :for shape :in shapes :always (not (second shape))))
         (error "Arguments to [∪ union] must be vectors.")
         (let ((matched) (appended))
-          (loop :for this-item :in (rest contents)
-                :do (push nil matched)
-                    (if (arrayp first)
-                        (if (arrayp this-item)
-                            (loop :for ti :across this-item
-                                  :when (not (find ti first :test #'array-compare))
-                                    :do (push ti (first matched)))
-                            (unless (find this-item first :test #'array-compare)
-                              (push this-item (first matched))))
-                        (if (arrayp this-item)
-                            (loop :for ti :across this-item
-                                  :when (not (array-compare ti first))
-                                    :do (push ti (first matched)))
-                            (unless (array-compare this-item first)
-                              (push this-item (first matched)))))
-                    (loop :for m :in (rest matched)
-                          :do (if (arrayp this-item)
-                                  (loop :for ti :across this-item
-                                        :when (not (find ti m :test #'array-compare))
-                                          :do (push ti (first matched)))
-                                  (if (not (find this-item m :test #'array-compare))
-                                      (push this-item (first matched))))))
-          (loop :for m :in matched
-                :do (loop :for subm :in m :do (push subm appended)))
+          (dolist (this-item (rest contents))
+            (push nil matched)
+            (if (arrayp first)
+                (if (arrayp this-item)
+                    (loop :for ti :across this-item
+                          :when (not (find ti first :test #'array-compare))
+                            :do (push ti (first matched)))
+                    (unless (find this-item first :test #'array-compare)
+                      (push this-item (first matched))))
+                (if (arrayp this-item)
+                    (loop :for ti :across this-item
+                          :when (not (array-compare ti first))
+                            :do (push ti (first matched)))
+                    (unless (array-compare this-item first)
+                      (push this-item (first matched)))))
+            (dolist (m (rest matched))
+              (if (arrayp this-item)
+                  (loop :for ti :across this-item
+                        :when (not (find ti m :test #'array-compare))
+                          :do (push ti (first matched)))
+                  (if (not (find this-item m :test #'array-compare))
+                      (push this-item (first matched))))))
+          (dolist (m matched) (dolist (subm m) (push subm appended)))
           (setf (vader-content varray)
                 (vector first (make-array (length appended)
                                           :initial-contents appended)))))
@@ -2683,6 +2682,14 @@
                               (render argument) ;; TODO: eliminate forced render here
                               (when (arrayp argument) argument))))))
 
+;; (defmethod indexer-of ((varray vader-turn) &optional params)
+;;   (case (getf params :type)
+;;     (:encoded
+;;      (lambda (item)
+;;        `((incf ,item #x0100)
+;;          (when (>= ,item #x0A00)
+;;            (decf ,item #x0A00)))))))
+
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
   (when (and (vads-argument varray)
              (shape-of varray) (not (vaturn-degrees varray)))
@@ -2703,6 +2710,8 @@
                             (mod (row-major-aref arg i) dimension)))
                     out))))))
   (case (getf params :base-format)
+    (:tokenized (cons (list :turn :degrees (vaturn-degrees varray))
+                      (generator-of (vader-base varray) nil params)))
     (:encoded (unless (shape-of (vads-argument varray))
                 ;; disabled for non-scalar left arguments; TODO: can this be changed?
                 (let* ((enco-type (getf (getf params :gen-meta) :index-width))

@@ -186,9 +186,10 @@
                (alpha (if (not (floatp alpha))
                           alpha (setf float-input #+(or abcl ecl clasp) (sb-rationalize alpha)
                                       #+(not (or abcl ecl clasp)) (rationalize alpha)))))
-          (funcall (if (not float-input) #'identity (lambda (number)
-                                                      (if (not (typep number 'ratio))
-                                                          number (coerce number 'double-float))))
+          (funcall (if float-input (lambda (number)
+                                     (if (not (typep number 'ratio))
+                                         number (coerce number 'double-float)))
+                       #'identity)
                    (let ((d-product (* (denominator omega) (denominator alpha))))
                      (/ (funcall function (* d-product omega) (* d-product alpha))
                         d-product)))))))
@@ -416,16 +417,16 @@
                                         ;; pick and select objects are shifted to the end of the list
                                         (t (cons object order))))
       (let ((output) (ivec))
-        (loop :for o :in order
-              :do (typecase o (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
-                            (vader-select (setf (varray::vasel-selector o) (or output object)))
-                            ;; in the case of an enlist object, generate the index array and pass it
-                            ;; back via the second value, needed for cases like
-                            ;; 'a' {names←'Kent' 'Alan' 'Ryan' ⋄ ((⍺=∊names)/∊names)←⍵ ⋄ names} '*'
-                            (t (setf (varray::vader-base o)
-                                     (or output (if (not (typep o 'vader-enlist))
-                                                    object (setf ivec (generate-index-array object)))))))
-                  (setf output o))
+        (dolist (o order)
+          (typecase o (vacomp-each (setf (varray::vacmp-omega o) (or output object)))
+                    (vader-select (setf (varray::vasel-selector o) (or output object)))
+                    ;; in the case of an enlist object, generate the index array and pass it
+                    ;; back via the second value, needed for cases like
+                    ;; 'a' {names←'Kent' 'Alan' 'Ryan' ⋄ ((⍺=∊names)/∊names)←⍵ ⋄ names} '*'
+                    (t (setf (varray::vader-base o)
+                             (or output (if (not (typep o 'vader-enlist))
+                                            object (setf ivec (generate-index-array object)))))))
+          (setf output o))
         (values (or output object) ivec))))
 
 (defun assign-by-selection (function value omega &key index-origin)
