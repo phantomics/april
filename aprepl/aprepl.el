@@ -267,6 +267,7 @@ simply inserts a newline."
 
 ;;; Common Lisp IDE support
 
+(declare-function slime "ext:slime" (&optional command coding-system))
 (declare-function slime-connected-p "ext:slime" ())
 (declare-function slime-eval-async "ext:slime" (sexp &optional cont package))
 
@@ -274,6 +275,7 @@ simply inserts a newline."
   "Evaluate STR in the Slime REPL and call CONT with the result."
   (slime-eval-async `(swank:eval-and-grab-output ,str) cont))
 
+(declare-function sly "ext:sly" (&optional command coding-system interactive))
 (declare-function sly-connected-p "ext:sly" ())
 (declare-function sly-eval-async "ext:sly" (sexp &optional cont package env))
 
@@ -285,11 +287,21 @@ simply inserts a newline."
 (defvar aprepl--lisp-ide nil
   "Symbol corresponding to the Common Lisp IDE in use.")
 
+(defvar aprepl--lisp-repl-buffer-name-prefix nil
+  "Prefix of the Common Lisp REPL's buffer's name.")
+
+(defvar aprepl--lisp-start-function nil
+  "Function used for starting the Common Lisp REPL.")
+
 (defvar aprepl--lisp-connected-p-function nil
   "Function used for checking if the Common Lisp REPL is connected.")
 
 (defvar aprepl--lisp-eval-async-function nil
   "Function used for evaluating Common Lisp expressions asynchronously.")
+
+(defun aprepl--lisp-start ()
+  "Start the Common Lisp REPL."
+  (funcall aprepl--lisp-start-function))
 
 (defun aprepl--lisp-connected-p ()
   "Return non-nil if the Common Lisp REPL is connected."
@@ -800,29 +812,46 @@ Customized bindings may be defined in `aprepl-map', which currently contains:
   "Check if it's possible to run ApREPL, and call DO-NEXT if so.
 In other words, call DO-NEXT if Slime or Sly is running and
 April's system is loaded."
-  ;; No need to ‘require’ Slime or Sly, since the user has to run one
-  ;; before ApREPL anyway.
   (unless aprepl--lisp-ide
-    (cond
-     ((member 'slime features)
-      (setq aprepl--lisp-ide 'slime
-            aprepl--lisp-connected-p-function #'slime-connected-p
-            aprepl--lisp-eval-async-function #'aprepl--slime-lisp-eval-async))
-     ((member 'sly features)
-      (setq aprepl--lisp-ide 'sly
-            aprepl--lisp-connected-p-function #'sly-connected-p
-            aprepl--lisp-eval-async-function #'aprepl--sly-lisp-eval-async))
-     (t (error "No Common Lisp IDE found; load one with M-x slime or M-x sly"))))
+    ;; We need to `require' SLIME (or Sly) to gain access to
+    ;; `slime-connected-p' (or `sly-connected-p'), which aren't
+    ;; autoloaded.
+    (cond ((or (memq 'slime features) (and (fboundp 'slime) (require 'slime)))
+           (setq aprepl--lisp-ide 'slime
+                 aprepl--lisp-repl-buffer-name-prefix "*slime-repl "
+                 aprepl--lisp-start-function #'slime
+                 aprepl--lisp-connected-p-function #'slime-connected-p
+                 aprepl--lisp-eval-async-function #'aprepl--slime-lisp-eval-async))
+          ((or (memq 'sly features) (and (fboundp 'sly) (require 'sly)))
+           (setq aprepl--lisp-ide 'sly
+                 aprepl--lisp-repl-buffer-name-prefix "*sly-mrepl "
+                 aprepl--lisp-start-function #'sly
+                 aprepl--lisp-connected-p-function #'sly-connected-p
+                 aprepl--lisp-eval-async-function #'aprepl--sly-lisp-eval-async))
+          (t (error "No Common Lisp IDE found; either SLIME or Sly is required"))))
   (unless (aprepl--lisp-connected-p)
-    (cl-ecase aprepl--lisp-ide
-      (slime (error "Slime is not running; start it with M-x slime"))
-      (sly (error "Sly is not running; start it with M-x sly"))))
+    (aprepl--lisp-start)
+    (with-timeout (10 (error "Gave up waiting for %s to connect"
+                             (if (eq aprepl--lisp-ide 'slime) "SLIME" "Sly")))
+      (while (not (aprepl--lisp-connected-p))
+        (sleep-for 1)))
+    ;; Check the window's buffer's name just in case another window got
+    ;; focused in the meantime (which shouldn't happen).
+    (when (string-prefix-p aprepl--lisp-repl-buffer-name-prefix
+                           (buffer-name (window-buffer (selected-window))))
+      (delete-window)))
   (aprepl--lisp-eval-async
-   "(asdf:system-registered-p 'april)"
+   "(find-package '#:april)"
    (lambda (result)
      (cl-destructuring-bind (_out value) result
        (if (string= "NIL" (upcase value))
-           (error "The Common Lisp REPL is running but April is not loaded; evaluate (asdf:load-system 'april) in the REPL to load it")
+           (aprepl--lisp-eval-async
+            "(ignore-errors (asdf:load-system \"april\"))"
+            (lambda (result)
+              (cl-destructuring-bind (_out value) result
+                (if (string= "NIL" (upcase value))
+                    (error "Couldn't load April")
+                  (funcall do-next)))))
          (funcall do-next))))))
 
 ;;; User command
