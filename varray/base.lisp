@@ -72,6 +72,9 @@
 (defgeneric rank-of (varray)
   (:documentation "Get the rank of an array."))
 
+(defgeneric effector-of (varray &optional params)
+  (:documentation "Get a function effecting a virtual array indexing method in code."))
+
 (defgeneric indexer-of (varray &optional params)
   (:documentation "Get an indexing function for an array."))
 
@@ -231,6 +234,11 @@
   "The indexer for a non-array is its identity."
   (declare (ignore params))
   item)
+
+(defmethod effector-of ((item t) &optional params)
+  "The base effector returns nil."
+  (declare (ignore params))
+  nil)
 
 (defmethod indexer-of ((array array) &optional params)
   (declare (ignore params))
@@ -560,14 +568,14 @@
   (let* ((metadata (getf (metadata-of varray) :shape))
          (output-rank (rank-of varray))
          (linear-index-type (or (when (getf metadata :max-size)
-                                  (loop :for w :in '(8 16 32 64)
+                                  (loop :for w :across #(8 16 32 64)
                                         :when (< (getf metadata :max-size) (expt 2 w))
                                           :return w))
                                 t))
          (coordinate-type (when (and output-rank (> output-rank 1)
                                      (getf metadata :max-dim)
                                      (not (eq t linear-index-type)))
-                            (loop :for w :in '(8 16 32 64)
+                            (loop :for w :across #(8 16 32 64)
                                   :when (< (getf metadata :max-dim) (expt 2 w))
                                     :return w)))
          (encoding-type (when coordinate-type
@@ -575,10 +583,10 @@
                           ;; ranging from 8 to 64 bits; for example, a 32-bit integer could hold
                           ;; 4x8 or 2x16-bit dimension indices and a 64-bit integer could hold 8x8,
                           ;; 4x16 or 2x32 dimension indices
-                          (loop :for w :in '(16 32 64)
+                          (loop :for w :across #(16 32 64)
                                 :when (>= w (* coordinate-type (length (getf metadata :max-shape))))
                                   :return w))))
-    
+    ;; (print (list :ee coordinate-type encoding-type))
     (when (getf metadata :gen-meta)
       (setf (getf (rest (getf metadata :gen-meta)) :index-type) coordinate-type
             (getf (rest (getf metadata :gen-meta)) :index-width) encoding-type))
@@ -604,12 +612,14 @@
         (let ((gen (and coordinate-type en-type
                         (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
                                                        :format :encoded :base-format :encoded
-                                                       :indexers nil)))))
+                                                       :indexers nil))))
+              (jit-gen) ; (eval (build-generator varray)))
+              )
           
           ;; (print (list :ggen (generator-of varray nil (list :gen-meta (rest (getf metadata :gen-meta))
           ;;                                                   :format :tokenized :base-format :tokenized
           ;;                                                   :indexers nil))))
-          ;; (print (list :ge gen))
+          ;; (print (list :ge gen jit-gen))
           (multiple-value-bind (indexer is-not-defaulting)
               (if gen (values gen t)
                   (generator-of varray nil (rest (getf metadata :gen-meta))))
@@ -666,6 +676,9 @@
                                                                         divisions render-index))
                                    (process (or (and is-not-defaulting (first process-pair))
                                                 (second process-pair)))
+                                   (sbsize (sub-byte-element-type varray))
+                                   (sbesize (if sbsize (/ 64 sbsize) 1))
+                                   (interval (/ (size-of varray) sbesize *workers-count*))
                                    (threaded-count 0))
                               ;; (print (list :pro divisions sbesize sbsize))
                               ;; (print (list :out (type-of output) (type-of varray)
@@ -674,7 +687,8 @@
                               ;;              (when (typep varray 'vader-composing)
                               ;;                (vacmp-threadable varray))))
                               ;; (print (list :ts to-nest (setf april::ggt varray)))
-                              (loop :for d :below divisions
+                              ;; (print (list :jg jit-gen))
+                              (loop :for d :below divisions :for ddx :from 0
                                     :do (if (or (and (typep varray 'vader-composing)
                                                      (not (vacmp-async varray)))
                                                 ;; don't thread when rendering the output of operators composed
@@ -684,11 +698,32 @@
                                                                  lparallel::*kernel*)
                                                       :never (null (lparallel.kernel::running-category
                                                                     worker))))
-                                            ;;t
+                                            ;; t
                                             (funcall (funcall process d))
-                                            (progn (incf threaded-count)
-                                                   (lparallel::submit-task
-                                                    lpchannel (funcall process d)))))
+                                            (if jit-gen
+                                                (progn (incf threaded-count)
+                                                       (lparallel::submit-task
+                                                        lpchannel
+                                                        (funcall
+                                                         (lambda (dx)
+                                                           (let* ((start-intervals (ceiling (* interval dx)))
+                                                                  (start-at (* sbesize start-intervals))
+                                                                  (count (if (< dx (1- divisions))
+                                                                             (* sbesize
+                                                                                (- (ceiling
+                                                                                    (* interval (1+ dx)))
+                                                                                   start-intervals))
+                                                                             (- (size-of varray)
+                                                                                start-at))))
+                                                             (lambda ()
+                                                               ;; (print (list :st start-at count))
+                                                               (funcall jit-gen start-at count
+                                                                        (vader-base varray) output)
+                                                               )))
+                                                         ddx)))
+                                                (progn (incf threaded-count)
+                                                       (lparallel::submit-task
+                                                        lpchannel (funcall process d))))))
                               (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
                               output))
                         (funcall (if (nested-p varray)
@@ -712,6 +747,130 @@
                   output (progn (when (typep varray 'vad-render-mutable)
                                   (setf (vads-rendered varray) t))
                                 (setf (vader-content varray) output)))))))))
+
+(defun build-encoder (stsym index d-factors encoding coordinate-type &optional dsym rsym)
+  (let ((internal dsym)
+        (dsym (or dsym (gensym)))
+        (rsym (or rsym (gensym))))
+    (destructuring-bind (d-factor &rest rest-dfs) d-factors
+      (if (= 1 d-factor) (if internal `((incf ,index ,rsym))
+                             `((incf ,index ,stsym)))
+          `((multiple-value-bind (,dsym ,rsym) (floor ,stsym ,d-factor)
+              (incf ,index ,dsym)
+              (setf ,stsym ,rsym
+                    ,index (ash ,index ,coordinate-type))
+              ,@(when rest-dfs (build-encoder stsym index rest-dfs encoding coordinate-type dsym rsym))))))))
+
+(defun build-iterator (insym dimensions encoding coordinate-type &optional (index 0))
+  ;; (print (list :in insym dimensions encoding coordinate-type))
+  (destructuring-bind (dimension &rest rest-dims) dimensions
+    `((when (= ,(* dimension (expt 2 (* index coordinate-type)))
+               (ldb (byte ,(* coordinate-type (1+ index)) 0)
+                    ,insym))
+        (setf ,insym (logand ,insym ,(- (expt 2 encoding)
+                                        (expt 2 (* coordinate-type (1+ index))))))
+        (incf ,insym ,(expt 2 (* coordinate-type (1+ index))))
+        ,@(when rest-dims (build-iterator insym rest-dims encoding coordinate-type (1+ index)))))))
+
+;; (defun build-iterator-x86asm (insym dimensions encoding coordinate-type)
+;;   ;; (print (list :in insym dimensions encoding coordinate-type))
+;;   (loop :for d :in dimensions :for dx :from 0
+;;         :append (let ((tag (if (= 0 dx)
+;;                                (if (= 8 coordinate-type)
+;;                                    :byte (if (= 16 coordinate-type)
+;;                                              :word (if (= 32 coordinate-type)
+;;                                                        :dword :qword))))))
+;;                   `(,(if (= 0 dx)
+;;                          (inst inc ,tag ,insym)
+;;                          (inst add ,tag )
+;;                     (inst cmp ,tag ,insym ,d)
+;;                     ,(when (< 1 (length dimensions)) `(inst jmp :b ITERATED))
+;;                     (inst xor :byte  x x)))
+;;                   ;; (inst add :word  x #x0100)
+;;                   ;; (inst cmp :word  x (* 4 #x0100))
+;;                   ;; (inst jmp :b     ITERATED)
+;;                   ;; (inst xor :word x x)
+;;                   ;; (inst add :dword x #x010000)
+;;                   ;; (inst cmp :dword x (* 3 #x010000))
+;;                   ;; (inst jmp :b     ITERATED)
+;;                   ;; (inst and :dword x #xFF000000)
+;;                   ITERATED)))
+
+;; (destructuring-bind (dimension &rest rest-dims) dimensions
+;;   `((when (= ,(* dimension (expt 2 (* index coordinate-type)))
+;;              (ldb (byte ,(* coordinate-type (1+ index)) 0)
+;;                   ,insym))
+;;       (setf ,insym (logand ,insym ,(- (expt 2 encoding)
+;;                                       (expt 2 (* coordinate-type (1+ index))))))
+;;       (incf ,insym ,(expt 2 (* coordinate-type (1+ index))))
+;;       ,@(when rest-dims (build-iterator insym rest-dims encoding coordinate-type (1+ index)))))))
+
+(defun build-decoder (stsym insym d-factors coordinate-type)
+  (loop :for df :in d-factors :for index :from 0
+        :append `((incf ,insym (* ,df (ldb (byte ,coordinate-type 0) ,stsym)))
+                  ,@(when (< index (1- (length d-factors)))
+                      ;; the shift isn't necessary after the last increment
+                      `((setf ,stsym (ash ,stsym ,(- coordinate-type))))))))
+
+;; (defvar op) (defvar inp)
+;; (setf op (make-array '(10 10 10) :element-type '(unsigned-byte 8) :initial-element 0))
+;; (setf inp (april (with (:unrendere)) "10 10 10⍴⍳9"))
+
+(defun build-generator (varray &optional (format :lisp))
+  (let* ((oshape (shape-of varray))
+         (vaspec (specify varray))
+         (metadata (getf (metadata-of varray) :shape))
+         (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+         (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         (varray-point varray)
+         (effectors))
+    ;; (print (list :enc encoding coordinate-type))
+    (loop :while (and varray-point (typep varray-point 'varray-derived))
+          :do (let ((this-effector (effector-of varray-point metadata)))
+                ;; (print (list :ti this-effector))
+                (if this-effector (progn (push this-effector effectors)
+                                         (setf varray-point (vader-base varray)))
+                    (setf varray-point nil))))
+    (when (and encoding coordinate-type)
+    (case format
+      ;; (:x86-asm
+      ;;  (let ((increment-clause (build-iterator-x86asm eindex (reverse (shape-of varray))
+      ;;                                                 encoding coordinate-type)))
+      ;;    increment-clause))
+      (:lisp
+       (let* ((start (gensym "ST")) (c (gensym "CX")) (count (gensym "CT"))
+                (eindex (gensym "ENO")) (iindex (gensym "II")) (oindex (gensym "ENI"))
+                (input (gensym "AIP")) (output (gensym "AOP")) (ox (gensym))
+                (gform `(lambda (,start ,count) nil))
+                (increment-clause
+                  (cons `(incf ,eindex) (build-iterator eindex (reverse (shape-of varray))
+                                                        encoding coordinate-type))))
+           ;; (print (list :vv varray-point))
+           (when varray-point ;; if all varrays in the tree have applicable effectors
+             `(lambda (,start ,count &optional ,input ,output)
+                (declare (optimize (speed 3) (safety 0))
+                         (type (unsigned-byte ,encoding) ,start ,count))
+                (let ((,eindex (the (unsigned-byte ,encoding) 0))
+                      (,iindex (the (unsigned-byte ,encoding) 0))
+                      (,oindex (the (unsigned-byte ,encoding) 0))
+                      (,ox (the (unsigned-byte ,encoding) ,start)))
+                  (declare (type (unsigned-byte ,encoding) ,eindex ,iindex ,oindex))
+                  ,@(build-encoder start eindex (get-dimensional-factors oshape)
+                                   encoding coordinate-type)
+                  ;; (print (list :bb ,eindex ,iindex))
+                  (dotimes (,c ,count)
+                    (setf ,iindex 0
+                          ,oindex ,eindex)
+                    ;; (print (list :i ,oindex))
+                    ,@(loop :for effector :in effectors :append (funcall effector oindex))
+                    ;; (print (list :a ,oindex))
+                    ,@(build-decoder oindex iindex (reverse (get-dimensional-factors oshape))
+                                     coordinate-type)
+                    ;; (print (list :ee ,oindex ,iindex ,eindex ,ox :b ,start ,c))
+                    (when ,input (setf (row-major-aref ,output ,ox)
+                                       (row-major-aref ,input ,iindex)))
+                    (incf ,ox)
+                    ,@increment-clause))))))))))
 
 (defun vrender (object &rest params)
   "A public-facing interface to the render method."
