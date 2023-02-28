@@ -6,7 +6,8 @@
   :license "Apache-2.0"
   :version "1.0.0"
   :serial t
-  :depends-on ("aplesque" "serapeum" "lparallel" "random-state")
+  :depends-on ("aplesque" #+(not clasp) "serapeum" ;; there's a better way to do this
+                          "lparallel" "random-state")
   :components ((:file "package")
                (:file "macros")
                (:file "base")

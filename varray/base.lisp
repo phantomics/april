@@ -6,12 +6,14 @@
 "Base classes, methods and specs for virtual arrays."
 
 ;; specialized types for April virtual arrays
-(deftype ava-worker-count () `(integer 0 ,(max 1 (1- (serapeum:count-cpus :default 2)))))
+#+(not clasp) (deftype ava-worker-count () `(integer 0 ,(max 1 (1- (serapeum:count-cpus :default 2)))))
+#+clasp (deftype ava-worker-count () `(integer 0 ,(max 1 (1- (ext:num-logical-processors)))))
 (deftype ava-rank () `(integer 0 ,(1- array-rank-limit)))
 (deftype ava-dimension () `(integer 0 ,(1- array-dimension-limit)))
 (deftype ava-size () `(integer 0 ,(1- array-total-size-limit)))
 
-(defparameter *workers-count* (max 1 (1- (serapeum:count-cpus :default 2))))
+#+(not clasp) (defparameter *workers-count* (max 1 (1- (serapeum:count-cpus :default 2))))
+#+clasp (defparameter *workers-count* (max 1 (1- (ext:num-logical-processors))))
 (defvar *april-parallel-kernel*)
 
 (defun make-threading-kernel-if-absent ()
@@ -700,6 +702,22 @@
                                                                     worker))))
                                             ;; t
                                             (funcall (funcall process d))
+                                            ;; (funcall
+                                            ;;  (lambda (dx)
+                                            ;;    (let* ((start-intervals (ceiling (* interval dx)))
+                                            ;;           (start-at (* sbesize start-intervals))
+                                            ;;           (count (if (< dx (1- divisions))
+                                            ;;                      (* sbesize
+                                            ;;                         (- (ceiling
+                                            ;;                             (* interval (1+ dx)))
+                                            ;;                            start-intervals))
+                                            ;;                      (- (size-of varray)
+                                            ;;                         start-at))))
+                                            ;;      (print (list :st start-at count))
+                                            ;;      (funcall jit-gen start-at count
+                                            ;;               (vader-base varray) output)
+                                            ;;      ))
+                                            ;;  ddx)
                                             (if jit-gen
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
@@ -718,8 +736,7 @@
                                                              (lambda ()
                                                                ;; (print (list :st start-at count))
                                                                (funcall jit-gen start-at count
-                                                                        (vader-base varray) output)
-                                                               )))
+                                                                        (vader-base varray) output))))
                                                          ddx)))
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
@@ -772,29 +789,67 @@
         (incf ,insym ,(expt 2 (* coordinate-type (1+ index))))
         ,@(when rest-dims (build-iterator insym rest-dims encoding coordinate-type (1+ index)))))))
 
-;; (defun build-iterator-x86asm (insym dimensions encoding coordinate-type)
-;;   ;; (print (list :in insym dimensions encoding coordinate-type))
-;;   (loop :for d :in dimensions :for dx :from 0
-;;         :append (let ((tag (if (= 0 dx)
-;;                                (if (= 8 coordinate-type)
-;;                                    :byte (if (= 16 coordinate-type)
-;;                                              :word (if (= 32 coordinate-type)
-;;                                                        :dword :qword))))))
-;;                   `(,(if (= 0 dx)
-;;                          (inst inc ,tag ,insym)
-;;                          (inst add ,tag )
-;;                     (inst cmp ,tag ,insym ,d)
-;;                     ,(when (< 1 (length dimensions)) `(inst jmp :b ITERATED))
-;;                     (inst xor :byte  x x)))
-;;                   ;; (inst add :word  x #x0100)
-;;                   ;; (inst cmp :word  x (* 4 #x0100))
-;;                   ;; (inst jmp :b     ITERATED)
-;;                   ;; (inst xor :word x x)
-;;                   ;; (inst add :dword x #x010000)
-;;                   ;; (inst cmp :dword x (* 3 #x010000))
-;;                   ;; (inst jmp :b     ITERATED)
-;;                   ;; (inst and :dword x #xFF000000)
-;;                   ITERATED)))
+(defun build-iterator-x86asm (insym dimensions encoding coordinate-type)
+  ;; (print (list :in insym dimensions encoding coordinate-type))
+  (let ((tags (if (= 8 coordinate-type)
+                  #(:byte :word :dword :dword :qword)
+                  (if (= 16 coordinate-type)
+                      #(:word :dword :qword) #(:dword :qword)))))
+    (loop :for d :in (reverse dimensions) :for dx :from 0
+          :append (let ((tag (aref tags (min (1- (length tags))
+                                             dx))))
+                    `(,(if (zerop dx)
+                           `(inst inc ,tag ,insym)
+                           `(inst add ,tag ,insym ,(ash 1 (* 8 dx))))
+                      ,@(when (< 1 (length dimensions))
+                          (if (< dx (1- (length dimensions)))
+                              `((inst cmp ,tag ,insym ,(* d (ash 1 (* 8 dx))))
+                                (inst jmp :b ITERATED)
+                                ,(if (position dx #(0 1 3 7))
+                                     `(inst xor ,tag ,insym ,insym)
+                                     `(inst and ,tag ,insym ,(ash 255 (* 8 (1+ dx))))))
+                              `(ITERATED))))))))
+
+;; (varray::build-iterator-x86asm 'bla '(3 4 5 6) 32 8)
+
+(defun build-encoder-x86asm (starting-value syms d-factors encoding coordinate-type)
+  ;; (print (list :in insym dimensions encoding coordinate-type))
+  (let ((cty (case coordinate-type (8 :byte) (16 :word) (32 :dword)))
+        (hlf (case encoding (16 :byte) (32 :word)  (64 :dword)))
+        (enc (case encoding (16 :word) (32 :dword) (64 :qword))))
+    (destructuring-bind (a-sym c-sym d-sym b-sym) syms
+      (loop :for d :in d-factors :for dx :from 0
+            :append (if (< dx (1- (length d-factors)))
+                        `(,@(when (zerop dx) `((inst mov ,enc ,a-sym ,starting-value)
+                                               (inst xor ,enc ,b-sym ,b-sym)))
+                          (inst mov ,enc ,c-sym ,d)
+                          (inst div ,enc ,c-sym)
+                          (inst add ,enc ,b-sym ,a-sym)
+                          (inst shl ,enc ,b-sym ,coordinate-type)
+                          ,@(when (< dx (- (length d-factors) 2))
+                              `((inst mov ,enc ,a-sym ,d-sym))))
+                        `((inst add ,enc ,b-sym ,d-sym)))))))
+
+;; (build-encoder-x86asm 138 '(a c d b) '(20 5 1) 32 8)
+
+(defun build-decoder-x86asm (syms d-factors encoding coordinate-type)
+  ;; (print (list :in insym dimensions encoding coordinate-type))
+  (let ((cty (case coordinate-type (8 :byte) (16 :word) (32 :dword)))
+        (enc (case encoding (16 :word) (32 :dword) (64 :qword))))
+    (destructuring-bind (a-sym c-sym d-sym b-sym) syms
+      (loop :for d :in (reverse d-factors) :for dx :from 0
+            :append  (if (< 0 dx)
+                         `((inst shr ,enc ,d-sym ,coordinate-type)
+                           (inst xor ,enc ,a-sym ,a-sym)
+                           (inst mov ,cty ,a-sym ,d-sym)
+                           (inst mov ,enc ,c-sym ,d)
+                           (inst mul ,enc ,c-sym)
+                           (inst add ,enc ,b-sym ,a-sym))
+                         `((inst xor ,enc ,b-sym ,b-sym)
+                           (inst add ,cty ,b-sym ,d-sym)))))))
+
+;; (build-decoder-x86asm '(a c d b) '(20 5 1) 32 8)
+
 
 ;; (destructuring-bind (dimension &rest rest-dims) dimensions
 ;;   `((when (= ,(* dimension (expt 2 (* index coordinate-type)))
@@ -833,44 +888,81 @@
                     (setf varray-point nil))))
     (when (and encoding coordinate-type)
     (case format
-      ;; (:x86-asm
-      ;;  (let ((increment-clause (build-iterator-x86asm eindex (reverse (shape-of varray))
-      ;;                                                 encoding coordinate-type)))
-      ;;    increment-clause))
+      (:x86-asm
+       (let (;; (start (gensym "ST")) (count (gensym "CT"))
+             ;; (st (gensym "S")) (ct (gensym "C"))
+             (start 'ST) (count 'CT) (st 'S) (ct 'C)
+             (enc (case encoding (16 :word) (32 :dword) (64 :qword)))
+             (a-sym  `(sb-x86-64-asm::get-gpr :dword 0))
+             (c-sym  `(sb-x86-64-asm::get-gpr :dword 1))
+             (d-sym  `(sb-x86-64-asm::get-gpr :dword 2))
+             (b-sym  `(sb-x86-64-asm::get-gpr :dword 3))
+             (r5-sym `(SB-X86-64-ASM::GET-GPR :qword 5))
+             (r6-sym `(SB-X86-64-ASM::GET-GPR :qword 6)))
+         `(lambda (,start ,count)
+            (declare (optimize (speed 3) (safety 0))
+                     (type (unsigned-byte ,encoding) ,start ,count))
+            (truly-the (unsigned-byte ,encoding)
+              (inline-vop (((,st unsigned-reg unsigned-num) ,start)
+                           ((,ct unsigned-reg unsigned-num) ,count))
+                  ((r unsigned-reg unsigned-num))
+                (inst mov :qword ,r6-sym ,ct)
+                ,@(build-encoder-x86asm st (list a-sym c-sym d-sym b-sym)
+                                        (get-dimensional-factors oshape)
+                                        encoding coordinate-type)
+                (inst xor ,enc ,r5-sym ,r5-sym)
+                (inst mov ,enc ,d-sym ,b-sym)
+                START-LOOP
+                ;; do operations here on d-sym
+                ,@(build-decoder-x86asm (list a-sym c-sym d-sym b-sym)
+                                        (get-dimensional-factors oshape)
+                                        encoding coordinate-type)
+                ;; move memory with b-sym
+                
+                (data-vector-set-with-offset/simple-bit-vector
+                 #x101EA696AF 1 0 1)
+                (inst mov ,enc ,d-sym ,r5-sym)
+                ,@(build-iterator-x86asm st (shape-of varray)
+                                         encoding coordinate-type)
+                (inst mov ,enc ,r5-sym ,d-sym)
+                (inst inc :qword ,r6-sym)
+                (inst cmp :qword ,r6-sym ,ct)
+                (inst jmp :b START-LOOP)
+                (inst mov :dword r ,a-sym))))))
       (:lisp
        (let* ((start (gensym "ST")) (c (gensym "CX")) (count (gensym "CT"))
-                (eindex (gensym "ENO")) (iindex (gensym "II")) (oindex (gensym "ENI"))
-                (input (gensym "AIP")) (output (gensym "AOP")) (ox (gensym))
-                (gform `(lambda (,start ,count) nil))
-                (increment-clause
-                  (cons `(incf ,eindex) (build-iterator eindex (reverse (shape-of varray))
-                                                        encoding coordinate-type))))
-           ;; (print (list :vv varray-point))
-           (when varray-point ;; if all varrays in the tree have applicable effectors
-             `(lambda (,start ,count &optional ,input ,output)
-                (declare (optimize (speed 3) (safety 0))
-                         (type (unsigned-byte ,encoding) ,start ,count))
-                (let ((,eindex (the (unsigned-byte ,encoding) 0))
-                      (,iindex (the (unsigned-byte ,encoding) 0))
-                      (,oindex (the (unsigned-byte ,encoding) 0))
-                      (,ox (the (unsigned-byte ,encoding) ,start)))
-                  (declare (type (unsigned-byte ,encoding) ,eindex ,iindex ,oindex))
-                  ,@(build-encoder start eindex (get-dimensional-factors oshape)
-                                   encoding coordinate-type)
-                  ;; (print (list :bb ,eindex ,iindex))
-                  (dotimes (,c ,count)
-                    (setf ,iindex 0
-                          ,oindex ,eindex)
-                    ;; (print (list :i ,oindex))
-                    ,@(loop :for effector :in effectors :append (funcall effector oindex))
-                    ;; (print (list :a ,oindex))
-                    ,@(build-decoder oindex iindex (reverse (get-dimensional-factors oshape))
-                                     coordinate-type)
-                    ;; (print (list :ee ,oindex ,iindex ,eindex ,ox :b ,start ,c))
-                    (when ,input (setf (row-major-aref ,output ,ox)
-                                       (row-major-aref ,input ,iindex)))
-                    (incf ,ox)
-                    ,@increment-clause))))))))))
+              (eindex (gensym "ENO")) (iindex (gensym "II")) (oindex (gensym "ENI"))
+              (input (gensym "AIP")) (output (gensym "AOP")) (ox (gensym))
+              (gform `(lambda (,start ,count) nil))
+              (increment-clause
+                (cons `(incf ,eindex) (build-iterator eindex (reverse (shape-of varray))
+                                                      encoding coordinate-type))))
+         ;; (print (list :vv varray-point))
+         (when varray-point ;; if all varrays in the tree have applicable effectors
+           `(lambda (,start ,count &optional ,input ,output)
+              (declare (optimize (speed 3) (safety 0))
+                       (type (unsigned-byte ,encoding) ,start ,count))
+              (let ((,eindex (the (unsigned-byte ,encoding) 0))
+                    (,iindex (the (unsigned-byte ,encoding) 0))
+                    (,oindex (the (unsigned-byte ,encoding) 0))
+                    (,ox (the (unsigned-byte ,encoding) ,start)))
+                (declare (type (unsigned-byte ,encoding) ,eindex ,iindex ,oindex))
+                ,@(build-encoder start eindex (get-dimensional-factors oshape)
+                                 encoding coordinate-type)
+                ;; (print (list :bb ,eindex ,iindex))
+                (dotimes (,c ,count)
+                  (setf ,iindex 0
+                        ,oindex ,eindex)
+                  ;; (print (list :i ,oindex))
+                  ,@(loop :for effector :in effectors :append (funcall effector oindex))
+                  ;; (print (list :a ,oindex))
+                  ,@(build-decoder oindex iindex (reverse (get-dimensional-factors oshape))
+                                   coordinate-type)
+                  ;; (print (list :ee ,ox ,iindex ,oindex ,eindex :b ,start ,c))
+                  (when ,input (setf (row-major-aref ,output ,ox)
+                                     (row-major-aref ,input ,iindex)))
+                  (incf ,ox)
+                  ,@increment-clause))))))))))
 
 (defun vrender (object &rest params)
   "A public-facing interface to the render method."
