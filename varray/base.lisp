@@ -683,25 +683,56 @@
                                    (sbsize (sub-byte-element-type varray))
                                    (sbesize (if sbsize (/ 64 sbsize) 1))
                                    (interval (/ (size-of varray) sbesize *workers-count*))
+                                   (get-span (lambda (index)
+                                               ;; return starting point and number of elements
+                                               ;; to process for the array processing segment
+                                               ;; designated by the index argument
+                                               (let ((start-intervals (ceiling (* interval index))))
+                                                 (values (* sbesize start-intervals)
+                                                         (if (< index (1- divisions))
+                                                             (* sbesize
+                                                                (- (ceiling (* interval (1+ index)))
+                                                                   start-intervals))
+                                                             (- (size-of varray) start-at))))))
                                    (threaded-count 0)
-                                   (jit-gen))
+                                   (segment-handler))
 
-                              ;; (ilocation (sb-c::with-array-data ((raveled varray-point) (start 0) (end))
-                              ;;              (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                              ;; (olocation (sb-c::with-array-data ((raveled output-array) (start 0) (end))
-                              ;;              (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                              #+(and sbcl x86-64)
+                              (unless t ; (or segment-handler (/= 1 sbesize))
+                                (multiple-value-bind (jit-form input-array type)
+                                    (effect varray output :format :x86-asm)
+                                  ;; (print (list :jf jit-form input-array type))
+                                  (when jit-form
+                                    (let ((iaddr (sb-c::with-array-data
+                                                     ((raveled input-array) (start 0) (end))
+                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                                          (oaddr (sb-c::with-array-data
+                                                     ((raveled output) (start 0) (end))
+                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                                          (jit-gen (eval jit-form)))
+                                      (setf segment-handler
+                                            (lambda (dx)
+                                              (multiple-value-bind (start-at count)
+                                                  (funcall get-span dx)
+                                                (lambda ()
+                                                  ;; (print (list :st start-at count))
+                                                  (funcall jit-gen start-at count iaddr oaddr)))))))))
 
-                              ;; #+(and sbcl x86-64)
-                              ;; (multiple-value-bind (jit-form input-array type)
-                              ;;     (effect varray output :format :x86-asm)
-                              ;;   ;; (print (list :jf jit-form input-array type))
-                              ;;   (when jit-form (setf jit-gen (eval jit-form))))
-
-                              ;; (unless jit-gen
-                              ;;   (multiple-value-bind (jit-form input-array type)
-                              ;;       (effect varray output)
-                              ;;     ;; (print (list :jf jit-form input-array type))
-                              ;;     (when jit-form (setf jit-gen (eval jit-form)))))
+                              (unless t ; segment-handler
+                                (multiple-value-bind (jit-form input-array type)
+                                    (effect varray output)
+                                  ;; (print (list :jf jit-form input-array type))
+                                  (when jit-form
+                                    (let ((jit-gen (eval jit-form)))
+                                      (setf segment-handler
+                                            (lambda (dx)
+                                              (multiple-value-bind (start-at count)
+                                                  (funcall get-span dx)
+                                                (lambda ()
+                                                  ;; (print (list :st start-at count))
+                                                  (funcall jit-gen start-at count
+                                                           (vader-base varray) output)))))))))
+                              
                               ;; (print (list :pro divisions sbesize sbsize))
                               ;; (print (list :out (type-of output) (type-of varray)
                               ;;              divisions division-size sbesize sbsize
@@ -722,42 +753,10 @@
                                                                     worker))))
                                             ;; t
                                             (funcall (funcall process d))
-                                            ;; (funcall
-                                            ;;  (lambda (dx)
-                                            ;;    (let* ((start-intervals (ceiling (* interval dx)))
-                                            ;;           (start-at (* sbesize start-intervals))
-                                            ;;           (count (if (< dx (1- divisions))
-                                            ;;                      (* sbesize
-                                            ;;                         (- (ceiling
-                                            ;;                             (* interval (1+ dx)))
-                                            ;;                            start-intervals))
-                                            ;;                      (- (size-of varray)
-                                            ;;                         start-at))))
-                                            ;;      (print (list :st start-at count))
-                                            ;;      (funcall jit-gen start-at count
-                                            ;;               (vader-base varray) output)
-                                            ;;      ))
-                                            ;;  ddx)
-                                            (if nil ; jit-gen
+                                            (if nil ; segment-handler
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
-                                                        lpchannel
-                                                        (funcall
-                                                         (lambda (dx)
-                                                           (let* ((start-intervals (ceiling (* interval dx)))
-                                                                  (start-at (* sbesize start-intervals))
-                                                                  (count (if (< dx (1- divisions))
-                                                                             (* sbesize
-                                                                                (- (ceiling
-                                                                                    (* interval (1+ dx)))
-                                                                                   start-intervals))
-                                                                             (- (size-of varray)
-                                                                                start-at))))
-                                                             (lambda ()
-                                                               ;; (print (list :st start-at count))
-                                                               (funcall jit-gen start-at count
-                                                                        (vader-base varray) output))))
-                                                         ddx)))
+                                                        lpchannel (funcall segment-handler ddx)))
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
                                                         lpchannel (funcall process d))))))

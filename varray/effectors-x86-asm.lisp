@@ -253,7 +253,7 @@
               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
               (cwidth (getf (rest (getf metadata :gen-meta)) :index-type))
               (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
-         (when (and (= 8 cwidth) (not (vads-argument varray)))
+         (when (and cwidth (= 8 cwidth) (not (vads-argument varray)))
            (lambda (symbols)
              (destructuring-bind (ra rc rd rb) symbols
                (declare (ignorable ra rc rd rb))
