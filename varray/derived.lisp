@@ -1494,6 +1494,34 @@
                 (progn (generator-of varray)
                        (varray-prototype varray))))
 
+(defmethod effector-of ((varray vader-section) &optional params)
+  (declare (ignore params))
+  (let* ((format (getf params :format))
+         (metadata (getf (metadata-of varray) :shape))
+         (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+         (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+         ;; (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+         ;; (ctag (case coordinate-type (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+         )
+    (case format
+      (:lisp
+       ;; (lambda (ein-sym)
+       ;;   )
+       nil
+       )
+      ;; (:x86-asm
+      ;;  (lambda (symbols)
+      ;;    (let ((sum 0))
+      ;;      (loop :for dx :below (rank-of varray)
+      ;;            :do (incf sum (ash (+ (aref (vasec-span varray) dx)
+      ;;                                  (aref (vasec-pad varray) dx))
+      ;;                               (* 8 (- (rank-of varray) (1+ dx))))))
+      ;;      (destructuring-bind (ra rc rd rb) symbols
+      ;;        (declare (ignorable ra rc rd rb))
+      ;;        `((inst add ,etag ,rd ,sum))))))
+
+      )))
+
 (defmethod shape-of ((varray vader-section))
   "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
   (get-promised
@@ -1521,8 +1549,8 @@
                   ;; (print (list :aa a negative))
                   (symbol-macrolet ((before-span (aref new-span pre-position))
                                     ( after-span (aref new-span position))
-                                    (before-pad  (aref new-pad  pre-position))
-                                    ( after-pad  (aref new-pad  position)))
+                                    ( before-pad (aref new-pad  pre-position))
+                                    (  after-pad (aref new-pad  position)))
                     (let ((remaining a) (negative (minusp a)))
                       (if negative
                           (if (< 0 (+ remaining after-pad))
@@ -2122,6 +2150,19 @@
   (:metaclass va-class)
   (:documentation "An expanded (as from [\ expand]) or compressed (as from [/ compress]) array."))
 
+(defmethod effector-of ((varray vader-expand) &optional params)
+  (declare (ignore params))
+  (let* ((format (getf params :format))
+         (axis (vads-axis varray))
+         (metadata (getf (metadata-of varray) :shape))
+         (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+         (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
+    (case format
+      (:lisp
+       ;; (lambda (ein-sym)
+       ;;   )
+       nil))))
+
 (defmethod shape-of ((varray vader-expand))
   "The shape of an expanded or compressed array."
   (get-promised
@@ -2645,8 +2686,8 @@
                   (loop :for ti :across this-item
                         :when (not (find ti m :test #'array-compare))
                           :do (push ti (first matched)))
-                  (if (not (find this-item m :test #'array-compare))
-                      (push this-item (first matched))))))
+                  (unless (find this-item m :test #'array-compare)
+                    (push this-item (first matched))))))
           (dolist (m matched) (dolist (subm m) (push subm appended)))
           (setf (vader-content varray)
                 (vector first (make-array (length appended)
@@ -2684,7 +2725,8 @@
 
 (defmethod effector-of ((varray vader-turn) &optional params)
   (declare (ignore params))
-  (let* ((coordinate-type (getf (rest (getf params :gen-meta)) :index-type))
+  (let* ((format (getf params :format))
+         (coordinate-type (getf (rest (getf params :gen-meta)) :index-type))
          (axis (max 0 (if (eq :last (vads-axis varray))
                           (1- (rank-of varray))
                           (- (vads-axis varray)
@@ -2694,33 +2736,38 @@
          (arg (setf (vads-argument varray) (arg-process varray)))
          (dimension (nth axis (shape-of varray))))
     ;; (print (list :ct coordinate-type))
-    (setf (vaturn-degrees varray)
-          (if (integerp arg) (when dimension (mod arg dimension))
-              (when (arrayp arg)
-                (let ((out (make-array (array-dimensions arg)
-                                       :element-type (array-element-type arg))))
-                  (dotimes (i (array-total-size arg))
-                    (setf (row-major-aref out i)
-                          (mod (row-major-aref arg i) dimension)))
-                  out))))
-    (lambda (ein-sym)
-      (if (and (vaturn-degrees varray) (numberp (vaturn-degrees varray)))
-          ;; dyadic, as for X⌽Y
-          `((incf ,ein-sym ,(* unit (vaturn-degrees varray)))
-            (when (>= (ldb (byte ,coordinate-type
-                                 ,(if (= axis (1- (rank-of varray)))
-                                      0 (* coordinate-type axis)))
-                           ,ein-sym)
-                      ,dimension)
-              (decf ,ein-sym ,limit)))
-          ;; monadic, as for ⌽Y
-          `((setf ,ein-sym (+ (logand ,ein-sym ,(ash 255 (* 8 (- (rank-of varray)
-                                                                 (1+ axis)))))
-                              (abs (- ,(1- dimension)
-                                      (ldb (byte ,coordinate-type
-                                                 ,(if (= axis (1- (rank-of varray)))
-                                                      0 (* coordinate-type (- (rank-of varray) axis))))
-                                           ,ein-sym))))))))))
+    (unless (vaturn-degrees varray)
+      (setf (vaturn-degrees varray)
+            (if (integerp arg) (when dimension (mod arg dimension))
+                (when (arrayp arg)
+                  (let ((out (make-array (array-dimensions arg)
+                                         :element-type (array-element-type arg))))
+                    (dotimes (i (array-total-size arg))
+                      (setf (row-major-aref out i)
+                            (mod (row-major-aref arg i) dimension)))
+                    out)))))
+    (case format
+      (:lisp
+       (if (vaturn-degrees varray)
+           (when (numberp (vaturn-degrees varray))
+             ;; dyadic, as for X⌽Y
+             (lambda (ein-sym)
+               `((incf ,ein-sym ,(* unit (vaturn-degrees varray)))
+                 (when (>= (ldb (byte ,coordinate-type
+                                      ,(if (= axis (1- (rank-of varray)))
+                                           0 (* coordinate-type axis)))
+                                ,ein-sym)
+                           ,dimension)
+                   (decf ,ein-sym ,limit)))))
+           (lambda (ein-sym)
+             ;; monadic, as for ⌽Y
+             `((setf ,ein-sym (+ (logand ,ein-sym ,(ash 255 (* 8 (- (rank-of varray)
+                                                                    (1+ axis)))))
+                                 (abs (- ,(1- dimension)
+                                         (ldb (byte ,coordinate-type
+                                                    ,(if (= axis (1- (rank-of varray)))
+                                                         0 (* coordinate-type (- (rank-of varray) axis))))
+                                              ,ein-sym))))))))))))
 
 (defmethod generator-of ((varray vader-turn) &optional indexers params)
   (when (and (vads-argument varray)
@@ -2809,6 +2856,17 @@
                  :documentation "Whether this permutation is diagonal, as from 1 1 2⍉2 3 4⍴⍳9."))
   (:metaclass va-class)
   (:documentation "A permuted array as from the [⍉ permute] function."))
+
+(defmethod effector-of ((varray vader-permute) &optional params)
+  (declare (ignore params))
+  (let* ((format (getf params :format))
+         (metadata (getf (metadata-of varray) :shape))
+         (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+         (cwidth (getf (rest (getf metadata :gen-meta)) :index-type))
+         (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
+    (case format
+      (:lisp
+       ))))
 
 (defmethod shape-of ((varray vader-permute))
   (get-promised

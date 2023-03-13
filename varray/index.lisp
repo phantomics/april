@@ -75,8 +75,7 @@
                                      :for p :across pad :for f :across od-factors
                                      :summing (* f (signum p)
                                                  (- d 1 (aref pad (+ i orank))))
-                                       :into index :finally (return index)
-                                     )))
+                                       :into index :finally (return index))))
                  (lambda (index) (when (= index at-index) index))))
           (if output-shorter
               ;; choose shorter path depending on whether input or output are larger, and
