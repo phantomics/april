@@ -699,7 +699,7 @@
                                    (segment-handler))
 
                               #+(and sbcl x86-64)
-                              (unless (or segment-handler (/= 1 sbesize))
+                              (unless t ; (or segment-handler (/= 1 sbesize))
                                 ;; currently disabled for sub-byte indices
                                 (multiple-value-bind (jit-form input-array type)
                                     (effect varray output :format :x86-asm)
@@ -717,7 +717,7 @@
                                             (lambda (dx)
                                               (multiple-value-bind (start-at count)
                                                   (funcall get-span dx)
-                                                (print (list :sc start-at count))
+                                                ;; (print (list :sc start-at count))
                                                 (lambda ()
                                                   ;; (print (list :st start-at count))
                                                   (funcall jit-gen start-at count iaddr oaddr)))))))))

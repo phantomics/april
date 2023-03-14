@@ -54,12 +54,12 @@
   ;; (print (list :in insym dimensions encoding coordinate-type))
   (let ((cty (case coordinate-type (8 :byte) (16 :word) (32 :dword)))
         (enc (case encoding (16 :word) (32 :dword) (64 :qword))))
-    (destructuring-bind (a-sym c-sym d-sym b-sym) syms
+    (destructuring-bind (a-sym c-sym d-sym b-sym r4-sym) syms
       (loop :for d :in (reverse d-factors) :for dx :from 0
             :append  (if (< 0 dx)
-                         `((inst shr ,enc ,d-sym ,coordinate-type)
+                         `((inst shr ,enc ,r4-sym ,coordinate-type)
                            (inst xor ,enc ,a-sym ,a-sym)
-                           (inst mov ,cty ,a-sym ,d-sym)
+                           (inst mov ,cty ,a-sym ,r4-sym)
                            (inst xor ,enc ,d-sym ,d-sym)
                            (inst mov ,enc ,c-sym ,d)
                            (inst mul ,enc ,c-sym)
@@ -67,7 +67,10 @@
                          ;; must zero all of RBX as the full register
                          ;; is used to calculate the write address
                          `((inst xor :qword ,b-sym ,b-sym)
-                           (inst add ,cty ,b-sym ,d-sym)))))))
+                           (inst add ,cty ,b-sym ,r4-sym))
+                         ;; `((inst mov :qword ,b-sym ,d-sym)
+                         ;;   (inst and :qword ,b-sym ,(expt 2 coordinate-type)))
+                         )))))
 
 ;; (build-decoder-x86asm '(a c d b) '(20 5 1) 32 8)
 
@@ -100,7 +103,7 @@
                ;; (olocation (sb-c::with-array-data ((raveled output-array) (start 0) (end))
                ;;              (sb-vm::sap-int (sb-sys::vector-sap raveled))))
                (el-width) (transfer-type)
-               (temp-syms '(ra rc rd rb r8 r9 r10 r11 r12 r13 r14 r15)))
+               (temp-syms '(ra rc rd rb r4 r8 r9 r10 r11 r12 r13 r14 r15)))
            
            ;; can also loop across sb-vm::*room-info*
            (loop :for i :across sb-vm::*specialized-array-element-type-properties*
@@ -150,43 +153,39 @@
                                                            (r15 'sb-vm::r15-offset))
                                                 :from :eval)
                                                ,temp))
+                 ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) bla)
                  (:generator
-                  1 (inst xor :qword r10 r10)
-                  (inst mov :qword r10 st) ;; starting point
-                  ;; (inst mov :qword r12 ct)
-                  ;; (inst add :qword r12 st) ;; ending point
-                  (inst add :dword ct st) ;; ending point
+                  1 (inst add :dword ct st) ;; ending point
                   ;; (inst mov :qword r9 st)
                   ;; ,@(when (< 8 el-width)
                   ;;     `((inst shl :qword r9 ,(ash el-width -3))))
-                  (inst mov :qword r8 ia)
-                  ;; (inst add :qword r8 r9)
-                  (inst mov :qword r9 oa)
                   ,@(build-encoder-x86asm 'st '(ra rc rd rb)
                                           (get-dimensional-factors ishape)
                                           encoding coordinate-type)
-                  (inst mov ,enc r11 rb)
-                  (inst mov ,enc rd rb)
+                  (inst mov ,enc r9 rb)
+                  (inst mov ,enc r8 rb)
+                  ;; (inst movq bla r11)
                   START-LOOP
-                  ;; do operations here on d-sym
-                  ;; ,@(loop :for ef :in effectors
-                  ;;         :append (funcall ef '(ra rc rd rb)))
-                  ,@(build-decoder-x86asm '(ra rc rd rb)
+                  ;; do operations here on r8
+                  ,@(loop :for ef :in effectors
+                          :append (funcall ef '(ra rc r8 rb)))
+                  ;; (inst mov :qword r14 rd) ;;
+                  ,@(build-decoder-x86asm '(ra rc rd rb r8)
                                           (get-dimensional-factors oshape)
                                           encoding coordinate-type)
 
                   ;; move data with b-sym
-                  (inst mov ,transfer-type ra (ea r8 rb ,(ash el-width -3)))
-                  (inst mov ,transfer-type (ea r9 r10 ,(ash el-width -3)) ra)
+                  (inst mov ,transfer-type ra (ea ia rb ,(ash el-width -3)))
+                  (inst mov ,transfer-type (ea oa st ,(ash el-width -3)) ra)
                   
-                  (inst mov ,enc rd r11)
-                  ,@(build-iterator-x86asm 'rd (shape-of varray)
+                  (inst mov ,enc r8 r9)
+                  ,@(build-iterator-x86asm 'r8 (shape-of varray)
                                            encoding coordinate-type)
-                  (inst mov ,enc r11 rd)
-                  (inst inc :qword r10)
-                  (inst cmp :qword r10 ct)  ;; reached ending point yet?
+                  (inst mov ,enc r9 r8)
+                  (inst inc :qword st)
+                  (inst cmp :qword st ct)  ;; reached ending point yet?
                   (inst jmp :b START-LOOP)  ;; if not, loop again
-                  (inst mov :dword rout r11)))
+                  (inst mov :dword rout r9)))
                (setf (symbol-function 'varray::vop-ph)
                      (lambda (a b c d)
                        (declare (optimize (speed 3) (safety 0)))
