@@ -687,8 +687,9 @@
                                                ;; return starting point and number of elements
                                                ;; to process for the array processing segment
                                                ;; designated by the index argument
-                                               (let ((start-intervals (ceiling (* interval index))))
-                                                 (values (* sbesize start-intervals)
+                                               (let* ((start-intervals (ceiling (* interval index)))
+                                                      (start-at (* sbesize start-intervals)))
+                                                 (values start-at
                                                          (if (< index (1- divisions))
                                                              (* sbesize
                                                                 (- (ceiling (* interval (1+ index)))
@@ -698,10 +699,11 @@
                                    (segment-handler))
 
                               #+(and sbcl x86-64)
-                              (unless t ; (or segment-handler (/= 1 sbesize))
+                              (unless (or segment-handler (/= 1 sbesize))
+                                ;; currently disabled for sub-byte indices
                                 (multiple-value-bind (jit-form input-array type)
                                     (effect varray output :format :x86-asm)
-                                  ;; (print (list :jf jit-form input-array type))
+                                  ;; (print (list :jf jit-form))
                                   (when jit-form
                                     (let ((iaddr (sb-c::with-array-data
                                                      ((raveled input-array) (start 0) (end))
@@ -710,10 +712,12 @@
                                                      ((raveled output) (start 0) (end))
                                                    (sb-vm::sap-int (sb-sys::vector-sap raveled))))
                                           (jit-gen (eval jit-form)))
+                                      (disassemble jit-gen)
                                       (setf segment-handler
                                             (lambda (dx)
                                               (multiple-value-bind (start-at count)
                                                   (funcall get-span dx)
+                                                (print (list :sc start-at count))
                                                 (lambda ()
                                                   ;; (print (list :st start-at count))
                                                   (funcall jit-gen start-at count iaddr oaddr)))))))))
@@ -721,6 +725,7 @@
                               (unless t ; segment-handler
                                 (multiple-value-bind (jit-form input-array type)
                                     (effect varray output)
+                                  (declare (ignore input-array))
                                   ;; (print (list :jf jit-form input-array type))
                                   (when jit-form
                                     (let ((jit-gen (eval jit-form)))
@@ -741,22 +746,21 @@
                               ;;                (vacmp-threadable varray))))
                               ;; (print (list :ts to-nest (setf april::ggt varray)))
                               ;; (print (list :jg jit-gen))
-                              (loop :for d :below divisions :for ddx :from 0
+                              (loop :for d :below divisions :for dx :from 0
                                     :do (if (or (and (typep varray 'vader-composing)
                                                      (not (vacmp-async varray)))
                                                 ;; don't thread when rendering the output of operators composed
                                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                                (loop :for worker
-                                                        :across (lparallel.kernel::workers
-                                                                 lparallel::*kernel*)
+                                                (loop :for worker :across (lparallel.kernel::workers
+                                                                           lparallel::*kernel*)
                                                       :never (null (lparallel.kernel::running-category
                                                                     worker))))
                                             ;; t
                                             (funcall (funcall process d))
-                                            (if nil ; segment-handler
+                                            (if segment-handler
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
-                                                        lpchannel (funcall segment-handler ddx)))
+                                                        lpchannel (funcall segment-handler dx)))
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
                                                         lpchannel (funcall process d))))))

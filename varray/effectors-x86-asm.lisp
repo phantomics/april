@@ -64,7 +64,9 @@
                            (inst mov ,enc ,c-sym ,d)
                            (inst mul ,enc ,c-sym)
                            (inst add ,enc ,b-sym ,a-sym))
-                         `((inst xor ,enc ,b-sym ,b-sym)
+                         ;; must zero all of RBX as the full register
+                         ;; is used to calculate the write address
+                         `((inst xor :qword ,b-sym ,b-sym)
                            (inst add ,cty ,b-sym ,d-sym)))))))
 
 ;; (build-decoder-x86asm '(a c d b) '(20 5 1) 32 8)
@@ -149,12 +151,16 @@
                                                 :from :eval)
                                                ,temp))
                  (:generator
-                  10 (inst xor :qword r10 r10)
+                  1 (inst xor :qword r10 r10)
                   (inst mov :qword r10 st) ;; starting point
                   ;; (inst mov :qword r12 ct)
                   ;; (inst add :qword r12 st) ;; ending point
                   (inst add :dword ct st) ;; ending point
+                  ;; (inst mov :qword r9 st)
+                  ;; ,@(when (< 8 el-width)
+                  ;;     `((inst shl :qword r9 ,(ash el-width -3))))
                   (inst mov :qword r8 ia)
+                  ;; (inst add :qword r8 r9)
                   (inst mov :qword r9 oa)
                   ,@(build-encoder-x86asm 'st '(ra rc rd rb)
                                           (get-dimensional-factors ishape)
@@ -163,8 +169,8 @@
                   (inst mov ,enc rd rb)
                   START-LOOP
                   ;; do operations here on d-sym
-                  ,@(loop :for ef :in effectors
-                          :append (funcall ef '(ra rc rd rb)))
+                  ;; ,@(loop :for ef :in effectors
+                  ;;         :append (funcall ef '(ra rc rd rb)))
                   ,@(build-decoder-x86asm '(ra rc rd rb)
                                           (get-dimensional-factors oshape)
                                           encoding coordinate-type)
