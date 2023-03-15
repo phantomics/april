@@ -680,8 +680,6 @@
                                                                         divisions render-index))
                                    (process (or (and is-not-defaulting (first process-pair))
                                                 (second process-pair)))
-                                   (sbsize (sub-byte-element-type varray))
-                                   (sbesize (if sbsize (/ 64 sbsize) 1))
                                    (interval (/ (size-of varray) sbesize *workers-count*))
                                    (get-span (lambda (index)
                                                ;; return starting point and number of elements
@@ -699,7 +697,7 @@
                                    (segment-handler))
 
                               #+(and sbcl x86-64)
-                              (unless (or segment-handler (/= 1 sbesize))
+                              (unless t ; (or segment-handler (/= 1 sbesize))
                                 ;; currently disabled for sub-byte indices
                                 (multiple-value-bind (jit-form input-array type)
                                     (effect varray output :format :x86-asm)
