@@ -74,6 +74,137 @@
 
 ;; (build-decoder-x86asm '(a c d b) '(20 5 1) 32 8)
 
+;; (let ((xmm-rotate-mask-qword (make-array 4 :element-type '(unsigned-byte 32)
+;;                                            :initial-contents '(2 3 0 1)))
+;;       (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+;;                                            :initial-contents '(2 3 4 5 6 7 0 1))))
+;;   (defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
+;;     (case format
+;;       (:x86-asm
+;;        (let* ((oshape (shape-of varray))
+;;               (vaspec (specify varray))
+;;               (metadata (getf (metadata-of varray) :shape))
+;;               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+;;               (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+;;               (varray-point varray)
+;;               (ishape) (effectors))
+
+;;          (setf (getf metadata :format) format)
+;;          (loop :while (and varray-point (typep varray-point 'varray-derived))
+;;                :do (let ((this-effector (effector-of varray-point metadata)))
+;;                      ;; (print (list :ti this-effector))
+;;                      (if this-effector (progn (push this-effector effectors)
+;;                                               (setf varray-point (vader-base varray-point)))
+;;                          (setf varray-point nil))))
+         
+;;          (when (and varray-point encoding coordinate-type)
+;;            ;; (print (list :enc encoding coordinate-type))
+;;            (when varray-point (setf ishape (shape-of varray-point)))
+;;            (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
+;;                  (ctag (case coordinate-type (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+;;                  (el-width) (transfer-type)
+;;                  (temp-syms '(ra rc rd rb r6 r7 r8 r9 r10 r11 r12 r13 r14 r15)))
+             
+;;              ;; can also loop across sb-vm::*room-info*
+;;              (loop :for i :across sb-vm::*specialized-array-element-type-properties*
+;;                    :while (not el-width)
+;;                    :when (and (sb-vm::specialized-array-element-type-properties-p i)
+;;                               (equalp (array-element-type varray-point)
+;;                                       (sb-vm::saetp-specifier i)))
+;;                      :do (setf el-width (sb-vm::saetp-n-bits i)
+;;                                transfer-type (case el-width (64 :qword) (32 :dword)
+;;                                                    (16 :word) (t :byte))))
+             
+;;              (values
+;;               `(progn
+;;                  (sb-c:defknown varray::vop-ph
+;;                      ((unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64))
+;;                      (unsigned-byte 64) (sb-c:foldable sb-c:flushable sb-c:movable)
+;;                    :overwrite-fndb-silently t)
+;;                  (unless (fboundp 'vop-ph)
+;;                    (proclaim '(special vop-ph))
+;;                    (setf (symbol-function 'vop-ph) (lambda (a b c d) a)))
+;;                  (define-vop (varray::vop-ph)
+;;                    (:policy :fast-safe)
+;;                    (:translate varray::vop-ph)
+;;                    (:args (st :scs (unsigned-reg)) (ct :scs (unsigned-reg))
+;;                           (ia :scs (unsigned-reg)) (oa :scs (unsigned-reg)))
+;;                    (:arg-types unsigned-num unsigned-num unsigned-num unsigned-num)
+;;                    ;; (:results (rout :scs (unsigned-reg)))
+;;                    (:result-types) ; unsigned-num)
+;;                    ,@(loop :for temp :in temp-syms
+;;                            :collect `(:temporary (:sc sb-vm::unsigned-reg
+;;                                                   :offset ,(case temp
+;;                                                              (ra  'sb-vm::rax-offset)
+;;                                                              (rc  'sb-vm::rcx-offset)
+;;                                                              (rd  'sb-vm::rdx-offset)
+;;                                                              (rb  'sb-vm::rbx-offset)
+;;                                                              (r4  'sb-vm::rsp-offset)
+;;                                                              (r5  'sb-vm::rbp-offset)
+;;                                                              (r6  'sb-vm::rsi-offset)
+;;                                                              (r7  'sb-vm::rdi-offset)
+;;                                                              (r8  'sb-vm::r8-offset )
+;;                                                              (r9  'sb-vm::r9-offset )
+;;                                                              (r10 'sb-vm::r10-offset)
+;;                                                              (r11 'sb-vm::r11-offset)
+;;                                                              (r12 'sb-vm::r12-offset)
+;;                                                              (r13 'sb-vm::r13-offset)
+;;                                                              (r14 'sb-vm::r14-offset)
+;;                                                              (r15 'sb-vm::r15-offset))
+;;                                                   :from :eval)
+;;                                                  ,temp))
+;;                    ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) vcr)
+;;                    (:generator
+;;                     1 (inst mov :qword r10 st)
+;;                     (inst add :qword ct st) ;; ending point
+;;                     ;; (inst mov :qword r7 0)  ;; segment index
+;;                     (inst push r12)
+;;                     (inst mov :qword r12 oa)
+;;                     ;; (inst mov :qword r9 st)
+;;                     ;; ,@(when (< 8 el-width)
+;;                     ;;     `((inst shl :qword r9 ,(ash el-width -3))))
+;;                     ,@(build-encoder-x86asm 'st '(ra rc rd rb)
+;;                                             (get-dimensional-factors ishape)
+;;                                             encoding coordinate-type)
+;;                     (inst mov ,enc r9 rb)
+;;                     (inst mov ,enc r8 rb)
+;;                     ;; (inst movq vcr r11)
+;;                     START-LOOP
+;;                     ;; do operations here on r8
+;;                     ,@(loop :for ef :in effectors
+;;                             :append (funcall ef '(ra rc r8 rb)))
+;;                     ,@(build-decoder-x86asm '(ra rc rd rb r8)
+;;                                             (get-dimensional-factors oshape)
+;;                                             encoding coordinate-type)
+
+;;                     ;; move data with b-sym
+;;                     ,@(if nil ; (= 8 el-width)
+;;                           `((inst mov ,transfer-type ra (ea ia rb ,(ash el-width -3)))
+;;                             (inst shl :qword ra ,el-width)
+;;                             (inst inc :qword r6)
+;;                             (inst cmp :qword r6 8)
+;;                             (inst jmb :b )
+;;                             (inst mov ,transfer-type (ea r12 r10 ,(ash el-width -3)) ra))
+;;                           `((inst mov ,transfer-type ra (ea ia rb ,(ash el-width -3)))
+;;                             (inst mov ,transfer-type (ea r12 r10 ,(ash el-width -3)) ra)))
+                    
+;;                     (inst mov ,enc r8 r9)
+;;                     ,@(build-iterator-x86asm 'r8 (shape-of varray)
+;;                                              encoding coordinate-type)
+;;                     (inst mov ,enc r9 r8)
+;;                     (inst inc :qword r10)
+;;                     (inst cmp :qword r10 ct)    ;; reached ending point yet?
+;;                     (inst jmp :b START-LOOP)    ;; if not, loop again
+;;                     (inst pop r12)
+;;                     ;; (inst mov :qword rout r9)
+;;                     )) ;; return final coordinates
+;;                  (setf (symbol-function 'varray::vop-ph)
+;;                        (lambda (a b c d)
+;;                          (declare (optimize (speed 3) (safety 0)))
+;;                          (varray::vop-ph a b c d))))
+;;               varray-point :x86-asm)))))
+;;       (t (call-next-method)))))
+
 (defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
   (case format
     (:x86-asm
@@ -98,10 +229,6 @@
          (when varray-point (setf ishape (shape-of varray-point)))
          (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
                (ctag (case coordinate-type (8 :byte) (16 :word) (32 :dword) (64 :qword)))
-               ;; (ilocation (sb-c::with-array-data ((raveled varray-point) (start 0) (end))
-               ;;              (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-               ;; (olocation (sb-c::with-array-data ((raveled output-array) (start 0) (end))
-               ;;              (sb-vm::sap-int (sb-sys::vector-sap raveled))))
                (el-width) (transfer-type)
                (temp-syms '(ra rc rd rb r4 r8 r9 r10 r11 r12 r13 r14 r15)))
            
@@ -153,9 +280,12 @@
                                                            (r15 'sb-vm::r15-offset))
                                                 :from :eval)
                                                ,temp))
-                 ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) bla)
+                 ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) vcr)
                  (:generator
-                  1 (inst add :dword ct st) ;; ending point
+                  1 (inst mov :qword r10 st)
+                  (inst add :qword ct st) ;; ending point
+                  (inst push r12)
+                  (inst mov :qword r12 oa)
                   ;; (inst mov :qword r9 st)
                   ;; ,@(when (< 8 el-width)
                   ;;     `((inst shl :qword r9 ,(ash el-width -3))))
@@ -164,28 +294,28 @@
                                           encoding coordinate-type)
                   (inst mov ,enc r9 rb)
                   (inst mov ,enc r8 rb)
-                  ;; (inst movq bla r11)
+                  ;; (inst movq vcr r11)
                   START-LOOP
                   ;; do operations here on r8
                   ,@(loop :for ef :in effectors
                           :append (funcall ef '(ra rc r8 rb)))
-                  ;; (inst mov :qword r14 rd) ;;
                   ,@(build-decoder-x86asm '(ra rc rd rb r8)
                                           (get-dimensional-factors oshape)
                                           encoding coordinate-type)
 
                   ;; move data with b-sym
                   (inst mov ,transfer-type ra (ea ia rb ,(ash el-width -3)))
-                  (inst mov ,transfer-type (ea oa st ,(ash el-width -3)) ra)
+                  (inst mov ,transfer-type (ea r12 r10 ,(ash el-width -3)) ra)
                   
                   (inst mov ,enc r8 r9)
                   ,@(build-iterator-x86asm 'r8 (shape-of varray)
                                            encoding coordinate-type)
                   (inst mov ,enc r9 r8)
-                  (inst inc :qword st)
-                  (inst cmp :qword st ct)  ;; reached ending point yet?
-                  (inst jmp :b START-LOOP)  ;; if not, loop again
-                  (inst mov :dword rout r9)))
+                  (inst inc :qword r10)
+                  (inst cmp :qword r10 ct)    ;; reached ending point yet?
+                  (inst jmp :b START-LOOP)    ;; if not, loop again
+                  (inst pop r12)
+                  (inst mov :qword rout r9))) ;; return final coordinates
                (setf (symbol-function 'varray::vop-ph)
                      (lambda (a b c d)
                        (declare (optimize (speed 3) (safety 0)))
