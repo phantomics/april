@@ -699,9 +699,9 @@
                               #+(and sbcl x86-64)
                               (unless t ; (or segment-handler (/= 1 sbesize))
                                 ;; currently disabled for sub-byte indices
-                                (multiple-value-bind (jit-form input-array type)
+                                (multiple-value-bind (jit-form input-array type start-points counts)
                                     (effect varray output :format :x86-asm)
-                                  ;; (print (list :jf jit-form))
+                                  ;; (print (list :ees start-points counts))
                                   (when jit-form
                                     (let ((iaddr (sb-c::with-array-data
                                                      ((raveled input-array) (start 0) (end))
@@ -713,12 +713,12 @@
                                       (disassemble jit-gen)
                                       (setf segment-handler
                                             (lambda (dx)
-                                              (multiple-value-bind (start-at count)
-                                                  (funcall get-span dx)
-                                                ;; (print (list :sc start-at count))
-                                                (lambda ()
-                                                  ;; (print (list :st start-at count))
-                                                  (funcall jit-gen start-at count iaddr oaddr)))))))))
+                                              (let ((count (aref counts dx)))
+                                                (unless (zerop count)
+                                                  (let ((start-at (aref start-points dx)))
+                                                    (lambda ()
+                                                      (funcall jit-gen start-at count iaddr oaddr)
+                                                      ))))))))))
 
                               (unless t ; segment-handler
                                 (multiple-value-bind (jit-form input-array type)
@@ -756,9 +756,10 @@
                                             ;; t
                                             (funcall (funcall process d))
                                             (if segment-handler
-                                                (progn (incf threaded-count)
-                                                       (lparallel::submit-task
-                                                        lpchannel (funcall segment-handler dx)))
+                                                (let ((fn (funcall segment-handler dx)))
+                                                  (when fn
+                                                    (incf threaded-count)
+                                                    (lparallel::submit-task lpchannel fn)))
                                                 (progn (incf threaded-count)
                                                        (lparallel::submit-task
                                                         lpchannel (funcall process d))))))
