@@ -9,7 +9,6 @@
   :depends-on ("aplesque" ;; #+(not clasp) "serapeum" ;; there's a better way to do this
                           (:feature (:not :clasp) "serapeum")
                           "lparallel" "random-state")
-  ;; (:feature (and :sbcl :x86-64) :components ((:file "effectors-x86-asm")))
   :components ((:file "package")
                (:file "macros")
                (:file "base")

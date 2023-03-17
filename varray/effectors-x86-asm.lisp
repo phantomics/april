@@ -30,11 +30,9 @@
 
 (defun build-encoder-x86asm (starting-value syms d-factors encoding coordinate-type)
   ;; (print (list :in insym dimensions encoding coordinate-type))
-  (let (;; (cty (case coordinate-type (8 :byte) (16 :word) (32 :dword)))
-        ;; (hlf (case encoding (16 :byte) (32 :word)  (64 :dword)))
-        (enc (case encoding (16 :word) (32 :dword) (64 :qword))))
+  (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword))))
     (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) syms
-      (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11)) ; r12 r13 r14 r15))
+      (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
       (loop :for d :in d-factors :for dx :from 0
             :append (if (< dx (1- (length d-factors)))
                         `(,@(when (zerop dx) `((inst mov ,enc ,ra ,starting-value)
@@ -75,15 +73,186 @@
 
 ;; (build-decoder-x86asm '(a c d b) '(20 5 1) 32 8)
 
+;; (let ((xmm-rotate-mask-qword (make-array 4 :element-type '(unsigned-byte 32)
+;;                                            :initial-contents '(2 3 0 1)))
+;;       (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+;;                                            :initial-contents '(2 3 4 5 6 7 0 1))))
+;;   (defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
+;;     (case format
+;;       (:x86-asm
+;;        (let* ((oshape (shape-of varray))
+;;               (vaspec (specify varray))
+;;               (metadata (getf (metadata-of varray) :shape))
+;;               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+;;               (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+;;               (varray-point varray)
+;;               (ishape) (effectors)
+;;               (start-points (make-array *workers-count* :element-type 'fixnum))
+;;               (counts (make-array *workers-count* :element-type 'fixnum)))
+
+;;          (setf (getf metadata :format) format)
+;;          (loop :while (and varray-point (typep varray-point 'varray-derived))
+;;                :do (let ((this-effector (effector-of varray-point metadata)))
+;;                      (if this-effector (progn (push this-effector effectors)
+;;                                               (setf varray-point (vader-base varray-point)))
+;;                          (setf varray-point nil))))
+         
+;;          (when (and varray-point encoding coordinate-type)
+;;            (when varray-point (setf ishape (shape-of varray-point)))
+;;            (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
+;;                  (byte-shift)
+;;                  (el-width) (transfer-type)
+;;                  (temp-syms '(ra rc rd rb r6 r7 aec r9 r10 r11)))
+             
+;;              ;; can also loop across sb-vm::*room-info*
+;;              (loop :for i :across sb-vm::*specialized-array-element-type-properties*
+;;                    :while (not el-width)
+;;                    :when (and (sb-vm::specialized-array-element-type-properties-p i)
+;;                               (equalp (array-element-type varray-point)
+;;                                       (sb-vm::saetp-specifier i)))
+;;                      :do (setf el-width (sb-vm::saetp-n-bits i)
+;;                                transfer-type (case el-width (64 :qword) (32 :dword)
+;;                                                    (16 :word) (t :byte))
+;;                                byte-shift (case el-width (64 3) (32 2) (16 1))))
+
+;;              (let* ((segment (/ 64 el-width)) (total 0) (seg 0) (out)
+;;                     (count (size-of varray))
+;;                     (inc (/ count segment *workers-count*)))
+;;                (loop :for i :below *workers-count* :for ix :from 0
+;;                      :do (let ((to-add 0))
+;;                            (incf seg inc)
+;;                            (if (< 1 seg)
+;;                                (progn (loop :while (< 1 seg)
+;;                                             :do (decf seg)
+;;                                                 (incf to-add segment))
+;;                                       (setf (aref start-points ix) total)
+;;                                       (incf total to-add)
+;;                                       (setf (aref counts ix) to-add))
+;;                                (if (= i (1- *workers-count*))
+;;                                    (setf (aref counts ix) (max 0 (- count total))
+;;                                          (aref start-points ix) total)
+;;                                    (setf (aref start-points ix) 0))))))
+             
+;;              (values
+;;               `(progn
+;;                  (sb-c:defknown varray::vop-ph
+;;                      ((unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64))
+;;                      (unsigned-byte 64) (sb-c:foldable sb-c:flushable sb-c:movable)
+;;                    :overwrite-fndb-silently t)
+;;                  (unless (fboundp 'vop-ph)
+;;                    (proclaim '(special vop-ph))
+;;                    (setf (symbol-function 'vop-ph) (lambda (a b c d) a)))
+;;                  (define-vop (varray::vop-ph)
+;;                    (:policy :fast-safe)
+;;                    (:translate varray::vop-ph)
+;;                    (:args (st-arg :scs (unsigned-reg)) (ct-arg :scs (unsigned-reg))
+;;                           (ia-arg :scs (unsigned-reg)) (oa-arg :scs (unsigned-reg)))
+;;                    (:arg-types unsigned-num unsigned-num unsigned-num unsigned-num)
+;;                    ;; (:results (rout :scs (unsigned-reg)))
+;;                    ;; (:result-types) ; unsigned-num)
+;;                     ;; A and D registers are hardwired due to their relations to MUL and DIV
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rax-offset) ra)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) rc)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rdx-offset) rd)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) rb)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) ia)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) oa)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) aec)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) sec)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) st)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) ct)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgs)
+;;                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgi)
+;;                    ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) vcr)
+;;                    (:generator
+;;                     1 ;; first, load input variables into named temporary registers
+;;                     (inst mov :qword st st-arg) ;; starting point
+;;                     (inst mov :qword ct ct-arg)
+;;                     (inst add :qword ct st)     ;; ending point
+;;                     (inst mov :qword ia ia-arg) ;; input address
+;;                     (inst mov :qword oa oa-arg) ;; output address
+;;                     ;; (inst add :qword ct oa-arg) ;; ending point
+;;                     ;; (inst add :qword st oa-arg) ;; ending point
+;;                     (inst xor :qword sgi sgi)   ;; segment index
+;;                     ;; ,@(when (< 8 el-width)
+;;                     ;;     `((inst shl :qword sec ,(ash el-width -3))))
+;;                     ,@(build-encoder-x86asm 'st temp-syms (get-dimensional-factors oshape)
+;;                                             encoding coordinate-type)
+;;                     (inst mov ,enc sec rb) ;; stored encoded coordinates
+;;                     (inst mov ,enc aec rb) ;; active encoded coordinates
+;;                     (inst jmp START-LOOP)
+;;                     START-LOOP-INCREMENTING
+;;                     ,@(build-iterator-x86asm 'aec oshape encoding coordinate-type)
+;;                     (inst mov ,enc sec aec)
+;;                     START-LOOP
+;;                     ;; do operations here on aec
+;;                     ,@(loop :for ef :in (reverse effectors) :append (funcall ef temp-syms))
+;;                     ,@(build-decoder-x86asm temp-syms (get-dimensional-factors ishape)
+;;                                             encoding coordinate-type)
+
+;;                     ;; adjust B register to point to input data location
+;;                     ,@(when byte-shift `((inst shl :qword rb ,byte-shift)))
+;;                     (inst add :qword rb ia)
+;;                     (inst cmp :qword sgi 0)
+;;                     ;; if the segment index isn't zero, serial transfer must be ongoing
+;;                     (inst jmp :ne SERIAL-TRANSFER)
+;;                     (inst mov rc ct)
+;;                     (inst sub rc st)
+;;                     (inst cmp :qword rc ,(/ 64 el-width))
+;;                     ;; transfer one by one if the remaining elements won't fit in a larger register
+;;                     (inst jmp :b INDIVIDUAL-TRANSFER)
+;;                     SERIAL-TRANSFER ;; this clause moves elements in sets fitting in 64-bit registers
+;;                     ;; move each element into segment storage
+;;                     (inst mov ,transfer-type sgs (ea rb))
+;;                     (inst ror :qword sgs ,el-width)
+;;                     (inst inc :qword sgi)
+;;                     (inst cmp :byte sgi ,(/ 64 el-width))
+;;                     ;; the transfer cycle is complete if the segment isn't full yet
+;;                     (inst jmp :b TRANSFER-CYCLE-COMPLETE)
+;;                     ;; if the segment is full, transfer it to memory
+;;                     (inst mov :qword (ea oa st) sgs)
+;;                     (inst xor :byte sgi sgi)
+;;                     (inst add :qword st ,(/ 64 el-width))
+;;                     (inst jmp TRANSFER-CYCLE-COMPLETE)
+;;                     INDIVIDUAL-TRANSFER ;; this clause moves elements individually
+;;                     (inst mov ,transfer-type ra (ea rb))
+;;                     (inst mov ,transfer-type (ea oa st) ra)
+;;                     (inst add :qword st ,(ash el-width -3))
+;;                     TRANSFER-CYCLE-COMPLETE ;; data transfer cycle is finished
+;;                     (inst mov ,enc aec sec)
+;;                     (inst cmp :qword st ct)               ;; reached ending point yet?
+;;                     (inst jmp :b START-LOOP-INCREMENTING) ;; if not, loop again
+;;                     ))
+;;                  (setf (symbol-function 'varray::vop-ph)
+;;                        (lambda (a b c d)
+;;                          (declare (optimize (speed 3) (safety 0)))
+;;                          (varray::vop-ph a b c d))))
+;;               varray-point :x86-asm start-points counts)))))
+;;       (t (call-next-method)))))
+
 (let ((xmm-rotate-mask-qword (make-array 4 :element-type '(unsigned-byte 32)
                                            :initial-contents '(2 3 0 1)))
+      ;; (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+      ;;                                      :initial-contents '(2 3 4 5 6 7 0 1)))
+      ;; (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+      ;;                                      :initial-contents '(7 6 5 4 3 2 1 0)))
       (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
-                                           :initial-contents '(2 3 4 5 6 7 0 1))))
+                                           :initial-contents '(0 1 2 3 4 5 6 7)))
+      ;; (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+      ;;                                      :initial-contents '(6 7 0 1 2 3 4 5)))
+      ;; (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 32)
+      ;;                                      :initial-contents '(5 4 3 2 1 0 7 6)))
+      ;; (ymm-rotate-mask-qword (make-array 8 :element-type '(unsigned-byte 16)
+      ;;                                      :initial-contents '(6 7 0 1 2 3 4 5)))
+      ;; (ymm-rotate-byte-mask (make-array 32 :element-type '(unsigned-byte 8)
+      ;;                                      :initial-contents '(8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 324 29 30 31 0 1 2 3 4 5 6 7 )))
+      )
   (defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
     (case format
       (:x86-asm
        (let* ((oshape (shape-of varray))
               (vaspec (specify varray))
+              (word-size 64)
               (metadata (getf (metadata-of varray) :shape))
               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
               (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
@@ -95,15 +264,16 @@
          (setf (getf metadata :format) format)
          (loop :while (and varray-point (typep varray-point 'varray-derived))
                :do (let ((this-effector (effector-of varray-point metadata)))
-                     ;; (print (list :ti this-effector))
                      (if this-effector (progn (push this-effector effectors)
                                               (setf varray-point (vader-base varray-point)))
                          (setf varray-point nil))))
          
          (when (and varray-point encoding coordinate-type)
-           ;; (print (list :enc encoding coordinate-type))
            (when varray-point (setf ishape (shape-of varray-point)))
            (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
+                 (ymm-rmask-address (sb-vm::sap-int (sb-sys::vector-sap ymm-rotate-mask-qword)))
+                 (write-transport-width 256)
+                 (byte-shift)
                  (el-width) (transfer-type)
                  (temp-syms '(ra rc rd rb r6 r7 aec r9 r10 r11)))
              
@@ -115,9 +285,12 @@
                                       (sb-vm::saetp-specifier i)))
                      :do (setf el-width (sb-vm::saetp-n-bits i)
                                transfer-type (case el-width (64 :qword) (32 :dword)
-                                                   (16 :word) (t :byte))))
+                                                   (16 :word) (t :byte))
+                               byte-shift (case el-width (64 3) (32 2) (16 1))))
 
-             (let* ((segment (/ 64 el-width)) (total 0) (seg 0) (out)
+             (let* (;; (segment (/ word-size el-width))
+                    (segment (/ write-transport-width el-width))
+                    (total 0) (seg 0)
                     (count (size-of varray))
                     (inc (/ count segment *workers-count*)))
                (loop :for i :below *workers-count* :for ix :from 0
@@ -134,12 +307,15 @@
                                    (setf (aref counts ix) (max 0 (- count total))
                                          (aref start-points ix) total)
                                    (setf (aref start-points ix) 0))))))
+
+             (print (list :segs start-points counts))
              
              (values
               `(progn
                  (sb-c:defknown varray::vop-ph
-                     ((unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64) (unsigned-byte 64))
-                     (unsigned-byte 64) (sb-c:foldable sb-c:flushable sb-c:movable)
+                     ((unsigned-byte ,word-size) (unsigned-byte ,word-size)
+                      (unsigned-byte ,word-size) (unsigned-byte ,word-size))
+                     (unsigned-byte ,word-size) (sb-c:foldable sb-c:flushable sb-c:movable)
                    :overwrite-fndb-silently t)
                  (unless (fboundp 'vop-ph)
                    (proclaim '(special vop-ph))
@@ -165,7 +341,8 @@
                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) ct)
                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgs)
                    (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgi)
-                   ;; (:temporary (:sc sb-vm::single-avx2-reg :offset 2 :from :eval) vcr)
+                   (:temporary (:sc sb-vm::double-avx2-reg :from :eval) to-write)
+                   (:temporary (:sc sb-vm::double-avx2-reg :from :eval) rotate-mask)
                    (:generator
                     1 ;; first, load input variables into named temporary registers
                     (inst mov :qword st st-arg) ;; starting point
@@ -173,6 +350,11 @@
                     (inst add :qword ct st)     ;; ending point
                     (inst mov :qword ia ia-arg) ;; input address
                     (inst mov :qword oa oa-arg) ;; output address
+                    (inst mov :qword sgi ,ymm-rmask-address)
+                    (inst vmovdqu rotate-mask (ea sgi))
+                    ;; output address
+                    ;; (inst add :qword ct oa-arg) ;; ending point
+                    ;; (inst add :qword st oa-arg) ;; ending point
                     (inst xor :qword sgi sgi)   ;; segment index
                     ;; ,@(when (< 8 el-width)
                     ;;     `((inst shl :qword sec ,(ash el-width -3))))
@@ -190,32 +372,61 @@
                     ,@(build-decoder-x86asm temp-syms (get-dimensional-factors ishape)
                                             encoding coordinate-type)
 
-                    ;; move data with b-sym
+                    ;; adjust B register to point to input data location
+                    ,@(when byte-shift `((inst shl :qword rb ,byte-shift)))
+                    (inst add :qword rb ia)
+                    ;; (inst jmp INDIVIDUAL-TRANSFER)
                     (inst cmp :qword sgi 0)
                     ;; if the segment index isn't zero, serial transfer must be ongoing
                     (inst jmp :ne SERIAL-TRANSFER)
-                    (inst mov rc ct)
-                    (inst sub rc st)
-                    (inst cmp :qword rc ,(/ 64 el-width))
+                    (inst mov :qword rc ct)
+                    (inst sub :qword rc st)
+                    (inst cmp :qword rc ,(/ word-size el-width))
                     ;; transfer one by one if the remaining elements won't fit in a larger register
                     (inst jmp :b INDIVIDUAL-TRANSFER)
                     SERIAL-TRANSFER ;; this clause moves elements in sets fitting in 64-bit registers
                     ;; move each element into segment storage
-                    (inst mov ,transfer-type sgs (ea ia rb ,(ash el-width -3)))
+                    (inst mov ,transfer-type sgs (ea rb))
                     (inst ror :qword sgs ,el-width)
                     (inst inc :qword sgi)
-                    (inst cmp :byte sgi ,(/ 64 el-width))
+                    (inst cmp :byte sgi ,(/ word-size el-width))
                     ;; the transfer cycle is complete if the segment isn't full yet
                     (inst jmp :b TRANSFER-CYCLE-COMPLETE)
-                    ;; if the segment is full, transfer it to memory
-                    (inst mov :qword (ea oa st ,(ash el-width -3)) sgs)
+                    ;; ;; (inst jmp TRANSFER-ONE-REGISTER)
+                    ;; (inst cmp :word sgi 255)
+                    ;; (inst jmp :g VECTOR-TRANSFER-ONGOING)
+                    ;; ;; a vector transfer is ongoing if the upper byte of the segment index is > 0
+                    ;; (inst mov rc ct)
+                    ;; (inst sub rc st)
+                    ;; ;; if a vector transfer is not confirmed to be ongoing, check whether the
+                    ;; ;; limit - point delta is greater than the number of elements that will fit in
+                    ;; ;; a vector register; if it is, then a vector register may be used.
+                    ;; (inst cmp :qword rc ,(/ write-transport-width el-width))
+                    ;; (inst jmp :b TRANSFER-ONE-REGISTER)
+                    ;; VECTOR-TRANSFER-ONGOING
+                    ;; (inst movq to-write sgs)
+                    ;; ;; (inst vpermd to-write rotate-mask to-write)
+                    ;; ;; copy the full register into the lower portion of the vector register
+                    ;; ;; and permute it, effectively accomplishing the same rotation at a larger scale
+                    ;; (inst add :word sgi 256)
+                    ;; (inst cmp :word sgi ,(* 256 (/ write-transport-width word-size)))
+                    ;; ;; increment the upper byte of the segment index; if the vector register is not
+                    ;; ;; full yet, complete the transfer cycle, if it's full then write to memory
+                    ;; (inst jmp :b TRANSFER-CYCLE-COMPLETE)
+                    ;; (inst vmovdqu (ea oa st) to-write)
+                    ;; ;; (inst vmovdqu (ea oa st) rotate-mask)
+                    ;; (inst xor :qword sgi sgi)
+                    ;; (inst add :qword st ,(/ write-transport-width el-width))
+                    ;; (inst jmp TRANSFER-CYCLE-COMPLETE)
+                    ;; TRANSFER-ONE-REGISTER
+                    (inst mov :qword (ea oa st) sgs)
                     (inst xor :byte sgi sgi)
-                    (inst add :qword st ,(/ 64 el-width))
+                    (inst add :qword st ,(/ word-size el-width))
                     (inst jmp TRANSFER-CYCLE-COMPLETE)
                     INDIVIDUAL-TRANSFER ;; this clause moves elements individually
-                    (inst mov ,transfer-type ra (ea ia rb ,(ash el-width -3)))
-                    (inst mov ,transfer-type (ea oa st ,(ash el-width -3)) ra)
-                    (inst inc :qword st)
+                    (inst mov ,transfer-type ra (ea rb))
+                    (inst mov ,transfer-type (ea oa st) ra)
+                    (inst add :qword st ,(ash el-width -3))
                     TRANSFER-CYCLE-COMPLETE ;; data transfer cycle is finished
                     (inst mov ,enc aec sec)
                     (inst cmp :qword st ct)               ;; reached ending point yet?
@@ -229,7 +440,6 @@
       (t (call-next-method)))))
 
 (defmethod effector-of :around ((varray vader-section) &optional params)
-  (declare (ignore params))
   (let* ((format (getf params :format))
          (metadata (getf (metadata-of varray) :shape))
          (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
@@ -246,14 +456,15 @@
                                        (- (rank-of varray) (1+ dx))))))
            (destructuring-bind (_ _ _ _ _ _ r8 &rest _) symbols
              (declare (ignore _))
-             `((inst add ,etag ,r8 ,sum))))))
+             (unless (zerop sum)
+               `((inst add ,etag ,r8 ,sum)))))))
       (t (call-next-method)))))
 
 (defmethod effector-of :around ((varray vader-turn) &optional params)
-  (declare (ignore params))
   (let* ((format (getf params :format))
-         (coordinate-type (getf (rest (getf params :gen-meta)) :index-type))
-         (ctag (case coordinate-type (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+         (ewidth (getf (rest (getf params :gen-meta)) :index-width))
+         (cwidth (getf (rest (getf params :gen-meta)) :index-type))
+         (etag (case ewidth (8 :byte) (16 :word) (32 :dword) (64 :qword)))
          (axis (max 0 (if (eq :last (vads-axis varray))
                           (1- (rank-of varray))
                           (- (vads-axis varray)
@@ -274,18 +485,77 @@
     (case format
       (:x86-asm
        (lambda (symbols)
-         (let ((cindex (- (rank-of varray) (1+ axis))))
+         (let* ((cindex (- (rank-of varray) (1+ axis)))
+                (adj-degrees (ash (vaturn-degrees varray)
+                                  (* cwidth (- (rank-of varray) (1+ axis)))))
+                (adj-dim (ash dimension (* cwidth (- (rank-of varray) (1+ axis)))))
+                (mask (ash (1- (expt 2 cwidth))
+                           (* cwidth (- (rank-of varray) (1+ axis)))))
+                (ROTATED (gensym)))
+           (print (list :mm mask adj-degrees adj-dim cwidth))
            (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
-             (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11)) ; r12 r13 r14 r15))
-             `((inst add ,ctag ,r8 ,(ash (vaturn-degrees varray) (* cindex coordinate-type)))
-               (inst cmp ,ctag ,r8 ,(ash dimension (* cindex coordinate-type)))
-               (inst jmp :b ROTATED)
-               (inst sub ,ctag ,r8 ,(ash dimension (* cindex coordinate-type)))
-               ROTATED)))))
+             (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+             `((inst add ,etag ,r8 ,adj-degrees)
+               ,@(if (zerop axis)
+                     `((inst cmp ,etag ,r8 ,adj-dim))
+                     `((inst mov ,etag ,ra ,r8)
+                       (inst and ,etag ,ra ,mask)
+                       (inst cmp ,etag ,ra ,adj-dim)))
+               (inst jmp :b ,ROTATED)
+               (inst sub ,etag ,r8 ,adj-dim)
+               ,ROTATED)))))
       (t (call-next-method)))))
 
+;; (defmethod effector-of :around ((varray vader-turn) &optional params)
+;;   (let* ((format (getf params :format))
+;;          (ewidth (getf (rest (getf params :gen-meta)) :index-width))
+;;          (cwidth (getf (rest (getf params :gen-meta)) :index-type))
+;;          (ctag (case cwidth (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+;;          (etag (case ewidth (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+;;          (axis (max 0 (if (eq :last (vads-axis varray))
+;;                           (1- (rank-of varray))
+;;                           (- (vads-axis varray)
+;;                              (vads-io varray)))))
+;;          (arg (setf (vads-argument varray) (arg-process varray)))
+;;          (dimension (nth axis (shape-of varray))))
+;;     ;; (print (list :ct coordinate-type))
+;;     (unless (vaturn-degrees varray)
+;;       (setf (vaturn-degrees varray)
+;;             (if (integerp arg) (when dimension (mod arg dimension))
+;;                 (when (arrayp arg)
+;;                   (let ((out (make-array (array-dimensions arg)
+;;                                          :element-type (array-element-type arg))))
+;;                     (dotimes (i (array-total-size arg))
+;;                       (setf (row-major-aref out i)
+;;                             (mod (row-major-aref arg i) dimension)))
+;;                     out)))))
+;;     (case format
+;;       (:x86-asm
+;;        (lambda (symbols)
+;;          (let* ((cindex (- (rank-of varray) (1+ axis)))
+;;                 (adj-degrees (ash (vaturn-degrees varray)
+;;                                   (* cwidth (- (rank-of varray) (1+ axis)))))
+;;                 (adj-dim (ash dimension (* cwidth (- (rank-of varray) (1+ axis)))))
+;;                 (mask (when (and (not (zerop axis))
+;;                                  (/= axis (1- (rank-of varray))))
+;;                         (ash (1- (expt 2 cwidth))
+;;                              (* cwidth (- (rank-of varray) (1+ axis)))))))
+;;            (print (list :mm mask adj-degrees adj-dim cwidth (- (rank-of varray) (1+ axis))
+;;                         (* cwidth (- (rank-of varray) (1+ axis)))))
+;;            (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
+;;              (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+;;              `((inst add ,etag ,r8 ,adj-degrees)
+;;                ,@(if mask
+;;                      `((inst mov ,etag ,ra ,r8)
+;;                        (inst and ,etag ,ra ,mask)
+;;                        (inst cmp ,etag ,ra ,adj-dim))
+;;                      `((inst cmp ,etag ,r8 ,adj-dim)))
+;;                (inst jmp :b ROTATED)
+;;                (inst sub ,etag ,r8 ,adj-dim)
+;;                ROTATED)))))
+;;       (t (call-next-method)))))
+
 (defmethod effector-of :around ((varray vader-permute) &optional params)
-  (declare (ignore params))
   (let ((format (getf params :format)))
     (case format
       (:x86-asm
@@ -293,13 +563,18 @@
               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
               (cwidth (getf (rest (getf metadata :gen-meta)) :index-type))
               (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
-         (when (and cwidth (= 8 cwidth) (not (vads-argument varray)))
-           (lambda (symbols)
-             (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
-               (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11)) ; r12 r13 r14 r15))
-               `((inst bswap ,etag ,r8)
-                 ,@(when (/= encoding (* cwidth (rank-of varray)))
-                     `((inst shr ,etag ,r8 ,(- encoding (* cwidth (rank-of varray))))))))))))
+         (if (and cwidth (= 8 cwidth) (not (vads-argument varray)))
+             (lambda (symbols)
+               (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
+                 (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+                 `((inst bswap ,etag ,r8)
+                   ,@(when (/= encoding (* cwidth (rank-of varray)))
+                       `((inst shr ,etag ,r8 ,(- encoding (* cwidth (rank-of varray)))))))))
+             (when (= 2 (rank-of varray))
+               (lambda (symbols)
+                 (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
+                   (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+                   `((inst ror ,etag ,r8 ,(/ encoding 2)))))))))
       (t (call-next-method)))))
 
 (defmethod effector-of :around ((varray vader-expand) &optional params)
@@ -309,13 +584,14 @@
        (let* ((axis (vads-axis varray))
               (metadata (getf (metadata-of varray) :shape))
               (ewidth (getf (rest (getf metadata :gen-meta)) :index-width))
-              (cwidth (getf (rest (getf params :gen-meta)) :index-type))
-              (etag (case ewidth (8 :byte) (16 :word) (32 :dword) (64 :qword))))
+              (cwidth (getf (rest (getf params :gen-meta)) :index-type)))
          (unless (arrayp (vads-argument varray))
            (lambda (symbols)
-             (let* ((mask (ash (1- (expt 2 cwidth))
-                               (* cwidth (- (rank-of varray) (1+ axis))))))
+             (let ((mask (ash (1- (expt 2 cwidth))
+                              (* cwidth (- (rank-of varray) (1+ axis))))))
+               ;; (print (list :ma mask))
                (multiple-value-bind (bits fraction) (floor (log (vads-argument varray) 2))
+                 (print (list :ma mask bits))
                  (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
                    (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11)) ; r12 r13 r14 r15))
                    (if (zerop fraction)
@@ -326,16 +602,19 @@
                          ,@(when (/= axis (1- (rank-of varray)))
                              `((inst and :qword ,r8 ,mask)))
                          ;; must mask again in case a 1 got shifted to the next byte, unless
-                         ;; expanding on the last axis so the bit would shift into nothingness
-                         (inst and :qword ,ra ,(- mask))
+                         ;; expanding on the last axis so the bit shifts into nothingness
+                         (inst and :qword ,ra ,(- (1+ mask)))
                          (inst add :qword ,r8 ,ra))
                        `((inst mov :qword ,ra ,r8)
                          (inst mov :qword ,rb ,r8)
                          (inst and :qword ,ra ,mask)
                          (inst mov :qword ,rc ,(vads-argument varray))
                          (inst xor :qword ,r8 ,r8)
+                         (inst xor :qword ,rd ,rd)
                          (inst div :qword ,rc)
                          (inst mov :qword ,r8 ,rb)
-                         (inst and :qword ,r8 ,(- mask))
+                         ,@(when (/= axis (1- (rank-of varray)))
+                             `((inst and :qword ,ra ,mask)))
+                         (inst and :qword ,r8 ,(- (1+ mask)))
                          (inst add :qword ,r8 ,ra))))))))))
       (t (call-next-method)))))
