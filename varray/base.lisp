@@ -709,7 +709,8 @@
                                           (oaddr (sb-c::with-array-data
                                                      ((raveled output) (start 0) (end))
                                                    (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                                          (jit-gen (time (eval jit-form))))
+                                          (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
+                                                     (eval jit-form))))
                                       (disassemble jit-gen)
                                       (setf segment-handler
                                             (lambda (dx)
@@ -717,8 +718,8 @@
                                                 (unless (zerop count)
                                                   (let ((start-at (aref start-points dx)))
                                                     (lambda ()
-                                                      (funcall jit-gen start-at count iaddr oaddr)
-                                                      ))))))))))
+                                                      (funcall jit-gen start-at
+                                                               count iaddr oaddr)))))))))))
 
                               (unless t ; segment-handler
                                 (multiple-value-bind (jit-form input-array type)

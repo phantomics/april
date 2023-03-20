@@ -5,25 +5,25 @@
 
 "Effectors manifesting x86 assembly language clauses implementing array transformations. This assembler system currently rely on SBCL's vop faculties."
 
-(defun build-iterator-x86asm (insym dimensions encoding coordinate-type)
-  ;; (print (list :in insym dimensions encoding coordinate-type))
-  (let ((tags (if (= 8 coordinate-type)
-                  #(:byte :word :dword :dword :qword)
-                  (if (= 16 coordinate-type)
-                      #(:word :dword :qword) #(:dword :qword)))))
+(defun build-iterator-x86asm (insym dimensions encoding ctype)
+  ;; (print (list :in insym dimensions encoding ctype))
+  (let ((tags (if (= 8 ctype) #(:byte :word :dword :dword :qword)
+                  (if (= 16 ctype) #(:word :dword :qword)
+                      #(:dword :qword)))))
+    ;; (print (list :ta tags ctype))
     (loop :for d :in (reverse dimensions) :for dx :from 0
           :append (let ((tag (aref tags (min (1- (length tags))
                                              dx))))
                     `(,(if (zerop dx)
                            `(inst inc ,tag ,insym)
-                           `(inst add ,tag ,insym ,(ash 1 (* 8 dx))))
+                           `(inst add ,tag ,insym ,(ash 1 (* ctype dx))))
                       ,@(when (< 1 (length dimensions))
                           (if (< dx (1- (length dimensions)))
-                              `((inst cmp ,tag ,insym ,(* d (ash 1 (* 8 dx))))
+                              `((inst cmp ,tag ,insym ,(* d (ash 1 (* ctype dx))))
                                 (inst jmp :b ITERATED)
                                 ,(if (position dx #(0 1 3 7))
                                      `(inst xor ,tag ,insym ,insym)
-                                     `(inst and ,tag ,insym ,(ash 255 (* 8 (1+ dx))))))
+                                     `(inst and ,tag ,insym ,(print (ash 255 (* ctype (1+ dx)))))))
                               `(ITERATED))))))))
 
 ;; (varray::build-iterator-x86asm 'bla '(3 4 5 6) 32 8)
@@ -62,7 +62,9 @@
                            (inst xor ,enc ,rd ,rd)
                            (inst mov ,enc ,rc ,d)
                            (inst mul ,enc ,rc)
-                           (inst add ,enc ,rb ,ra))
+                           (inst add ,enc ,rb ,ra)
+                           ;; (inst add ,enc ,rb ,rd)
+                           )
                          ;; must zero all of RBX as the full register
                          ;; is used to calculate the write address
                          `((inst xor :qword ,rb ,rb)
@@ -71,212 +73,230 @@
                          ;;   (inst and :qword ,b-sym ,(expt 2 coordinate-type)))
                          )))))
 
-(let ((ymm-clear-mask-qword (make-array 4 :element-type '(unsigned-byte 64)
-                                          :initial-element (1- (expt 2 64)))))
-  (setf (aref ymm-clear-mask-qword 0) 0)
-  (defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
-    (case format
-      (:x86-asm
-       (let* ((oshape (shape-of varray))
-              (vaspec (specify varray))
-              (word-size 64)
-              (metadata (getf (metadata-of varray) :shape))
-              (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
-              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
-              (varray-point varray)
-              (ishape) (effectors)
-              (start-points (make-array *workers-count* :element-type 'fixnum))
-              (counts (make-array *workers-count* :element-type 'fixnum)))
+(defmethod effect :around ((varray varray) (output-array array) &key (format :lisp))
+  (case format
+    (:x86-asm
+     (let* ((oshape (shape-of varray))
+            (vaspec (specify varray))
+            (word-size 64)
+            (metadata (getf (metadata-of varray) :shape))
+            (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
+            (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
+            (varray-point varray)
+            (ishape) (effectors)
+            (start-points (make-array *workers-count* :element-type 'fixnum))
+            (counts (make-array *workers-count* :element-type 'fixnum)))
 
-         (setf (getf metadata :format) format)
-         (loop :while (and varray-point (typep varray-point 'varray-derived))
-               :do (let ((this-effector (effector-of varray-point metadata)))
-                     (if this-effector (progn (push this-effector effectors)
-                                              (setf varray-point (vader-base varray-point)))
-                         (setf varray-point nil))))
-         
-         (when (and varray-point encoding coordinate-type)
-           (when varray-point (setf ishape (shape-of varray-point)))
-           (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
-                 ;; (ymm-rmask-address (sb-vm::sap-int (sb-sys::vector-sap ymm-rotate-mask-qword)))
-                 (ymm-cmask-address (sb-vm::sap-int (sb-sys::vector-sap ymm-clear-mask-qword)))
-                 (write-transport-width 256)
-                 (byte-shift)
-                 (el-width) (transfer-type)
-                 (temp-syms '(ra rc rd rb r6 r7 aec r9 r10 r11)))
-             
-             ;; can also loop across sb-vm::*room-info*
-             (loop :for i :across sb-vm::*specialized-array-element-type-properties*
-                   :while (not el-width)
-                   :when (and (sb-vm::specialized-array-element-type-properties-p i)
-                              (equalp (array-element-type varray-point)
-                                      (sb-vm::saetp-specifier i)))
-                     :do (setf el-width (sb-vm::saetp-n-bits i)
-                               transfer-type (case el-width (64 :qword) (32 :dword)
-                                                   (16 :word) (t :byte))
-                               byte-shift (case el-width (64 3) (32 2) (16 1))))
+       (setf (getf metadata :format) format)
+       (loop :while (and varray-point (typep varray-point 'varray-derived))
+             :do (let ((this-effector (effector-of varray-point metadata)))
+                   (if this-effector (progn (push this-effector effectors)
+                                            (setf varray-point (vader-base varray-point)))
+                       (setf varray-point nil))))
+       
+       (when (and varray-point encoding coordinate-type)
+         (when varray-point (setf ishape (shape-of varray-point)))
+         (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
+               (write-transport-width 256)
+               (byte-shift)
+               (el-width) (transfer-type)
+               (temp-syms '(ra rc rd rb r6 r7 aec r9 r10 r11)))
+           
+           ;; can also loop across sb-vm::*room-info*
+           (loop :for i :across sb-vm::*specialized-array-element-type-properties*
+                 :while (not el-width)
+                 :when (and (sb-vm::specialized-array-element-type-properties-p i)
+                            (equalp (array-element-type varray-point)
+                                    (sb-vm::saetp-specifier i)))
+                   :do (setf el-width (sb-vm::saetp-n-bits i)
+                             transfer-type (case el-width (64 :qword) (32 :dword)
+                                                 (16 :word) (t :byte))
+                             byte-shift (+ -3 (floor (log el-width 2)))))
 
-             (let* (;; (segment (/ word-size el-width))
-                    (segment (/ write-transport-width el-width))
-                    (total 0) (seg 0)
-                    (count (size-of varray))
-                    (inc (/ count segment *workers-count*)))
-               (loop :for i :below *workers-count* :for ix :from 0
-                     :do (let ((to-add 0))
-                           (incf seg inc)
-                           (if (< 1 seg)
-                               (progn (loop :while (< 1 seg)
-                                            :do (decf seg)
-                                                (incf to-add segment))
-                                      (setf (aref start-points ix) total)
-                                      (incf total to-add)
-                                      (setf (aref counts ix) to-add))
-                               (if (= i (1- *workers-count*))
-                                   (setf (aref counts ix) (max 0 (- count total))
-                                         (aref start-points ix) total)
-                                   (setf (aref start-points ix) 0))))))
+           (let* ((segment (/ write-transport-width el-width))
+                  (total 0) (seg 0)
+                  (count (size-of varray))
+                  (inc (/ count segment *workers-count*)))
+             (loop :for i :below *workers-count* :for ix :from 0
+                   :do (let ((to-add 0))
+                         (incf seg inc)
+                         (if (< 1 seg)
+                             (progn (loop :while (< 1 seg)
+                                          :do (decf seg)
+                                              (incf to-add segment))
+                                    (setf (aref start-points ix) total)
+                                    (if (= i (1- *workers-count*))
+                                        (setf (aref counts ix) (max 0 (- count total)))
+                                        (setf (aref counts ix) to-add))
+                                    (incf total to-add))
+                             (if (= i (1- *workers-count*))
+                                 (setf (aref counts ix) (max 0 (- count total))
+                                       (aref start-points ix) total)
+                                 (setf (aref start-points ix) 0))))))
 
-             (print (list :segs start-points counts))
-             
-             (values
-              `(progn
-                 (sb-c:defknown varray::vop-ph
-                     ((unsigned-byte ,word-size) (unsigned-byte ,word-size)
-                      (unsigned-byte ,word-size) (unsigned-byte ,word-size))
-                     (unsigned-byte ,word-size) (sb-c:foldable sb-c:flushable sb-c:movable)
-                   :overwrite-fndb-silently t)
-                 (unless (fboundp 'vop-ph)
-                   (proclaim '(special vop-ph))
-                   (setf (symbol-function 'vop-ph) (lambda (a b c d) a)))
-                 (define-vop (varray::vop-ph)
-                   (:policy :fast-safe)
-                   (:translate varray::vop-ph)
-                   (:args (st-arg :scs (unsigned-reg)) (ct-arg :scs (unsigned-reg))
-                          (ia-arg :scs (unsigned-reg)) (oa-arg :scs (unsigned-reg)))
-                   (:arg-types unsigned-num unsigned-num unsigned-num unsigned-num)
-                   ;; (:results (rout :scs (unsigned-reg)))
-                   ;; (:result-types) ; unsigned-num)
-                    ;; A and D registers are hardwired due to their relations to MUL and DIV
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rax-offset) ra)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) rc)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rdx-offset) rd)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) rb)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) ia)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) oa)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) aec)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) sec)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) st)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) ct)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgs)
-                   (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgi)
-                   (:temporary (:sc sb-vm::double-avx2-reg :from :eval) to-copy)
-                   (:temporary (:sc sb-vm::double-avx2-reg :from :eval) to-write)
-                   (:temporary (:sc sb-vm::double-avx2-reg :from :eval) clear-mask)
-                   (:generator
-                    1 ;; first, load input variables into named temporary registers
-                    (inst mov :qword st st-arg) ;; starting point
-                    (inst mov :qword ct ct-arg)
-                    (inst add :qword ct st)     ;; ending point
-                    (inst mov :qword ia ia-arg) ;; input address
-                    (inst mov :qword oa oa-arg) ;; output address
-                    ;; zero vector registers
-                    (inst vzeroall)
-                    ;; load clear mask into vector register
-                    (inst mov :qword sgi ,ymm-cmask-address) 
-                    (inst vmovdqu clear-mask (ea sgi))
-                    ;; output address
-                    ;; (inst add :qword ct oa-arg) ;; ending point
-                    ;; (inst add :qword st oa-arg) ;; ending point
-                    (inst xor :qword sgi sgi)   ;; segment index
-                    ;; ,@(when (< 8 el-width)
-                    ;;     `((inst shl :qword sec ,(ash el-width -3))))
-                    ,@(build-encoder-x86asm 'st temp-syms (get-dimensional-factors oshape)
-                                            encoding coordinate-type)
-                    (inst mov ,enc sec rb) ;; stored encoded coordinates
-                    (inst mov ,enc aec rb) ;; active encoded coordinates
-                    (inst jmp START-LOOP)
-                    START-LOOP-INCREMENTING
-                    ,@(build-iterator-x86asm 'aec oshape encoding coordinate-type)
-                    (inst mov ,enc sec aec)
-                    START-LOOP
-                    ;; do operations here on aec
-                    ,@(loop :for ef :in (reverse effectors) :append (funcall ef temp-syms))
-                    ,@(build-decoder-x86asm temp-syms (get-dimensional-factors ishape)
-                                            encoding coordinate-type)
+           (print (list :segs el-width start-points counts))
+           
+           (values
+            `(progn
+               (sb-c:defknown varray::vop-ph
+                   ((unsigned-byte ,word-size) (unsigned-byte ,word-size)
+                    (unsigned-byte ,word-size) (unsigned-byte ,word-size))
+                   (unsigned-byte ,word-size) (sb-c:foldable sb-c:flushable sb-c:movable)
+                 :overwrite-fndb-silently t)
+               (unless (fboundp 'vop-ph)
+                 (proclaim '(special vop-ph))
+                 (setf (symbol-function 'vop-ph) (lambda (a b c d) a)))
+               (define-vop (varray::vop-ph)
+                 (:policy :fast-safe)
+                 (:translate varray::vop-ph)
+                 (:args (st-arg :scs (unsigned-reg)) (ct-arg :scs (unsigned-reg))
+                        (ia-arg :scs (unsigned-reg)) (oa-arg :scs (unsigned-reg)))
+                 (:arg-types unsigned-num unsigned-num unsigned-num unsigned-num)
+                 ;; (:results (rout :scs (unsigned-reg)))
+                 ;; (:result-types) ; unsigned-num)
+                 ;; A and D registers are hardwired due to their relations to MUL and DIV
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rax-offset) ra)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) rc)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval :offset sb-vm::rdx-offset) rd)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) rb)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) r5)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) ia)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) aec)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) sec)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) pt)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) ct)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgs)
+                 (:temporary (:sc sb-vm::unsigned-reg :from :eval) sgi)
+                 ,@(when write-transport-width
+                     `((:temporary (:sc sb-vm::double-avx2-reg :from :eval) to-copy)
+                       (:temporary (:sc sb-vm::double-avx2-reg :from :eval) to-write)))
+                 (:generator
+                  1 ;; first, load input variables into named temporary registers
+                  (inst mov :qword pt st-arg) ;; starting point
+                  (inst mov :qword ct ct-arg)
+                  (inst mov :qword ia ia-arg) ;; input address
+                  (inst vpxor to-copy to-copy to-copy) ;; zero the copy vector register
+                  ;; load clear mask into vector register
+                  (inst mov :qword sgi oa-arg)
+                  ;; segment index register temporarily holds output address
+                  ;; output address
+                  
+                  ;; encode initial coordinates based on starting point
+                  ,@(build-encoder-x86asm 'pt temp-syms (get-dimensional-factors oshape)
+                                          encoding coordinate-type)
+                  ;; after encoding the initial coordinate set, multiply the point and count-to
+                  ;; values if necessary (i.e. the elements are wider than 8 bits) and add the
+                  ;; starting point to the end point to get the correct end point
+                  ,@(unless (zerop byte-shift) `((inst shl :qword pt ,byte-shift)
+                                                 (inst shl :qword ct ,byte-shift)))
+                  (inst add :qword ct pt) ;; ending point
+                  (inst mov ,enc sec rb)  ;; stored encoded coordinates
+                  (inst mov ,enc aec rb)  ;; active encoded coordinates
+                  ;; starting output address added to point and count
+                  (inst add :qword ct sgi)  ;; input address
+                  (inst add :qword pt sgi)  ;; output address
+                  (inst xor :qword sgi sgi) ;; segment index
+                  
+                  (inst jmp START-LOOP)
+                  START-LOOP-INCREMENTING
+                  ,@(build-iterator-x86asm 'aec oshape encoding coordinate-type)
+                  (inst mov ,enc sec aec)
+                  
+                  START-LOOP
+                  ;; do operations here on aec
+                  ,@(loop :for ef :in (reverse effectors) :append (funcall ef temp-syms))
+                  ,@(build-decoder-x86asm temp-syms (get-dimensional-factors ishape)
+                                          encoding coordinate-type)
 
-                    ;; adjust B register to point to input data location
-                    ,@(when byte-shift `((inst shl :qword rb ,byte-shift)))
-                    (inst add :qword rb ia)
-                    ;; ;; (inst jmp INDIVIDUAL-TRANSFER)
-                    ;; (inst cmp :qword sgi 0)
-                    ;; ;; if the segment index isn't zero, serial transfer must be ongoing
-                    ;; (inst jmp :ne SERIAL-TRANSFER)
-                    ;; (inst mov :qword rc ct)
-                    ;; (inst sub :qword rc st)
-                    ;; (inst cmp :qword rc ,(/ word-size el-width))
-                    ;; ;; transfer one by one if the remaining elements won't fit in a larger register
-                    ;; (inst jmp :b INDIVIDUAL-TRANSFER)
-                    ;; SERIAL-TRANSFER ;; this clause moves elements in sets fitting in 64-bit registers
-                    ;; ;; move each element into segment storage
-                    ;; (inst mov ,transfer-type sgs (ea rb))
-                    ;; (inst ror :qword sgs ,el-width)
-                    ;; (inst inc :qword sgi)
-                    ;; (inst cmp :byte sgi ,(/ word-size el-width))
-                    ;; ;; the transfer cycle is complete if the segment isn't full yet
-                    ;; (inst jmp :b TRANSFER-CYCLE-COMPLETE)
-                    ;; ;; (inst jmp TRANSFER-ONE-REGISTER)
-                    ;; ;; (inst cmp :word sgi 255)
-                    ;; ;; (inst jmp :a VECTOR-TRANSFER-ONGOING)
-                    ;; ;; ;; a vector transfer is ongoing if the upper byte of the segment index is > 0
-                    ;; ;; (inst mov rc ct)
-                    ;; ;; (inst sub rc st)
-                    ;; ;; ;; if a vector transfer is not confirmed to be ongoing, check whether the
-                    ;; ;; ;; limit - point delta is greater than the number of elements that will fit in
-                    ;; ;; ;; a vector register; if it is, then a vector register may be used.
-                    ;; ;; (inst cmp :qword rc ,(/ write-transport-width el-width))
-                    ;; ;; (inst jmp :b TRANSFER-ONE-REGISTER)
-                    ;; ;; VECTOR-TRANSFER-ONGOING
-                    ;; ;; ;; (inst movq to-write sgi)
-                    ;; ;; ;; (inst movq to-write sgs)
-                    ;; ;; (inst movq to-copy sgs)
-                    ;; ;; (inst vpand to-write clear-mask to-write)
-                    ;; ;; (inst vpor to-write to-copy to-write)
-                    ;; ;; (inst vpermq to-write to-write 57)
-                    ;; ;; ;; copy the full register into the lower portion of the copy vector register,
-                    ;; ;; ;; clear space in the write vector register for the new quadword, and use a logical
-                    ;; ;; ;; or to insert the new quadword in the write vector register,
-                    ;; ;; ;; effectively accomplishing the same rotation at a larger scale
-                    ;; ;; (inst add :word sgi 256)
-                    ;; ;; (inst xor :byte sgi sgi)
-                    ;; ;; ;; increment the upper byte of the segment index and zero the lower byte;
-                    ;; ;; ;; if the vector register is not full yet, the transfer cycle is done,
-                    ;; ;; ;; if it's full then write to memory
-                    ;; ;; (inst cmp :word sgi ,(* 256 (/ write-transport-width word-size)))
-                    ;; ;; (inst jmp :b TRANSFER-CYCLE-COMPLETE)
-                    ;; ;; (inst vmovdqu (ea oa st) to-write)
-                    ;; ;; (inst xor :qword sgi sgi)
-                    ;; ;; (inst add :qword st ,(/ write-transport-width el-width))
-                    ;; ;; (inst jmp TRANSFER-CYCLE-COMPLETE)
-                    ;; ;; TRANSFER-ONE-REGISTER
-                    ;; (inst mov :qword (ea oa st) sgs)
-                    ;; (inst xor :byte sgi sgi)
-                    ;; (inst add :qword st ,(/ word-size el-width))
-                    ;; (inst jmp TRANSFER-CYCLE-COMPLETE)
-                    ;; INDIVIDUAL-TRANSFER ;; this clause moves elements individually
-                    (inst mov ,transfer-type ra (ea rb))
-                    (inst mov ,transfer-type (ea oa st) ra)
-                    (inst add :qword st ,(ash el-width -3))
-                    TRANSFER-CYCLE-COMPLETE ;; data transfer cycle is finished
-                    (inst mov ,enc aec sec)
-                    (inst cmp :qword st ct)               ;; reached ending point yet?
-                    (inst jmp :b START-LOOP-INCREMENTING) ;; if not, loop again
-                    ))
-                 (setf (symbol-function 'varray::vop-ph)
-                       (lambda (a b c d)
-                         (declare (optimize (speed 3) (safety 0)))
-                         (varray::vop-ph a b c d))))
-              varray-point :x86-asm start-points counts)))))
-      (t (call-next-method)))))
+                  ;; adjust B register to point to input data location
+                  ,@(unless (zerop byte-shift) `((inst shl :qword rb ,byte-shift)))
+                  (inst add :qword rb ia)
+                  ;; (inst jmp INDIVIDUAL-TRANSFER)
+                  ,@(if (= 64 el-width)
+                        '((inst mov :qword sgs (ea rb)))
+                        `((inst cmp :qword sgi 0)
+                          ;; if the segment index isn't zero, serial transfer must be ongoing
+                          (inst jmp :ne SERIAL-TRANSFER)
+                          (inst mov :qword rc ct)
+                          (inst sub :qword rc pt)
+                          (inst cmp :qword rc ,(ash word-size -3))
+                          ;; transfer one by one if the remaining elements won't fit in a larger register
+                          (inst jmp :b INDIVIDUAL-TRANSFER)
+                          SERIAL-TRANSFER ;; this clause moves elements in sets fitting in 64-bit registers
+                          ;; move each element into segment storage
+                          ,@(if (= 32 el-width)
+                                ;; if array elements are 32 bits, the MOV instruction from memory will zero
+                                ;; the register's upper doubleword so it must be placed in a temporary register
+                                ;; and then united with the segment register, then the segment register
+                                ;; must have its doublewords flipped before it's written to memory
+                                ;; or to the vector register that will store data before writing
+                                `((inst mov :dword rc (ea rb))
+                                  (inst shl :qword sgs 32)
+                                  (inst or :qword sgs rc))
+                                `((inst mov ,transfer-type sgs (ea rb))
+                                  (inst ror :qword sgs ,el-width)))
+                          (inst inc :qword sgi)
+                          (inst cmp :byte sgi ,(/ word-size el-width))
+                          ;; the transfer cycle is complete if the segment isn't full yet
+                          (inst jmp :b TRANSFER-CYCLE-COMPLETE)))
+                  ,@(when write-transport-width
+                      ;; implement pre-write storage of data in vector registers
+                      ;; (inst jmp TRANSFER-ONE-REGISTER)
+                      `((inst cmp :word sgi #x00FF)
+                        (inst jmp :a VECTOR-TRANSFER-ONGOING)
+                        ;; a vector transfer is ongoing if the upper byte of the segment index is > 0
+                        (inst mov :qword rc ct)
+                        (inst sub :qword rc pt)
+                        ;; if a vector transfer is not confirmed to be ongoing, check whether the
+                        ;; limit - point delta is greater than the number of elements that will fit in
+                        ;; a vector register; if it is, then a vector register may be used.
+                        (inst cmp :qword rc ,(ash write-transport-width -3))
+                        (inst jmp :b TRANSFER-ONE-REGISTER)
+                        VECTOR-TRANSFER-ONGOING
+                        ;; doublewords must be flipped before writing because of the way their
+                        ;; assignment from memory works
+                        ,@(when (= 32 el-width) '((inst ror :qword sgs 32)))
+                        ;; copy the full register into the lower portion of the copy vector register,
+                        ;; clear space in the write vector register for the new quadword, and use a logical
+                        ;; or to insert the new quadword in the write vector register, accomplishing the
+                        ;; same type of rotation done with quadword registers above at a larger scale
+                        ;; (inst mov :qword sgs 131)
+                        (inst movq to-copy sgs)
+                        (inst vpblendd to-write to-write to-copy #b00000011)
+                        (inst vpermq to-write to-write #b00111001)
+                        (inst add :qword sgi #x0100)
+                        (inst and :qword sgi #xFF00) ;; zero lower byte
+                        ;; increment the upper byte of the segment index and zero the lower byte;
+                        ;; if the vector register is not full yet, the transfer cycle is done,
+                        ;; if it's full then write to memory
+                        (inst cmp :qword sgi ,(* 256 (/ write-transport-width word-size)))
+                        (inst jmp :b TRANSFER-CYCLE-COMPLETE)
+                        (inst vmovdqu (ea pt) to-write)
+                        (inst xor :qword sgi sgi)
+                        (inst add :qword pt ,(ash write-transport-width -3))
+                        (inst jmp TRANSFER-CYCLE-COMPLETE)
+                        TRANSFER-ONE-REGISTER))
+                  ,@(when (= 32 el-width) '((inst ror :qword sgs 32)))
+                  ;; as above, flip doublewords before writing
+                  (inst mov :qword (ea pt) sgs)
+                  (inst and :qword sgi 65280) ;; zero lower byte
+                  (inst add :qword pt ,(ash word-size -3))
+                  (inst jmp TRANSFER-CYCLE-COMPLETE)
+                  INDIVIDUAL-TRANSFER ;; this clause moves elements individually
+                  (inst mov ,transfer-type ra (ea rb))
+                  (inst mov ,transfer-type (ea pt) ra)
+                  (inst add :qword pt ,(ash el-width -3))
+                  TRANSFER-CYCLE-COMPLETE ;; data transfer cycle is finished
+                  (inst mov ,enc aec sec)
+                  (inst cmp :qword pt ct)               ;; reached ending point yet?
+                  (inst jmp :b START-LOOP-INCREMENTING) ;; if not, loop again
+                  ))
+               (setf (symbol-function 'varray::vop-ph)
+                     (compile nil '(lambda (a b c d)
+                                    (declare (optimize (speed 3) (safety 0)))
+                                    (varray::vop-ph a b c d)))))
+            varray-point :x86-asm start-points counts)))))
+    (t (call-next-method))))
 
 (defmethod effector-of :around ((varray vader-section) &optional params)
   (let* ((format (getf params :format))
@@ -325,13 +345,10 @@
       (:x86-asm
        (lambda (symbols)
          (let* ((cindex (- (rank-of varray) (1+ axis)))
-                (adj-degrees (ash (vaturn-degrees varray)
-                                  (* cwidth (- (rank-of varray) (1+ axis)))))
-                (adj-dim (ash dimension (* cwidth (- (rank-of varray) (1+ axis)))))
-                (mask (ash (1- (expt 2 cwidth))
-                           (* cwidth (- (rank-of varray) (1+ axis)))))
+                (adj-degrees (ash (vaturn-degrees varray) (* cwidth cindex)))
+                (adj-dim (ash dimension (* cwidth cindex)))
+                (mask (ash (1- (expt 2 cwidth)) (* cwidth cindex)))
                 (ROTATED (gensym)))
-           (print (list :mm mask adj-degrees adj-dim cwidth))
            (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
              (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
              `((inst add ,etag ,r8 ,adj-degrees)
