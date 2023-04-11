@@ -717,6 +717,7 @@
                                               (let ((count (aref counts dx)))
                                                 (unless (zerop count)
                                                   (let ((start-at (aref start-points dx)))
+                                                    ;; (print (list :sa start-points start-at count))
                                                     (lambda ()
                                                       (funcall jit-gen start-at
                                                                count iaddr oaddr)))))))))))
@@ -736,7 +737,7 @@
                                                   ;; (print (list :st start-at count))
                                                   (funcall jit-gen start-at count
                                                            (vader-base varray) output)))))))))
-                              
+                              ;; (when segment-handler (push varray april::*stuff*))
                               ;; (print (list :pro divisions sbesize sbsize))
                               ;; (print (list :out (type-of output) (type-of varray)
                               ;;              divisions division-size sbesize sbsize
@@ -745,7 +746,10 @@
                               ;;                (vacmp-threadable varray))))
                               ;; (print (list :ts to-nest (setf april::ggt varray)))
                               ;; (print (list :jg jit-gen))
-                              (loop :for d :below divisions :for dx :from 0
+                              ;; TODO: segment handler system requires iteration over all threads,
+                              ;; is there a way to consolidate the logic?
+                              (loop :for d :below (if segment-handler wcadj divisions)
+                                    :for dx :from 0
                                     :do (if (or (and (typep varray 'vader-composing)
                                                      (not (vacmp-async varray)))
                                                 ;; don't thread when rendering the output of operators composed
@@ -973,6 +977,7 @@
           (assign-element-type (vader-base varray)))))
 
 (defmethod shape-of :around ((varray varray-derived))
+  "Extend derived arrays' shape-of methods to collect data on array shape over the course of an array transformation."
   (let* ((this-shape (lparallel::force (call-next-method)))
          (metadata (metadata-of varray))
          (shape-meta (getf metadata :shape)))

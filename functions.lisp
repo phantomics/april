@@ -301,7 +301,7 @@
                                (let ((generator (generator-of index)))
                                  (if (not (functionp generator))
                                      generator (funcall generator 0)))))))
-    (if int-index (make-instance 'vapri-integer-progression :number int-index :origin index-origin)
+    (if int-index (make-instance 'vapri-arith-provec :number int-index :origin index-origin)
         (make-instance 'vapri-coordinate-identity :shape index :index-origin index-origin))))
 
 (defun at-index (index-origin axes)

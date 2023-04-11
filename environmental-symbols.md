@@ -51,7 +51,7 @@ These symbols represent standard functions available within April. Currently, th
 
 |Symbol|Name                       |Description|
 |------|---------------------------|-----------|
-|`⎕DT` |Coerce/Get Type            |Get enumerated type of an array or coerce an array to an enumerated type.|
+|`⎕TY` |Coerce/Get Type            |Get enumerated type of an array or coerce an array to an enumerated type.|
 |`⎕XWV`|External Workspace Value   |Fetch one or more values from another workspace.|
 |`⎕XWF`|External Workspace Function|Fetch one or more functions from another workspace.|
 |`⎕XWO`|External Workspace Operator|Fetch one or more operators from another workspace.|

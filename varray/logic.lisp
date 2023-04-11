@@ -22,8 +22,8 @@
                    (make-instance 'vader-enclose :base (funcall function (vader-base (first base))))))))
          ((= 2 (length base))
           (let ((iota-first (and (typep (first base) 'integer)
-                                 (typep (second base) 'vapri-integer-progression)))
-                (iota-second (and (typep (first base) 'vapri-integer-progression)
+                                 (typep (second base) 'vapri-arith-provec)))
+                (iota-second (and (typep (first base) 'vapri-arith-provec)
                                   (typep (second base) 'integer)))
                 (lex-ref (getf params :lexical-reference)))
             (cond ((and lex-ref (or (numberp (first base))
@@ -41,7 +41,7 @@
                         lex-ref (member lex-ref arith-functions :test #'char=)
                         (not (and iota-second (char= #\÷ lex-ref))))
                    (destructuring-bind (iota number) (if iota-second base (reverse base))
-                     (make-instance 'vapri-integer-progression
+                     (make-instance 'vapri-arith-provec
                                     :number (vapip-number iota) :origin (vapip-origin iota)
                                     :offset (if (not (member lex-ref add-sub-functions :test #'char=))
                                                 (vapip-offset iota)
@@ -60,6 +60,25 @@
                                                       (funcall function number (vapip-factor iota)))))
                                     :repeat (vapip-repeat iota))))))))))))
 
+(defun extend-allocator-vader-inverse-where (&key base argument index-origin)
+  "Extend allocation behavior of inverse-where class; allows the use of ⍸⍣¯1 to create one-hot vectors."
+  (declare (ignore argument))
+  (let ((base-shape (shape-of base)))
+    (when (and (not (second base-shape))
+               (first base-shape) (= 1 (first base-shape)))
+      (let ((base-val (funcall (generator-of base) 0)))
+        (when (and (integerp base-val) (plusp base-val))
+          (make-instance 'vapri-onehot-vector :shape (list base-val) :index (- base-val index-origin)))))))
+
+(defun extend-allocator-vader-section (&key base argument inverse axis index-origin)
+  "Extend allocation behavior of section class; allows resizing of one-hot vectors."
+  (declare (ignore axis index-origin))
+  (typecase base
+    (vapri-onehot-vector (when (or (not (listp argument))
+                                   (= 1 (length argument))))
+                           (make-instance 'vapri-onehot-vector :shape (list argument)
+                                          :index (vaohv-index base)))))
+
 (defun extend-allocator-vader-permute (&key base argument index-origin)
   "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."
   (declare (ignore axis index-origin))
@@ -72,10 +91,10 @@
   "Extend allocation behavior of expand class; allows for 3/⍳3 to produce a repeating integer progression vector instead of a vader-expand instance."
   (declare (ignore axis index-origin inverse))
   (typecase base
-    (vapri-integer-progression
+    (vapri-arith-provec
      (let ((rendered-argument (unless (shape-of argument) (render argument))))
        (when (integerp rendered-argument)
-         (make-instance 'vapri-integer-progression
+         (make-instance 'vapri-arith-provec
                         :number (vapip-number base) :origin (vapip-origin base)
                         :offset (vapip-offset base) :factor (vapip-factor base)
                         :repeat (* rendered-argument (vapip-repeat base))))))))

@@ -481,7 +481,7 @@ To test against only the first N images in the set. In the above case, only the 
 (let ((net-shape) (net-state) (image-size 0) (training-data) (training-labels) (test-data) (test-labels)
       ;; tabled vectors representing the target states for the 10 digits
       (segment-dims) (tdata-segment) (tsdata-segment) (ovec-length) (output-holder) (oh-segment)
-      (target-arrays (april "(⊂3⎕DT 10 1↑1)⊖¨⍨-⎕IO-⍨⍳10")))
+      (target-arrays (april "(⊂3⎕TY 10 1↑1)⊖¨⍨-⎕IO-⍨⍳10")))
   (defun load-digit-data ()
     "Load the training dataset of handwritten digit images from MNIST."
     (unless training-data

@@ -96,7 +96,7 @@
      (flet ((shape-matches (a)
               (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
        (typecase (vader-base varray)
-         (vapri-integer-progression nil)
+         (vapri-arith-provec nil)
          ((or varray sequence)
           (loop :for i :below base-size
                 :do (let ((a (if base-gen (funcall base-gen i)

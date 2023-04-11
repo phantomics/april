@@ -157,7 +157,7 @@ display ← { ⎕IO←0                            ⍝ Boxed display of array.
   trim←{(~1 1⍷∧⌿⍵=' ')/⍵}                    ⍝ removal of extra blank cols
   char←{⍬≡⍴⍵:'─' ⋄ (⊃⍵∊'¯',⎕D)⊃'#~'}∘⍕       ⍝ simple scalar type
   type←{{(1=⍴⍵)⊃'+'⍵}∪,char¨⍵}               ⍝ simple array type
-  line←{(49=⎕DT 1⍴⍵)⊃' -'}                   ⍝ underline for atom
+  line←{(49=⎕TY 1⍴⍵)⊃' -'}                   ⍝ underline for atom
 
   { ⎕IO←0                                    ⍝ recursive boxing of arrays:
     0=≡⍵:' '⍪(open ⎕FMT ⍵)⍪line ⍵            ⍝ simple scalar

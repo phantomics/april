@@ -1374,7 +1374,7 @@
               (error "Not a valid namespace."))))))
 
 (defun coerce-or-get-type (array &optional type-index)
-  "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕DT."
+  "Create an array with a numerically designated type holding the contents of the given array. Used to implement ⎕TY."
   (let ((array (vrender array))
         (types '((0 t) (-1 bit) (1 (unsigned-byte 2)) (2 (unsigned-byte 4))
                  (-3 (unsigned-byte 7)) (3 (unsigned-byte 8)) (-4 (unsigned-byte 15))

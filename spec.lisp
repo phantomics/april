@@ -261,7 +261,7 @@
  (symbols (:variable ⎕ to-output ⎕io *index-origin* ⎕pp print-precision ⎕div *division-method*
                      ⎕ost output-stream ⎕ct *comparison-tolerance* ⎕rl *rngs*)
           (:constant ⎕a *alphabet-vector* ⎕d *digit-vector* ⎕ts *apl-timestamp*)
-          (:function ⎕ns make-namespace ⎕cs change-namespace ⎕dt coerce-or-get-type
+          (:function ⎕ns make-namespace ⎕cs change-namespace ⎕ty coerce-or-get-type
                      ⎕ucs scalar-code-char ⎕fmt (format-array-uncollated print-precision)
                      ⎕xwv external-workspace-value ⎕xwf external-workspace-function
                      ⎕xwo external-workspace-operator))
@@ -2141,6 +2141,7 @@
   (for "Inverse circular ops."   "{(5○⍨-⍵)=⍵∘○⍣¯1⊢5} ⍳12" #(1 1 1 1 1 1 1 1 1 1 1 1))
   (for "Inverse indexing." "⍳⍣¯1⊢1 2 3 4 5" 5)
   (for "Inverse where." "(⍸⍣¯1) 4 5 9" #*000110001)
+  (for "Inverse where, right tack-separated." "⍸⍣¯1⊢4 5 9" #*000110001)
   (for "Another inverse where." "(⍸⍣¯1) (1 2) (2 3)" #2A((0 1 0) (0 0 1)))
   (for "Inverse mix."      "↑⍣¯2⊢2 3 4⍴⍳9" #(#(#(1 2 3 4) #(5 6 7 8) #(9 1 2 3))
                                              #(#(4 5 6 7) #(8 9 1 2) #(3 4 5 6))))

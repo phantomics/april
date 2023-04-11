@@ -837,10 +837,10 @@ April makes available the following APL system variables, constants and function
 ⎕IO ⎕CT ⎕PP ⎕DIV ⎕RL ⎕A ⎕D ⎕TS ⎕NS ⎕CS ⎕UCS ⎕FMT
 ```
 
-Additionally, April exposes these system variables and function not found in other APL implementations:
+Additionally, April exposes these system variables and functions not found in other APL implementations:
 
 ```
-⎕OST ⎕DT ⎕XWV ⎕XWF ⎕XWO
+⎕OST ⎕TY ⎕XWV ⎕XWF ⎕XWO
 ```
 
 [Click here to read the names and descriptions of these symbols.](./environmental-symbols.md)
@@ -987,7 +987,7 @@ APL's function editor system and control statements are not implemented; this ty
 
 ## April's Lexicon Compared to Other APLs
 
-APL has multiple implementations, and there are subtle but significant variations between the lexical functions they offer. April's set of functions is closest to those offered by Dyalog APL in its default mode. For instance, in April, dyadic `⊂` implements the partitioned enclose function while dyadic `⊆` implements the partition function, as in Dyalog. In IBM APL2, however, there is no partitioned enclose function and dyadic `⊂` implements the partition function. The same is true in GNU APL, whose design primarily follows APL2.
+APL has multiple implementations and there are subtle but significant variations between the lexical functions they offer. April's set of functions is closest to those offered by Dyalog APL in its default mode. For instance, in April dyadic `⊂` implements the partitioned enclose function while dyadic `⊆` implements the partition function, as in Dyalog. In IBM APL2, however, there is no partitioned enclose function and dyadic `⊂` implements the partition function. The same is true in GNU APL, whose design primarily follows APL2.
 
 The other major lexical difference between APL2-family languages and April is that in April, monadic `⊃` implements the disclose function and monadic `↑` implements the mix function; the converse is true in APL2.
 

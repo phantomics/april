@@ -536,24 +536,26 @@
          (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
     (case format
       (:x86-asm
-       (lambda (symbols)
-         (let ((sum 0))
-           (loop :for dx :below (rank-of varray)
-                 :do (incf sum (ash (+ (aref (vasec-span varray) dx)
-                                       (aref (vasec-pad varray) dx))
-                                    (* coordinate-type
-                                       (- (rank-of varray) (1+ dx))))))
-           (destructuring-bind (_ _ _ _ _ _ r8 &rest _) symbols
-             (declare (ignore _))
-             (unless (zerop sum)
-               `((inst add ,etag ,r8 ,sum)))))))
+       ;; current disabled when padding is present
+       (when (loop :for p :across (vasec-pad varray) :always (zerop p))
+         (lambda (symbols)
+           (let ((sum 0))
+             (loop :for dx :below (rank-of varray)
+                   :do (incf sum (ash (+ (aref (vasec-span varray) dx)
+                                         (aref (vasec-pad varray) dx))
+                                      (* coordinate-type
+                                         (- (rank-of varray) (1+ dx))))))
+             (destructuring-bind (_ _ _ _ _ _ r8 &rest _) symbols
+               (declare (ignore _))
+               (unless (zerop sum)
+                 `((inst add ,etag ,r8 ,sum))))))))
       (t (call-next-method)))))
 
 (defmethod effector-of :around ((varray vader-turn) &optional params)
   (let* ((format (getf params :format))
          (ewidth (getf (rest (getf params :gen-meta)) :index-width))
          (cwidth (getf (rest (getf params :gen-meta)) :index-type))
-         (etag (case ewidth (8 :byte) (16 :word) (32 :dword) (64 :qword)))
+         (etag (case ewidth (8 :byte) (16 :word) (32 :dword) (64 :qword))) ; 3 4 4 3 3 3 3 3 3 3
          (axis (max 0 (if (eq :last (vads-axis varray))
                           (1- (rank-of varray))
                           (- (vads-axis varray)
@@ -577,6 +579,7 @@
          (let* ((cindex (- (rank-of varray) (1+ axis)))
                 (adj-degrees (ash (vaturn-degrees varray) (* cwidth cindex)))
                 (adj-dim (ash dimension (* cwidth cindex)))
+                ;; (ltag (when ))
                 (mask (ash (1- (expt 2 cwidth)) (* cwidth cindex)))
                 (ROTATED (gensym)))
            (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
