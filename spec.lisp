@@ -590,7 +590,8 @@
             (is "''≡''" 1)
             (is "⍬≡''" 0)
             (is "⍬≡1↓'a'" 0)
-            (is "('a',⍬)≡1↑'amy'" 1)))
+            (is "('a',⍬)≡1↑'amy'" 1)
+            (is "v←1 2 3 ⋄ (⊂v)≡⊂1 2 3" 1)))
   (≢ (has :titles ("First Dimension" "Not Match"))
      (ambivalent (λω (make-instance 'vader-first-dim :base omega))
                  (λωα (make-instance 'vader-compare :base (vector omega alpha) :inverse t
