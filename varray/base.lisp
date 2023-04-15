@@ -698,7 +698,7 @@
                                    (segment-handler))
 
                               #+(and sbcl x86-64)
-                              (unless t ; (or segment-handler (/= 1 sbesize))
+                              (unless (or segment-handler (/= 1 sbesize))
                                 ;; currently disabled for sub-byte indices
                                 (multiple-value-bind (jit-form input-array type start-points counts)
                                     (effect varray output :format :x86-asm)
