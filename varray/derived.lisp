@@ -2163,8 +2163,6 @@
          (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
     (case format
       (:lisp
-       ;; (lambda (ein-sym)
-       ;;   )
        nil))))
 
 (defmethod shape-of ((varray vader-expand))
@@ -2351,6 +2349,7 @@
                                                          path-indexer (funcall path-indexer
                                                                                (or path-index 0)))
                                               base)))
+              ;; (print (list :pv path-value))
               (if path-index (if (/= path-index (1- path-length))
                                  (fetch-reference varray (funcall base-gen path-value)
                                                   path (1+ (or path-index 0)))

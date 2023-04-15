@@ -909,6 +909,7 @@
                                `(string (quote ,(second form)))))
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
+    ;; (print (list :bb unrendered))
     ;; don't render if the (:unrendered) option has been passed
     `(let* ((,result ,(if unrendered form `(process-ns-output (vrender ,form))))
             (,printout ,(when (and (or print-to output-printed))
@@ -929,12 +930,14 @@
                                                                 n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ,(if print-to (let ((string-output `(aprgn (write-string ,printout ,print-to))))
-                       `(aprgn (if (arrayp ,result)
-                                    ,string-output (concatenate 'string ,string-output (list #\Newline)))
-                                ,@(if with-newline
-                                      `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
-                                            (write-char #\Newline ,print-to)))))))
+       ;; (print (list :gg ,result))
+       ,@(when print-to
+           (let ((string-output `(aprgn (write-string ,printout ,print-to))))
+             `((aprgn (if (arrayp ,result)
+                          ,string-output (concatenate 'string ,string-output (list #\Newline)))
+                      ,@(if with-newline
+                            `((if (not (char= #\Newline (aref ,printout (1- (size ,printout)))))
+                                  (write-char #\Newline ,print-to))))))))
        ,(if output-printed (if (eq :only output-printed) printout `(values ,result ,printout))
             result))))
 

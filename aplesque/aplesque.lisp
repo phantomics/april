@@ -2129,7 +2129,6 @@
          (interval (reduce #'* (dims original)))
          (output (make-array (if left-original (last (dims input) (- (rank input) (rank original)))
                                  (butlast (dims input) (rank original))))))
-    (print (list :or original))
     (xdotimes output (i (size output) :synchronous-if (not threaded))
       (let ((input-index (* i (if left-original 1 interval))))
         (setf (row-major-aref output i)
