@@ -17,7 +17,7 @@
            #:vacomp-scan #:vacomp-each #:vacomp-produce #:vacomp-stencil
            #:inverse-count-to #:varray-compare)
   (:shadowing-import-from #:alexandria #:iota)
-  (:shadowing-import-from #:serapeum #:count-cpus)
+  #+(not clasp) (:shadowing-import-from #:serapeum #:count-cpus)
   (:shadowing-import-from #:random-state #:make-generator #:random-int #:random-float)
   (:shadowing-import-from #:lparallel #:pdotimes #:promise #:fulfill #:force #:fulfilledp)
   (:shadowing-import-from #:aplesque #:varef #:sprfact #:enclose #:disclose
