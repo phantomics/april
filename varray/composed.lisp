@@ -293,7 +293,8 @@
                 :when (and window (= dx axis))
                   :do (setq wsegment (- dim (1- window))))
           (cond
-            ((and scalar-fn (typep (vacmp-omega varray) 'vapri-arith-provec))
+            ;; TODO: is there a faster way to find i.e. 3+/⍳X than the exhaustive method?
+            ((and scalar-fn (not window) (typep (vacmp-omega varray) 'vapri-arith-provec))
              (get-reduced (vacmp-omega varray) (vacmp-left varray)))
             ((and (or scalar-fn (and catenate-fn (not window)))
                   (not out-dims) (arrayp (vacmp-omega varray)))
