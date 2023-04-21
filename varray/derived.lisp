@@ -1827,22 +1827,36 @@
                         (scalar-index (unless (shape-of (vader-base varray)) 0))
                         (prototype (prototype-of varray))
                         (base-gen (generator-of (vader-base varray))))
-                   ;; (print (list :sc scalar-index indexers indexer))
-                   (when scalar-index
-                     (if (vectorp arg)
-                         (loop :for a :across arg :for d :in (shape-of varray)
+                   ;; (print (list :sc scalar-index indexers indexer (vasec-span varray) (vasec-pad varray)))
+                   ;; (when scalar-index ;; find the item's scalar index for efficient matching
+                   ;;   (if (vectorp arg)
+                   ;;       (loop :for a :across arg :for d :in (shape-of varray)
+                   ;;             :for f :in (get-dimensional-factors (shape-of varray))
+                   ;;             :when (minusp a) :do (incf scalar-index (* f (1- d))))
+                   ;;       (when (minusp arg) (incf scalar-index (1- (first (shape-of varray)))))))
+                   (when scalar-index ;; find the item's scalar index for efficient matching
+                     (if (loop :for i :from (rank-of varray) :to (1- (* 2 (rank-of varray)))
+                               :always (= 1 (aref (vasec-span varray) i)))
+                         (loop :for p :across (vasec-pad varray)
                                :for f :in (get-dimensional-factors (shape-of varray))
-                               :when (minusp a) :do (incf scalar-index (* f (1- d))))
-                         (when (minusp arg) (incf scalar-index (1- (first (shape-of varray)))))))
+                               :do (incf scalar-index (* f p)))
+                         (setf scalar-index -1)))
+                   ;; (print (list :abc scalar-index))
                    ;; IPV-TODO: figure out how to allow n-rank mixed positive-negative takes for scalars
-                   (lambda (index)
-                     (let ((indexed (funcall (if (functionp indexer) indexer #'identity)
-                                             (funcall composite-indexer index))))
-                       (if indexed (if (numberp indexed) ;; IPV-TODO: remove after refactor ?
-                                       (if (not (functionp base-gen))
-                                           indexed (funcall base-gen indexed))
-                                       (if (zerop index) indexed prototype))
-                           prototype))))))))))
+                   (if scalar-index
+                       (let ((scalar-item (funcall (if (functionp indexer) indexer #'identity)
+                                                   (funcall composite-indexer scalar-index))))
+                         (lambda (index) (if (= index scalar-index)
+                                             scalar-item prototype)))
+                       (lambda (index)
+                         (let ((indexed (funcall (if (functionp indexer) indexer #'identity)
+                                                 (funcall composite-indexer index))))
+                           ;; (print (list :ind indexed arg))
+                           (if indexed (if (numberp indexed) ;; IPV-TODO: remove after refactor ?
+                                           (if (not (functionp base-gen))
+                                               indexed (funcall base-gen indexed))
+                                           (if (zerop index) indexed prototype))
+                               prototype)))))))))))
 
 (defclass vader-enclose (vad-nested varray-derived vad-on-axis vad-with-io
                          vad-with-argument vad-maybe-shapeless)
