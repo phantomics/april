@@ -3087,6 +3087,25 @@
   nil (:metaclass va-class)
   (:documentation "An encoded array as from the [⊤ encode] function."))
 
+(defmethod etype-of ((varray vader-encode))
+  (if (not (integerp (vader-base varray)))
+      ;; output must be t-type if the base isn't an integer, otherwise
+      ;; finding the type may be prohibitively expensive
+      t (if (zerop (rank-of (vads-argument varray)))
+            (let ((agen (generator-of (vads-argument varray))))
+              (assign-element-type (if (not (functionp agen))
+                                       agen (funcall agen 0))))
+            ;; highest output value is the max of the highest encoding value and the floor of the
+            ;; right argument and that highest encoded value
+            (let ((max 0) (agen (generator-of (vads-argument varray))))
+              (loop :for ax :below (size-of (vads-argument varray))
+                    :do (let ((a (if (not (functionp agen))
+                                     agen (funcall agen ax))))
+                          (setf max (max max a))))
+              (setf max (max max (floor (abs (vader-base varray)) max)))
+              (list 'integer (if (minusp (vader-base varray)) (- max) 0)
+                    max)))))
+
 (defmethod shape-of ((varray vader-encode))
   (get-promised (varray-shape varray)
                 (append (if (not (and (vads-inverse varray)
