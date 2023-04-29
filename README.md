@@ -1011,7 +1011,10 @@ April comes with a set of standard libraries and demo packages implementing usef
 
 ## Enabling APL Input in Emacs
 
-Most Lisp developers interact with the language through Emacs, so Emacs is also the most convenient tool to write April programs. The best way to input APL characters in Emacs is using the gnu-apl-mode Emacs plugin. You can get it [from the repository here](https://github.com/lokedhs/gnu-apl-mode) or install it directly via the MELPA Emacs package repository.
+Most Lisp developers interact with the language through Emacs, so Emacs is also the most convenient tool to write April programs. John Thingstad has created a dedicated Emacs APL input mode for April, you can download it and read instructions at [its repository](https://github.com/jthing/apl-mode).
+
+
+Another way to input APL characters in Emacs is using the gnu-apl-mode Emacs plugin. You can get it [from the repository here](https://github.com/lokedhs/gnu-apl-mode) or install it directly via the MELPA Emacs package repository.
 
 [Click here for information on using MELPA.](http://ergoemacs.org/emacs/emacs_package_system.html)
 
