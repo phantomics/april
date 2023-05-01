@@ -1,5 +1,5 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8; Package:Varray -*-
-;;;; effectors-x86-asm.lisp
+;;;; x86.lisp
 
 (in-package #:varray)
 

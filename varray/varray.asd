@@ -19,4 +19,4 @@
                (:file "select")
                (:file "logic")
                (:file "composed")
-               (:file "effectors-x86-asm" :if-feature (:and :sbcl :x86-64))))
+               (:file "effectors/x86" :if-feature (:and :sbcl :x86-64))))
