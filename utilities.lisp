@@ -909,9 +909,11 @@
                                `(string (quote ,(second form)))))
         (form (if (not (and (characterp form) (of-lexicons this-idiom form :functions)))
                   form (build-call-form form))))
-    ;; (print (list :bb unrendered))
+    ;; (print (list :bb unrendered form))
     ;; don't render if the (:unrendered) option has been passed
     `(let* ((,result ,(if unrendered form `(process-ns-output (vrender ,form))))
+            ;; (,result ,form)
+            ;; (a (print :cc))
             (,printout ,(when (and (or print-to output-printed))
                           ;; don't print the results of assignment unless the :print-assignment
                           ;; option is set, as done when compiling a ⎕← expression
@@ -930,7 +932,7 @@
                                                                 n s ,print-precision nil r)))))))
        (declare (ignorable ,result ,printout))
        ;; TODO: add printing rules for functions like {⍵+1}
-       ;; (print (list :gg ,result))
+       ;; (print (list :dd ,result))
        ,@(when print-to
            (let ((string-output `(aprgn (write-string ,printout ,print-to))))
              `((aprgn (if (arrayp ,result)
@@ -1154,6 +1156,7 @@
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
+  ;; (print :bb)
   (let* ((arg-list (gensym "A"))
          (is-scalar (or (and (second arguments)
                              (listp function) (eql 'apl-fn-s (first arguments))
@@ -1162,8 +1165,30 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg)))
+         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
+                                                                  ;; disabling causes problems
+                                                                  (and (listp function) nil
+                                                                       (member (first function)
+                                                                               '(apl-fn apl-fn-s))
+                                                                       (or (not (member (second function)
+                                                                                        '(⊢ ≡ ↓ ↑ ⊤ / \, ~)))
+                                                                           ;; (and (not (second arguments))
+                                                                           ;;      (not (member
+                                                                           ;;            (second function)
+                                                                           ;;            '(\,))))
+                                                                           )
+                                                                       
+                                                                       ))
                                                               arg `(vrender ,arg :may-be-deferred t)))))
+    ;; cases fixed by manual apl-fn exceptions above:
+    ;; (print (list :cc)) (⊢⌽⍨(-⎕IO)+⍳∘≢)5 5⍴⍳25
+    ;; {⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4
+    ;; {acm←⍬ ⋄ {acm,←⊃,/⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5
+    ;; ,acc 2/¨⍳4  ↓0 dsp Rgt⍣5 ⊢2 Tape 2/¨12↑⎕A in array lib
+    ;; ↓fmt tree 'jackdaws love my big sphinx of quartz'~' ' in tree lib
+    ;; g dfspan 1 in graph lib
+    ;; colsum 10 10⍴⍳9  colsum 10 10⍴1  2 colsum 10 10⍴1
+    ;; hex dec'Dead' 'Beef'  in numeric lib
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))
@@ -1178,6 +1203,7 @@
                                                                (list (intern (string (second function))
                                                                              "KEYWORD"))
                                                                (cddr function)))))))
+               ;; (print :eo)
                `(let ((,arg-list (list ,@arguments)))
                   (apply ,@(when is-scalar (list '#'apply-scalar))
                          ,function ,arg-list))))))
