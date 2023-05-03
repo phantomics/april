@@ -1165,9 +1165,9 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
+         (arguments (loop :for arg :in arguments :collect (if (or ;; (not (symbolp arg))
                                                                   ;; disabling causes problems
-                                                                  (and (listp function) nil
+                                                                  (and (listp function) ; nil
                                                                        (member (first function)
                                                                                '(apl-fn apl-fn-s))
                                                                        (or (not (member (second function)
