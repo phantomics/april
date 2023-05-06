@@ -24,8 +24,6 @@
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 (defparameter *package-name-string* (package-name *package*))
 
-;; (defvar *april-parallel-kernel*)
-
 (defvar *demo-packages*
   (append '(april-demo.ncurses)
           #.(if (or (not (string= "Armed Bear Common Lisp" (lisp-implementation-type)))
@@ -1156,7 +1154,6 @@
 
 (defmacro a-call (function &rest arguments)
   "Call an APL function with one or two arguments. Compose successive scalar functions into bigger functions for more efficiency."
-  ;; (print :bb)
   (let* ((arg-list (gensym "A"))
          (is-scalar (or (and (second arguments)
                              (listp function) (eql 'apl-fn-s (first arguments))
@@ -1166,30 +1163,8 @@
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
          (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
-                                                                  ;; disabling causes problems
-                                                                  ;; (and (listp function) nil
-                                                                  ;;      (member (first function)
-                                                                  ;;              '(apl-fn apl-fn-s))
-                                                                  ;;      (not (member (second function)
-                                                                  ;;                   '(⊢ ≡ ↓ ↑ ⊤ / \, ~)))
-                                                                  ;;          ;; (and (not (second arguments))
-                                                                  ;;          ;;      (not (member
-                                                                  ;;          ;;            (second function)
-                                                                  ;;          ;;            '(\,))))
-                                                                           
-                                                                       
-                                                                  ;;      )
-                                                                  )
+                                                                  (not (member arg '(⍵ ⍺ ⍹ ⍶))))
                                                               arg `(vrender ,arg :may-be-deferred t)))))
-    ;; cases fixed by manual apl-fn exceptions above:
-    ;; (print (list :cc)) (⊢⌽⍨(-⎕IO)+⍳∘≢)5 5⍴⍳25
-    ;; {⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4
-    ;; {acm←⍬ ⋄ {acm,←⊃,/⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5
-    ;; ,acc 2/¨⍳4  ↓0 dsp Rgt⍣5 ⊢2 Tape 2/¨12↑⎕A in array lib
-    ;; ↓fmt tree 'jackdaws love my big sphinx of quartz'~' ' in tree lib
-    ;; g dfspan 1 in graph lib
-    ;; colsum 10 10⍴⍳9  colsum 10 10⍴1  2 colsum 10 10⍴1
-    ;; hex dec'Dead' 'Beef'  in numeric lib
     (or (when (and (listp function)
                    (eql 'function (first function))
                    (eql 'change-namespace (second function)))

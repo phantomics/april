@@ -72,12 +72,16 @@
 
 (defun extend-allocator-vader-section (&key base argument inverse axis index-origin)
   "Extend allocation behavior of section class; allows resizing of one-hot vectors."
-  (declare (ignore axis index-origin))
+  (declare (ignore axis))
   (typecase base
+    (bit (when (= 1 base) (make-instance 'vapri-onehot-vector :shape (list (abs argument))
+                                                              :index (if (plusp argument)
+                                                                         0 (- (abs argument)
+                                                                              index-origin)))))
     (vapri-onehot-vector (when (or (not (listp argument))
                                    (= 1 (length argument))))
-                           (make-instance 'vapri-onehot-vector :shape (list argument)
-                                          :index (vaohv-index base)))))
+                           (make-instance 'vapri-onehot-vector :shape (list (abs argument))
+                                                               :index (vaohv-index base)))))
 
 (defun extend-allocator-vader-permute (&key base argument index-origin)
   "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."

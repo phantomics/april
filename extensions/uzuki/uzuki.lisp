@@ -37,14 +37,14 @@
                 (when (not supplemental-chars)
                   (setf supplemental-chars (of-system idiom :supplemental-token-chars)))
                 (or (and (is-alphanumeric char)
-                                      (not (or (of-lexicons idiom char :functions)
-                                               (of-lexicons idiom char :operators)
-                                               (of-lexicons idiom char :statements))))
-                                 ;; must check for the character's membership in lexicons since
-                                 ;; kanji and kana register as alphanumeric, otherwise patterns
-                                 ;; like ⎕IO－ won't work
-                                 (position char (of-system idiom :supplemental-token-chars)
-                                           :test #'char=)))))
+                         (not (or (of-lexicons idiom char :functions)
+                                  (of-lexicons idiom char :operators)
+                                  (of-lexicons idiom char :statements))))
+                    ;; must check for the character's membership in lexicons since
+                    ;; kanji and kana register as alphanumeric, otherwise patterns
+                    ;; like ⎕IO－ won't work
+                    (position char (of-system idiom :supplemental-token-chars)
+                              :test #'char=)))))
  (functions (with (:name :japanese-kanji-function-aliases))
             (\＋ (has :title "プラス")
                  (alias-of +))
