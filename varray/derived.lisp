@@ -544,6 +544,7 @@
       ;; 2 2⍴(⊂2 2⍴⍳4) 2 3 or 2 3⍴⊂2 2⍴⍳4, where the enclosed subarray will otherwise attempt to
       ;; render twice and cause a race condition - TODO: is there a more efficient way to do this?
       (render (vader-base varray)))
+    ;; (print (list :bb (vader-base varray) (setf april::abcd (vader-base varray))))
     (if (zerop output-size)
         (let ((prototype (prototype-of varray)))
           (lambda (index) (declare (ignore index)) prototype))

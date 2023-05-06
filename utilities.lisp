@@ -1165,20 +1165,21 @@
                         (and (listp function) (eql 'apl-fn-s (first arguments))
                              (of-lexicons *april-idiom* (character (second arguments))
                                           :functions-scalar-monadic))))
-         (arguments (loop :for arg :in arguments :collect (if (or ;; (not (symbolp arg))
+         (arguments (loop :for arg :in arguments :collect (if (or (not (symbolp arg))
                                                                   ;; disabling causes problems
-                                                                  (and (listp function) ; nil
-                                                                       (member (first function)
-                                                                               '(apl-fn apl-fn-s))
-                                                                       (or (not (member (second function)
-                                                                                        '(⊢ ≡ ↓ ↑ ⊤ / \, ~)))
-                                                                           ;; (and (not (second arguments))
-                                                                           ;;      (not (member
-                                                                           ;;            (second function)
-                                                                           ;;            '(\,))))
-                                                                           )
+                                                                  ;; (and (listp function) nil
+                                                                  ;;      (member (first function)
+                                                                  ;;              '(apl-fn apl-fn-s))
+                                                                  ;;      (not (member (second function)
+                                                                  ;;                   '(⊢ ≡ ↓ ↑ ⊤ / \, ~)))
+                                                                  ;;          ;; (and (not (second arguments))
+                                                                  ;;          ;;      (not (member
+                                                                  ;;          ;;            (second function)
+                                                                  ;;          ;;            '(\,))))
+                                                                           
                                                                        
-                                                                       ))
+                                                                  ;;      )
+                                                                  )
                                                               arg `(vrender ,arg :may-be-deferred t)))))
     ;; cases fixed by manual apl-fn exceptions above:
     ;; (print (list :cc)) (⊢⌽⍨(-⎕IO)+⍳∘≢)5 5⍴⍳25
