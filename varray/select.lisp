@@ -271,7 +271,6 @@
                                        (setf remaining remainder))
                                      ;; handle arrays as indices as for x[⍳3]
                                      (if in (let ((matched-index) (sub-index 0) (aindex index))
-                                              ;; TODO: (print (list :ii in ofactors))
                                               (if (or (and (vectorp in) (< 0 (length in)))
                                                       (and (or (arrayp in) (varrayp in))))
                                                   (multiple-value-bind (index remainder)

@@ -87,8 +87,6 @@
                        (ashape (shape-of (vacmp-alpha varray)))
                        (osize (reduce #'* oshape))
                        (asize (reduce #'* ashape)))
-                  ;; (print (list :oo (vacmp-omega varray) (vacmp-alpha varray)
-                  ;;              oshape ashape (render (vacmp-alpha varray))))
                   (if oshape (if (not ashape)
                                  oshape (if (= 1 osize)
                                             (if (zerop asize) oshape ashape)
@@ -256,7 +254,6 @@
                                 (oitem (if (arrayp omega)
                                            omega (if (not (functionp ogen))
                                                      ogen (funcall ogen 0)))))
-                           ;; (print (list :eee ogen oitem))
                            (if (and (/= 1 (size-of omega))
                                     (= 1 (size-of oitem)))
                                (if (not (or (arrayp oitem) (varrayp oitem)))
@@ -426,9 +423,7 @@
                   base-shape)))
 
 (defmethod generator-of ((varray vacomp-scan) &optional indexers params)
-  ;; (defun operate-scanning (function index-origin last-axis inverse &key axis)
   "Scan a function across an array along a given axis. Used to implement the [\\ scan] operator with an option for inversion when used with the [⍣ power] operator taking a negative right operand."
-  ;; (lambda (omega &optional alpha environment) ;; alpha is only used to pass an axis reassignment
   (declare (ignore indexers))
   (let* ((odims (shape-of varray))
          (omega (render (vacmp-omega varray)))
@@ -533,7 +528,6 @@
   (let* ((gen (generator-of varray))
          (first-item (if (not (functionp gen))
                          gen (funcall (generator-of varray) 0))))
-    ;; (print (list :fi first-item))
     (if (varrayp first-item) (prototype-of first-item)
         (apl-array-prototype first-item))))
 
@@ -562,7 +556,6 @@
          (ascalar (unless (shape-of alpha)
                     (if (not (functionp aindexer))
                         aindexer (funcall aindexer 0)))))
-    ;; (print (list :om omega (render alpha)))
     (if is-outer
         (case (getf params :base-format)
           (:encoded)
@@ -778,9 +771,7 @@
 
 (defmethod etype-of ((varray vader-stencil-margin))
   (declare (ignore varray))
-  ;; '(signed-byte 8)
-  'fixnum
-  ) ;; 8-bit elements for efficiency - TODO: is a different type better?
+  'fixnum) ;; 8-bit elements for efficiency - TODO: is a different type better?
 
 (defmethod generator-of ((varray vader-stencil-margin) &optional indexers params)
   (declare (ignore indexers))

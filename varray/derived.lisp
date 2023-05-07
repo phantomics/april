@@ -286,7 +286,6 @@
             (when (or (not (fulfilledp (varray-shape varray)))
                       (< (length included) (first (varray-shape varray))))
               (setf (varray-shape varray) (list (length included))))
-            ;; (print (list :ii included))
             (setf (vader-content varray)
                   (make-array (length included) :element-type (etype-of argument)
                                                 :initial-contents (reverse included)))))
@@ -544,7 +543,6 @@
       ;; 2 2⍴(⊂2 2⍴⍳4) 2 3 or 2 3⍴⊂2 2⍴⍳4, where the enclosed subarray will otherwise attempt to
       ;; render twice and cause a race condition - TODO: is there a more efficient way to do this?
       (render (vader-base varray)))
-    ;; (print (list :bb (vader-base varray) (setf april::abcd (vader-base varray))))
     (if (zerop output-size)
         (let ((prototype (prototype-of varray)))
           (lambda (index) (declare (ignore index)) prototype))
@@ -954,7 +952,6 @@
                   :do (setf (aref output ix) (+ in (if (not (vads-rendered varray))
                                                        0 (vads-io varray)))))
             (setf (vader-content varray) output))))
-    ;; (print (list :rr (vads-rendered varray) (vader-content varray)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
@@ -1343,9 +1340,6 @@
          (inner-rank (length inner-shape))
          (iofactors (get-dimensional-factors outer-shape t)))
     ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
-    ;; (print (list :os oshape oindexer (render oindexer)))
-    ;; (if (not (functionp oindexer))
-    ;;     (setf oindexer (generator-of oindexer)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
@@ -1514,21 +1508,9 @@
     (case format
       (:lisp
        ;; (lambda (ein-sym)
-       ;;   )
+       ;;   ) TODO: implement
        nil
-       )
-      ;; (:x86-asm
-      ;;  (lambda (symbols)
-      ;;    (let ((sum 0))
-      ;;      (loop :for dx :below (rank-of varray)
-      ;;            :do (incf sum (ash (+ (aref (vasec-span varray) dx)
-      ;;                                  (aref (vasec-pad varray) dx))
-      ;;                               (* 8 (- (rank-of varray) (1+ dx))))))
-      ;;      (destructuring-bind (ra rc rd rb) symbols
-      ;;        (declare (ignorable ra rc rd rb))
-      ;;        `((inst add ,etag ,rd ,sum))))))
-
-      )))
+       ))))
 
 (defmethod shape-of ((varray vader-section))
   "The shape of a sectioned array is the parameters (if not inverse, as for [↑ take]) or the difference between the parameters and the shape of the original array (if inverse, as for [↓ drop])."
@@ -1717,9 +1699,6 @@
                                               (aref pre-shape (- axis iorigin))
                                               (abs arg-indexer))))))))))
      
-     ;; (print (list :ts (vasec-span varray) (vasec-pad varray)
-     ;;              (vads-argument varray) (vads-axis varray) (render base)
-     ;;              is-inverse))
      (or limited-shape
          (let ((orank (* 1/2 (length (vasec-span varray)))))
            (loop :for ix :below orank
@@ -1758,7 +1737,6 @@
                                       (render (funcall base-gen indexed)))
                                      (aplesque:make-empty-array (render base-gen)))
                          (prototype-of (vader-base varray)))))))
-       ;; (print (list :bg base-gen indexer))
        (if assigning (lambda (index)
                        (declare (type integer index))
                        (let ((indexed (funcall indexer index)))
@@ -1847,7 +1825,6 @@
                                                   (disclose (vader-base varray))
                                                   (funcall (if (functionp indexer) indexer #'identity)
                                                            (funcall composite-indexer scalar-index)))))
-                             ;; (print (list :si scalar-item))
                              (lambda (index) (if (= index scalar-index)
                                                  scalar-item prototype))))
                        (lambda (index)
@@ -2112,7 +2089,6 @@
 
 (defmethod generator-of ((varray vader-partition) &optional indexers params)
   (declare (ignore indexers))
-  ;; (print (list :vb (vader-base varray)))
   (if (not (or (vads-argument varray)
                (vapart-params varray)))
       (if (or (shape-of varray) ;; pass through the generator of i.e. ⊂⍳3
@@ -2367,7 +2343,6 @@
                                                          path-indexer (funcall path-indexer
                                                                                (or path-index 0)))
                                               base)))
-              ;; (print (list :pv path-value))
               (if path-index (if (/= path-index (1- path-length))
                                  (fetch-reference varray (funcall base-gen path-value)
                                                   path (1+ (or path-index 0)))
@@ -2529,8 +2504,6 @@
              ;; TODO: there's a problem with the pick in i.e. 0 in (1 1⍴⊂)⍣4⊢0 (in array-lib-space)
              ;; when the vader-enclose generator just returns its base with no enclosing function,
              ;; find out what's wrong - rewriting of the enclose and pick classes may be needed
-             ;; (print (list :ii this-gen (vader-base varray) this-ref (render this-ref)
-             ;;              (shape-of varray)))
              (if (varrayp this-gen)
                  (generator-of this-gen)
                  (if (not (arrayp this-gen))
@@ -2756,7 +2729,6 @@
          (limit (* unit (or (nth axis (shape-of varray)) 1)))
          (arg (setf (vads-argument varray) (arg-process varray)))
          (dimension (nth axis (shape-of varray))))
-    ;; (print (list :ct coordinate-type))
     (unless (vaturn-degrees varray)
       (setf (vaturn-degrees varray)
             (if (integerp arg) (when dimension (mod arg dimension))

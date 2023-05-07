@@ -3,7 +3,7 @@
 
 (in-package #:varray)
 
-"Definition of virtual array element implementing calculations over arrays, as for 1+1 2 3."
+"Definition of virtual array class implementing calculations of arrays, as for 1+1 2 3."
 
 (defclass vader-calculate (vad-nested varray-derived vad-on-axis vad-with-io)
   ((%params    :accessor vaop-params
@@ -109,13 +109,6 @@
                               (when (or (not (= rank (length shape)))
                                         (and (not (shape-matches a))
                                              (not (= 1 (size-of a)))))
-                                ;; (print (list :so shape (shape-of a) (vader-base varray)
-                                ;;              (render (first (vader-base varray)))
-                                ;;              (vaop-function varray)
-                                ;;              ))
-                                ;; (setf april::ggg varray)
-                                ;; (print (loop :for b :across (vader-base varray)
-                                ;;              :collect (shape-of b)))
                                 (if axis (if (= (length shape)
                                                 (if (numberp axis) 1 (length axis)))
                                              (if (> rank (length shape))

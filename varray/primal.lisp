@@ -57,9 +57,7 @@
 ;; the IP vector's parameters are used to index its contents
 (defmethod generator-of ((vvector vapri-arith-provec) &optional indexers params)
   (declare (ignore indexers) (optimize (speed 3) (safety 0)))
-  (let* (;; (converter (join-indexers2 params))
-         ;; (converter (join-indexers2 indexers))
-         (converter #'identity)
+  (let* ((converter #'identity)
          (origin (the (unsigned-byte 62) (vapip-origin vvector)))
          (offset (the fixnum (vapip-offset vvector)))
          (factor (the real (vapip-factor vvector)))
@@ -245,7 +243,6 @@
     (:encoded)
     (:linear)
     (t (lambda (index)
-         ;; (print (list :inin index))
          (if (= index (vaohv-index varray)) 1 0)))))
 
 (defclass vapri-axis-vector (vad-nested varray-primal vad-with-io vad-with-dfactors)
