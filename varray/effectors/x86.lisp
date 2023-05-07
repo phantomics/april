@@ -99,15 +99,16 @@
                    (if this-effector (progn (push this-effector effectors)
                                             (setf varray-point (vader-base varray-point)))
                        (setf varray-point nil))))
-       
-       (when (and varray-point encoding coordinate-type)
+       (print (list :abcd))
+       (when (and varray-point encoding coordinate-type
+                  (not (eql t (array-element-type varray-point))))
+         (print :eee)
          (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
                (write-transport-width 0) ; 256)
                (byte-shift)
                (el-width) (transfer-type)
                (ishape (shape-of varray-point))
                (temp-syms '(ra rc rd rb r6 r7 aec r9 r10 r11)))
-           
            ;; can also loop across sb-vm::*room-info*
            (loop :for i :across sb-vm::*specialized-array-element-type-properties*
                  :while (not el-width)
@@ -138,7 +139,7 @@
                                        (aref start-points ix) total)
                                  (setf (aref start-points ix) 0))))))
 
-           ;; (print (list :segs el-width start-points counts))
+           (print (list :segs el-width start-points counts (type-of varray-point)))
            
            (values
             `(progn

@@ -74,14 +74,21 @@
   "Extend allocation behavior of section class; allows resizing of one-hot vectors."
   (declare (ignore axis))
   (typecase base
-    (bit (when (= 1 base) (make-instance 'vapri-onehot-vector :shape (list (abs argument))
-                                                              :index (if (plusp argument)
-                                                                         0 (- (abs argument)
-                                                                              index-origin)))))
+    (bit (when (and (= 1 base)
+                    (or (not (listp argument))
+                        (= 1 (length argument))))
+           (let ((arg (disclose-unitary (render argument))))
+             (make-instance 'vapri-onehot-vector :shape (list (abs arg))
+                                                 :index (if (plusp arg)
+                                                            0 (- (abs arg) index-origin))))))
     (vapri-onehot-vector (when (or (not (listp argument))
-                                   (= 1 (length argument))))
-                           (make-instance 'vapri-onehot-vector :shape (list (abs argument))
-                                                               :index (vaohv-index base)))))
+                                   (= 1 (length argument)))
+                           (let ((arg (disclose-unitary (render argument))))
+                             (make-instance 'vapri-onehot-vector :shape (list (abs arg))
+                                                                 :index (+ (vaohv-index base)
+                                                                           (if (plusp arg)
+                                                                               0 (- (abs arg)
+                                                                                    (size-of base))))))))))
 
 (defun extend-allocator-vader-permute (&key base argument index-origin)
   "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."
