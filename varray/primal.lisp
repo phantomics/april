@@ -244,7 +244,9 @@
   (case (getf params :base-format)
     (:encoded)
     (:linear)
-    (t (lambda (index) (if (= index (vaohv-index varray)) 1 0)))))
+    (t (lambda (index)
+         ;; (print (list :inin index))
+         (if (= index (vaohv-index varray)) 1 0)))))
 
 (defclass vapri-axis-vector (vad-nested varray-primal vad-with-io vad-with-dfactors)
   ((%reference :accessor vaxv-reference

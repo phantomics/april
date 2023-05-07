@@ -74,21 +74,22 @@
   "Extend allocation behavior of section class; allows resizing of one-hot vectors."
   (declare (ignore axis))
   (typecase base
-    (bit (when (and (= 1 base)
+    (bit (when (and (= 1 base) (not inverse)
                     (or (not (listp argument))
                         (= 1 (length argument))))
            (let ((arg (disclose-unitary (render argument))))
-             (make-instance 'vapri-onehot-vector :shape (list (abs arg))
-                                                 :index (if (plusp arg)
-                                                            0 (- (abs arg) index-origin))))))
-    (vapri-onehot-vector (when (or (not (listp argument))
-                                   (= 1 (length argument)))
+             (when (and (integerp arg) (not (zerop arg)))
+               (make-instance 'vapri-onehot-vector :shape (list (abs arg))
+                                                   :index (if (plusp arg) 0 (1- (abs arg))))))))
+    (vapri-onehot-vector (when (and (not inverse)
+                                    (or (not (listp argument))
+                                        (= 1 (length argument))))
                            (let ((arg (disclose-unitary (render argument))))
-                             (make-instance 'vapri-onehot-vector :shape (list (abs arg))
-                                                                 :index (+ (vaohv-index base)
-                                                                           (if (plusp arg)
-                                                                               0 (- (abs arg)
-                                                                                    (size-of base))))))))))
+                             (make-instance 'vapri-onehot-vector
+                                            :shape (list (abs arg))
+                                            :index (+ (vaohv-index base)
+                                                      (if (plusp arg)
+                                                          0 (- (abs arg) (size-of base))))))))))
 
 (defun extend-allocator-vader-permute (&key base argument index-origin)
   "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."

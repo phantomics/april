@@ -99,10 +99,11 @@
                    (if this-effector (progn (push this-effector effectors)
                                             (setf varray-point (vader-base varray-point)))
                        (setf varray-point nil))))
-       (print (list :abcd))
+       ;; (print (list :abcd))
        (when (and varray-point encoding coordinate-type
-                  (not (eql t (array-element-type varray-point))))
-         (print :eee)
+                  (not (member (array-element-type varray-point)
+                               '(t base-char character) :test #'eql)))
+         ;; (print :eee)
          (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
                (write-transport-width 0) ; 256)
                (byte-shift)
@@ -139,7 +140,7 @@
                                        (aref start-points ix) total)
                                  (setf (aref start-points ix) 0))))))
 
-           (print (list :segs el-width start-points counts (type-of varray-point)))
+           ;; (print (list :segs el-width start-points counts (type-of varray-point)))
            
            (values
             `(progn
