@@ -365,7 +365,7 @@
    (let ((base (vader-base varray)))
      (typecase base (vader-identity (setf base (vader-base base))))
      (typecase base
-       (vapri-arith-provec
+       (vapri-apro-vector
         (if (and (= 1 (vapip-repeat base))
                  (= 1 (vapip-factor base))
                  (= (vads-io varray) (vapip-origin base)))
@@ -393,7 +393,7 @@
   (let ((base (vader-base varray)))
      (typecase base (vader-identity (setf base (vader-base base))))
     (typecase base
-      (vapri-arith-provec 1)
+      (vapri-apro-vector 1)
       (vapri-coordinate-identity 1)
       (vader-where
        (setf (vader-content varray)
@@ -3296,7 +3296,7 @@
 (defmethod inverse-count-to ((varray vader-identity) index-origin)
   (inverse-count-to (vader-base varray) index-origin))
 
-(defmethod inverse-count-to ((varray vapri-arith-provec) index-origin)
+(defmethod inverse-count-to ((varray vapri-apro-vector) index-origin)
   ;; TODO: this does not get invoked by for instance ⍳⍣¯1⊢⍳9 because of the identity varray
   (if (and (= 1 (vapip-repeat varray))
            (= 1 (vapip-factor varray))

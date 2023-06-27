@@ -231,7 +231,6 @@
          (irank (rank-of omega))
          (osize (size-of omega)))
     ;; (render omega) ;; causes bug with +/,⊂⊂⍳3
-    ;; (print (list :ii irank omega))
     (if (or (> 2 osize) (vacred-unitary varray))
         (if (zerop irank)
             (if (not (or (typep omega 'vacomp-reduce) ;; TODO: are more operator varray clauses needed?
@@ -291,7 +290,7 @@
                   :do (setq wsegment (- dim (1- window))))
           (cond
             ;; TODO: is there a faster way to find i.e. 3+/⍳X than the exhaustive method?
-            ((and scalar-fn (not window) (typep (vacmp-omega varray) 'vapri-arith-provec))
+            ((and scalar-fn (not window) (typep (vacmp-omega varray) 'vapri-apro-vector))
              (get-reduced (vacmp-omega varray) (vacmp-left varray)))
             ((and (or scalar-fn (and catenate-fn (not window)))
                   (not out-dims) (arrayp (vacmp-omega varray)))

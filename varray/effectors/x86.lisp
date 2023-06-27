@@ -105,7 +105,7 @@
                                '(t base-char character) :test #'eql)))
          ;; (print :eee)
          (let ((enc (case encoding (16 :word) (32 :dword) (64 :qword)))
-               (write-transport-width 0) ; 256)
+               (write-transport-width 0 ) ; 256)
                (byte-shift)
                (el-width) (transfer-type)
                (ishape (shape-of varray-point))

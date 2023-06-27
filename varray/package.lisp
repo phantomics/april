@@ -4,9 +4,9 @@
 (defpackage #:varray
   (:use #:cl)
   (:export #:varray #:varrayp #:etype-of #:shape-of #:size-of #:rank-of #:generator-of #:assign-rank
-           #:vrender #:vapri-arith-provec #:vapri-coordinate-identity #:vader-calculate
-           #:vader-select #:vader-random #:vader-deal #:vader-without #:vader-umask
-           #:vader-index #:vader-shape #:vader-reshape #:vader-depth #:vader-first-dim
+           #:vrender #:vapri-apro-vector #:vapri-coordinate-identity #:vapri-onehot-vector
+           #:vader-calculate #:vader-select #:vader-random #:vader-deal #:vader-without
+           #:vader-umask #:vader-index #:vader-shape #:vader-reshape #:vader-depth #:vader-first-dim
            #:vader-compare #:vader-enlist #:vader-membership #:vader-find #:vader-where
            #:vader-inverse-where #:vader-interval-index #:vader-pare #:vader-catenate
            #:vader-mix #:vader-split #:vader-section #:vader-enclose #:vader-partition

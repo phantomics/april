@@ -22,8 +22,8 @@
                    (make-instance 'vader-enclose :base (funcall function (vader-base (first base))))))))
          ((= 2 (length base))
           (let ((iota-first (and (typep (first base) 'integer)
-                                 (typep (second base) 'vapri-arith-provec)))
-                (iota-second (and (typep (first base) 'vapri-arith-provec)
+                                 (typep (second base) 'vapri-apro-vector)))
+                (iota-second (and (typep (first base) 'vapri-apro-vector)
                                   (typep (second base) 'integer)))
                 (lex-ref (getf params :lexical-reference)))
             (cond ((and lex-ref (or (numberp (first base))
@@ -41,7 +41,7 @@
                         lex-ref (member lex-ref arith-functions :test #'char=)
                         (not (and iota-second (char= #\÷ lex-ref))))
                    (destructuring-bind (iota number) (if iota-second base (reverse base))
-                     (make-instance 'vapri-arith-provec
+                     (make-instance 'vapri-apro-vector
                                     :number (vapip-number iota) :origin (vapip-origin iota)
                                     :offset (if (not (member lex-ref add-sub-functions :test #'char=))
                                                 (vapip-offset iota)
@@ -103,10 +103,10 @@
   "Extend allocation behavior of expand class; allows for 3/⍳3 to produce a repeating integer progression vector instead of a vader-expand instance."
   (declare (ignore axis index-origin inverse))
   (typecase base
-    (vapri-arith-provec
+    (vapri-apro-vector
      (let ((rendered-argument (unless (shape-of argument) (render argument))))
        (when (integerp rendered-argument)
-         (make-instance 'vapri-arith-provec
+         (make-instance 'vapri-apro-vector
                         :number (vapip-number base) :origin (vapip-origin base)
                         :offset (vapip-offset base) :factor (vapip-factor base)
                         :repeat (* rendered-argument (vapip-repeat base))))))))

@@ -22,11 +22,6 @@
     (setf lparallel:*kernel* (setf *april-parallel-kernel*
                                    (lparallel:make-kernel *workers-count* :name "april-language-kernel")))))
 
-;; a secondary package containing tools for the extension of April idioms
-;; #+sbcl (defpackage #:varray.sb-vm-ext
-;;   (:import-from :sb-vm #:define-vop #:inst #:unsigned-num #:unsigned-reg)
-;;   (:export #:define-vop #:inst #:unsigned-num #:unsigned-reg))
-
 (defparameter *package-name-string* (package-name *package*))
 
 (defclass va-class (standard-class)
@@ -712,7 +707,7 @@
                                                    (sb-vm::sap-int (sb-sys::vector-sap raveled))))
                                           (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
                                                      (eval jit-form))))
-                                      ;; (disassemble jit-gen)
+                                      (disassemble jit-gen)
                                       (setf segment-handler
                                             (lambda (dx)
                                               (let ((count (aref counts dx)))
