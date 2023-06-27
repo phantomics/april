@@ -8,7 +8,9 @@
   :serial t
   :depends-on ("aplesque" ;; #+(not clasp) "serapeum" ;; there's a better way to do this
                           (:feature (:not :clasp) "serapeum")
-                          "lparallel" "random-state")
+                          "lparallel" "random-state"
+                          "petalisp"
+                          )
   :components ((:file "package")
                (:file "macros")
                (:file "base")

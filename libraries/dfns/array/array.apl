@@ -118,7 +118,7 @@ disp ← { ⎕IO←0 ⋄ ⍺←⍬                         ⍝ Boxed sketch of n
     {(1=⍴⍵)⊃'+'⍵}∪,sst¨dec open ⍵            ⍝ array: mixed or uniform type.
   }
 
-  shape←{     ⎕IO←0                                  ⍝ Row and column shape decorators.
+  shape←{ ⎕IO←0                              ⍝ Row and column shape decorators.
     dec≤0=⍴⍴⍵:⍺/¨'│─'                        ⍝ no decoration or scalar.
     cols←(×¯1↑⍴⍵)⊃'⊖→'                       ⍝ zero or more cols.
     rsig←(××/¯1↓⍴⍵)⊃'⌽↓'                     ⍝ zero or more rows.

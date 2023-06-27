@@ -30,4 +30,6 @@
   #+sbcl (:shadowing-import-from #:sb-assem #:inst)
   #+sbcl (:shadowing-import-from #:sb-vm #:unsigned-num #:unsigned-reg)
   #+(and sbcl x86-64) (:shadowing-import-from #:sb-x86-64-asm #:ea)
-  (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-expand))
+  (:shadowing-import-from #:aplesque.forms #:indexer-split #:indexer-expand)
+  (:shadowing-import-from #:petalisp #:~ #:~* #:transform #:to)
+  )

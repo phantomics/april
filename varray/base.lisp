@@ -77,6 +77,9 @@
 (defgeneric effector-of (varray &optional params)
   (:documentation "Get a function effecting a virtual array indexing method in code."))
 
+(defgeneric plex-of (varray &optional params)
+  (:documentation "Get a function reifying a virtual array via Petalisp in code."))
+
 (defgeneric indexer-of (varray &optional params)
   (:documentation "Get an indexing function for an array."))
 
@@ -102,6 +105,9 @@
 
 (defgeneric effect (varray output-array &rest params)
   (:documentation "Compile a form effecting the conversion of the input array to the output array."))
+
+(defgeneric plex (varray output-array &rest params)
+  (:documentation "Compile a form reifying a virtual array via Petalisp."))
 
 (defgeneric render (varray &rest params)
   (:documentation "Render a virtual array into memory."))
@@ -242,6 +248,11 @@
 
 (defmethod effector-of ((item t) &optional params)
   "The base effector returns nil."
+  (declare (ignore params))
+  nil)
+
+(defmethod plex-of ((item t) &optional params)
+  "The base Petalisp expressor returns nil."
   (declare (ignore params))
   nil)
 
