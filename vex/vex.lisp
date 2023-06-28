@@ -747,7 +747,10 @@
                                   (=string (of-system idiom :string-delimiters))
                                   (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
                                               (lambda (string)
-                                                (let ((char (character string)))
+                                                (let ((*print-case* :upcase)
+                                                      (char (character string)))
+                                                  ;; the print case is needed since otherwise the (format)
+                                                  ;; here will search using a lowercase idiom name
                                                   (unless olnchar
                                                     (or (and (not (of-lexicons idiom char :operators))
                                                              (of-lexicons idiom char :symbolic-forms)
