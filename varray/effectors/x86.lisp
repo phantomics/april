@@ -407,6 +407,14 @@
 ;; (defun plex-iota (n)
 ;;   (petalisp:lazy-index-components (~ n)))
 
+(defun apro (number origin offset factor repeat)
+  (let* ((start (* (+ origin offset) factor))
+         (range (petalisp:range start (+ start (* factor number)) factor)))
+    (petalisp:lazy-reshape
+     (petalisp:lazy-index-components (~* range))
+     (~* range ~ repeat)
+     (petalisp:flattening-reshaper))))
+
 (defmethod plex-of :around ((varray vapri-apro-vector) &optional params)
   (when (and (zerop (vapip-origin varray))
              (zerop (vapip-offset varray))
