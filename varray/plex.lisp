@@ -27,7 +27,7 @@
 
 (defmethod plex-of :around ((varray vader-turn) &optional params)
   (declare (ignore params))
-  (let* ((array (petalisp:lazy-array (render varray)))
+  (let* ((array (petalisp:lazy-array (render (vader-base varray))))
          (amount (setf (vads-argument varray) (arg-process varray)))
          (axis (max 0 (if (eq :last (vads-axis varray))
                           (1- (rank-of varray))
@@ -35,6 +35,7 @@
                              (vads-io varray)))))
          (shape (petalisp:lazy-array-shape array))
          (rank (petalisp:shape-rank shape))
+         (bla (print :ccc))
          (range (petalisp:shape-range shape axis))
          (start (petalisp:range-start range))
          (size (petalisp:range-size range))

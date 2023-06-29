@@ -21,5 +21,4 @@
                (:file "select")
                (:file "logic")
                (:file "composed")
-               (:file "effectors/x86" :if-feature (:and :sbcl :x86-64))
-               (:file "plex")))
+               (:file "effectors/x86" :if-feature (:and :sbcl :x86-64))))

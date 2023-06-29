@@ -16,6 +16,9 @@
 #+clasp (defparameter *workers-count* (max 1 (1- (ext:num-logical-processors))))
 (defvar *april-parallel-kernel*)
 
+;; plex addition
+(defvar *use-plex* nil)
+
 (defun make-threading-kernel-if-absent ()
   "Create a kernel for multithreaded executuion via lparallel if none is present."
   (unless lparallel:*kernel*
@@ -622,7 +625,7 @@
              (metadata (getf (metadata-of varray) :shape))
              (coordinate-type (getf (rest (getf metadata :gen-meta)) :index-type))
              (en-type (getf (rest (getf metadata :gen-meta)) :index-width))
-             (to-nest))
+             (to-nest) (p-output))
         (declare (ignore spec))
         ;; (print (list :vv varray))
         
@@ -645,160 +648,167 @@
             (setf to-nest (and (not (getf params :not-nested))
                                ;; the :not-nested parameter can be passed to prevent nested rendering
                                (or (nested-p varray) (nested-base varray))))
+
+            ;; plex here
+            (when *use-plex*
+              (let ((plex-object (plex-of varray)))
+                (when plex-object (setf p-output (petalisp:compute plex-object)))))
             
             (let ((output
-                    (if output-shape
-                        (if (zerop (reduce #'* output-shape))
-                            (let* ((prototype (prototype-of varray))
-                                   (out-meta (when (arrayp prototype)
-                                               (make-array 1 :initial-contents
-                                                           (list (list :empty-array-prototype prototype))))))
-                              ;; a nil element type results in a t-type array;
-                              ;; nil types may occur from things like +/⍬
-                              (if out-meta (make-array output-shape :displaced-to out-meta)
-                                  (make-array output-shape :element-type (or (etype-of varray) t))))
-                            (let* ((output (make-array output-shape :element-type (etype-of varray)))
-                                   (dfactors (when en-type (get-dimensional-factors output-shape t)))
-                                   ;; the decoder function converts non-row-major index formats like
-                                   ;; sub-byte-encoded coordinate vectors back to row-major indices
-                                   ;; to reference elements in the output array
-                                   (render-index
-                                     (multiple-value-bind (decoder default-decoder)
-                                         (if (or (not is-not-defaulting) (not en-type))
-                                             #'identity (decode-rmi en-type coordinate-type
-                                                                    output-rank dfactors))
-                                       (let ((decoder (or decoder default-decoder)))
-                                         (if to-nest
-                                             (lambda (i)
-                                               (let ((indexed (if (not (functionp indexer))
-                                                                  indexer (funcall indexer i))))
-                                                 (setf (row-major-aref output (funcall decoder i))
-                                                       (render indexed))))
-                                             (lambda (i)
-                                               (setf (row-major-aref output (funcall decoder i))
-                                                     (if (not (functionp indexer))
-                                                         indexer (funcall indexer i))))))))
-                                   (sbsize (sub-byte-element-type varray))
-                                   (sbesize (if sbsize (/ 64 sbsize) 1))
-                                   (wcadj *workers-count*)
-                                   (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
-                                   (lpchannel (lparallel::make-channel))
-                                   (process-pair (get-indexing-function varray dfactors
-                                                                        divisions render-index))
-                                   (process (or (and is-not-defaulting (first process-pair))
-                                                (second process-pair)))
-                                   (interval (/ (size-of varray) sbesize *workers-count*))
-                                   (get-span (lambda (index)
-                                               ;; return starting point and number of elements
-                                               ;; to process for the array processing segment
-                                               ;; designated by the index argument
-                                               (let* ((start-intervals (ceiling (* interval index)))
-                                                      (start-at (* sbesize start-intervals)))
-                                                 (values start-at
-                                                         (if (< index (1- divisions))
-                                                             (* sbesize
-                                                                (- (ceiling (* interval (1+ index)))
-                                                                   start-intervals))
-                                                             (- (size-of varray) start-at))))))
-                                   (threaded-count 0)
-                                   (segment-handler))
+                    (or
+                     p-output
+                     (if output-shape
+                         (if (zerop (reduce #'* output-shape))
+                             (let* ((prototype (prototype-of varray))
+                                    (out-meta (when (arrayp prototype)
+                                                (make-array 1 :initial-contents
+                                                            (list (list :empty-array-prototype prototype))))))
+                               ;; a nil element type results in a t-type array;
+                               ;; nil types may occur from things like +/⍬
+                               (if out-meta (make-array output-shape :displaced-to out-meta)
+                                   (make-array output-shape :element-type (or (etype-of varray) t))))
+                             (let* ((output (make-array output-shape :element-type (etype-of varray)))
+                                    (dfactors (when en-type (get-dimensional-factors output-shape t)))
+                                    ;; the decoder function converts non-row-major index formats like
+                                    ;; sub-byte-encoded coordinate vectors back to row-major indices
+                                    ;; to reference elements in the output array
+                                    (render-index
+                                      (multiple-value-bind (decoder default-decoder)
+                                          (if (or (not is-not-defaulting) (not en-type))
+                                              #'identity (decode-rmi en-type coordinate-type
+                                                                     output-rank dfactors))
+                                        (let ((decoder (or decoder default-decoder)))
+                                          (if to-nest
+                                              (lambda (i)
+                                                (let ((indexed (if (not (functionp indexer))
+                                                                   indexer (funcall indexer i))))
+                                                  (setf (row-major-aref output (funcall decoder i))
+                                                        (render indexed))))
+                                              (lambda (i)
+                                                (setf (row-major-aref output (funcall decoder i))
+                                                      (if (not (functionp indexer))
+                                                          indexer (funcall indexer i))))))))
+                                    (sbsize (sub-byte-element-type varray))
+                                    (sbesize (if sbsize (/ 64 sbsize) 1))
+                                    (wcadj *workers-count*)
+                                    (divisions (min wcadj (ceiling (/ (size-of varray) sbesize))))
+                                    (lpchannel (lparallel::make-channel))
+                                    (process-pair (get-indexing-function varray dfactors
+                                                                         divisions render-index))
+                                    (process (or (and is-not-defaulting (first process-pair))
+                                                 (second process-pair)))
+                                    (interval (/ (size-of varray) sbesize *workers-count*))
+                                    (get-span (lambda (index)
+                                                ;; return starting point and number of elements
+                                                ;; to process for the array processing segment
+                                                ;; designated by the index argument
+                                                (let* ((start-intervals (ceiling (* interval index)))
+                                                       (start-at (* sbesize start-intervals)))
+                                                  (values start-at
+                                                          (if (< index (1- divisions))
+                                                              (* sbesize
+                                                                 (- (ceiling (* interval (1+ index)))
+                                                                    start-intervals))
+                                                              (- (size-of varray) start-at))))))
+                                    (threaded-count 0)
+                                    (segment-handler))
+                               
+                               #+(and sbcl x86-64)
+                               (unless (or segment-handler (/= 1 sbesize))
+                                 ;; currently disabled for sub-byte indices
+                                 (multiple-value-bind (jit-form input-array type start-points counts)
+                                     (effect varray output :format :x86-asm)
+                                   ;; (print (list :ees start-points counts))
+                                   (when jit-form
+                                     (let ((iaddr (sb-c::with-array-data
+                                                      ((raveled input-array) (start 0) (end))
+                                                    (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                                           (oaddr (sb-c::with-array-data
+                                                      ((raveled output) (start 0) (end))
+                                                    (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                                           (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
+                                                      (eval jit-form))))
+                                       (disassemble jit-gen)
+                                       (setf segment-handler
+                                             (lambda (dx)
+                                               (let ((count (aref counts dx)))
+                                                 (unless (zerop count)
+                                                   (let ((start-at (aref start-points dx)))
+                                                     ;; (print (list :sa start-points start-at count))
+                                                     (lambda ()
+                                                       (funcall jit-gen start-at
+                                                                count iaddr oaddr)))))))))))
 
-                              #+(and sbcl x86-64)
-                              (unless (or segment-handler (/= 1 sbesize))
-                                ;; currently disabled for sub-byte indices
-                                (multiple-value-bind (jit-form input-array type start-points counts)
-                                    (effect varray output :format :x86-asm)
-                                  ;; (print (list :ees start-points counts))
-                                  (when jit-form
-                                    (let ((iaddr (sb-c::with-array-data
-                                                     ((raveled input-array) (start 0) (end))
-                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                                          (oaddr (sb-c::with-array-data
-                                                     ((raveled output) (start 0) (end))
-                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                                          (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
-                                                     (eval jit-form))))
-                                      (disassemble jit-gen)
-                                      (setf segment-handler
-                                            (lambda (dx)
-                                              (let ((count (aref counts dx)))
-                                                (unless (zerop count)
-                                                  (let ((start-at (aref start-points dx)))
-                                                    ;; (print (list :sa start-points start-at count))
-                                                    (lambda ()
-                                                      (funcall jit-gen start-at
-                                                               count iaddr oaddr)))))))))))
-
-                              (unless t ; segment-handler
-                                (multiple-value-bind (jit-form input-array type)
-                                    (effect varray output)
-                                  (declare (ignore input-array))
-                                  ;; (print (list :jf jit-form input-array type))
-                                  (when jit-form
-                                    (let ((jit-gen (eval jit-form)))
-                                      (setf segment-handler
-                                            (lambda (dx)
-                                              (multiple-value-bind (start-at count)
-                                                  (funcall get-span dx)
-                                                (lambda ()
-                                                  ;; (print (list :st start-at count))
-                                                  (funcall jit-gen start-at count
-                                                           (vader-base varray) output)))))))))
-                              ;; (when segment-handler (push varray april::*stuff*))
-                              ;; (print (list :pro divisions sbesize sbsize))
-                              ;; (print (list :out (type-of output) (type-of varray)
-                              ;;              divisions division-size sbesize sbsize
-                              ;;              (typep varray 'vader-composing)
-                              ;;              (when (typep varray 'vader-composing)
-                              ;;                (vacmp-threadable varray))))
-                              ;; (print (list :ts to-nest (setf april::ggt varray)))
-                              ;; (print (list :jg jit-gen))
-                              ;; TODO: segment handler system requires iteration over all threads,
-                              ;; is there a way to consolidate the logic?
-                              (loop :for d :below (if segment-handler wcadj divisions)
-                                    :for dx :from 0
-                                    :do (if (or (and (typep varray 'vader-composing)
-                                                     (not (vacmp-async varray)))
-                                                ;; don't thread when rendering the output of operators composed
-                                                ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
-                                                (loop :for worker :across (lparallel.kernel::workers
-                                                                           lparallel::*kernel*)
-                                                      :never (null (lparallel.kernel::running-category
-                                                                    worker))))
-                                            ;; t
-                                            (funcall (funcall process d))
-                                            (if segment-handler
-                                                (let ((fn (funcall segment-handler dx)))
-                                                  (when fn
-                                                    (incf threaded-count)
-                                                    (lparallel::submit-task lpchannel fn)))
-                                                (progn (incf threaded-count)
-                                                       (lparallel::submit-task
-                                                        lpchannel (funcall process d))))))
-                              (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
-                              output))
-                        (funcall (if (nested-p varray)
-                                     (lambda (item)
-                                       (let ((rendered (render item)))
-                                         (if (and (zerop (rank-of rendered))
-                                                  (or (not (arrayp rendered))
-                                                      (and (typep varray 'vacomp-reduce)
-                                                           (nested-p varray))))
-                                             ;; handle the case of {,/⍵}/3⍴⊂⍳3
-                                             rendered (enclose rendered))))
-                                     (lambda (item)
-                                       (let ((rendered (render item)))
-                                         (if (or (not (shape-of rendered))
-                                                 ;; TODO: put these in a superclass
-                                                 (typep varray 'vader-mix)
-                                                 (typep varray 'vader-pick))
-                                             rendered (enclose rendered)))))
-                                 (if (not (functionp indexer))
-                                     indexer (funcall indexer 0))))))
-              (if (not (typep varray 'varray-derived))
-                  output (progn (when (typep varray 'vad-render-mutable)
-                                  (setf (vads-rendered varray) t))
-                                (setf (vader-content varray) output)))))))))
+                               (unless t ; segment-handler
+                                 (multiple-value-bind (jit-form input-array type)
+                                     (effect varray output)
+                                   (declare (ignore input-array))
+                                   ;; (print (list :jf jit-form input-array type))
+                                   (when jit-form
+                                     (let ((jit-gen (eval jit-form)))
+                                       (setf segment-handler
+                                             (lambda (dx)
+                                               (multiple-value-bind (start-at count)
+                                                   (funcall get-span dx)
+                                                 (lambda ()
+                                                   ;; (print (list :st start-at count))
+                                                   (funcall jit-gen start-at count
+                                                            (vader-base varray) output)))))))))
+                               ;; (when segment-handler (push varray april::*stuff*))
+                               ;; (print (list :pro divisions sbesize sbsize))
+                               ;; (print (list :out (type-of output) (type-of varray)
+                               ;;              divisions division-size sbesize sbsize
+                               ;;              (typep varray 'vader-composing)
+                               ;;              (when (typep varray 'vader-composing)
+                               ;;                (vacmp-threadable varray))))
+                               ;; (print (list :ts to-nest (setf april::ggt varray)))
+                               ;; (print (list :jg jit-gen))
+                               ;; TODO: segment handler system requires iteration over all threads,
+                               ;; is there a way to consolidate the logic?
+                               (loop :for d :below (if segment-handler wcadj divisions)
+                                     :for dx :from 0
+                                     :do (if (or (and (typep varray 'vader-composing)
+                                                      (not (vacmp-async varray)))
+                                                 ;; don't thread when rendering the output of operators composed
+                                                 ;; with side-affecting functions as for {⎕RL←5 1 ⋄ 10?⍵}¨10⍴1000
+                                                 (loop :for worker :across (lparallel.kernel::workers
+                                                                            lparallel::*kernel*)
+                                                       :never (null (lparallel.kernel::running-category
+                                                                     worker))))
+                                             ;; t
+                                             (funcall (funcall process d))
+                                             (if segment-handler
+                                                 (let ((fn (funcall segment-handler dx)))
+                                                   (when fn
+                                                     (incf threaded-count)
+                                                     (lparallel::submit-task lpchannel fn)))
+                                                 (progn (incf threaded-count)
+                                                        (lparallel::submit-task
+                                                         lpchannel (funcall process d))))))
+                               (loop :repeat threaded-count :do (lparallel::receive-result lpchannel))
+                               output)))
+                         (funcall (if (nested-p varray)
+                                      (lambda (item)
+                                        (let ((rendered (render item)))
+                                          (if (and (zerop (rank-of rendered))
+                                                   (or (not (arrayp rendered))
+                                                       (and (typep varray 'vacomp-reduce)
+                                                            (nested-p varray))))
+                                              ;; handle the case of {,/⍵}/3⍴⊂⍳3
+                                              rendered (enclose rendered))))
+                                      (lambda (item)
+                                        (let ((rendered (render item)))
+                                          (if (or (not (shape-of rendered))
+                                                  ;; TODO: put these in a superclass
+                                                  (typep varray 'vader-mix)
+                                                  (typep varray 'vader-pick))
+                                              rendered (enclose rendered)))))
+                                  (if (not (functionp indexer))
+                                      indexer (funcall indexer 0))))))
+                  (if (not (typep varray 'varray-derived))
+                      output (progn (when (typep varray 'vad-render-mutable)
+                                      (setf (vads-rendered varray) t))
+                                    (setf (vader-content varray) output)))))))))
 
 (defun build-encoder (stsym index d-factors encoding coordinate-type &optional dsym rsym)
   (let ((internal dsym)
