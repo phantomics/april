@@ -49,6 +49,10 @@
   (loop :for lexicon :in lexicons
         :always (position glyph (getf (idiom-lexicons idiom) lexicon) :test #'char=)))
 
+(defmacro with-open-vex-file ((filename path &rest options) &body body)
+  "Wraps with-open-file forms, designates the format for Vex-compatible input files as UTF-8."
+  `(with-open-file (,filename ,path :external-format :utf-8 ,@options) ,@body))
+
 (defmacro boolean-op (operation)
   "Wrap a boolean operation for use in a vector language, converting the t or nil it returns to 1 or 0."
   (let ((omega (gensym)) (alpha (gensym)) (outcome (gensym)))
@@ -901,7 +905,7 @@
                                ;; just pass the string through if it's not a pathname;
                                ;; if it is a pathname, evaluate it in case something like
                                ;; (asdf:system-relative-pathname ...) was passed
-                               string (with-open-file (stream (eval string))
+                               string (with-open-vex-file (stream (eval string))
                                         (apply #'concatenate
                                                (cons 'string (loop :for line := (read-line stream nil)
                                                                    :while line
