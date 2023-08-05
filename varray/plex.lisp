@@ -3,7 +3,37 @@
 
 (in-package #:varray)
 
-(defmethod plex-of :around ((varray vapri-apro-vector) &optional params)
+;; (defmethod plex-of ((varray vader-calculate) &optional params)) ;; performs a computation of arrays
+
+;; (defmethod plex-of ((varray vader-index) &optional params)) ;; ⍳ finds indices of elements in array
+
+;; (defmethod plex-of ((varray vader-shape) &optional params)) ;; ⍴ returns dimensions of array
+
+;; (defmethod plex-of ((varray vader-compare) &optional params)) ;; ≡ deeply compares arrays
+
+;; (defmethod plex-of ((varray vader-depth) &optional params)) ;; ≢ finds array depth
+
+;; (defmethod plex-of ((varray vader-membership) &optional params)) ;; ∊ checks for membership in arrays
+
+;; (defmethod plex-of ((varray vader-find) &optional params)) ;; ⍷ searches arrays
+
+;; (defmethod plex-of ((varray vader-pare) &optional params)) ;; , ravels arrays
+
+;; (defmethod plex-of ((varray vader-catenate) &optional params)) ;; , catenates arrays
+
+;; (defmethod plex-of ((varray vader-mix) &optional params)) ;; ↑ mixes arrays
+
+;; (defmethod plex-of ((varray vader-split) &optional params)) ;; ↓ splits arrays
+
+;; (defmethod plex-of ((varray vader-section) &optional params)) ;; ↑↓ sections arrays
+
+;; (defmethod plex-of ((varray vader-enclose) &optional params)) ;; ⊂ encloses arrays
+
+;; (defmethod plex-of ((varray vader-partition) &optional params)) ;; ⊆ partitions arrays
+
+;; (defmethod plex-of ((varray vader-expand) &optional params)) ;; /\ expands arrays
+
+(defmethod plex-of ((varray vapri-apro-vector) &optional params)
   (declare (ignore params))
   (with-accessors ((origin vapip-origin)
                    (offset vapip-offset)
@@ -17,7 +47,7 @@
        (~* range ~ repeat)
        (petalisp:flattening-reshaper)))))
 
-(defmethod plex-of :around ((varray vapri-onehot-vector) &optional params)
+(defmethod plex-of ((varray vapri-onehot-vector) &optional params)
   (declare (ignore params))
   (destructuring-bind (length) (varray-shape varray)
     (let ((index (vaohv-index varray)))
@@ -25,7 +55,7 @@
        (petalisp:lazy-reshape 0 (~ length))
        (petalisp:lazy-reshape 1 (~ index (1+ index)))))))
 
-(defmethod plex-of :around ((varray vader-turn) &optional params)
+(defmethod plex-of ((varray vader-turn) &optional params)
   (declare (ignore params))
   (let* ((array (petalisp:lazy-array (render (vader-base varray))))
          (amount (setf (vads-argument varray) (arg-process varray)))
@@ -35,7 +65,6 @@
                              (vads-io varray)))))
          (shape (petalisp:lazy-array-shape array))
          (rank (petalisp:shape-rank shape))
-         (bla (print :ccc))
          (range (petalisp:shape-range shape axis))
          (start (petalisp:range-start range))
          (size (petalisp:range-size range))

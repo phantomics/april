@@ -234,7 +234,7 @@
                                 (list :output-printed (getf state :output-printed))))))
             :process-stored-symbol
             (lambda (symbol space is-function)
-              (if is-function (let ((found-sym (find-symbol symbol space)))
+              (if is-function (let ((found-sym (intern symbol space)))
                                 (when (and found-sym (boundp found-sym)
                                            (not (fboundp found-sym)))
                                   (makunbound found-sym))

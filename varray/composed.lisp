@@ -170,6 +170,9 @@
                   (when (and (vads-default-axis varray)
                              (not (vads-axis varray)))
                     (setf (vads-axis varray) (vads-default-axis varray)))
+                  ;; render the axis
+                  (setf (vads-axis varray) (render (vads-axis varray)))
+                  
                   (let* ((base-shape (shape-of (vacmp-omega varray)))
                          (window (when (vacmp-alpha varray)
                                    (setf (vacmp-alpha varray)

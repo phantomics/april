@@ -728,7 +728,7 @@
                                                     (sb-vm::sap-int (sb-sys::vector-sap raveled))))
                                            (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
                                                       (eval jit-form))))
-                                       (disassemble jit-gen)
+                                       ;; (disassemble jit-gen)
                                        (setf segment-handler
                                              (lambda (dx)
                                                (let ((count (aref counts dx)))
