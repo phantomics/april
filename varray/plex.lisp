@@ -7,7 +7,18 @@
 
 ;; (defmethod plex-of ((varray vader-index) &optional params)) ;; ⍳ finds indices of elements in array
 
-;; (defmethod plex-of ((varray vader-shape) &optional params)) ;; ⍴ returns dimensions of array
+(defmethod plex-of ((varray vader-shape) &optional params)
+  "Find the shape of an array as from [⍴ shape]."
+  (declare (ignore params))
+  (petalisp:lazy-array-shape (vader-base varray)))
+
+(defmethod plex-of ((varray vader-reshape) &optional params)
+  "Find the shape of an array as from [⍴ shape]."
+  (declare (ignore params))
+  (petalisp:lazy-reshape (vader-base varray)
+                         (apply #'~ (shape-of varray))))
+
+;; note: a plex method for vader-pare is not needed since it derives from vader-reshape
 
 ;; (defmethod plex-of ((varray vader-compare) &optional params)) ;; ≡ deeply compares arrays
 
@@ -17,9 +28,16 @@
 
 ;; (defmethod plex-of ((varray vader-find) &optional params)) ;; ⍷ searches arrays
 
-;; (defmethod plex-of ((varray vader-pare) &optional params)) ;; , ravels arrays
-
-;; (defmethod plex-of ((varray vader-catenate) &optional params)) ;; , catenates arrays
+(defmethod plex-of ((varray vader-catenate) &optional params)
+  "Catenate arrays as with [, catenate]."
+  (declare (ignore params))
+  (let ((axis (if (eq :last (vads-axis varray))
+                  (1- (rank-of varray))
+                  (vads-axis varray)))
+        (base-gen (generator-of (vader-base varray))))
+    (apply #'petalisp:lazy-stack axis (print (funcall base-gen 0))
+           (loop :for ix :from 1 :below (first (shape-of (vader-base varray)))
+                 :collect (plex-of (funcall base-gen ix))))))
 
 ;; (defmethod plex-of ((varray vader-mix) &optional params)) ;; ↑ mixes arrays
 
@@ -32,6 +50,15 @@
 ;; (defmethod plex-of ((varray vader-partition) &optional params)) ;; ⊆ partitions arrays
 
 ;; (defmethod plex-of ((varray vader-expand) &optional params)) ;; /\ expands arrays
+
+;; (defmethod plex-of ((varray vader-expand) &optional params)
+;;   "Expand or compress an array as with [\ expand] or [/ compress]."
+;;   (declare (ignore params))
+;;   (let* ((arg (render (vads-argument varray)))
+;;          (scalings (if (vectorp arg) arg (vector arg)))
+;;          (transformation (petalisp:make-transformation :scalings scalings)))
+;;     ;; (print (list :sc scalings))
+;;     (petalisp:lazy-reshape (vader-base varray) (vader-base varray) transformation)))
 
 (defmethod plex-of ((varray vapri-apro-vector) &optional params)
   (declare (ignore params))

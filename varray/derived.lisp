@@ -1028,7 +1028,7 @@
   (:documentation "An array with a reduced shape as from the [, catenate] or [⍪ table] functions."))
 
 (defmethod shape-of ((varray vader-pare))
-  "The shape of a reshaped array is simply its argument."
+  "The shape of a pared array is either the original shape reduced."
   (get-promised
    (varray-shape varray)
    (let ((base-shape (shape-of (vader-base varray)))
@@ -1208,7 +1208,6 @@
            (let ((remaining orig-index) (sum 0) (sub-indices) (array-index 0)
                  (axis-offset (abs (- axis (1- (length (shape-of varray))))))
                  (row-major-index) (source-array))
-             ;; (print (list :oo ofactors orig-index axis-offset))
              (loop :for ofactor :across ofactors :for fx :from 0
                    :do (multiple-value-bind (index remainder) (floor remaining ofactor)
                          (setf remaining remainder)
