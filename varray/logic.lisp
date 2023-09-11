@@ -39,6 +39,12 @@
                      (make-instance 'vader-enclose :base (funcall function first second))))
                   ((and (or iota-first iota-second)
                         lex-ref (member lex-ref arith-functions :test #'char=)
+                        ;; don't combine AP vectors if the new operation is multiplicative and
+                        ;; there is a preexisting change to the offset; this prevents order
+                        ;; of operations problems - TODO: logic to get around this?
+                        (not (and (member lex-ref mul-div-functions :test #'char=)
+                                  (not (zerop (vapip-offset (if iota-second (first base)
+                                                                (second base)))))))
                         (not (and iota-second (char= #\÷ lex-ref))))
                    (destructuring-bind (iota number) (if iota-second base (reverse base))
                      (make-instance 'vapri-apro-vector
