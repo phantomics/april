@@ -15,6 +15,7 @@
 #+(not clasp) (defparameter *workers-count* (max 1 (1- (serapeum:count-cpus :default 2))))
 #+clasp (defparameter *workers-count* (max 1 (1- (ext:num-logical-processors))))
 (defvar *april-parallel-kernel*)
+(defvar *generators* nil)
 
 (defun make-threading-kernel-if-absent ()
   "Create a kernel for multithreaded executuion via lparallel if none is present."
@@ -598,6 +599,49 @@
 
     (setf (getf metadata :index-width) linear-index-type)))
 
+(setf *generators*
+      (list #+(and sbcl x86-64)
+            (lambda (varray sbesize get-span output)
+              ;; (print (list :eee sbesize))
+              (unless (/= 1 sbesize)
+                ;; currently disabled for sub-byte indices
+                (multiple-value-bind (jit-form input-array type start-points counts)
+                    (effect varray output :format :x86-asm)
+                  ;; (print (list :ees start-points counts))
+                  (when jit-form
+                    (let ((iaddr (sb-c::with-array-data
+                                     ((raveled input-array) (start 0) (end))
+                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                          (oaddr (sb-c::with-array-data
+                                     ((raveled output) (start 0) (end))
+                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                          (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
+                                     (eval jit-form))))
+                      ;; (disassemble jit-gen)
+                      (lambda (dx)
+                        (let ((count (aref counts dx)))
+                          (unless (zerop count)
+                            (let ((start-at (aref start-points dx)))
+                              ;; (print (list :sa start-points start-at count))
+                              (lambda ()
+                                (funcall jit-gen start-at
+                                         count iaddr oaddr)))))))))))
+            ;; (lambda (varray sbesize get-span output)
+            ;;   (unless (/= 1 sbesize)
+            ;;     (multiple-value-bind (jit-form input-array type)
+            ;;         (effect varray output)
+            ;;       (declare (ignore input-array))
+            ;;       ;; (print (list :jf jit-form input-array type))
+            ;;       (when jit-form
+            ;;         (let ((jit-gen (eval jit-form)))
+            ;;           (lambda (dx)
+            ;;             (multiple-value-bind (start-at count)
+            ;;                 (funcall get-span dx)
+            ;;               (lambda ()
+            ;;                 (funcall jit-gen start-at count
+            ;;                          (vader-base varray) output)))))))))
+            ))
+
 (defmethod render ((varray varray) &rest params)
   (make-threading-kernel-if-absent)
   (if (and (typep varray 'varray-derived)
@@ -692,47 +736,10 @@
                                    (threaded-count 0)
                                    (segment-handler))
 
-                              #+(and sbcl x86-64)
-                              (unless (or segment-handler (/= 1 sbesize))
-                                ;; currently disabled for sub-byte indices
-                                (multiple-value-bind (jit-form input-array type start-points counts)
-                                    (effect varray output :format :x86-asm)
-                                  ;; (print (list :ees start-points counts))
-                                  (when jit-form
-                                    (let ((iaddr (sb-c::with-array-data
-                                                     ((raveled input-array) (start 0) (end))
-                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                                          (oaddr (sb-c::with-array-data
-                                                     ((raveled output) (start 0) (end))
-                                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-                                          (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
-                                                     (eval jit-form))))
-                                      (disassemble jit-gen)
-                                      (setf segment-handler
-                                            (lambda (dx)
-                                              (let ((count (aref counts dx)))
-                                                (unless (zerop count)
-                                                  (let ((start-at (aref start-points dx)))
-                                                    ;; (print (list :sa start-points start-at count))
-                                                    (lambda ()
-                                                      (funcall jit-gen start-at
-                                                               count iaddr oaddr)))))))))))
-
-                              (unless t ; segment-handler
-                                (multiple-value-bind (jit-form input-array type)
-                                    (effect varray output)
-                                  (declare (ignore input-array))
-                                  ;; (print (list :jf jit-form input-array type))
-                                  (when jit-form
-                                    (let ((jit-gen (eval jit-form)))
-                                      (setf segment-handler
-                                            (lambda (dx)
-                                              (multiple-value-bind (start-at count)
-                                                  (funcall get-span dx)
-                                                (lambda ()
-                                                  ;; (print (list :st start-at count))
-                                                  (funcall jit-gen start-at count
-                                                           (vader-base varray) output)))))))))
+                              (loop :for generator :in *generators* :while (not segment-handler)
+                                    :do (setf segment-handler
+                                              (funcall generator varray sbesize get-span output)))
+                              
                               ;; (when segment-handler (push varray april::*stuff*))
                               ;; (print (list :pro divisions sbesize sbsize))
                               ;; (print (list :out (type-of output) (type-of varray)
