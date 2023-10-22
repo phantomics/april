@@ -12,7 +12,7 @@
 (define-symbol-macro *first-axis* (if (not axes) 0 (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *last-axis* (if axes (- (first axes) index-origin)
                                      (max 0 (1- (rank-of omega)))))
-  
+
 (define-symbol-macro *first-axis-or-nil* (if axes (apply-scalar #'- (first axes) index-origin)))
 (define-symbol-macro *branches* (symbol-value (find-symbol "*BRANCHES*" space)))
 
