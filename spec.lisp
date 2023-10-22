@@ -234,12 +234,12 @@
                                 (list :output-printed (getf state :output-printed))))))
             :process-stored-symbol
             (lambda (symbol space is-function)
-              (if is-function (let ((found-sym (find-symbol symbol space)))
+              (if is-function (let ((found-sym (intern symbol space)))
                                 (when (and found-sym (boundp found-sym)
                                            (not (fboundp found-sym)))
                                   (makunbound found-sym))
                                 (setf (symbol-function found-sym) #'dummy-nargument-function))
-                  (let ((found-sym (find-symbol symbol space)))
+                  (let ((found-sym (intern symbol space)))
                     (when (fboundp found-sym) (fmakunbound found-sym))
                     (unless (and found-sym (boundp found-sym))
                       (proclaim (list 'special (intern symbol space)))
@@ -2722,6 +2722,11 @@ fun 3")) 8))
           ;; (is (print-and-run (april-c "{⍵⍵ ⍺ ⍺⍺/⍵}" #'+ (scalar-function -) #(1 2 3 4 5) 3))
           ;;     #(-6 -9 -12) :test #'equalp)
           )
+   (progn (format t "λ Use of stored functions.~%")
+
+          (is (print-and-run (april (with (:store-fun (add-ten (lambda (x) (+ x 10)))))
+                                    "addTen 20"))
+              30 :test #'equalp))
    )))
 
 ;; create the common workspace and the space for unit tests
