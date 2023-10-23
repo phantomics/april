@@ -2726,7 +2726,14 @@ fun 3")) 8))
 
           (is (print-and-run (april (with (:store-fun (add-ten (lambda (x) (+ x 10)))))
                                     "addTen 20"))
-              30 :test #'equalp))
+              30 :test #'equalp)
+          
+          (format t "~%")
+
+          (is (print-and-run (april (with (:state :in ((a 10) (b 20)))
+                                          (:store-fun (bool (lambda (x) (not (zerop x))))))
+                              "bool (a≡b)"))
+              nil :test #'equalp))
    )))
 
 ;; create the common workspace and the space for unit tests

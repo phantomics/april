@@ -313,7 +313,11 @@
                  ;; from params so that the imported function can be called correctly
                  (if (eq :get-metadata (first ,call-params))
                      (list :meta-stuff nil)
-                     (apply ,this-fn ,call-params))))))))
+                     ;; input to user-imported functions is rendered
+                     ;; but deferrable by default - TODO: should there be other options?
+                     (apply ,this-fn (mapcar (lambda (item)
+                                               (vrender item :may-be-deferred t))
+                                             ,call-params)))))))))
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
