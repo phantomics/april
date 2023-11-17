@@ -178,7 +178,7 @@
                                                             ,(concatenate 'string '(#\Newline)
                                                                           "    "))))
                                        (when (or (zerop (length ,output))
-                                                 (not (char= #\Newline (aref output (1- (length ,output))))))
+                                                 (not (char= #\Newline (aref ,output (1- (length ,output))))))
                                          (princ #\Newline))))))))))))))
   
 (defun process-arbitrary-tests-for (symbol test-set &key (mode :test))
