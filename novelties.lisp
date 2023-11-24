@@ -5,7 +5,7 @@
 
 "A collection of fun odds and ends demonstrating April APL features."
 
-#| 
+#|
 -- Conway's Game of Life --
 
 An implementation of an old APL standby.
@@ -82,7 +82,7 @@ This will invoke a progress bar with different demarcations (at each third rathe
 
 (defun april-print-progress-bar (count &key (increments (april "1 2 3÷4"))
                                          (width 64) (glyphs "⋄⌺∘○ ╷╓╖─┼╟╢"))
-  "Print a progress bar that will grow toward completion as a process advances."
+  "Print a progress bar whose growth illustrates the advance of a process."
   (let ((total 0) (printed 0) (interval-index 0) (current-interval 0)
         (breadth (* width count))
         (marked-intervals (april-c (with (:state :in ((glyphs glyphs))))
@@ -105,7 +105,7 @@ This will invoke a progress bar with different demarcations (at each third rathe
     ;; the returned advance function should be called upon each iteration of the process
     (lambda ()
       (when (< total breadth)
-        (incf total width)
+        (incf total          width)
         (incf interval-index width)
         (loop :while (< count interval-index)
               :do (if (zerop printed)

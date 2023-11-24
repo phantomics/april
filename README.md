@@ -28,6 +28,9 @@ If you'd like to help provide for continuing work on April, you can [contribute 
 
 ## April Media and Publications
 
+### PLDI 2023 presentation
+[Presentation of paper on April's deferred evaluation features](https://youtube.com/watch?v=wz9cDRGWnIs&t=8175s)
+
 ### ArrayCast interview
 [Developer interview exploring April's history and features](https://www.arraycast.com/episodes/episode23-andrew-sengul)
 

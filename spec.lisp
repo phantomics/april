@@ -25,8 +25,8 @@
                                              function-index))))
             (funcall (aref circular-functions vector-index)
                      ;; for some functions, double coercion is not needed
-                     (* value (if (position vector-index coercing-indices :test #'=)
-                                  1 1.0d0))))
+                     (if (position vector-index coercing-indices :test #'=)
+                         value (* value 1.0d0))))
           (error "Invalid argument to [○ circular]; the left argument must be an~a"
                  " integer between ¯12 and 12.")))))
   
