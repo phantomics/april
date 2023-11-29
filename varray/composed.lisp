@@ -110,6 +110,10 @@
         (render (vacmp-omega varray))
         (when (and oshape (not ashape))
           (render (vacmp-alpha varray))))
+
+    ;; (print (list :oo oshape ashape threaded
+    ;;              (vacmp-alpha varray)
+    ;;              (vacmp-omega varray)))
     
     (let ((oindexer (generator-of (vacmp-omega varray)))
           (aindexer (generator-of (vacmp-alpha varray))))
