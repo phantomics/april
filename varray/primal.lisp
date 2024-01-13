@@ -202,7 +202,7 @@
   (unless (vads-dfactors varray)
     (let ((rendered-shape (coerce (render (vapci-shape varray)) 'list)))
       (setf (varray-shape varray) rendered-shape
-            (vads-dfactors varray) (get-dimensional-factors rendered-shape t))))
+            (vads-dfactors varray) (strides-of rendered-shape t))))
   (varray-shape varray))
 
 (defmethod generator-of ((varray vapri-coordinate-identity) &optional indexers params)

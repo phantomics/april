@@ -110,11 +110,6 @@
         (render (vacmp-omega varray))
         (when (and oshape (not ashape))
           (render (vacmp-alpha varray))))
-
-    ;; (print (list :oo oshape ashape threaded
-    ;;              (vacmp-alpha varray)
-    ;;              (vacmp-omega varray)))
-    
     (let ((oindexer (generator-of (vacmp-omega varray)))
           (aindexer (generator-of (vacmp-alpha varray))))
       (macrolet ((dy-fn-clauses (index &optional oi ai)
@@ -149,8 +144,9 @@
                      (if ashape (dy-fn-clauses index nil t)
                          (dy-fn-clauses index)))
                  (if oshape (if (functionp oindexer)
-                                (lambda (index) (funcall (vacmp-left varray)
-                                                         (funcall oindexer index)))
+                                (lambda (index)
+                                  (funcall (vacmp-left varray)
+                                           (funcall oindexer index)))
                                 (lambda (index) (declare (ignore index))
                                   (funcall (vacmp-left varray) oindexer)))
                      (funcall (vacmp-left varray)

@@ -46,7 +46,7 @@
 (defclass vad-with-rng ()
   ((%rng :accessor vads-rng
          :initform nil
-         :initarg :rng
+         :initarg  :rng
          :documentation "Random number generator specification for array transformations that use it."))
   (:metaclass va-class)
   (:documentation "Superclass of array transformations occuring along an axis."))
@@ -54,7 +54,7 @@
 (defclass vad-maybe-shapeless ()
   ((%determined :accessor vads-shapeset
                 :initform nil
-                :initarg :determined
+                :initarg  :determined
                 :documentation "Whether array's shape is determined."))
   (:metaclass va-class)
   (:documentation "Superclass of array transformations taking index origin as an implicit argument."))
@@ -62,7 +62,7 @@
 (defclass vad-invertable ()
   ((%inverse :accessor vads-inverse
              :initform nil
-             :initarg :inverse
+             :initarg  :inverse
              :documentation "Parameters passed to an array transformation as an argument."))
   (:metaclass va-class)
   (:documentation "Superclass of array transformations that have an inverse variant as [↓ drop] is to [↑ take]."))
@@ -74,7 +74,7 @@
 (defclass vad-render-mutable ()
   ((%rendered :accessor vads-rendered
               :initform nil
-              :initarg :rendered
+              :initarg  :rendered
               :documentation "Whether the array has been rendered."))
   (:metaclass va-class)
   (:documentation "Superclass of array transformations whose content may be changed in place upon rendering and whose rendered/non-rendered status must therefore be tracked."))
@@ -83,7 +83,7 @@
 (defclass vader-subarray (vad-nested varray-derived)
   ((%index :accessor vasv-index
            :initform nil
-           :initarg :index
+           :initarg  :index
            :documentation "Index variable for subarray; often used to index the subarray as part of the larger array it derives from."))
   (:metaclass va-class)
   (:documentation "Subarray of a larger array; its relationship to the larger array is defined by its index parameter, indexer and prototype functions."))
@@ -146,25 +146,26 @@
                                   :system (random-state:make-generator gen-name)))))
          ;; (seed (getf (rest rngs) :seed))
          )
-    
-     ;; randomized array content is generated synchronously
-     ;; and cached in case a random seed is in use
-     (when (and ; seed
-            (not (vader-content varray)))
-       (setf (vader-content varray)
-             (make-array (size-of (vader-base varray))
-                         :element-type (etype-of varray)))
-       (loop :for i :below (size-of (vader-base varray))
-             :do (setf (row-major-aref (vader-content varray) i)
-                       (apl-random-process (if (not (functionp base-gen))
-                                               base-gen (funcall base-gen i))
-                                           (vads-io varray) generator))))
+    ;; randomized array content is generated synchronously
+    ;; and cached in case a random seed is in use
+    (when (and ; seed
+           (not (vader-content varray)))
+      (setf (vader-content varray)
+            (make-array (size-of (vader-base varray))
+                        :element-type (etype-of varray)))
+      (loop :for i :below (size-of (vader-base varray))
+            :do (setf (row-major-aref (vader-content varray) i)
+                      (apl-random-process (if (not (functionp base-gen))
+                                              base-gen (funcall base-gen i))
+                                          (vads-io varray) generator))))
     
     (case (getf params :base-format)
       (:encoded)
       (:linear)
       (t (lambda (index)
-           (if scalar-base (apl-random-process (funcall base-gen index) (vads-io varray)
+           (if scalar-base (apl-random-process (if (not (functionp base-gen))
+                                                   base-gen (funcall base-gen index))
+                                               (vads-io varray)
                                                generator)
                (row-major-aref (vader-content varray) index)
                ;; (if seed (row-major-aref (vader-content varray) index)
@@ -528,7 +529,8 @@
          (output-size (the (unsigned-byte 62) (reduce #'* output-shape))))
     (if (shape-of (vader-base varray))
         (if output-shape (if (<= output-size input-size)
-                             #'identity (lambda (index) (mod index input-size)))
+                             #'identity (lambda (index)
+                                          (mod index input-size)))
             (lambda (index) (declare (ignore index)) 0))
         (if (functionp base-gen)
             (lambda (index) (declare (ignore index)) 0)
@@ -555,7 +557,7 @@
                             (setf (getf params :format) :linear)
                             (generator-of varray
                                           (cons (decode-rmi enco-type coord-type (rank-of varray)
-                                                            (get-dimensional-factors (shape-of varray) t))
+                                                            (strides-of (shape-of varray) t))
                                                 indexers)
                                           params)))
                 (:linear (if (shape-of (vader-base varray))
@@ -845,7 +847,7 @@
          (target-shape (shape-of target))
          (target-rank (length target-shape))
          (target-size (size-of target))
-         (target-factors (get-dimensional-factors target-shape t))
+         (target-factors (strides-of target-shape t))
          (tshape-vector (coerce target-shape 'vector))
          (base (when is-target-array
                  (or (vafind-cached varray)
@@ -853,7 +855,7 @@
                            (render (vader-base varray))))))
          (base-gen (unless is-target-array (generator-of (vader-base varray))))
          (base-shape (shape-of base))
-         (base-factors (get-dimensional-factors base-shape t))
+         (base-factors (strides-of base-shape t))
          (rank-delta (- (length base-factors) target-rank))
          (target-head (if (not is-target-array)
                           target (row-major-aref target 0))))
@@ -926,7 +928,7 @@
                                                    1 0)))))
                          (unless (vads-dfactors varray)
                            (setf (vads-dfactors varray)
-                                 (get-dimensional-factors (shape-of (vader-base varray)) t)))
+                                 (strides-of (shape-of (vader-base varray)) t)))
                          shape))))
 
 (defmethod generator-of ((varray vader-where) &optional indexers params)
@@ -1179,7 +1181,7 @@
   (let* ((out-shape (shape-of varray))
          (to-laminate (vacat-laminating varray))
          (axis (disclose-unitary (vads-axis varray)))
-         (ofactors (get-dimensional-factors out-shape t))
+         (ofactors (strides-of out-shape t))
          (base-gen (generator-of (vader-base varray)))
          (base-size (size-of (vader-base varray)))
          (each-shape (loop :for i :below base-size ; :for a :across (vader-base varray)
@@ -1198,7 +1200,7 @@
                                :initial-contents (loop :for i :below base-size 
                                                        :collect (let ((a (funcall base-gen i)))
                                                                   (if (or (arrayp a) (varrayp a))
-                                                                      (reverse (get-dimensional-factors
+                                                                      (reverse (strides-of
                                                                                 (shape-of a)))))))))
     
     (case (getf params :base-format)
@@ -1329,7 +1331,7 @@
 (defmethod generator-of ((varray vader-mix) &optional indexers params)
   (declare (ignore indexers))
   (let* ((oshape (shape-of varray))
-         (ofactors (get-dimensional-factors oshape t))
+         (ofactors (strides-of oshape t))
          (oindexer (generator-of (vader-base varray)))
          (dim-indices (vamix-shape-indices varray))
          (orank (length (shape-of (vader-base varray))))
@@ -1338,7 +1340,7 @@
          (inner-shape (loop :for i :in dim-indices :for s :in oshape
                             :when (<= orank i) :collect s))
          (inner-rank (length inner-shape))
-         (iofactors (get-dimensional-factors outer-shape t)))
+         (iofactors (strides-of outer-shape t)))
     ;; TODO: add logic to simply return the argument if it's an array containing no nested arrays
     (case (getf params :base-format)
       (:encoded)
@@ -1368,7 +1370,7 @@
                      (let* ((base (vader-base varray))
                             (iarray (unless (shape-of varray) (render base)))
                             (ishape (when iarray (copy-list (shape-of iarray))))
-                            (iifactors (when iarray (get-dimensional-factors ishape)))
+                            (iifactors (when iarray (strides-of ishape)))
                             (generators (unless iarray
                                           (coerce (loop :for i :below (size-of base)
                                                         :collect (generator-of (funcall oindexer i)))
@@ -1387,7 +1389,7 @@
                                                   :for f :across iofactors :summing (* i f))))
                                   (iarray (or iarray (funcall oindexer oindex)))
                                   (ishape (or ishape (copy-list (shape-of iarray))))
-                                  (iifactors (or iifactors (get-dimensional-factors ishape)))
+                                  (iifactors (or iifactors (strides-of ishape)))
                                   (this-gen (aref generators oindex))
                                   (irank (length ishape))
                                   (doffset (- inner-rank irank))
@@ -1460,9 +1462,9 @@
          (base-shape (shape-of (vader-base varray)))
          (sv-length (nth axis base-shape))
          (base-gen (generator-of (vader-base varray)))
-         (base-factors (get-dimensional-factors base-shape t))
+         (base-factors (strides-of base-shape t))
          (core-indexer (indexer-split axis (length output-shape)
-                                      base-factors (get-dimensional-factors output-shape t))))
+                                      base-factors (strides-of output-shape t))))
     
     (if (functionp base-gen)
         (case (getf params :base-format)
@@ -1781,7 +1783,7 @@
                            (these-indexers))
                       (when indexer
                         (when (eq :linear (getf params :format))
-                          (push (encode-rmi (get-dimensional-factors (shape-of varray) t)
+                          (push (encode-rmi (strides-of (shape-of varray) t)
                                             enco-type coord-type)
                                 these-indexers)
                           (setf (getf params :format) :encoded))
@@ -1814,7 +1816,7 @@
                      (if (loop :for i :from (rank-of varray) :to (1- (* 2 (rank-of varray)))
                                :always (= 1 (aref (vasec-span varray) i)))
                          (loop :for p :across (vasec-pad varray)
-                               :for f :in (get-dimensional-factors (shape-of varray))
+                               :for f :in (strides-of (shape-of varray))
                                :do (incf scalar-index (* f p)))
                          (setf scalar-index -1)))
                    ;; IPV-TODO: figure out how to allow n-rank mixed positive-negative takes for scalars
@@ -1916,10 +1918,10 @@
          (inner-shape (vaenc-inner-shape varray))
          (axis (or (vads-axis varray)
                    (max 0 (1- (length base-shape)))))
-         (ofactors (get-dimensional-factors base-shape))
+         (ofactors (strides-of base-shape))
          (base-gen (generator-of (vader-base varray)))
-         (outer-factors (get-dimensional-factors output-shape t))
-         (inner-factors (get-dimensional-factors inner-shape t))
+         (outer-factors (strides-of output-shape t))
+         (inner-factors (strides-of inner-shape t))
          (intervals (vads-shapeset varray))
          (offset-indexer
            (lambda (o)
@@ -2106,8 +2108,8 @@
              (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
                                              :when (> dx axis) :collect d)))
              (output-shape (shape-of varray))
-             (ofactors (get-dimensional-factors output-shape t))
-             (ifactors (get-dimensional-factors idims t))
+             (ofactors (strides-of output-shape t))
+             (ifactors (strides-of idims t))
              (partition-indexer
                (lambda (i focus)
                  (lambda (ix)
@@ -2322,7 +2324,7 @@
              (index-length (if (shape-of index) (size-of index)
                                (size-of (if (not (functionp igen))
                                             igen (funcall igen 0)))))
-             (factors (get-dimensional-factors (shape-of base))))
+             (factors (strides-of (shape-of base))))
         (loop :for f :in factors :for s :below index-length
               :do (incf ix (* f (- (if (not (functionp iindexer))
                                        iindexer (funcall iindexer s))
@@ -2798,7 +2800,7 @@
                        (all-indexers))
                   (when indexer
                     (when (eq :linear (getf params :format))
-                      (push (encode-rmi (get-dimensional-factors (shape-of varray) t)
+                      (push (encode-rmi (strides-of (shape-of varray) t)
                                         enco-type coord-type)
                             all-indexers)
                       (setf (getf params :format) :encoded))
@@ -2917,7 +2919,7 @@
                      (all-indexers))
                 (when indexer
                   (when (eq :linear (getf params :format))
-                    (push (encode-rmi (get-dimensional-factors (shape-of varray) t)
+                    (push (encode-rmi (strides-of (shape-of varray) t)
                                       enco-type coord-type)
                           all-indexers)
                     (setf (getf params :format) :encoded))
@@ -3124,9 +3126,9 @@
          (base-shape (shape-of (vader-base varray)))
          (base-gen (generator-of (vader-base varray)))
          (arg-gen (generator-of (vads-argument varray)))
-         (aifactors (get-dimensional-factors adims))
-         (oifactors (get-dimensional-factors base-shape t))
-         (ofactors (get-dimensional-factors out-dims t)))
+         (aifactors (strides-of adims))
+         (oifactors (strides-of base-shape t))
+         (ofactors (strides-of out-dims t)))
     (case (getf params :base-format)
       (:encoded)
       (:linear)
