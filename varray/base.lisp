@@ -1036,7 +1036,7 @@
                 (not (typep varray 'vader-grade))
                 (or (not (typep varray 'vad-render-mutable))
                     (vads-rendered varray))
-                (generator-of (vader-content varray)))))
+                (generator-of (vader-content varray) indexers params))))
       (call-next-method)))
 
 (defmethod prototype-of ((varray varray-derived))
