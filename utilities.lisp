@@ -317,7 +317,14 @@
                      ;; but deferrable by default - TODO: should there be other options?
                      (apply ,this-fn (mapcar (lambda (item)
                                                (vrender item :may-be-deferred t))
-                                             ,call-params)))))))))
+                                             ;; the below logic is needed to handle metadata and
+                                             ;; nil arguments when passed to imported functions
+                                             ;; taking only one argument
+                                             (if (second ,params)
+                                                 (list (first ,params) (second ,params))
+                                                 (list (first ,params))
+                                                 ;; ,call-params
+                                                 ))))))))))
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."
