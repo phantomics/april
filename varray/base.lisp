@@ -116,7 +116,7 @@
                             (call-next-method))
         (call-next-method))))
 
-(defun get-dimensional-factors (dimensions &optional as-vector)
+(defun strides-of (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."
   (let ((factor) (last-index))
     (if as-vector
@@ -305,7 +305,7 @@
     (:encoded
      (let* ((array-size (size-of array))
             (gen-params (getf params :gen-meta))
-            (factors (get-dimensional-factors (shape-of array) t))
+            (factors (strides-of (shape-of array) t))
             (decoder (decode-rmi (getf gen-params :index-width) (getf gen-params :index-type)
                                  (array-rank array) factors))
             (converter (join-indexers indexers params)))
@@ -352,8 +352,7 @@
   "Return the element size in bits if the argument is an array whose elements are integers smaller than 7 bits."
   (let ((type (upgraded-array-element-type (etype-of varray))))
     (or (and (eql 'bit type) 1)
-        #+clasp (case type (ext:byte2 2)
-                      (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
+        #+clasp (case type (ext:byte2 2) (ext:integer2 2) (ext:byte4 4) (ext:integer4 4))
         #+(not clasp) (and (listp type)
                            (eql 'unsigned-byte (first type))
                            (> 7 (second type))
@@ -369,7 +368,7 @@
 (defmethod generator-of :around ((varray varray) &optional indexers params)
   (if (typep varray 'vad-reindexing) (call-next-method)
       (let ((this-generator (call-next-method)))
-        ;; (print (list :tg this-generator))
+        ;; (print (list :tg this-generator (vader-base varray) indexers))
         (if (not (functionp this-generator))
             this-generator (let ((composite-indexer (join-indexers indexers params)))
                              (lambda (index)
@@ -691,7 +690,7 @@
                               (if out-meta (make-array output-shape :displaced-to out-meta)
                                   (make-array output-shape :element-type (or (etype-of varray) t))))
                             (let* ((output (make-array output-shape :element-type (etype-of varray)))
-                                   (dfactors (when en-type (get-dimensional-factors output-shape t)))
+                                   (dfactors (when en-type (strides-of output-shape t)))
                                    ;; the decoder function converts non-row-major index formats like
                                    ;; sub-byte-encoded coordinate vectors back to row-major indices
                                    ;; to reference elements in the output array
@@ -872,14 +871,14 @@
                        (,oindex (the (unsigned-byte ,encoding) 0))
                        (,ox (the (unsigned-byte ,encoding) ,start)))
                    (declare (type (unsigned-byte ,encoding) ,eindex ,iindex ,oindex))
-                   ,@(build-encoder start eindex (get-dimensional-factors oshape)
+                   ,@(build-encoder start eindex (strides-of oshape)
                                     encoding coordinate-type)
                    ;; (print (list :bb ,eindex ,iindex))
                    (dotimes (,c ,count)
                      (setf ,iindex 0
                            ,oindex ,eindex)
                      ,@(loop :for effector :in effectors :append (funcall effector oindex))
-                     ,@(build-decoder oindex iindex (reverse (get-dimensional-factors oshape))
+                     ,@(build-decoder oindex iindex (reverse (strides-of oshape))
                                       coordinate-type)
                      ;; (print (list :ee ,ox ,iindex ,oindex ,eindex :b ,start ,c))
                      (when ,input (setf (row-major-aref ,output ,ox)
@@ -1018,10 +1017,9 @@
 
 (defmethod generator-of :around ((varray varray-derived) &optional indexers params)
   "If a derived virtual array has content assigned, its generator will simply derive from that assigned content; otherwise the specific generator for the virtual array will be returned."
-  ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
   ;; (when (typep varray 'vader-enclose)
   ;;   (print (list :vv varray (vader-content varray) (vader-base varray))))
-  (declare (ignore indexers))
+  ;; (print (list :con (type-of varray) (type-of (vader-content varray))))
   (or (case (getf params :base-format)
         (:encoded)
         (:linear)
@@ -1036,7 +1034,7 @@
                 (not (typep varray 'vader-grade))
                 (or (not (typep varray 'vad-render-mutable))
                     (vads-rendered varray))
-                (generator-of (vader-content varray)))))
+                (generator-of (vader-content varray) indexers params))))
       (call-next-method)))
 
 (defmethod prototype-of ((varray varray-derived))

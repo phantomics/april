@@ -24,7 +24,7 @@ FH ← ,⊂'[G]enerate [R]estart [Q]uit'
 FH,←  ⊂'Next [G]eneration ⋄ [R]estart ⋄ [Q]uit'
 FH,←  ⊂'Press [G] for the next generation, [R] to restart or [Q] to quit.'
 FH,←  ⊂'Press [G] to see the next generation, [R] to restart with a random matrix or [Q] to quit.'
-   ⍝ footer headers with varying widths for use depending on terminal width
+     ⍝ footer headers with varying widths for use depending on terminal width
 
 GC ← 'Generation:' ⍝ generation index caption
 
@@ -71,11 +71,11 @@ M ← ⍬ ⍝ the character matrix
       (let ((rebuilding (or (not *glyphs*) (/= height dheight) (/= width dwidth))))
         (when rebuilding
           (build-screen height width)
-          (setf dheight height ;; record display dimensions to check them in subsequent renders
-                dwidth width 
+          (setf dheight    height ;; record display dimensions to check them in subsequent renders
+                dwidth     width 
                 field-size (* width (- height 3))                
-                gen-offset (april-c (with (:space ncurses-demo-space)) "{(⍺×⍵-1)+1+≢GC}"
-                                    height width)))
+                gen-offset (april-c (with (:space ncurses-demo-space))
+                                    "{(⍺×⍵-1)+1+≢GC}" height width)))
         
         (multiple-value-bind (glyphs colors)
             (april (with (:space ncurses-demo-space)

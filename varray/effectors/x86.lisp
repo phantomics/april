@@ -189,7 +189,7 @@
                   ;; output address
                   
                   ;; encode initial coordinates based on starting point
-                  ,@(build-encoder-x86asm 'pt temp-syms (get-dimensional-factors oshape)
+                  ,@(build-encoder-x86asm 'pt temp-syms (strides-of oshape)
                                           encoding coordinate-type)
                   ;; after encoding the initial coordinate set, multiply the point and count-to
                   ;; values if necessary (i.e. the elements are wider than 8 bits) and add the
@@ -214,7 +214,7 @@
                   ;; do operations here on encoded coordinates
                   ,@(loop :for ef :in (reverse effectors) :append (funcall ef temp-syms))
                   ;; decode the modified coordinates
-                  ,@(build-decoder-x86asm temp-syms (get-dimensional-factors ishape)
+                  ,@(build-decoder-x86asm temp-syms (strides-of ishape)
                                           encoding coordinate-type)
 
                   ;; adjust B register to point to input data location
