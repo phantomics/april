@@ -32,6 +32,8 @@
                       (< 0 (length (get-output-stream-string cmd-out)))))
                 ''(april-demo.cnn) nil)))
 
+#+lispworks (lw:set-default-character-element-type 'cl:character)
+
 (defvar *library-packages*
   '(april-lib.dfns.array april-lib.dfns.string april-lib.dfns.power
     ;; tree library is disabled for ABCL, Lispworks because its large functions cannot be

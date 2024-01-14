@@ -2739,8 +2739,11 @@ fun 3")) 8))
    )))
 
 ;; create the common workspace and the space for unit tests
-(april-create-workspace common)
-(april-create-workspace unit-test-staging)
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (april-create-workspace common))
+
+(eval-when (:execute :load-toplevel :compile-toplevel)
+   (april-create-workspace unit-test-staging))
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
