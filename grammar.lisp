@@ -362,6 +362,7 @@
 
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
+  ;; (print (list :tv tokens params))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (when elements
         (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
@@ -538,7 +539,8 @@
                                                                                          (first function))))
                                                                           function `(function ,function))
                                                                      ,preceding
-                                                                     ,@(if lval (list lval)))))
+                                                                     ,@(if lval (list lval)
+                                                                           nil))))
                                                  (reg-symfn-call function space
                                                                  (getf (getf params :special)
                                                                        :closure-meta))
@@ -557,8 +559,7 @@
                                        (destructuring-bind (operand &optional argument)
                                            (if (not (and (listp elements)
                                                          (listp (first (last elements)))
-                                                         (eql 'a-call
-                                                              (caar (last elements)))))
+                                                         (eql 'a-call (caar (last elements)))))
                                                (list elements)
                                                (list (butlast elements) (first (last elements))))
                                          (if exp-operator
@@ -581,9 +582,9 @@
                                                                        :params params :space space)
                                                       space params nil)
                                                    (cons (list :fn :pass composed) remaining)))
-                                             (when (and (listp (first tokens))
+                                             (when (print (and (listp (first tokens))
                                                         (eq :op (caar tokens))
-                                                        (eq :lateral (cadar tokens)))
+                                                        (eq :lateral (cadar tokens))))
                                                (error
                                                 "No function found to the left of lateral operator ~a."
                                                 (third (first tokens))))))))))
@@ -610,6 +611,7 @@
 
 (defun build-function (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
+  ;; (print (list :to tokens params :ff found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (position (caar tokens) #(:fn :op :st :pt :ax) :test #'eql))
@@ -617,33 +619,69 @@
                     (and (listp (caar tokens))
                          (not (setq first-function (build-function (first tokens)
                                                                    :space space :params params))))))
+           ;; (print (list :enc tokens found-function first-function))
+           ;; TODO: case for things like (+∘0)
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
                ;; are no more components to the function, as with ⌽@(2∘|)⍳5
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-                 (when sub-function ;; catch errors like (2+) 5
-                   (if remaining
-                       ;; if something remains to the left, check whether it's a value,
-                       ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
-                       (let ((left-val (build-value remaining :space space :params params)))
-                         (if left-val
-                             ;; if the left value is actually a passed function, compose a function
-                             ;; train as for 0 1 2 3 4 5 6 7 (⍳∘1>) 4
-                             (if (and (listp left-val) (listp (first left-val))
-                                      (eq :fn (caar left-val)) (eq :pass (cadar left-val)))
-                                 (values
-                                  (compose-function-train
-                                   space sub-function
-                                   (build-function (list left-val)
-                                                   :space space :initial initial :params params))
-                                  (rest tokens))
-                                 (error "Value to left of function statement."))
-                             (build-function remaining :found-function sub-function
-                                                       :space space :initial initial :params params)))
-                       (build-function (rest tokens) :found-function sub-function :space space
-                                                     :initial initial :params params))))))
+                 ;; (print (list :sub sub-function tokens (first tokens)))
+                 (if sub-function ;; catch errors like (2+) 5
+                     (if remaining
+                         ;; if something remains to the left, check whether it's a value,
+                         ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
+                         (let ((left-val (build-value remaining :space space :params params)))
+                           (if left-val
+                               ;; if the left value is actually a passed function, compose a function
+                               ;; train as for 0 1 2 3 4 5 6 7 (⍳∘1>) 4
+                               (if (and (listp left-val) (listp (first left-val))
+                                        (eq :fn (caar left-val)) (eq :pass (cadar left-val)))
+                                   (values
+                                    (compose-function-train
+                                     space sub-function
+                                     (build-function (list left-val)
+                                                     :space space :initial initial :params params))
+                                    (rest tokens))
+                                   (error "Value to left of function statement."))
+                               (build-function remaining :found-function sub-function
+                                                         :space space :initial initial :params params)))
+                         (build-function (rest tokens) :found-function sub-function :space space
+                                                       :initial initial :params params))
+                     (let* ((second-operator (build-operator (list (second tokens))
+                                                             :params params :space space
+                                                             :valence :pivotal :axes axes))
+                            (first-fn-passthrough
+                              (if (not second-operator)
+                                  nil (first (build-value (first tokens) :params params :space space)))))
+
+                       (setf first-fn-passthrough (if (not (and (listp first-fn-passthrough)
+                                                                (eq :fn   (first  first-fn-passthrough))
+                                                                (eq :pass (second first-fn-passthrough))))
+                                                      nil (third first-fn-passthrough))
+                             second-operator (if (or (not (listp second-operator))
+                                                     (not (member (first second-operator)
+                                                                  '(inws inwsd))))
+                                                 second-operator (second second-operator)))
+
+                       ;; (print (list 33 tokens first-fn-passthrough
+                       ;;              second-operator
+                       ;;              (cddr tokens)))
+
+                       (if (not first-fn-passthrough)
+                           nil (complete-pivotal-match second-operator (cdr tokens)
+                                                       first-fn-passthrough nil space params nil))
+                       ;; (print (list 22 second-operator elements))
+                       ;; (print (list 22 second-operator first-value first-function (first tokens)))
+                       ;; nil
+                       ;; (multiple-value-bind (composed remaining)
+                       ;;     (complete-pivotal-match second-operator tokens nil
+                       ;;                             (build-value nil :elements elements
+                       ;;                                              :params params :space space)
+                       ;;                             space params nil)
+                       ;;   (cons (list :fn :pass composed) remaining))
+                       )))))
           ((and (listp (first tokens)) (eq :ax (caar tokens)))
            (if (and found-function (not initial))
                (values found-function tokens)
@@ -803,8 +841,8 @@
   (if (not found-operator) ;; no operator has yet been registered
       (if (and (listp (first tokens)) (eq :ax (caar tokens)))
           ;; concatenate axes as they are found
-          (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens) :space space
-                                                                                :params params)
+          (build-operator (rest tokens) :axes (cons (compile-form (cdar tokens)
+                                                                  :space space :params params)
                                                     axes)
                                         :initial initial :space space :params params)
           (let ((op (process-operator (first tokens) (append params (if valence (list :valence valence)))
@@ -930,8 +968,7 @@
                                  remaining (if (not initial-token-unstrandable)
                                                tokens (list (first tokens))))
                              :space space :left t :params (append (list :match-all-syms t) params))
-              (when initial-token-unstrandable
-                (setf remaining2 (rest tokens)))
+              (when initial-token-unstrandable (setf remaining2 (rest tokens)))
               (multiple-value-bind (symbol remaining2)
                   (if (all-symbols-p symbol) (values symbol remaining2)
                       (build-value (if (not (and (or (symbolp function)
@@ -953,7 +990,7 @@
                                                     (build-value nil :axes axes :elements elements
                                                                      :space space :params params)
                                                     :params params :space space
-                                                    :function (when symbol function)))
+                                                    :function (if symbol function nil)))
                                    :space space :params params))))))))))
 
 (defun complete-branch-composition (tokens branch-to &key space params)
@@ -1092,9 +1129,9 @@
                                       selection-axes
                                       `(mapcar (lambda (array)
                                                  (when array
-                                                   (make-instance
-                                                    'vader-calculate :base (list array index-origin)
-                                                    :function #'-)))
+                                                   (make-instance 'vader-calculate
+                                                                  :base (list array index-origin)
+                                                                  :function #'-)))
                                                ,(getf (cddr (third form)) :argument))))))))
              
              (set-assn-sym selection-form)
