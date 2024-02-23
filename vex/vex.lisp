@@ -415,7 +415,7 @@
                                                            "-WORKSPACE-" (string-upcase ,ws-name))))
                             (if (string= "-LEX" (subseq (string ,ws-name) (- (length (string ,ws-name)) 4)))
                                 (error "Workspace names may not end with \"-LEX\", this suffix is reserved.")
-                                `(progn
+                                `(eval-when (:execute :load-toplevel :compile-toplevel)
                                    (if (find-package ,,ws-fullname)
                                        (format nil "A workspace called ｢~a｣ already exists." ',,ws-name)
                                        (progn (make-package ,,ws-fullname)

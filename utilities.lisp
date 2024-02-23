@@ -324,9 +324,7 @@
                                              ;; taking only one argument
                                              (if (second ,params)
                                                  (list (first ,params) (second ,params))
-                                                 (list (first ,params))
-                                                 ;; ,call-params
-                                                 ))))))))))
+                                                 (list (first ,params))))))))))))
 
 (defmacro inv-fn (function &optional is-dyadic inverse-type)
   "Wrap a function to be inverted; returns an error if the function has no inverse form."

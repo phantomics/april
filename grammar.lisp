@@ -655,6 +655,14 @@
                             (first-fn-passthrough
                               (if (not second-operator)
                                   nil (first (build-value (first tokens) :params params :space space)))))
+                       ;; this section accounts for the case of i.e.
+                       ;; _if_ ← { (⍺⍺⍣(⍵⍵ ⍵))⍵ } ⋄ ((+∘1) _if_ (>∘0))¨5 0 ¯5 9 ¯9
+                       ;; a pivotal composition whose right operand is another pivotal composition
+                       ;; with a value as its right operand - this is an edge case where compilation
+                       ;; requires (build-value) to be called on the possible right operand, since
+                       ;; (build-value) is used to compile pivotal compositions with a value on the right
+
+                       ;; (print (list :ff second-operator first-fn-passthrough))
 
                        (setf first-fn-passthrough (if (not (and (listp first-fn-passthrough)
                                                                 (eq :fn   (first  first-fn-passthrough))
@@ -664,24 +672,10 @@
                                                      (not (member (first second-operator)
                                                                   '(inws inwsd))))
                                                  second-operator (second second-operator)))
-
-                       ;; (print (list 33 tokens first-fn-passthrough
-                       ;;              second-operator
-                       ;;              (cddr tokens)))
-
+                       ;; (print (list 33 second-operator tokens))
                        (if (not first-fn-passthrough)
                            nil (complete-pivotal-match second-operator (cdr tokens)
-                                                       first-fn-passthrough nil space params nil))
-                       ;; (print (list 22 second-operator elements))
-                       ;; (print (list 22 second-operator first-value first-function (first tokens)))
-                       ;; nil
-                       ;; (multiple-value-bind (composed remaining)
-                       ;;     (complete-pivotal-match second-operator tokens nil
-                       ;;                             (build-value nil :elements elements
-                       ;;                                              :params params :space space)
-                       ;;                             space params nil)
-                       ;;   (cons (list :fn :pass composed) remaining))
-                       )))))
+                                                       first-fn-passthrough nil space params nil)))))))
           ((and (listp (first tokens)) (eq :ax (caar tokens)))
            (if (and found-function (not initial))
                (values found-function tokens)

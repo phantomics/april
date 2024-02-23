@@ -1974,6 +1974,8 @@
        "+/×⍤1¨1 0 ¯1" 0)
   (for "Pivotal composition with another pivotal composition preceding right operand within defn."
        "{⊢⍤1(⊢⍤1)⍵}⍳3" #(1 2 3))
+  (for "Pivotal composition taking as right operand another pivotal composition with a value as right operand."
+       "_if_ ← {(⍺⍺⍣(⍵⍵ ⍵))⍵} ⋄ ((+∘1) _if_ (>∘0))¨5 0 ¯5 9 ¯9" #(6 0 -5 10 -9))
   (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
   (for "Operator composition calling accumulating function."
        "{acm←⍬ ⋄ {acm,←⊃,/⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5" #(1 2 3 4 5 4 3 2 1 2 3 4 3 2 3))
@@ -2739,11 +2741,8 @@ fun 3")) 8))
    )))
 
 ;; create the common workspace and the space for unit tests
-(eval-when (:execute :load-toplevel :compile-toplevel)
-  (april-create-workspace common))
-
-(eval-when (:execute :load-toplevel :compile-toplevel)
-   (april-create-workspace unit-test-staging))
+(april-create-workspace common)
+(april-create-workspace unit-test-staging)
 
 #|
 This is an example showing how the April idiom can be extended with Vex's extend-vex-idiom macro.
