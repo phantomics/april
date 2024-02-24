@@ -1837,6 +1837,7 @@
   (for "Strand assignment with nesting." "cc (dd ee)←7 (8 9) ⋄ dd⍴cc×ee" #(63 63 63 63 63 63 63 63))
   (for "Assignment of axis-selected element within inline function."
        "{m←'+∘×'[2],⍵ ⋄ ↓m} 3 3⍴'ab'" #("∘aba" "∘bab" "∘aba"))
+  (for "As before but more compact." "↓'+∘×'[2]∘, 3 3⍴'ab'" #("∘aba" "∘bab" "∘aba"))
   (for "Selection from an array with multiple elided dimensions."
        "(2 3 3 4 5⍴⍳9)[2;;3;;2]" #2A((6 2 7 3) (3 8 4 9) (9 5 1 6)))
   (for "Selection from an array with multi-index, array and elided dimensions."
@@ -1976,6 +1977,8 @@
        "{⊢⍤1(⊢⍤1)⍵}⍳3" #(1 2 3))
   (for "Pivotal composition taking as right operand another pivotal composition with a value as right operand."
        "_if_ ← {(⍺⍺⍣(⍵⍵ ⍵))⍵} ⋄ ((+∘1) _if_ (>∘0))¨5 0 ¯5 9 ¯9" #(6 0 -5 10 -9))
+  (for "The above user-defined operator in a more compact expression."
+       "(+∘1) _if_ (>∘0) 100" 101)
   (for "Multiple operator compositions in sequence." "1 0 {,¨+⌿×-⍵,.-⍺} 2 2⍴0 0 1 1" #0A#(1 -1))
   (for "Operator composition calling accumulating function."
        "{acm←⍬ ⋄ {acm,←⊃,/⍵ ⋄ ⌽¯1↓⍵}⍣⍵⊢⍳⍵ ⋄ acm} 5" #(1 2 3 4 5 4 3 2 1 2 3 4 3 2 3))

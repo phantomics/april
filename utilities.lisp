@@ -164,12 +164,7 @@
                                       ((and (symbolp item) (string= "+WORKSPACE-NAME+" (string-upcase item)))
                                        (list 'quote (find-symbol (string-upcase name) this-package)))
                                       (t item)))))
-        (funcall (lambda (form)
-                   ;; create an lparallel kernel if none is present; this is done at
-                   ;; runtime so April's compilation doesn't entail the creation of a kernel
-                   ;; (push '(make-threading-kernel-if-absent) (cdddr form))
-                   form)
-                 (replace-symbols (first body)))))))
+        (replace-symbols (first body))))))
 
 ;; this reader macro expands to (inws symbol) for reader-friendly printing of compiled code
 (set-macro-character #\⊏ (lambda (stream character)
@@ -744,8 +739,7 @@
                                             :system
                                             (if (and (vectorp ,seed) (zerop (length ,seed)))
                                                 (random-state:make-generator ,rngname)
-                                                (random-state:make-generator
-                                                 ,rngname ,seed)))
+                                                (random-state:make-generator ,rngname ,seed)))
                                         (getf (rest ,symbol) :seed)
                                         (unless (and (vectorp ,seed) (zerop (length ,seed)))
                                           ,seed)))))
@@ -972,10 +966,6 @@
            'vader-subarray :base item-vector :shape (shape-of item-vector)
                            :nested t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
-
-;; (defun parse-apl-number-string (&rest _)
-;;   "A dummy function to be replaced by what the below function produces."
-;;   (declare (ignore _)))
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
@@ -1352,10 +1342,11 @@
                            'vader-select :base ,body :assign ,to-set
                            ,@(when set-by (list :calling set-by))
                            :argument (mapcar (lambda (array)
-                                               (when array
-                                                 (make-instance
-                                                  'vader-calculate :function #'-
-                                                  :base (list array index-origin))))
+                                               (if array (make-instance 'vader-calculate
+                                                                        :function #'-
+                                                                        :base (list array
+                                                                                    index-origin))
+                                                   nil))
                                              (list ,@axes))))
                          ,to-set)
                   `(make-virtual 'vader-select :base ,body :nested t
