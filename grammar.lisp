@@ -362,7 +362,6 @@
 
 (defun build-value (tokens &key axes elements space params left axes-last)
   "Construct an APL value; this may be a scalar value like 5, a vector like 1 2 3, or the result of a function lilike 1+2."
-  ;; (print (list :tv tokens params))
   (if (not tokens) ;; if no tokens are left and value elements are present, generate an output value
       (when elements
         (enclose-axes (output-value space (if (< 1 (length elements)) elements (first elements))
@@ -451,44 +450,55 @@
                                          (if lval `(a-call ,passed ,(build-value
                                                                      nil :elements elements :axes axes
                                                                          :space space :params params)
-                                                           ,@(if lval (list lval)))
+                                                           ,lval)
                                              ;; if no value on the left, a functional expression is likely
                                              ;; as for ⍴(+/⊢⌺3 3) 2 2⍴255
-                                             (build-value (rest tokens)
-                                                          :elements `((a-call ,passed
-                                                                              ,(build-value
-                                                                                nil :elements elements
-                                                                                    :axes axes :space space
-                                                                                    :params params)))
-                                                          :space space :params params)))
+                                             (multiple-value-bind (composed-fn after-cfn)
+                                                 (build-function tokens :space space :params params)
+                                               ;; if there's a pivotal composition to the left of the value,
+                                               ;; as with _if_ ← { (⍺⍺⍣(⍵⍵ ⍵))⍵ } ⋄ (+∘1) _if_ (>∘0) 100,
+                                               ;; this (build-function) call will return it and it will
+                                               ;; be applied to the value resolved thus
+                                               (if composed-fn
+                                                   (let ((value-after (build-value after-cfn :space space
+                                                                                             :params params)))
+                                                     `(a-call ,composed-fn ,(build-value elements
+                                                                                         :space space
+                                                                                         :params params)
+                                                              ,@(if value-after (list value-after) nil)))
+                                                   (build-value (rest tokens)
+                                                                :elements `((a-call ,passed
+                                                                                    ,(build-value
+                                                                                      nil :elements elements
+                                                                                          :axes axes
+                                                                                          :space space
+                                                                                          :params params)))
+                                                                :space space :params params)))))
                                        (values nil (cons (list :fn :pass passed) (rest tokens))))
                                    ;; default if no composed function was passed
                                    (build-value (cons (first first-value) (rest tokens))
                                                 :elements elements :params params :space space :axes axes))))
-                         (let ((fv-output (output-value space first-value (list nil)
-                                                        (rest (getf (getf params :special)
-                                                                    :closure-meta)))))
-                           (build-value (rest tokens)
-                                        :elements (cons (if (not (and axes is-closure))
-                                                            first-value fv-output)
-                                                        elements)
-                                        :params params :space space :left left :axes axes)))
-                     (if left
-                         ;; if this value is to the left of a function like the 5 in 5+3,
-                         ;; process it without looking for a function to its left
-                         (let ((exp-operator (build-operator (list (first tokens))
-                                                             :params params :space space
-                                                             :valence :pivotal :axes axes)))
-                           (if exp-operator
-                               (values nil (build-value tokens :elements elements :params params
-                                                               :space space :axes axes)
-                                       axes axes-last)
-                               ;; axes not passed back if elements present for cases like m←'+∘×'[2],⍵
-                               ;; if no elements, as for ⊂[⍬]⍳3, axes are passed
-                               (values (build-value nil :elements elements :params params
-                                                        :space space :axes axes)
-                                       tokens (if (not elements) axes)
-                                       axes-last)))
+                         (build-value (rest tokens)
+                                      :elements (cons (if (and axes is-closure)
+                                                          (output-value space first-value (list nil)
+                                                                        (rest (getf (getf params :special)
+                                                                                    :closure-meta)))
+                                                          first-value)
+                                                      elements)
+                                      :params params :space space :left left :axes axes))
+                     ;; if this value is to the left of a function like the 5 in 5+3,
+                     ;; process it without looking for a function to its left
+                     (if left (if (build-operator (list (first tokens)) :params params :space space
+                                                                        :valence :pivotal :axes axes)
+                                  (values nil (build-value tokens :elements elements :params params
+                                                                  :space space :axes axes)
+                                          axes axes-last)
+                                  ;; axes not passed back if elements present for cases like m←'+∘×'[2],⍵
+                                  ;; if no elements, as for ⊂[⍬]⍳3, axes are passed
+                                  (values (build-value nil :elements elements :params params
+                                                           :space space :axes axes)
+                                          tokens (if (not elements) axes)
+                                          axes-last))
                          (if elements
                              ;; if axes were -not- encountered last, apply them to the preceding
                              ;; value, as with 3+1 2 3[2]
@@ -582,9 +592,9 @@
                                                                        :params params :space space)
                                                       space params nil)
                                                    (cons (list :fn :pass composed) remaining)))
-                                             (when (print (and (listp (first tokens))
+                                             (when (and (listp (first tokens))
                                                         (eq :op (caar tokens))
-                                                        (eq :lateral (cadar tokens))))
+                                                        (eq :lateral (cadar tokens)))
                                                (error
                                                 "No function found to the left of lateral operator ~a."
                                                 (third (first tokens))))))))))
@@ -611,15 +621,15 @@
 
 (defun build-function (tokens &key axes found-function initial space params)
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
-  ;; (print (list :to tokens params :ff found-function))
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
                 (not (position (caar tokens) #(:fn :op :st :pt :ax) :test #'eql))
                 (or (not found-function)
                     (and (listp (caar tokens))
+                         ;; the :initial property is passed for cases like ((3+1,⍴)+)3 3 30⍴2
                          (not (setq first-function (build-function (first tokens)
-                                                                   :space space :params params))))))
-           ;; (print (list :enc tokens found-function first-function))
+                                                                   :space space :params params
+                                                                   :initial initial))))))
            ;; TODO: case for things like (+∘0)
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
@@ -627,11 +637,10 @@
                (multiple-value-bind (sub-function remaining)
                    (build-function (first tokens) :initial t :space space :params params)
                  ;; join sub-function to other functions if present, as with ⍴∘(,∘×)
-                 ;; (print (list :sub sub-function tokens (first tokens)))
                  (if sub-function ;; catch errors like (2+) 5
                      (if remaining
                          ;; if something remains to the left, check whether it's a value,
-                         ;; otherwise function trains like (≠(⊢⍤/)⊢) will thro*w an error
+                         ;; otherwise function trains like (≠(⊢⍤/)⊢) will throw an error
                          (let ((left-val (build-value remaining :space space :params params)))
                            (if left-val
                                ;; if the left value is actually a passed function, compose a function
@@ -662,8 +671,6 @@
                        ;; requires (build-value) to be called on the possible right operand, since
                        ;; (build-value) is used to compile pivotal compositions with a value on the right
 
-                       ;; (print (list :ff second-operator first-fn-passthrough))
-
                        (setf first-fn-passthrough (if (not (and (listp first-fn-passthrough)
                                                                 (eq :fn   (first  first-fn-passthrough))
                                                                 (eq :pass (second first-fn-passthrough))))
@@ -672,7 +679,6 @@
                                                      (not (member (first second-operator)
                                                                   '(inws inwsd))))
                                                  second-operator (second second-operator)))
-                       ;; (print (list 33 second-operator tokens))
                        (if (not first-fn-passthrough)
                            nil (complete-pivotal-match second-operator (cdr tokens)
                                                        first-fn-passthrough nil space params nil)))))))
@@ -733,15 +739,14 @@
                                                   exp-function `(function ,exp-function))))
                                  (build-function
                                   remaining :space space :params params :initial initial
-                                  :found-function (compose-function-lateral
-                                                   exp-operator fn-wrap nil axes)))
+                                  :found-function (compose-function-lateral exp-operator fn-wrap nil axes)))
                                ;; if the operator was not followed by a function, check whether
                                ;; it's an overloaded lexical function and if so process it as such
-                               (let* ((fn-token (when (and (listp (first tokens))
-                                                           (characterp (third (first tokens))))
-                                                  (list :fn (third (first tokens)))))
-                                      (ol-function (when fn-token (process-function fn-token params
-                                                                                    space))))
+                               (let ((ol-function)
+                                     (fn-token (when (and (listp (first tokens))
+                                                          (characterp (third (first tokens))))
+                                                 (list :fn (third (first tokens))))))
+                                 (when fn-token (setf ol-function (process-function fn-token params space)))
                                  (if ol-function (build-function
                                                   (rest tokens)
                                                   :space space :params params
@@ -774,7 +779,7 @@
                           :initial initial :space space :params params
                           :found-function (if (not (characterp exp-function))
                                               exp-function (build-call-form exp-function :dyadic axes)))
-                         #|TODO: clause for overloaded operators like /|#))))))
+                           #|TODO: clause for overloaded operators like /|#))))))
           ;; this clause continues a function composition that started in previous iterations
           ((and initial (eq :special-lexical-form-assign (first tokens))
                 (not (eq :no-assign initial)))
@@ -809,7 +814,7 @@
                                  (if (or second-function second-value
                                          (not (and (listp second-val-remaining)
                                                    (listp (first second-val-remaining))
-                                                   (eq :fn (caar second-val-remaining))
+                                                   (eq :fn   (caar second-val-remaining))
                                                    (eq :pass (cadar second-val-remaining)))))
                                      (values (or second-function second-value)
                                              second-val-remaining)
@@ -823,7 +828,7 @@
                                     (if (or second-function second-value second-val-fn)
                                         (compose-function-train space found-function first-function
                                                                 (or second-function
-                                                                    (if (not second-value) second-val-fn))
+                                                                    (if second-value nil second-val-fn))
                                                                 second-value)
                                         (compose-function-train space found-function first-function))
                                     :initial initial :space space :params params)
@@ -1202,8 +1207,7 @@
                        ;; compiler is at the top level; i.e. not within a
                        ;; { function }, where bound variables are lexical
                        (proclaim (list 'special insym))
-                       (if xfns-assigned (setf (symbol-function insym)
-                                               #'dummy-nargument-function)
+                       (if xfns-assigned (setf (symbol-function insym) #'dummy-nargument-function)
                            (set insym nil))))))
                (if (and function (not xfns-assigned))
                    (if (listp syms) ;; handle namespace paths
