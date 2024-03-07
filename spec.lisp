@@ -2018,6 +2018,13 @@
   (for "More complex three-element train with sub-compositions."
        "(⍳∘≢(∘.⌷)⊂) 2 3 3⍴⍳18" #(#2A((1 2 3) (4 5 6) (7 8 9)) #2A((10 11 12) (13 14 15) (16 17 18))))
   (for "Function train including ⍥-composition." "∧/2(=⍥≢)/('abcd' 'abcd' 'abcd' 'abcd')" 1)
+  (for "Train of function and another enclosed function train." "((3+1,⍴)+)3 3 6⍴2" #(4 6 6 9))
+  (for "Another permutation of the above." "((1,⍴)+)3 3 6⍴2" #(1 3 3 6))
+  (for "Yed another permutation." "((-⍴)+)3 3 6⍴2" #(-3 -3 -6))
+  (for "Train of function and another enclosed function train."
+       "(⍴(3+1,⍴)+)3 3 6⍴2" #3A(((4 5 5 5 5 5 5) (4 5 5 5 5 5 5) (4 5 5 5 5 5 5))
+                                ((4 5 5 5 5 5 5) (4 5 5 5 5 5 5) (4 5 5 5 5 5 5))
+                                ((4 5 5 5 5 5 5) (4 5 5 5 5 5 5) (4 5 5 5 5 5 5))))
   (for "Recursive function." "refn←{A←⍵-1 ⋄ $[A≥0;A,refn A;0]} ⋄ refn 5" #(4 3 2 1 0 0))
   (for "Lateral operator definition." "lop←{8 ⍺⍺ 5×2+⍵} ⋄ × lop 5" 280)
   (for "Lateral operator defined and used within a funciton."
