@@ -64,9 +64,9 @@
   (lambda (omega &optional alpha)
     (if (and alpha (zerop omega) (zerop alpha))
         (if (zerop method) 1 0)
-        (if alpha (/ alpha omega)
-            (if (and (< 0 method) (zerop omega))
-                0 (/ omega))))))
+        (if (and (< 0 method) (zerop omega))
+            0 (if alpha (/ alpha omega)
+                  (/ omega))))))
 
 (defun sb-rationalize (x)
   "This is a port of SBCL's (rationalize) function. It is needed for use in ABCL and ECL, whose (rationalize) implementations appear to simply pass through to (rational)."
