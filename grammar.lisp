@@ -629,7 +629,8 @@
                          ;; the :initial property is passed for cases like ((3+1,⍴)+)3 3 30⍴2
                          (not (setq first-function (build-function (first tokens)
                                                                    :space space :params params
-                                                                   :initial initial))))))
+                                                                   ;; :initial initial
+                                                                   ))))))
            ;; TODO: case for things like (+∘0)
            (if found-function (values found-function tokens)
                ;; if a function is under construction, a following closure indicates that there
