@@ -107,9 +107,9 @@
             (lambda (idiom)
               (let ((output) (cw (of-system idiom :closure-wrapping))
                     (fw (of-system idiom :function-wrapping)) (aw (of-system idiom :axis-wrapping)))
-                (loop :for i :from (/ (length cw) 2) :to (1- (length cw)) :do (push (aref cw i) output))
-                (loop :for i :from (/ (length fw) 2) :to (1- (length fw)) :do (push (aref fw i) output))
-                (loop :for i :from (/ (length aw) 2) :to (1- (length aw)) :do (push (aref aw i) output))
+                (loop :for i :from  (/ (length cw) 2) :to (1- (length cw)) :do (push (aref cw i) output))
+                (loop :for i :from  (/ (length fw) 2) :to (1- (length fw)) :do (push (aref fw i) output))
+                (loop :for i :from  (/ (length aw) 2) :to (1- (length aw)) :do (push (aref aw i) output))
                 (loop :for i :below (/ (length cw) 2) :do (push (aref cw i) output))
                 (loop :for i :below (/ (length fw) 2) :do (push (aref fw i) output))
                 (loop :for i :below (/ (length aw) 2) :do (push (aref aw i) output))
@@ -531,6 +531,7 @@
                              ((#(2 1 1) #(2 1 2) #(2 1 3)) (#(2 2 1) #(2 2 2) #(2 2 3))
                               (#(2 3 1) #(2 3 2) #(2 3 3)) (#(2 4 1) #(2 4 2) #(2 4 3)))))
             (is "2×1-⍨⍳4" #(0 2 4 6))
+            (is "¯1-⍳8" #(-2 -3 -4 -5 -6 -7 -8 -9))
             (is "((,2)⍳3),2 3⍳4" #(2 3))
             (is "(,3)⍳⍳4" #(2 2 1 2))
             (is "2 4⍳⍳5" #(3 1 3 2 3))
@@ -1967,7 +1968,7 @@
        "1 2 3∘(×.+)⊢4 5 6" 315)
   (for "Multiple composed pivotal operations called in sequence."
        "(4 5 6∘(∘.×)) (1 2 3∘(∘.+)) 10 20 30"
-       #3A(((44 84 124) (48 88 128) (52 92 132))
+       #3A(((44 84  124) (48 88  128) (52 92  132))
            ((55 105 155) (60 110 160) (65 115 165))
            ((66 126 186) (72 132 192) (78 138 198))))
   (for "Pivotal composition of overloaded function, further composed laterally."

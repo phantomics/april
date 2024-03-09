@@ -599,46 +599,46 @@
     (setf (getf metadata :index-width) linear-index-type)))
 
 (setf *generators*
-      (list ;; #+(and sbcl x86-64)
-            ;; (lambda (varray sbesize get-span output)
-            ;;   ;; (print (list :eee sbesize))
-            ;;   (unless (/= 1 sbesize)
-            ;;     ;; currently disabled for sub-byte indices
-            ;;     (multiple-value-bind (jit-form input-array type start-points counts)
-            ;;         (effect varray output :format :x86-asm)
-            ;;       ;; (print (list :ees start-points counts))
-            ;;       (when jit-form
-            ;;         (let ((iaddr (sb-c::with-array-data
-            ;;                          ((raveled input-array) (start 0) (end))
-            ;;                        (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-            ;;               (oaddr (sb-c::with-array-data
-            ;;                          ((raveled output) (start 0) (end))
-            ;;                        (sb-vm::sap-int (sb-sys::vector-sap raveled))))
-            ;;               (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
-            ;;                          (eval jit-form))))
-            ;;           ;; (disassemble jit-gen)
-            ;;           (lambda (dx)
-            ;;             (let ((count (aref counts dx)))
-            ;;               (unless (zerop count)
-            ;;                 (let ((start-at (aref start-points dx)))
-            ;;                   ;; (print (list :sa start-points start-at count))
-            ;;                   (lambda ()
-            ;;                     (funcall jit-gen start-at
-            ;;                              count iaddr oaddr)))))))))))
-            ;; (lambda (varray sbesize get-span output)
-            ;;   (unless (/= 1 sbesize)
-            ;;     (multiple-value-bind (jit-form input-array type)
-            ;;         (effect varray output)
-            ;;       (declare (ignore input-array))
-            ;;       ;; (print (list :jf jit-form input-array type))
-            ;;       (when jit-form
-            ;;         (let ((jit-gen (eval jit-form)))
-            ;;           (lambda (dx)
-            ;;             (multiple-value-bind (start-at count)
-            ;;                 (funcall get-span dx)
-            ;;               (lambda ()
-            ;;                 (funcall jit-gen start-at count
-            ;;                          (vader-base varray) output)))))))))
+      (list #+(and sbcl x86-64)
+            (lambda (varray sbesize get-span output)
+              ;; (print (list :eee sbesize))
+              (unless (/= 1 sbesize)
+                ;; currently disabled for sub-byte indices
+                (multiple-value-bind (jit-form input-array type start-points counts)
+                    (effect varray output :format :x86-asm)
+                  ;; (print (list :ees start-points counts))
+                  (when jit-form
+                    (let ((iaddr (sb-c::with-array-data
+                                     ((raveled input-array) (start 0) (end))
+                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                          (oaddr (sb-c::with-array-data
+                                     ((raveled output) (start 0) (end))
+                                   (sb-vm::sap-int (sb-sys::vector-sap raveled))))
+                          (jit-gen (let ((sb-ext:*evaluator-mode* :interpret))
+                                     (eval jit-form))))
+                      ;; (disassemble jit-gen)
+                      (lambda (dx)
+                        (let ((count (aref counts dx)))
+                          (unless (zerop count)
+                            (let ((start-at (aref start-points dx)))
+                              ;; (print (list :sa start-points start-at count))
+                              (lambda ()
+                                (funcall jit-gen start-at
+                                         count iaddr oaddr)))))))))))
+            (lambda (varray sbesize get-span output)
+              (unless (/= 1 sbesize)
+                (multiple-value-bind (jit-form input-array type)
+                    (effect varray output)
+                  (declare (ignore input-array))
+                  ;; (print (list :jf jit-form input-array type))
+                  (when jit-form
+                    (let ((jit-gen (eval jit-form)))
+                      (lambda (dx)
+                        (multiple-value-bind (start-at count)
+                            (funcall get-span dx)
+                          (lambda ()
+                            (funcall jit-gen start-at count
+                                     (vader-base varray) output)))))))))
             ))
 
 (defmethod render ((varray varray) &rest params)
