@@ -76,11 +76,26 @@
         (when (and (integerp base-val) (plusp base-val))
           (make-instance 'vapri-onehot-vector :shape (list base-val) :index (- base-val index-origin)))))))
 
+(defun extend-allocator-vader-where (&key base argument index-origin)
+  "Extend allocation behavior of where class; allows for the general case of {(,⍵)/,⍳⍴⍵} applying to a non-boolean argument for monadic ⍸."
+  (let ((base-shape (shape-of base)))
+    (case (etype-of base)
+      (bit) ;; in the case of a binary array, instantiate the dedicated class
+      (t (make-instance 'vader-expand :index-origin index-origin :axis :last :inverse t
+                                      :base (if (< 1 (length base-shape))
+                                                (make-instance 'vader-pare
+                                                               :base (make-instance 'vapri-coordinate-identity
+                                                                                    :shape base-shape
+                                                                                    :index-origin index-origin))
+                                                (make-instance 'vapri-apro-vector :offset index-origin
+                                                                                  :number (first base-shape)))
+                                      :argument (make-instance 'vader-pare :base base))))))
+
 (defun extend-allocator-vader-section (&key base argument inverse axis index-origin)
   "Extend allocation behavior of section class; allows resizing of one-hot vectors."
   (declare (ignore axis))
   (typecase base
-    (bit (when (and (= 1 base) (not inverse)
+    (bit (when (and (not (zerop base)) (not inverse)
                     (or (not (listp argument))
                         (= 1 (length argument))))
            (let ((arg (disclose-unitary (render argument))))
@@ -97,9 +112,9 @@
                                                       (if (plusp arg)
                                                           0 (- (abs arg) (size-of base))))))))))
 
-(defun extend-allocator-vader-permute (&key base argument index-origin)
+(defun extend-allocator-vader-permute (&key base argument inverse axis index-origin)
   "Extend allocation behavior of permute class; allows simple inversion of permutation without an argument."
-  (declare (ignore axis index-origin))
+  (declare (ignore axis index-origin inverse))
   (typecase base
     (vader-permute
      (when (and (not argument) (not (vads-argument base)))

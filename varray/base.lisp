@@ -109,9 +109,10 @@
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
   "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions (mostly found in combinatorics.lisp) which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
-  (let* ((cname (class-name this-class))
-         (fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase cname))
-                        *package-name-string*)))
+  (let ((fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase (class-name this-class)))
+                       *package-name-string*)))
+    ;; TODO: make the EXTEND-ALLOCATOR- symbol part of the classes so this
+    ;; string processing is not needed with every allocation
     (if (fboundp fname) (or (apply (symbol-function fname) params)
                             (call-next-method))
         (call-next-method))))
@@ -602,11 +603,11 @@
       (list #+(and sbcl x86-64)
             (lambda (varray sbesize get-span output)
               ;; (print (list :eee sbesize))
-              (unless (/= 1 sbesize)
+              (when (= 1 sbesize)
                 ;; currently disabled for sub-byte indices
                 (multiple-value-bind (jit-form input-array type start-points counts)
                     (effect varray output :format :x86-asm)
-                  ;; (print (list :ees start-points counts))
+                  ;; (print (list :ees start-points counts jit-form))
                   (when jit-form
                     (let ((iaddr (sb-c::with-array-data
                                      ((raveled input-array) (start 0) (end))
@@ -625,20 +626,20 @@
                               (lambda ()
                                 (funcall jit-gen start-at
                                          count iaddr oaddr)))))))))))
-            (lambda (varray sbesize get-span output)
-              (unless (/= 1 sbesize)
-                (multiple-value-bind (jit-form input-array type)
-                    (effect varray output)
-                  (declare (ignore input-array))
-                  ;; (print (list :jf jit-form input-array type))
-                  (when jit-form
-                    (let ((jit-gen (eval jit-form)))
-                      (lambda (dx)
-                        (multiple-value-bind (start-at count)
-                            (funcall get-span dx)
-                          (lambda ()
-                            (funcall jit-gen start-at count
-                                     (vader-base varray) output)))))))))
+            ;; (lambda (varray sbesize get-span output)
+            ;;   (when (= 1 sbesize)
+            ;;     (multiple-value-bind (jit-form input-array type)
+            ;;         (effect varray output)
+            ;;       (declare (ignore input-array))
+            ;;       ;; (print (list :jf jit-form input-array type))
+            ;;       (when jit-form
+            ;;         (let ((jit-gen (eval jit-form)))
+            ;;           (lambda (dx)
+            ;;             (multiple-value-bind (start-at count)
+            ;;                 (funcall get-span dx)
+            ;;               (lambda ()
+            ;;                 (funcall jit-gen start-at count
+            ;;                          (vader-base varray) output)))))))))
             ))
 
 (defmethod render ((varray varray) &rest params)

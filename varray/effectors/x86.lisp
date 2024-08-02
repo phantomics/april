@@ -99,7 +99,7 @@
                    (if this-effector (progn (push this-effector effectors)
                                             (setf varray-point (vader-base varray-point)))
                        (setf varray-point nil))))
-       ;; (print (list :abcd))
+       ;; (print (list :abcd varray-point))
        (when (and varray-point encoding coordinate-type
                   (not (member (array-element-type varray-point)
                                '(t base-char character) :test #'eql)))
@@ -140,7 +140,7 @@
                                        (aref start-points ix) total)
                                  (setf (aref start-points ix) 0))))))
 
-           ;; (print (list :segs el-width start-points counts (type-of varray-point)))
+           (print (list :segs el-width start-points counts (type-of varray-point)))
            
            (values
             `(progn
@@ -307,6 +307,7 @@
                      (compile nil '(lambda (a b c d)
                                     (declare (optimize (speed 3) (safety 0)))
                                     (varray::vop-ph a b c d)))))
+                   
             ;; (print :ggg)
             ;; (error "A")
             varray-point :x86-asm start-points counts)))))
@@ -374,6 +375,7 @@
                     (ROTATED (gensym)))
                (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
                  (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+                 (print (list :dd adj-degrees cwidth cindex etag (vaturn-degrees varray)))
                  `((inst add ,etag ,r8 ,adj-degrees)
                    ,@(if (zerop axis) `((inst cmp ,etag ,r8 ,adj-dim))
                          `((inst mov ,etag ,ra ,r8)
@@ -435,24 +437,32 @@
 
 (defmethod effector-of :around ((varray vader-permute) &optional params)
   (let ((format (getf params :format)))
+    ;; TODO: BUG: in the case of 10 10 10↑⊢⊢⍉100 100 100⍴⍳1000, the root ⍳ expression should not
+    ;; pass a maximum dimension of 1000 up to the types above
     (case format
       (:x86-asm
        (let* ((metadata (getf (metadata-of varray) :shape))
               (encoding (getf (rest (getf metadata :gen-meta)) :index-width))
               (cwidth (getf (rest (getf metadata :gen-meta)) :index-type))
               (etag (case encoding (8 :byte) (16 :word) (32 :dword) (64 :qword))))
-         (if (and cwidth (= 8 cwidth) (not (vads-argument varray)))
+         ;; (print (list :cc metadata etag cwidth encoding (vads-argument varray)
+         ;;              (and cwidth (= 8 cwidth) (not (vads-argument varray))
+         ;;                   (member etag '(:dword :qword)))))
+         (if (and cwidth (= 8 cwidth) (not (vads-argument varray))
+                  (member etag '(:dword :qword)))
              (lambda (symbols)
+               (print :ee)
                (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
                  (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
-                 `((inst bswap ,etag ,r8)
-                   ,@(when (/= encoding (* cwidth (rank-of varray)))
-                       `((inst shr ,etag ,r8 ,(- encoding (* cwidth (rank-of varray)))))))))
-             (when (= 2 (rank-of varray))
-               (lambda (symbols)
-                 (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
-                   (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
-                   `((inst ror ,etag ,r8 ,(/ encoding 2)))))))))
+                 (print `((inst bswap ,etag ,r8)
+                          ,@(when (/= encoding (* cwidth (rank-of varray)))
+                              `((inst shr ,etag ,r8 ,(- encoding (* cwidth (rank-of varray))))))))))
+             (if (= 2 (rank-of varray))
+                 (lambda (symbols)
+                   (destructuring-bind (ra rc rd rb r6 r7 r8 r9 r10 r11) symbols
+                     (declare (ignorable ra rc rd rb r6 r7 r8 r9 r10 r11))
+                     `((inst ror ,etag ,r8 ,(/ encoding 2)))))
+                 (call-next-method)))))
       (t (call-next-method)))))
 
 (defmethod effector-of :around ((varray vader-expand) &optional params)
