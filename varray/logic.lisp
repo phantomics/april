@@ -78,18 +78,36 @@
 
 (defun extend-allocator-vader-where (&key base argument index-origin)
   "Extend allocation behavior of where class; allows for the general case of {(,⍵)/,⍳⍴⍵} applying to a non-boolean argument for monadic ⍸."
-  (let ((base-shape (shape-of base)))
+  (let* ((base-shape (shape-of base))
+         (base-type (etype-of base))
+         ;; TODO: add more validity heuristics - work can be saved if the input type is known
+         (known-valid (or (eql 'bit base-type)
+                          (and (listp base-type)
+                               (member 'unsigned-byte base-type)
+                               (and (eql 'integer (first base-type))
+                                    (<= 0 (second base-type))))))
+         (arg (funcall (if known-valid #'identity #'render)
+                       (make-instance 'vader-pare :base base))))
+    
+    (when (and (not known-valid)
+               (not (loop :for index :below (array-total-size arg)
+                          :never (let ((value (row-major-aref arg index)))
+                                   (print (list :val value))
+                                   (or (not (integerp value))
+                                       (> 0 value))))))
+      (error "Invalid input to monadic ⍸ - all elements of argument must be non-negative integers."))
+    
     (case (etype-of base)
       (bit) ;; in the case of a binary array, instantiate the dedicated class
-      (t (make-instance 'vader-expand :index-origin index-origin :axis :last :inverse t
-                                      :base (if (< 1 (length base-shape))
-                                                (make-instance 'vader-pare
-                                                               :base (make-instance 'vapri-coordinate-identity
-                                                                                    :shape base-shape
-                                                                                    :index-origin index-origin))
-                                                (make-instance 'vapri-apro-vector :offset index-origin
-                                                                                  :number (first base-shape)))
-                                      :argument (make-instance 'vader-pare :base base))))))
+      (t (make-instance
+          'vader-expand :index-origin index-origin :axis :last :inverse t :argument arg
+                        :base (if (< 1 (length base-shape))
+                                  (make-instance 'vader-pare
+                                                 :base (make-instance 'vapri-coordinate-identity
+                                                                      :shape base-shape
+                                                                      :index-origin index-origin))
+                                  (make-instance 'vapri-apro-vector :offset index-origin
+                                                                    :number (first base-shape))))))))
 
 (defun extend-allocator-vader-section (&key base argument inverse axis index-origin)
   "Extend allocation behavior of section class; allows resizing of one-hot vectors."
