@@ -2,7 +2,7 @@
 
 #+asdf3 (in-package :asdf-user)
 
-(defsystem maxpc-apache
+(defsystem maxpc-apache-test
   :description
   "Test and benchmark suite for MaxPC."
   :author "Max Rottenkolber <max@mr.gy>"

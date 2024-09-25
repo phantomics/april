@@ -87,7 +87,7 @@
     (error "GET-INPUT-POSITION may only be called inside ?FAIL, %HANDLER-CASE
 and %RESTART-CASE."))
   (let ((position (input-position *input-fail*)))
-    (if (eq (input-element-type *input-fail*) 'character)
+    (if (subtypep (input-element-type *input-fail*) 'character)
 	(multiple-value-bind (line character)
 	    (parse-line-position *input-start* position)
 	  (values position line character))
