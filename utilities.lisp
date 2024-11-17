@@ -23,6 +23,7 @@
 (defparameter *io-currying-function-symbols-monadic* '(ravel-arrays))
 (defparameter *io-currying-function-symbols-dyadic* '(catenate-arrays catenate-on-first section-array))
 (defparameter *package-name-string* (package-name *package*))
+(defvar *preevaluate* nil)
 
 (defvar *demo-packages*
   (append '(april-demo.ncurses)
@@ -814,7 +815,7 @@
                                :may-be-deferred t)))
               ((and (listp symbol) (eql 'symbol-function (first symbol)))
                `(setf ,symbol ,value))
-              (t (let ((symbols (if (not (eql 'avec (first symbol)))
+              (t (let ((symbols (if (not (vspecp symbol))
                                     symbol (rest symbol))))
                    ;; handle multiple assignments like a b c←1 2 3
                    (labels ((process-symbols (sym-list values)
@@ -835,7 +836,7 @@
                                      (values (if (or (not assigning-xfns)
                                                      (not (listp values))
                                                      (not (listp (third values)))
-                                                     (not (eql 'avec (first (third values)))))
+                                                     (not (vspecp (third values))))
                                                  ;; change (avec 'values') to (list 'values') so that
                                                  ;; the external item loaders can properly tell the difference
                                                  ;; between "abc" and (avec #\a #\b #\c) as arguments
@@ -844,12 +845,12 @@
                                                                     (cons (cons 'list (rest (third values)))
                                                                           (cdddr values)))))))
                                 (if (and (listp sym-list) (listp values)
-                                         (eql 'avec (first values))
+                                         (vspecp values)
                                          (/= (length sym-list) (length (rest values))))
                                     (error "Attempted to assign a vector of values to a ~a"
                                            "vector of symbols of a different length."))
                                 `(let* ((,is-nested ,(loop :for sym
-                                                             :in (if (not (eql 'avec (first sym-list)))
+                                                             :in (if (not (vspecp sym-list))
                                                                      sym-list (rest sym-list))
                                                            :always (not (and (listp sym)
                                                                              (not (eql 'inws
@@ -858,7 +859,7 @@
                                    ;;(declare (ignorable ,this-val ,this-generator))
                                    ;; IPV-TODO: currently threaded assignment requires rendering
                                    ;; of the input vector; can this be improved?
-                                   ,@(loop :for sym :in (if (not (eql 'avec (first sym-list)))
+                                   ,@(loop :for sym :in (if (not (vspecp sym-list))
                                                             sym-list (rest sym-list))
                                            :for sx :from 0
                                            :append
@@ -952,6 +953,10 @@
                                   member (array-to-nested-vector member)))
              (aops:split array 1)))
 
+(defmacro svec (&rest form)
+  "A macro aliasing (avec) used to denote static April vectors containing no variables."
+  (cons 'avec form))
+
 (defun avec (&rest items)
   "This function returns an APL vector; in the case of virtual arrays within the vector, a nested virtual container vector is returned."
   (let ((type) (contains-varrays))
@@ -966,6 +971,10 @@
            'vader-subarray :base item-vector :shape (shape-of item-vector)
                            :nested t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
+
+(defun vspecp (form)
+  "Determine whether a form expresses an April array spec, i.e. a form like (avec ...) or (vector ...)."
+  (and (listp form) (member (first form) '(avec svec vector) :test #'eql)))
 
 (defun parse-apl-number-string (number-string &optional component-of)
   "Parse an APL numeric string into a Lisp value, handling high minus signs, J-notation for complex numbers and R-notation for rational numbers."
@@ -999,6 +1008,13 @@
                   (regex-replace-all (of-system this-idiom :negative-signs-pattern)
                                      nstring "-")
                   :float-format 'double-float)))))))
+
+(defun stformp (form)
+  (or (numberp form) (characterp form) (arrayp form)
+      (and (listp form) (eql 'svec (first form)))))
+
+(defun evstatic-if (condition form)
+  (if (not condition) form (eval form)))
 
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
@@ -1114,13 +1130,14 @@
 (defun resolve-function (reference)
   "Return a function form if it's valid as a function within compiled April code."
   (when (and (listp reference)
+             (not (vspecp reference))
              (or (eql 'lambda (first reference))
                  (and (symbolp (first reference))
                       (macro-function (first reference))
-                      (not (position (first reference)
-                                     ;; TODO: this will cause a problem if a function is passed and assigned
-                                     #(avec a-call apl-if a-out a-set)
-                                     :test #'eql)))))
+                      (not (member (first reference)
+                                   ;; TODO: this will cause a problem if a function is passed and assigned
+                                   '(a-call apl-if a-out a-set)
+                                   :test #'eql)))))
     reference))
 
 (defun extract-axes (process tokens &optional axes)
@@ -1461,7 +1478,8 @@
     (let ((properties (reverse properties)))
       (if form (if (listp form)
                    (let ((initial (first form)))
-                     (if (position initial #(avec achoose inws inwsd) :test #'eql)
+                     (if (or (vspecp form)
+                             (member initial '(achoose inws inwsd) :test #'eql))
                          form (if (not (or (numberp initial)
                                            (listp initial)
                                            (stringp initial)
@@ -1480,10 +1498,16 @@
                                   (if (= 1 (length properties))
                                       (apply-props form (first properties))
                                       (mapcar #'apply-props form properties))
-                                  (if (getf (first properties) :vector-axes)
-                                      (enclose-axes `(avec ,@(mapcar #'apply-props form properties))
-                                                    (getf (first properties) :vector-axes))
-                                      `(avec ,@(mapcar #'apply-props form properties))))))
+                                  (let ((is-static (loop :for item :in form
+                                                         :always (or (numberp item)
+                                                                     (characterp item)
+                                                                     (arrayp item)))))
+                                    ;; (print (list :ii form is-static))
+                                    (if (getf (first properties) :vector-axes)
+                                        (enclose-axes `(avec ,@(mapcar #'apply-props form properties))
+                                                      (getf (first properties) :vector-axes))
+                                        (cons (if is-static 'svec 'avec)
+                                              (mapcar #'apply-props form properties)))))))
                    (if (numberp form)
                        form (apply-props form properties)))))))
 
@@ -2124,9 +2148,9 @@
         (fn-count 0) (op-count 0) (afn-count 0) (aop-count 0) (args (gensym))
         (lexicons (list :functions nil :functions-monadic nil :functions-dyadic nil
                         :functions-symbolic nil :functions-scalar-monadic nil
-                        :functions-scalar-dyadic nil :operators nil :operators-lateral nil
-                        :operators-pivotal nil :statements nil :statements-symbolic nil
-                        :symbolic-forms nil)))
+                        :functions-scalar-dyadic nil :functions-with-implicit-args nil
+                        :operators nil :operators-lateral nil :operators-pivotal nil
+                        :statements nil :statements-symbolic nil :symbolic-forms nil)))
     (flet ((wrap-meta (glyph type form metadata &optional is-not-ambivalent)
              (if (not metadata)
                  `(fn-meta ,form ,@(list :valence type :lexical-reference glyph))
@@ -2206,6 +2230,8 @@
                             (operators (incf aop-count)))
                       (push alias-symbol symbol-set)
                       (push valias-symbol symbol-set))))
+                (when (and implicit-args (eql spec-type 'functions))
+                  (push-char-and-aliases :functions-with-implicit-args))
                 (case item-type
                   (alias-of (let* ((achar (aref (string (second implementation)) 0))
                                    ;; assign an alias symbol to other lexicons containing

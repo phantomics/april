@@ -140,7 +140,7 @@
                                        (aref start-points ix) total)
                                  (setf (aref start-points ix) 0))))))
 
-           (print (list :segs el-width start-points counts (type-of varray-point)))
+           ;; (print (list :segs el-width start-points counts (type-of varray-point)))
            
            (values
             `(progn

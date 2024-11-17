@@ -502,9 +502,8 @@
                          (if elements
                              ;; if axes were -not- encountered last, apply them to the preceding
                              ;; value, as with 3+1 2 3[2]
-                             (let ((preceding (build-value nil :elements elements :params params
-                                                               :axes (if (not axes-last) axes)
-                                                               :space space)))
+                             (let ((preceding (build-value nil :elements elements :params params :space space
+                                                               :axes (if (not axes-last) axes))))
                                (multiple-value-bind (function remaining)
                                    ;; apply axes to the found function if they were encountered last,
                                    ;; as with 1 2 3∘.⌽[1]⊂2 3 4⍴⍳9
@@ -526,6 +525,7 @@
                                                                                        (first function))))
                                                                         function `(function ,function))
                                                                    ,preceding))))
+                                             (print (list :vl value))
                                              (reg-symfn-call left-fn space
                                                              (getf (getf params :special)
                                                                    :closure-meta))
@@ -536,21 +536,34 @@
                                                                         :space space :params params)))
                                            (if (and (not lval)
                                                     (listp function)
-                                                    (position (first function) #(apl-fn apl-fn-s)
-                                                              :test #'eql)
+                                                    (member (first function) '(apl-fn apl-fn-s)
+                                                            :test #'eql)
                                                     (= 1 (length (string (second function))))
                                                     (not (of-lexicons *april-idiom*
                                                                       (aref (string (second function)) 0)
                                                                       :functions-monadic)))
                                                (error "The function ~a requires a left argument."
                                                       (string (second function)))
-                                               (let ((value `(a-call ,(if (not (and (listp function)
-                                                                                    (eql 'inwsd
-                                                                                         (first function))))
-                                                                          function `(function ,function))
-                                                                     ,preceding
-                                                                     ,@(if lval (list lval)
-                                                                           nil))))
+                                               (let* ((fn-char (and (listp function)
+                                                                    (symbolp (second function))
+                                                                    (aref (string (second function)) 0)))
+                                                      ;; preevaluate the value according to conditions
+                                                      (value (evstatic-if
+                                                              (and *preevaluate* fn-char (stformp preceding)
+                                                                   (getf (getf params :special)
+                                                                         :closure-meta)
+                                                                   (not (of-lexicons
+                                                                         *april-idiom* fn-char
+                                                                         :functions-with-implicit-args))
+                                                                   (or (not lval) (stformp lval)))
+                                                              `(a-call ,(if (not (and (listp function)
+                                                                                      (eql 'inwsd
+                                                                                           (first function))))
+                                                                            function `(function ,function))
+                                                                       ,preceding
+                                                                       ,@(if lval (list lval) nil)))))
+                                                 ;; (print (list :vl2 value preceding lval function))
+                                                 ;; (of-lexicons *april-idiom* fn :functions-with-implicit-args)
                                                  (reg-symfn-call function space
                                                                  (getf (getf params :special)
                                                                        :closure-meta))
@@ -979,8 +992,7 @@
                                    :space space :left t :params params))
                 ;; TODO: account for stuff after the assigned symbol
                 (when (or symbol function)
-                  (if (and symbol (listp symbol) (eql 'avec (first symbol))
-                           (not (all-symbols-p symbol)))
+                  (if (and symbol (vspecp symbol) (not (all-symbols-p symbol)))
                       ;; error occurs if an invalid strand assignment like ⎕←'hi' ⎕←'bye' is made
                       (error "Invalid assignment.")
                       (build-value remaining2
@@ -1091,10 +1103,9 @@
              ;; setq is used instead of a-set because output-stream is a lexical variable
              `(when ,(find-symbol value (package-name *package*))
                 (setq output-stream ,(find-symbol value (package-name *package*))))
-             (if (listp value)
+             (if (vspecp value)
                  (destructuring-bind (vector-symbol package-string symbol-string) value
-                   (if (and (eql 'avec vector-symbol) (stringp package-string)
-                            (stringp symbol-string))
+                   (if (and (stringp package-string) (stringp symbol-string))
                        ;; if the argument is a vector of two strings like ('APRIL' 'OUT-STR'),
                        ;; intern the symbol like (intern "OUT-STR" "APRIL")
                        `(when ,(find-symbol symbol-string package-string)
@@ -1143,7 +1154,7 @@
         (t (let* ((syms (if (symbolp symbol) symbol
                             (if (and (listp symbol) (position (first symbol) #(inws inwsd)
                                                               :test #'eql))
-                                (second symbol) (when (and (listp symbol) (eql 'avec (first symbol)))
+                                (second symbol) (when (vspecp symbol)
                                                   (rest symbol)))))
                   (symbols-list (when (symbolp syms) (list syms)))
                   (set-symbol (if (and (symbolp syms) (position syms #(⍺ ⍶ ⍺⍺) :test #'eql))
@@ -1165,7 +1176,7 @@
                             (let ((out-list
                                     (loop :while valid :for i
                                             :in (if (and (not inner)
-                                                         (not (eql 'avec (first list))))
+                                                         (not (vspecp list)))
                                                     list (rest list))
                                           :collect (setq valid
                                                          (if (symbolp i)

@@ -113,8 +113,13 @@
                        *package-name-string*)))
     ;; TODO: make the EXTEND-ALLOCATOR- symbol part of the classes so this
     ;; string processing is not needed with every allocation
-    (if (fboundp fname) (or (apply (symbol-function fname) params)
-                            (call-next-method))
+    ;; (when (string= "VADER-WHERE" (string-upcase (class-name this-class)))
+    ;;   (print (list :par params)))
+    ;; TODO: this is very strange - the params will sometimes come in as nil for the vader-where
+    ;; class, but the below logic where nil params leads to (call-next-method) solves the problem -
+    ;; what is going on here?
+    (if (and params (fboundp fname)) (or (apply (symbol-function fname) params)
+                                         (call-next-method))
         (call-next-method))))
 
 (defun strides-of (dimensions &optional as-vector)

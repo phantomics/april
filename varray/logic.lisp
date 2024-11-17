@@ -84,15 +84,17 @@
          (known-valid (or (eql 'bit base-type)
                           (and (listp base-type)
                                (member 'unsigned-byte base-type)
-                               (and (eql 'integer (first base-type))
+                               (and (eql 'integer (first base-type)) ;; ⍸0 0 1 0 1 0 0 1 1 0  ⍸1  ⍸3=2 3 4⍴⍳9
                                     (<= 0 (second base-type))))))
          (arg (funcall (if known-valid #'identity #'render)
                        (make-instance 'vader-pare :base base))))
+
+    ;; (print (list :aa arg base))
     
     (when (and (not known-valid)
                (not (loop :for index :below (array-total-size arg)
                           :never (let ((value (row-major-aref arg index)))
-                                   (print (list :val value))
+                                   ;; (print (list :val value))
                                    (or (not (integerp value))
                                        (> 0 value))))))
       (error "Invalid input to monadic ⍸ - all elements of argument must be non-negative integers."))

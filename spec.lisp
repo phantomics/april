@@ -37,11 +37,10 @@
  april
 
  ;; system variables and default state of an April workspace
- (system :output-printed nil
-         :base-state '(:output-stream '*standard-output*)
-         :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
+ (system :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
                                :comparison-tolerance double-float-epsilon
                                :rngs (list :generators :rng (aref *rng-names* 1)))
+         :output-printed nil :base-state '(:output-stream '*standard-output*)
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
          :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
          :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" :axis-separators ";"
