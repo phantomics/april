@@ -109,18 +109,13 @@
 
 (defmethod allocate-instance ((this-class va-class) &rest params)
   "Extend allocation logic for all virtual array classes. This function acts as an interface to the extend-allocator functions (mostly found in combinatorics.lisp) which provide for special allocation behavior of virtual array classes; specifically the potential for their allocation to return a modified form of the base object rather than an instance of their actual class."
-  (let ((fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase (class-name this-class)))
-                       *package-name-string*)))
-    ;; TODO: make the EXTEND-ALLOCATOR- symbol part of the classes so this
-    ;; string processing is not needed with every allocation
-    ;; (when (string= "VADER-WHERE" (string-upcase (class-name this-class)))
-    ;;   (print (list :par params)))
-    ;; TODO: this is very strange - the params will sometimes come in as nil for the vader-where
-    ;; class, but the below logic where nil params leads to (call-next-method) solves the problem -
-    ;; what is going on here?
-    (if (and params (fboundp fname)) (or (apply (symbol-function fname) params)
-                                         (call-next-method))
-        (call-next-method))))
+  (or (and params  ; class-prototype 
+           (let ((fname (intern (format nil "EXTEND-ALLOCATOR-~a" (string-upcase (class-name this-class)))
+                                *package-name-string*)))
+             ;; TODO: make the EXTEND-ALLOCATOR- symbol part of the classes so this
+             ;; string processing is not needed with every allocation
+             (when  (fboundp fname) (apply (symbol-function fname) params))))
+      (call-next-method)))
 
 (defun strides-of (dimensions &optional as-vector)
   "Get the set of dimensional factors corresponding to a set of array dimensions."
