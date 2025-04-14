@@ -5,6 +5,9 @@
 
 "This file contains the specification of April's basic grammar elements, including the basic language components - array, function and operator - and the patterns comprising those elements that make up the language's strucures."
 
+(define-symbol-macro local-idiom
+  (symbol-value (intern "*IDIOM*" space)))
+
 (defun resolve-path (input-sym space properties)
   "Generate an (nspath) namespace path form depending on the symbols found and the status of the workspace's namespace point, set using ⎕CS."
   (if (and (listp input-sym) (eql 'inws (first input-sym)))
@@ -31,8 +34,8 @@
                          (member symbol *system-variables*)
                          (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
                                             :var-syms symbol)
-                         (member symbol (assoc :variable (idiom-symbols *april-idiom*)))
-                         (member symbol (assoc :constant (idiom-symbols *april-idiom*)))))
+                         (member symbol (assoc :variable (idiom-symbols local-idiom)))
+                         (member symbol (assoc :constant (idiom-symbols local-idiom)))))
                 symbol
                 (cons 'nspath (append path-val (if (and (listp symbol)
                                                         (position (first symbol) #(nspath :pt)
@@ -133,7 +136,7 @@
                                        :var-syms this-item)
                     (getf properties :symbol-overriding))
                 (not (member (intern (string-upcase this-item) *package-name-string*)
-                             (rest (assoc :function (idiom-symbols *april-idiom*)))))
+                             (rest (assoc :function (idiom-symbols local-idiom)))))
                 (not (position this-item #(⍺⍺ ⍵⍵ ∇ ∇∇) :test #'eql))
                 (or (not (getf properties :type))
                     (eq :symbol (first (getf properties :type)))))
@@ -144,7 +147,7 @@
                                                    :var-refs))))
              (push this-item (getf (rest (getf (getf properties :special) :closure-meta)) :var-refs)))
            (if (member (intern (string-upcase this-item) *package-name-string*)
-                       (rest (assoc :function (idiom-symbols *april-idiom*))))
+                       (rest (assoc :function (idiom-symbols local-idiom))))
                (intern (string-upcase this-item))
                (resolve-path this-item space properties)))
           ((and (symbolp this-item)
@@ -165,13 +168,12 @@
                           (or (not (getf (getf properties :special) :exclude-symbolic))
                               ;; the :exclude-symbolic property prevents a
                               ;; symbolic function like ∘ from matching
-                              (not (of-lexicons *april-idiom* fn :functions-symbolic)))
-                          (of-lexicons *april-idiom* fn :functions)
+                              (not (of-lexicons local-idiom fn :functions-symbolic)))
+                          (of-lexicons local-idiom fn :functions)
                           (or (not (getf properties :glyph))
                               (and (char= fn (aref (string (getf properties :glyph)) 0)))))
                      fn)
-                    ((and (listp fn)
-                          (not (getf properties :glyph)))
+                    ((and (listp fn) (not (getf properties :glyph)))
                      (if (eq :pass (second this-item))
                          ;; handle a (:fn)-enclosed operator form produced by build-value
                          fn (let* ((polyadic-args (if (and (listp (first (last (first fn))))
@@ -244,8 +246,8 @@
                                         :fn-syms this-item)
                      (if (eql '⍺ this-item) this-item (list 'inws this-item)))
                     ((member (intern (string-upcase this-item) *package-name-string*)
-                             (rest (assoc :function (idiom-symbols *april-idiom*))))
-                     (let ((idiom-function-object (getf (rest (assoc :function (idiom-symbols *april-idiom*)))
+                             (rest (assoc :function (idiom-symbols local-idiom))))
+                     (let ((idiom-function-object (getf (rest (assoc :function (idiom-symbols local-idiom)))
                                                         (intern (string-upcase this-item)
                                                                 *package-name-string*))))
                        (if (listp idiom-function-object)
@@ -525,7 +527,6 @@
                                                                                        (first function))))
                                                                         function `(function ,function))
                                                                    ,preceding))))
-                                             (print (list :vl value))
                                              (reg-symfn-call left-fn space
                                                              (getf (getf params :special)
                                                                    :closure-meta))
@@ -539,7 +540,7 @@
                                                     (member (first function) '(apl-fn apl-fn-s)
                                                             :test #'eql)
                                                     (= 1 (length (string (second function))))
-                                                    (not (of-lexicons *april-idiom*
+                                                    (not (of-lexicons local-idiom
                                                                       (aref (string (second function)) 0)
                                                                       :functions-monadic)))
                                                (error "The function ~a requires a left argument."
@@ -553,7 +554,7 @@
                                                                    (getf (getf params :special)
                                                                          :closure-meta)
                                                                    (not (of-lexicons
-                                                                         *april-idiom* fn-char
+                                                                         local-idiom fn-char
                                                                          :functions-with-implicit-args))
                                                                    (or (not lval) (stformp lval)))
                                                               `(a-call ,(if (not (and (listp function)
@@ -563,7 +564,7 @@
                                                                        ,preceding
                                                                        ,@(if lval (list lval) nil)))))
                                                  ;; (print (list :vl2 value preceding lval function))
-                                                 ;; (of-lexicons *april-idiom* fn :functions-with-implicit-args)
+                                                 ;; (of-lexicons local-idiom fn :functions-with-implicit-args)
                                                  (reg-symfn-call function space
                                                                  (getf (getf params :special)
                                                                        :closure-meta))
@@ -878,12 +879,12 @@
                  (operator-type (or (getf params :valence)
                                     (if (or (member assign-sym (getf closure-meta :lop-syms))
                                             (and (characterp found-operator)
-                                                 (of-lexicons *april-idiom* found-operator
+                                                 (of-lexicons local-idiom found-operator
                                                               :operators-lateral)))
                                         :lateral (when (or (member assign-sym
                                                                    (getf closure-meta :pop-syms))
                                                            (and (characterp found-operator)
-                                                                (of-lexicons *april-idiom* found-operator
+                                                                (of-lexicons local-idiom found-operator
                                                                              :operators-pivotal)))
                                                    :pivotal))))
                  (operator-meta))
@@ -944,7 +945,7 @@
         (build-value nil :elements
                      (list (compose-value-assignment
                             (if (and (member (first tokens)
-                                             (rest (assoc :variable (idiom-symbols *april-idiom*))))
+                                             (rest (assoc :variable (idiom-symbols local-idiom))))
                                      (not (member (first tokens) *system-variables*)))
                                 ;; intern symbols like print-precision properly for assignment
                                 (first tokens)
@@ -1058,9 +1059,9 @@
   "Exension of (build-value) and (build-function) to process functions composed with pivotal operators."
   (let ((next-token (if (not (and (listp (second tokens)) (eq :op (caadr tokens))
                                   (characterp (third (second tokens)))
-                                  (of-lexicons *april-idiom* (third (second tokens)) :operators-pivotal)
-                                  (of-lexicons *april-idiom* (third (second tokens)) :functions)
-                                  (of-lexicons *april-idiom* (third (second tokens)) :symbolic-forms)))
+                                  (of-lexicons local-idiom (third (second tokens)) :operators-pivotal)
+                                  (of-lexicons local-idiom (third (second tokens)) :functions)
+                                  (of-lexicons local-idiom (third (second tokens)) :symbolic-forms)))
                         ;; operators overloaded as symbolic functional tokens are converted to the
                         ;; correct symbol value here; this is needed for [∘. outer product].
                         (second tokens)

@@ -967,9 +967,8 @@
                     contains-varrays (or contains-varrays (varrayp item))))
     (if contains-varrays
         (let ((item-vector (make-array (length items) :element-type type :initial-contents items)))
-          (make-instance
-           'vader-subarray :base item-vector :shape (shape-of item-vector)
-                           :nested t :generator (varray::generator-of item-vector)))
+          (make-instance 'vader-subarray :base item-vector :shape (shape-of item-vector)
+                                         :nested t :generator (varray::generator-of item-vector)))
         (make-array (length items) :element-type type :initial-contents items))))
 
 (defun vspecp (form)
@@ -1347,6 +1346,9 @@
                              :function ,fn-quoted :index-origin 0 :axis ,ax-sym
                              :params (list ,@meta))))))))
 
+(defmacro liminally-controlled (args &body body)
+  (append (list 'lambda args) body))
+
 (defun enclose-axes (body axis-sets &key (set) (set-by))
   "Apply axes to an array, with the ability to handle multiple sets of axes as in (6 8 5⍴⍳9)[1 4;;2 1][1;2 4 5;]."
   (let ((axes (first axis-sets)) (to-set (gensym)))
@@ -1647,57 +1649,58 @@
                    (list `(inws ,(intern symbol *package-name-string*))
                          (second var-entry)))))
 
-(defun build-compiled-code (exps workspace-symbols options system-vars vars-declared stored-refs space)
+(defun provision-code-builder (locator-symbol)
   "Return a set of compiled April expressions within the proper context."
-  (let* ((branch-index (gensym "A")) (branches-sym (find-symbol "*BRANCHES*" space))
-         (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
-         (tags-matching (loop :for tag :in (symbol-value branches-sym)
-                           :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
-    (flet ((process-tags (form)
-             ;; process tags for implementation of [→ branch]ing code
-             (loop :for sub-form :in form
-                :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
-                                       (not (symbolp (second sub-form)))))
-                             sub-form (if (integerp (second sub-form))
-                                          (when (assoc (second sub-form) tags-matching)
-                                            (list 'go (second (assoc (second sub-form) tags-matching))))
-                                          (if (third sub-form)
-                                              `(let ((,branch-index (vrender ,(third sub-form))))
-                                                 (cond ,@(loop :for tag :in (second sub-form)
-                                                            :counting tag :into tix
-                                                            :collect `((= ,branch-index ,tix)
-                                                                       (go ,tag)))))
-                                              `(let ((,branch-index (vrender ,(second sub-form))))
-                                                 (cond ,@(loop :for tag :in tags-matching
-                                                            :when (and (listp tag)
-                                                                       (member (second tag) tags-found))
-                                                            :collect `((= ,branch-index ,(first tag))
-                                                                       (go ,(second tag))))))))))))
-      (funcall (lambda (code) (if (not (assoc :compile-only options))
-                                  code `(quote ,code)))
-               (if (or system-vars vars-declared)
-                   `(in-april-workspace ,(or (second (assoc :space options)) 'common)
-                      (let (,@(loop :for var :in system-vars
-                                 :when (not (member (string-upcase (first var)) workspace-symbols
-                                                    :test #'string=))
-                                 :collect var)
-                            ,@vars-declared)
-                        (declare (ignorable ,@(loop :for var :in system-vars
-                                                 :when (not (member (string-upcase (first var))
-                                                                    workspace-symbols :test #'string=))
-                                                 :collect (first var))))
-                        (symbol-macrolet ,(loop :for var :in system-vars
-                                             :when (member (string-upcase (first var)) workspace-symbols
-                                                           :test #'string=)
-                                             :collect var)
-                          ,@(loop :for ref :in stored-refs
-                               :collect (list (first ref)
-                                              (list 'inws (second ref)) (third ref)))
-                          ,@(if (or (not tags-found) (not (boundp branches-sym)))
-                                exps `((tagbody ,@(butlast (process-tags exps) 1))
-                                       ,(first (last exps)))))))
-                   (if (< 1 (length exps))
-                       (cons 'aprgn exps) (first exps)))))))
+  (lambda (exps workspace-symbols options system-vars vars-declared stored-refs space)
+    (let* ((branch-index (gensym "A")) (branches-sym (find-symbol "*BRANCHES*" space))
+           (tags-found (loop :for exp :in exps :when (symbolp exp) :collect exp))
+           (tags-matching (loop :for tag :in (symbol-value branches-sym)
+                                :when (or (and (listp tag) (member (second tag) tags-found))) :collect tag)))
+      (flet ((process-tags (form)
+               ;; process tags for implementation of [→ branch]ing code
+               (loop :for sub-form :in form
+                     :collect (if (not (and (listp sub-form) (eql 'go (first sub-form))
+                                            (not (symbolp (second sub-form)))))
+                                  sub-form (if (integerp (second sub-form))
+                                               (when (assoc (second sub-form) tags-matching)
+                                                 (list 'go (second (assoc (second sub-form) tags-matching))))
+                                               (if (third sub-form)
+                                                   `(let ((,branch-index (vrender ,(third sub-form))))
+                                                      (cond ,@(loop :for tag :in (second sub-form)
+                                                                    :counting tag :into tix
+                                                                    :collect `((= ,branch-index ,tix)
+                                                                               (go ,tag)))))
+                                                   `(let ((,branch-index (vrender ,(second sub-form))))
+                                                      (cond ,@(loop :for tag :in tags-matching
+                                                                    :when (and (listp tag)
+                                                                               (member (second tag) tags-found))
+                                                                      :collect `((= ,branch-index ,(first tag))
+                                                                                 (go ,(second tag))))))))))))
+        (funcall (lambda (code) (if (not (assoc :compile-only options))
+                                    code `(quote ,code)))
+                 (if (or system-vars vars-declared)
+                     `(,locator-symbol ,(or (second (assoc :space options)) 'common)
+                        (let (,@(loop :for var :in system-vars
+                                      :when (not (member (string-upcase (first var)) workspace-symbols
+                                                         :test #'string=))
+                                        :collect var)
+                              ,@vars-declared)
+                          (declare (ignorable ,@(loop :for var :in system-vars
+                                                      :when (not (member (string-upcase (first var))
+                                                                         workspace-symbols :test #'string=))
+                                                        :collect (first var))))
+                          (symbol-macrolet ,(loop :for var :in system-vars
+                                                  :when (member (string-upcase (first var)) workspace-symbols
+                                                                :test #'string=)
+                                                    :collect var)
+                            ,@(loop :for ref :in stored-refs
+                                    :collect (list (first ref)
+                                                   (list 'inws (second ref)) (third ref)))
+                            ,@(if (or (not tags-found) (not (boundp branches-sym)))
+                                  exps `((tagbody ,@(butlast (process-tags exps) 1))
+                                         ,(first (last exps)))))))
+                     (if (< 1 (length exps))
+                         (cons 'aprgn exps) (first exps))))))))
 
 (defun lexer-postprocess (tokens idiom space &optional closure-meta-form)
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
@@ -2142,7 +2145,7 @@
                                        (a-call ,fn-monadic (first ,args)))))))))
        #',this-fn)))
 
-(defun process-fnspecs (spec-sets)
+(defun process-fnspecs (idiom-symbol spec-sets)
   "Process a set of function and operator specs, generating lists of their referring characters, recording counts of functions and operators and building their assignment forms."
   (let ((assignment-forms) (symbol-set)
         (fn-count 0) (op-count 0) (afn-count 0) (aop-count 0) (args (gensym))
@@ -2197,7 +2200,7 @@
                      (implicit-args (getf primary-metadata :implicit-args))
                      (optional-implicit-args
                        (getf primary-metadata :optional-implicit-args))
-                     (fn-symbol (intern (format nil "APRIL-LEX-~a-~a"
+                     (fn-symbol (intern (format nil "~a-LEX-~a-~a" idiom-symbol
                                                 (case spec-type
                                                   (functions (if (eq item-type 'symbolic)
                                                                  "SY" "FN"))
@@ -2215,14 +2218,14 @@
                 (when (getf props :aliases)
                   (dolist (alias (getf props :aliases))
                     (let ((alias-symbol
-                            (intern (format nil "APRIL-LEX-~a-~a"
+                            (intern (format nil "~a-LEX-~a-~a" idiom-symbol
                                             (case spec-type (functions "FN")
                                                   (operators "OP")
                                                   (statements "ST"))
                                             alias)
                                     *package-name-string*))
                           (valias-symbol
-                            (intern (format nil "APRIL-LEX-VFN-~a" alias)
+                            (intern (format nil "~a-LEX-VFN-~a" idiom-symbol alias)
                                     *package-name-string*)))
                       ;; intern aliases
                       (intern (string alias) *package-name-string*)
@@ -2244,15 +2247,19 @@
                                        (functions '(:functions :functions-monadic
                                                     :functions-dyadic :functions-symbolic
                                                     :functions-scalar-monadic
-                                                    :functions-scalar-dyadic :symbolic-forms))
+                                                    :functions-scalar-dyadic :symbolic-forms
+                                                    :functions-lcontrolled-monadic
+                                                    :functions-lcontrolled-dyadic))
                                        (operators '(:operators :operators-lateral
-                                                    :operators-pivotal))
+                                                    :operators-pivotal
+                                                    :operators-lcontrolled-lateral
+                                                    :operators-lcontrolled-pivotal))
                                        (statements '(:statements))))
                                    (symbolic-alias
                                      (and (eq spec-type 'functions)
                                           (of-lexicons this-idiom achar :symbolic-forms)))
                                    (aliased
-                                     (intern (format nil "APRIL-LEX-~a-~a"
+                                     (intern (format nil "~a-LEX-~a-~a" idiom-symbol
                                                      (case spec-type
                                                        (functions (if symbolic-alias "SY" "FN"))
                                                        (operators "OP")
@@ -2265,7 +2272,8 @@
                                 ;; be assigned; its default form must also be removed
                                 ;; from the symbol set with the correct form added
                                 (setf symbol-set (remove fn-symbol symbol-set)
-                                      fn-symbol (intern (format nil "APRIL-LEX-SY-~a" glyph-sym)
+                                      fn-symbol (intern (format nil "~a-LEX-SY-~a"
+                                                                idiom-symbol glyph-sym)
                                                         *package-name-string*))
                                 (push fn-symbol symbol-set))
 
@@ -2289,8 +2297,13 @@
                                       :do (push glyph-char (getf lexicons key)))))
                   (monadic (incf fn-count)
                    (push-char-and-aliases :functions :functions-monadic)
-                   (when (eql 'scalar-function (caadr implementation))
-                     (push-char-and-aliases :functions-scalar-monadic))
+                   (if (eql 'scalar-function (caadr implementation))
+                       (progn (push-char-and-aliases :functions-scalar-monadic)
+                              (if (and (listp (cadadr implementation))
+                                       (eql 'liminally-controlled (caar (cdadr implementation))))
+                                  (push-char-and-aliases :functions-lcontrolled-monadic)))
+                       (if (eql 'liminally-controlled (caadr implementation))
+                           (push-char-and-aliases :functions-lcontrolled-monadic)))
                    (push (setq assigned-form
                                (funcall
                                 (lambda (form)
@@ -2303,8 +2316,13 @@
                          assignment-forms))
                   (dyadic (incf fn-count)
                    (push-char-and-aliases :functions :functions-dyadic)
-                   (when (eql 'scalar-function (caadr implementation))
-                     (push-char-and-aliases :functions-scalar-dyadic))
+                   (if (eql 'scalar-function (caadr implementation))
+                       (progn (push-char-and-aliases :functions-scalar-dyadic)
+                              (if (and (listp (cadadr implementation))
+                                       (eql 'liminally-controlled (caar (cdadr implementation))))
+                                  (push-char-and-aliases :functions-lcontrolled-dyadic)))
+                       (if (eql 'liminally-controlled (caadr implementation))
+                           (push-char-and-aliases :functions-lcontrolled-dyadic)))
                    (push (setq assigned-form
                                (funcall
                                 (lambda (form)
@@ -2317,10 +2335,23 @@
                          assignment-forms))
                   (ambivalent (incf fn-count 2)
                    (push-char-and-aliases :functions :functions-monadic :functions-dyadic)
-                   (when (eql 'scalar-function (caadr implementation))
-                     (push-char-and-aliases :functions-scalar-monadic))
-                   (when (eql 'scalar-function (caaddr implementation))
-                     (push-char-and-aliases :functions-scalar-dyadic))
+
+                   (if (eql 'scalar-function (caadr implementation))
+                       (progn (push-char-and-aliases :functions-scalar-monadic)
+                              (if (and (listp (cadadr implementation))
+                                       (eql 'liminally-controlled (caar (cdadr implementation))))
+                                  (push-char-and-aliases :functions-lcontrolled-monadic)))
+                       (if (eql 'liminally-controlled (caadr implementation))
+                           (push-char-and-aliases :functions-lcontrolled-monadic)))
+                   
+                   (if (eql 'scalar-function (caaddr implementation))
+                       (progn (push-char-and-aliases :functions-scalar-dyadic)
+                              (if (and (listp (first (cdaddr implementation)))
+                                       (eql 'liminally-controlled (caar (cdaddr implementation))))
+                                  (push-char-and-aliases :functions-lcontrolled-dyadic)))
+                       (if (eql 'liminally-controlled (caaddr implementation))
+                           (push-char-and-aliases :functions-lcontrolled-dyadic)))
+                   
                    (push (setq assigned-form
                                (funcall
                                 (lambda (form)
@@ -2351,9 +2382,13 @@
                          assignment-forms))
                   (lateral (incf op-count)
                    (push-char-and-aliases :operators :operators-lateral)
+                   (if (eql 'liminally-controlled (caadr implementation))
+                       (push-char-and-aliases :operators-lcontrolled-lateral))
                    (push (second implementation) assignment-forms))
                   (pivotal (incf op-count)
                    (push-char-and-aliases :operators :operators-pivotal)
+                   (if (eql 'liminally-controlled (caadr implementation))
+                       (push-char-and-aliases :operators-lcontrolled-pivotal))
                    (push (second implementation) assignment-forms))
                   (unitary (incf op-count)
                    (push-char-and-aliases :operators :statements)
@@ -2376,7 +2411,7 @@
                     (push `(,(if (and (eql 'functions spec-type)
                                       (eql 'symbolic item-type))
                                  'symbol-value 'symbol-function)
-                            (quote ,(find-symbol (format nil "APRIL-LEX-FN-~a" alias)
+                            (quote ,(find-symbol (format nil "~a-LEX-FN-~a" idiom-symbol alias)
                                                  *package-name-string*)))
                           assignment-forms)))))))
         (values lexicons (list `(proclaim '(special ,@symbol-set))

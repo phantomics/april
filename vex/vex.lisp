@@ -264,11 +264,11 @@
            (ws-name (gensym)) (ws-fullname (gensym)))
       (multiple-value-bind (idiom-list assignment-form idiom-data)
           (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
-                   (loop :for subspec :in subspecs
-                         :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                   (string= "OPERATORS" (string-upcase (first subspec)))
-                                   (string= "STATEMENTS" (string-upcase (first subspec))))
-                           :collect subspec))
+                   symbol (loop :for subspec :in subspecs
+                                :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
+                                          (string= "OPERATORS" (string-upcase (first subspec)))
+                                          (string= "STATEMENTS" (string-upcase (first subspec))))
+                                  :collect subspec))
         `(progn ,@(unless extension `((proclaim '(special ,idiom-symbol))
                                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
                 ,@assignment-form
@@ -423,6 +423,7 @@
                                    (proclaim (list 'special (intern "*SYSTEM*" ,,ws-fullname)
                                                    (intern "*BRANCHES*" ,,ws-fullname)
                                                    (intern "*NS-POINT*" ,,ws-fullname)
+                                                   (intern "*IDIOM*" ,,ws-fullname)
                                                    ,@(loop :for (key val)
                                                              :on ,(getf (of-subspec system) :variables)
                                                            :by #'cddr
@@ -434,6 +435,9 @@
                                      ;; TODO: following is APL-specific, move into spec
                                      (set (find-symbol "*BRANCHES*" ,,ws-fullname) nil)
                                      (set (find-symbol "*NS-POINT*" ,,ws-fullname) nil)
+                                     (set (find-symbol "*IDIOM*" ,,ws-fullname)
+                                          ,(intern (format nil "*~a-IDIOM*" ,symbol-string)
+                                                   ,(package-name *package*)))
                                      ,@(loop :for (key val)
                                                :on ,(getf (of-subspec system) :variables) :by #'cddr
                                              :collect `(set (find-symbol ,(string-upcase val) ,,ws-fullname)
@@ -532,7 +536,7 @@
                                                            :collect (aref glyph char)))))))))
 
 (let ((collected-matched-closing-chars))
-  (defun =vex-string (idiom &optional output special-precedent)
+  (defun =vex-string (idiom &optional output precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
     (let ((string-found) (olnchar) (symbols) (is-function-closure)
           ;; the olnchar variable is needed to handle characters that may be functional or part
@@ -658,6 +662,7 @@
                                               (lambda (string-content)
                                                 (destructuring-bind (parsed remaining meta)
                                                     (parse string-content (=vex-string idiom))
+                                                                                       
                                                   (declare (ignore remaining))
                                                   (when symbol-collector (funcall symbol-collector meta))
                                                   parsed))))
@@ -718,8 +723,8 @@
                               (string-upcase (idiom-name idiom))
                               ;; if there's an overloaded token character, do as above
                               (idiom-symbols idiom)
-                              (if (getf special-precedent :overloaded-num-char)
-                                  (format nil "~a~a" (getf special-precedent :overloaded-num-char)
+                              (if (getf precedent :overloaded-num-char)
+                                  (format nil "~a~a" (getf precedent :overloaded-num-char)
                                           string)
                                   string))
                    (values formatted is-symbol)))
@@ -735,8 +740,8 @@
                       (or (of-lexicons idiom char :functions)
                           (of-lexicons idiom char :operators)
                           (of-lexicons idiom char :statements)))))
-        (=destructure (_ item _ break rest)
-                      (=list (%any (?blank-character))
+        (=destructure (leading-space item trailing-space break rest)
+                      (=list (=transform (=subseq (%any (?blank-character))) #'length)
                              (%or (=vex-closure (of-system idiom :closure-wrapping)
                                                 :transform-by nil
                                                 :disallow-linebreaks
@@ -787,8 +792,8 @@
                                                          ;; if there's an overloaded token character passed in
                                                          ;; the special precedent, prepend it to the token
                                                          ;; being processed
-                                                         (if (getf special-precedent :overloaded-num-char)
-                                                             (format nil "~a~a" (getf special-precedent
+                                                         (if (getf precedent :overloaded-num-char)
+                                                             (format nil "~a~a" (getf precedent
                                                                                       :overloaded-num-char)
                                                                      string)
                                                              string))))
@@ -819,27 +824,37 @@
                                   ;; input has either no characters or only blank characters
                                   ;; before the first line break
                                   (=subseq (%any (?satisfies 'characterp))))
-                             (%any (?blank-character))
+                             (=transform (=subseq (%any (?blank-character))) #'length)
                              (=subseq (%any (?newline-character)))
                              (=subseq (%any (?satisfies 'characterp))))
-          (if (and (not output) (stringp item) (< 0 (length item))
-                   (funcall (of-utilities idiom :match-newline-character)
-                            (aref item 0)))
-              ;; if the string is passed back (minus any leading whitespace) because the string began with
-              ;; a line break, parse again omitting the line break character
-              (parse (subseq item 1) (=vex-string idiom nil special-precedent))
-              (if (and (zerop (length break)) (< 0 (length rest)))
-                  (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
-                                                     (when item (list item)))
-                                           (append (when olnchar (list :overloaded-num-char olnchar))
-                                                   (list :symbols nil))))
-                  (list (if (or (not item)
-                                (and (typep item 'sequence)
-                                     (zerop (length item)) (not string-found)))
-                            ;; return nothing if only an empty sequence results from parsing
-                            ;; unless an explicit empty string was parsed
-                            output (cons item output))
-                        rest special-precedent))))))))
+          ;; (print (list :ll leading-space trailing-space item precedent))
+          ;; (setf (getf precedent :whitespace) trailing-space)
+          (let ((lspace-total (+ leading-space (or (and (getf precedent :pspace)
+                                                        (second (getf precedent :pspace)))
+                                                   0))))
+            ;; (when (and (listp item) (member (first item) '(:fn :op))
+            ;;            (not (zerop lspace-total)))
+            ;;   (setf item (cons (first item) (cons (list :meta :whitespace lspace-total)
+            ;;                                       (rest item)))))
+            (if (and (not output) (stringp item) (< 0 (length item))
+                     (funcall (of-utilities idiom :match-newline-character)
+                              (aref item 0)))
+                ;; if the string is passed back (minus any leading whitespace) because the string began with
+                ;; a line break, parse again omitting the line break character
+                (parse (subseq item 1) (=vex-string idiom nil precedent))
+                (if (and (zerop (length break)) (< 0 (length rest)))
+                    (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
+                                                       (when item (list item)))
+                                             (append (when olnchar (list :overloaded-num-char olnchar))
+                                                     (list :symbols nil ;; peripheral space
+                                                           :pspace (list lspace-total trailing-space)))))
+                    (list (if (or (not item)
+                                  (and (typep item 'sequence)
+                                       (zerop (length item)) (not string-found)))
+                              ;; return nothing if only an empty sequence results from parsing
+                              ;; unless an explicit empty string was parsed
+                              output (cons item output))
+                          rest precedent)))))))))
 
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
@@ -849,7 +864,6 @@
                              "-WORKSPACE-" (if (not (second (assoc :space options)))
                                                "COMMON" (string-upcase (second (assoc :space options))))))
          (state-to-use) (system-to-use))
-    
     (labels ((assign-from (source dest)
                (if (not source)
                    dest (progn (setf (getf dest (first source)) (second source))
@@ -862,7 +876,8 @@
                (if (zerop (length string))
                    (funcall (of-utilities idiom :compile-form)
                             (reverse output) :space space :params params)
-                   (let ((result (funcall (of-utilities idiom :lexer-postprocess)
+                   (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
+                                              (lambda (&rest args) (first args)))
                                           (parse string (=vex-string idiom))
                                           idiom space)))
                      (when print-tokens (print (first result)))
@@ -938,9 +953,9 @@
                                          space (list :call-scope (list :input-vars iv-list
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
-                               (when output-vars
-                                 (funcall (of-utilities idiom :process-multiple-outputs)
-                                          output-vars space (not (assoc :unrendered options)))))
+                               (if output-vars
+                                   (funcall (of-utilities idiom :process-multiple-outputs)
+                                            output-vars space (not (assoc :unrendered options)))))
                        (loop :for (key value) :on (getf (idiom-system idiom) :workspace-defaults)
                              :by #'cddr :collect (string-upcase key))
                        options system-vars vars-declared stored-refs space)))))))
