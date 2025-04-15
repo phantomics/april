@@ -1235,9 +1235,11 @@
       glyph-char
       (let* ((iname (vex::idiom-name idiom))
              (fn-meta (handler-case (funcall (symbol-function (find-symbol
-                                                               (format nil "~a-LEX-FN-~a"
-                                                                       iname glyph-char)
-                                                               *package-name-string*))
+                                                               (format nil "~a-LEX-FN-~a" iname glyph-char)
+                                                               ;; *package-name-string*
+                                                               ;; TODO: decouple idiom and package names
+                                                               (string iname)
+                                                               ))
                                              :get-metadata)
                         (error () nil)))
              (is-scalar (of-lexicons idiom glyph-char
