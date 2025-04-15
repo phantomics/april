@@ -429,15 +429,15 @@
                                                            :by #'cddr
                                                            :collect `(intern ,(string-upcase val)
                                                                              ,,ws-fullname))))
+                                   (set (find-symbol "*IDIOM*" ,,ws-fullname)
+                                        ,(intern (format nil "*~a-IDIOM*" ,symbol-string)
+                                                 ,(package-name *package*)))
                                    (unless (boundp (find-symbol "*SYSTEM*" ,,ws-fullname))
                                      (set (find-symbol "*SYSTEM*" ,,ws-fullname)
                                           ,',(cons 'list (of-subspec system)))
                                      ;; TODO: following is APL-specific, move into spec
                                      (set (find-symbol "*BRANCHES*" ,,ws-fullname) nil)
                                      (set (find-symbol "*NS-POINT*" ,,ws-fullname) nil)
-                                     (set (find-symbol "*IDIOM*" ,,ws-fullname)
-                                          ,(intern (format nil "*~a-IDIOM*" ,symbol-string)
-                                                   ,(package-name *package*)))
                                      ,@(loop :for (key val)
                                                :on ,(getf (of-subspec system) :variables) :by #'cddr
                                              :collect `(set (find-symbol ,(string-upcase val) ,,ws-fullname)

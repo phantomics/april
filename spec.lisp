@@ -200,7 +200,7 @@
                 ;; form assignment accounts for cases like (april-c "+" 1 2)
                 (let* ((form (if (not (and (= 1 (length form)) (characterp (first form))
                                            (of-lexicons this-idiom (first form) :functions)))
-                                 form (list (build-call-form (first form)))))
+                                 form (list (build-call-form this-idiom (first form)))))
                        ;; operands for cases like (april-c "{⍵⍵ ⍺⍺/⍵}" #'+ #'- #(1 2 3 4 5))
                        (operands (when (and inline-arguments (listp (first form))
                                             (eql 'olambda (caar form)))
@@ -1749,7 +1749,7 @@
   (with (:name :lexical-statements)
         (:tests-profile :title "Statement Tests")
         (:demo-profile :title "Statements Demos"
-                       :description "Statement description goes here."))
+                       :description "Statements are lexical forms that govern the execution of programs."))
   ($ (has :title "If")
      (unitary (lambda (axes) (cons 'apl-if axes)))
      (tests (is "$[1;2;3]" 2)

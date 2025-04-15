@@ -414,9 +414,13 @@
                                                         axes)
                                             :axes-last t :space space :params params :left left)))
             ((and (listp (first tokens)) (eq :st (caar tokens))) ; 1 2 3∘.⌽[1]⊂2 3 4⍴⍳9
-             (let ((stm (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-ST-~a"
+             (let ((stm (funcall (symbol-function (find-symbol (format nil "~a-LEX-ST-~a"
+                                                                       (idiom-name local-idiom)
                                                                        (caddar tokens))
-                                                               *package-name-string*))
+                                                               ;; *package-name-string*
+                                                               (string (idiom-name local-idiom))
+                                                               ;; TODO: allow separate idiom and pkg names
+                                                               ))
                                  (first axes))))
                (build-value (rest tokens) :space space :params params
                                           :left left :elements (cons stm elements))))
@@ -741,7 +745,7 @@
                    (if exp-value (build-function
                                   remaining :space space :params params :initial initial
                                             :found-function (compose-function-lateral
-                                                             exp-operator nil exp-value axes))
+                                                             space exp-operator nil exp-value axes))
                        (unless (eq :special-lexical-form-assign (second tokens))
                          ;; if a lateral operator is encountered followed by ←, the operator is being
                          ;; assigned and the current form is not valid as a function, so return nil
@@ -753,7 +757,8 @@
                                                   exp-function `(function ,exp-function))))
                                  (build-function
                                   remaining :space space :params params :initial initial
-                                  :found-function (compose-function-lateral exp-operator fn-wrap nil axes)))
+                                            :found-function (compose-function-lateral space exp-operator
+                                                                                      fn-wrap nil axes)))
                                ;; if the operator was not followed by a function, check whether
                                ;; it's an overloaded lexical function and if so process it as such
                                (let ((ol-function)
@@ -765,7 +770,7 @@
                                                   (rest tokens)
                                                   :space space :params params
                                                   :found-function (build-call-form
-                                                                   ol-function :dyadic axes))
+                                                                   local-idiom ol-function :dyadic axes))
                                      (multiple-value-bind (fn-as-val-tokens fnrem)
                                          (build-value (rest tokens) :space space :params params)
                                        (if (and (listp fn-as-val-tokens)
@@ -774,14 +779,15 @@
                                                 (eq :pass (cadar fn-as-val-tokens)))
                                            (multiple-value-bind (val-fn remaining)
                                                (build-function fn-as-val-tokens :space space :params params)
-                                             (values (compose-function-lateral exp-operator val-fn nil axes)
+                                             (values (compose-function-lateral space exp-operator
+                                                                               val-fn nil axes)
                                                      remaining))
                                            (when (and (listp fnrem) (listp (first fnrem))
                                                       (eq :fn (caar fnrem))
                                                       (eq :pass (cadar fnrem)))
                                              (multiple-value-bind (val-fn remaining)
                                                  (build-function fnrem :space space :params params)
-                                               (values (compose-function-lateral exp-operator
+                                               (values (compose-function-lateral space exp-operator
                                                                                  val-fn nil axes)
                                                        remaining))))))))))))
                  (if (eq :special-lexical-form-assign (first tokens))
@@ -792,7 +798,8 @@
                           (rest tokens)
                           :initial initial :space space :params params
                           :found-function (if (not (characterp exp-function))
-                                              exp-function (build-call-form exp-function :dyadic axes)))
+                                              exp-function (build-call-form local-idiom exp-function
+                                                                            :dyadic axes)))
                            #|TODO: clause for overloaded operators like /|#))))))
           ;; this clause continues a function composition that started in previous iterations
           ((and initial (eq :special-lexical-form-assign (first tokens))
@@ -914,8 +921,10 @@
                                            '((declare (ignorable left right)))))
                                    ,(multiple-value-bind (op-form op-postargs)
                                         (apply (symbol-function
-                                                (find-symbol (format nil "APRIL-LEX-OP-~a" found-operator)
-                                                             *package-name-string*))
+                                                (find-symbol (format nil "~a-LEX-OP-~a"
+                                                                     (idiom-name local-idiom)
+                                                                     found-operator)
+                                                             (string (idiom-name local-idiom))))
                                                (if (eq :lateral operator-type)
                                                    '(operand) '(right left)))
                                       (append op-form (if axes (if (listp (first axes))
@@ -1065,8 +1074,9 @@
                         ;; operators overloaded as symbolic functional tokens are converted to the
                         ;; correct symbol value here; this is needed for [∘. outer product].
                         (second tokens)
-                        (symbol-value (find-symbol (format nil "APRIL-LEX-SY-~A" (third (second tokens)))
-                                                   *package-name-string*)))))
+                        (symbol-value (find-symbol (format nil "~a-LEX-SY-~A" (idiom-name local-idiom)
+                                                           (third (second tokens)))
+                                                   (string (idiom-name local-idiom)))))))
     (multiple-value-bind (left-function remaining)
         (build-function (cons next-token (cddr tokens)) :space space :params params)
       (multiple-value-bind (left-value remaining)
@@ -1086,7 +1096,7 @@
               (build-function remaining
                               :space space :params params :initial initial
                               :found-function (compose-function-pivotal
-                                               operator (or rfn-wrap right-value)
+                                               space operator (or rfn-wrap right-value)
                                                lfn-wrap left-value)))))))))
 
 (defun compose-value-assignment (symbol value &key function space params)
@@ -1292,12 +1302,16 @@
             `(aprgn (a-set ,symbol :function)
                     (setf (symbol-function ',path-symbol) ,function)))))))
 
-(defun compose-function-lateral (operator function value axes)
+(defun compose-function-lateral (space operator function value axes)
   "Compose a function using a lateral operator like [/ reduce]."
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
-              (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-OP-~a" operator)
-                                                     *package-name-string*))
+              (funcall (symbol-function (find-symbol (format nil "~a-LEX-OP-~a" (idiom-name local-idiom)
+                                                             operator)
+                                                     ;; *package-name-string*
+                                                     (string (idiom-name local-idiom))
+                                                     ;; TODO: allow for different idiom and package name
+                                                     ))
                        (or function value))
               (when axes (list :axis (cons 'list (first axes)))))
       `(a-comp :op ,@(when axes `(:axis (list ,@(first axes))))
@@ -1306,12 +1320,16 @@
                     operator `(inws ,operator))
                ,(or function value))))
   
-(defun compose-function-pivotal (operator function1 function2 value)
+(defun compose-function-pivotal (space operator function1 function2 value)
   "Compose a function using a pivotal operator like [⍣ power]."
   (if (characterp operator)
       (append (list 'a-comp (intern (string operator)))
-              (funcall (symbol-function (find-symbol (format nil "APRIL-LEX-OP-~a" operator)
-                                                     *package-name-string*))
+              (funcall (symbol-function (find-symbol (format nil "~a-LEX-OP-~a" (idiom-name local-idiom)
+                                                             operator)
+                                                     ;; *package-name-string*
+                                                     (string (idiom-name local-idiom))
+                                                     ;; TODO: allow for different idiom and package name
+                                                     ))
                        function1 (or function2 value)))
       `(a-comp :op ,(if (not (symbolp operator))
                         operator `(inws ,operator))
