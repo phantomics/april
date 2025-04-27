@@ -944,9 +944,137 @@
     ;;                (second output)))
     ))
 
+(defun construct3 (map string)
+  (print (list :m map))
+  (let ((bounds) (formats) (index 0)
+        (output (list nil nil)))
+    (loop :for spec :in map
+          :do (print :ee)
+              (destructuring-bind (type start &optional end) spec
+                (loop :while (and bounds (> start (first bounds)))
+                      :do (push (list :a (- (first bounds) index)) (first output))
+                          (print (list :gg output (rest output)))
+                          (push (first output) (second output))
+                          (when (first formats)
+                            (setf (second output)
+                                  (cons (first formats) (reverse (second output)))))
+                          (print (list :o output))
+                          (setf index   (1+ (first bounds))
+                                bounds  (rest bounds)
+                                formats (rest formats)
+                                output  (print (rest output))))
+                (when (< index start)
+                  (push (list :a (- start index)) (first output))
+                  (print (list :ex index start))
+                  (setf index (1+ start)))
+                (print (list :b spec index start end :a (- start index)
+                             :ff formats output type))
+                (case type
+                  ((:as :br)
+                   (push (first output) (second output))
+                   (setf output (cons nil (rest output))))
+                  (:ax (push :ax formats)
+                   (setf index (1+ start))
+                   (push nil output)
+                   (push end bounds))))
+              (print (list :out output)))
+    (when (< index (1- (length string)))
+      (print (list :io output))
+      (push (list :a (- (length string) 1 index))
+            (first output)))
+    ;; (loop :for b :in bounds :do
+    ;;   (push (list :a (- b index)) (first output))
+    ;;   (push (cons (first formats) (reverse (first output))) (second output))
+    ;;   (setf index (1+ b)))
+    ;; (push (list :a 99) (first output))
+    ;; (push (reverse (first output))
+    ;;       (second output))
+    ;; (setf output (rest output))
+    output
+    ;; (reverse (cons (reverse (first output))
+    ;;                (second output)))
+    ))
+
+(defun construct4 (map string)
+  (print (list :m map))
+  (let ((bounds) (formats) (index 0)
+        (output (list nil nil)))
+    (flet ((close-bound ()
+             ;; (print (list :out output))
+             (push (list :a (- (first bounds) index)) (first output))
+             (print (list :gg output (rest output)))
+             ;; (push (first output) (second output))
+             (when (first formats)
+               (setf (second output)
+                     ;; (cons (cons (first formats) (list (first output)))
+                     ;;       (reverse (second output)))
+                     (cons (first formats) (reverse (cons (reverse (first output))
+                                                          (second output))))
+
+                     )
+               (setf (third output) (cons (second output) (third output))))
+             (print (list :o output))
+             (setf index   (1+ (first bounds))
+                   bounds  (rest bounds)
+                   formats (rest formats)
+                   output  (print (cddr output)))))
+      (loop :for spec :in map
+            :do (destructuring-bind (type start &optional end) spec
+                  ;; (print (list :bb bounds start))
+                  (loop :while (and bounds (> start (first bounds))) :do (close-bound))
+                  (when (< index start)
+                    (push (list :a (- start index)) (first output))
+                    (print (list :ex index start))
+                    (setf index (1+ start)))
+                  (print (list :b spec index start end :a (- start index)
+                                                       :ff formats output type))
+                  (case type
+                    ((:as :br)
+                     (push (first output) (second output))
+                     (setf output (cons nil (rest output))))
+                    (:ax (push :ax formats)
+                     (setf index (1+ start))
+                     (push nil output)
+                     (push nil output)
+                     (push end bounds))))
+                (print (list :out output)))
+      
+      (loop :while bounds :do (close-bound))
+      (push (first output) (second output))
+      (setf output (mapcar #'reverse (second output)))
+      ;; output
+      )))
+
 '((:ax (:a 1) (:a 2)))
 
 '((:ax (:a 1) (:ax (:a 1) (:a 2)) (:a 1)))
+
+#|
+
+(vex::construct3 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* "[ ;  ]
+ ") "[ ;  ]
+ ")
+
+(((:A 1)) ((:AX ((:A 1)) ((:A 2)))))
+
+(defvar str1 "[  [ ( ) ;  ] 
+]")
+
+(defvar str2 "[  [ ; ] 
+]")
+
+(defvar str3 "[ [ ; ] ]")
+
+(defvar str4 "[ [   ] ]")
+
+(((:ax (:a 1) (:ax (:a 3))))
+
+(vex::construct3 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* str1) str1)
+
+(NIL (((:A 1) :AX (:A 2) ((:A 3) (:A 1)) ((:A 2)))) NIL)
+
+|#
+
 
 ;; (april "'[{(]})'{⍺{(⍵×~I)+-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
 ;; (april "'[{(]})'{{(×⍵)×256*1-⍨|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
