@@ -253,6 +253,7 @@
            (timed-forms (build-profile symbol subspecs :time (rest (assoc :time (of-subspec profiles)))))
            (atest-forms (build-profile symbol subspecs :test
                                        (rest (assoc :arbitrary-test (of-subspec profiles)))))
+           (entity-defs (rest (assoc 'entities subspecs)))
            ;; note: the pattern specs are processed and appended in reverse order so that their ordering in the
            ;; spec is intuitive, with more specific pattern sets such as optimization templates being included
            ;; after less specific ones like the baseline grammar
@@ -265,9 +266,8 @@
       (multiple-value-bind (idiom-list assignment-form idiom-data)
           (funcall (second (getf (of-subspec utilities) :process-fn-op-specs))
                    symbol (loop :for subspec :in subspecs
-                                :when (or (string= "FUNCTIONS" (string-upcase (first subspec)))
-                                          (string= "OPERATORS" (string-upcase (first subspec)))
-                                          (string= "STATEMENTS" (string-upcase (first subspec))))
+                                :when (position (intern (string-upcase (first subspec)) "KEYWORD")
+                                                #(:functions :operators :statements))
                                   :collect subspec))
         `(progn ,@(unless extension `((proclaim '(special ,idiom-symbol))
                                       (setf (symbol-value (quote ,idiom-symbol)) ,idiom-definition)))
@@ -288,6 +288,16 @@
                                                               (or (getf ,lexicons-form ,key) ""))
                                                  ;; reversed order, needed to order the lexicon list
                                                  (getf ,lexicons-form ,key)))))
+
+                (setf (idiom-utilities ,idiom-symbol)
+                      (append (list :map-sections
+                                    (specify-mappers
+                                     ,@(loop :for entd :in entity-defs
+                                             :collect (cons 'list (cons (intern (string (first entd))
+                                                                                "KEYWORD")
+                                                                        (rest entd))))))
+                              (idiom-utilities ,idiom-symbol)))
+                
                 ,@(if (not extension)
                       `((defmacro ,(find-symbol symbol-string (symbol-package symbol))
                             (,options &optional ,input-string)
@@ -535,6 +545,486 @@
                                       (append output (loop :for char :below (length glyph)
                                                            :collect (aref glyph char)))))))))
 
+;; (defun specify-mappers (&rest specs)
+;;   (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (formatters))
+;;     (loop :for spec in specs
+;;           :do (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+;;                     (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+;;                 (when delimiters
+;;                   (let* ((bclen (length delimiters))
+;;                          (hbclen (ash bclen -1)))
+;;                     (push (lambda (char)
+;;                             (position char delimiters :end hbclen :test #'char=))
+;;                           open-matchers)
+;;                     (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
+;;                     (push (lambda (char) (position char delimiters :start hbclen :test #'char=))
+;;                           close-matchers)
+;;                     (loop :for dx :from hbclen :below (length delimiters)
+;;                           :do (push (aref delimiters dx) open-chars))))
+;;                 (when start
+;;                   (loop :for trm :in (list start end)
+;;                         :for matcher :in (list open-matchers close-matchers)
+;;                         :do (typecase terminal
+;;                               (character
+;;                                (push (lambda (char) (char= char trm)) matcher))
+;;                               (list
+;;                                (push (lambda (char) (member char trm :test #'char=)) matcher))
+;;                               (function (push trm open-matchers)))))
+;;                 (if (not divider)
+;;                     (push nil dividers)
+;;                     (push (typecase divider
+;;                             (character
+;;                              (print (list :dd divider))
+;;                              (lambda (char) (char= char divider)) ))
+;;                           dividers))
+;;                 (push format formatters)))
+;;     (print (list :oo open-matchers dividers close-matchers specs))
+;;     (lambda (idiom input)
+;;       (let ((matched nil))
+;;         (print (list :oo))
+;;         (loop :until matched :for open-matcher :in open-matchers :for divider :in dividers
+;;               :for close-matcher :in close-matchers :for formatter :in formatters
+;;               :do (parse input
+;;                          (=destructure
+;;                              (_ enclosed terminal)
+;;                              (=list (?satisfies open-matcher)
+;;                                     ;; for some reason, the first character in the string is
+;;                                     ;; iterated over twice here, so the character index is
+;;                                     ;; checked and nothing is done for the first character
+;;                                     ;; TODO: fix this
+;;                                     (=transform (=subseq
+;;                                                          (%some (?not (%or (?satisfies open-matcher)
+;;                                                                            (?satisfies divider)
+;;                                                                            (?satisfies close-matcher)))))
+;;                                                         (funcall formatter
+;;                                                                  (lambda (str)
+;;                                                                    (parse str (=vex-string idiom)))))
+;;                                     (%or (?satisfies close-matcher)
+;;                                          (?satisfies divider)))
+;;                            (print (list :tr enclosed terminal))
+;;                            (when enclosed (setf matched enclosed)))))
+;;         matched))))
+
+;; (let ((delimiters) (axis-separators) (full-len) (half-len) (nesting (vector 0 0 0)))
+;;   (lambda (string idiom)
+;;     (unless delimiters
+;;       (setf delimiters (reverse (funcall (of-utilities idiom :collect-delimiters) idiom))
+;;             full-len (length delimiters)
+;;             half-len (/ full-len 2)
+;;             axis-separators (of-system idiom :axis-separators)))
+;;     (let ((indices) (last-index) (quoted))
+;;       (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
+;;       (loop :for char :across string :counting char :into charix
+;;             :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
+;;                                     :when (char= d char) :do (return (- full-len -1 dx)))
+;;                               0)))
+;;                   (if (position char (of-system idiom :string-delimiters) :test #'char=)
+;;                       (setf quoted (not quoted))
+;;                       (unless quoted
+;;                         (if (< half-len mx) (incf (aref nesting (- full-len mx)))
+;;                             (if (<= 1 mx half-len)
+;;                                 (if (< 0 (aref nesting (- half-len mx)))
+;;                                     (decf (aref nesting (- half-len mx)))
+;;                                     (error "Each closing ~a must match with an opening ~a."
+;;                                            (aref delimiters mx)
+;;                                            (aref delimiters (- half-len mx))))
+;;                                 (when (and (position char axis-separators :test #'char=)
+;;                                            (zerop (loop :for ncount :across nesting
+;;                                                         :summing ncount)))
+;;                                   (setq indices (cons (1- charix) indices)))))))))
+;;       (loop :for index :in (reverse (cons (length string) indices))
+;;             :counting index :into iix
+;;             :collect (make-array (- index (if last-index 1 0)
+;;                                     (or last-index 0))
+;;                                  :element-type 'character :displaced-to string
+;;                                  :displaced-index-offset (if last-index (1+ last-index) 0))
+;;             :do (setq last-index index)))))
+
+;; (defun process-enclosed (string )
+;;   (let ((indices) (last-index) (quoted) (nesting 0))
+;;     (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
+;;     (loop :for char :across string :counting char :into charix
+;;           :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
+;;                                   :when (char= d char) :do (return (- full-len -1 dx)))
+;;                             0)))
+;;                 (if (position char (of-system idiom :string-delimiters) :test #'char=)
+;;                     (setf quoted (not quoted))
+;;                     (unless quoted
+;;                       (if (< half-len mx) (incf (aref nesting (- full-len mx)))
+;;                           (if (<= 1 mx half-len)
+;;                               (if (< 0 (aref nesting (- half-len mx)))
+;;                                   (decf (aref nesting (- half-len mx)))
+;;                                   (error "Each closing ~a must match with an opening ~a."
+;;                                          (aref delimiters mx)
+;;                                          (aref delimiters (- half-len mx))))
+;;                               (when (and (position char axis-separators :test #'char=)
+;;                                          (zerop (loop :for ncount :across nesting
+;;                                                       :summing ncount)))
+;;                                 (setq indices (cons (1- charix) indices)))))))))
+;;     (loop :for index :in (reverse (cons (length string) indices))
+;;           :counting index :into iix
+;;           :collect (make-array (- index (if last-index 1 0)
+;;                                   (or last-index 0))
+;;                                :element-type 'character :displaced-to string
+;;                                :displaced-index-offset (if last-index (1+ last-index) 0))
+;;           :do (setq last-index index))))
+
+;; (defun specify-mappers (&rest specs)
+;;   (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (formatters)
+;;         (nest-counters))
+;;     (loop :for spec in specs
+;;           :do (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+;;                     (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+;;                 (when delimiters
+;;                   (let* ((bclen (length delimiters))
+;;                          (hbclen (ash bclen -1)))
+;;                     (push (lambda (char)
+;;                             (position char delimiters :end hbclen :test #'char=))
+;;                           open-matchers)
+;;                     (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
+;;                     (push (lambda (char) (position char delimiters :start hbclen :test #'char=))
+;;                           close-matchers)
+;;                     (loop :for dx :from hbclen :below (length delimiters)
+;;                           :do (push (aref delimiters dx) open-chars))))
+;;                 (when start
+;;                   (loop :for trm :in (list start end)
+;;                         :for matcher :in (list open-matchers close-matchers)
+;;                         :for collection :in (list open-chars closing-chars)
+;;                         :do (typecase terminal
+;;                               (character
+;;                                (push (lambda (char) (char= char trm)) matcher)
+;;                                (push char collection))
+;;                               (list
+;;                                (push (lambda (char) (member char trm :test #'char=)) matcher)
+;;                                (loop :for i :in terminal :do (push i collection)))
+;;                               (function (push trm open-matchers)))))
+;;                 (if (not divider)
+;;                     (push nil dividers)
+;;                     (push (typecase divider
+;;                             (character
+;;                              (print (list :dd divider))
+;;                              (lambda (char) (char= char divider)) ))
+;;                           dividers))
+;;                 (push format formatters)))
+    
+;;     (setf nest-counters (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
+    
+;;     (print (list :oo open-matchers dividers close-matchers specs nest-counters
+;;                  open-chars closing-chars))
+;;     (lambda (idiom input)
+;;       (let ((matched nil))
+;;         (print (list :oo))
+;;         (loop :until matched :for open-matcher :in open-matchers
+;;               :do (when (funcall open-matcher (aref input 0))
+;;                     (setf matched (process-enclosed idiom input
+;;                                                     open-matchers close-matchers dividers))))
+;;         ;; (loop :until matched :for open-matcher :in open-matchers :for divider :in dividers
+;;         ;;       :for close-matcher :in close-matchers :for formatter :in formatters
+;;         ;;       :do (parse input
+;;         ;;                  (=destructure
+;;         ;;                      (_ enclosed terminal)
+;;         ;;                      (=list (?satisfies open-matcher)
+;;         ;;                             ;; for some reason, the first character in the string is
+;;         ;;                             ;; iterated over twice here, so the character index is
+;;         ;;                             ;; checked and nothing is done for the first character
+;;         ;;                             ;; TODO: fix this
+;;         ;;                             (=transform (=subseq
+;;         ;;                                                  (%some (?not (%or (?satisfies open-matcher)
+;;         ;;                                                                    (?satisfies divider)
+;;         ;;                                                                    (?satisfies close-matcher)))))
+;;         ;;                                                 (funcall formatter
+;;         ;;                                                          (lambda (str)
+;;         ;;                                                            (parse str (=vex-string idiom)))))
+;;         ;;                             (%or (?satisfies close-matcher)
+;;         ;;                                  (?satisfies divider)))
+;;         ;;                    (print (list :tr enclosed terminal))
+;;         ;;                    (when enclosed (setf matched enclosed)))))
+;;         matched))))
+
+(defun specify-mappers (&rest specs)
+  (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (formatters)
+        (div-formatters) (nest-counters))
+    (loop :for spec-list in specs 
+          :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
+                ;; (print (list :sp spec-type))
+                (case spec-type
+                  (:series
+                   (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+                         (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+                     (when delimiters
+                       (let* ((bclen (length delimiters))
+                              (hbclen (ash bclen -1)))
+                         (push (lambda (char)
+                                 (position char delimiters :end hbclen :test #'char=))
+                               open-matchers)
+                         (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
+                         (push (lambda (char) (position char delimiters :start hbclen :test #'char=))
+                               close-matchers)
+                         (loop :for dx :from hbclen :below (length delimiters)
+                               :do (push (aref delimiters dx) open-chars))))
+                     (when start
+                       (loop :for trm :in (list start end)
+                             :for matcher :in (list open-matchers close-matchers)
+                             :for collection :in (list open-chars closing-chars)
+                             :do (typecase terminal
+                                   (character
+                                    (push (lambda (char) (char= char trm)) matcher)
+                                    (push char collection))
+                                   (list
+                                    (push (lambda (char) (member char trm :test #'char=)) matcher)
+                                    (loop :for i :in terminal :do (push i collection)))
+                                   (function (push trm open-matchers)))))
+                     ;; (push (typecase divider
+                     ;;         (character
+                     ;;          (print (list :dd divider))
+                     ;;          (lambda (char) (char= char divider))))
+                     ;;       dividers)
+                     (push format formatters)))
+                  (:divider
+                   (let ((matcher (getf spec :match)) (format (getf spec :format)))
+                     (push (typecase matcher
+                             (character (lambda (char) (char= char matcher)))
+                             (string (lambda (char) (position char matcher :test #'char=)))
+                             (list (lambda (char) (member char matcher :test #'char=)))
+                             (function matcher))
+                           dividers)
+                     (push (typecase format
+                             (symbol format))
+                           div-formatters))))))
+    
+    (setf nest-counters (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
+    
+    ;; (print (list :oo open-matchers dividers close-matchers specs nest-counters
+    ;;              open-chars closing-chars))
+    (lambda (idiom string)
+      (let ((code 0) (denoted) (returned) (divider-list)
+            (dl-indices (make-array (length string) :element-type '(signed-byte 8)
+                                 :initial-element 0)))
+        (loop :for char :across string :for cx :from 0
+              :do (loop :for om :in open-matchers :for cm :in close-matchers
+                        :for ix :from 0 :while (zerop code)
+                        :do (when (funcall om char)
+                              (incf code (1+ ix)))
+                            (when (funcall cm char)
+                              (decf code (1+ ix))))
+                  (loop :for dv :in dividers :for ix :from (length open-matchers) :while (zerop code)
+                        :do (when (and dv (funcall dv char))
+                              (incf code (1+ ix))))
+                  (unless (zerop code)
+                    (setf (aref dl-indices cx) code
+                          code              0)))
+
+        (print (list :ggg formatters dl-indices dividers div-formatters))
+        
+        (loop :for index :across dl-indices :for char :across string :for ix :from 0
+              :do (when (not (zerop index))
+                    (when (plusp index)
+                      (if (<= index (length formatters))
+                          (progn (incf code (ash 1 (ash index 3)))
+                                 (push (list nil ix index) returned))
+                          (push (list (nth (- index 1 (length formatters))
+                                           div-formatters)
+                                      ix)
+                                returned)))
+                    (when (minusp index)
+                      (decf code (ash 1 (ash (abs index) 3)))
+                      (setf divider-list (rest divider-list))
+                      (let ((found) (formatter (nth (1- (abs index)) formatters)))
+                        (loop :for r :in returned :for rx :from 0
+                              :until found :when (third r)
+                              :do (when (= (abs index) (third r))
+                                    (setf found (setf (nth rx returned)
+                                                      (list formatter (second r) ix)))))))))
+      (values (reverse returned) dl-indices)))))
+
+(defun construct (map) ;; &optional collected (start 0))
+  (print (list :mm map))
+  (destructuring-bind (&optional type start end) (first map)
+    (if end (let* ((collected) (remaining (rest map))
+                   (next-element (if (and (cadar remaining) (> end (cadar remaining)))
+                                     (first remaining)))
+                   (span (list start (min end (or (second next-element) end))))
+                   (next-end (and next-element (third next-element))))
+              (print (list :st start end next-element))
+              (loop :while span
+                    :do (push :a collected)
+                        (print (list :cc collected))
+                        (multiple-value-bind (constructed yet-remaining) (construct remaining)
+                          (print (list :c remaining constructed yet-remaining collected))
+                          (when constructed (push constructed collected))
+                          (setf remaining    (print yet-remaining)
+                                next-element (if (and (cadar remaining) (> end (cadar remaining)))
+                                                 (print (first remaining)))
+                                span         (if next-element
+                                                 (list start (min end (or (second next-element) end)))))))
+              (print :ee)
+              ;; (sleep 1)
+              (values (list type collected) remaining)))))
+
+;; (defun construct (map)
+;;   (print (list :m map))
+;;   (let ((index 0) (close) (output (list nil nil)))
+;;     (loop :for spec :in map
+;;           :do (destructuring-bind (type start &optional end) spec
+;;                 (print (list :b index start end :a (- start index)))
+;;                 (when (< index start)
+;;                   (push (list :a (- start index)) (first output)))
+;;                 (setf index (1+ start))
+;;                 (print (list :cl close output))
+;;                 (when (and close (> start (first close)))
+;;                   (print (list :cl close))
+;;                   (push (reverse (first output)) (second output))
+;;                   (setf close (rest close)))
+                
+;;                 (case type
+;;                   ((:as :br)
+;;                    (push (reverse (first output)) (second output))
+;;                    (setf output (rest output)
+;;                          index  (1+ start))
+;;                    (push nil output))
+;;                   (:ax (push (list :ax) output)
+;;                    (push end close))
+;;                   (t (push nil output)
+;;                    (push end close))))
+;;           (print (list :out output)))
+;;     ;; (push (list :a 99) (first output))
+;;     ;; (push (reverse (first output))
+;;     ;;       (second output))
+;;     (setf output (rest output))
+;;     output
+;;     ;; (reverse (cons (reverse (first output))
+;;     ;;                (second output)))
+;;     ))
+
+(defun construct2 (map string)
+  (print (list :m map))
+  (let ((bounds) (formats) (index 0)
+        (output (list nil nil)))
+    (loop :for spec :in map
+          :do (print :ee)
+              (destructuring-bind (type start &optional end) spec
+                (loop :while (and bounds (> start (first bounds)))
+                      :do (push (list :a (- (first bounds) index)) (first output))
+                          (print (list :gg output (rest output)))
+                          (push (cons (first formats) (reverse (first output))) (second output))
+                          (print (list :o output))
+                          (setf index   (1+ (first bounds))
+                                bounds  (rest bounds)
+                                formats (rest formats)
+                                output  (print (cons nil (rest output)))))
+                (when (< index start)
+                  (push (list :a (- start index)) (first output))
+                  (print (list :ex index start))
+                  (setf index (1+ start)))
+                (print (list :b spec index start end :a (- start index)
+                             :ff formats output type))
+                (case type
+                  ((:as :br)
+                   (push (reverse (first output)) (second output))
+                   (setf output (rest output)))
+                  (:ax (push :ax formats)
+                   (setf index (1+ start))
+                   (push nil output)
+                   (push end bounds))))
+              (print (list :out output)))
+    (when (< index (1- (length string)))
+      (print (list :io output))
+      (push (list :a (- (length string) 1 index))
+            (first output)))
+    ;; (loop :for b :in bounds :do
+    ;;   (push (list :a (- b index)) (first output))
+    ;;   (push (cons (first formats) (reverse (first output))) (second output))
+    ;;   (setf index (1+ b)))
+    ;; (push (list :a 99) (first output))
+    ;; (push (reverse (first output))
+    ;;       (second output))
+    ;; (setf output (rest output))
+    output
+    ;; (reverse (cons (reverse (first output))
+    ;;                (second output)))
+    ))
+
+'((:ax (:a 1) (:a 2)))
+
+'((:ax (:a 1) (:ax (:a 1) (:a 2)) (:a 1)))
+
+;; (april "'[{(]})'{⍺{(⍵×~I)+-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
+;; (april "'[{(]})'{{(×⍵)×256*1-⍨|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
+;; (april "'[{(]})'{{255*|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
+
+;; (specify-mappers
+;;  (series :comment  :start "⍝" :end (coerce '(#\Newline #\Return) 'string))
+;;  (series :closure  :delimit "()" :without :break)
+;;  (series :function :delimit "{}")
+;;  (series :axes     :delimit "[]" :divide #\; :without :break)))
+
+(defun =vex-closure (idiom boundary-chars
+                     &key transform-by disallow-linebreaks symbol-collector if-confirmed)
+  (let* ((quoted) (balance 1) (char-index 0)
+         (string-delimiters (of-system idiom :string-delimiters))
+         (bclen (length boundary-chars))
+         (hbclen (floor bclen 2))
+         ;; disallow linebreak overriding opening and closing characters
+         (dllen (when (stringp disallow-linebreaks) (length disallow-linebreaks)))
+         (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (floor dllen 2))))
+         (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (floor dllen 2) dllen)))
+         (dlb-overriding-balance 0))
+    (=destructure
+        (_ enclosed _)
+        (=list (?satisfies (lambda (char) (position char boundary-chars
+                                                    :end hbclen :test #'char=)))
+               ;; for some reason, the first character in the string is iterated over twice here,
+               ;; so the character index is checked and nothing is done for the first character
+               ;; TODO: fix this
+               (=transform (=subseq
+                            (%some (?satisfies
+                                    (lambda (char)
+                                      ;; have to do the zerop check to avoid the double-
+                                      ;; iteration mentioned above
+                                      (when (and (not (zerop char-index))
+                                                 (position char string-delimiters :test #'char=))
+                                        (setf quoted (not quoted)))
+                                      (when (and disallow-linebreaks
+                                                 (zerop dlb-overriding-balance)
+                                                 (funcall (of-utilities idiom :match-newline-character)
+                                                          char))
+                                        (error "Newlines cannot occur within a ~a closure."
+                                               boundary-chars))
+                                      (unless quoted
+                                        (if (and (< 0 char-index)
+                                                 (position char boundary-chars
+                                                           :end hbclen :test #'char=))
+                                            (incf balance)
+                                            (when (and (position char boundary-chars
+                                                                 :start hbclen :test #'char=)
+                                                       (< 0 char-index))
+                                              (decf balance)))
+                                        (when dlbor-opening-chars
+                                          (if (and (< 0 char-index)
+                                                   (position char dlbor-opening-chars
+                                                             :test #'char=))
+                                              (incf dlb-overriding-balance)
+                                              (when (position char dlbor-closing-chars
+                                                              :test #'char=)
+                                                (decf dlb-overriding-balance)))))
+                                      (incf char-index)
+                                      (< 0 balance)))))
+                           (or transform-by
+                               (lambda (string-content)
+                                 (destructuring-bind (parsed remaining meta)
+                                     (parse string-content (=vex-string idiom))
+                                   
+                                   (declare (ignore remaining))
+                                   (when symbol-collector (funcall symbol-collector meta))
+                                   parsed))))
+               (?satisfies (lambda (char) (position char boundary-chars
+                                                    :start hbclen :test #'char=))))
+      (if (zerop balance)
+          (progn (when if-confirmed (funcall if-confirmed))
+                 enclosed)
+          (error "No closing ~a found for opening ~a."
+                 (aref boundary-chars 1) (aref boundary-chars 0))))))
+
 (let ((collected-matched-closing-chars))
   (defun =vex-string (idiom &optional output precedent)
     "Parse a string of text, converting its contents into nested lists of Vex tokens."
@@ -605,74 +1095,6 @@
                                  (make-array 0 :element-type 'character)
                                  (make-array (1- (length content)) :element-type 'character
                                                                    :displaced-to content)))))))
-               (=vex-closure (boundary-chars &key transform-by disallow-linebreaks
-                                               symbol-collector if-confirmed)
-                 (let* ((quoted) (balance 1) (char-index 0)
-                        (string-delimiters (of-system idiom :string-delimiters))
-                        (bclen (length boundary-chars))
-                        (hbclen (floor bclen 2))
-                        ;; disallow linebreak overriding opening and closing characters
-                        (dllen (when (stringp disallow-linebreaks) (length disallow-linebreaks)))
-                        (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (floor dllen 2))))
-                        (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (floor dllen 2) dllen)))
-                        (dlb-overriding-balance 0))
-                   (=destructure
-                       (_ enclosed _)
-                       (=list (?satisfies (lambda (char) (position char boundary-chars
-                                                                   :end hbclen :test #'char=)))
-                              ;; for some reason, the first character in the string is iterated over twice here,
-                              ;; so the character index is checked and nothing is done for the first character
-                              ;; TODO: fix this
-                              (=transform (=subseq
-                                           (%some (?satisfies
-                                                   (lambda (char)
-                                                     ;; have to do the zerop check to avoid the double-
-                                                     ;; iteration mentioned above
-                                                     (when (and (not (zerop char-index))
-                                                                (position char string-delimiters
-                                                                          :test #'char=))
-                                                       (setf quoted (not quoted)))
-                                                     (when (and disallow-linebreaks
-                                                                (zerop dlb-overriding-balance)
-                                                                (funcall (of-utilities
-                                                                          idiom :match-newline-character)
-                                                                         char))
-                                                       (error "Newlines cannot occur within a ~a closure."
-                                                              boundary-chars))
-                                                     (unless quoted
-                                                       (if (and (< 0 char-index)
-                                                                (position char boundary-chars
-                                                                          :end hbclen :test #'char=))
-                                                           (incf balance)
-                                                           (when (and (position char boundary-chars
-                                                                                :start hbclen :test #'char=)
-                                                                      (< 0 char-index))
-                                                             (decf balance)))
-                                                       (when dlbor-opening-chars
-                                                         (if (and (< 0 char-index)
-                                                                  (position char dlbor-opening-chars
-                                                                            :test #'char=))
-                                                             (incf dlb-overriding-balance)
-                                                             (when (position char dlbor-closing-chars
-                                                                             :test #'char=)
-                                                               (decf dlb-overriding-balance)))))
-                                                     (incf char-index)
-                                                     (< 0 balance)))))
-                                          (or transform-by
-                                              (lambda (string-content)
-                                                (destructuring-bind (parsed remaining meta)
-                                                    (parse string-content (=vex-string idiom))
-                                                                                       
-                                                  (declare (ignore remaining))
-                                                  (when symbol-collector (funcall symbol-collector meta))
-                                                  parsed))))
-                              (?satisfies (lambda (char) (position char boundary-chars
-                                                                   :start hbclen :test #'char=))))
-                     (if (zerop balance)
-                         (progn (when if-confirmed (funcall if-confirmed))
-                                enclosed)
-                         (error "No closing ~a found for opening ~a."
-                                (aref boundary-chars 1) (aref boundary-chars 0))))))
                (=vex-errant-axis-separating-character ()
                  (let ((errant-char))
                    (=destructure (_ _)
@@ -707,13 +1129,12 @@
                          (parse lines (=vex-string idiom nil meta))
                        (process-lines remaining (append output (when out (list out)))
                                       meta))))
-               (handle-axes ()
-                 (lambda (input-string)
-                   (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
-                                              input-string idiom))
-                          (each-axis-code (loop :for axis :in each-axis
-                                                :collect (first (process-lines axis)))))
-                     (cons :ax each-axis-code))))
+               (handle-axes (input-string)
+                 (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
+                                            input-string idiom))
+                        (each-axis-code (loop :for axis :in each-axis
+                                              :collect (first (process-lines axis)))))
+                   (cons :ax each-axis-code)))
                (handle-function (input-string)
                  (destructuring-bind (content meta) (process-lines input-string)
                    (list :fn (cons :meta meta) content)))
@@ -742,13 +1163,13 @@
                           (of-lexicons idiom char :statements)))))
         (=destructure (leading-space item trailing-space break rest)
                       (=list (=transform (=subseq (%any (?blank-character))) #'length)
-                             (%or (=vex-closure (of-system idiom :closure-wrapping)
+                             (%or (=vex-closure idiom (of-system idiom :closure-wrapping)
                                                 :transform-by nil
                                                 :disallow-linebreaks
                                                 (of-system idiom :function-wrapping))
-                                  (=vex-closure (of-system idiom :axis-wrapping)
-                                                :transform-by (handle-axes))
-                                  (=vex-closure (of-system idiom :function-wrapping)
+                                  (=vex-closure idiom (of-system idiom :axis-wrapping)
+                                                :transform-by #'handle-axes)
+                                  (=vex-closure idiom (of-system idiom :function-wrapping)
                                                 :transform-by #'handle-function
                                                 :if-confirmed (lambda () (setq is-function-closure t)))
                                   (=vex-errant-axis-separating-character)

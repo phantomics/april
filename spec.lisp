@@ -4,35 +4,11 @@
 (in-package #:april)
 
 "This specification defines the April language. All of the standard functions and operators and their symbols, along with the language's grammar, utilities, reserved symbols, tests and demo suite are specified here."
-
-(let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument
-       (vector (lambda (x) (exp (complex 0 x)))
-               (lambda (x) (complex 0 x))
-               #'conjugate #'identity (lambda (x) (- (sqrt (- (1+ (expt x 2))))))
-               #'atanh #'acosh #'asinh (lambda (x) (if (= -1 x) 0 (* (1+ x) (sqrt (/ (1- x) (1+ x))))))
-               #'atan #+ecl #'cmucl-complex-acos #+(not ecl) #'acos
-               #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
-               #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
-               #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
-               #'realpart #'abs #'imagpart #'phase))
-      (coercing-indices (make-array 6 :element-type '(unsigned-byte 8)
-                                    :initial-contents '(1 2 3 21 22 23))))
-  ;; ECL defaults to C's standard acos thus its function must be specially assigned
-  (defun call-circular (&optional inverse)
-    (lambda (value function-index)
-      (if (and (integerp function-index) (<= -12 function-index 12))
-          (let ((vector-index (+ 12 (funcall (if inverse #'- #'identity)
-                                             function-index))))
-            (funcall (aref circular-functions vector-index)
-                     ;; for some functions, double coercion is not needed
-                     (if (position vector-index coercing-indices :test #'=)
-                         value (* value 1.0d0))))
-          (error "Invalid argument to [○ circular]; the left argument must be an~a"
-                 " integer between ¯12 and 12.")))))
   
 (setf *value-composable-lexical-operators* (list #\⍨))
 
 ;; top-level specification for the April language
+
 (specify-vex-idiom
  april
 
@@ -46,6 +22,21 @@
          :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" :axis-separators ";"
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
+
+ (entities (token  :number   :match (lambda (char) (or (digit-char-p char)
+                                                       (position char "._¯eEjJrR" :test #'char=))))
+           (token  :name     :match (lambda (char) (or (is-alphanumeric char)
+                                                       (position char "._⎕∆⍙¯" :test #'char=))))
+           (divider :break   :match '(#\⋄ #\◊ #\Newline #\Return) :format :br)
+           (divider :axsplit :match #\; :format :as)
+           ;; (series :comment  :start "⍝" :end (coerce '(#\Newline #\Return) 'string))
+           ;; (series :closure  :delimit "()" :without :break)
+           ;; (series :function :delimit "{}")
+           (series :function :delimit "{}" :format :fn)
+           (series :closure  :delimit "()" :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string))
+           (series :axes     :delimit "[]" :divide #\;
+                             :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
+                             :format :ax))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options

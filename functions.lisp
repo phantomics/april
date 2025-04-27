@@ -240,6 +240,31 @@
         (* alpha (/ omega (funcall (apl-gcd comparison-tolerance) omega alpha)))
         (funcall (apl-xcy #'lcm) omega alpha))))
 
+(let ((circular-functions ;; APL's set of circular functions called using the ○ symbol with a left argument
+       (vector (lambda (x) (exp (complex 0 x)))
+               (lambda (x) (complex 0 x))
+               #'conjugate #'identity (lambda (x) (- (sqrt (- (1+ (expt x 2))))))
+               #'atanh #'acosh #'asinh (lambda (x) (if (= -1 x) 0 (* (1+ x) (sqrt (/ (1- x) (1+ x))))))
+               #'atan #+ecl #'cmucl-complex-acos #+(not ecl) #'acos
+               #'asin (lambda (x) (sqrt (- 1 (expt x 2))))
+               #'sin #'cos #'tan (lambda (x) (sqrt (1+ (expt x 2))))
+               #'sinh #'cosh #'tanh (lambda (x) (sqrt (- (1+ (expt x 2)))))
+               #'realpart #'abs #'imagpart #'phase))
+      (coercing-indices (make-array 6 :element-type '(unsigned-byte 8)
+                                    :initial-contents '(1 2 3 21 22 23))))
+  ;; ECL defaults to C's standard acos thus its function must be specially assigned
+  (defun call-circular (&optional inverse)
+    (lambda (value function-index)
+      (if (and (integerp function-index) (<= -12 function-index 12))
+          (let ((vector-index (+ 12 (funcall (if inverse #'- #'identity)
+                                             function-index))))
+            (funcall (aref circular-functions vector-index)
+                     ;; for some functions, double coercion is not needed
+                     (if (position vector-index coercing-indices :test #'=)
+                         value (* value 1.0d0))))
+          (error "Invalid argument to [○ circular]; the left argument must be an~a"
+                 " integer between ¯12 and 12.")))))
+
 (defun without (omega alpha)
   "Remove elements in omega from alpha. Used to implement dyadic [~ without]."
   (flet ((compare (o a)
