@@ -30,14 +30,17 @@
            (divider :break   :match '(#\⋄ #\◊ #\Newline #\Return) :format :br)
            (divider :axsplit :match #\; :format :as)
            ;; (series :comment  :start "⍝" :end (coerce '(#\Newline #\Return) 'string))
-           ;; (series :closure  :delimit "()" :without :break)
-           ;; (series :function :delimit "{}")
-           (series :function :delimit "{}" :format :fn)
-           (series :closure  :delimit "()" :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
-                             :format :cl)
-           (series :axes     :delimit "[]" :divide #\;
-                             :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
-                             :format :ax))
+           (section :function :delimit "{}" :format :fn)
+           (section :closure  :delimit "()" :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
+                              :format :cl)
+           (section :axes     :delimit "[]" :divide #\;
+                              :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
+                              :format ;; (lambda (composed)
+                                      ;;   (cons (cons (cons :ax (cons (first composed) (second composed)))
+                                      ;;               (third composed))
+                                      ;;         (cdddr composed)))
+                    :ax
+                    ))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
