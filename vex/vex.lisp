@@ -295,7 +295,22 @@
                                      ,@(loop :for entd :in entity-defs
                                              :collect (cons 'list (cons (intern (string (first entd))
                                                                                 "KEYWORD")
-                                                                        (rest entd))))))
+                                                                        (rest entd)))))
+                                    :section-builders
+                                    ,(cons 'list
+                                           (loop :for entd :in entity-defs
+                                                 :append (destructuring-bind (type name &rest pairs) entd
+                                                           (list name (getf pairs :build)))))
+                                    :section-formatters
+                                    ,(cons 'list
+                                           (loop :for entd :in entity-defs
+                                                 :append (destructuring-bind (type name &rest pairs) entd
+                                                           (list name (getf pairs :format)))))
+                                    :section-dividers
+                                    ,(cons 'list
+                                           (loop :for entd :in entity-defs
+                                                 :append (destructuring-bind (type name &rest pairs) entd
+                                                           (list name (getf pairs :divide))))))
                               (idiom-utilities ,idiom-symbol)))
                 
                 ,@(if (not extension)
@@ -742,8 +757,8 @@
 ;;         matched))))
 
 (defun specify-mappers (&rest specs)
-  (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (formatters)
-        (div-formatters) (nest-counters))
+  (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers)
+        (spec-names) (div-spec-names) (formatters) (div-formatters) (nest-counters))
     (loop :for spec-list in specs 
           :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
                 ;; (print (list :sp spec-type))
@@ -751,6 +766,7 @@
                   (:section
                    (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
                          (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+                     (push spec-name spec-names)
                      (when delimiters
                        (let* ((bclen (length delimiters))
                               (hbclen (ash bclen -1)))
@@ -782,6 +798,7 @@
                      (push format formatters)))
                   (:divider
                    (let ((matcher (getf spec :match)) (format (getf spec :format)))
+                     (push spec-name div-spec-names)
                      (push (typecase matcher
                              (character (lambda (char) (char= char matcher)))
                              (string (lambda (char) (position char matcher :test #'char=)))
@@ -823,13 +840,17 @@
                           (progn (incf code (ash 1 (ash index 3)))
                                  (push (list nil ix index) returned))
                           (push (list (nth (- index 1 (length formatters))
-                                           div-formatters)
+                                           div-spec-names
+                                           ;; div-formatters
+                                           )
                                       ix)
                                 returned)))
                     (when (minusp index)
                       (decf code (ash 1 (ash (abs index) 3)))
                       (setf divider-list (rest divider-list))
-                      (let ((found) (formatter (nth (1- (abs index)) formatters)))
+                      (let ((found) (formatter (nth (1- (abs index)) ;; formatters
+                                                    spec-names
+                                                    )))
                         (loop :for r :in returned :for rx :from 0
                               :until found :when (third r)
                               :do (when (= (abs index) (third r))
@@ -889,9 +910,9 @@
 ;;     ))
 
 (defun construct (string idiom)
-  ;; (print (list :m map))
   (let ((bounds) (formats) (index 0) (output (list nil nil))
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string)))
+    (print (list :m map))
     (labels ((lex-chars (start end)
                (let ((substring (make-array (- end start)
                                             :element-type 'character :displaced-to string
@@ -910,22 +931,25 @@
              (close-bound ()
                (lex-chars index (first bounds))
                ;; (push (list :a (- (first bounds) index)) (first output))
-               ;;(push (list :a (lex-chars index (first bounds))) (first output))
+               ;; (push (list :a (lex-chars index (first bounds))) (first output))
                ;; (print (list :gg output (rest output)))
                ;; (push (first output) (second output))
                (when (first formats)
-                 (typecase (first formats)
-                   (symbol
-                    (setf output (cons (cons (cons (first formats)
-                                                   (cons (first output) (second output)))
-                                             (third output))
-                                       (cdddr output))))
-                   (function
-                    (setf output (funcall function output)))))
-               ;; (print (list :o output))
-               (setf index   (1+ (first bounds))
-                     bounds  (rest bounds)
-                     formats (rest formats))))
+                 (let ((this-format (getf (getf (vex::idiom-utilities idiom) :section-formatters)
+                                          (first formats))))
+                   (print (list :tf this-format))
+                   (typecase this-format
+                     (symbol
+                      (setf output (cons (cons (cons this-format
+                                                     (cons (first output) (second output)))
+                                               (third output))
+                                         (cdddr output))))
+                     (function
+                      (setf output (funcall this-format output)))))
+                 ;; (print (list :o output))
+                 (setf index   (1+ (first bounds))
+                       bounds  (rest bounds)
+                       formats (rest formats)))))
       (loop :for spec :in map
             :do (destructuring-bind (type start &optional end) spec
                   ;; (print (list :bb bounds start))
@@ -938,16 +962,19 @@
                     (setf index (1+ start)))
                   ;; (print (list :b spec index start end :a (- start index)
                   ;;                                      :ff formats output type))
-                  (case type
-                    ((:as :br)
-                     (print :eee)
-                     (push (first output) (second output))
-                     (setf output (cons nil (rest output))))
-                    ((:cl :ax :fn) (push type formats)
-                     (setf index (1+ start))
-                     (push nil output)
-                     (push nil output)
-                     (push end bounds)))))
+                  (if end ;; an entity is a section if it has an end, a divider if not
+                      (progn (push type formats)
+                             (push end bounds)
+                             (setf index (1+ start)
+                                   output (funcall (getf (getf (vex::idiom-utilities idiom)
+                                                               :section-builders)
+                                                         type)
+                                                   output)))
+                      ;; dividers are handled based on the containing section type
+                      (setf output (funcall (getf (getf (vex::idiom-utilities idiom) :section-dividers)
+                                                  (first formats))
+                                            type output))
+                      )))
       
       (loop :while bounds :do (close-bound))
       (cons (first output) (second output))

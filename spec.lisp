@@ -23,24 +23,53 @@
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
- (entities (token  :number   :match (lambda (char) (or (digit-char-p char)
-                                                       (position char "._¯eEjJrR" :test #'char=))))
-           (token  :name     :match (lambda (char) (or (is-alphanumeric char)
-                                                       (position char "._⎕∆⍙¯" :test #'char=))))
-           (divider :break   :match '(#\⋄ #\◊ #\Newline #\Return) :format :br)
-           (divider :axsplit :match #\; :format :as)
+ (entities (token   :number   :match (lambda (char) (or (digit-char-p char)
+                                                        (position char "._¯eEjJrR" :test #'char=))))
+           (token   :name     :match (lambda (char) (or (is-alphanumeric char)
+                                                        (position char "._⎕∆⍙¯" :test #'char=))))
+           (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return) :format :br)
+           (divider :axdiv    :match #\; :format :as)
            ;; (series :comment  :start "⍝" :end (coerce '(#\Newline #\Return) 'string))
-           (section :function :delimit "{}" :format :fn)
-           (section :closure  :delimit "()" :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
-                              :format :cl)
-           (section :axes     :delimit "[]" :divide #\;
-                              :without (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)
-                              :format ;; (lambda (composed)
-                                      ;;   (cons (cons (cons :ax (cons (first composed) (second composed)))
-                                      ;;               (third composed))
-                                      ;;         (cdddr composed)))
-                    :ax
-                    ))
+           (section :body     :divide (lambda (type collected)
+                                        (case type
+                                          (:break (cons nil (cons (cons (first collected) (second collected))
+                                                                  (cdddr collected))))
+                                          (:axdiv (error "Misplaced ; axis separator in program body.")))))
+           (section :closure  :delimit "()"
+                              :build  (lambda (collected) (cons nil collected))
+                              :divide (lambda (type collected)
+                                        (declare (ignore type collected))
+                                        (error "A (closure) may not include breaks."))
+                              :format (lambda (collected)
+                                        (cons (cons (first collected) (second collected))
+                                              (cddr collected))))
+           (section :function :delimit "{}" :format :fn
+                              :build  (lambda (collected) (cons nil (cons nil collected)))
+                              :divide (lambda (type collected)
+                                        (case type
+                                          (:break (cons nil (cons (cons (first collected) (second collected))
+                                                                  (cdddr collected))))
+                                          (:axdiv (error "Misplaced ; axis separator in {function}."))))
+                              :format (lambda (collected)
+                                        (cons (cons (cons :fn (cons (first collected)
+                                                                    (second collected)))
+                                                    (third collected))
+                                              (cdddr collected))))
+           (section :axes     :delimit "[]"
+                              :build (lambda (collected) (cons nil (cons nil collected)))
+                              :divide (lambda (type collected)
+                                        (case type
+                                          (:break (cons nil (cons (cons (first collected)
+                                                                        (second collected))
+                                                                  (cdddr collected))))
+                                          (:axdiv (cons nil (cons (cons (first collected)
+                                                                        (second collected))
+                                                                  (cdddr collected))))))
+                              :format (lambda (collected)
+                                        (cons (cons (cons :ax (cons (first collected)
+                                                                    (second collected)))
+                                                    (third collected))
+                                              (cdddr collected)))))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
