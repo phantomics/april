@@ -73,7 +73,6 @@
                                                                                   (third collected))
                                                                             (cddddr collected)))))))
                               :format (lambda (collected)
-                                        (print :ccc)
                                         (cons (cons (cons :ax (cons (cons (first collected)
                                                                                  (second collected))
                                                                            (third collected)))

@@ -788,12 +788,12 @@
       (values (reverse returned) dl-indices)))))
 
 (defun construct (string idiom)
-  (let ((bounds (list (length string))) (formats) (index 0) (output (list nil nil))
+  (let ((bounds (list (length string)))
+        (formats) (index 0) (output (list nil nil))
         (cl-meta (list :meta :aa 0)) ;; placeholder meta
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string)))
-    (print (list :m map bounds))
+    ;; (print (list :m map bounds))
     (labels ((lex-chars (start end)
-               (print (list :st start end))
                (let ((substring (make-array (- end start)
                                             :element-type 'character :displaced-to string
                                             :displaced-index-offset start)))
@@ -846,7 +846,7 @@
                             (this-renderer (getf (getf (vex::idiom-utilities idiom)
                                                        :section-renderers)
                                                  type)))
-                        (print (list :tr this-renderer))
+                        ;; (print (list :tr this-renderer))
                         (if this-builder
                             (progn (push type formats)
                                    (push end bounds)
