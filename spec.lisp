@@ -23,18 +23,24 @@
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
- (entities (token   :number   :match (lambda (char) (or (digit-char-p char)
-                                                        (position char "._¯eEjJrR" :test #'char=))))
-           (token   :name     :match (lambda (char) (or (is-alphanumeric char)
-                                                        (position char "._⎕∆⍙¯" :test #'char=))))
-           (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return) :format :br)
-           (divider :axdiv    :match #\; :format :as)
-           ;; (series :comment  :start "⍝" :end (coerce '(#\Newline #\Return) 'string))
+ (entities ;; (token   :number   :match (lambda (char) (or (digit-char-p char)
+           ;;                                              (position char "._¯eEjJrR" :test #'char=))))
+           ;; (token   :name     :match (lambda (char) (or (is-alphanumeric char)
+           ;;                                              (position char "._⎕∆⍙¯" :test #'char=))))
+           (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
+           (divider :axdiv    :match #\;) ;; axis divider
            (section :body     :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (cons (first collected) (second collected))
                                                                   (cdddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
+           (section :comment  :start "⍝" :end '(#\Newline #\Return))
+           (section :string   :start "'\"" :end "'\"" :exclusive t
+                              :render (lambda (string start end)
+                                        (let ((output (make-string (- end start 1))))
+                                          (loop :for i :from (1+ start) :below end :for ix :from 0
+                                                :do (setf (aref output ix) (aref string i)))
+                                          output)))
            (section :closure  :delimit "()"
                               :build  (lambda (collected) (cons nil collected))
                               :divide (lambda (type collected)
@@ -43,7 +49,7 @@
                               :format (lambda (collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
-           (section :function :delimit "{}" :format :fn
+           (section :function :delimit "{}"
                               :build  (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type collected)
                                         (case type
@@ -56,20 +62,23 @@
                                                     (third collected))
                                               (cdddr collected))))
            (section :axes     :delimit "[]"
-                              :build (lambda (collected) (cons nil (cons nil collected)))
+                              :build (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (cons (first collected)
                                                                         (second collected))
                                                                   (cdddr collected))))
-                                          (:axdiv (cons nil (cons (cons (first collected)
-                                                                        (second collected))
-                                                                  (cdddr collected))))))
+                                          (:axdiv (cons nil (cons nil (cons (cons (cons (first collected)
+                                                                                        (second collected))
+                                                                                  (third collected))
+                                                                            (cddddr collected)))))))
                               :format (lambda (collected)
-                                        (cons (cons (cons :ax (cons (first collected)
-                                                                    (second collected)))
-                                                    (third collected))
-                                              (cdddr collected)))))
+                                        (print :ccc)
+                                        (cons (cons (cons :ax (cons (cons (first collected)
+                                                                                 (second collected))
+                                                                           (third collected)))
+                                                           (fourth collected))
+                                              (cddddr collected)))))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
