@@ -296,6 +296,11 @@
                                              :collect (cons 'list (cons (intern (string (first entd))
                                                                                 "KEYWORD")
                                                                         (rest entd)))))
+                                    :entity-specs
+                                    ,(cons 'list
+                                           (loop :for entd :in entity-defs
+                                                 :append (destructuring-bind (type name &rest pairs) entd
+                                                           (list name (cons 'list pairs)))))
                                     :section-builders
                                     ,(cons 'list
                                            (loop :for entd :in entity-defs
@@ -565,170 +570,78 @@
                                       (append output (loop :for char :below (length glyph)
                                                            :collect (aref glyph char)))))))))
 
-;; (defun process-enclosed (string )
-;;   (let ((indices) (last-index) (quoted) (nesting 0))
-;;     (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
-;;     (loop :for char :across string :counting char :into charix
-;;           :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
-;;                                   :when (char= d char) :do (return (- full-len -1 dx)))
-;;                             0)))
-;;                 (if (position char (of-system idiom :string-delimiters) :test #'char=)
-;;                     (setf quoted (not quoted))
-;;                     (unless quoted
-;;                       (if (< half-len mx) (incf (aref nesting (- full-len mx)))
-;;                           (if (<= 1 mx half-len)
-;;                               (if (< 0 (aref nesting (- half-len mx)))
-;;                                   (decf (aref nesting (- half-len mx)))
-;;                                   (error "Each closing ~a must match with an opening ~a."
-;;                                          (aref delimiters mx)
-;;                                          (aref delimiters (- half-len mx))))
-;;                               (when (and (position char axis-separators :test #'char=)
-;;                                          (zerop (loop :for ncount :across nesting
-;;                                                       :summing ncount)))
-;;                                 (setq indices (cons (1- charix) indices)))))))))
-;;     (loop :for index :in (reverse (cons (length string) indices))
-;;           :counting index :into iix
-;;           :collect (make-array (- index (if last-index 1 0)
-;;                                   (or last-index 0))
-;;                                :element-type 'character :displaced-to string
-;;                                :displaced-index-offset (if last-index (1+ last-index) 0))
-;;           :do (setq last-index index))))
-
-;; (defun specify-mappers (&rest specs)
-;;   (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (formatters)
-;;         (nest-counters))
-;;     (loop :for spec in specs
-;;           :do (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
-;;                     (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
-;;                 (when delimiters
-;;                   (let* ((bclen (length delimiters))
-;;                          (hbclen (ash bclen -1)))
-;;                     (push (lambda (char)
-;;                             (position char delimiters :end hbclen :test #'char=))
-;;                           open-matchers)
-;;                     (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
-;;                     (push (lambda (char) (position char delimiters :start hbclen :test #'char=))
-;;                           close-matchers)
-;;                     (loop :for dx :from hbclen :below (length delimiters)
-;;                           :do (push (aref delimiters dx) open-chars))))
-;;                 (when start
-;;                   (loop :for trm :in (list start end)
-;;                         :for matcher :in (list open-matchers close-matchers)
-;;                         :for collection :in (list open-chars closing-chars)
-;;                         :do (typecase terminal
-;;                               (character
-;;                                (push (lambda (char) (char= char trm)) matcher)
-;;                                (push char collection))
-;;                               (list
-;;                                (push (lambda (char) (member char trm :test #'char=)) matcher)
-;;                                (loop :for i :in terminal :do (push i collection)))
-;;                               (function (push trm open-matchers)))))
-;;                 (if (not divider)
-;;                     (push nil dividers)
-;;                     (push (typecase divider
-;;                             (character
-;;                              (print (list :dd divider))
-;;                              (lambda (char) (char= char divider)) ))
-;;                           dividers))
-;;                 (push format formatters)))
-    
-;;     (setf nest-counters (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
-    
-;;     (print (list :oo open-matchers dividers close-matchers specs nest-counters
-;;                  open-chars closing-chars))
-;;     (lambda (idiom input)
-;;       (let ((matched nil))
-;;         (print (list :oo))
-;;         (loop :until matched :for open-matcher :in open-matchers
-;;               :do (when (funcall open-matcher (aref input 0))
-;;                     (setf matched (process-enclosed idiom input
-;;                                                     open-matchers close-matchers dividers))))
-;;         ;; (loop :until matched :for open-matcher :in open-matchers :for divider :in dividers
-;;         ;;       :for close-matcher :in close-matchers :for formatter :in formatters
-;;         ;;       :do (parse input
-;;         ;;                  (=destructure
-;;         ;;                      (_ enclosed terminal)
-;;         ;;                      (=list (?satisfies open-matcher)
-;;         ;;                             ;; for some reason, the first character in the string is
-;;         ;;                             ;; iterated over twice here, so the character index is
-;;         ;;                             ;; checked and nothing is done for the first character
-;;         ;;                             ;; TODO: fix this
-;;         ;;                             (=transform (=subseq
-;;         ;;                                                  (%some (?not (%or (?satisfies open-matcher)
-;;         ;;                                                                    (?satisfies divider)
-;;         ;;                                                                    (?satisfies close-matcher)))))
-;;         ;;                                                 (funcall formatter
-;;         ;;                                                          (lambda (str)
-;;         ;;                                                            (parse str (=vex-string idiom)))))
-;;         ;;                             (%or (?satisfies close-matcher)
-;;         ;;                                  (?satisfies divider)))
-;;         ;;                    (print (list :tr enclosed terminal))
-;;         ;;                    (when enclosed (setf matched enclosed)))))
-;;         matched))))
-
 (defun specify-mappers (&rest specs)
   (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (exclusive-specs)
-        (spec-names) (div-spec-names) (formatters) (div-formatters) (nest-counters))
-    (loop :for spec-list in specs 
-          :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
-                (case spec-type
-                  (:section
-                   (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
-                         (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
-                     (push spec-name spec-names)
-                     ;; (print (list :sp spec))
-                     (push (getf spec :exclusive) exclusive-specs)
-                     (when delimiters ;; in the case of sections with paired delimiters
-                       (let* ((bclen (length delimiters))
-                              (hbclen (ash bclen -1)))
-                         (push (lambda (char)
-                                 (position char delimiters :end hbclen :test #'char=))
-                               open-matchers)
-                         (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
-                         (push (lambda (char) (position char delimiters :start hbclen :test #'char=))
-                               close-matchers)
-                         (loop :for dx :from hbclen :below (length delimiters)
-                               :do (push (aref delimiters dx) open-chars))))
-                     (when start ;; in the case of sections with start and end qualifiers
-                       (typecase start
-                         (character
-                          (push (lambda (char) (char= char start)) open-matchers)
-                          (push start collection))
-                         (string
-                          (push (lambda (char) (position char start :test #'char=)) open-matchers)
-                          (loop :for c :across start :do (push c open-chars)))
-                         (list
-                          (push (lambda (char) (member char start :test #'char=)) open-matchers)
-                          (loop :for i :in start :do (push i open-chars)))
-                         (function (push start open-matchers)))
-                       (typecase end
-                         (character
-                          (push (lambda (char) (char= char end)) open-matchers)
-                          (push end collection))
-                         (string
-                          (push (lambda (char) (position char end :test #'char=)) close-matchers)
-                          (loop :for c :across end :do (push c closing-chars)))
-                         (list
-                          (push (lambda (char) (member char end :test #'char=)) close-matchers)
-                          (loop :for i :in end :do (push i closing-chars)))
-                         (function (push end close-matchers))
-                         (t (error "Section specification ~a has a start qualifier but no end qualifier."
-                                   spec-name))))
-                     (push format formatters)))
-                  (:divider
-                   (let ((matcher (getf spec :match)) (format (getf spec :format)))
-                     (push spec-name div-spec-names)
-                     (push (typecase matcher
-                             (character (lambda (char) (char= char matcher)))
-                             (string (lambda (char) (position char matcher :test #'char=)))
-                             (list (lambda (char) (member char matcher :test #'char=)))
-                             (function matcher))
-                           dividers)
-                     (push (typecase format
-                             (symbol format))
-                           div-formatters))))))
+        (spec-names) (div-spec-names) (section-names) (divider-names)
+        (formatters) (div-formatters) (nest-counters))
+    (macrolet ((ixchar (&optional str-index) `(aref string (+ index ,(or str-index 0)))))
+      (loop :for spec-list in specs
+            :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
+                  (case spec-type
+                    (:section
+                     (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+                           (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+                       (push spec-name spec-names)
+                       ;; (print (list :sp spec))
+                       (push (getf spec :exclusive) exclusive-specs)
+                       (when delimiters ;; in the case of sections with paired delimiters
+                         (let* ((bclen (length delimiters))
+                                (hbclen (ash bclen -1)))
+                           (push (lambda (string index)
+                                   (let ((pos (position (ixchar) delimiters :end hbclen :test #'char=)))
+                                     (when pos (lambda (string index)
+                                                 (char= (ixchar)
+                                                        (aref delimiters (+ hbclen -1 (- hbclen pos))))))))
+                                 open-matchers)
+                           (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
+                           (push (lambda (string index)
+                                   (position (ixchar) delimiters :start hbclen :test #'char=))
+                                 close-matchers)
+                           (loop :for dx :from hbclen :below (length delimiters)
+                                 :do (push (aref delimiters dx) open-chars))))
+                       (when start ;; in the case of sections with start and end qualifiers
+                         (typecase start
+                           (character (push (lambda (string index) (char= (ixchar) start))
+                                            open-matchers)
+                            (push start collection))
+                           (string    (push (lambda (string index) (position (ixchar) start :test #'char=))
+                                            open-matchers)
+                            (loop :for c :across start :do (push c open-chars)))
+                           (list      (push (lambda (string index) (member (ixchar) start :test #'char=))
+                                            open-matchers)
+                            (loop :for i :in start :do (push i open-chars)))
+                           (function (push start open-matchers)))
+                         (typecase end
+                           (character (push (lambda (string index) (char= (ixchar) end))
+                                            open-matchers)
+                            (push end collection))
+                           (string    (push (lambda (string index) (position (ixchar) end :test #'char=))
+                                            close-matchers)
+                            (loop :for c :across end :do (push c closing-chars)))
+                           (list      (push (lambda (string index) (member (ixchar) end :test #'char=))
+                                            close-matchers)
+                            (loop :for i :in end :do (push i closing-chars)))
+                           (function (push end close-matchers))
+                           (t (error "Section specification ~a has a start qualifier but no end qualifier."
+                                     spec-name))))
+                       (push format formatters)))
+                    (:divider
+                     (let ((matcher (getf spec :match)) (format (getf spec :format)))
+                       (push spec-name div-spec-names)
+                       (push (typecase matcher
+                               (character (lambda (string index) (char= (ixchar) matcher)))
+                               (string    (lambda (string index) (position (ixchar) matcher :test #'char=)))
+                               (list      (lambda (string index) (member (ixchar) matcher :test #'char=)))
+                               (function matcher))
+                             dividers)
+                       (push (typecase format
+                               (symbol format))
+                             div-formatters)))))))
     
-    (setf nest-counters (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
+    (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0)
+          ;; spec-names     (reverse spec-names)
+          ;; div-spec-names (reverse div-spec-names)
+          )
 
     ;; (print (list :dn spec-names))
     
@@ -736,49 +649,56 @@
     ;;              open-chars closing-chars))
     
     (lambda (idiom string)
-      (let ((code 0) (denoted) (returned) (divider-list)
-            (exclusive-index) (set-mirroring)
-            (dl-indices (make-array (length string) :element-type '(signed-byte 8)
-                                                    :initial-element 0)))
+      (let ((code 0) (open-stack) (confirmer-stack)
+            (returned) (divider-list) (exclusive-index) (set-mirroring)
+            (dl-indices (make-array (length string) :element-type '(signed-byte 8) :initial-element 0)))
         (loop :for char :across string :for cx :from 0
-              :do (loop :for om :in open-matchers :for cm :in close-matchers
+              :do (loop :for dv :in dividers :for ix :from (length open-matchers) :while (zerop code)
+                        :do (when (and dv (funcall dv string cx))
+                              (incf code (1+ ix))))
+                  (loop :for om :in open-matchers :for cm :in close-matchers
                         :for ix :from 0 :while (zerop code)
                         :do (setf set-mirroring nil)
-                            (when (funcall om char)
-                              (unless exclusive-index
-                                (incf code (1+ ix)))
-                              (when (and (not exclusive-index)
-                                         (nth ix exclusive-specs))
-                                (setf exclusive-index ix
-                                      set-mirroring   t)))
-                            (when (and (funcall cm char) (not set-mirroring))
-                              (decf code (1+ ix))))
-                  (loop :for dv :in dividers :for ix :from (length open-matchers) :while (zerop code)
-                        :do (when (and dv (funcall dv char))
-                              (incf code (1+ ix))))
-                  (unless (zerop code)
+                            (let ((matcher-output (funcall om string cx)))
+                              (when matcher-output
+                                (unless exclusive-index
+                                  (incf code (1+ ix))
+                                  (push ix open-stack))
+                                (when (and (not exclusive-index) (nth ix exclusive-specs))
+                                  (setf exclusive-index ix
+                                        set-mirroring   t)
+                                  (push ix open-stack)))
+                              (push matcher-output confirmer-stack))
+                            (when (and (funcall cm string cx) (not set-mirroring)
+                                       open-stack (= ix (first open-stack))
+                                       ;; (or (not (first confirmer-stack))
+                                       ;;     (funcall (first confirmer-stack) string cx))
+                                       (or (not exclusive-index)
+                                           (= ix exclusive-index)))
+                              (when exclusive-index (setf exclusive-index nil))
+                              (decf code (1+ ix))
+                              (pop open-stack)))
+                 (unless (zerop code)
                     (setf (aref dl-indices cx) code
                           code                 0)))
 
-        ;; (print (list :ggg formatters dl-indices dividers div-formatters))
+        (print (list :ggg formatters dl-indices dividers div-formatters spec-names
+                     open-matchers))
         
         (loop :for index :across dl-indices :for char :across string :for ix :from 0
               :do (when (not (zerop index))
                     (when (plusp index)
-                      (if (<= index (length formatters))
+                      (if (< index (length spec-names))
                           (progn (incf code (ash 1 (ash index 3)))
                                  (push (list nil ix index) returned))
-                          (push (list (nth (- index 1); (length formatters))
-                                           div-spec-names)
+                          (push (list (nth (- index (length spec-names)) div-spec-names)
                                       ix)
                                 returned)))
                     ;; (print (list :in index returned exclusive-specs
-                    ;;              (= index (third (first returned)))
-                    ;;              (and returned (nth (1- index) exclusive-specs)
-                    ;;                   (= index (third (first returned))))))
+                    ;;              (= index (third (first returned)))))
                     (when (minusp index)
                       (decf code (ash 1 (ash (abs index) 3)))
-                      (setf divider-list (rest divider-list))
+                      (pop divider-list)
                       (let ((found) (formatter (nth (1- (abs index)) spec-names)))
                         (loop :for r :in returned :for rx :from 0
                               :until found :when (third r)
@@ -787,12 +707,14 @@
                                                       (list formatter (second r) ix)))))))))
       (values (reverse returned) dl-indices)))))
 
-(defun construct (string idiom)
+(defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
         (formats) (index 0) (output (list nil nil))
         (cl-meta (list :meta :aa 0)) ;; placeholder meta
-        (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string)))
-    ;; (print (list :m map bounds))
+        (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
+        (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+                            :by #'cddr :when (getf val :base) :return (getf val :divide))))
+    (print (list :m map bounds))
     (labels ((lex-chars (start end)
                (let ((substring (make-array (- end start)
                                             :element-type 'character :displaced-to string
@@ -800,10 +722,10 @@
                  ;; (loop :for c :from start :below end :for i :from 0
                  ;;       :do (setf (aref in-string i) (aref string c)))
                  (setf (first output)
-                       (append (first (funcall (or (of-utilities idiom :lexer-postprocess)
+                       (append (first (print (funcall (or (of-utilities idiom :lexer-postprocess)
                                                    (lambda (&rest args) (first args)))
                                                (parse substring (=vex-string idiom))
-                                               idiom "APRIL-WORKSPACE-COMMON" cl-meta))
+                                               idiom workspace cl-meta)))
                                (first output)))))
              (close-bound ()
                (lex-chars index (first bounds))
@@ -812,8 +734,9 @@
                ;; (print (list :gg output (rest output)))
                ;; (push (first output) (second output))
                (when (first formats)
-                 (let ((this-format (getf (getf (vex::idiom-utilities idiom) :section-formatters)
-                                          (first formats))))
+                 (let ((this-format (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                (first formats))
+                                          :format)))
                    ;; (print (list :tf this-format))
                    (typecase this-format
                      (symbol
@@ -822,8 +745,8 @@
                                                (third output))
                                          (cdddr output))))
                      (function
-                      (setf output (funcall this-format output))))
-                   (setf formats (rest formats))))
+                      (setf output (funcall this-format nil output))))
+                   (pop formats)))
                  ;; (print (list :o output))
                (setf index  (1+ (first bounds))
                      bounds (rest bounds))))
@@ -840,12 +763,12 @@
                   ;; (print (list :b spec index start end :a (- start index)
                   ;;                                      :ff formats output type))
                   (if end ;; an entity is a section if it has an end, a divider if not
-                      (let ((this-builder (getf (getf (vex::idiom-utilities idiom)
-                                                      :section-builders)
-                                                type))
-                            (this-renderer (getf (getf (vex::idiom-utilities idiom)
-                                                       :section-renderers)
-                                                 type)))
+                      (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                      type)
+                                                :build))
+                            (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                       type)
+                                                 :render)))
                         ;; (print (list :tr this-renderer))
                         (if this-builder
                             (progn (push type formats)
@@ -857,18 +780,30 @@
                                        (setf index (1+ end)))
                                 (setf index (1+ end)))))
                       ;; dividers are handled based on the containing section type
-                      (setf output (funcall (getf (getf (vex::idiom-utilities idiom) :section-dividers)
-                                                  (first formats))
+                      (setf output (funcall (if (first formats)
+                                                (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                            (first formats))
+                                                      :divide)
+                                                base-divider)
                                             type output)))))
       
       (loop :while bounds :do (close-bound))
-      (cons (first output) (second output)))))
+      (reverse (cons (first output) (second output))))))
+
+#|
+
+'APRIL' 'MAY'∪'MAY' 'JUNE'
+{⍵+5}⍣$[3>2;4;5]⊢2
++/,{+/,⍵}⌺3 3⊢6 5 ⍴ ⍳5
+fn←{⍵×2} ⋄ fn⍣3⊢4
+fn←{2+⍵}⍣{10<⍺}
+{gg←1 ⋄ {gg←⍵}¨⍳⍵ ⋄ gg} 5
+⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6
+x←1
 
 '((:ax (:a 1) (:a 2)))
 
 '((:ax (:a 1) (:ax (:a 1) (:a 2)) (:a 1)))
-
-#|
 
 (let ((ss "[  [ ( ) ;  ] ]")) (vex::construct4 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* ss) ss))
 
@@ -1239,6 +1174,10 @@
                (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
+             ;; (process-lines (string &optional space params output)
+             ;;   (funcall (of-utilities idiom :compile-form)
+             ;;            (vex::construct string idiom space)
+             ;;            :space space :params params))
              (process-lines (string &optional space params output)
                (if (zerop (length string))
                    (funcall (of-utilities idiom :compile-form)

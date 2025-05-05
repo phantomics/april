@@ -29,13 +29,50 @@
            ;;                                              (position char "._⎕∆⍙¯" :test #'char=))))
            (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
            (divider :axdiv    :match #\;) ;; axis divider
-           (section :body     :divide (lambda (type collected)
+           (section :body     :base t
+                              :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (cons (first collected) (second collected))
                                                                   (cdddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
-           (section :comment  :start "⍝" :end '(#\Newline #\Return))
-           (section :string   :start "'\"" :end "'\"" :exclusive t
+           (section :comment  :start "⍝" :exclusive t
+                              :end (lambda (string index)
+                                     (or (member (aref string index) '(#\Newline #\Return) :test #'char=)
+                                         (= index (1- (length string))))))
+           (section :string   :start "'\"" :exclusive t
+                              ;; :start (labels ((check-char (char) (position char "'\"" :test #'char=))
+                              ;;                 (match-end (char)
+                              ;;                   (lambda (string index)
+                              ;;                     (let* ((is-quote (char= char (aref string index)))
+                              ;;                            (next-quote (and is-quote
+                              ;;                                             (< index (1- (length string)))
+                              ;;                                             (char= char (aref string
+                              ;;                                                               (1+ index))))))
+                              ;;                       (when next-quote (setf (aref string (1+ index)) #\ ))
+                              ;;                       (and is-quote (not next-quote))))))
+                              ;;          (let ((quotes-string "'\""))
+                              ;;            (lambda (string index)
+                              ;;              (let ((pos (position char quotes-string :test #'char=)))
+                              ;;                (when pos (match-end (aref quotes-string pos)))))))
+                              :end (flet ((check-char (char) (position char "'\"" :test #'char=)))
+                                     (lambda (string index)
+                                       ;; (print (list (aref string index)))
+                                       ;; check for a quote mark that is not an '' escaped double quote
+                                       (let* ((is-quote (check-char (aref string index)))
+                                              (next-quote (and is-quote (< index (1- (length string)))
+                                                               (check-char (aref string (1+ index))))))
+                                         (when next-quote (setf (aref string (1+ index)) #\ ))
+                                         (and is-quote (not next-quote)))))
+                    
+                    ;; (and (check-char (aref string index))
+                    ;;      (or (= index (length string))
+                    ;;          (check-char (aref string (1+ index))))
+                    ;;      (or (zerop index) (= index (length string))
+                    ;;          (not (and (check-char (aref string (1+ index)))
+                    ;;                    (or (check-char (aref string (1- index)))
+                    ;;                        (check-char (aref string (+ index 2))))))
+                    ;;          (not (and (check-char (aref string (1- index)))
+                    ;;                    (check-char (aref string (- index 2)))))))))
                               :render (lambda (string start end)
                                         (let ((output (make-string (- end start 1))))
                                           (loop :for i :from (1+ start) :below end :for ix :from 0
@@ -46,7 +83,7 @@
                               :divide (lambda (type collected)
                                         (declare (ignore type collected))
                                         (error "A (closure) may not include breaks."))
-                              :format (lambda (collected)
+                              :format (lambda (meta collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
            (section :function :delimit "{}"
@@ -56,9 +93,9 @@
                                           (:break (cons nil (cons (cons (first collected) (second collected))
                                                                   (cdddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
-                              :format (lambda (collected)
-                                        (cons (cons (cons :fn (cons (first collected)
-                                                                    (second collected)))
+                              :format (lambda (meta collected)
+                                        (cons (cons (cons :fn (list (cons (first collected)
+                                                                          (second collected))))
                                                     (third collected))
                                               (cdddr collected))))
            (section :axes     :delimit "[]"
@@ -71,8 +108,8 @@
                                           (:axdiv (cons nil (cons nil (cons (cons (cons (first collected)
                                                                                         (second collected))
                                                                                   (third collected))
-                                                                            (cddddr collected)))))))
-                              :format (lambda (collected)
+                                                                            (cdddr collected)))))))
+                              :format (lambda (meta collected)
                                         (cons (cons (cons :ax (cons (cons (first collected)
                                                                                  (second collected))
                                                                            (third collected)))
