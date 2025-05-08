@@ -590,6 +590,9 @@
                            (push (lambda (string index)
                                    (let ((pos (position (ixchar) delimiters :end hbclen :test #'char=)))
                                      (when pos (lambda (string index)
+                                                 ;; (print (list :sx string index delimiters
+                                                 ;;              (+ hbclen -1 (- hbclen pos))
+                                                 ;;              (ixchar)))
                                                  (char= (ixchar)
                                                         (aref delimiters (+ hbclen -1 (- hbclen pos))))))))
                                  open-matchers)
@@ -638,10 +641,7 @@
                                (symbol format))
                              div-formatters)))))))
     
-    (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0)
-          ;; spec-names     (reverse spec-names)
-          ;; div-spec-names (reverse div-spec-names)
-          )
+    (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
 
     ;; (print (list :dn spec-names))
     
@@ -659,31 +659,41 @@
                   (loop :for om :in open-matchers :for cm :in close-matchers
                         :for ix :from 0 :while (zerop code)
                         :do (setf set-mirroring nil)
-                            (let ((matcher-output (funcall om string cx)))
+                            (let ((matcher-output (and (not exclusive-index)
+                                                       (funcall om string cx))))
+                              ;; (print (list :mo char matcher-output))
                               (when matcher-output
-                                (unless exclusive-index
+                                (unless nil ; exclusive-index
                                   (incf code (1+ ix))
                                   (push ix open-stack))
-                                (when (and (not exclusive-index) (nth ix exclusive-specs))
+                                (when (nth ix exclusive-specs)
                                   (setf exclusive-index ix
                                         set-mirroring   t)
-                                  (push ix open-stack)))
-                              (push matcher-output confirmer-stack))
-                            (when (and (funcall cm string cx) (not set-mirroring)
-                                       open-stack (= ix (first open-stack))
-                                       ;; (or (not (first confirmer-stack))
-                                       ;;     (funcall (first confirmer-stack) string cx))
-                                       (or (not exclusive-index)
-                                           (= ix exclusive-index)))
-                              (when exclusive-index (setf exclusive-index nil))
-                              (decf code (1+ ix))
-                              (pop open-stack)))
+                                  ;; (push ix open-stack)
+                                  ))
+                              ;; (print (list :ch char matcher-output
+                              ;;              set-mirroring open-stack ix))
+                              ;; (push matcher-output confirmer-stack)
+                              (when (and ;; (funcall cm string cx)
+                                     (not set-mirroring)
+                                     open-stack (= ix (first open-stack))
+                                     confirmer-stack
+                                     (or (not (functionp (first confirmer-stack)))
+                                         (funcall (first confirmer-stack) string cx))
+                                     (or (not exclusive-index)
+                                         (= ix exclusive-index)))
+                                ;; (print (list :p open-stack))
+                                (when exclusive-index (setf exclusive-index nil))
+                                (decf code (1+ ix))
+                                (pop open-stack)
+                                (pop confirmer-stack))
+                              (when matcher-output (push matcher-output confirmer-stack))))
                  (unless (zerop code)
                     (setf (aref dl-indices cx) code
                           code                 0)))
 
-        (print (list :ggg formatters dl-indices dividers div-formatters spec-names
-                     open-matchers))
+        ;; (print (list :ggg formatters dl-indices dividers div-formatters spec-names
+        ;;              open-matchers))
         
         (loop :for index :across dl-indices :for char :across string :for ix :from 0
               :do (when (not (zerop index))
@@ -713,19 +723,23 @@
         (cl-meta (list :meta :aa 0)) ;; placeholder meta
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
         (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-                            :by #'cddr :when (getf val :base) :return (getf val :divide))))
-    (print (list :m map bounds))
+                            :by #'cddr :when (getf val :base) :return (getf val :divide)))
+        (postprocessor (or (of-utilities idiom :lexer-postprocess)
+                           (lambda (&rest args) (first args)))))
+    ;; (print (list :m map bounds))
     (labels ((lex-chars (start end)
-               (let ((substring (make-array (- end start)
-                                            :element-type 'character :displaced-to string
-                                            :displaced-index-offset start)))
+               (let* ((substring (make-array (- end start)
+                                             :element-type 'character :displaced-to string
+                                             :displaced-index-offset start))
+                      (parsed (parse substring (=vex-string idiom))))
                  ;; (loop :for c :from start :below end :for i :from 0
                  ;;       :do (setf (aref in-string i) (aref string c)))
-                 (setf (first output)
-                       (append (first (print (funcall (or (of-utilities idiom :lexer-postprocess)
-                                                   (lambda (&rest args) (first args)))
-                                               (parse substring (=vex-string idiom))
-                                               idiom workspace cl-meta)))
+                 (setf cl-meta (cons :meta (third parsed))
+                       (first output)
+                       (append ;; (first (funcall (or (of-utilities idiom :lexer-postprocess)
+                               ;;                     (lambda (&rest args) (first args)))
+                               ;;                 parsed idiom workspace cl-meta))
+                               (first parsed)
                                (first output)))))
              (close-bound ()
                (lex-chars index (first bounds))
@@ -745,7 +759,9 @@
                                                (third output))
                                          (cdddr output))))
                      (function
-                      (setf output (funcall this-format nil output))))
+                      (setf output (funcall this-format (lambda (item)
+                                                          (funcall postprocessor item idiom workspace))
+                                            output))))
                    (pop formats)))
                  ;; (print (list :o output))
                (setf index  (1+ (first bounds))
@@ -791,13 +807,27 @@
       (reverse (cons (first output) (second output))))))
 
 #|
+ ('(','asdf')⍳'('
+{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
+{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
+$[0;2;3]
+('*'@2)⍳5
+x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x
+('a',⍬)≡1↑'amy'
+{x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 
-'APRIL' 'MAY'∪'MAY' 'JUNE'
+{x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
+⊃(⊂'test'),3
+1 ¯2 3 ¯4 5\'.'
+st←'aodjeignwug' ⋄ st[⍋st]
+
+{(⊂⍋⍵)⌷⍵}⍤1⊢3 4 5⍴⍳9
+{⍵[⍋⍵]}'abcABC012xyzXYZ789'
+rr←-∘⌽[1] ⋄ rr 3 3⍴⍳9
+x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7
+
 {⍵+5}⍣$[3>2;4;5]⊢2
 +/,{+/,⍵}⌺3 3⊢6 5 ⍴ ⍳5
-fn←{⍵×2} ⋄ fn⍣3⊢4
-fn←{2+⍵}⍣{10<⍺}
-{gg←1 ⋄ {gg←⍵}¨⍳⍵ ⋄ gg} 5
 ⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6
 x←1
 
@@ -1174,20 +1204,20 @@ x←1
                (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
-             ;; (process-lines (string &optional space params output)
-             ;;   (funcall (of-utilities idiom :compile-form)
-             ;;            (vex::construct string idiom space)
-             ;;            :space space :params params))
              (process-lines (string &optional space params output)
-               (if (zerop (length string))
-                   (funcall (of-utilities idiom :compile-form)
-                            (reverse output) :space space :params params)
-                   (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
-                                              (lambda (&rest args) (first args)))
-                                          (parse string (=vex-string idiom))
-                                          idiom space)))
-                     (when print-tokens (print (first result)))
-                     (process-lines (second result) space params (cons (first result) output)))))
+               (funcall (of-utilities idiom :compile-form)
+                        (vex::construct string idiom space)
+                        :space space :params params))
+             ;; (process-lines (string &optional space params output)
+             ;;   (if (zerop (length string))
+             ;;       (funcall (of-utilities idiom :compile-form)
+             ;;                (reverse output) :space space :params params)
+             ;;       (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
+             ;;                                  (lambda (&rest args) (first args)))
+             ;;                              (parse string (=vex-string idiom))
+             ;;                              idiom space)))
+             ;;         (when print-tokens (print (first result)))
+             ;;         (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

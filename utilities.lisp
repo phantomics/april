@@ -1592,6 +1592,9 @@
     (when (member '*rngs* (getf closure-meta :var-syms))
       (push :random-link-assignment (getf closure-meta :side-effects)))
 
+    ;; (print (list :eeoo closure-meta context-vars context-fns context-ops
+    ;;              assigned-vars assigned-fns assigned-ops))
+    
     (if (getf closure-meta :variant-niladic)
         ;; produce the plain (aprgn) forms used to implement function variant implicit statements
         (cons 'aprgn form)
@@ -1710,6 +1713,8 @@
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; this function is used to initialize function and variable references in the workspace and tabulate
   ;; those references for each closure, along with generating implicit statements for guards and ⍺←function
+  ;; (when (and (listp tokens) (eq :fn (first tokens)))
+  ;;   (print (list :tt tokens)))
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
@@ -1846,6 +1851,7 @@
                (list axes-form fn-form :special-lexical-form-assign symbol))
              (progn (if closure-meta (push symbol (getf closure-meta :fn-syms))
                         (let ((found-sym (find-symbol (string symbol) space)))
+                          ;; (print (list :ff found-sym symbol space))
                           (when (is-workspace-value symbol)
                             (makunbound found-sym))
                           (setf (symbol-function found-sym) #'dummy-nargument-function)))
