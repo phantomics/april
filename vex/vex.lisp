@@ -778,6 +778,8 @@
                     ;; (push (list :a (- start index)) (first output))
                     (print (list :ex type index start))
                     (setf index (1+ start)))
+                  ;; (when (= index start)
+                  ;;   (push nil (first output)))
                   ;; (print (list :b spec index start end :a (- start index)
                   ;;                                      :ff formats output type))
                   (if end ;; an entity is a section if it has an end, a divider if not
@@ -799,6 +801,7 @@
                                 (setf index (1+ end)))))
                       ;; dividers are handled based on the containing section type
                       (setf ;; index  (1+ start)
+                            ;; ee (print (list :ttt output))
                             output (funcall (if (first formats)
                                                 (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                             (first formats))
