@@ -692,8 +692,8 @@
                     (setf (aref dl-indices cx) code
                           code                 0)))
 
-        ;; (print (list :ggg formatters dl-indices dividers div-formatters spec-names
-        ;;              open-matchers))
+        (print (list :ggg formatters dl-indices dividers div-formatters spec-names
+                     open-matchers))
         
         (loop :for index :across dl-indices :for char :across string :for ix :from 0
               :do (when (not (zerop index))
@@ -726,11 +726,11 @@
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
         (postprocessor (or (of-utilities idiom :lexer-postprocess)
                            (lambda (&rest args) (first args)))))
-    ;; (print (list :m map bounds))
+    (print (list :m map bounds))
     (labels ((lex-chars (start end)
-               (let* ((substring (make-array (- end start)
+               (let* ((substring (print (make-array (- end start)
                                              :element-type 'character :displaced-to string
-                                             :displaced-index-offset start))
+                                             :displaced-index-offset start)))
                       (parsed (parse substring (=vex-string idiom))))
                  ;; (loop :for c :from start :below end :for i :from 0
                  ;;       :do (setf (aref in-string i) (aref string c)))
@@ -742,6 +742,7 @@
                                (first parsed)
                                (first output)))))
              (close-bound ()
+               (print (list :ggg index (first bounds)))
                (lex-chars index (first bounds))
                ;; (push (list :a (- (first bounds) index)) (first output))
                ;; (push (list :a (lex-chars index (first bounds))) (first output))
@@ -770,11 +771,12 @@
             :do (destructuring-bind (type start &optional end) spec
                   ;; (print (list :bb bou start))
                   (loop :while (and bounds (> start (first bounds))) :do (close-bound))
+                  (print (list :ty type index start))
                   (when (< index start)
                     (lex-chars index start)
                     ;; (push (list :a (lex-chars index start)) (first output))
                     ;; (push (list :a (- start index)) (first output))
-                    ;; (print (list :ex index start))
+                    (print (list :ex type index start))
                     (setf index (1+ start)))
                   ;; (print (list :b spec index start end :a (- start index)
                   ;;                                      :ff formats output type))
@@ -785,7 +787,7 @@
                             (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                        type)
                                                  :render)))
-                        ;; (print (list :tr this-renderer))
+                        (print (list :tr this-renderer))
                         (if this-builder
                             (progn (push type formats)
                                    (push end bounds)
@@ -796,7 +798,8 @@
                                        (setf index (1+ end)))
                                 (setf index (1+ end)))))
                       ;; dividers are handled based on the containing section type
-                      (setf output (funcall (if (first formats)
+                      (setf ;; index  (1+ start)
+                            output (funcall (if (first formats)
                                                 (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                             (first formats))
                                                       :divide)
@@ -807,6 +810,15 @@
       (reverse (cons (first output) (second output))))))
 
 #|
+x←3 3⍴⍳9 ⋄ y←1 ⋄ x[;y]
+(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]
+
+' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'
+('*'@2)⍳5
+a←3 4⍴⍳12 ⋄ ⍴a[⍬;]
+(3 4⍴⍳12)[ ; 4 3 ]
+
+
  ('(','asdf')⍳'('
 {$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
 {$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
