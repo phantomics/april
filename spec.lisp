@@ -127,10 +127,10 @@
                                                                                   (third collected))
                                                                             (cdddr collected)))))))
                               :format (lambda (meta collected)
-                                        (cons (cons (cons :ax (cons (cons (first collected)
-                                                                                 (second collected))
-                                                                           (third collected)))
-                                                           (fourth collected))
+                                        (cons (cons (cons :ax (reverse (cons (cons (first collected)
+                                                                                   (second collected))
+                                                                             (third collected))))
+                                                    (fourth collected))
                                               (cddddr collected)))))
 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give

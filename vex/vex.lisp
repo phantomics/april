@@ -692,8 +692,8 @@
                     (setf (aref dl-indices cx) code
                           code                 0)))
 
-        (print (list :ggg formatters dl-indices dividers div-formatters spec-names
-                     open-matchers))
+        ;; (print (list :ggg formatters dl-indices dividers div-formatters spec-names
+        ;;              open-matchers))
         
         (loop :for index :across dl-indices :for char :across string :for ix :from 0
               :do (when (not (zerop index))
@@ -726,11 +726,11 @@
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
         (postprocessor (or (of-utilities idiom :lexer-postprocess)
                            (lambda (&rest args) (first args)))))
-    (print (list :m map bounds))
+    ;; (print (list :m map bounds))
     (labels ((lex-chars (start end)
-               (let* ((substring (print (make-array (- end start)
+               (let* ((substring (make-array (- end start)
                                              :element-type 'character :displaced-to string
-                                             :displaced-index-offset start)))
+                                             :displaced-index-offset start))
                       (parsed (parse substring (=vex-string idiom))))
                  ;; (loop :for c :from start :below end :for i :from 0
                  ;;       :do (setf (aref in-string i) (aref string c)))
@@ -742,7 +742,7 @@
                                (first parsed)
                                (first output)))))
              (close-bound ()
-               (print (list :ggg index (first bounds)))
+               ;; (print (list :ggg index (first bounds)))
                (lex-chars index (first bounds))
                ;; (push (list :a (- (first bounds) index)) (first output))
                ;; (push (list :a (lex-chars index (first bounds))) (first output))
@@ -752,7 +752,7 @@
                  (let ((this-format (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                 (first formats))
                                           :format)))
-                   ;; (print (list :tf this-format))
+                   ;; (print (list :tf this-format output))
                    (typecase this-format
                      (symbol
                       (setf output (cons (cons (cons this-format
@@ -764,22 +764,28 @@
                                                           (funcall postprocessor item idiom workspace))
                                             output))))
                    (pop formats)))
-                 ;; (print (list :o output))
+               ;; (print (list :o output bounds))
                (setf index  (1+ (first bounds))
                      bounds (rest bounds))))
+      
       (loop :for spec :in map
             :do (destructuring-bind (type start &optional end) spec
                   ;; (print (list :bb bou start))
                   (loop :while (and bounds (> start (first bounds))) :do (close-bound))
-                  (print (list :ty type index start))
+                  ;; (print (list :ty type index start output))
                   (when (< index start)
                     (lex-chars index start)
                     ;; (push (list :a (lex-chars index start)) (first output))
                     ;; (push (list :a (- start index)) (first output))
-                    (print (list :ex type index start))
-                    (setf index (1+ start)))
+                    ;; (print (list :ex type index start))
+                    (setf index (1+ start))
+                    )
+
                   ;; (when (= index start)
-                  ;;   (push nil (first output)))
+                  ;;   (push nil (first output))
+                  ;;   (setf index (1+ start)))
+
+                  
                   ;; (print (list :b spec index start end :a (- start index)
                   ;;                                      :ff formats output type))
                   (if end ;; an entity is a section if it has an end, a divider if not
@@ -789,7 +795,7 @@
                             (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                        type)
                                                  :render)))
-                        (print (list :tr this-renderer))
+                        ;; (print (list :tr this-renderer))
                         (if this-builder
                             (progn (push type formats)
                                    (push end bounds)
@@ -800,19 +806,23 @@
                                        (setf index (1+ end)))
                                 (setf index (1+ end)))))
                       ;; dividers are handled based on the containing section type
-                      (setf ;; index  (1+ start)
-                            ;; ee (print (list :ttt output))
-                            output (funcall (if (first formats)
+                      (setf output (funcall (if (first formats)
                                                 (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                             (first formats))
                                                       :divide)
                                                 base-divider)
                                             type output)))))
+
+      ;; (print (list :bo bounds))
       
       (loop :while bounds :do (close-bound))
       (reverse (cons (first output) (second output))))))
 
 #|
+INFINITE: {(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12
+
+(1 2 3 4) 15[1]
+
 x←3 3⍴⍳9 ⋄ y←1 ⋄ x[;y]
 (3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]
 
@@ -1219,20 +1229,20 @@ x←1
                (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
-             (process-lines (string &optional space params output)
-               (funcall (of-utilities idiom :compile-form)
-                        (vex::construct string idiom space)
-                        :space space :params params))
              ;; (process-lines (string &optional space params output)
-             ;;   (if (zerop (length string))
-             ;;       (funcall (of-utilities idiom :compile-form)
-             ;;                (reverse output) :space space :params params)
-             ;;       (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
-             ;;                                  (lambda (&rest args) (first args)))
-             ;;                              (parse string (=vex-string idiom))
-             ;;                              idiom space)))
-             ;;         (when print-tokens (print (first result)))
-             ;;         (process-lines (second result) space params (cons (first result) output)))))
+             ;;   (funcall (of-utilities idiom :compile-form)
+             ;;            (vex::construct string idiom space)
+             ;;            :space space :params params))
+             (process-lines (string &optional space params output)
+               (if (zerop (length string))
+                   (funcall (of-utilities idiom :compile-form)
+                            (reverse output) :space space :params params)
+                   (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
+                                              (lambda (&rest args) (first args)))
+                                          (parse string (=vex-string idiom))
+                                          idiom space)))
+                     (when print-tokens (print (first result)))
+                     (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a
