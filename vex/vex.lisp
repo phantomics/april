@@ -712,10 +712,12 @@
                       (let ((found) (formatter (nth (1- (abs index)) spec-names)))
                         (loop :for r :in returned :for rx :from 0
                               :until found :when (third r)
-                              :do (when (= (abs index) (third r))
+                              :do (when (and (null (first r))
+                                             (= (abs index) (third r)))
                                     (setf found (setf (nth rx returned)
                                                       (list formatter (second r) ix)))))))))
-      (values (reverse returned) dl-indices)))))
+        ;; (print (list :rr returned))
+        (values (reverse returned) dl-indices)))))
 
 (defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
@@ -731,6 +733,7 @@
                (let* ((substring (make-array (- end start)
                                              :element-type 'character :displaced-to string
                                              :displaced-index-offset start))
+                      ;; (sst (print (list :sss substring)))
                       (parsed (parse substring (=vex-string idiom))))
                  ;; (loop :for c :from start :below end :for i :from 0
                  ;;       :do (setf (aref in-string i) (aref string c)))
@@ -781,9 +784,9 @@
                     (setf index (1+ start))
                     )
 
-                  ;; (when (= index start)
+                  (when (= index start)
                   ;;   (push nil (first output))
-                  ;;   (setf index (1+ start)))
+                    (setf index (1+ start)))
 
                   
                   ;; (print (list :b spec index start end :a (- start index)
@@ -800,7 +803,10 @@
                             (progn (push type formats)
                                    (push end bounds)
                                    (setf index (1+ start)
-                                         output (funcall this-builder output)))
+                                         output (funcall this-builder output)
+                                         ;; output (funcall postprocessor (funcall this-builder output)
+                                         ;;                 idiom workspace)
+                                         ))
                             (if this-renderer
                                 (progn (push (funcall this-renderer string start end) (first output))
                                        (setf index (1+ end)))
@@ -816,25 +822,45 @@
       ;; (print (list :bo bounds))
       
       (loop :while bounds :do (close-bound))
-      (reverse (cons (first output) (second output))))))
+      (print (reverse (cons (first output) (second output)))))))
+
+;; push a nil when you're inside a closure after a break
+
+;;; MAIN THING TO SOLVE:
+;;; (april "aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5")
+;;; LOOK AT THE TOKENS:
+
+;; (((:FN (:META :ARG-SYMS (⍵))
+;;    ((⍵ :SPECIAL-LEXICAL-FORM-ASSIGN (:FN #\+) |aa|) (|aa|)))
+;;   (3 :SPECIAL-LEXICAL-FORM-ASSIGN |aa|))
+;;  (5 |bob|))
+
+;;; THE ASSIGN AA IS IMPROPERLY NESTED
 
 #|
 INFINITE: {(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12
+' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'
+('*'@2)⍳5
+{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
+{e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9
+aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5
+3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4
+{ ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22
++{op←⍺⍺ ⋄ ⊃op{(⊂⍺ op⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1⌽⍵}⍳4
+
 
 (1 2 3 4) 15[1]
 
 x←3 3⍴⍳9 ⋄ y←1 ⋄ x[;y]
 (3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]
 
-' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'
-('*'@2)⍳5
+
 a←3 4⍴⍳12 ⋄ ⍴a[⍬;]
 (3 4⍴⍳12)[ ; 4 3 ]
 
 
  ('(','asdf')⍳'('
 {$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
-{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
 $[0;2;3]
 ('*'@2)⍳5
 x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x

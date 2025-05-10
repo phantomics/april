@@ -1713,7 +1713,7 @@
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; this function is used to initialize function and variable references in the workspace and tabulate
   ;; those references for each closure, along with generating implicit statements for guards and ⍺←function
-  ;; (when (and (listp tokens) (eq :fn (first tokens)))
+  ;; (when t ; (and (listp tokens) (eq :fn (first tokens)))
   ;;   (print (list :tt tokens)))
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
