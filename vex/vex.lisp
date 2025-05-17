@@ -749,7 +749,7 @@
                (lex-chars index (first bounds))
                ;; (push (list :a (- (first bounds) index)) (first output))
                ;; (push (list :a (lex-chars index (first bounds))) (first output))
-               ;; (print (list :gg output (rest output)))
+               ;; (print (list :gg output)) ;; (rest output)))
                ;; (push (first output) (second output))
                (when (first formats)
                  (let ((this-format (getf (getf (getf (idiom-utilities idiom) :entity-specs)
@@ -781,6 +781,7 @@
                     ;; (push (list :a (lex-chars index start)) (first output))
                     ;; (push (list :a (- start index)) (first output))
                     ;; (print (list :ex type index start))
+                    ;; (print (list :eoo output))
                     (setf index (1+ start))
                     )
 
@@ -822,7 +823,7 @@
       ;; (print (list :bo bounds))
       
       (loop :while bounds :do (close-bound))
-      (print (reverse (cons (first output) (second output)))))))
+      (reverse (cons (first output) (second output))))))
 
 ;; push a nil when you're inside a closure after a break
 
@@ -1255,20 +1256,20 @@ x←1
                (let ((string-sym (if (stringp symbol) symbol (lisp->camel-case symbol))))
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
-             ;; (process-lines (string &optional space params output)
-             ;;   (funcall (of-utilities idiom :compile-form)
-             ;;            (vex::construct string idiom space)
-             ;;            :space space :params params))
              (process-lines (string &optional space params output)
-               (if (zerop (length string))
-                   (funcall (of-utilities idiom :compile-form)
-                            (reverse output) :space space :params params)
-                   (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
-                                              (lambda (&rest args) (first args)))
-                                          (parse string (=vex-string idiom))
-                                          idiom space)))
-                     (when print-tokens (print (first result)))
-                     (process-lines (second result) space params (cons (first result) output)))))
+               (funcall (of-utilities idiom :compile-form)
+                        (vex::construct string idiom space)
+                        :space space :params params))
+             ;; (process-lines (string &optional space params output)
+             ;;   (if (zerop (length string))
+             ;;       (funcall (of-utilities idiom :compile-form)
+             ;;                (reverse output) :space space :params params)
+             ;;       (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
+             ;;                                  (lambda (&rest args) (first args)))
+             ;;                              (parse string (=vex-string idiom))
+             ;;                              idiom space)))
+             ;;         (when print-tokens (print (first result)))
+             ;;         (process-lines (second result) space params (cons (first result) output)))))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

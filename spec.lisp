@@ -33,7 +33,7 @@
                               :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (cons (first collected) (second collected))
-                                                                  (cdddr collected))))
+                                                                  (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
            (section :comment  :exclusive t
                               :start (lambda (string index)
@@ -97,8 +97,9 @@
                               :build  (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (cons (first collected) (second collected))
-                                                                  (cdddr collected))))
+                                          (:break ;; (print :vvv)
+                                           (cons nil (cons (cons (first collected) (second collected))
+                                                                  (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
                               :format (lambda (meta collected)
                                         ;; (cons (cons (list :fn meta (cons (first collected)
@@ -108,7 +109,7 @@
                                         (let ((processed (funcall meta (list :fn (list :meta)
                                                                              (cons (first collected)
                                                                                    (second collected))))))
-                                          
+                                          ;; (print (list :coll collected))
                                           (cons (cons (list (first processed) (second processed)
                                                             (reverse (third processed)))
                                                       (third collected))
