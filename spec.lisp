@@ -23,18 +23,19 @@
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
- (entities ;; (token   :number   :match (lambda (char) (or (digit-char-p char)
+ (entities (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
+           (divider :axdiv    :match #\;) ;; axis divider
+           ;; (token   :number   :match (lambda (char) (or (digit-char-p char)
            ;;                                              (position char "._¯eEjJrR" :test #'char=))))
            ;; (token   :name     :match (lambda (char) (or (is-alphanumeric char)
            ;;                                              (position char "._⎕∆⍙¯" :test #'char=))))
-           (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
-           (divider :axdiv    :match #\;) ;; axis divider
            (section :body     :base t
                               :divide (lambda (type meta collected)
                                         (case type
-                                          (:break (cons nil (cons ;; (funcall meta
-                                                             (cons (first collected)
-                                                                   (second collected))
+                                          (:break (cons nil (cons (if (first collected)
+                                                                      (cons (first collected)
+                                                                            (second collected))
+                                                                      (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
            (section :comment  :exclusive t
@@ -44,7 +45,7 @@
                                               (or (= index (1- (length string)))
                                                   (member (aref string index)
                                                           '(#\Newline #\Return) :test #'char=))))))
-           (section :string   :exclusive t ;; :start "'\"" 
+           (section :string   :exclusive t
                               :start (labels ((check-char (char) (position char "'\"" :test #'char=))
                                               (match-end (char)
                                                 (lambda (string index)
@@ -61,15 +62,6 @@
                                            (let ((pos (position (aref string index)
                                                                 quotes-string :test #'char=)))
                                              (when pos (match-end (aref quotes-string pos)))))))
-                              ;; :end (flet ((check-char (char) (position char "'\"" :test #'char=)))
-                              ;;        (lambda (string index)
-                              ;;          ;; (print (list (aref string index)))
-                              ;;          ;; check for a quote mark that is not an '' escaped double quote
-                              ;;          (let* ((is-quote (check-char (aref string index)))
-                              ;;                 (next-quote (and is-quote (< index (1- (length string)))
-                              ;;                                  (check-char (aref string (1+ index))))))
-                              ;;            (when next-quote (setf (aref string (1+ index)) #\ ))
-                              ;;            (and is-quote (not next-quote)))))
                     
                     ;; (and (check-char (aref string index))
                     ;;      (or (= index (length string))
@@ -99,14 +91,18 @@
                               :build  (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type meta collected)
                                         (case type
-                                          (:break (cons nil (cons (cons (first collected)
-                                                                        (second collected))
+                                          (:break (cons nil (cons (if (first collected)
+                                                                      (cons (first collected)
+                                                                            (second collected))
+                                                                      (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
                               :format (lambda (meta collected)
                                         (let ((processed (list :fn (list :meta :symbols nil)
-                                                               (cons (first collected)
-                                                                     (second collected)))))
+                                                               (if (first collected)
+                                                                   (cons (first collected)
+                                                                         (second collected))
+                                                                   (second collected)))))
                                           ;; (print (list :coll collected processed
                                           ;;              (list :fn (list :meta)
                                           ;;                    (cons (first collected)
@@ -114,23 +110,23 @@
                                           (cons (cons (list (first processed) (second processed)
                                                             (reverse (third processed)))
                                                       (third collected))
-                                                (cdddr collected))
-
-                                        )))
+                                                (cdddr collected)))))
            (section :axes     :delimit "[]"
-                              :build (lambda (collected) (cons nil (cons nil (cons nil collected))))
+                              :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type meta collected)
+                                        ;; (print (list :ty type))
                                         (case type
                                           (:break (cons nil (cons (cons (first collected)
                                                                         (second collected))
-                                                                  (cdddr collected))))
-                                          (:axdiv (cons nil (cons nil (cons (cons (cons (first collected)
-                                                                                        (second collected))
+                                                                  (cddr collected))))
+                                          (:axdiv (cons nil (cons nil (cons (cons (reverse
+                                                                                   (cons (first collected)
+                                                                                         (second collected)))
                                                                                   (third collected))
                                                                             (cdddr collected)))))))
                               :format (lambda (meta collected)
-                                        (cons (cons (cons :ax (reverse (cons (cons (first collected)
-                                                                                   (second collected))
+                                        (cons (cons (cons :ax (reverse (cons (reverse (cons (first collected)
+                                                                                            (second collected)))
                                                                              (third collected))))
                                                     (fourth collected))
                                               (cddddr collected)))))

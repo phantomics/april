@@ -759,7 +759,8 @@
                    (typecase this-format
                      (symbol
                       (setf output (cons (cons (cons this-format
-                                                     (cons (first output) (second output)))
+                                                     (cons (first output)
+                                                           (second output)))
                                                (third output))
                                          (cdddr output))))
                      (function
@@ -782,7 +783,7 @@
                     ;; (push (list :a (- start index)) (first output))
                     ;; (print (list :ex type index start))
                     ;; (print (list :eoo output))
-                    (setf index (1+ start))
+z                    (setf index (1+ start))
                     )
 
                   (when (= index start)
@@ -846,6 +847,20 @@ INFINITE: {(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12
 ' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'
 ('*'@2)⍳5
 {$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
+{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
+'''abc'''
+
+    f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
+    ⍝ This is another comment.
+    v←⍳3 ⋄ f2 f1 v,4 5
+
+(april (vex::with (:space unit-test-staging)) "fun←{
+      5+⍵
+      ⍝ comment
+    }
+    fun 3")
+
+
 {e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9
 aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5
 3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4
