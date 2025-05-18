@@ -818,7 +818,8 @@
       
       (loop :while bounds :do (close-bound))
       (mapcar (lambda (item) (funcall postprocessor item idiom workspace))
-              (reverse (cons (first output) (second output)))))))
+              (reverse (if (first output) (cons (first output) (second output))
+                           (second output)))))))
 
 #|
 
