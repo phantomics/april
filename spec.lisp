@@ -62,23 +62,22 @@
                                            (let ((pos (position (aref string index)
                                                                 quotes-string :test #'char=)))
                                              (when pos (match-end (aref quotes-string pos)))))))
-                    
-                    ;; (and (check-char (aref string index))
-                    ;;      (or (= index (length string))
-                    ;;          (check-char (aref string (1+ index))))
-                    ;;      (or (zerop index) (= index (length string))
-                    ;;          (not (and (check-char (aref string (1+ index)))
-                    ;;                    (or (check-char (aref string (1- index)))
-                    ;;                        (check-char (aref string (+ index 2))))))
-                    ;;          (not (and (check-char (aref string (1- index)))
-                    ;;                    (check-char (aref string (- index 2)))))))))
                               :render (lambda (string start end)
                                         (let ((length (- end start 1)))
-                                        (if (= 1 length) (aref string (1+ start))
-                                            (let ((output (make-string length)))
-                                              (loop :for i :from (1+ start) :below end :for ix :from 0
-                                                    :do (setf (aref output ix) (aref string i)))
-                                              output)))))
+                                          ;; (print (list :st start (aref string (+ 2 start))))
+                                          (if (= 1 length) (aref string (1+ start))
+                                              (let* ((qchar (aref string start))
+                                                     (quotes-count (loop :for i :from (1+ start) :below end
+                                                                         :when (char= qchar (aref string i))
+                                                                           :counting i :into sum
+                                                                         :finally (return sum)))
+                                                     (output (make-string (- length quotes-count))))
+                                                ;; (print (list :qq quotes-count))
+                                                (loop :for i :from (1+ start) :below end :for ix :from 0
+                                                      :do (setf (aref output ix) (aref string i))
+                                                          (when (char= qchar (aref string i))
+                                                            (incf i)))
+                                                output)))))
            (section :closure  :delimit "()"
                               :build  (lambda (collected) (cons nil collected))
                               :divide (lambda (type meta collected)
