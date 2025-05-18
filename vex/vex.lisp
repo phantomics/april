@@ -653,7 +653,10 @@
             (returned) (divider-list) (exclusive-index) (set-mirroring)
             (dl-indices (make-array (length string) :element-type '(signed-byte 8) :initial-element 0)))
         (loop :for char :across string :for cx :from 0
-              :do (loop :for dv :in dividers :for ix :from (length open-matchers) :while (zerop code)
+              :do (loop :for dv :in dividers :for ix :from (length open-matchers)
+                        :while (and (zerop code) (not exclusive-index))
+                        ;; dividers aren't counted inside an exclusive section
+                        ;; like a string or comment
                         :do (when (and dv (funcall dv string cx))
                               (incf code (1+ ix))))
                   (loop :for om :in open-matchers :for cm :in close-matchers
@@ -735,15 +738,12 @@
                                              :displaced-index-offset start))
                       ;; (sst (print (list :sss substring)))
                       (parsed (parse substring (=vex-string idiom))))
-                 ;; (loop :for c :from start :below end :for i :from 0
-                 ;;       :do (setf (aref in-string i) (aref string c)))
-                 (setf cl-meta (cons :meta (third parsed))
-                       (first output)
-                       (append ;; (first (funcall (or (of-utilities idiom :lexer-postprocess)
-                               ;;                     (lambda (&rest args) (first args)))
-                               ;;                 parsed idiom workspace cl-meta))
-                               (first parsed)
-                               (first output)))))
+                 ;; (print (list :pr parsed))
+                 (when (getf (third parsed) :overloaded-num-char)
+                   ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
+                   (push (list :op :pivotal #\.) (first parsed)))
+                 (setf cl-meta        (cons :meta (third parsed))
+                       (first output) (append (first parsed) (first output)))))
              (close-bound ()
                ;; (print (list :ggg index (first bounds)))
                (lex-chars index (first bounds))
@@ -783,16 +783,11 @@
                     ;; (push (list :a (- start index)) (first output))
                     ;; (print (list :ex type index start))
                     ;; (print (list :eoo output))
-z                    (setf index (1+ start))
-                    )
-
-                  (when (= index start)
-                  ;;   (push nil (first output))
                     (setf index (1+ start)))
 
-                  
-                  ;; (print (list :b spec index start end :a (- start index)
-                  ;;                                      :ff formats output type))
+                  (when (= index start)
+                    (setf index (1+ start)))
+
                   (if end ;; an entity is a section if it has an end, a divider if not
                       (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                       type)
@@ -805,10 +800,7 @@ z                    (setf index (1+ start))
                             (progn (push type formats)
                                    (push end bounds)
                                    (setf index (1+ start)
-                                         output (funcall this-builder output)
-                                         ;; output (funcall postprocessor (funcall this-builder output)
-                                         ;;                 idiom workspace)
-                                         ))
+                                         output (funcall this-builder output)))
                             (if this-renderer
                                 (progn (push (funcall this-renderer string start end) (first output))
                                        (setf index (1+ end)))
@@ -819,8 +811,7 @@ z                    (setf index (1+ start))
                                                             (first formats))
                                                       :divide)
                                                 base-divider)
-                                            type (lambda (item)
-                                                   (funcall postprocessor item idiom workspace))
+                                            type (lambda (item) (funcall postprocessor item idiom workspace))
                                             output)))))
 
       ;; (print (list :bo bounds))
@@ -829,110 +820,20 @@ z                    (setf index (1+ start))
       (mapcar (lambda (item) (funcall postprocessor item idiom workspace))
               (reverse (cons (first output) (second output)))))))
 
-;; push a nil when you're inside a closure after a break
-
-;;; MAIN THING TO SOLVE:
-;;; (april "aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5")
-;;; LOOK AT THE TOKENS:
-
-;; (((:FN (:META :ARG-SYMS (⍵))
-;;    ((⍵ :SPECIAL-LEXICAL-FORM-ASSIGN (:FN #\+) |aa|) (|aa|)))
-;;   (3 :SPECIAL-LEXICAL-FORM-ASSIGN |aa|))
-;;  (5 |bob|))
-
-;;; THE ASSIGN AA IS IMPROPERLY NESTED
-
 #|
-INFINITE: {(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12
-' ' { A W←{(⍵≠(≢⍵)⍴' ')/⍵}¨⍺ ⍵ ⋄ ((⍴A)=⍴W)∧∧/(+/A∘.=W)=+/A∘.=A } 'dog'
-('*'@2)⍳5
-{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7
-{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
-'''abc'''
 
-    f1←{⍵+3} ⋄ f2←{⍵×2} ⍝ A comment after the functions are defined.
-    ⍝ This is another comment.
-    v←⍳3 ⋄ f2 f1 v,4 5
+dfns.array
+{⍵⍳⍵∘.{⍺⊃¨⊂⍵}⍵}↓pmat 3
 
-(april (vex::with (:space unit-test-staging)) "fun←{
-      5+⍵
-      ⍝ comment
-    }
-    fun 3")
+dfns.string
+↓⍕' ·'subs 1 disp 4 2⍴24 wrap3 'Say can I have some of your purple berries? Yes, I''ve been eating them for six or seven weeks now; haven''t got sick once. Prob''ly keep us both alive.'
 
-
-{e←⍳⍵ ⋄ g←⌷ ⋄ (3 g e)←5 ⋄ e} 9
-aa←3 ⋄ bob←{aa+←⍵ ⋄ aa} ⋄ bob 5
-3 (+{⍺⍺ 2 ⋄ ⍺ ⍵⍵ ⍵}÷) 4
-{ ee←{↑⍪/(⊂⍺),⍶,⊂⍵} ⋄ ⍵⊃⊃↑{⍺ ee⌿⍵}/9⍴⊂⍳9 } 22
-+{op←⍺⍺ ⋄ ⊃op{(⊂⍺ op⊃⍬⍴⍵),⍵}/1↓{⍵,⊂⍬⍴⍵}¯1⌽⍵}⍳4
-
-
-(1 2 3 4) 15[1]
-
-x←3 3⍴⍳9 ⋄ y←1 ⋄ x[;y]
-(3 3 3⍴⍳27)[1 2;2 2⍴⍳3;]
-
-
-a←3 4⍴⍳12 ⋄ ⍴a[⍬;]
-(3 4⍴⍳12)[ ; 4 3 ]
-
-
- ('(','asdf')⍳'('
-{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9
-$[0;2;3]
-('*'@2)⍳5
-x←2 3 4⍴⍳9 ⋄ x[;1;]←7 ⋄ x
-('a',⍬)≡1↑'amy'
-{x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
-
-{x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
-⊃(⊂'test'),3
-1 ¯2 3 ¯4 5\'.'
-st←'aodjeignwug' ⋄ st[⍋st]
-
-{(⊂⍋⍵)⌷⍵}⍤1⊢3 4 5⍴⍳9
-{⍵[⍋⍵]}'abcABC012xyzXYZ789'
-rr←-∘⌽[1] ⋄ rr 3 3⍴⍳9
-x←1 ⋄ →three          ⋄ x×←11 ⋄ one→⎕ ⋄ x×←3 ⋄ two→⎕ ⋄ x×←5 ⋄ three→⎕ ⋄ x×←7
-
-{⍵+5}⍣$[3>2;4;5]⊢2
-+/,{+/,⍵}⌺3 3⊢6 5 ⍴ ⍳5
-⊃,/{m←× ⋄ s←⍴ ⋄ i←⍳ ⋄ 5 m 2 3 s i ⍵}¨2 6
-x←1
-
-'((:ax (:a 1) (:a 2)))
-
-'((:ax (:a 1) (:ax (:a 1) (:a 2)) (:a 1)))
-
-(let ((ss "[  [ ( ) ;  ] ]")) (vex::construct4 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* ss) ss))
-
-(vex::construct3 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* "[ ;  ]
- ") "[ ;  ]
- ")
-
-"[  [ ( ) ;  ] 
-]"
-
-(((:A 1)) ((:AX ((:A 1)) ((:A 2)))))
-
-(defvar str1 "[  [ ( ) ;  ] 
-]")
-
-(defvar str2 "[  [ ; ] 
-]")
-
-(defvar str3 "[ [ ; ] ]")
-
-(defvar str4 "[ [   ] ]")
-
-(((:ax (:a 1) (:ax (:a 3))))
-
-(vex::construct3 (funcall (getf (vex::idiom-utilities *april-idiom*) :map-sections) *april-idiom* str1) str1)
-
-(NIL (((:A 1) :AX (:A 2) ((:A 3) (:A 1)) ((:A 2)))) NIL)
+dfns.numeric
+{∧/⍵∧.=⍵∘.{+/⍺ nicediv ⍵}⍵} ⍳50
+phinary 42
 
 |#
+
 
 ;; (april "'[{(]})'{⍺{(⍵×~I)+-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
 ;; (april "'[{(]})'{{(×⍵)×256*1-⍨|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
@@ -1132,7 +1033,9 @@ x←1
                (functional-character-matcher (char)
                  (when (and (> 2 fix)
                             (funcall (of-utilities idiom :match-overloaded-numeric-character)
-                                     char))
+                                     char)
+                            ;; (not (= fix (1- (length string))))
+                            )
                    (setq olnchar char))
                  (when (and olnchar (= 2 fix) (not (digit-char-p char)))
                    (setq olnchar nil))
@@ -1228,7 +1131,7 @@ x←1
                              (=transform (=subseq (%any (?blank-character))) #'length)
                              (=subseq (%any (?newline-character)))
                              (=subseq (%any (?satisfies 'characterp))))
-          ;; (print (list :ll leading-space trailing-space item precedent))
+          ;; (print (list :ll leading-space trailing-space item precedent olnchar))
           ;; (setf (getf precedent :whitespace) trailing-space)
           (let ((lspace-total (+ leading-space (or (and (getf precedent :pspace)
                                                         (second (getf precedent :pspace)))
@@ -1237,6 +1140,12 @@ x←1
             ;;            (not (zerop lspace-total)))
             ;;   (setf item (cons (first item) (cons (list :meta :whitespace lspace-total)
             ;;                                       (rest item)))))
+
+            ;; set olnchar and precedent record to nil if it is true and an item is encountered;
+            ;; this provides for the special case of a . at the end of a parsed substring
+            (when item (setf olnchar                               nil
+                             (getf precedent :overloaded-num-char) nil))
+            
             (if (and (not output) (stringp item) (< 0 (length item))
                      (funcall (of-utilities idiom :match-newline-character)
                               (aref item 0)))
@@ -1255,7 +1164,8 @@ x←1
                               ;; return nothing if only an empty sequence results from parsing
                               ;; unless an explicit empty string was parsed
                               output (cons item output))
-                          rest precedent)))))))))
+                          rest (append (when olnchar (list :overloaded-num-char olnchar))
+                                       precedent))))))))))
 
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
@@ -1276,8 +1186,9 @@ x←1
              (process-lines (string &optional space params output)
                (if t ; nil
                    (funcall (of-utilities idiom :compile-form)
-                        (vex::construct string idiom space)
-                        :space space :params params)
+                            (funcall (if print-tokens #'print #'identity)
+                                     (vex::construct string idiom space))
+                            :space space :params params)
                    (if (zerop (length string))
                        (funcall (of-utilities idiom :compile-form)
                                 (reverse output) :space space :params params)
