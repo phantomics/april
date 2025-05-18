@@ -30,9 +30,11 @@
            (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
            (divider :axdiv    :match #\;) ;; axis divider
            (section :body     :base t
-                              :divide (lambda (type collected)
+                              :divide (lambda (type meta collected)
                                         (case type
-                                          (:break (cons nil (cons (cons (first collected) (second collected))
+                                          (:break (cons nil (cons ;; (funcall meta
+                                                             (cons (first collected)
+                                                                   (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
            (section :comment  :exclusive t
@@ -87,29 +89,28 @@
                                               output)))))
            (section :closure  :delimit "()"
                               :build  (lambda (collected) (cons nil collected))
-                              :divide (lambda (type collected)
-                                        (declare (ignore type collected))
+                              :divide (lambda (type meta collected)
+                                        (declare (ignore type meta collected))
                                         (error "A (closure) may not include breaks."))
                               :format (lambda (meta collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
            (section :function :delimit "{}"
                               :build  (lambda (collected) (cons nil (cons nil collected)))
-                              :divide (lambda (type collected)
+                              :divide (lambda (type meta collected)
                                         (case type
-                                          (:break ;; (print :vvv)
-                                           (cons nil (cons (cons (first collected) (second collected))
+                                          (:break (cons nil (cons (cons (first collected)
+                                                                        (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
                               :format (lambda (meta collected)
-                                        ;; (cons (cons (list :fn meta (cons (first collected)
-                                        ;;                                  (second collected)))
-                                        ;;             (third collected))
-                                        ;;       (cdddr collected))
-                                        (let ((processed (funcall meta (list :fn (list :meta)
-                                                                             (cons (first collected)
-                                                                                   (second collected))))))
-                                          ;; (print (list :coll collected))
+                                        (let ((processed (list :fn (list :meta :symbols nil)
+                                                               (cons (first collected)
+                                                                     (second collected)))))
+                                          ;; (print (list :coll collected processed
+                                          ;;              (list :fn (list :meta)
+                                          ;;                    (cons (first collected)
+                                          ;;                          (second collected)))))
                                           (cons (cons (list (first processed) (second processed)
                                                             (reverse (third processed)))
                                                       (third collected))
@@ -118,7 +119,7 @@
                                         )))
            (section :axes     :delimit "[]"
                               :build (lambda (collected) (cons nil (cons nil (cons nil collected))))
-                              :divide (lambda (type collected)
+                              :divide (lambda (type meta collected)
                                         (case type
                                           (:break (cons nil (cons (cons (first collected)
                                                                         (second collected))
