@@ -582,17 +582,14 @@
                      (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
                            (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
                        (push spec-name spec-names)
-                       ;; (print (list :sp spec))
                        (push (getf spec :exclusive) exclusive-specs)
+
                        (when delimiters ;; in the case of sections with paired delimiters
                          (let* ((bclen (length delimiters))
                                 (hbclen (ash bclen -1)))
                            (push (lambda (string index)
                                    (let ((pos (position (ixchar) delimiters :end hbclen :test #'char=)))
                                      (when pos (lambda (string index)
-                                                 ;; (print (list :sx string index delimiters
-                                                 ;;              (+ hbclen -1 (- hbclen pos))
-                                                 ;;              (ixchar)))
                                                  (char= (ixchar)
                                                         (aref delimiters (+ hbclen -1 (- hbclen pos))))))))
                                  open-matchers)
@@ -602,6 +599,7 @@
                                  close-matchers)
                            (loop :for dx :from hbclen :below (length delimiters)
                                  :do (push (aref delimiters dx) open-chars))))
+
                        (when start ;; in the case of sections with start and end qualifiers
                          (typecase start
                            (character (push (lambda (string index) (char= (ixchar) start))
@@ -627,6 +625,7 @@
                            (function (push end close-matchers))
                            (t (error "Section specification ~a has a start qualifier but no end qualifier."
                                      spec-name))))
+
                        (push format formatters)))
                     (:divider
                      (let ((matcher (getf spec :match)) (format (getf spec :format)))
@@ -642,15 +641,11 @@
                              div-formatters)))))))
     
     (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
-
-    ;; (print (list :dn spec-names))
     
-    ;; (print (list :oo open-matchers dividers close-matchers specs nest-counters
-    ;;              open-chars closing-chars))
+    ;; (print (list :oo open-matchers dividers close-matchers specs nest-counters open-chars closing-chars))
     
     (lambda (idiom string)
-      (let ((code 0) (open-stack) (confirmer-stack)
-            (returned) (divider-list) (exclusive-index) (set-mirroring)
+      (let ((code 0) (open-stack) (confirmer-stack) (returned) (exclusive-index) (set-mirroring)
             (dl-indices (make-array (length string) :element-type '(signed-byte 8) :initial-element 0)))
         (loop :for char :across string :for cx :from 0
               :do (loop :for dv :in dividers :for ix :from (length open-matchers)
@@ -671,21 +666,14 @@
                                   (push ix open-stack))
                                 (when (nth ix exclusive-specs)
                                   (setf exclusive-index ix
-                                        set-mirroring   t)
-                                  ;; (push ix open-stack)
-                                  ))
-                              ;; (print (list :ch char matcher-output
-                              ;;              set-mirroring open-stack ix))
-                              ;; (push matcher-output confirmer-stack)
-                              (when (and ;; (funcall cm string cx)
-                                     (not set-mirroring)
-                                     open-stack (= ix (first open-stack))
-                                     confirmer-stack
-                                     (or (not (functionp (first confirmer-stack)))
-                                         (funcall (first confirmer-stack) string cx))
-                                     (or (not exclusive-index)
-                                         (= ix exclusive-index)))
-                                ;; (print (list :p open-stack))
+                                        set-mirroring   t)))
+                              (when (and (not set-mirroring)
+                                         open-stack (= ix (first open-stack))
+                                         confirmer-stack
+                                         (or (not (functionp (first confirmer-stack)))
+                                             (funcall (first confirmer-stack) string cx))
+                                         (or (not exclusive-index)
+                                             (= ix exclusive-index)))
                                 (when exclusive-index (setf exclusive-index nil))
                                 (decf code (1+ ix))
                                 (pop open-stack)
@@ -711,7 +699,6 @@
                     ;;              (= index (third (first returned)))))
                     (when (minusp index)
                       (decf code (ash 1 (ash (abs index) 3)))
-                      (pop divider-list)
                       (let ((found) (formatter (nth (1- (abs index)) spec-names)))
                         (loop :for r :in returned :for rx :from 0
                               :until found :when (third r)
@@ -789,13 +776,10 @@
                     (setf index (1+ start)))
 
                   (if end ;; an entity is a section if it has an end, a divider if not
-                      (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs)
-                                                      type)
+                      (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
                                                 :build))
-                            (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs)
-                                                       type)
+                            (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
                                                  :render)))
-                        ;; (print (list :tr this-renderer))
                         (if this-builder
                             (progn (push type formats)
                                    (push end bounds)
@@ -820,21 +804,6 @@
       (mapcar (lambda (item) (funcall postprocessor item idiom workspace))
               (reverse (if (first output) (cons (first output) (second output))
                            (second output)))))))
-
-#|
-
-dfns.array
-{⍵⍳⍵∘.{⍺⊃¨⊂⍵}⍵}↓pmat 3
-
-dfns.string
-↓⍕' ·'subs 1 disp 4 2⍴24 wrap3 'Say can I have some of your purple berries? Yes, I''ve been eating them for six or seven weeks now; haven''t got sick once. Prob''ly keep us both alive.'
-
-dfns.numeric
-{∧/⍵∧.=⍵∘.{+/⍺ nicediv ⍵}⍵} ⍳50
-phinary 42
-
-|#
-
 
 ;; (april "'[{(]})'{⍺{(⍵×~I)+-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
 ;; (april "'[{(]})'{{(×⍵)×256*1-⍨|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
@@ -907,266 +876,198 @@ phinary 42
           (error "No closing ~a found for opening ~a."
                  (aref boundary-chars 1) (aref boundary-chars 0))))))
 
-(let ((collected-matched-closing-chars))
-  (defun =vex-string (idiom &optional output precedent)
-    "Parse a string of text, converting its contents into nested lists of Vex tokens."
-    (let ((string-found) (olnchar) (symbols) (is-function-closure)
-          ;; the olnchar variable is needed to handle characters that may be functional or part
-          ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
-          ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
-          (uniform-char) (arg-rooted-path) (fix 0))
-      (unless collected-matched-closing-chars
-        (setf collected-matched-closing-chars (funcall (of-utilities idiom :collect-delimiters) idiom)))
-      
-      (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
-               (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
-               (?numeric-character () (?satisfies
-                                         (lambda (i) (funcall (of-utilities idiom :match-numeric-character)
-                                                              i idiom))))
-               (?token-character   () (?satisfies
-                                         (lambda (i) (funcall (of-utilities idiom :match-token-character)
-                                                              i idiom))))
-               (numeric-string-p  (i) (funcall (of-utilities idiom :number-formatter) i))
-               (pjoin-char-p      (i) (funcall (of-utilities idiom :match-path-joining-character)
-                                              i idiom))
-               (utoken-p          (i) (funcall (of-utilities idiom :match-uniform-token-character) i))
-               (p-or-u-char-p (is-path uniform-char)
-                 (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character)
-                                                     item idiom))
-                     (lambda (item) (char= uniform-char item))))
-               (=string (delimiters)
-                 (let ((lastc) (delimiter) (escape-indices) (char-index 0))
-                   (=destructure (_ content)
-                                 (=list (?satisfies (lambda (c) (when (position c delimiters :test #'char=)
-                                                                  (setq delimiter c))))
-                                        ;; note: nested quotes must be checked backwards; to determine
-                                        ;; whether a delimiter indicates the end of the quote, look at
-                                        ;; previous character to see whether it is a delimiter, then
-                                        ;; check whether the current character is an escape character #\\
-                                        (=subseq (%any (?satisfies
-                                                        (lambda (char)
-                                                          (when (or (not lastc)
-                                                                    (not (char= lastc delimiter))
-                                                                    (char= char delimiter))
-                                                            (setq lastc (if (and lastc (char= char delimiter)
-                                                                                 (char= lastc delimiter))
-                                                                            (progn (push (1- char-index)
-                                                                                         escape-indices)
-                                                                                   #\ )
-                                                                            char)
-                                                                  char-index (1+ char-index))))))))
-                     (setq string-found t)
-                     ;; the string-found variable is set to true
-                     ;; TODO: is there a better way to do this?
-                     (when (or (not (char= delimiter (aref content (1- (length content)))))
-                               (and escape-indices (= (first escape-indices)
-                                                      (+ -2 (length content)))))
-                       (error "Syntax error: unbalanced quotes."))
-                     (if escape-indices (let ((offset 0)
-                                              (outstr (make-array (list (- (length content)
-                                                                           1 (length escape-indices)))
-                                                                  :element-type 'character)))
-                                          (loop :for x :below (1- (length content))
-                                                :when (member x escape-indices) :do (incf offset)
-                                                  :when (not (member x escape-indices))
-                                                    :do (setf (aref outstr (- x offset)) (aref content x)))
-                                          outstr)
-                         (if (= 2 (length content))
-                             (aref content 0)
-                             (if (= 1 (length content))
-                                 (make-array 0 :element-type 'character)
-                                 (make-array (1- (length content)) :element-type 'character
-                                                                   :displaced-to content)))))))
-               (=vex-errant-axis-separating-character ()
-                 (let ((errant-char))
-                   (=destructure (_ _)
-                                 (=list (?satisfies
-                                         (lambda (char)
-                                           (when (funcall (of-utilities
-                                                           idiom :match-axis-separating-character)
-                                                          char idiom)
-                                             (setq errant-char char))))
-                                        (=subseq (%any (?satisfies 'characterp))))
-                     (error "Misplaced axis delimiter ~a." errant-char))))
-               (=vex-errant-closing-character (boundary-chars)
-                 (let ((errant-char) (matching-char)
-                       (chars-count (floor (length boundary-chars) 2)))
-                   (=destructure (_ _)
-                                 (=list (?satisfies
-                                         (lambda (char)
-                                           (loop :for i :across boundary-chars
-                                                 :for x :from 0 :to chars-count :when (char= char i)
-                                                 :do (setq errant-char i
-                                                           matching-char (aref boundary-chars
-                                                                               (+ x chars-count))))
-                                           errant-char))
-                                        (=subseq (%any (?satisfies 'characterp))))
-                     (error "Mismatched enclosing characters; each closing ~a must be preceded by an opening ~a."
-                            errant-char matching-char))))
-               (process-lines (lines &optional output meta)
-                 (if (or (zerop (length lines))
-                         (loop :for c :across lines :always (char= c #\ )))
-                     (list output meta)
-                     (destructuring-bind (out remaining meta)
-                         (parse lines (=vex-string idiom nil meta))
-                       (process-lines remaining (append output (when out (list out)))
-                                      meta))))
-               (handle-axes (input-string)
-                 (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
-                                            input-string idiom))
-                        (each-axis-code (loop :for axis :in each-axis
-                                              :collect (first (process-lines axis)))))
-                   (cons :ax each-axis-code)))
-               (handle-function (input-string)
-                 (destructuring-bind (content meta) (process-lines input-string)
-                   (list :fn (cons :meta meta) content)))
-               (handle-symbol (string)
-                 (multiple-value-bind (formatted is-symbol)
-                     (funcall (of-utilities idiom :format-value)
-                              (string-upcase (idiom-name idiom))
-                              ;; if there's an overloaded token character, do as above
-                              (idiom-symbols idiom)
-                              (if (getf precedent :overloaded-num-char)
-                                  (format nil "~a~a" (getf precedent :overloaded-num-char)
-                                          string)
-                                  string))
-                   (values formatted is-symbol)))
-               (functional-character-matcher (char)
-                 (when (and (> 2 fix)
-                            (funcall (of-utilities idiom :match-overloaded-numeric-character)
-                                     char)
-                            ;; (not (= fix (1- (length string))))
-                            )
-                   (setq olnchar char))
-                 (when (and olnchar (= 2 fix) (not (digit-char-p char)))
-                   (setq olnchar nil))
-                 (incf fix 1)
-                 (and (not (< 2 fix))
-                      (or (of-lexicons idiom char :functions)
-                          (of-lexicons idiom char :operators)
-                          (of-lexicons idiom char :statements)))))
-        (=destructure (leading-space item trailing-space break rest)
-                      (=list (=transform (=subseq (%any (?blank-character))) #'length)
-                             (%or (=vex-closure idiom (of-system idiom :closure-wrapping)
-                                                :transform-by nil
-                                                :disallow-linebreaks
-                                                (of-system idiom :function-wrapping))
-                                  (=vex-closure idiom (of-system idiom :axis-wrapping)
-                                                :transform-by #'handle-axes)
-                                  (=vex-closure idiom (of-system idiom :function-wrapping)
-                                                :transform-by #'handle-function
-                                                :if-confirmed (lambda () (setq is-function-closure t)))
-                                  (=vex-errant-axis-separating-character)
-                                  (=vex-errant-closing-character collected-matched-closing-chars)
-                                  (=string (of-system idiom :string-delimiters))
-                                  (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
-                                              (lambda (string)
-                                                (let ((*print-case* :upcase)
-                                                      (char (character string)))
-                                                  ;; the print case is needed since otherwise the (format)
-                                                  ;; here will search using a lowercase idiom name
-                                                  (unless olnchar
-                                                    (or (and (not (of-lexicons idiom char :operators))
-                                                             (of-lexicons idiom char :symbolic-forms)
-                                                             (symbol-value
-                                                              (find-symbol (format nil "~a-LEX-SY-~a"
-                                                                                   (idiom-name idiom)
-                                                                                   char)
-                                                                           (string (idiom-name idiom)))))
-                                                        (append (list (if (of-lexicons idiom char :statements)
-                                                                          :st (if (of-lexicons idiom char
-                                                                                               :operators)
-                                                                                  :op (when (of-lexicons
-                                                                                             idiom char
-                                                                                             :functions)
-                                                                                        :fn))))
-                                                                (if (of-lexicons idiom char :operators)
-                                                                    (list (if (of-lexicons idiom char
-                                                                                           :operators-pivotal)
-                                                                              :pivotal
-                                                                              (if (of-lexicons
-                                                                                   idiom char
-                                                                                   :operators-lateral)
-                                                                                  :lateral :unitary))))
-                                                                (list char)))))))
-                                  (=transform (%and (?test (#'numeric-string-p)
-                                                        (=subseq (%some (?numeric-character))))
-                                                    (=subseq (%some (?numeric-character))))
-                                              (lambda (string)
-                                                (funcall (of-utilities idiom :number-formatter)
-                                                         ;; if there's an overloaded token character passed in
-                                                         ;; the special precedent, prepend it to the token
-                                                         ;; being processed
-                                                         (if (getf precedent :overloaded-num-char)
-                                                             (format nil "~a~a" (getf precedent
-                                                                                      :overloaded-num-char)
-                                                                     string)
-                                                             string))))
-                                  ;; matches symbols like APL's ⍺, ∇∇, and ⍵⍵ that must be homogenous - however,
-                                  ;; homogenous symbols on the list of argument symbols may be part of a larger
-                                  ;; symbol that references a namespace path like ⍵.path.to
-                                  (=transform
-                                   (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
-                                                              (lambda (c)
-                                                                (if c (setq uniform-char (aref c 0)))))
-                                                  (=transform
-                                                   (=subseq (%any (?test (#'pjoin-char-p) (=element))))
-                                                   (lambda (c)
-                                                     (when (< 0 (length c)) (setq arg-rooted-path t))))
-                                                  (=subseq (%any (?test ((p-or-u-char-p
-                                                                          arg-rooted-path
-                                                                          uniform-char)))))))
-                                   (lambda (string)
-                                     (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                       (when is-symbol (push formatted symbols))
-                                       formatted)))
-                                  (=transform (=subseq (%some (?token-character)))
-                                              (lambda (string)
-                                                (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                                  (when is-symbol (push formatted symbols))
-                                                  formatted)))
-                                  ;; this last clause returns the remainder of the input in case the
-                                  ;; input has either no characters or only blank characters
-                                  ;; before the first line break
-                                  (=subseq (%any (?satisfies 'characterp))))
-                             (=transform (=subseq (%any (?blank-character))) #'length)
-                             (=subseq (%any (?newline-character)))
-                             (=subseq (%any (?satisfies 'characterp))))
-          ;; (print (list :ll leading-space trailing-space item precedent olnchar))
-          ;; (setf (getf precedent :whitespace) trailing-space)
-          (let ((lspace-total (+ leading-space (or (and (getf precedent :pspace)
-                                                        (second (getf precedent :pspace)))
-                                                   0))))
-            ;; (when (and (listp item) (member (first item) '(:fn :op))
-            ;;            (not (zerop lspace-total)))
-            ;;   (setf item (cons (first item) (cons (list :meta :whitespace lspace-total)
-            ;;                                       (rest item)))))
+;; (let ((collected-matched-closing-chars))
 
-            ;; set olnchar and precedent record to nil if it is true and an item is encountered;
-            ;; this provides for the special case of a . at the end of a parsed substring
-            (when item (setf olnchar                               nil
-                             (getf precedent :overloaded-num-char) nil))
-            
-            (if (and (not output) (stringp item) (< 0 (length item))
-                     (funcall (of-utilities idiom :match-newline-character)
-                              (aref item 0)))
-                ;; if the string is passed back (minus any leading whitespace) because the string began with
-                ;; a line break, parse again omitting the line break character
-                (parse (subseq item 1) (=vex-string idiom nil precedent))
-                (if (and (zerop (length break)) (< 0 (length rest)))
-                    (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
-                                                       (when item (list item)))
-                                             (append (when olnchar (list :overloaded-num-char olnchar))
-                                                     (list :symbols nil ;; peripheral space
-                                                           :pspace (list lspace-total trailing-space)))))
-                    (list (if (or (not item)
-                                  (and (typep item 'sequence)
-                                       (zerop (length item)) (not string-found)))
-                              ;; return nothing if only an empty sequence results from parsing
-                              ;; unless an explicit empty string was parsed
-                              output (cons item output))
-                          rest (append (when olnchar (list :overloaded-num-char olnchar))
-                                       precedent))))))))))
+(defun =vex-string (idiom &optional output precedent)
+  "Parse a string of text, converting its contents into nested lists of Vex tokens."
+  (let ((string-found) (olnchar) (symbols) (is-function-closure)
+        ;; the olnchar variable is needed to handle characters that may be functional or part
+        ;; of a number based on their context; in APL it's the . character, which may begin a number like .5
+        ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
+        (uniform-char) (arg-rooted-path) (fix 0))
+    ;; (unless collected-matched-closing-chars
+    ;;   (setf collected-matched-closing-chars (funcall (of-utilities idiom :collect-delimiters) idiom)))
+    
+    (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
+             (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
+             (?numeric-character () (?satisfies
+                                     (lambda (i) (funcall (of-utilities idiom :match-numeric-character)
+                                                          i idiom))))
+             (?token-character   () (?satisfies
+                                     (lambda (i) (funcall (of-utilities idiom :match-token-character)
+                                                          i idiom))))
+             (numeric-string-p  (i) (funcall (of-utilities idiom :number-formatter) i))
+             (pjoin-char-p      (i) (funcall (of-utilities idiom :match-path-joining-character)
+                                             i idiom))
+             (utoken-p          (i) (funcall (of-utilities idiom :match-uniform-token-character) i))
+             (p-or-u-char-p (is-path uniform-char)
+               (if is-path (lambda (item) (funcall (of-utilities idiom :match-token-character)
+                                                   item idiom))
+                   (lambda (item) (char= uniform-char item))))
+             (process-lines (lines &optional output meta)
+               (if (or (zerop (length lines))
+                       (loop :for c :across lines :always (char= c #\ )))
+                   (list output meta)
+                   (destructuring-bind (out remaining meta)
+                       (parse lines (=vex-string idiom nil meta))
+                     (process-lines remaining (append output (when out (list out)))
+                                    meta))))
+             (handle-axes (input-string)
+               (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
+                                          input-string idiom))
+                      (each-axis-code (loop :for axis :in each-axis
+                                            :collect (first (process-lines axis)))))
+                 (cons :ax each-axis-code)))
+             ;; (handle-function (input-string)
+             ;;   (destructuring-bind (content meta) (process-lines input-string)
+             ;;     (list :fn (cons :meta meta) content)))
+             (handle-symbol (string)
+               (multiple-value-bind (formatted is-symbol)
+                   (funcall (of-utilities idiom :format-value)
+                            (string-upcase (idiom-name idiom))
+                            ;; if there's an overloaded token character, do as above
+                            (idiom-symbols idiom)
+                            (if (getf precedent :overloaded-num-char)
+                                (format nil "~a~a" (getf precedent :overloaded-num-char)
+                                        string)
+                                string))
+                 (values formatted is-symbol)))
+             (functional-character-matcher (char)
+               (when (and (> 2 fix)
+                          (funcall (of-utilities idiom :match-overloaded-numeric-character)
+                                   char)
+                          ;; (not (= fix (1- (length string))))
+                          )
+                 (setq olnchar char))
+               (when (and olnchar (= 2 fix) (not (digit-char-p char)))
+                 (setq olnchar nil))
+               (incf fix 1)
+               (and (not (< 2 fix))
+                    (or (of-lexicons idiom char :functions)
+                        (of-lexicons idiom char :operators)
+                        (of-lexicons idiom char :statements)))))
+      (=destructure (leading-space item trailing-space break rest)
+                    (=list (=transform (=subseq (%any (?blank-character))) #'length)
+                           (%or ;; (=vex-closure idiom (of-system idiom :closure-wrapping)
+                            ;;               :transform-by nil
+                            ;;               :disallow-linebreaks
+                            ;;               (of-system idiom :function-wrapping))
+                            ;; (=vex-closure idiom (of-system idiom :axis-wrapping)
+                            ;;               :transform-by #'handle-axes)
+                            ;; (=vex-closure idiom (of-system idiom :function-wrapping)
+                            ;;               :transform-by #'handle-function
+                            ;;               :if-confirmed (lambda () (setq is-function-closure t)))
+                            ;; (=vex-errant-axis-separating-character)
+                            ;; (=vex-errant-closing-character collected-matched-closing-chars)
+                            ;; (=string (of-system idiom :string-delimiters))
+                            (=transform (=subseq (%some (?satisfies #'functional-character-matcher)))
+                                        (lambda (string)
+                                          (let ((*print-case* :upcase)
+                                                (char (character string)))
+                                            ;; the print case is needed since otherwise the (format)
+                                            ;; here will search using a lowercase idiom name
+                                            (unless olnchar
+                                              (or (and (not (of-lexicons idiom char :operators))
+                                                       (of-lexicons idiom char :symbolic-forms)
+                                                       (symbol-value
+                                                        (find-symbol (format nil "~a-LEX-SY-~a"
+                                                                             (idiom-name idiom)
+                                                                             char)
+                                                                     (string (idiom-name idiom)))))
+                                                  (append (list (if (of-lexicons idiom char :statements)
+                                                                    :st (if (of-lexicons idiom char
+                                                                                         :operators)
+                                                                            :op (when (of-lexicons
+                                                                                       idiom char
+                                                                                       :functions)
+                                                                                  :fn))))
+                                                          (if (of-lexicons idiom char :operators)
+                                                              (list (if (of-lexicons idiom char
+                                                                                     :operators-pivotal)
+                                                                        :pivotal
+                                                                        (if (of-lexicons
+                                                                             idiom char
+                                                                             :operators-lateral)
+                                                                            :lateral :unitary))))
+                                                          (list char)))))))
+                            (=transform (%and (?test (#'numeric-string-p)
+                                                  (=subseq (%some (?numeric-character))))
+                                              (=subseq (%some (?numeric-character))))
+                                        (lambda (string)
+                                          (funcall (of-utilities idiom :number-formatter)
+                                                   ;; if there's an overloaded token character passed in
+                                                   ;; the special precedent, prepend it to the token
+                                                   ;; being processed
+                                                   (if (getf precedent :overloaded-num-char)
+                                                       (format nil "~a~a" (getf precedent
+                                                                                :overloaded-num-char)
+                                                               string)
+                                                       string))))
+                            ;; matches symbols like APL's ⍺, ∇∇, and ⍵⍵ that must be homogenous - however,
+                            ;; homogenous symbols on the list of argument symbols may be part of a larger
+                            ;; symbol that references a namespace path like ⍵.path.to
+                            (=transform
+                             (=subseq (?seq (=transform (=subseq (?test (#'utoken-p) (=element)))
+                                                        (lambda (c)
+                                                          (if c (setq uniform-char (aref c 0)))))
+                                            (=transform
+                                             (=subseq (%any (?test (#'pjoin-char-p) (=element))))
+                                             (lambda (c)
+                                               (when (< 0 (length c)) (setq arg-rooted-path t))))
+                                            (=subseq (%any (?test ((p-or-u-char-p
+                                                                    arg-rooted-path
+                                                                    uniform-char)))))))
+                             (lambda (string)
+                               (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                 (when is-symbol (push formatted symbols))
+                                 formatted)))
+                            (=transform (=subseq (%some (?token-character)))
+                                        (lambda (string)
+                                          (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                            (when is-symbol (push formatted symbols))
+                                            formatted)))
+                            ;; this last clause returns the remainder of the input in case the
+                            ;; input has either no characters or only blank characters
+                            ;; before the first line break
+                            (=subseq (%any (?satisfies 'characterp))))
+                           (=transform (=subseq (%any (?blank-character))) #'length)
+                           (=subseq (%any (?newline-character)))
+                           (=subseq (%any (?satisfies 'characterp))))
+        ;; (print (list :ll leading-space trailing-space item precedent olnchar))
+        ;; (setf (getf precedent :whitespace) trailing-space)
+        (let ((lspace-total (+ leading-space (or (and (getf precedent :pspace)
+                                                      (second (getf precedent :pspace)))
+                                                 0))))
+          ;; (when (and (listp item) (member (first item) '(:fn :op))
+          ;;            (not (zerop lspace-total)))
+          ;;   (setf item (cons (first item) (cons (list :meta :whitespace lspace-total)
+          ;;                                       (rest item)))))
+
+          ;; set olnchar and precedent record to nil if it is true and an item is encountered;
+          ;; this provides for the special case of a . at the end of a parsed substring
+          (when item (setf olnchar                               nil
+                           (getf precedent :overloaded-num-char) nil))
+          
+          (if (and (not output) (stringp item) (< 0 (length item))
+                   (funcall (of-utilities idiom :match-newline-character)
+                            (aref item 0)))
+              ;; if the string is passed back (minus any leading whitespace) because the string began with
+              ;; a line break, parse again omitting the line break character
+              (parse (subseq item 1) (=vex-string idiom nil precedent))
+              (if (and (zerop (length break)) (< 0 (length rest)))
+                  (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
+                                                     (when item (list item)))
+                                           (append (when olnchar (list :overloaded-num-char olnchar))
+                                                   (list :symbols nil ;; peripheral space
+                                                         :pspace (list lspace-total trailing-space)))))
+                  (list (if (or (not item)
+                                (and (typep item 'sequence)
+                                     (zerop (length item)) (not string-found)))
+                            ;; return nothing if only an empty sequence results from parsing
+                            ;; unless an explicit empty string was parsed
+                            output (cons item output))
+                        rest (append (when olnchar (list :overloaded-num-char olnchar))
+                                     precedent)))))))))
 
 (defun vex-program (idiom options &optional string &rest inline-arguments)
   "Compile a set of expressions, optionally drawing external variables into the program and setting configuration parameters for the system."
@@ -1185,21 +1086,10 @@ phinary 42
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
              (process-lines (string &optional space params output)
-               (if t ; nil
-                   (funcall (of-utilities idiom :compile-form)
-                            (funcall (if print-tokens #'print #'identity)
-                                     (vex::construct string idiom space))
-                            :space space :params params)
-                   (if (zerop (length string))
-                       (funcall (of-utilities idiom :compile-form)
-                                (reverse output) :space space :params params)
-                       (let ((result (funcall (or (of-utilities idiom :lexer-postprocess)
-                                                  (lambda (&rest args) (first args)))
-                                              (print (parse string (=vex-string idiom)))
-                                              idiom space)))
-                         (print (list :res result))
-                         (when print-tokens (print (first result)))
-                         (process-lines (second result) space params (cons (first result) output))))))
+               (funcall (of-utilities idiom :compile-form)
+                        (funcall (if print-tokens #'print #'identity)
+                                 (construct string idiom space))
+                        :space space :params params))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

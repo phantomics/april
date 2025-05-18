@@ -72,7 +72,6 @@
                                                                            :counting i :into sum
                                                                          :finally (return sum)))
                                                      (output (make-string (- length quotes-count))))
-                                                ;; (print (list :qq quotes-count))
                                                 (loop :for i :from (1+ start) :below end :for ix :from 0
                                                       :do (setf (aref output ix) (aref string i))
                                                           (when (char= qchar (aref string i))
@@ -102,10 +101,6 @@
                                                                    (cons (first collected)
                                                                          (second collected))
                                                                    (second collected)))))
-                                          ;; (print (list :coll collected processed
-                                          ;;              (list :fn (list :meta)
-                                          ;;                    (cons (first collected)
-                                          ;;                          (second collected)))))
                                           (cons (cons (list (first processed) (second processed)
                                                             (reverse (third processed)))
                                                       (third collected))
