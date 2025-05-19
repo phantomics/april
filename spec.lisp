@@ -18,8 +18,8 @@
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :output-printed nil :base-state '(:output-stream '*standard-output*)
          :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
-         :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
-         :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" :axis-separators ";"
+         ;; :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
+         :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" ;; :axis-separators ";"
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
@@ -43,7 +43,7 @@
                                        (and (char= #\⍝ (aref string index))
                                             (lambda (string index)
                                               (or (= index (1- (length string)))
-                                                  (member (aref string index)
+                                                  (member (aref string (1+ index))
                                                           '(#\Newline #\Return) :test #'char=))))))
            (section :string   :exclusive t
                               :start (labels ((check-char (char) (position char "'\"" :test #'char=))
@@ -108,7 +108,6 @@
            (section :axes     :delimit "[]"
                               :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type meta collected)
-                                        ;; (print (list :ty type))
                                         (case type
                                           (:break (cons nil (cons (if (first collected)
                                                                       (cons (first collected)

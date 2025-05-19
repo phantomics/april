@@ -1158,6 +1158,7 @@
                                                    inline-arguments))
                                         (process-lines
                                          (funcall string-prep string)
+                                         ;; (copy-array string)
                                          space (list :call-scope (list :input-vars iv-list
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
