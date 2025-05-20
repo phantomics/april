@@ -17,7 +17,7 @@
                                :comparison-tolerance double-float-epsilon
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :output-printed nil :base-state '(:output-stream '*standard-output*)
-         :variables *system-variables* :string-delimiters "'\"" :comment-delimiters "⍝"
+         :variables *system-variables* ;; :string-delimiters "'\"" :comment-delimiters "⍝"
          ;; :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
          :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" ;; :axis-separators ";"
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
@@ -38,12 +38,12 @@
                                                                       (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
-           (section :comment  :exclusive t
+           (section :comment  :exclusive t :functional-divider :break
                               :start (lambda (string index)
                                        (and (char= #\⍝ (aref string index))
                                             (lambda (string index)
                                               (or (= index (1- (length string)))
-                                                  (member (aref string (1+ index))
+                                                  (member (aref string index)
                                                           '(#\Newline #\Return) :test #'char=))))))
            (section :string   :exclusive t
                               :start (labels ((check-char (char) (position char "'\"" :test #'char=))
@@ -198,60 +198,60 @@
                 (loop :for i :below (/ (length aw) 2) :do (push (aref aw i) output))
                 (reverse (coerce output 'string))))
             ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
-            :prep-code-string
-            (lambda (idiom)
-              (let ((nlstring (of-system idiom :newline-characters))
-                    (comment-delimiters (of-system idiom :comment-delimiters)))
-                (lambda (string)
-                  (let ((commented) (osindex 0)
-                        (out-string (make-string (length string) :initial-element #\ )))
-                    (loop :for char :across string
-                          :do (if commented (when (position char nlstring :test #'char=)
-                                              (setf commented nil
-                                                    (row-major-aref out-string osindex) char
-                                                    osindex (1+ osindex)))
-                                  (if (position char comment-delimiters :test #'char=)
-                                      (setf commented t)
-                                      (setf (row-major-aref out-string osindex) char
-                                            osindex (1+ osindex)))))
-                    ;; return displaced string to save time processing blanks
-                    (make-array osindex :element-type 'character :displaced-to out-string)))))
+            ;; :prep-code-string
+            ;; (lambda (idiom)
+            ;;   (let ((nlstring (of-system idiom :newline-characters))
+            ;;         (comment-delimiters (of-system idiom :comment-delimiters)))
+            ;;     (lambda (string)
+            ;;       (let ((commented) (osindex 0)
+            ;;             (out-string (make-string (length string) :initial-element #\ )))
+            ;;         (loop :for char :across string
+            ;;               :do (if commented (when (position char nlstring :test #'char=)
+            ;;                                   (setf commented nil
+            ;;                                         (row-major-aref out-string osindex) char
+            ;;                                         osindex (1+ osindex)))
+            ;;                       (if (position char comment-delimiters :test #'char=)
+            ;;                           (setf commented t)
+            ;;                           (setf (row-major-aref out-string osindex) char
+            ;;                                 osindex (1+ osindex)))))
+            ;;         ;; return displaced string to save time processing blanks
+            ;;         (make-array osindex :element-type 'character :displaced-to out-string)))))
             ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
-            :process-axis-string
-            (let ((delimiters) (axis-separators) (full-len) (half-len) (nesting (vector 0 0 0)))
-              (lambda (string idiom)
-                (unless delimiters
-                  (setf delimiters (reverse (funcall (of-utilities idiom :collect-delimiters) idiom))
-                        full-len (length delimiters)
-                        half-len (/ full-len 2)
-                        axis-separators (of-system idiom :axis-separators)))
-                (let ((indices) (last-index) (quoted))
-                  (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
-                  (loop :for char :across string :counting char :into charix
-                        :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
-                                                :when (char= d char) :do (return (- full-len -1 dx)))
-                                          0)))
-                              (if (position char (of-system idiom :string-delimiters) :test #'char=)
-                                  (setf quoted (not quoted))
-                                  (unless quoted
-                                    (if (< half-len mx) (incf (aref nesting (- full-len mx)))
-                                        (if (<= 1 mx half-len)
-                                            (if (< 0 (aref nesting (- half-len mx)))
-                                                (decf (aref nesting (- half-len mx)))
-                                                (error "Each closing ~a must match with an opening ~a."
-                                                       (aref delimiters mx)
-                                                       (aref delimiters (- half-len mx))))
-                                            (when (and (position char axis-separators :test #'char=)
-                                                       (zerop (loop :for ncount :across nesting
-                                                                    :summing ncount)))
-                                              (setq indices (cons (1- charix) indices)))))))))
-                  (loop :for index :in (reverse (cons (length string) indices))
-                        :counting index :into iix
-                        :collect (make-array (- index (if last-index 1 0)
-                                                (or last-index 0))
-                                             :element-type 'character :displaced-to string
-                                             :displaced-index-offset (if last-index (1+ last-index) 0))
-                        :do (setq last-index index)))))
+            ;; :process-axis-string
+            ;; (let ((delimiters) (axis-separators) (full-len) (half-len) (nesting (vector 0 0 0)))
+            ;;   (lambda (string idiom)
+            ;;     (unless delimiters
+            ;;       (setf delimiters (reverse (funcall (of-utilities idiom :collect-delimiters) idiom))
+            ;;             full-len (length delimiters)
+            ;;             half-len (/ full-len 2)
+            ;;             axis-separators (of-system idiom :axis-separators)))
+            ;;     (let ((indices) (last-index) (quoted))
+            ;;       (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
+            ;;       (loop :for char :across string :counting char :into charix
+            ;;             :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
+            ;;                                     :when (char= d char) :do (return (- full-len -1 dx)))
+            ;;                               0)))
+            ;;                   (if (position char (of-system idiom :string-delimiters) :test #'char=)
+            ;;                       (setf quoted (not quoted))
+            ;;                       (unless quoted
+            ;;                         (if (< half-len mx) (incf (aref nesting (- full-len mx)))
+            ;;                             (if (<= 1 mx half-len)
+            ;;                                 (if (< 0 (aref nesting (- half-len mx)))
+            ;;                                     (decf (aref nesting (- half-len mx)))
+            ;;                                     (error "Each closing ~a must match with an opening ~a."
+            ;;                                            (aref delimiters mx)
+            ;;                                            (aref delimiters (- half-len mx))))
+            ;;                                 (when (and (position char axis-separators :test #'char=)
+            ;;                                            (zerop (loop :for ncount :across nesting
+            ;;                                                         :summing ncount)))
+            ;;                                   (setq indices (cons (1- charix) indices)))))))))
+            ;;       (loop :for index :in (reverse (cons (length string) indices))
+            ;;             :counting index :into iix
+            ;;             :collect (make-array (- index (if last-index 1 0)
+            ;;                                     (or last-index 0))
+            ;;                                  :element-type 'character :displaced-to string
+            ;;                                  :displaced-index-offset (if last-index (1+ last-index) 0))
+            ;;             :do (setq last-index index)))))
             ;; macro to process lexical specs of functions and operators
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))

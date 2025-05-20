@@ -79,7 +79,7 @@ avl ← { ⎕IO←0                                ⍝ Adelson-Velskii, Landis t
     AAbal←-⍺×Bbal=0                          ⍝   <Bx  r  =>  p  <Az    are such that:
     BBbal←+⍺×Bbal=0                          ⍝   / \            / \    <B> →  B> <A
     AA←⍺ proj Akv AAbal(q r)                 ⍝  p   q          q   r   <B  → <B> <A>
-    ⍺ proj Bkv BBbal(p AA)                   ⍝
+    ⍺ proj Bkv BBbal(p AA)                   ⍝ aaa
   }                                          ⍝ :: d ∇ t → t
 
   rot2←{                                     ⍝ double ⍺-rotation of tree ⍵.
@@ -532,7 +532,7 @@ splay ← { ⎕IO←0                              ⍝ Splay trees.
     pos neg←1 ¯1×⊃⍵                          ⍝ +/- rotation direction.
     =/⍵:(⍺ rot neg)rot neg                   ⍝ same dirns: double ¯⍵-rotation.
     C(BpA s)←neg wise\⍺                      ⍝ diff dirns:
-    ∆C←neg wise\C((BpA rot pos)s)            ⍝
+    ∆C←neg wise\C((BpA rot pos)s)            ⍝ aaa
     ∆C rot neg                               ⍝   ¯⍵-⍵-rotation.       (see notes)
   }                                          ⍝ :: t ∇ p → t
 

@@ -695,8 +695,6 @@
                           (push (list (nth (- index (length spec-names)) div-spec-names)
                                       ix)
                                 returned)))
-                    ;; (print (list :in index returned exclusive-specs
-                    ;;              (= index (third (first returned)))))
                     (when (minusp index)
                       (decf code (ash 1 (ash (abs index) 3)))
                       (let ((found) (formatter (nth (1- (abs index)) spec-names)))
@@ -706,13 +704,12 @@
                                              (= (abs index) (third r)))
                                     (setf found (setf (nth rx returned)
                                                       (list formatter (second r) ix)))))))))
-        ;; (print (list :rr returned))
         (values (reverse returned) dl-indices)))))
 
 (defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
         (formats) (index 0) (output (list nil nil))
-        (cl-meta (list :meta :aa 0)) ;; placeholder meta
+        (cl-meta) (functional-divider)
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
         (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
@@ -732,7 +729,6 @@
                  (setf cl-meta        (cons :meta (third parsed))
                        (first output) (append (first parsed) (first output)))))
              (close-bound ()
-               ;; (print (list :ggg index (first bounds)))
                (lex-chars index (first bounds))
                ;; (push (list :a (- (first bounds) index)) (first output))
                ;; (push (list :a (lex-chars index (first bounds))) (first output))
@@ -763,7 +759,6 @@
             :do (destructuring-bind (type start &optional end) spec
                   ;; (print (list :bb bou start))
                   (loop :while (and bounds (> start (first bounds))) :do (close-bound))
-                  ;; (print (list :ty type index start output))
                   (when (< index start)
                     (lex-chars index start)
                     ;; (push (list :a (lex-chars index start)) (first output))
@@ -775,7 +770,7 @@
                   (when (= index start)
                     (setf index (1+ start)))
 
-                  (if end ;; an entity is a section if it has an end, a divider if not
+                  (when end ;; an entity is a section if it has an end, a divider if not
                       (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
                                                 :build))
                             (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
@@ -788,15 +783,25 @@
                             (if this-renderer
                                 (progn (push (funcall this-renderer string start end) (first output))
                                        (setf index (1+ end)))
-                                (setf index (1+ end)))))
-                      ;; dividers are handled based on the containing section type
-                      (setf output (funcall (if (first formats)
-                                                (getf (getf (getf (idiom-utilities idiom) :entity-specs)
-                                                            (first formats))
-                                                      :divide)
-                                                base-divider)
-                                            type (lambda (item) (funcall postprocessor item idiom workspace))
-                                            output)))))
+                                ;; in the case of no renderer, just set the
+                                ;; index to the end; this is for comments
+                                (setf index              (1+ end)
+                                      functional-divider (getf (getf (getf (idiom-utilities idiom)
+                                                                           :entity-specs)
+                                                                     type)
+                                                               :functional-divider))))))
+                  ;; (print (list :fd functional-divider))
+                  (when (or functional-divider (not end))
+                    ;; dividers are handled based on the containing section type
+                    (setf output (funcall (if (first formats)
+                                              (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                          (first formats))
+                                                    :divide)
+                                              base-divider)
+                                          (or functional-divider type)
+                                          (lambda (item) (funcall postprocessor item idiom workspace))
+                                          output)
+                          functional-divider nil))))
 
       ;; (print (list :bo bounds))
       
@@ -912,12 +917,12 @@
                        (parse lines (=vex-string idiom nil meta))
                      (process-lines remaining (append output (when out (list out)))
                                     meta))))
-             (handle-axes (input-string)
-               (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
-                                          input-string idiom))
-                      (each-axis-code (loop :for axis :in each-axis
-                                            :collect (first (process-lines axis)))))
-                 (cons :ax each-axis-code)))
+             ;; (handle-axes (input-string)
+             ;;   (let* ((each-axis (funcall (of-utilities idiom :process-axis-string)
+             ;;                              input-string idiom))
+             ;;          (each-axis-code (loop :for axis :in each-axis
+             ;;                                :collect (first (process-lines axis)))))
+             ;;     (cons :ax each-axis-code)))
              ;; (handle-function (input-string)
              ;;   (destructuring-bind (content meta) (process-lines input-string)
              ;;     (list :fn (cons :meta meta) content)))
@@ -1147,8 +1152,9 @@
                    (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
                                                                  (string (idiom-name idiom))))
                                     output-vars))
-                   (string-prep (funcall (of-utilities idiom :prep-code-string)
-                                         idiom)))
+                   ;; (string-prep (funcall (of-utilities idiom :prep-code-string)
+                   ;;                       idiom))
+                   )
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
@@ -1157,8 +1163,8 @@
                                                            system-to-use)
                                                    inline-arguments))
                                         (process-lines
-                                         (funcall string-prep string)
-                                         ;; (copy-array string)
+                                         ;; (funcall string-prep string)
+                                         (copy-array string)
                                          space (list :call-scope (list :input-vars iv-list
                                                                        :output-vars ov-list))))
                                ;; if multiple values are to be output, add the (values) form at bottom
