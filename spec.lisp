@@ -17,9 +17,7 @@
                                :comparison-tolerance double-float-epsilon
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :output-printed nil :base-state '(:output-stream '*standard-output*)
-         :variables *system-variables* ;; :string-delimiters "'\"" :comment-delimiters "⍝"
-         ;; :closure-wrapping "()" :function-wrapping "{}" :axis-wrapping "[]"
-         :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]" ;; :axis-separators ";"
+         :variables *system-variables* :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]"
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
          :newline-characters (coerce '(#\Newline #\Return) 'string))
 
@@ -30,7 +28,7 @@
            ;; (token   :name     :match (lambda (char) (or (is-alphanumeric char)
            ;;                                              (position char "._⎕∆⍙¯" :test #'char=))))
            (section :body     :base t
-                              :divide (lambda (type meta collected)
+                              :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (if (first collected)
                                                                       (cons (first collected)
@@ -79,15 +77,15 @@
                                                 output)))))
            (section :closure  :delimit "()"
                               :build  (lambda (collected) (cons nil collected))
-                              :divide (lambda (type meta collected)
-                                        (declare (ignore type meta collected))
+                              :divide (lambda (type collected)
+                                        (declare (ignore type collected))
                                         (error "A (closure) may not include breaks."))
-                              :format (lambda (meta collected)
+                              :format (lambda (collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
            (section :function :delimit "{}"
                               :build  (lambda (collected) (cons nil (cons nil collected)))
-                              :divide (lambda (type meta collected)
+                              :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (if (first collected)
                                                                       (cons (first collected)
@@ -95,7 +93,7 @@
                                                                       (second collected))
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
-                              :format (lambda (meta collected)
+                              :format (lambda (collected)
                                         (let ((processed (list :fn (list :meta :symbols nil)
                                                                (if (first collected)
                                                                    (cons (first collected)
@@ -107,7 +105,7 @@
                                                 (cdddr collected)))))
            (section :axes     :delimit "[]"
                               :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
-                              :divide (lambda (type meta collected)
+                              :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (if (first collected)
                                                                       (cons (first collected)
@@ -121,7 +119,7 @@
                                                                                        (second collected)))
                                                                                   (third collected))
                                                                             (cdddr collected)))))))
-                              :format (lambda (meta collected)
+                              :format (lambda (collected)
                                         (cons (cons (cons :ax (reverse (cons (reverse
                                                                               (if (first collected)
                                                                                   (cons (first collected)
@@ -184,74 +182,6 @@
                                                  (unless chars
                                                    (setf chars (of-system idiom :axis-separators)))
                                                  (position char chars :test #'char=)))
-            ;; generate the string of matched closing and opening characters that wrap code sections;
-            ;; used to identify stray closing characters such as ) without a corresponding (
-            :collect-delimiters
-            (lambda (idiom)
-              (let ((output) (cw (of-system idiom :closure-wrapping))
-                    (fw (of-system idiom :function-wrapping)) (aw (of-system idiom :axis-wrapping)))
-                (loop :for i :from  (/ (length cw) 2) :to (1- (length cw)) :do (push (aref cw i) output))
-                (loop :for i :from  (/ (length fw) 2) :to (1- (length fw)) :do (push (aref fw i) output))
-                (loop :for i :from  (/ (length aw) 2) :to (1- (length aw)) :do (push (aref aw i) output))
-                (loop :for i :below (/ (length cw) 2) :do (push (aref cw i) output))
-                (loop :for i :below (/ (length fw) 2) :do (push (aref fw i) output))
-                (loop :for i :below (/ (length aw) 2) :do (push (aref aw i) output))
-                (reverse (coerce output 'string))))
-            ;; this code preprocessor removes comments, starting with each ⍝ and ending before the next newline
-            ;; :prep-code-string
-            ;; (lambda (idiom)
-            ;;   (let ((nlstring (of-system idiom :newline-characters))
-            ;;         (comment-delimiters (of-system idiom :comment-delimiters)))
-            ;;     (lambda (string)
-            ;;       (let ((commented) (osindex 0)
-            ;;             (out-string (make-string (length string) :initial-element #\ )))
-            ;;         (loop :for char :across string
-            ;;               :do (if commented (when (position char nlstring :test #'char=)
-            ;;                                   (setf commented nil
-            ;;                                         (row-major-aref out-string osindex) char
-            ;;                                         osindex (1+ osindex)))
-            ;;                       (if (position char comment-delimiters :test #'char=)
-            ;;                           (setf commented t)
-            ;;                           (setf (row-major-aref out-string osindex) char
-            ;;                                 osindex (1+ osindex)))))
-            ;;         ;; return displaced string to save time processing blanks
-            ;;         (make-array osindex :element-type 'character :displaced-to out-string)))))
-            ;; handles axis strings like "'2;3;;' from 'array[2;3;;]'"
-            ;; :process-axis-string
-            ;; (let ((delimiters) (axis-separators) (full-len) (half-len) (nesting (vector 0 0 0)))
-            ;;   (lambda (string idiom)
-            ;;     (unless delimiters
-            ;;       (setf delimiters (reverse (funcall (of-utilities idiom :collect-delimiters) idiom))
-            ;;             full-len (length delimiters)
-            ;;             half-len (/ full-len 2)
-            ;;             axis-separators (of-system idiom :axis-separators)))
-            ;;     (let ((indices) (last-index) (quoted))
-            ;;       (loop :for i :below (length nesting) :do (setf (aref nesting i) 0))
-            ;;       (loop :for char :across string :counting char :into charix
-            ;;             :do (let ((mx (or (loop :for d :across delimiters :counting d :into dx
-            ;;                                     :when (char= d char) :do (return (- full-len -1 dx)))
-            ;;                               0)))
-            ;;                   (if (position char (of-system idiom :string-delimiters) :test #'char=)
-            ;;                       (setf quoted (not quoted))
-            ;;                       (unless quoted
-            ;;                         (if (< half-len mx) (incf (aref nesting (- full-len mx)))
-            ;;                             (if (<= 1 mx half-len)
-            ;;                                 (if (< 0 (aref nesting (- half-len mx)))
-            ;;                                     (decf (aref nesting (- half-len mx)))
-            ;;                                     (error "Each closing ~a must match with an opening ~a."
-            ;;                                            (aref delimiters mx)
-            ;;                                            (aref delimiters (- half-len mx))))
-            ;;                                 (when (and (position char axis-separators :test #'char=)
-            ;;                                            (zerop (loop :for ncount :across nesting
-            ;;                                                         :summing ncount)))
-            ;;                                   (setq indices (cons (1- charix) indices)))))))))
-            ;;       (loop :for index :in (reverse (cons (length string) indices))
-            ;;             :counting index :into iix
-            ;;             :collect (make-array (- index (if last-index 1 0)
-            ;;                                     (or last-index 0))
-            ;;                                  :element-type 'character :displaced-to string
-            ;;                                  :displaced-index-offset (if last-index (1+ last-index) 0))
-            ;;             :do (setq last-index index)))))
             ;; macro to process lexical specs of functions and operators
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
