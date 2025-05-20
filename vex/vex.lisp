@@ -709,7 +709,7 @@
 (defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
         (formats) (index 0) (output (list nil nil))
-        (cl-meta) (functional-divider)
+        (cl-meta) (split)
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
         (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
@@ -717,12 +717,10 @@
                            (lambda (&rest args) (first args)))))
     ;; (print (list :m map bounds))
     (labels ((lex-chars (start end)
-               (let* ((substring (make-array (- end start)
-                                             :element-type 'character :displaced-to string
-                                             :displaced-index-offset start))
+               (let* ((substring (make-array (- end start) :displaced-index-offset start
+                                             :element-type 'character :displaced-to string))
                       ;; (sst (print (list :sss substring)))
                       (parsed (parse substring (=vex-string idiom))))
-                 ;; (print (list :pr parsed))
                  (when (getf (third parsed) :overloaded-num-char)
                    ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
                    (push (list :op :pivotal #\.) (first parsed)))
@@ -740,14 +738,12 @@
                                           :format)))
                    ;; (print (list :tf this-format output))
                    (typecase this-format
-                     (symbol
-                      (setf output (cons (cons (cons this-format
-                                                     (cons (first output)
-                                                           (second output)))
-                                               (third output))
-                                         (cdddr output))))
-                     (function
-                      (setf output (funcall this-format output))))
+                     (symbol  (setf output (cons (cons (cons this-format
+                                                             (cons (first output)
+                                                                   (second output)))
+                                                       (third output))
+                                                 (cdddr output))))
+                     (function (setf output (funcall this-format output))))
                    (pop formats)))
                ;; (print (list :o output bounds))
                (setf index  (1+ (first bounds))
@@ -755,50 +751,42 @@
       
       (loop :for spec :in map
             :do (destructuring-bind (type start &optional end) spec
-                  ;; (print (list :bb bou start))
-                  (loop :while (and bounds (> start (first bounds))) :do (close-bound))
-                  (when (< index start)
-                    (lex-chars index start)
-                    ;; (push (list :a (lex-chars index start)) (first output))
-                    ;; (push (list :a (- start index)) (first output))
-                    ;; (print (list :ex type index start))
-                    ;; (print (list :eoo output))
-                    (setf index (1+ start)))
 
-                  (when (= index start)
-                    (setf index (1+ start)))
+                  (loop :while (and bounds (> start (first bounds))) :do (close-bound))
+                  (when (<  index start) (lex-chars index start))
+                  (when (<= index start) (setf index (1+ start)))
 
                   (when end ;; an entity is a section if it has an end, a divider if not
-                      (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                                :build))
-                            (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                                 :render)))
-                        (if this-builder
-                            (progn (push type formats)
-                                   (push end bounds)
-                                   (setf index (1+ start)
-                                         output (funcall this-builder output)))
-                            (if this-renderer
-                                (progn (push (funcall this-renderer string start end) (first output))
-                                       (setf index (1+ end)))
-                                ;; in the case of no renderer, just set the
-                                ;; index to the end; this is for comments
-                                (setf index              (1+ end)
-                                      functional-divider (getf (getf (getf (idiom-utilities idiom)
-                                                                           :entity-specs)
-                                                                     type)
-                                                               :functional-divider))))))
-                  ;; (print (list :fd functional-divider))
-                  (when (or functional-divider (not end))
+                    (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                              :build))
+                          (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                               :render)))
+                      (if this-builder
+                          (progn (push type formats)
+                                 (push end bounds)
+                                 (setf index (1+ start)
+                                       output (funcall this-builder output)))
+                          (if this-renderer
+                              (progn (push (funcall this-renderer string start end) (first output))
+                                     (setf index (1+ end)))
+                              ;; in the case of no renderer, just set the
+                              ;; index to the end; this is for comments
+                              (setf index (1+ end)
+                                    ;; the split is set in cases where an unrendering section
+                                    ;; (i.e. comment) is to cause a split in the code
+                                    split (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                                :functional-divider))))))
+
+                  (when (or split (not end))
                     ;; dividers are handled based on the containing section type
                     (setf output (funcall (if (first formats)
                                               (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                           (first formats))
                                                     :divide)
                                               base-divider)
-                                          (or functional-divider type)
+                                          (or split type)
                                           output)
-                          functional-divider nil))))
+                          split  nil))))
 
       ;; (print (list :bo bounds))
       
@@ -886,7 +874,6 @@
     ;; or may work as the inner/outer product operator, as in 1 2 3+.×4 5 6.
     
     (labels ((?blank-character   () (?satisfies (of-utilities idiom :match-blank-character)))
-             (?newline-character () (?satisfies (of-utilities idiom :match-newline-character)))
              (?numeric-character () (?satisfies
                                      (lambda (i) (funcall (of-utilities idiom :match-numeric-character)
                                                           i idiom))))

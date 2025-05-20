@@ -218,6 +218,12 @@
           (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
+(defmacro taper (list)
+  "A macro implementing the common method of tapering off a list of collected tokens; if the first element of the list is non-nil, it will be appended to the second element of the list. Then, whether or not the first element was appended to the second, the second element is returned."
+  `(if (first ,list)
+       (cons (first ,list) (second ,list))
+       (second ,list)))
+
 (defun add-aprepl-load-to-emacs-init-file (&optional unique-init-path)
   "Add a line loading the ApREPL utility to the Emacs init file so ApREPL will be ready for use when Emacs is loaded."
   (let ((init-path (or unique-init-path (probe-file "~/.emacs.el")

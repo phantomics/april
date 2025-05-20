@@ -18,8 +18,7 @@
                                :rngs (list :generators :rng (aref *rng-names* 1)))
          :output-printed nil :base-state '(:output-stream '*standard-output*)
          :variables *system-variables* :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]"
-         :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯"
-         :newline-characters (coerce '(#\Newline #\Return) 'string))
+         :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯")
 
  (entities (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
            (divider :axdiv    :match #\;) ;; axis divider
@@ -30,10 +29,7 @@
            (section :body     :base t
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (if (first collected)
-                                                                      (cons (first collected)
-                                                                            (second collected))
-                                                                      (second collected))
+                                          (:break (cons nil (cons (taper collected)
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
            (section :comment  :exclusive t :functional-divider :break
@@ -62,14 +58,12 @@
                                              (when pos (match-end (aref quotes-string pos)))))))
                               :render (lambda (string start end)
                                         (let ((length (- end start 1)))
-                                          ;; (print (list :st start (aref string (+ 2 start))))
                                           (if (= 1 length) (aref string (1+ start))
-                                              (let* ((qchar (aref string start))
-                                                     (quotes-count (loop :for i :from (1+ start) :below end
-                                                                         :when (char= qchar (aref string i))
-                                                                           :counting i :into sum
-                                                                         :finally (return sum)))
-                                                     (output (make-string (- length quotes-count))))
+                                              ;; expressing a one-length string like 'a' returns character #\a
+                                              (let ((output) (qchar (aref string start)))
+                                                (loop :for i :from (1+ start) :below end
+                                                      :when (char= qchar (aref string i)) :do (decf length))
+                                                (setf output (make-string length))
                                                 (loop :for i :from (1+ start) :below end :for ix :from 0
                                                       :do (setf (aref output ix) (aref string i))
                                                           (when (char= qchar (aref string i))
@@ -87,18 +81,12 @@
                               :build  (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (if (first collected)
-                                                                      (cons (first collected)
-                                                                            (second collected))
-                                                                      (second collected))
+                                          (:break (cons nil (cons (taper collected)
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
                               :format (lambda (collected)
                                         (let ((processed (list :fn (list :meta :symbols nil)
-                                                               (if (first collected)
-                                                                   (cons (first collected)
-                                                                         (second collected))
-                                                                   (second collected)))))
+                                                               (taper collected))))
                                           (cons (cons (list (first processed) (second processed)
                                                             (reverse (third processed)))
                                                       (third collected))
@@ -107,24 +95,14 @@
                               :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (if (first collected)
-                                                                      (cons (first collected)
-                                                                            (second collected))
-                                                                      (second collected))
+                                          (:break (cons nil (cons (taper collected)
                                                                   (cddr collected))))
                                           (:axdiv (cons nil (cons nil (cons (cons (reverse
-                                                                                   (if (first collected)
-                                                                                       (cons (first collected)
-                                                                                             (second collected))
-                                                                                       (second collected)))
+                                                                                   (taper collected))
                                                                                   (third collected))
                                                                             (cdddr collected)))))))
                               :format (lambda (collected)
-                                        (cons (cons (cons :ax (reverse (cons (reverse
-                                                                              (if (first collected)
-                                                                                  (cons (first collected)
-                                                                                        (second collected))
-                                                                                  (second collected)))
+                                        (cons (cons (cons :ax (reverse (cons (reverse (taper collected))
                                                                              (third collected))))
                                                     (fourth collected))
                                               (cddddr collected)))))
@@ -148,8 +126,6 @@
  ;; utilities for compiling the language
  (utilities :match-blank-character (let ((cstring (coerce '(#\  #\Tab) 'string)))
                                      (lambda (char) (position char cstring :test #'char=)))
-            :match-newline-character (let ((cstring (coerce '(#\⋄ #\◊ #\Newline #\Return) 'string)))
-                                       (lambda (char) (position char cstring :test #'char=)))
             ;; set the language's valid blank, newline characters and token characters
             :match-numeric-character
             (let ((other-chars))
