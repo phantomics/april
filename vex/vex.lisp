@@ -579,6 +579,7 @@
             :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
                   (case spec-type
                     (:section
+                     ;; specify start and end qualifiers for a section
                      (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
                            (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
                        (push spec-name spec-names)
@@ -628,6 +629,7 @@
 
                        (push format formatters)))
                     (:divider
+                     ;; specify qualifier for a divider that may split a section into subsections
                      (let ((matcher (getf spec :match)) (format (getf spec :format)))
                        (push spec-name div-spec-names)
                        (push (typecase matcher
@@ -646,15 +648,16 @@
     
     (lambda (idiom string)
       (let ((code 0) (open-stack) (confirmer-stack) (returned) (exclusive-index) (set-mirroring)
-            (dl-indices (make-array (length string) :element-type '(signed-byte 8) :initial-element 0)))
+            (dl-indices (make-array (length string) :initial-element 0 :element-type '(signed-byte 8))))
         (loop :for char :across string :for cx :from 0
               :do (loop :for dv :in dividers :for ix :from (length open-matchers)
+                        ;; first, check for dividers; they aren't counted
+                        ;; inside an exclusive section like a string or comment
                         :while (and (zerop code) (not exclusive-index))
-                        ;; dividers aren't counted inside an exclusive section
-                        ;; like a string or comment
                         :do (when (and dv (funcall dv string cx))
                               (incf code (1+ ix))))
                   (loop :for om :in open-matchers :for cm :in close-matchers
+                        ;; second, check for the opening or closing of a section
                         :for ix :from 0 :while (zerop code)
                         :do (setf set-mirroring nil)
                             (let ((matcher-output (and (not exclusive-index)
@@ -679,6 +682,7 @@
                                 (pop open-stack)
                                 (pop confirmer-stack))
                               (when matcher-output (push matcher-output confirmer-stack))))
+                  
                  (unless (zerop code)
                     (setf (aref dl-indices cx) code
                           code                 0)))
@@ -704,6 +708,7 @@
                                              (= (abs index) (third r)))
                                     (setf found (setf (nth rx returned)
                                                       (list formatter (second r) ix)))))))))
+        
         (values (reverse returned) dl-indices)))))
 
 (defun construct (string idiom workspace)
@@ -717,6 +722,8 @@
                            (lambda (&rest args) (first args)))))
     ;; (print (list :m map bounds))
     (labels ((lex-chars (start end)
+               ;; this function calls the lexer on characters within a section
+               ;; given start and end points in the original string
                (let* ((substring (make-array (- end start) :displaced-index-offset start
                                              :element-type 'character :displaced-to string))
                       ;; (sst (print (list :sss substring)))
@@ -727,29 +734,20 @@
                  (setf cl-meta        (cons :meta (third parsed))
                        (first output) (append (first parsed) (first output)))))
              (close-bound ()
+               ;; this closes out a section when its end comes before the next divider or section start point
                (lex-chars index (first bounds))
-               ;; (push (list :a (- (first bounds) index)) (first output))
-               ;; (push (list :a (lex-chars index (first bounds))) (first output))
-               ;; (print (list :gg output)) ;; (rest output)))
-               ;; (push (first output) (second output))
                (when (first formats)
                  (let ((this-format (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                 (first formats))
                                           :format)))
-                   ;; (print (list :tf this-format output))
-                   (typecase this-format
-                     (symbol  (setf output (cons (cons (cons this-format
-                                                             (cons (first output)
-                                                                   (second output)))
-                                                       (third output))
-                                                 (cdddr output))))
-                     (function (setf output (funcall this-format output))))
+                   ;; the format function completes the composition of a section as a list of tokens
+                   (setf output (funcall this-format output))
                    (pop formats)))
                ;; (print (list :o output bounds))
                (setf index  (1+ (first bounds))
                      bounds (rest bounds))))
       
-      (loop :for spec :in map
+      (loop :for spec :in map ;; convert map specs into token lists
             :do (destructuring-bind (type start &optional end) spec
 
                   (loop :while (and bounds (> start (first bounds))) :do (close-bound))
@@ -778,7 +776,9 @@
                                                 :functional-divider))))))
 
                   (when (or split (not end))
-                    ;; dividers are handled based on the containing section type
+                    ;; dividers are handled based on the containing section type;
+                    ;; a divider may also manifest from a section that implicitly acts as a divider
+                    ;; as a comment section implicitly terminates the section within which it appears
                     (setf output (funcall (if (first formats)
                                               (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                           (first formats))
@@ -794,77 +794,6 @@
       (mapcar (lambda (item) (funcall postprocessor item idiom workspace))
               (reverse (if (first output) (cons (first output) (second output))
                            (second output)))))))
-
-;; (april "'[{(]})'{⍺{(⍵×~I)+-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
-;; (april "'[{(]})'{{(×⍵)×256*1-⍨|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
-;; (april "'[{(]})'{{255*|⍵}⍺{E←-0⌈(2÷⍨≢⍺)-⍨⍵×I←⍵>2÷⍨≢⍺ ⋄ E+⍵×~I}⍺{⍵×⍵<1+≢⍺}⍺⍳⍵}'( [  () ] )'")
-
-(defun =vex-closure (idiom boundary-chars
-                     &key transform-by disallow-linebreaks symbol-collector if-confirmed)
-  (let* ((quoted) (balance 1) (char-index 0)
-         (string-delimiters (of-system idiom :string-delimiters))
-         (bclen (length boundary-chars))
-         (hbclen (floor bclen 2))
-         ;; disallow linebreak overriding opening and closing characters
-         (dllen (when (stringp disallow-linebreaks) (length disallow-linebreaks)))
-         (dlbor-opening-chars (when dllen (subseq disallow-linebreaks 0 (floor dllen 2))))
-         (dlbor-closing-chars (when dllen (subseq disallow-linebreaks (floor dllen 2) dllen)))
-         (dlb-overriding-balance 0))
-    (=destructure
-        (_ enclosed _)
-        (=list (?satisfies (lambda (char) (position char boundary-chars
-                                                    :end hbclen :test #'char=)))
-               ;; for some reason, the first character in the string is iterated over twice here,
-               ;; so the character index is checked and nothing is done for the first character
-               ;; TODO: fix this
-               (=transform (=subseq
-                            (%some (?satisfies
-                                    (lambda (char)
-                                      ;; have to do the zerop check to avoid the double-
-                                      ;; iteration mentioned above
-                                      (when (and (not (zerop char-index))
-                                                 (position char string-delimiters :test #'char=))
-                                        (setf quoted (not quoted)))
-                                      (when (and disallow-linebreaks
-                                                 (zerop dlb-overriding-balance)
-                                                 (funcall (of-utilities idiom :match-newline-character)
-                                                          char))
-                                        (error "Newlines cannot occur within a ~a closure."
-                                               boundary-chars))
-                                      (unless quoted
-                                        (if (and (< 0 char-index)
-                                                 (position char boundary-chars
-                                                           :end hbclen :test #'char=))
-                                            (incf balance)
-                                            (when (and (position char boundary-chars
-                                                                 :start hbclen :test #'char=)
-                                                       (< 0 char-index))
-                                              (decf balance)))
-                                        (when dlbor-opening-chars
-                                          (if (and (< 0 char-index)
-                                                   (position char dlbor-opening-chars
-                                                             :test #'char=))
-                                              (incf dlb-overriding-balance)
-                                              (when (position char dlbor-closing-chars
-                                                              :test #'char=)
-                                                (decf dlb-overriding-balance)))))
-                                      (incf char-index)
-                                      (< 0 balance)))))
-                           (or transform-by
-                               (lambda (string-content)
-                                 (destructuring-bind (parsed remaining meta)
-                                     (parse string-content (=vex-string idiom))
-                                   
-                                   (declare (ignore remaining))
-                                   (when symbol-collector (funcall symbol-collector meta))
-                                   parsed))))
-               (?satisfies (lambda (char) (position char boundary-chars
-                                                    :start hbclen :test #'char=))))
-      (if (zerop balance)
-          (progn (when if-confirmed (funcall if-confirmed))
-                 enclosed)
-          (error "No closing ~a found for opening ~a."
-                 (aref boundary-chars 1) (aref boundary-chars 0))))))
 
 (defun =vex-string (idiom &optional output precedent)
   "Parse a string of text, converting its contents into nested lists of Vex tokens."
@@ -973,9 +902,8 @@
                                                  (=subseq (%any (?test (#'pjoin-char-p) (=element))))
                                                  (lambda (c)
                                                    (when (< 0 (length c)) (setq arg-rooted-path t))))
-                                                (=subseq (%any (?test ((p-or-u-char-p
-                                                                        arg-rooted-path
-                                                                        uniform-char)))))))
+                                                (=subseq (%any (?test ((p-or-u-char-p arg-rooted-path
+                                                                                      uniform-char)))))))
                                  (lambda (string)
                                    (multiple-value-bind (formatted is-symbol) (handle-symbol string)
                                      (when is-symbol (push formatted symbols))
@@ -1093,10 +1021,7 @@
                                     input-vars))
                    (ov-list (mapcar (lambda (return-var) (intern (lisp->camel-case return-var)
                                                                  (string (idiom-name idiom))))
-                                    output-vars))
-                   ;; (string-prep (funcall (of-utilities idiom :prep-code-string)
-                   ;;                       idiom))
-                   )
+                                    output-vars)))
               (funcall (of-utilities idiom :build-compiled-code)
                        (append (funcall (if output-vars #'values
                                             (apply (of-utilities idiom :postprocess-compiled)
