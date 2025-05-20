@@ -918,8 +918,7 @@
 
           ;; set olnchar and precedent record to nil if it is true and an item is encountered;
           ;; this provides for the special case of a . at the end of a parsed substring
-          (when item (setf olnchar                               nil
-                           (getf precedent :overloaded-num-char) nil))
+          (when item (setf olnchar (setf (getf precedent :overloaded-num-char) nil)))
           
           (if (< 0 (length rest))
               (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
