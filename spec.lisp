@@ -13,9 +13,8 @@
  april
 
  ;; system variables and default state of an April workspace
- (system :workspace-defaults '(:index-origin 1 :print-precision 10 :division-method 0
-                               :comparison-tolerance double-float-epsilon
-                               :rngs (list :generators :rng (aref *rng-names* 1)))
+ (system :workspace-defaults '(:index-origin 1 :print-precision 10 :comparison-tolerance double-float-epsilon
+                               :division-method 0 :rngs (list :generators :rng (aref *rng-names* 1)))
          :output-printed nil :base-state '(:output-stream '*standard-output*)
          :variables *system-variables* :negative-signs-pattern "[¯]" :number-spacers-pattern "[_]"
          :path-separators "." :supplemental-numeric-chars "._¯eEjJrR" :supplemental-token-chars "._⎕∆⍙¯")
@@ -184,6 +183,22 @@
                                         (or (getf state key) `(inwsd ,value))))))
             :lexer-postprocess #'lexer-postprocess
             :compile-form #'compile-form
+            :output-function (provision-function-builder
+                              :default-args `(⍵ &optional ⍺)
+                              :enclose-operator
+                              (lambda (arg-symbols)
+                                (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
+                                    ;; the latter case wraps a user-defined operator
+                                    #'identity (lambda (form)
+                                                 `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
+                                                            &optional ,(if (member '⍹ arg-symbols)
+                                                                           '⍹ (if (member '⍵⍵ arg-symbols)
+                                                                                  '⍵⍵ '_)))
+                                                    (declare (ignorable ,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
+                                                                        ,(if (member '⍹ arg-symbols)
+                                                                             '⍹ (if (member '⍵⍵ arg-symbols)
+                                                                                    '⍵⍵ '_))))
+                                                    ,form)))))
             :postprocess-compiled
             (lambda (state &rest inline-arguments)
               (lambda (form)
@@ -685,6 +700,7 @@
                                        ((5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3) (5 3 3 3 3))))
              (is "1 2 3,4 5 6" #(1 2 3 4 5 6))
              (is "1 2 3,[1]4 5 6" #(1 2 3 4 5 6))
+             (is "'abc','def;ghi'" "abcdef;ghi")
              (is "(3 4⍴5),[1]2 3 4⍴9" #3A(((5 5 5 5) (5 5 5 5) (5 5 5 5))
                                           ((9 9 9 9) (9 9 9 9) (9 9 9 9))
                                           ((9 9 9 9) (9 9 9 9) (9 9 9 9))))
@@ -1544,6 +1560,7 @@
              (is "1 2 3 ÷.+ 1 2 3" 3)
              (is "5∘.+5" 10)
              (is "16∘.*⍳3" #(16 256 4096))
+             (is "∘.{⍺×⍵}⍨⍳5" #2A((1 2 3 4 5) (2 4 6 8 10) (3 6 9 12 15) (4 8 12 16 20) (5 10 15 20 25)))
              (is "4 5 6∘.+20 30 40 50" #2A((24 34 44 54) (25 35 45 55) (26 36 46 56)))
              (is "1 2 3∘.-1 2 3" #2A((0 -1 -2) (1 0 -1) (2 1 0)))
              (is "1 2 3∘.⍴1 2 3" #2A((#(1) #(2) #(3))

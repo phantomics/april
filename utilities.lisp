@@ -270,6 +270,7 @@
                       ,(cons 'list meta)
                       (let ,(when space
                               (loop :for (key val) :on *system-variables* :by #'cddr
+                                    :when (first (push (find-symbol (string val) space) vals-list))
                                     :collect (list (first (push (find-symbol (string val) space)
                                                                 vals-list))
                                                    `(or (getf (rest ,env) ,(intern (string key) "KEYWORD"))
@@ -1523,6 +1524,18 @@
                    (if (numberp form)
                        form (apply-props form properties)))))))
 
+(defun acompose (&rest segments)
+  (let ((output) (element-shape))
+    (loop :for segment :in segments
+          :do (let ((sshape (shape-of segment)))
+                (if element-shape (if (= (length sshape) (length element-shape))
+                                      (loop :for sdim :in sshape :for edim :in element-shape
+                                            :when (not (= sdim edim)) :do (setf element-shape nil))
+                                      (setf element-shape nil))
+                    (setf element-shape sshape))))
+    (if element-shape (make-instance 'vader-mix :base (apply #'vector segments) :axis :last)
+        (apply #'vector segments))))
+
 (defmacro f-lex (symbol-sets &body body)
   "Specify the lexicon for a function - this means wrapping the function's contents in a (let) form referencing external variables as appropriate."
   (destructuring-bind (ref-symbols symbols) symbol-sets
@@ -1539,84 +1552,80 @@
          (declare (ignorable ,@(append symbols modifier-symbols)))
          ,@body))))
 
-(defun output-function (form space &optional arguments properties closure-meta)
-  "Express an APL inline function like {⍵+5}."
-  (let ((arg-symbols (getf closure-meta :arg-syms))
-        (side-refs) (var-refs)
-        (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
-                             :when (not (or (position sym #(⍺ nil) :test #'eql)
-                                            (member sym arguments)))
-                               :collect `(inws ,sym)))
-        (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
-                            :collect `(inws ,sym)))
-        (assigned-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                                  :lop-syms sym))
-                                      :collect `(inws ,(intern (string sym))))
-                              (loop :for sym :in (getf closure-meta :pop-syms)
-                                    :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                                  :pop-syms sym))
-                                      :collect `(inws ,(intern (string sym))))))
-        (context-vars (loop :for sym :in (getf closure-meta :var-syms)
-                            :when (and (not (position sym #(⍺ nil) :test #'eql))
-                                       (not (member sym arguments))
-                                       (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                               :var-syms sym)))
-                              :collect `(inwsd, sym)))
-        (context-fns (loop :for sym :in (getf closure-meta :fn-syms)
-                           :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                         :var-syms sym))
-                             :collect `(inwsd, sym)))
-        (context-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                   :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                                 :lop-syms sym))
-                                     :collect `(inwsd ,(intern (string sym))))
-                             (loop :for sym :in (getf closure-meta :pop-syms)
-                                   :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
-                                                                 :pop-syms sym))
-                                     :collect `(inwsd ,(intern (string sym))))))
-        ;; the list of side-effecting functions defined in this function's scope
-        (se-functions (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
-                                         :side-effecting-functions))
-        (arguments (when arguments (mapcar (lambda (item) `(inws ,item)) arguments))))
-    ;; lexical variable references inside a function are registered as side effects _unless_ there
-    ;; is a lexical assignment of the variable within the function; this is because lexical
-    ;; references to an outer scope are incompatible with multithreading
-    (loop :for (key value) :on *system-variables* :by #'cddr
-          :do (when (and (not (member value (getf closure-meta :var-syms)))
-                         (of-meta-hierarchy closure-meta :var-syms value))
-                (push (list :dyn-mask value) side-refs)))
-    (dolist (vr (getf closure-meta :var-refs))
-      (if (member vr *system-variables*)
-          (progn (push (list :dyn-mask vr) side-refs)
-                 (push (list 'inwsd vr) var-refs))
-          (when (and (not (member vr (getf closure-meta :var-syms)))
-                     (of-meta-hierarchy closure-meta :var-syms vr))
-            (push (list :lex-ref vr) side-refs))))
+(defun provision-function-builder (&key default-args enclose-operator)
+  (lambda (form space &optional arguments properties closure-meta)
+    "Express an APL inline function like {⍵+5}."
+    ;; (print (list :def default-args (getf closure-meta :var-syms)))
+    (let ((arg-symbols (getf closure-meta :arg-syms))
+          (side-refs) (var-refs)
+          (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
+                               :when (not (or (position sym #(⍺ nil) :test #'eql)
+                                              (member sym arguments)))
+                                 :collect `(inws ,sym)))
+          (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
+                              :collect `(inws ,sym)))
+          (assigned-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
+                                      :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                    :lop-syms sym))
+                                        :collect `(inws ,(intern (string sym))))
+                                (loop :for sym :in (getf closure-meta :pop-syms)
+                                      :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                    :pop-syms sym))
+                                        :collect `(inws ,(intern (string sym))))))
+          (context-vars (loop :for sym :in (getf closure-meta :var-syms)
+                              :when (and (not (position sym #(⍺ nil) :test #'eql))
+                                         (not (member sym arguments))
+                                         (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                 :var-syms sym)))
+                                :collect `(inwsd, sym)))
+          (context-fns (loop :for sym :in (getf closure-meta :fn-syms)
+                             :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                           :var-syms sym))
+                               :collect `(inwsd, sym)))
+          (context-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
+                                     :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                   :lop-syms sym))
+                                       :collect `(inwsd ,(intern (string sym))))
+                               (loop :for sym :in (getf closure-meta :pop-syms)
+                                     :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                                                   :pop-syms sym))
+                                       :collect `(inwsd ,(intern (string sym))))))
+          ;; the list of side-effecting functions defined in this function's scope
+          (se-functions (of-meta-hierarchy (rest (getf (getf properties :special) :closure-meta))
+                                           :side-effecting-functions))
+          (arguments (if (not arguments)
+                         default-args (mapcar (lambda (item) `(inws ,item)) arguments))))
+      
+      ;; (print (list :con arguments context-vars properties :meta closure-meta assigned-vars))
+      ;; lexical variable references inside a function are registered as side effects _unless_ there
+      ;; is a lexical assignment of the variable within the function; this is because lexical
+      ;; references to an outer scope are incompatible with multithreading
+      (loop :for (key value) :on *system-variables* :by #'cddr
+            :do (when (and (not (member value (getf closure-meta :var-syms)))
+                           (of-meta-hierarchy closure-meta :var-syms value))
+                  (push (list :dyn-mask value) side-refs)))
+      
+      (dolist (vr (getf closure-meta :var-refs))
+        (if (member vr *system-variables*)
+            (progn (push (list :dyn-mask vr) side-refs)
+                   (push (list 'inwsd vr) var-refs))
+            (when (and (not (member vr (getf closure-meta :var-syms)))
+                       (of-meta-hierarchy closure-meta :var-syms vr))
+              (push (list :lex-ref vr) side-refs))))
 
-    ;; explicitly register a side effect in the case of [⎕RL random link] assignment
-    (when (member '*rngs* (getf closure-meta :var-syms))
-      (push :random-link-assignment (getf closure-meta :side-effects)))
+      ;; explicitly register a side effect in the case of [⎕RL random link] assignment
+      (when (member '*rngs* (getf closure-meta :var-syms))
+        (push :random-link-assignment (getf closure-meta :side-effects)))
 
-    ;; (print (list :eeoo closure-meta context-vars context-fns context-ops
-    ;;              assigned-vars assigned-fns assigned-ops))
-    
-    (if (getf closure-meta :variant-niladic)
-        ;; produce the plain (aprgn) forms used to implement function variant implicit statements
-        (cons 'aprgn form)
-        (funcall (if (not (intersection arg-symbols '(⍶ ⍹ ⍺⍺ ⍵⍵)))
-                     ;; the latter case wraps a user-defined operator
-                     #'identity (lambda (form) `(olambda (,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                          &optional ,(if (member '⍹ arg-symbols)
-                                                                         '⍹ (if (member '⍵⍵ arg-symbols)
-                                                                                '⍵⍵ '_)))
-                                                  (declare (ignorable ,(if (member '⍶ arg-symbols) '⍶ '⍺⍺)
-                                                                      ,(if (member '⍹ arg-symbols)
-                                                                           '⍹ (if (member '⍵⍵ arg-symbols)
-                                                                                  '⍵⍵ '_))))
-                                                  ,form)))
-                 `(alambda ,(if arguments arguments `(⍵ &optional ⍺))
-                      (with (:meta :inverse (alambda ,(if arguments arguments `(⍵ &optional ⍺)) (with nil)
+      ;; (print (list :eeoo closure-meta context-vars context-fns context-ops
+      ;;              assigned-vars assigned-fns assigned-ops))
+      
+      (if (getf closure-meta :variant-niladic)
+          ;; produce the plain (aprgn) forms used to implement function variant implicit statements
+          (cons 'aprgn form)
+          (funcall (funcall enclose-operator arg-symbols)
+                   `(alambda ,arguments
+                      (with (:meta :inverse (alambda ,arguments (with nil)
                                               ,(if (= 1 (length form))
                                                    (if (listp (first form))
                                                        (or (invert-function (first form))
@@ -1642,11 +1651,11 @@
                                              (list 'quote (getf closure-meta :symfns-called)))))
                             (:sys-vars ,@var-refs)
                             (:space ,space))
-                    ,@(if (not (or context-vars context-fns context-ops
-                                   assigned-vars assigned-fns assigned-ops))
-                          form `((f-lex ,(list (append context-vars context-fns context-ops)
-                                               (append assigned-vars assigned-fns assigned-ops))
-                                   ,@form))))))))
+                      ,@(if (not (or context-vars context-fns context-ops
+                                     assigned-vars assigned-fns assigned-ops))
+                            form `((f-lex ,(list (append context-vars context-fns context-ops)
+                                                 (append assigned-vars assigned-fns assigned-ops))
+                                     ,@form)))))))))
 
 (defmacro function-variant (assignment-clause variable-clause function-clause)
   "Evaluates one form if the initial clause evaluates to a function, the other if it's a variable. Used to implement ⍺←function cases within defns, most often ⍺←⊢."

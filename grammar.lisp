@@ -73,6 +73,7 @@
 (defun process-value (this-item &optional properties space)
   "Process a value token."
   (let ((is-arg-symbol))
+    ;; (print (list :ti this-item))
     (cond ((eq :empty-array this-item)
            ;; process the empty vector expressed by the [⍬ zilde] character
            (make-array 0))
@@ -91,18 +92,20 @@
                 (or (not (getf properties :type))
                     (eq :character (first (getf properties :type)))))
            this-item)
-          ((and this-item (listp this-item) (eq :pt (first this-item)))
-           (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
-                                          :ns-point)
-                                    (symbol-value (find-symbol "*NS-POINT*" space))))
-                  (nspath (format-nspath (if (not current-path)
-                                             (rest this-item)
-                                             (append current-path (rest this-item))))))
-             (when (or (not nspath)
-                       (not (find-symbol nspath space))
-                       (not (fboundp (find-symbol nspath space)))
-                       (getf properties :symbol-overriding))
-               (resolve-path this-item space properties))))
+          ((and this-item (listp this-item))
+           (case (first this-item)
+             (:sv (build-serialized space (rest this-item)))
+             (:pt (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
+                                                 :ns-point)
+                                           (symbol-value (find-symbol "*NS-POINT*" space))))
+                         (nspath (format-nspath (if (not current-path)
+                                                    (rest this-item)
+                                                    (append current-path (rest this-item))))))
+                    (when (or (not nspath)
+                              (not (find-symbol nspath space))
+                              (not (fboundp (find-symbol nspath space)))
+                              (getf properties :symbol-overriding))
+                      (resolve-path this-item space properties))))))
           ;; process symbol-referenced values
           ((and (symbolp this-item)
                 (not (position this-item #(:special-lexical-form-assign :special-lexical-form-branch)
@@ -199,12 +202,13 @@
                                   (progn
                                     (setf (getf (rest this-closure-meta) :var-syms)
                                           (append polyadic-args (getf (rest this-closure-meta) :var-syms)))
-                                    (output-function
-                                     (compile-form
-                                      fn :space space
-                                      :params (list :special (list :closure-meta (second this-item))
-                                                    :call-scope (getf properties :call-scope)))
-                                     space polyadic-args properties (rest this-closure-meta)))))))))
+                                    ;; (output-function
+                                    (funcall (of-utilities local-idiom :output-function)
+                                             (compile-form
+                                              fn :space space
+                                              :params (list :special (list :closure-meta (second this-item))
+                                                            :call-scope (getf properties :call-scope)))
+                                             space polyadic-args properties (rest this-closure-meta)))))))))
             (when (eq :pt (first this-item))
               (let* ((current-path (or (getf (rest (getf (getf properties :special) :closure-meta))
                                              :ns-point)
@@ -291,12 +295,12 @@
               (when (and is-inline (or (not valence)
                                        (and is-pivotal (eq :pivotal valence))
                                        (and (not is-pivotal) (eq :lateral valence))))
-                (output-function
-                 (compile-form fn :space space
-                                  :params (list :special
-                                                (list :closure-meta (second this-item))
-                                                :call-scope (getf properties :call-scope)))
-                 space nil properties (rest this-closure-meta))))))
+                (funcall (of-utilities local-idiom :output-function)
+                         (compile-form fn :space space
+                                          :params (list :special
+                                                        (list :closure-meta (second this-item))
+                                                        :call-scope (getf properties :call-scope)))
+                         space nil properties (rest this-closure-meta))))))
       (when (symbolp this-item)
         ;; if the operator is represented by a symbol, it is a user-defined operator
         ;; and the appropriate variable name should be verified in the workspace
@@ -338,6 +342,9 @@
         :collect (let ((item-out (compile-form element :space space :params params)))
                    (if (= 1 (length element))
                        (first item-out) (cons 'aprgn item-out)))))
+
+(defun build-serialized (space form)
+  (cons 'acompose (loop :for item :in form :collect (build-value item :space space))))
 
 (defun set-namespace-point (path space params)
   "Set the namespace point to be used by the compiler; this point is prepended to all symbols or namespace segments."
@@ -425,7 +432,7 @@
                (build-value (rest tokens) :space space :params params
                                           :left left :elements (cons stm elements))))
             (t (let* ((is-closure (and (first tokens) (listp (first tokens))
-                                       (not (position (caar tokens) #(:fn :op :st :pt :ax)
+                                       (not (position (caar tokens) #(:fn :op :st :pt :ax :sv)
                                                       :test #'eql))))
                       ;; handle enclosed values like (1 2 3)
                       (first-value (if is-closure (build-value (first tokens) :space space :params params)
@@ -641,7 +648,7 @@
   "Construct an APL function; this may be a simple lexical function like +, an operator-composed function like +.× or a defn like {⍵+5}."
   (let ((first-function))
     (cond ((and (first tokens) (listp (first tokens)) ;; handle enclosed functions like (,∘×)
-                (not (position (caar tokens) #(:fn :op :st :pt :ax) :test #'eql))
+                (not (position (caar tokens) #(:fn :op :st :pt :ax :sv) :test #'eql))
                 (or (not found-function)
                     (and (listp (caar tokens))
                          ;; the :initial property is passed for cases like ((3+1,⍴)+)3 3 30⍴2

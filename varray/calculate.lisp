@@ -79,20 +79,20 @@
          (base-size (if (listp (vader-base varray))
                         (length (vader-base varray))
                         (size-of (vader-base varray))))
-         (base-gen (unless (listp (vader-base varray))
-                         (generator-of (vader-base varray))))
+         (base-gen (if (not (listp (vader-base varray)))
+                       (generator-of (vader-base varray))))
          (axis (setf (vads-axis varray)
-                     (when (vads-axis varray)
-                       (funcall (lambda (ax)
-                                  (if (numberp ax)
-                                      (- ax (vads-io varray))
-                                      (if (zerop (size-of ax))
-                                          ax (if (= 1 (length ax)) ;; disclose 1-item axis vectors
-                                                 (- (aref ax 0) (vads-io varray))
-                                                 (loop :for a :across ax
-                                                       :collect (- a (vads-io varray)))))))
-                                (disclose (render (vads-axis varray)))))))
-         (base-list (when (listp (vader-base varray)) (vader-base varray))))
+                     (if (vads-axis varray)
+                         (funcall (lambda (ax)
+                                    (if (numberp ax)
+                                        (- ax (vads-io varray))
+                                        (if (zerop (size-of ax))
+                                            ax (if (= 1 (length ax)) ;; disclose 1-item axis vectors
+                                                   (- (aref ax 0) (vads-io varray))
+                                                   (loop :for a :across ax
+                                                         :collect (- a (vads-io varray)))))))
+                                  (disclose (render (vads-axis varray)))))))
+         (base-list (if (listp (vader-base varray)) (vader-base varray))))
      (flet ((shape-matches (a)
               (loop :for s1 :in shape :for s2 :in (shape-of a) :always (= s1 s2))))
        (typecase (vader-base varray)
@@ -102,8 +102,7 @@
                 :do (let ((a (if base-gen (funcall base-gen i)
                                  (when base-list (first base-list)))))
                       (when (shape-of a) ;; 1-element arrays are treated as scalars
-                        (if (or (not shape)
-                                (= 1 (reduce #'* shape)))
+                        (if (= 1 (reduce #'* shape))
                             (setf shape (shape-of a))
                             (let ((rank (length (shape-of a))))
                               (when (or (not (= rank (length shape)))
@@ -237,8 +236,9 @@
                                                                                    :for ix :from 0
                                                                                    :when (= ax fx)
                                                                                      :do (incf sub-index
-                                                                                               (* (aref sub-factors
-                                                                                                        ix)
+                                                                                               (* (aref
+                                                                                                   sub-factors
+                                                                                                   ix)
                                                                                                   div)))))
                                                                  sub-index)))
                                                        (or (funcall ai index)
@@ -258,6 +258,6 @@
                                                                    result item))))))
                     (if (not sub-flag)
                         result (make-instance 'vader-calculate :base (coerce (reverse subarrays) 'vector)
-                                                             :function (vaop-function varray)
-                                                             :index-origin (vads-io varray)
-                                                             :params (vaop-params varray))))))))))))
+                                                               :function (vaop-function varray)
+                                                               :index-origin (vads-io varray)
+                                                               :params (vaop-params varray))))))))))))
