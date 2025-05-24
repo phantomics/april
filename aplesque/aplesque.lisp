@@ -2210,34 +2210,52 @@
               (funcall process window acoords))))
     output))
 
+;; (defun scope-printed (value precision &optional width)
+;;   "Express widths of parts of a number to be printed in an integer-encoded format."
+;;   (let ((segments 0)
+;;         (scratch (make-array 100 :element-type 'character :adjustable t :fill-pointer 0)))
+;;     (with-output-to-string (s scratch)
+;;       (typecase value
+;;         (complex (format s (realpart value))
+;;          (incf segments (width scratch))
+;;          (adjust-array scratch 100 :fill-pointer 0)
+;;          (format s (imagpart value))
+;;          (incf segments (ash (width scratch) 8)))
+;;         (ratio (format s (numerator value))
+;;          (incf segments (width scratch))
+;;          (adjust-array scratch 100 :fill-pointer 0)
+;;          (format s (denominator value))
+;;          (incf segments (ash (width scratch) 8)))))))
+
 (defun count-segments (value precision &optional segments)
   "Count the lengths of segments a number will be divided into when printed using (array-impress), within the context of a column's existing segments if provided."
   (flet ((process-rational (number)
            (list (write-to-string (numerator number))
                  (write-to-string (denominator number)))))
-    (let* ((strings
-             (if (typep value 'ratio)
-                 (process-rational value)
-                 (append (if (typep (realpart value) 'ratio)
-                             (process-rational (realpart value))
-                             (let* ((number-string (first (cl-ppcre:split
-                                                           #\D (string-upcase
-                                                                (write-to-string (realpart value))))))
-                                    (sections (cl-ppcre:split #\. number-string)))
-                               ;; if there are 4 or more segments, as when printing complex floats or rationals,
-                               ;; and a complex value occurs with an integer real part, create a 0-length
-                               ;; second segment so that the lengths of the imaginary components are correctly
-                               ;; assigned to the 3rd and 4th columns, as for printing ⍪12.2J44 3J8 19J210r17
-                               (append sections (if (and (< 3 (length segments))
-                                                         (= 1 (length sections)))
-                                                    (list nil)))))
-                         (if (complexp value)
-                             (if (typep (imagpart value) 'ratio)
-                                 (process-rational (imagpart value))
-                                 (let ((number-string (first (cl-ppcre:split
-                                                              #\D (string-upcase
-                                                                   (write-to-string (imagpart value)))))))
-                                   (cl-ppcre:split #\. number-string)))))))
+    (let* ((strings (if (typep value 'ratio)
+                        (process-rational value)
+                        (append (if (typep (realpart value) 'ratio)
+                                    (process-rational (realpart value))
+                                    (let* ((number-string (first (cl-ppcre:split
+                                                                  #\D (string-upcase
+                                                                       (write-to-string (realpart value))))))
+                                           (sections (cl-ppcre:split #\. number-string)))
+                                      ;; if there are 4 or more segments, as when printing complex floats or
+                                      ;; rationals, and a complex value occurs with an integer real part,
+                                      ;; create a 0-length second segment so that the lengths of the imaginary
+                                      ;; components are correctly assigned to the 3rd and 4th columns,
+                                      ;; as for printing ⍪12.2J44 3J8 19J210r17
+                                      (append sections (if (and (< 3 (length segments))
+                                                                (= 1 (length sections)))
+                                                           (list nil)))))
+                                (if (complexp value)
+                                    (if (typep (imagpart value) 'ratio)
+                                        (process-rational (imagpart value))
+                                        (let ((number-string (first (cl-ppcre:split
+                                                                     #\D (string-upcase
+                                                                          (write-to-string
+                                                                           (imagpart value)))))))
+                                          (cl-ppcre:split #\. number-string)))))))
            (more-strings (< (length segments) (length strings))))
       ;; TODO: provide for e-notation
       (loop :for i :from 0 :for s :in (if more-strings strings segments)

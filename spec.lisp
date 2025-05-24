@@ -2344,7 +2344,7 @@ SILK
 WOOL
 YARN
 ")
-  (for-printed "2D array of character strings." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
+  (for-printed "Matrix of character strings." "⊂[3]2 3 4⍴'GRAYGOLDBLUESILKWOOLYARN'"
                " GRAY  GOLD  BLUE
  SILK  WOOL  YARN
 ")
