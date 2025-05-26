@@ -953,8 +953,11 @@
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
              (process-lines (string &optional space params output)
                (funcall (of-utilities idiom :compile-form)
-                        (funcall (if print-tokens #'print #'identity)
-                                 (construct string idiom space))
+                        (mapcar (if (not (assoc :cape-test options))
+                                    #'identity (lambda (line) (print (cape::express
+                                                                      (cape::construct idiom line)))))
+                                (funcall (if print-tokens #'print #'identity)
+                                         (construct string idiom space)))
                         :space space :params params))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
