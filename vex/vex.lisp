@@ -954,8 +954,9 @@
              (process-lines (string &optional space params output)
                (funcall (of-utilities idiom :compile-form)
                         (mapcar (if (not (assoc :cape-test options))
-                                    #'identity (lambda (line) (print (cape::express
-                                                                      (cape::construct idiom line)))))
+                                    #'identity (lambda (line)
+                                                 (print (cape::express (cape::construct idiom line)))
+                                                 line))
                                 (funcall (if print-tokens #'print #'identity)
                                          (construct string idiom space)))
                         :space space :params params))
