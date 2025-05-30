@@ -169,7 +169,7 @@
                                                 ;; (print (list :ee clauses series))
                                                 (cons (append
                                                        (list (list :fn (list :meta :symbols nil)
-                                                                   (append (first series)
+                                                                   (append (reverse (first series))
                                                                            (list (list (cons :ax clauses)
                                                                                        (list :st :unitary
                                                                                              #\$))))))
