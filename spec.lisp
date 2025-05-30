@@ -79,86 +79,34 @@
                                               (cddr collected))))
            (section :function :delimit "{}"
                               :build  (lambda (collected) (cons nil (cons nil collected)))
-                    
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (taper collected)
-                                                                  (cddr collected))))
+                                          (:break
+                                           (when (and (not (first collected)) (not (second collected))
+                                                      (eq :guard-indicator (third collected)))
+                                             ;; this case adds a nil result for i.e. ⍵=1:⋄1 ;
+                                             ;; cases where there is an empty clause after the :
+                                             (push nil (first collected)))
+                                           (cons nil (cons (taper collected) (cddr collected))))
                                           (:guard (cons nil (cons nil (cons :guard-indicator
                                                                             (cons (taper collected)
                                                                                   (cddr collected))))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
-                    
-                              ;; :format (lambda (collected)
-                              ;;           (print (list :coll collected (taper collected)
-                              ;;                        (cddr collected)))
-                              ;;           (labels ((change-first (form)
-                              ;;                      ;; (print (list :for form
-                              ;;                      ;;              (reverse (cons (list (caar form))
-                              ;;                      ;;                             (list (reverse (cdar form)))))))
-                              ;;                      ;; (print (mapcar #'list (reverse (first form))))
-                              ;;                      (reverse (cons (list (caar form))
-                              ;;                                     (list (reverse (cdar form)))))
-                              ;;                      )
-                              ;;                    (gather-guards (clauses series)
-                              ;;                      (print (list :gg clauses series
-                              ;;                                   (cdar clauses)))
-                              ;;                      (if (eq :guard-indicator (first series))
-                              ;;                          (gather-guards
-                              ;;                           (cons (second series)
-                              ;;                                 (if (cadar clauses)
-                              ;;                                     (print (append (print (change-first clauses))
-                              ;;                                                    (rest clauses)))
-                              ;;                                     clauses))
-                              ;;                           (cddr series))
-                              ;;                          (let ((clout (cons (list (caar clauses))
-                              ;;                                             (cdr clauses))))
-                              ;;                            (print (list :cc clout))
-                              ;;                            (values (if (third clout)
-                              ;;                                        clout (cons (first clout)
-                              ;;                                                    (second clout)))
-                              ;;                                    series (cdar clauses))))))
-                              ;;               (let ((items (reverse (taper collected))))
-                              ;;                 (print (list :red (cddddr collected)))
-                              ;;                 (if (eq :guard-indicator (caddr collected))
-                              ;;                     (multiple-value-bind (clauses series last)
-                              ;;                         (gather-guards (append (list (cadddr collected))
-                              ;;                                                (list (cons (list (first items)) 
-                              ;;                                                            (list (rest items)))))
-                              ;;                                        (cddddr collected))
-                              ;;                       ;; (print (list :ee clauses series last))
-                              ;;                       (cons (append
-                              ;;                              (list (list :fn (list :meta :symbols nil)
-                              ;;                                          (append
-                              ;;                                           last
-                              ;;                                           (list (list (cons :ax clauses)
-                              ;;                                                       (list :st :unitary #\$))))))
-                              ;;                              (first series))
-                              ;;                             (rest series)))
-                              ;;                     (cons (cons (list :fn (list :meta :symbols nil)
-                              ;;                                       items)
-                              ;;                                 (third collected))
-                              ;;                           (cdddr collected))))))
-                    
-                              :format (lambda (collected)
-                                        ;; (print (list :coll collected (taper collected)
-                                        ;;               (cddr collected)))
-                                        (labels ((rmnils (form)
-                                                   (loop :for f :in form :when f :collect f))
-                                                 (gather-guards (series &optional clauses)
-                                                   ;; (print (list :gg clauses series
-                                                   ;;              (cdar series)))
-                                                   (if (eq :guard-indicator (second series))
-                                                       (gather-guards
-                                                        (cddr series)
-                                                        (let ((tapered (reverse (first series))))
-                                                          ;; must remove nil values from axis content
-                                                          (cons (list (first tapered))
-                                                                (cons (rmnils (rest tapered))
-                                                                      clauses))))
-                                                       (values (cons (list (caar series)) clauses)
-                                                               (cons (cdar series)
-                                                                     (rest series))))))
+
+                              :format (labels ((rmnils (form)
+                                                 (loop :for f :in form :when f :collect f))
+                                               (gather-guards (series &optional clauses)
+                                                 (if (eq :guard-indicator (second series))
+                                                     (gather-guards
+                                                      (cddr series)
+                                                      (let ((tapered (reverse (first series))))
+                                                        ;; must remove nil values from axis content
+                                                        (cons (list (first tapered))
+                                                              (cons (rmnils (rest tapered)) clauses))))
+                                                     (values (cons (list (caar series)) clauses)
+                                                             (cons (cdar series) (rest series))))))
+                                        (lambda (collected)
+                                          ;; (print (list :coll collected))
                                           (if (eq :guard-indicator (third collected))
                                               (multiple-value-bind (clauses series)
                                                   (gather-guards (cons (cons (first collected)
@@ -166,44 +114,17 @@
                                                                                  (second collected)
                                                                                  nil))
                                                                        (cddr collected)))
-                                                ;; (print (list :ee clauses series))
-                                                (cons (append
-                                                       (list (list :fn (list :meta :symbols nil)
-                                                                   (append (reverse (first series))
-                                                                           (list (list (cons :ax clauses)
-                                                                                       (list :st :unitary
-                                                                                             #\$))))))
-                                                       (second series))
+                                                (cons (append (list (list :fn (list :meta :symbols nil)
+                                                                          (append (reverse (first series))
+                                                                                  (list (list (cons :ax clauses)
+                                                                                              (list :st :unitary
+                                                                                                    #\$))))))
+                                                              (second series))
                                                       (cddr series)))
                                               (cons (cons (list :fn (list :meta :symbols nil)
                                                                 (reverse (taper collected)))
                                                           (third collected))
-                                                    (cdddr collected)))))
-
-
-                    )
-
-#|
-
-display ← {                          
-  { ⎕IO←0 ⍝ problem here
-    1=⍵:5
-    11
-  }⍵
-}
-
-type←{                                     ⍝ Type decoration char.
-    dec<|≡⍵:'─'                              ⍝ nested: '─'
-    isor ⍵:'∇'                               ⍝ ⎕or:    '∇'
-    sst←{                                    ⍝ simple scalar type.
-      0=dec×⍴⍴⍵:'─'                          ⍝ undecorated or scalar ⍕⍵: char,
-      (⊃⍵∊'¯',⎕D)⊃'#~'                       ⍝ otherwise, number or space ref.
-    }∘⍕                                      ⍝ ⍕ distinguishes type of scalar.
-    0=≡⍵:sst ⍵                               ⍝ simple scalar: type.
-    {(1=⍴⍵)⊃'+'⍵}∪,sst¨dec open ⍵            ⍝ array: mixed or uniform type.
-  }
-
-|#
+                                                    (cdddr collected))))))
            
            (section :axes     :delimit "[]"
                               :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
