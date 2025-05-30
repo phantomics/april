@@ -21,6 +21,7 @@
 
  (entities (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
            (divider :axdiv    :match #\;) ;; axis divider
+           (divider :guard    :match #\:) ;; guard indicator
            ;; (token   :number   :match (lambda (char) (or (digit-char-p char)
            ;;                                              (position char "._¯eEjJrR" :test #'char=))))
            ;; (token   :name     :match (lambda (char) (or (is-alphanumeric char)
@@ -72,28 +73,81 @@
                               :build  (lambda (collected) (cons nil collected))
                               :divide (lambda (type collected)
                                         (declare (ignore type collected))
-                                        (error "A (closure) may not include breaks."))
+                                        (error "A (closure) may not include breaks or guards."))
                               :format (lambda (collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
            (section :function :delimit "{}"
                               :build  (lambda (collected) (cons nil (cons nil collected)))
+                    
                               :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (taper collected)
                                                                   (cddr collected))))
+                                          (:guard (cons nil (cons nil (cons :guard-indicator
+                                                                            (cons (taper collected)
+                                                                                  (cddr collected))))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
                               :format (lambda (collected)
-                                        (cons (cons (list :fn (list :meta :symbols nil)
-                                                          (reverse (taper collected)))
-                                                    (third collected))
-                                              (cdddr collected))))
+                                        ;; (print (list :coll collected (taper collected)
+                                        ;;              (cddr collected)))
+                                        (labels ((change-first (form)
+                                                   ;; (print (list :for form
+                                                   ;;              (reverse (cons (list (caar form))
+                                                   ;;                             (list (reverse (cdar form)))))))
+                                                   ;; (print (mapcar #'list (reverse (first form))))
+                                                   (reverse (cons (list (caar form))
+                                                                  (list (reverse (cdar form)))))
+                                                   )
+                                                 (gather-guards (clauses series)
+                                                   ;; (print (list :gg clauses series
+                                                   ;;              (cdar clauses)))
+                                                   (if (eq :guard-indicator (first series))
+                                                       (gather-guards
+                                                        (cons (second series)
+                                                              (if (cadar clauses)
+                                                                  (append (change-first clauses)
+                                                                          (rest clauses))
+                                                                  clauses))
+                                                        (cddr series))
+                                                       (let ((clout (cons (list (caar clauses))
+                                                                          (cdr clauses))))
+                                                         (values (if (third clout)
+                                                                     clout (cons (first clout)
+                                                                                 (second clout)))
+                                                                 series (cdar clauses))))))
+                                            (let ((items (reverse (taper collected))))
+                                              ;; (print (list :red (cddddr collected)))
+                                              (if (eq :guard-indicator (caddr collected))
+                                                  (multiple-value-bind (clauses series last)
+                                                      (gather-guards (append (list (cadddr collected))
+                                                                             (list (cons (list (first items)) 
+                                                                                         (list (rest items)))))
+                                                                     (cddddr collected))
+                                                    ;; (print (list :ee clauses series last))
+                                                    (cons (append
+                                                           (list (list :fn (list :meta :symbols nil)
+                                                                       (append
+                                                                        last
+                                                                        (list (list (cons :ax clauses)
+                                                                                    (list :st :unitary #\$))))))
+                                                           (first series))
+                                                          (rest series)))
+                                                  (cons (cons (list :fn (list :meta :symbols nil)
+                                                                    items)
+                                                              (third collected))
+                                                        (cdddr collected))))))
+
+
+                    )
+ 
            (section :axes     :delimit "[]"
                               :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type collected)
                                         (case type
                                           (:break (cons nil (cons (taper collected)
                                                                   (cddr collected))))
+                                          (:guard (error "Misplaced : guard indicator in axis specification."))
                                           (:axdiv (cons nil (cons nil (cons (cons (reverse
                                                                                    (taper collected))
                                                                                   (third collected))
@@ -104,6 +158,25 @@
                                                     (fourth collected))
                                               (cddddr collected)))))
 
+;; (((:FN (:META :SYMBOLS NIL)
+;;    ((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵)) (1)
+;;     (1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇)))))
+;;  NIL) 
+ 
+ ;; ((12 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA) (:OP :LATERAL #\DIAERESIS)
+ ;;      (:FN (:META :ARG-SYMS (⍵) :SYMBOLS NIL)
+ ;;           (((:AX ((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵))) ((1))
+ ;;                  ((1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇))))
+ ;;             (:ST :UNITARY #\$))))))
+ 
+ ;; ((12 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA) (:OP :LATERAL #\DIAERESIS)
+ ;;      (:FN (:META :ARG-SYMS (⍵) :SYMBOLS NIL)
+ ;;           ((:AX
+ ;;             (((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵)))
+ ;;              ((1))
+ ;;              ((1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇)))))
+ ;;            (:ST :UNITARY #\$))))) 
+ 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -1766,8 +1839,9 @@
             (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
   (⍢ (has :title "Variant") ;; TODO: implement this as a symbol since its use is implicit?
      (unitary (lambda (axes) (cons 'function-variant axes))))
-  (\: (has :title "Guard Indicator")
-      (symbolic :guard-indicator)))
+  ;; (\: (has :title "Guard Indicator")
+  ;;     (symbolic :guard-indicator))
+  )
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set
@@ -2090,7 +2164,10 @@
        "{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(-1 -1 -1 #0A#(1 5)))
   (for "Indexed element of above array."
        "{⍵,≡⍵}4⌷{((5=¯1↑⍵)+1)⊃¯1 (⊂⍵)}¨(⊂1 5),⍨3⍴⊂⍳4" #(#0A#(1 5) 3))
-  (for "Fibonacci sequence generated using [∇ self] for self-reference within a function."
+  (for "Basic guard." "{⍵=1:2⋄3}¨ 1 2 1 0 0 1 2 1" #(2 3 2 3 3 2 3 2))
+  (for "Guard with multiple successive clauses and clauses preceding guard."
+       "{1+1 ⋄ 2+2 ⋄ ⍵=1:2⋄3⋄4⋄⍵=2:3⋄⍵=3:4⋄5}¨1 2 3" #(4 3 5))
+  (for "Fibonacci sequence generated using [∇ self] within guard for self-reference within a function."
        "{(⍵=1)∨⍵=2 : 1 ⋄ (∇ ⍵-2)+∇ ⍵-1}¨⍳12" #(1 1 2 3 5 8 13 21 34 55 89 144))
   (for "Locally-scoped function used with lateral operator within if-statement."
        "(⍳3){ g←{5+⍵} ⋄ b←-∘5 ⋄ h←{12×$[~2|⍺;b¨⍵;g ⍵]} ⋄ ⍺ h¨⍵} (⍳3)+3⍴⊂⍳3"

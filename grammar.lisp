@@ -1365,10 +1365,10 @@
                (:sys-vars index-origin))
        (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
                           ,@(if left-value (list left-value)
-                                (when left `((a-call ,left ,omega ,alpha)))))
+                                (if left `((a-call ,left ,omega ,alpha)))))
            (a-call ,center (a-call ,right ,omega)
                    ,@(if left-value (list left-value)
-                         (when left `((a-call ,left ,omega)))))))))
+                         (if left `((a-call ,left ,omega)))))))))
 
 (defun fnexp-backup (form &key space params)
   "If a value build produces a pivotal function composition, it is built as a function. Needed for cases like fn←{2+⍵}⍣3 ⋄ fn 5."

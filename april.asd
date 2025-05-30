@@ -6,7 +6,8 @@
   :author "Andrew Sengul"
   :license "Apache-2.0"
   :serial t
-  :depends-on ("vex" "aplesque" "cape" "array-operations" "lparallel" "alexandria"
+  :depends-on ("vex" "aplesque" ;; "cape"
+                     "array-operations" "lparallel" "alexandria"
                      "cl-ppcre" "random-state" "parse-number" "symbol-munger"
                      "prove" "simple-date-time" "trivia" "cl-unicode" "varray")
   :components ((:file "package")

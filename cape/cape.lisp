@@ -6,6 +6,10 @@
   ((%idiom :accessor base-idiom
            :initform nil
            :initarg  :idiom
+           :documentation "")
+   (%expr  :accessor base-expr
+           :initform nil
+           :initarg  :expr
            :documentation "")))
 
 (defclass entity (base)
@@ -115,13 +119,17 @@
 
 (defmethod attach ((entity null) idiom item type &optional axes)
   ;; (print (list :en entity item type axes))
-  (case type
-    (:value    (make-instance 'ex-value
-                              :object (make-instance 'en-value :data (list item) :axes axes :idiom idiom)
-                              :idiom idiom))
-    (:function (make-instance 'ex-function
-                              :primary (make-instance 'en-function :data item :axes axes :idiom idiom)
-                              :idiom idiom))))
+  (let ((output))
+    (case type
+      (:value
+       (setf output (make-instance 'ex-value :idiom idiom)
+             (exval-object output) (make-instance 'en-value :data (list item)
+                                                            :axes axes :idiom idiom :expr output)))
+      (:function
+       (setf output (make-instance 'ex-function :idiom idiom)
+             (exfun-primary output) (make-instance 'en-function :data item
+                                                                :axes axes :idiom idiom :expr output))))
+    output))
 
 (defmethod attach ((entity ex-value) idiom item type &optional axes)
   "Attach an item to a value expression."
@@ -136,7 +144,8 @@
                (if (exval-predicate entity)
                    (push item (ent-data (exval-predicate entity)))
                    (setf (exval-predicate entity) ;; initialize left value if not yet present
-                         (make-instance 'en-value :axes axes :idiom idiom :data (list item))))
+                         (make-instance 'en-value :axes axes :idiom idiom
+                                                  :expr entity :data (list item))))
                (push item (ent-data (exval-object entity))))))  ;; otherwise build right value
       (:function ;; if the item to be attached represents a function
        (if (eq item :special-lexical-form-assign)
@@ -147,16 +156,18 @@
                        ;; if a primary function and and operator are attached but no composed
                        ;; function yet (as for the × in ×.+), register the composed function
                        (setf (exfun-composed (exval-function entity))
-                             (make-instance 'en-function :data item :axes axes :idiom idiom))
+                             (make-instance 'en-function :data item :axes axes :idiom idiom
+                                                         :expr (exval-function entity)))
                        ;; if no primary function is registered, set it
                        (setf (exfun-primary  (exval-function entity))
-                             (make-instance 'en-function :data item :axes axes :idiom idiom)))
+                             (make-instance 'en-function :data item :axes axes :idiom idiom
+                                                         :expr (exval-function entity))))
                    (setf to-return (make-instance 'ex-value :function (typecase item
                                                                         (ex-function item)
                                                                         (t (attach nil idiom item type)))
                                                   :object entity :idiom idiom)))
                (setf (exval-function entity) (attach nil idiom item type)
-                     (exfun-value (exval-function entity)) entity))))
+                     (base-expr (exval-function entity)) entity))))
       (:operator ;; if the item to be attached represents an operator
        ;; (print (list :op item type))
        (if (exval-function entity)
@@ -170,33 +181,41 @@
 
 (defmethod attach ((entity ex-function) idiom item type &optional axes)
   "Attach an item to a value expression."
-  (let ((to-return entity))
-    (case type
-      (:function
-       (if (eq item :special-lexical-form-assign)
-           (setf (exp-assigned entity) :missing)
-           (if (exfun-operator entity)
-               (if (exfun-primary entity)
-                   ;; if a primary function and and operator are attached but no composed
-                   ;; function yet (as for the × in ×.+), register the composed function
-                   (setf (exfun-composed entity)
-                         (make-instance 'en-function :data item :axes axes :idiom idiom))
-                   ;; if no primary function is registered, set it
-                   (setf (exfun-primary  entity)
-                         (make-instance 'en-function :data item :axes axes :idiom idiom)))
-               ;; join the function expression to another to create a train,
-               ;; implemented as a kind of linked list using function expressions
-               (setf (exfun-composed entity) (typecase item
+  (labels ((train-link (item expr)
+             (if (exfun-composed expr)
+                 (train-link item (exfun-composed expr))
+                 (setf (exfun-composed expr) (typecase item
                                                (ex-function item)
-                                               (t (attach nil idiom item type))))))))
-    to-return))
+                                               (t (attach nil idiom item type)))))))
+    (let ((to-return entity))
+      (case type
+        (:function
+         (if (eq item :special-lexical-form-assign)
+             (setf (exp-assigned entity) :missing)
+             (if (exfun-operator entity)
+                 (if (exfun-primary entity)
+                     ;; if a primary function and and operator are attached but no composed
+                     ;; function yet (as for the × in ×.+), register the composed function
+                     (setf (exfun-composed entity)
+                           (make-instance 'en-function :data item :axes axes :idiom idiom))
+                     ;; if no primary function is registered, set it
+                     (setf (exfun-primary  entity)
+                           (make-instance 'en-function :data item :axes axes :idiom idiom)))
+                 ;; join the function expression to another to create a train,
+                 ;; implemented as a kind of linked list using function expressions
+                 (train-link item entity)
+                 ;; (setf (exfun-composed entity) (typecase item
+                 ;;                                 (ex-function item)
+                 ;;                                 (t (attach nil idiom item type))))
+                 ))))
+      to-return)))
 
-(defgeneric express (item))
+(defgeneric express (item &rest params))
 
-(defmethod express ((item t))
+(defmethod express ((item t) &rest params)
   item)
 
-(defmethod express ((entity en-value))
+(defmethod express ((entity en-value) &rest params)
   (funcall (if (not (ent-axes entity))
                #'identity (lambda (form)
                             `(make-virtual
@@ -206,7 +225,7 @@
                (cons 'svec (ent-data entity))
                (express (first (ent-data entity))))))
 
-(defmethod express ((entity ex-value))
+(defmethod express ((entity ex-value) &rest params)
   (flet ((express-value (value)
            (if (not (second value))
                (first value) (cons 'svec value))))
@@ -224,20 +243,60 @@
                               (and second (list (express second)))))
                  (express (exval-object entity))))))
 
-(defmethod express ((entity ex-function))
+(defmethod express ((entity ex-function) &rest params)
   (let ((expfun1 (express (exfun-primary entity)))
         (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
     ;; (print (list :x2 expfun1 expfun2 (exfun-composed entity)))
     (if (exfun-operator entity)
         (append (list 'a-comp (exfun-operator entity))
                 (apply (symbol-function (find-symbol (format nil "~a-LEX-OP-~a"
-                                                               (vex::idiom-name (base-idiom entity))
-                                                               (exfun-operator entity))
-                                                       (string (vex::idiom-name (base-idiom entity)))
-                                                       ;; TODO: allow for different idiom and package name
-                                                       ))
+                                                             (vex::idiom-name (base-idiom entity))
+                                                             (exfun-operator entity))
+                                                     (string (vex::idiom-name (base-idiom entity)))
+                                                     ;; TODO: allow for different idiom and package name
+                                                     ))
                        (cons expfun1 (if expfun2 (list expfun2)))))
-        expfun1)))
+        ;; (april (with (:print-tokens) (:cape-test) (:compile-only)) "(*+-)1 2 3+1 2 3")
+        (if (and (not (base-expr entity))
+                 (typep (exfun-composed entity) 'ex-function))
+            ;; if the functional expression is not linked to a value expression
+            ;; (i.e. it is expressed discretely as with (⊢,⌽)) then it is
+            ;; recognized as a function train
+            (let* ((omega (gensym)) (alpha (gensym))
+                   (expfun3 (and (exfun-composed (exfun-composed entity))
+                                 (typep (exfun-composed (exfun-composed entity)) 'ex-function)
+                                 (express (exfun-composed (exfun-composed entity)) :valence :dyadic)))
+                   (left-value (if (typep expfun2 'en-value)
+                                   (express expfun2)))
+                   (right  (express expfun1 :valence :dyadic))
+                   (center (express expfun2 :valence :dyadic))
+                   (left   expfun3))
+              ;; (unless april::jjj (setf april::jjj entity))
+              `(alambda (,omega &optional ,alpha)
+                 (with (:sys-vars index-origin))
+                 ;; (:meta :side-effects ',(getf (rest train-meta) :side-effects)
+                 ;;        ,@(when (getf (rest train-meta) :symfns-called)
+                 ;;            (list :symfns-called
+                 ;;                  (list 'quote (getf (rest train-meta) :symfns-called)))))
+                 
+                 (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
+                                    ,@(if left-value (list left-value)
+                                          (if left `((a-call ,left ,omega ,alpha)))))
+                     (a-call ,center (a-call ,right ,omega)
+                             ,@(if left-value (list left-value)
+                                   (if left `((a-call ,left ,omega))))))))
+            expfun1))))
 
-(defmethod express ((entity en-function))
-  (list 'apl-fn-s (intern (string (ent-data entity)))))
+(defmethod express ((entity en-function) &rest params)
+  (let ((valence (getf params :valence)))
+    ;; (when (base-expr entity)
+    ;;   (print (list :aa (exval-predicate (base-expr (base-expr entity)))))
+    ;;   (print (list :aa (ent-data (exfun-primary (base-expr entity)))))
+    ;;   )
+    (list (if (vex::of-lexicons (base-idiom entity) (ent-data (exfun-primary (base-expr entity)))
+                                (if (or (and (base-expr (base-expr entity))
+                                             (exval-predicate (base-expr (base-expr entity))))
+                                        (eq (getf params :valence) :dyadic))
+                                    :functions-scalar-dyadic :functions-scalar-monadic))
+              'apl-fn-s 'apl-fn)
+          (intern (string (ent-data entity))))))
