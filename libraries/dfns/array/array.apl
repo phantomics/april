@@ -276,7 +276,6 @@ enlist ← {                                   ⍝ List ⍺-leaves of nested arr
 
 ⍝ From http://dfns.dyalog.com/c_from.htm
 
-⍝⍝
 from ← {                                     ⍝ Select (1↓⍴⍵)-cells from array ⍵.
   ~(≢⍺)≡≢⍴⍵:'error'                          ⍝ check index length.
   indx←⍺-⎕IO ⋄ ⎕IO←0                         ⍝ easier in origin 0.
