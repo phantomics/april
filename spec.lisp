@@ -56,7 +56,7 @@
                                            (let ((pos (position (aref string index)
                                                                 quotes-string :test #'char=)))
                                              (when pos (match-end (aref quotes-string pos)))))))
-                              :render (lambda (string start end)
+                              :format (lambda (string start end)
                                         (let ((length (- end start 1)))
                                           (if (= 1 length) (aref string (1+ start))
                                               ;; expressing a one-length string like 'a' returns character #\a
@@ -70,15 +70,15 @@
                                                             (incf i)))
                                                 output)))))
            (section :closure  :delimit "()"
-                              :build  (lambda (collected) (cons nil collected))
+                              :create (lambda (collected) (cons nil collected))
                               :divide (lambda (type collected)
                                         (declare (ignore type collected))
                                         (error "A (closure) may not include breaks or guards."))
-                              :format (lambda (collected)
+                              :finish (lambda (collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
            (section :function :delimit "{}"
-                              :build  (lambda (collected) (cons nil (cons nil collected)))
+                              :create (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type collected)
                                         (case type
                                           (:break
@@ -87,22 +87,25 @@
                                              ;; this case adds a nil result for i.e. ⍵=1:⋄1 ;
                                              ;; cases where there is an empty clause after the :
                                              (push nil (first collected)))
-                                           (cons nil (cons (taper collected) (cddr collected))))
+                                           (cons nil (cons (foldin collected) (cddr collected))))
                                           (:guard (cons nil (cons nil (cons :guard-indicator
-                                                                            (cons (taper collected)
+                                                                            (cons (foldin collected)
                                                                                   (cddr collected))))))
                                           (:axdiv (error "Misplaced ; axis separator in {function}."))))
 
-                              :format (labels ((rmnils (form)
+                              :finish (labels ((rmnils (form) ;; remove nil values from list
                                                  (loop :for f :in form :when f :collect f))
                                                (gather-guards (series &optional clauses)
+                                                 ;; process guard clauses until none are left
                                                  (if (eq :guard-indicator (second series))
                                                      (gather-guards
                                                       (cddr series)
-                                                      (let ((tapered (reverse (first series))))
-                                                        ;; must remove nil values from axis content
-                                                        (cons (list (first tapered))
-                                                              (cons (rmnils (rest tapered)) clauses))))
+                                                      (let ((start (reverse (first series))))
+                                                        ;; must remove nil values from axis content,
+                                                        ;; since this does not happen in construct
+                                                        ;; function as usual
+                                                        (cons (list (first start))
+                                                              (cons (rmnils (rest start)) clauses))))
                                                      (values (cons (list (caar series)) clauses)
                                                              (cons (cdar series) (rest series))))))
                                         (lambda (collected)
@@ -122,23 +125,23 @@
                                                               (second series))
                                                       (cddr series)))
                                               (cons (cons (list :fn (list :meta :symbols nil)
-                                                                (reverse (taper collected)))
+                                                                (reverse (foldin collected)))
                                                           (third collected))
                                                     (cdddr collected))))))
            
            (section :axes     :delimit "[]"
-                              :build  (lambda (collected) (cons nil (cons nil (cons nil collected))))
+                              :create (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (taper collected)
+                                          (:break (cons nil (cons (foldin collected)
                                                                   (cddr collected))))
                                           (:guard (error "Misplaced : guard indicator in axis specification."))
                                           (:axdiv (cons nil (cons nil (cons (cons (reverse
-                                                                                   (taper collected))
+                                                                                   (foldin collected))
                                                                                   (third collected))
                                                                             (cdddr collected)))))))
-                              :format (lambda (collected)
-                                        (cons (cons (cons :ax (reverse (cons (reverse (taper collected))
+                              :finish (lambda (collected)
+                                        (cons (cons (cons :ax (reverse (cons (reverse (foldin collected))
                                                                              (third collected))))
                                                     (fourth collected))
                                               (cddddr collected)))))
@@ -1823,10 +1826,7 @@
             (is "{$[⍵>5;G←3⋄H←5⋄G+H;C←8⋄D←2⋄C×D]}¨3 7" #(16 8))
             (is "{$[⍵<3;5;e←⍵+2⋄-{⍺⍺ ⍵} e]}¨⍳9" #(5 5 -5 -6 -7 -8 -9 -10 -11))))
   (⍢ (has :title "Variant") ;; TODO: implement this as a symbol since its use is implicit?
-     (unitary (lambda (axes) (cons 'function-variant axes))))
-  ;; (\: (has :title "Guard Indicator")
-  ;;     (symbolic :guard-indicator))
-  )
+     (unitary (lambda (axes) (cons 'function-variant axes)))))
 
  ;; tests for general language functions not associated with a particular function or operator
  (test-set

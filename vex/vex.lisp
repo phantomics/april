@@ -300,27 +300,7 @@
                                     ,(cons 'list
                                            (loop :for entd :in entity-defs
                                                  :append (destructuring-bind (type name &rest pairs) entd
-                                                           (list name (cons 'list pairs)))))
-                                    :section-builders
-                                    ,(cons 'list
-                                           (loop :for entd :in entity-defs
-                                                 :append (destructuring-bind (type name &rest pairs) entd
-                                                           (list name (getf pairs :build)))))
-                                    :section-formatters
-                                    ,(cons 'list
-                                           (loop :for entd :in entity-defs
-                                                 :append (destructuring-bind (type name &rest pairs) entd
-                                                           (list name (getf pairs :format)))))
-                                    :section-dividers
-                                    ,(cons 'list
-                                           (loop :for entd :in entity-defs
-                                                 :append (destructuring-bind (type name &rest pairs) entd
-                                                           (list name (getf pairs :divide)))))
-                                    :section-renderers
-                                    ,(cons 'list
-                                           (loop :for entd :in entity-defs
-                                                 :append (destructuring-bind (type name &rest pairs) entd
-                                                           (list name (getf pairs :render))))))
+                                                           (list name (cons 'list pairs))))))
                               (idiom-utilities ,idiom-symbol)))
                 
                 ,@(if (not extension)
@@ -573,7 +553,7 @@
 (defun specify-mappers (&rest specs)
   (let ((open-chars) (closing-chars) (open-matchers) (dividers) (close-matchers) (exclusive-specs)
         (spec-names) (div-spec-names) (section-names) (divider-names)
-        (formatters) (div-formatters) (nest-counters))
+        (finishers) (div-finishers) (nest-counters))
     (macrolet ((ixchar (&optional str-index) `(aref string (+ index ,(or str-index 0)))))
       (loop :for spec-list in specs
             :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
@@ -581,7 +561,7 @@
                     (:section
                      ;; specify start and end qualifiers for a section
                      (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
-                           (start (getf spec :start)) (end (getf spec :end)) (format (getf spec :format)))
+                           (start (getf spec :start)) (end (getf spec :end)) (finish (getf spec :finish)))
                        (push spec-name spec-names)
                        (push (getf spec :exclusive) exclusive-specs)
 
@@ -627,10 +607,10 @@
                            (t (error "Section specification ~a has a start qualifier but no end qualifier."
                                      spec-name))))
 
-                       (push format formatters)))
+                       (push finish finishers)))
                     (:divider
                      ;; specify qualifier for a divider that may split a section into subsections
-                     (let ((matcher (getf spec :match)) (format (getf spec :format)))
+                     (let ((matcher (getf spec :match)) (finish (getf spec :finish)))
                        (push spec-name div-spec-names)
                        (push (typecase matcher
                                (character (lambda (string index) (char= (ixchar) matcher)))
@@ -638,15 +618,13 @@
                                (list      (lambda (string index) (member (ixchar) matcher :test #'char=)))
                                (function matcher))
                              dividers)
-                       (push (typecase format
-                               (symbol format))
-                             div-formatters)))))))
+                       (push finish div-finishers)))))))
     
     (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
     
     ;; (print (list :oo open-matchers dividers close-matchers specs nest-counters open-chars closing-chars))
     
-    (lambda (idiom string)
+    (lambda (idiom string) ;; function that builds the section map list from a string
       (let ((code 0) (open-stack) (confirmer-stack) (returned) (exclusive-index) (set-mirroring)
             (dl-indices (make-array (length string) :initial-element 0 :element-type '(signed-byte 8))))
         (loop :for char :across string :for cx :from 0
@@ -663,10 +641,9 @@
                             (let ((matcher-output (and (not exclusive-index)
                                                        (funcall om string cx))))
                               ;; (print (list :mo char matcher-output))
-                              (when matcher-output
-                                (unless nil ; exclusive-index
-                                  (incf code (1+ ix))
-                                  (push ix open-stack))
+                              (when matcher-output   ;; when a match is found...
+                                (incf code (1+ ix))  ;; increment the code as per the matched section type
+                                (push ix open-stack) ;; push the 
                                 (when (nth ix exclusive-specs)
                                   (setf exclusive-index ix
                                         set-mirroring   t)))
@@ -701,13 +678,13 @@
                                 returned)))
                     (when (minusp index)
                       (decf code (ash 1 (ash (abs index) 3)))
-                      (let ((found) (formatter (nth (1- (abs index)) spec-names)))
+                      (let ((found) (finisher (nth (1- (abs index)) spec-names)))
                         (loop :for r :in returned :for rx :from 0
                               :until found :when (third r)
                               :do (when (and (null (first r))
                                              (= (abs index) (third r)))
                                     (setf found (setf (nth rx returned)
-                                                      (list formatter (second r) ix)))))))))
+                                                      (list finisher (second r) ix)))))))))
         
         (values (reverse returned) dl-indices)))))
 
@@ -724,10 +701,9 @@
     (labels ((lex-chars (start end)
                ;; this function calls the lexer on characters within a section
                ;; given start and end points in the original string
-               (let* ((substring (make-array (- end start) :displaced-index-offset start
-                                             :element-type 'character :displaced-to string))
-                      ;; (sst (print (list :sss substring)))
-                      (parsed (parse substring (=vex-string idiom (first output)))))
+               (let ((parsed (parse (make-array (- end start) :displaced-index-offset start
+                                                              :element-type 'character :displaced-to string)
+                                    (=vex-string idiom (first output)))))
                  (when (getf (third parsed) :overloaded-num-char)
                    ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
                    (push (list :op :pivotal #\.) (first parsed)))
@@ -739,11 +715,10 @@
                (when (first formats)
                  (let ((this-format (getf (getf (getf (idiom-utilities idiom) :entity-specs)
                                                 (first formats))
-                                          :format)))
+                                          :finish)))
                    ;; the format function completes the composition of a section as a list of tokens
                    (setf output (funcall this-format output))
                    (pop formats)))
-               ;; (print (list :o output bounds))
                (setf index  (1+ (first bounds))
                      bounds (rest bounds))))
       
@@ -751,24 +726,28 @@
             :do (destructuring-bind (type start &optional end) spec
 
                   (loop :while (and bounds (> start (first bounds))) :do (close-bound))
+
+                  ;; lex the tokens between the current starting and ending points
                   (when (<  index start) (lex-chars index start))
+
+                  ;; in a zero-length section, set the index to one plus the starting index
                   (when (<= index start) (setf index (1+ start)))
 
                   (when end ;; an entity is a section if it has an end, a divider if not
-                    (let ((this-builder (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                              :build))
-                          (this-renderer (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                               :render)))
+                    (let ((this-builder   (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                                :create))
+                          (this-formatter (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                                :format)))
                       (if this-builder
                           (progn (push type formats)
                                  (push end bounds)
-                                 (setf index (1+ start)
+                                 (setf index  (1+ start)
                                        output (funcall this-builder output)))
-                          (if this-renderer
-                              (progn (push (funcall this-renderer string start end) (first output))
+                          (if this-formatter
+                              (progn (push (funcall this-formatter string start end) (first output))
                                      (setf index (1+ end)))
-                              ;; in the case of no renderer, just set the
-                              ;; index to the end; this is for comments
+                              ;; in the case of no renderer, just set the; index to the end + 1;
+                              ;; this is for comments, causing the section to simply be skipped
                               (setf index (1+ end)
                                     ;; the split is set in cases where an unrendering section
                                     ;; (i.e. comment) is to cause a split in the code

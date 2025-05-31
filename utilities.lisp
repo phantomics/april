@@ -218,8 +218,8 @@
           (incf *lib-tests-failed* (getf prove.suite::*last-suite-report* :failed))
           (format nil "Ran ~a tests, ~a failed." *lib-tests-run* *lib-tests-failed*)))
 
-(defmacro taper (list)
-  "A macro implementing the common method of tapering off a list of collected tokens; if the first element of the list is non-nil, it will be appended to the second element of the list. Then, whether or not the first element was appended to the second, the second element is returned."
+(defmacro foldin (list)
+  "A macro implementing the common method of completing a list of collected tokens; if the first element of the list is non-nil, it will be appended to the second element of the list. Then, whether or not the first element was appended to the second, the second element is returned."
   `(if (first ,list)
        (cons (first ,list) (second ,list))
        (second ,list)))
@@ -1733,13 +1733,10 @@
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
-             (let ((processed) (guard-encountered) (agets-encountered))
-               (loop :for item :in form-content :for ix :from 0 :while (and (not guard-encountered)
-                                                                            (not agets-encountered))
-                     :do (let ((guard-sym-index)
-                               (processed-form (lexer-postprocess item idiom space form-meta)))
+             (let ((processed) (agets-encountered))
+               (loop :for item :in form-content :for ix :from 0 :while (not agets-encountered)
+                     :do (let ((processed-form (lexer-postprocess item idiom space form-meta)))
                            (loop :for d :in processed-form :for dx :from 0
-                                 :when (eq d :guard-indicator) :do (setq guard-sym-index dx)
                                  :when (and (= dx (- (length processed-form) 2))
                                             (and (eq d :special-lexical-form-assign)
                                                  (not (and (= 3 (length processed-form))
@@ -1772,20 +1769,7 @@
                                                                     form-meta)))))
                                            (list :st :unitary #\⍢))
                                      processed)
-                               (if (not guard-sym-index) (push processed-form processed)
-                                   ;; handle guard composition
-                                   (progn (setq guard-encountered t)
-                                          (push (list (list :ax (list (nthcdr (1+ guard-sym-index)
-                                                                              processed-form))
-                                                            (list (loop :for e :in processed-form
-                                                                        :for ex :from 0
-                                                                        :while (< ex guard-sym-index)
-                                                                        :collect e))
-                                                            (implicit-statement-process
-                                                             (nthcdr (1+ ix) form-content)
-                                                             form-meta))
-                                                      (list :st :unitary #\$))
-                                                processed))))))
+                               (push processed-form processed))))
                (reverse processed)))
            (process-split-sym (symbol)
              (let ((split-segments (cl-ppcre:split "[.]" (string symbol))))
