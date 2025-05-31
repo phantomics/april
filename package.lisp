@@ -5,7 +5,7 @@
   (:export #:april #:april-f #:april-c #:april-load #:with-april-context
            #:april-create-workspace #:april-clear-workspace
            #:april-print-progress-bar #:strides-of)
-  (:use #:cl #:aplesque #:vex #:varray) ;; #:cape)
+  (:use #:cl #:aplesque #:vex #:varray)
   (:shadowing-import-from #:aplesque.forms #:indexer-section #:indexer-expand)
   (:shadowing-import-from #:array-operations #:flatten #:dims #:size #:rank #:element-type)
   (:shadowing-import-from #:cl-ppcre #:split #:regex-replace-all)

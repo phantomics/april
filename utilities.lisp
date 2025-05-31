@@ -1728,8 +1728,6 @@
   "Process the output of the lexer, assigning values in the workspace and closure metadata as appropriate. Mainly used to process symbols naming functions and variables."
   ;; this function is used to initialize function and variable references in the workspace and tabulate
   ;; those references for each closure, along with generating implicit statements for guards and ⍺←function
-  ;; (when t ;; (and (listp tokens) (eq :fn (first tokens)))
-  ;;   (print (list :tt tokens)))
   (labels ((implicit-statement-process (form-content form-meta)
              ;; reconstruct function content implementing implicit statements, like the if-statements
              ;; implied by guards and the type-dependent forking structure implied by ⍺←function
@@ -1840,9 +1838,8 @@
          ;; handle function currying with axes, like ax←,[1.5]
          (if (eq :op (first fn-form))
              (let ((valence (second fn-form)))
-               (if closure-meta (unless (member symbol (getf closure-meta
-                                                             (if (eq :lateral valence)
-                                                                 :lop-syms :pop-syms)))
+               (if closure-meta (unless (member symbol (getf closure-meta (if (eq :lateral valence)
+                                                                              :lop-syms :pop-syms)))
                                   (push symbol (getf closure-meta (if (eq :lateral valence)
                                                                       :lop-syms :pop-syms))))
                    (when (is-workspace-value symbol)

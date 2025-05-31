@@ -555,70 +555,70 @@
         (spec-names) (div-spec-names) (section-names) (divider-names)
         (finishers) (div-finishers) (nest-counters))
     (macrolet ((ixchar (&optional str-index) `(aref string (+ index ,(or str-index 0)))))
-      (loop :for spec-list in specs
-            :do (destructuring-bind (spec-type spec-name &rest spec) spec-list
-                  (case spec-type
-                    (:section
-                     ;; specify start and end qualifiers for a section
-                     (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
-                           (start (getf spec :start)) (end (getf spec :end)) (finish (getf spec :finish)))
-                       (push spec-name spec-names)
-                       (push (getf spec :exclusive) exclusive-specs)
+      (dolist (spec-list specs)
+        (destructuring-bind (spec-type spec-name &rest spec) spec-list
+          (case spec-type
+            (:section
+             ;; specify start and end qualifiers for a section
+             (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+                   (start (getf spec :start)) (end (getf spec :end)) (finish (getf spec :finish)))
+               (push spec-name spec-names)
+               (push (getf spec :exclusive) exclusive-specs)
 
-                       (when delimiters ;; in the case of sections with paired delimiters
-                         (let* ((bclen (length delimiters))
-                                (hbclen (ash bclen -1)))
-                           (push (lambda (string index)
-                                   (let ((pos (position (ixchar) delimiters :end hbclen :test #'char=)))
-                                     (when pos (lambda (string index)
-                                                 (char= (ixchar)
-                                                        (aref delimiters (+ hbclen -1 (- hbclen pos))))))))
-                                 open-matchers)
-                           (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
-                           (push (lambda (string index)
-                                   (position (ixchar) delimiters :start hbclen :test #'char=))
-                                 close-matchers)
-                           (loop :for dx :from hbclen :below (length delimiters)
-                                 :do (push (aref delimiters dx) open-chars))))
+               (when delimiters ;; in the case of sections with paired delimiters
+                 (let* ((bclen (length delimiters))
+                        (hbclen (ash bclen -1)))
+                   (push (lambda (string index)
+                           (let ((pos (position (ixchar) delimiters :end hbclen :test #'char=)))
+                             (when pos (lambda (string index)
+                                         (char= (ixchar)
+                                                (aref delimiters (+ hbclen -1 (- hbclen pos))))))))
+                         open-matchers)
+                   (loop :for d :across delimiters :for dx :below hbclen :do (push d open-chars))
+                   (push (lambda (string index)
+                           (position (ixchar) delimiters :start hbclen :test #'char=))
+                         close-matchers)
+                   (loop :for dx :from hbclen :below (length delimiters)
+                         :do (push (aref delimiters dx) open-chars))))
 
-                       (when start ;; in the case of sections with start and end qualifiers
-                         (typecase start
-                           (character (push (lambda (string index) (char= (ixchar) start))
-                                            open-matchers)
-                            (push start collection))
-                           (string    (push (lambda (string index) (position (ixchar) start :test #'char=))
-                                            open-matchers)
-                            (loop :for c :across start :do (push c open-chars)))
-                           (list      (push (lambda (string index) (member (ixchar) start :test #'char=))
-                                            open-matchers)
-                            (loop :for i :in start :do (push i open-chars)))
-                           (function (push start open-matchers)))
-                         (typecase end
-                           (character (push (lambda (string index) (char= (ixchar) end))
-                                            open-matchers)
-                            (push end collection))
-                           (string    (push (lambda (string index) (position (ixchar) end :test #'char=))
-                                            close-matchers)
-                            (loop :for c :across end :do (push c closing-chars)))
-                           (list      (push (lambda (string index) (member (ixchar) end :test #'char=))
-                                            close-matchers)
-                            (loop :for i :in end :do (push i closing-chars)))
-                           (function (push end close-matchers))
-                           (t (error "Section specification ~a has a start qualifier but no end qualifier."
-                                     spec-name))))
+               (when start ;; in the case of sections with start and end qualifiers
+                 (typecase start
+                   (character (push (lambda (string index) (char= (ixchar) start))
+                                    open-matchers)
+                    (push start collection))
+                   (string    (push (lambda (string index) (position (ixchar) start :test #'char=))
+                                    open-matchers)
+                    (loop :for c :across start :do (push c open-chars)))
+                   (list      (push (lambda (string index) (member (ixchar) start :test #'char=))
+                                    open-matchers)
+                    (loop :for i :in start :do (push i open-chars)))
+                   (function (push start open-matchers)))
+                 (typecase end
+                   (character (push (lambda (string index) (char= (ixchar) end))
+                                    open-matchers)
+                    (push end collection))
+                   (string    (push (lambda (string index) (position (ixchar) end :test #'char=))
+                                    close-matchers)
+                    (loop :for c :across end :do (push c closing-chars)))
+                   (list      (push (lambda (string index) (member (ixchar) end :test #'char=))
+                                    close-matchers)
+                    (loop :for i :in end :do (push i closing-chars)))
+                   (function (push end close-matchers))
+                   (t (error "Section specification ~a has a start qualifier but no end qualifier."
+                             spec-name))))
 
-                       (push finish finishers)))
-                    (:divider
-                     ;; specify qualifier for a divider that may split a section into subsections
-                     (let ((matcher (getf spec :match)) (finish (getf spec :finish)))
-                       (push spec-name div-spec-names)
-                       (push (typecase matcher
-                               (character (lambda (string index) (char= (ixchar) matcher)))
-                               (string    (lambda (string index) (position (ixchar) matcher :test #'char=)))
-                               (list      (lambda (string index) (member (ixchar) matcher :test #'char=)))
-                               (function matcher))
-                             dividers)
-                       (push finish div-finishers)))))))
+               (push finish finishers)))
+            (:divider
+             ;; specify qualifier for a divider that may split a section into subsections
+             (let ((matcher (getf spec :match)) (finish (getf spec :finish)))
+               (push spec-name div-spec-names)
+               (push (typecase matcher
+                       (character (lambda (string index) (char= (ixchar) matcher)))
+                       (string    (lambda (string index) (position (ixchar) matcher :test #'char=)))
+                       (list      (lambda (string index) (member (ixchar) matcher :test #'char=)))
+                       (function matcher))
+                     dividers)
+               (push finish div-finishers)))))))
     
     (setf nest-counters  (make-array (length open-matchers) :element-type 'fixnum :initial-element 0))
     
@@ -643,7 +643,7 @@
                               ;; (print (list :mo char matcher-output))
                               (when matcher-output   ;; when a match is found...
                                 (incf code (1+ ix))  ;; increment the code as per the matched section type
-                                (push ix open-stack) ;; push the 
+                                (push ix open-stack) ;; push the section index onto stack of open sections
                                 (when (nth ix exclusive-specs)
                                   (setf exclusive-index ix
                                         set-mirroring   t)))
@@ -654,6 +654,7 @@
                                              (funcall (first confirmer-stack) string cx))
                                          (or (not exclusive-index)
                                              (= ix exclusive-index)))
+                                ;; a section close has been found, clean up appropriately
                                 (when exclusive-index (setf exclusive-index nil))
                                 (decf code (1+ ix))
                                 (pop open-stack)
@@ -931,11 +932,8 @@
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
              (process-lines (string &optional space params output)
                (funcall (of-utilities idiom :compile-form)
-                        (mapcar (if t ; (not (assoc :cape-test options))
-                                    #'identity ;; (lambda (line)
-                                               ;;   (print (cape::express (cape::construct idiom line)))
-                                               ;;   line)
-                                    )
+                        (mapcar (if (not (assoc :cape-test options))
+                                    #'identity (of-utilities idiom :expresser-test))
                                 (funcall (if print-tokens #'print #'identity)
                                          (construct string idiom space)))
                         :space space :params params))

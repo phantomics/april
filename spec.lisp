@@ -29,7 +29,7 @@
            (section :body     :base t
                               :divide (lambda (type collected)
                                         (case type
-                                          (:break (cons nil (cons (taper collected)
+                                          (:break (cons nil (cons (foldin collected)
                                                                   (cddr collected))))
                                           (:axdiv (error "Misplaced ; axis separator in program body.")))))
            (section :comment  :exclusive t :functional-divider :break
@@ -146,25 +146,6 @@
                                                     (fourth collected))
                                               (cddddr collected)))))
 
-;; (((:FN (:META :SYMBOLS NIL)
-;;    ((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵)) (1)
-;;     (1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇)))))
-;;  NIL) 
- 
- ;; ((12 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA) (:OP :LATERAL #\DIAERESIS)
- ;;      (:FN (:META :ARG-SYMS (⍵) :SYMBOLS NIL)
- ;;           (((:AX ((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵))) ((1))
- ;;                  ((1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇))))
- ;;             (:ST :UNITARY #\$))))))
- 
- ;; ((12 (:FN #\APL_FUNCTIONAL_SYMBOL_IOTA) (:OP :LATERAL #\DIAERESIS)
- ;;      (:FN (:META :ARG-SYMS (⍵) :SYMBOLS NIL)
- ;;           ((:AX
- ;;             (((2 (:FN #\=) ⍵ (:FN #\LOGICAL_OR) (1 (:FN #\=) ⍵)))
- ;;              ((1))
- ;;              ((1 (:FN #\-) ⍵ ∇ (:FN #\+) (2 (:FN #\-) ⍵ ∇)))))
- ;;            (:ST :UNITARY #\$))))) 
- 
  ;; parameters for describing and documenting the idiom in different ways; currently, these options give
  ;; the order in which output from the blocks of tests is printed out for the (test) and (demo) options
  (profiles (:test :lexical-functions-scalar-numeric :lexical-functions-scalar-logical
@@ -190,6 +171,11 @@
               (lambda (char idiom)
                 (unless other-chars (setf other-chars (of-system idiom :supplemental-numeric-chars)))
                 (or (digit-char-p char) (position char other-chars :test #'char=))))
+            :expresser-test
+            (lambda (line)
+              (cape::provision-processors #'process-value #'process-function #'process-operator)
+              (print (cape::express (cape::construct *april-idiom* line)))
+              line)
             :match-token-character
             (let ((other-chars))
               (lambda (char idiom)
