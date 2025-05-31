@@ -727,12 +727,12 @@
                (let* ((substring (make-array (- end start) :displaced-index-offset start
                                              :element-type 'character :displaced-to string))
                       ;; (sst (print (list :sss substring)))
-                      (parsed (parse substring (=vex-string idiom))))
+                      (parsed (parse substring (=vex-string idiom (first output)))))
                  (when (getf (third parsed) :overloaded-num-char)
                    ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
                    (push (list :op :pivotal #\.) (first parsed)))
-                 (setf cl-meta        (cons :meta (third parsed))
-                       (first output) (append (first parsed) (first output)))))
+                 (setf cl-meta (cons :meta (third parsed))
+                       output  (cons (first parsed) (rest output)))))
              (close-bound ()
                ;; this closes out a section when its end comes before the next divider or section start point
                (lex-chars index (first bounds))
@@ -795,7 +795,7 @@
               (reverse (if (first output) (cons (first output) (second output))
                            (second output)))))))
 
-(defun =vex-string (idiom &optional output precedent)
+(defun =vex-string (idiom output &optional precedent)
   "Parse a string of text, converting its contents into nested lists of Vex tokens."
   (let ((olnchar) (symbols) (uniform-char) (arg-rooted-path) (fix 0))
     ;; the olnchar variable is needed to handle characters that may be functional or part
@@ -922,13 +922,12 @@
           
           (if (< 0 (length rest))
               (parse rest (=vex-string idiom (if output (if (not item) output (cons item output))
-                                                 (when item (list item)))
+                                                 (and item (list item)))
                                        (append (when olnchar (list :overloaded-num-char olnchar))
                                                (list :symbols nil ;; peripheral space
                                                      :pspace (list lspace-total trailing-space)))))
-              (list (if (or (not item)
-                            (and (typep item 'sequence)
-                                 (zerop (length item))))
+              (list (if (or (not item) (and (typep item 'sequence)
+                                            (zerop (length item))))
                         ;; return nothing if only an empty sequence results from parsing
                         ;; unless an explicit empty string was parsed
                         output (cons item output))
