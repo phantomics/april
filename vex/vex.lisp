@@ -689,19 +689,37 @@
         
         (values (reverse returned) dl-indices)))))
 
+(defun tokenize (idiom tokenizers tokens string start count scratch)
+  (let ((index start))
+    ;; (print (list :id idiom tokenizers tokens string start count scratch))
+    (loop :while (< index count)
+          :do (loop :for tokenizer :in tokenizers :while (< index count)
+                    :do (multiple-value-bind (tokens-out index-out)
+                            (funcall tokenizer string index scratch tokens idiom)
+                          ;; (print (list :ind tokens-out index-out tokens index))
+                          (when (not (zerop (fill-pointer scratch)))
+                            (adjust-array scratch 127 :fill-pointer 0))
+                          (when index-out (setf tokens tokens-out
+                                                index  index-out)))))
+    tokens))
+
 (defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
-        (formats) (index 0) (output (list nil nil))
-        (cl-meta) (split)
+        (cl-meta) (split) (formats) (index 0) (output (list nil nil))
+        (scratch (make-array 127 :element-type 'character :adjustable t :fill-pointer 0))
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
         (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
+        (tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+                            :by #'cddr :when (getf val :process) :collect (getf val :process)))
         (postprocessor (or (of-utilities idiom :lexer-postprocess)
                            (lambda (&rest args) (first args)))))
-    ;; (print (list :m map bounds))
+    ;; (print (list :m map bounds tokenizers))
     (labels ((lex-chars (start end)
                ;; this function calls the lexer on characters within a section
                ;; given start and end points in the original string
+               ;; (print (list :tk (tokenize idiom tokenizers (first output)
+               ;;                            string start (- end start) scratch)))
                (let ((parsed (parse (make-array (- end start) :displaced-index-offset start
                                                               :element-type 'character :displaced-to string)
                                     (=vex-string idiom (first output)))))
@@ -723,50 +741,50 @@
                (setf index  (1+ (first bounds))
                      bounds (rest bounds))))
       
-      (loop :for spec :in map ;; convert map specs into token lists
-            :do (destructuring-bind (type start &optional end) spec
+      (dolist (spec map) ;; convert map specs into token lists
+        (destructuring-bind (type start &optional end) spec
 
-                  (loop :while (and bounds (> start (first bounds))) :do (close-bound))
+          (loop :while (and bounds (> start (first bounds))) :do (close-bound))
 
-                  ;; lex the tokens between the current starting and ending points
-                  (when (<  index start) (lex-chars index start))
+          ;; lex the tokens between the current starting and ending points
+          (when (<  index start) (lex-chars index start))
 
-                  ;; in a zero-length section, set the index to one plus the starting index
-                  (when (<= index start) (setf index (1+ start)))
+          ;; in a zero-length section, set the index to one plus the starting index
+          (when (<= index start) (setf index (1+ start)))
 
-                  (when end ;; an entity is a section if it has an end, a divider if not
-                    (let ((this-builder   (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                                :create))
-                          (this-formatter (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                                :format)))
-                      (if this-builder
-                          (progn (push type formats)
-                                 (push end bounds)
-                                 (setf index  (1+ start)
-                                       output (funcall this-builder output)))
-                          (if this-formatter
-                              (progn (push (funcall this-formatter string start end) (first output))
-                                     (setf index (1+ end)))
-                              ;; in the case of no renderer, just set the; index to the end + 1;
-                              ;; this is for comments, causing the section to simply be skipped
-                              (setf index (1+ end)
-                                    ;; the split is set in cases where an unrendering section
-                                    ;; (i.e. comment) is to cause a split in the code
-                                    split (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
-                                                :functional-divider))))))
+          (when end ;; an entity is a section if it has an end, a divider if not
+            (let ((this-builder   (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                        :create))
+                  (this-formatter (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                        :format)))
+              (if this-builder
+                  (progn (push type formats)
+                         (push end bounds)
+                         (setf index  (1+ start)
+                               output (funcall this-builder output)))
+                  (if this-formatter
+                      (progn (push (funcall this-formatter string start end) (first output))
+                             (setf index (1+ end)))
+                      ;; in the case of no renderer, just set the; index to the end + 1;
+                      ;; this is for comments, causing the section to simply be skipped
+                      (setf index (1+ end)
+                            ;; the split is set in cases where an unrendering section
+                            ;; (i.e. comment) is to cause a split in the code
+                            split (getf (getf (getf (idiom-utilities idiom) :entity-specs) type)
+                                        :functional-divider))))))
 
-                  (when (or split (not end))
-                    ;; dividers are handled based on the containing section type;
-                    ;; a divider may also manifest from a section that implicitly acts as a divider
-                    ;; as a comment section implicitly terminates the section within which it appears
-                    (setf output (funcall (if (first formats)
-                                              (getf (getf (getf (idiom-utilities idiom) :entity-specs)
-                                                          (first formats))
-                                                    :divide)
-                                              base-divider)
-                                          (or split type)
-                                          output)
-                          split  nil))))
+          (when (or split (not end))
+            ;; dividers are handled based on the containing section type;
+            ;; a divider may also manifest from a section that implicitly acts as a divider
+            ;; as a comment section implicitly terminates the section within which it appears
+            (setf output (funcall (if (first formats)
+                                      (getf (getf (getf (idiom-utilities idiom) :entity-specs)
+                                                  (first formats))
+                                            :divide)
+                                      base-divider)
+                                  (or split type)
+                                  output)
+                  split  nil))))
 
       ;; (print (list :bo bounds))
       
@@ -834,13 +852,12 @@
                                                                                  (idiom-name idiom)
                                                                                  char)
                                                                          (string (idiom-name idiom)))))
-                                                      (append (list (if (of-lexicons idiom char :statements)
-                                                                        :st (if (of-lexicons idiom char
-                                                                                             :operators)
-                                                                                :op (when (of-lexicons
-                                                                                           idiom char
-                                                                                           :functions)
-                                                                                      :fn))))
+                                                      (append (list (cond ((of-lexicons idiom char :statements)
+                                                                           :st)
+                                                                          ((of-lexicons idiom char :operators)
+                                                                           :op)
+                                                                          ((of-lexicons idiom char :functions)
+                                                                           :fn)))
                                                               (if (of-lexicons idiom char :operators)
                                                                   (list (if (of-lexicons idiom char
                                                                                          :operators-pivotal)
@@ -877,14 +894,16 @@
                                                 (=subseq (%any (?test ((p-or-u-char-p arg-rooted-path
                                                                                       uniform-char)))))))
                                  (lambda (string)
-                                   (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                     (when is-symbol (push formatted symbols))
-                                     formatted)))
+                                   ;; (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                   ;;   (when is-symbol (push formatted symbols))
+                                   ;;   formatted)
+                                   (handle-symbol string)))
                                 (=transform (=subseq (%some (?token-character)))
                                             (lambda (string)
-                                              (multiple-value-bind (formatted is-symbol) (handle-symbol string)
-                                                (when is-symbol (push formatted symbols))
-                                                formatted)))
+                                              ;; (multiple-value-bind (formatted is-symbol) (handle-symbol string)
+                                              ;;   (when is-symbol (push formatted symbols))
+                                              ;;   formatted)
+                                              (handle-symbol string)))
                                 ;; this last clause returns the remainder of the input in case the
                                 ;; input has either no characters or only blank characters
                                 ;; before the first line break
