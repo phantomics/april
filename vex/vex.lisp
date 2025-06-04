@@ -722,12 +722,19 @@
                ;;                            string start (- end start) scratch)))
                (let ((parsed (parse (make-array (- end start) :displaced-index-offset start
                                                               :element-type 'character :displaced-to string)
-                                    (=vex-string idiom (first output)))))
+                                    (=vex-string idiom (first output)))
+                             ;; (tokenize idiom tokenizers (first output)
+                             ;;           string start (- end start) scratch)
+                             ))
+                 ;; (print (list :pr parsed))
                  (when (getf (third parsed) :overloaded-num-char)
                    ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
                    (push (list :op :pivotal #\.) (first parsed)))
                  (setf cl-meta (cons :meta (third parsed))
-                       output  (cons (first parsed) (rest output)))))
+                       output  (cons (first parsed) (rest output)))
+
+                 ;; (setf output (cons parsed (rest output)))
+                 ))
              (close-bound ()
                ;; this closes out a section when its end comes before the next divider or section start point
                (lex-chars index (first bounds))
