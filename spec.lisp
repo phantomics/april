@@ -35,129 +35,126 @@
  ;;                                 string))
  ;;                  (values formatted is-symbol)))
  
- (entities (token :blank  :process (let ((space-chars (coerce '(#\  #\Tab) 'string)))
-                                     (lambda (string index scratch tokens idiom)
-                                       (let ((matching t))
-                                         (loop :while (and matching (< index (length string)))
-                                               :do (if (position (aref string index) space-chars)
-                                                       (incf index)
-                                                       (setf matching nil)))
-                                         (values tokens index)))))
-           (token :number :process (lambda (string index scratch tokens idiom)
-                                     ;; (print (list :b index string (aref string index)))
-                                     (let ((matching t) (start index))
-                                       ;; (vector-push #\  scratch)
-                                       (loop :while (and matching (< index (length string)))
-                                             :do (if (or (digit-char-p (aref string index))
-                                                         (position (aref string index) "._¯eEjJrR"))
-                                                     (progn (vector-push (aref string index) scratch)
-                                                            (incf index))
-                                                     (setf matching nil)))
-                                       ;; (print (list :sc scratch))
-                                       (when (and (listp (first tokens))
-                                                  (eq :op  (first (first tokens)))
-                                                  (eq :#\. (third (first tokens)))
-                                                  (not (zerop start))
-                                                  (char= #\. (aref string (1- start))))
-                                         (setf (aref scratch 0) #\.
-                                               tokens (rest tokens)))
-                                       ;; (print (list :sc scratch))
-                                       (if (< 0 (length scratch))
-                                           (let ((number-out (parse-apl-number-string scratch)))
-                                             (and number-out (values (cons number-out tokens) index)))))))
-           (token :glyph  :process (lambda (string index scratch tokens idiom)
-                                     ;; (print (list :x index string (< index (length string))))
-                                     (declare (ignore scratch))
-                                     (if (< index (length string))
-                                         (let* ((char (aref string index))
-                                                (prefix (cond ((of-lexicons idiom char :operators)
-                                                               (if (of-lexicons idiom char :statements)
-                                                                   :st :op))
-                                                              ((of-lexicons idiom char :functions)  :fn)
-                                                              ((of-lexicons idiom char :statements) :st)))
-                                                (tag (if (eq :op prefix)
-                                                         (cond ((of-lexicons idiom char :operators-lateral)
-                                                                :lateral)
-                                                               ((of-lexicons idiom char :operators-pivotal)
-                                                                :pivotal))
-                                                         (and (eq :st prefix) :unitary)))
-                                                (out (or (and (not (eq :op prefix))
-                                                              (determine-symbolic-form idiom char))
-                                                         (if prefix (cons prefix (if tag (list tag char)
-                                                                                     (list char)))))))
-                                           (if out (values (cons out tokens) (1+ index)))))))
-           (token :symbol :process (let ((id-vars) (id-cons))
-                                     (flet ((match-varisym-char (char &optional first)
-                                              (or (is-alphanumeric char) (position char "_⎕∆⍙") ;; ¯
-                                                  (and (not first) (char= #\. char))))
-                                            (match-unisym-char (char &optional match)
-                                              (if match (char= char match)
-                                                  (position char "⍺⍵⍶⍹∇"))))
-                                       
-                                       (lambda (string index scratch tokens idiom)
-                                         (let ((symout) (path-start) (pre-symbol))
-                                           (unless id-vars
-                                             (setf id-vars (rest (assoc :variable (idiom-symbols idiom)))))
-                                           (unless id-cons
-                                             (setf id-cons (rest (assoc :constant (idiom-symbols idiom)))))
+ (entities (token  :blank  :process (let ((space-chars (coerce '(#\  #\Tab) 'string)))
+                                      (lambda (string index scratch tokens idiom)
+                                        (let ((matching t))
+                                          (loop :while (and matching (< index (length string)))
+                                                :do (if (position (aref string index) space-chars)
+                                                        (incf index)
+                                                        (setf matching nil)))
+                                          (values tokens index)))))
+           (token  :number :process (lambda (string index scratch tokens idiom)
+                                      ;; (print (list :b index string (aref string index)))
+                                      (let ((matching t) (start index))
+                                        ;; (vector-push #\  scratch)
+                                        (loop :while (and matching (< index (length string)))
+                                              :do (if (or (digit-char-p (aref string index))
+                                                          (position (aref string index) "._¯eEjJrR"))
+                                                      (progn (vector-push (aref string index) scratch)
+                                                             (incf index))
+                                                      (setf matching nil)))
+                                        ;; (print (list :sc scratch))
+                                        (when (and (listp (first tokens))
+                                                   (eq :op  (first (first tokens)))
+                                                   (eq :#\. (third (first tokens)))
+                                                   (not (zerop start))
+                                                   (char= #\. (aref string (1- start))))
+                                          (setf (aref scratch 0) #\.
+                                                tokens (rest tokens)))
+                                        ;; (print (list :sc scratch))
+                                        (if (< 0 (length scratch))
+                                            (let ((number-out (parse-apl-number-string scratch)))
+                                              (and number-out (values (cons number-out tokens) index)))))))
+           (token  :glyph  :process (lambda (string index scratch tokens idiom)
+                                      ;; (print (list :x index string (< index (length string))))
+                                      (declare (ignore scratch))
+                                      (if (< index (length string))
+                                          (let* ((char (aref string index))
+                                                 (prefix (cond ((of-lexicons idiom char :operators)
+                                                                (if (of-lexicons idiom char :statements)
+                                                                    :st :op))
+                                                               ((of-lexicons idiom char :functions)  :fn)
+                                                               ((of-lexicons idiom char :statements) :st)))
+                                                 (tag (if (eq :op prefix)
+                                                          (cond ((of-lexicons idiom char :operators-lateral)
+                                                                 :lateral)
+                                                                ((of-lexicons idiom char :operators-pivotal)
+                                                                 :pivotal))
+                                                          (and (eq :st prefix) :unitary)))
+                                                 (out (or (and (not (eq :op prefix))
+                                                               (determine-symbolic-form idiom char))
+                                                          (if prefix (cons prefix (if tag (list tag char)
+                                                                                      (list char)))))))
+                                            (if out (values (cons out tokens) (1+ index)))))))
+           (token  :symbol :process (let ((id-vars) (id-cons))
+                                      (flet ((match-varisym-char (char &optional first)
+                                               (or (is-alphanumeric char) (position char "_⎕∆⍙") ;; ¯
+                                                   (and (not first) (char= #\. char))))
+                                             (match-unisym-char (char &optional match)
+                                               (if match (char= char match)
+                                                   (position char "⍺⍵⍶⍹∇"))))
+                                        
+                                        (lambda (string index scratch tokens idiom)
+                                          (let ((symout) (path-start) (pre-symbol))
+                                            (unless id-vars
+                                              (setf id-vars (rest (assoc :variable (idiom-symbols idiom)))))
+                                            (unless id-cons
+                                              (setf id-cons (rest (assoc :constant (idiom-symbols idiom)))))
 
-                                           (when (char= #\⍬ (aref string index))
-                                             ;; the "zilde" character yields an empty vector symbol
-                                             (setf symout :empty-array)
-                                             (incf index))
+                                            (when (char= #\⍬ (aref string index))
+                                              ;; the "zilde" character yields an empty vector symbol
+                                              (setf symout :empty-array)
+                                              (incf index))
 
-                                           ;; match symbols whose appearance may end
-                                           ;; a preceding symbol, as for ⎕NS⍬
-                                           (when (and (not symout) (match-unisym-char (aref string index)))
-                                             (let ((matched (aref string index)))
-                                               (vector-push (aref string index) scratch)
-                                               (incf index)
-                                               (loop :while (and (< index (length string))
-                                                                 (match-unisym-char (aref string index)
-                                                                                    matched))
-                                                     :do (vector-push (aref string index) scratch)
-                                                         (incf index))
-                                               ;; the symbol may continue as a path if . is found and it is
-                                               ;; -no more- than 1 element long, i.e. ⍵.something,
-                                               ;; but ⍺⍺.⍵⍵ is not a path
-                                               (if (and (= 1 (fill-pointer scratch))
-                                                        (char= #\. (aref string index)))
-                                                   (setf path-start t) ;; indicating this begins a path
-                                                   (setf symout (intern scratch "APRIL")))))
+                                            ;; match symbols whose appearance may end
+                                            ;; a preceding symbol, as for ⎕NS⍬
+                                            (when (and (not symout) (match-unisym-char (aref string index)))
+                                              (let ((matched (aref string index)))
+                                                (vector-push (aref string index) scratch)
+                                                (incf index)
+                                                (loop :while (and (< index (length string))
+                                                                  (match-unisym-char (aref string index)
+                                                                                     matched))
+                                                      :do (vector-push (aref string index) scratch)
+                                                          (incf index))
+                                                ;; the symbol may continue as a path if . is found and it is
+                                                ;; -no more- than 1 element long, i.e. ⍵.something,
+                                                ;; but ⍺⍺.⍵⍵ is not a path
+                                                (if (and (= 1 (fill-pointer scratch))
+                                                         (char= #\. (aref string index)))
+                                                    (setf path-start t) ;; indicating this begins a path
+                                                    (setf symout (intern scratch "APRIL")))))
 
-                                           ;; match regular symbols used for variable/function names
-                                           (when (and (not symout) (match-varisym-char (aref string index)
-                                                                                       (not path-start)))
-                                             (when (char= #\⎕ (aref string index)) (setf pre-symbol t))
-                                             (unless (or (and (not path-start)
-                                                              (char= #\. (aref string index)))
-                                                         (digit-char-p (aref string index)))
+                                            ;; match regular symbols used for variable/function names
+                                            (when (and (not symout) (match-varisym-char (aref string index)
+                                                                                        (not path-start)))
+                                              (when (char= #\⎕ (aref string index)) (setf pre-symbol t))
+                                              (unless (or (and (not path-start)
+                                                               (char= #\. (aref string index)))
+                                                          (digit-char-p (aref string index)))
 
-                                               (vector-push (aref string index) scratch)
-                                               (incf index)
+                                                (vector-push (aref string index) scratch)
+                                                (incf index)
 
-                                               (loop :while (and (< index (length string))
-                                                                 (match-varisym-char (aref string index)))
-                                                     :do (vector-push (aref string index) scratch)
-                                                         (incf index))
-                                               
-                                               (when pre-symbol ;; find quad symbol's reference
-                                                 (setf pre-symbol (find-symbol (string-upcase scratch)
-                                                                               "APRIL")))
-                                               (setf symout (or (and pre-symbol
-                                                                     (or (getf id-vars pre-symbol)
-                                                                         (getf id-cons pre-symbol)))
-                                                                (intern scratch)))))
-                                           
-                                           (and symout (values (cons symout tokens) index)))))))
+                                                (loop :while (and (< index (length string))
+                                                                  (match-varisym-char (aref string index)))
+                                                      :do (vector-push (aref string index) scratch)
+                                                          (incf index))
+                                                
+                                                (when pre-symbol ;; find quad symbol's reference
+                                                  (setf pre-symbol (find-symbol (string-upcase scratch)
+                                                                                "APRIL")))
+                                                (setf symout (or (and pre-symbol
+                                                                      (or (getf id-vars pre-symbol)
+                                                                          (getf id-cons pre-symbol)))
+                                                                 (intern scratch)))))
+                                            
+                                            (and symout (values (cons symout tokens) index)))))))
            
            (divider :break    :match '(#\⋄ #\◊ #\Newline #\Return))
            (divider :axdiv    :match #\;) ;; axis divider
            (divider :guard    :match #\:) ;; guard indicator
-           ;; (token   :number   :match (lambda (char) (or (digit-char-p char)
-           ;;                                              (position char "._¯eEjJrR" :test #'char=))))
-           ;; (token   :name     :match (lambda (char) (or (is-alphanumeric char)
-           ;;                                              (position char "._⎕∆⍙¯" :test #'char=))))
+
            (section :body     :base t
                               :divide (lambda (type collected)
                                         (case type
@@ -295,14 +292,14 @@
                   :function-inversion-tests :namespace-tests :printed-format-tests))
 
  ;; utilities for compiling the language
- (utilities :match-blank-character (let ((cstring (coerce '(#\  #\Tab) 'string)))
-                                     (lambda (char) (position char cstring :test #'char=)))
-            ;; set the language's valid blank, newline characters and token characters
-            :match-numeric-character
-            (let ((other-chars))
-              (lambda (char idiom)
-                (unless other-chars (setf other-chars (of-system idiom :supplemental-numeric-chars)))
-                (or (digit-char-p char) (position char other-chars :test #'char=))))
+ (utilities ;; :match-blank-character (let ((cstring (coerce '(#\  #\Tab) 'string)))
+            ;;                          (lambda (char) (position char cstring :test #'char=)))
+            ;; ;; set the language's valid blank, newline characters and token characters
+            ;; :match-numeric-character
+            ;; (let ((other-chars))
+            ;;   (lambda (char idiom)
+            ;;     (unless other-chars (setf other-chars (of-system idiom :supplemental-numeric-chars)))
+            ;;     (or (digit-char-p char) (position char other-chars :test #'char=))))
             :expresser-test
             (lambda (line)
               (cape::provision-processors #'process-value #'process-function #'process-operator)
@@ -315,24 +312,24 @@
                 (or (is-alphanumeric char) (position char other-chars :test #'char=))))
             ;; match characters that can only appear in homogenous symbols, this is needed so that
             ;; things like ⍺⍺.⍵⍵, ⍺∇⍵ or ⎕NS⍬ can work without spaces between the symbols
-            :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬" :test #'char=))
+            ;; :match-uniform-token-character (lambda (char) (position char "⍺⍵⍶⍹∇⍬" :test #'char=))
             ;; match characters specifically representing function/operator arguments, this is needed
             ;; so ⍵.path.to will work
-            :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹" :test #'char=))
+            ;; :match-arg-token-character (lambda (char) (position char "⍺⍵⍶⍹" :test #'char=))
             ;; match characters used to link parts of paths together like namespace.path.to,
             ;; this is needed so that ⍵.path.to will work
-            :match-path-joining-character (let ((chars))
-                                            (lambda (char idiom)
-                                              (unless chars (setf chars (of-system idiom :path-separators)))
-                                              (position char chars :test #'char=)))
+            ;; :match-path-joining-character (let ((chars))
+            ;;                                 (lambda (char idiom)
+            ;;                                   (unless chars (setf chars (of-system idiom :path-separators)))
+            ;;                                   (position char chars :test #'char=)))
             ;; overloaded numeric characters may be functions or operators or may be part of a numeric token
             ;; depending on their context
-            :match-overloaded-numeric-character (lambda (char) (char= char #\.))
+            ;; :match-overloaded-numeric-character (lambda (char) (char= char #\.))
             ;; macro to process lexical specs of functions and operators
             :process-fn-op-specs #'process-fnspecs
             :test-parameters '((:space unit-test-staging))
-            :number-formatter #'parse-apl-number-string
-            :format-value #'format-value
+            ;; :number-formatter #'parse-apl-number-string
+            ;; :format-value #'format-value
             ;; process system state input passed as with (april (with (:state ...)) "...")
             :preprocess-state-input
             (lambda (state)

@@ -1102,29 +1102,29 @@
                          :do (setf (aref output i) (aref " 0" start-at)))))
              output))))
 
-(defun format-value (idiom-name symbols element)
-  "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
-  (cond ((string= element "⍬")
-         ;; APL's "zilde" character yields a keyword the compiler translates to an empty vector
-         :empty-array)
-        ((or (and (char= #\" (aref element 0))
-                  (char= #\" (aref element (1- (length element)))))
-             (and (char= #\' (aref element 0))
-                  (char= #\' (aref element (1- (length element))))))
-         ;; strings are converted to Lisp strings and passed through,
-         ;; unless they're one element in which case the character is disclosed
-         (if (= 3 (length element))
-             (aref element 1) (subseq element 1 (1- (length element)))))
-        ((position element #("⍺" "⍵" "⍶" "⍹" "∇" "⍺⍺" "⍵⍵" "∇∇") :test #'string=)
-         ;; alpha and omega characters are directly changed to symbols in the April package
-         (values (find-symbol element idiom-name) t))
-        (t (or (parse-apl-number-string element)
-               (and (char= #\⎕ (aref element 0))
-                    (or (getf (rest (assoc :variable symbols))
-                              (find-symbol (string-upcase element) *package-name-string*))
-                        (getf (rest (assoc :constant symbols))
-                              (find-symbol (string-upcase element) *package-name-string*))))
-               (values (intern element) t)))))
+;; (defun format-value (idiom-name symbols element)
+;;   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
+;;   (cond ((string= element "⍬")
+;;          ;; APL's "zilde" character yields a keyword the compiler translates to an empty vector
+;;          :empty-array)
+;;         ((or (and (char= #\" (aref element 0))
+;;                   (char= #\" (aref element (1- (length element)))))
+;;              (and (char= #\' (aref element 0))
+;;                   (char= #\' (aref element (1- (length element))))))
+;;          ;; strings are converted to Lisp strings and passed through,
+;;          ;; unless they're one element in which case the character is disclosed
+;;          (if (= 3 (length element))
+;;              (aref element 1) (subseq element 1 (1- (length element)))))
+;;         ((position element #("⍺" "⍵" "⍶" "⍹" "∇" "⍺⍺" "⍵⍵" "∇∇") :test #'string=)
+;;          ;; alpha and omega characters are directly changed to symbols in the April package
+;;          (values (find-symbol element idiom-name) t))
+;;         (t (or (parse-apl-number-string element)
+;;                (and (char= #\⎕ (aref element 0))
+;;                     (or (getf (rest (assoc :variable symbols))
+;;                               (find-symbol (string-upcase element) *package-name-string*))
+;;                         (getf (rest (assoc :constant symbols))
+;;                               (find-symbol (string-upcase element) *package-name-string*))))
+;;                (values (intern element) t)))))
 
 (defun apl-timestamp ()
   "Generate an APL timestamp, a vector of the current year, month, day, hour, minute, second and millisecond."
