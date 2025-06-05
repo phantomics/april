@@ -713,7 +713,7 @@
                  (let ((index start) (tzlist tokenizers) (tokens (first output)))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
-                                 (funcall (first tzlist) string index scratch tokens idiom)
+                                 (funcall (first tzlist) string index end scratch tokens idiom)
                                (if (second tzlist) (pop tzlist)
                                    (setf tzlist tokenizers))
                                (when (not (zerop (fill-pointer scratch)))

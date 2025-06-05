@@ -1102,6 +1102,66 @@
                          :do (setf (aref output i) (aref " 0" start-at)))))
              output))))
 
+(let ((id-vars) (id-cons))
+  (flet ((match-varisym-char (char &optional first)
+           ;; match regular symbols used for assigned variable/function names
+           (or (is-alphanumeric char) (position char "_⎕∆⍙") ;; ¯
+               (and (not first) (char= #\. char))))
+         (match-unisym-char (char &optional match)
+           ;; match uniform symbols whose appearance may end a preceding symbol, as for ⎕NS⍬
+           ;; valid multi-character symbols using these characters can only be uniform, like ⍺⍺, ⍵⍵ or ∇∇
+           (if match (char= char match) (position char "⍺⍵⍶⍹∇"))))
+    
+    (defun process-symbol-token (string index end scratch tokens idiom)
+      "Process characters that may make up part of a symbol token. This is complex enough it is implementd here instead of directly inside the April idiom spec."
+      (let ((symout) (path-start) (pre-symbol))
+        (unless id-vars (setf id-vars (rest (assoc :variable (idiom-symbols idiom)))))
+        (unless id-cons (setf id-cons (rest (assoc :constant (idiom-symbols idiom)))))
+
+        (when (char= #\⍬ (aref string index))
+          (setf symout :empty-array)  ;; the "zilde" character yields an empty vector symbol
+          (incf index))
+
+        ;; match uniform symbols, which may form the beginning of a path like ⍵.something
+        (unless (or symout (not (match-unisym-char (aref string index))))
+          (let ((matched (aref string index)))
+            (vector-push (aref string index) scratch)
+            (incf index)
+            
+            (loop :while (and (< index end) (match-unisym-char (aref string index) matched))
+                  :do (vector-push (aref string index) scratch)
+                      (incf index))
+            ;; the symbol may continue as a path if . is found after the first character, as with
+            ;; ⍵.a.b, but a multicharacter uniform symbol can't be part of a path since all multicharacter
+            ;; uniform symbols represent functions, as with the function composition ⍺⍺.⍵⍵
+            (if (and (= 1 (fill-pointer scratch)) (char= #\. (aref string index)))
+                (setf path-start t) ;; indicating this begins a path
+                (setf symout (intern scratch "APRIL")))))
+
+        ;; match regular symbols used for variable/function names; may continue a path
+        (unless (or symout (not (match-varisym-char (aref string index) (not path-start))))
+          (when (char= #\⎕ (aref string index)) (setf pre-symbol t)) ;; identify quad-prefixed names
+
+          ;; if a path is already started, as for ⍵.a.b, the symbol may begin with .,
+          ;; otherwise the symbol is not valid; paths also may not start with a number
+          (when (and (or path-start (not (char= #\. (aref string index))))
+                     (not (digit-char-p (aref string index))))
+
+            (vector-push (aref string index) scratch)
+            (incf index)
+
+            (loop :while (and (< index end) (match-varisym-char (aref string index)))
+                  :do (vector-push (aref string index) scratch)
+                      (incf index))
+
+            ;; in the case of a ⎕ quad-prefixed name, fetch the referenced symbol
+            (when pre-symbol (setf pre-symbol (find-symbol (string-upcase scratch) "APRIL")))
+            (setf symout (or (and pre-symbol (or (getf id-vars pre-symbol)
+                                                 (getf id-cons pre-symbol)))
+                             (intern scratch)))))
+        
+        (and symout (values (cons symout tokens) index))))))
+
 ;; (defun format-value (idiom-name symbols element)
 ;;   "Convert a token string into an APL value, paying heed to APL's native ⍺, ⍵ and ⍬ variables."
 ;;   (cond ((string= element "⍬")
@@ -2410,11 +2470,9 @@
                        (push-char-and-aliases :operators-lcontrolled-pivotal))
                    (push (second implementation) assignment-forms))
                   (:unitary (incf op-count)
-                   (push-char-and-aliases :operators :statements)
-                   ;; TODO: 
-                   ;; (case spec-type
-                   ;;   (:operators  (push-char-and-aliases :operators))
-                   ;;   (:statements (push-char-and-aliases :statements)))
+                   (case spec-type
+                     (:operators  (push-char-and-aliases :operators))
+                     (:statements (push-char-and-aliases :statements)))
                    (push (second implementation) assignment-forms)))
 
                 ;; push a symbol-value assignment if a symbolic
