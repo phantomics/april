@@ -1022,6 +1022,12 @@
 (defun evstatic-if (condition form)
   (if (not condition) form (eval form)))
 
+(defun determine-symbolic-form (idiom char)
+  (and (not (of-lexicons idiom char :operators))
+       (of-lexicons idiom char :symbolic-forms)
+       (symbol-value (find-symbol (format nil "~a-LEX-SY-~a" (idiom-name idiom) char)
+                                  (string (idiom-name idiom))))))
+
 (defun print-apl-number-string (number &optional segments precision decimals realpart-multisegment)
   "Format a number as appropriate for APL, using high minus signs and J-notation for complex numbers, optionally at a given precision and post-decimal length for floats."
   (cond ((complexp number)
@@ -2405,6 +2411,10 @@
                    (push (second implementation) assignment-forms))
                   (:unitary (incf op-count)
                    (push-char-and-aliases :operators :statements)
+                   ;; TODO: 
+                   ;; (case spec-type
+                   ;;   (:operators  (push-char-and-aliases :operators))
+                   ;;   (:statements (push-char-and-aliases :statements)))
                    (push (second implementation) assignment-forms)))
 
                 ;; push a symbol-value assignment if a symbolic

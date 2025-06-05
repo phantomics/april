@@ -689,24 +689,23 @@
         
         (values (reverse returned) dl-indices)))))
 
-(defun tokenize (idiom tokenizers tokens string start count scratch)
-  (let ((index start))
-    ;; (print (list :id idiom tokenizers tokens string start count scratch))
-    (loop :while (< index count)
-          :do (loop :for tokenizer :in tokenizers :while (< index count)
-                    :do (multiple-value-bind (tokens-out index-out)
-                            (funcall tokenizer string index scratch tokens idiom)
-                          ;; (print (list :ind tokens-out index-out tokens index))
-                          (when (not (zerop (fill-pointer scratch)))
-                            (adjust-array scratch 127 :fill-pointer 0))
-                          (when index-out (setf tokens tokens-out
-                                                index  index-out)))))
+(defun tokenize (idiom tokenizers tokens string start end scratch)
+  (let ((index start) (tzlist tokenizers))
+    (loop :while (< index end)
+          :do (multiple-value-bind (tokens-out index-out)
+                  (funcall (first tzlist) string index scratch tokens idiom)
+                (if (second tzlist) (pop tzlist)
+                    (setf tzlist tokenizers))
+                (when (not (zerop (fill-pointer scratch)))
+                  (adjust-array scratch 128 :fill-pointer 0))
+                (when index-out (setf tokens tokens-out
+                                      index  index-out))))
     tokens))
 
 (defun construct (string idiom workspace)
   (let ((bounds (list (length string)))
         (cl-meta) (split) (formats) (index 0) (output (list nil nil))
-        (scratch (make-array 127 :element-type 'character :adjustable t :fill-pointer 0))
+        (scratch (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
         (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
         (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
                             :by #'cddr :when (getf val :base) :return (getf val :divide)))
@@ -716,24 +715,28 @@
                            (lambda (&rest args) (first args)))))
     ;; (print (list :m map bounds tokenizers))
     (labels ((lex-chars (start end)
+               ;; _if_ ← {(⍺⍺⍣(⍵⍵ ⍵))⍵} ⋄ ((+∘1) _if_ (>∘0))¨5 0 ¯5 9 ¯9
+               ;; 3+$[5>6;1;7>8;2;3]
                ;; this function calls the lexer on characters within a section
                ;; given start and end points in the original string
                ;; (print (list :tk (tokenize idiom tokenizers (first output)
-               ;;                            string start (- end start) scratch)))
-               (let ((parsed (parse (make-array (- end start) :displaced-index-offset start
-                                                              :element-type 'character :displaced-to string)
-                                    (=vex-string idiom (first output)))
-                             ;; (tokenize idiom tokenizers (first output)
-                             ;;           string start (- end start) scratch)
+               ;;                            string start end scratch)))
+               (let ((parsed ;; (parse (make-array (- end start) :displaced-index-offset start
+                             ;;                                  :element-type 'character :displaced-to string)
+                             ;;        (=vex-string idiom (first output)))
+                             (tokenize idiom tokenizers (first output) string start end scratch)
                              ))
                  ;; (print (list :pr parsed))
-                 (when (getf (third parsed) :overloaded-num-char)
-                   ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
-                   (push (list :op :pivotal #\.) (first parsed)))
-                 (setf cl-meta (cons :meta (third parsed))
-                       output  (cons (first parsed) (rest output)))
+                 ;;              (parse (make-array (- end start) :displaced-index-offset start
+                 ;;                                               :element-type 'character :displaced-to string)
+                 ;;                     (=vex-string idiom (first output)))))
+                 ;; (when (getf (third parsed) :overloaded-num-char)
+                 ;;   ;; TODO: THIS IS HARDCODED SUPPORT FOR I.E. ∘.; NEEDS TO BE NORMALIZED
+                 ;;   (push (list :op :pivotal #\.) (first parsed)))
+                 ;; (setf ;; cl-meta (cons :meta (third parsed))
+                 ;;       output  (cons (first parsed) (rest output)))
 
-                 ;; (setf output (cons parsed (rest output)))
+                 (setf output (cons parsed (rest output)))
                  ))
              (close-bound ()
                ;; this closes out a section when its end comes before the next divider or section start point

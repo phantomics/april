@@ -15,4 +15,5 @@
                (:file "functions")
                (:file "grammar")
                (:file "spec")
-               (:file "novelties")))
+               (:file "novelties")
+               ))
