@@ -2221,7 +2221,9 @@
                "2.72 7.39 20.1  2.71828 7.38906 20.0855")
   (for "Alphabetical and numeric vectors." "⎕pp←10 ⋄ ⎕a,⎕d" "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
   (for "Seven elements in the timestamp vector." "⍴⎕ts" #(7))
-  (for "Characters to unicode indices." "⎕ucs 'abcd'" #(97 98 99 100))
+  (for "Character to Unicode index." "⎕ucs 'z'" 122)
+  (for "Unicode index to character." "⎕ucs 101" #\e)
+  (for "Characters to Unicode indices." "⎕ucs 'abcd'" #(97 98 99 100))
   (for "Unicode indices to characters." "⎕ucs 13 10" #(#\Return #\Newline))
   (for "3D array formatted as matrix." "↓⎕fmt 2 3 3⍴⍳9" #("1 2 3"
                                                           "4 5 6"

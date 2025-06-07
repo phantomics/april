@@ -1499,16 +1499,19 @@
 
 (defun scalar-code-char (input) ;; TODO: add left arg? 'UTF-8', 16 or 32
   "Convert Unicode characters into integers and vice versa. Used to implement ⎕UCS."
-  (flet ((convert (char) (typecase char (character (char-code char)) (integer (code-char char)))))
-    (let ((varray (make-instance 'vader-calculate :function #'convert :base (list input))))
-      ;; TODO: implement typing for scalar character conversion
-      ;; (setf (etype-of varray)
-      ;;       (case (etype-of input)
-      ;;         (character '(unsigned-byte 32))
-      ;;         (list (if (eql 'unsigned-byte (first list))
-      ;;                   'character)))
-      ;; (print (etype-of input))
-      varray)))
+  (typecase input
+    (character (char-code input))
+    (integer   (code-char input))
+    (t (flet ((convert (char) (typecase char (character (char-code char)) (integer (code-char char)))))
+         (let ((varray (make-instance 'vader-calculate :function #'convert :base (list input))))
+           ;; TODO: implement typing for scalar character conversion
+           ;; (setf (etype-of varray)
+           ;;       (case (etype-of input)
+           ;;         (character '(unsigned-byte 32))
+           ;;         (list (if (eql 'unsigned-byte (first list))
+           ;;                   'character)))
+           ;; (print (etype-of input))
+           varray)))))
 
 (defun external-workspace-value (symbol-string &optional space-string)
   "Import a value from an external workspace, implementing the ⎕XWV function."
