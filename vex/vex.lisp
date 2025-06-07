@@ -689,39 +689,42 @@
         
         (values (reverse returned) dl-indices)))))
 
-(let ((base-divider) (tokenizers))
+(let ((base-divider) (tkeys))
   (defun construct (string idiom workspace)
-    (let ((bounds (list (length string)))
-          (cl-meta) (split) (formats) (index 0) (output (list nil nil))
-          (scratch (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
-          (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
-          (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-                              :by #'cddr :when (getf val :base) :return (getf val :divide)))
-          (tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-                            :by #'cddr :when (getf val :process) :collect (getf val :process)))
-          (postprocessor (or (of-utilities idiom :lexer-postprocess)
-                             (lambda (&rest args) (first args)))))
+    (let* ((bounds (list (length string)))
+           (cl-meta) (split) (formats) (index 0) (output (list nil nil))
+           (especs (getf (idiom-utilities idiom) :entity-specs))
+           (scratch (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
+           (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
+           (base-divider (loop :for (key val) :on especs :by #'cddr
+                               :when (getf val :base) :return (getf val :divide)))
+           (tokenizers (loop :for (key val) :on especs :by #'cddr
+                             :when (getf val :process) :collect (getf val :process)))
+           (postprocessor (or (of-utilities idiom :lexer-postprocess)
+                              (lambda (&rest args) (first args)))))
       ;; (print (list :m map bounds tokenizers))
 
       ;; (unless base-divider
       ;;   (setf base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
       ;;                            :by #'cddr :when (getf val :base) :return (getf val :divide))))
 
-      ;; (unless tokenizers
-      ;;   (setf tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-      ;;                          :by #'cddr :when (getf val :process) :collect (getf val :process))))
+      (unless nil ; tokenizers
+        (setf tkeys (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+                          :by #'cddr :when (getf val :process) :collect key)))
       
       (labels ((lex-chars (start end)
                  ;; this function calls the lexer on characters within a section
                  ;; given start and end points in the original string
-                 (let ((index start) (tklist tokenizers) (tokens (first output))
-                       (tkindex 0) (limit (length tokenizers)))
+                 (let ((index start) (tklist tkeys) (tokens (first output))
+                       (tkindex 0) (limit (length tkeys)))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
-                                 (funcall (first tklist) string index end scratch tokens idiom)
+                                 (funcall (getf (getf especs (first tklist)) :process)
+                                          (getf especs (first tklist))
+                                          string index end scratch tokens idiom)
                                (incf tkindex)
                                (if (second tklist) (pop tklist)
-                                   (setf tklist tokenizers))
+                                   (setf tklist tkeys))
                                (when (not (zerop (fill-pointer scratch)))
                                  (adjust-array scratch 128 :fill-pointer 0))
                                (if index-out (setf tokens  tokens-out

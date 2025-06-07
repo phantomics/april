@@ -1102,6 +1102,9 @@
                          :do (setf (aref output i) (aref " 0" start-at)))))
              output))))
 
+(defun find-char (string index set)
+  (position (aref string index) set :test #'char=))
+
 (let ((id-vars) (id-cons))
   (flet ((match-varisym-char (char &optional first)
            ;; match regular symbols used for assigned variable/function names
@@ -1112,7 +1115,7 @@
            ;; valid multi-character symbols using these characters can only be uniform, like ⍺⍺, ⍵⍵ or ∇∇
            (if match (char= char match) (position char "⍺⍵⍶⍹∇" :test #'char=))))
     
-    (defun process-symbol-token (string index end scratch tokens idiom)
+    (defun process-symbol-token (props string index end scratch tokens idiom)
       "Process characters that may make up part of a symbol token. This is complex enough it is implemented here instead of directly inside the April idiom spec."
       (let ((symout) (path-start) (pre-symbol))
         (unless id-vars (setf id-vars (rest (assoc :variable (idiom-symbols idiom)))))
