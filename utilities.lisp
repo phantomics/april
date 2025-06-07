@@ -1113,7 +1113,7 @@
            (if match (char= char match) (position char "⍺⍵⍶⍹∇" :test #'char=))))
     
     (defun process-symbol-token (string index end scratch tokens idiom)
-      "Process characters that may make up part of a symbol token. This is complex enough it is implementd here instead of directly inside the April idiom spec."
+      "Process characters that may make up part of a symbol token. This is complex enough it is implemented here instead of directly inside the April idiom spec."
       (let ((symout) (path-start) (pre-symbol))
         (unless id-vars (setf id-vars (rest (assoc :variable (idiom-symbols idiom)))))
         (unless id-cons (setf id-cons (rest (assoc :constant (idiom-symbols idiom)))))
