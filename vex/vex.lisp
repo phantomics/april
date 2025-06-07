@@ -695,31 +695,39 @@
           (cl-meta) (split) (formats) (index 0) (output (list nil nil))
           (scratch (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
           (map (funcall (getf (idiom-utilities idiom) :map-sections) idiom string))
+          (base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+                              :by #'cddr :when (getf val :base) :return (getf val :divide)))
+          (tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+                            :by #'cddr :when (getf val :process) :collect (getf val :process)))
           (postprocessor (or (of-utilities idiom :lexer-postprocess)
                              (lambda (&rest args) (first args)))))
       ;; (print (list :m map bounds tokenizers))
 
-      (unless base-divider
-        (setf base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-                                 :by #'cddr :when (getf val :base) :return (getf val :divide))))
+      ;; (unless base-divider
+      ;;   (setf base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+      ;;                            :by #'cddr :when (getf val :base) :return (getf val :divide))))
 
-      (unless tokenizers
-        (setf tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-                               :by #'cddr :when (getf val :process) :collect (getf val :process))))
+      ;; (unless tokenizers
+      ;;   (setf tokenizers (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
+      ;;                          :by #'cddr :when (getf val :process) :collect (getf val :process))))
       
       (labels ((lex-chars (start end)
                  ;; this function calls the lexer on characters within a section
                  ;; given start and end points in the original string
-                 (let ((index start) (tzlist tokenizers) (tokens (first output)))
+                 (let ((index start) (tklist tokenizers) (tokens (first output))
+                       (tkindex 0) (limit (length tokenizers)))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
-                                 (funcall (first tzlist) string index end scratch tokens idiom)
-                               (if (second tzlist) (pop tzlist)
-                                   (setf tzlist tokenizers))
+                                 (funcall (first tklist) string index end scratch tokens idiom)
+                               (incf tkindex)
+                               (if (second tklist) (pop tklist)
+                                   (setf tklist tokenizers))
                                (when (not (zerop (fill-pointer scratch)))
                                  (adjust-array scratch 128 :fill-pointer 0))
-                               (when index-out (setf tokens tokens-out
-                                                     index  index-out))))
+                               (if index-out (setf tokens  tokens-out
+                                                   index   index-out
+                                                   tkindex 0)
+                                   (if (= limit tkindex) (error "Invalid syntax.")))))
                    (setf output (cons tokens (rest output)))))
                (close-bound ()
                  ;; this closes out a section when its end comes before the next divider or section start point

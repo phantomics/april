@@ -1105,12 +1105,12 @@
 (let ((id-vars) (id-cons))
   (flet ((match-varisym-char (char &optional first)
            ;; match regular symbols used for assigned variable/function names
-           (or (is-alphanumeric char) (position char "_⎕∆⍙") ;; ¯
+           (or (is-alphanumeric char) (position char "_⎕∆⍙" :test #'char=) ;; ¯
                (and (not first) (char= #\. char))))
          (match-unisym-char (char &optional match)
            ;; match uniform symbols whose appearance may end a preceding symbol, as for ⎕NS⍬
            ;; valid multi-character symbols using these characters can only be uniform, like ⍺⍺, ⍵⍵ or ∇∇
-           (if match (char= char match) (position char "⍺⍵⍶⍹∇"))))
+           (if match (char= char match) (position char "⍺⍵⍶⍹∇" :test #'char=))))
     
     (defun process-symbol-token (string index end scratch tokens idiom)
       "Process characters that may make up part of a symbol token. This is complex enough it is implementd here instead of directly inside the April idiom spec."
@@ -1315,9 +1315,8 @@
                                                                ))
                                              :get-metadata)
                         (error () nil)))
-             (is-scalar (of-lexicons idiom glyph-char
-                                     (if (eq :dyadic args) :functions-scalar-dyadic
-                                         :functions-scalar-monadic))))
+             (is-scalar (of-lexicons idiom glyph-char (if (eq :dyadic args) :functions-scalar-dyadic
+                                                          :functions-scalar-monadic))))
         ;; TODO: resolve issue with :dyadic args, need to build call form differently whether
         ;; there's a left argument or not
         (append (list (intern (if is-scalar "APL-FN-S" "APL-FN")
@@ -1500,10 +1499,16 @@
 
 (defun scalar-code-char (input) ;; TODO: add left arg? 'UTF-8', 16 or 32
   "Convert Unicode characters into integers and vice versa. Used to implement ⎕UCS."
-  (if (characterp input) (char-code input)
-      (if (and (arrayp input) (eql 'character (element-type input)))
-          (apply-scalar #'char-code input)
-          (apply-scalar #'code-char input))))
+  (flet ((convert (char) (typecase char (character (char-code char)) (integer (code-char char)))))
+    (let ((varray (make-instance 'vader-calculate :function #'convert :base (list input))))
+      ;; TODO: implement typing for scalar character conversion
+      ;; (setf (etype-of varray)
+      ;;       (case (etype-of input)
+      ;;         (character '(unsigned-byte 32))
+      ;;         (list (if (eql 'unsigned-byte (first list))
+      ;;                   'character)))
+      ;; (print (etype-of input))
+      varray)))
 
 (defun external-workspace-value (symbol-string &optional space-string)
   "Import a value from an external workspace, implementing the ⎕XWV function."

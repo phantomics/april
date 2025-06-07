@@ -26,7 +26,6 @@
                                                  :do (incf index))
                                            (values tokens index))))
            (token   :number   :process (lambda (string index end scratch tokens idiom)
-                                         ;; (print (list :b index string (aref string index)))
                                          (let ((start index))
                                            (loop :while (and (< index end)
                                                              (or (digit-char-p (aref string index))
@@ -134,7 +133,6 @@
                                                                             (cons (foldin collected)
                                                                                   (cddr collected))))))
                                           (:axial (error "Misplaced ; axis separator in {function}."))))
-
                               :finish (labels ((rmnils (form) ;; remove nil values from list
                                                  (loop :for f :in form :when f :collect f))
                                                (gather-guards (series &optional clauses)
@@ -1047,9 +1045,8 @@
             (is "⊃⊃0 0 0⊂⍳3 3" #*00)))
   (⊆ (has :titles ("Nest" "Partition"))
      (ambivalent (λω (make-instance 'vader-partition :index-origin index-origin :base omega))
-                 (λωα (make-instance 'vader-partition
-                                     :argument alpha :index-origin index-origin :base omega
-                                     :axis (or (first axes) :last))))
+                 (λωα (make-instance 'vader-partition :argument alpha :index-origin index-origin
+                                                      :base omega :axis (or (first axes) :last))))
      (meta (primary :axes axes :implicit-args (index-origin))
            (monadic :inverse #'identity)
            (dyadic :on-axis :last))

@@ -2061,8 +2061,8 @@
                      :when (or (< current-interval pos)
                                (and (zerop pos) (not (zerop current-interval))))
                        :do (setq r-indices (cons p r-indices)
-                                 r-intervals (when (rest r-indices)
-                                               (cons interval-size r-intervals)))
+                                 r-intervals (and (rest r-indices)
+                                                  (cons interval-size r-intervals)))
                            (incf partitions (if (zerop pos) 0 1))
                            (setq current-interval pos interval-size 0))
                ;; add the last entry to the intervals provided the
@@ -2105,8 +2105,7 @@
              (indices (getf (vapart-params varray) :indices))
              (base-gen (generator-of (vader-base varray)))
              (axis (vads-axis varray))
-             (section-size (reduce #'* (loop :for d :in idims :for dx :from 0
-                                             :when (> dx axis) :collect d)))
+             (section-size (reduce #'* (loop :for d :in idims :for dx :from 0 :when (> dx axis) :collect d)))
              (output-shape (shape-of varray))
              (ofactors (strides-of output-shape t))
              (ifactors (strides-of idims t))

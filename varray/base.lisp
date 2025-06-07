@@ -335,8 +335,8 @@
   (varray-meta varray))
 
 (defmethod assign-rank ((item t) rank)
-  (declare (ignore item rank))
   "The default case of rank assignment is to return nil."
+  (declare (ignore item rank))
   nil)
 
 (defmethod render ((item t) &rest params)

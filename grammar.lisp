@@ -379,11 +379,11 @@
                       axes))
       (cond ((and (not left) (eq :special-lexical-form-assign (first tokens)))
              ;; if a ← is encountered, this is a value assignment form
-             (let* ((ola-form (getf (idiom-system local-idiom) :overloaded-assignment-form))
-                    (ol-operator (and ola-form (process-operator (second tokens) params space))))
-               (if ol-operator (build-value (cons ola-form (rest tokens))
-                                            :elements elements :space space :params params :left left)
-                   (complete-value-assignment (rest tokens) elements space params axes))))
+             ;; (let* ((ola-form (getf (idiom-system local-idiom) :overloaded-assignment-form))
+             ;;        (ol-operator (and ola-form (process-operator (second tokens) params space))))
+             ;;   (if ol-operator (build-value (cons ola-form (rest tokens))
+             ;;                                :elements elements :space space :params params :left left)
+             (complete-value-assignment (rest tokens) elements space params axes))
             ((and (not left) (eq :special-lexical-form-branch (first tokens)))
              (complete-branch-composition (rest tokens)
                                           (build-value nil :elements elements :axes axes

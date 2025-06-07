@@ -15,7 +15,10 @@
            #:vader-matrix-divide #:vader-encode #:vader-decode #:vader-identity #:vader-subarray
            #:vader-subarray-displaced #:vader-composing #:op-compose #:vacomp-reduce
            #:vacomp-scan #:vacomp-each #:vacomp-produce #:vacomp-stencil
-           #:inverse-count-to #:varray-compare)
+           #:inverse-count-to #:varray-compare
+
+           ;; for development of virtual arrays
+           #:vader-base)
   (:shadowing-import-from #:alexandria #:iota)
   #+(not clasp) (:shadowing-import-from #:serapeum #:count-cpus)
   (:shadowing-import-from #:random-state #:make-generator #:random-int #:random-float)
