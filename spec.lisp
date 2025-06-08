@@ -93,15 +93,16 @@
                                                                           (< index (1- (length string)))
                                                                           (char= char (aref string
                                                                                             (1+ index))))))
-                                                    ;; (print (list :iq is-quote char (aref string index)))
                                                     (when next-quote (setf (aref string (1+ index)) #\ ))
                                                     (and is-quote (not next-quote))))))
                                        (lambda (string index)
                                          (let ((pos (position (aref string index) "'\"" :test #'char=)))
                                            (when pos (match-end (aref "'\"" pos))))))
-                              :format (lambda (string start end)
+                              :format (lambda (string start end collected)
                                         (let ((length (- end start 1)))
-                                          (if (= 1 length) (aref string (1+ start))
+                                          (if (= 1 length)
+                                              (cons (cons (aref string (1+ start)) (first collected))
+                                                    (rest collected))
                                               ;; expressing a one-length string like 'a' returns character #\a
                                               (let ((output) (qchar (aref string start)))
                                                 (loop :for i :from (1+ start) :below end
@@ -111,8 +112,9 @@
                                                       :do (setf (aref output ix) (aref string i))
                                                           (when (char= qchar (aref string i))
                                                             (incf i)))
-                                                output)))))
-           (section :closure  :delimit "()"
+                                                (cons (cons output (first collected))
+                                                      (rest collected)))))))
+           (section :closure  :bounds "()"
                               :create (lambda (collected) (cons nil collected))
                               :divide (lambda (type collected)
                                         (declare (ignore type collected))
@@ -120,7 +122,7 @@
                               :finish (lambda (collected)
                                         (cons (cons (first collected) (second collected))
                                               (cddr collected))))
-           (section :function :delimit "{}"
+           (section :function :bounds "{}"
                               :create (lambda (collected) (cons nil (cons nil collected)))
                               :divide (lambda (type collected)
                                         (case type
@@ -171,7 +173,7 @@
                                                           (third collected))
                                                     (cdddr collected))))))
            
-           (section :axes     :delimit "[]"
+           (section :axes     :bounds "[]"
                               :create (lambda (collected) (cons nil (cons nil (cons nil collected))))
                               :divide (lambda (type collected)
                                         (case type

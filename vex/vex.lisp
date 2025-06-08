@@ -560,7 +560,7 @@
           (case spec-type
             (:section
              ;; specify start and end qualifiers for a section
-             (let ((delimiters (getf spec :delimit)) (divider (getf spec :divide))
+             (let ((delimiters (getf spec :bounds)) (divider (getf spec :divide))
                    (start (getf spec :start)) (end (getf spec :end)) (finish (getf spec :finish)))
                (push spec-name spec-names)
                (push (getf spec :exclusive) exclusive-specs)
@@ -767,8 +767,8 @@
                            (setf index  (1+ start)
                                  output (funcall this-builder output)))
                     (if this-formatter
-                        (progn (push (funcall this-formatter string start end) (first output))
-                               (setf index (1+ end)))
+                        (setf index  (1+ end)
+                              output (funcall this-formatter string start end output))
                         ;; in the case of no renderer, just set the; index to the end + 1;
                         ;; this is for comments, causing the section to simply be skipped
                         (setf index (1+ end)
