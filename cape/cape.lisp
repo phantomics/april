@@ -82,23 +82,55 @@
           process-function for-function
           process-operator for-operator))
   
-  (defun determine (idiom token)
+  (defun determine (idiom scope token)
     (let ((output))
       (cond ((and (listp token) (eq :ax (first token)))
              (values token :axes))
             ((and (listp token) (not (keywordp (first token))))
-             (let ((output (construct idiom token)))
+             (let ((output (construct scope idiom token)))
                (values output (typecase output (ex-value :value) (ex-function :function)))))
+            ;; ((and (listp token) (eq :fn (first token)) (not (characterp (second token))))
+            ;;  (values (mapcar (lambda (exp) (construct idiom scope exp)) (third token))
+            ;;          :function))
+            ((and (listp token) (eq :fn (first token)) (not (characterp (first (last token)))))
+             (values :defn  :function (third token)))
             ((setf output (funcall process-value    token nil "APRIL-WORKSPACE-COMMON"))
              (values output :value))
-            ((and (listp token) (eq :fn (first token)))
-             ;; (print (list :tk token))
-             (values (mapcar (lambda (exp) (construct idiom exp)) (third token))
-                     :function))
             ((setf output (funcall process-function token nil "APRIL-WORKSPACE-COMMON"))
              (values output :function))
             ((setf output (funcall process-operator token nil "APRIL-WORKSPACE-COMMON"))
              (values output :operator))))))
+
+(defun construct (idiom scope tokens &optional entity collected-axes)
+  (if (not tokens)
+      entity (multiple-value-bind (item type subexprs) (determine idiom scope (first tokens))
+               ;; (print (list :it item type entity))
+               (if (eq :axes type)
+                   (let ((processed-axes (mapcar (lambda (token-list) (construct idiom scope token-list))
+                                                 (rest item))))
+                     (construct idiom scope (rest tokens) entity (cons processed-axes collected-axes)))
+                   (let ((next-output (attach entity idiom item type collected-axes)))
+                     ;; (print (list :nn next-output))
+                     
+                     (when (and scope (not (exp-scope next-output)))
+                       ;; assign the expression's scope when it's present
+                       (setf (exp-scope next-output) scope))
+                     
+                     (when (eq :defn item)
+                       ;; when the item to be processed is a defn, it must be set as the scope
+                       ;; for expressions within and those expressions passed as subexprs must be
+                       ;; processed and assigned
+                       (let ((fnexp (typecase next-output
+                                      (ex-function next-output) (ex-value (exval-function next-output)))))
+                         (cond ((eq :defn (ent-data (exfun-primary fnexp)))
+                                (let ((scope (exfun-primary fnexp)))
+                                  (setf (ent-data (exfun-primary fnexp))
+                                        (mapcar (lambda (exp) (construct idiom scope exp)) subexprs))))
+                               ((eq :defn (ent-data (exfun-composed fnexp)))
+                                (let ((scope (exfun-composed fnexp)))
+                                  (setf (ent-data (exfun-composed fnexp))
+                                        (mapcar (lambda (exp) (construct idiom scope exp)) subexprs)))))))
+                     (if (not next-output) entity (construct idiom scope (rest tokens) next-output)))))))
 
 ;; (defun construct (tokens)
 ;;   (let ((output) (collected-axes))
@@ -114,16 +146,6 @@
 ;; (cape::provision-processors #'process-value #'process-function #'process-operator)
 ;; (express (construct '((:AX ((1))) 3 2 1 (:FN #\+) 1 (:FN #\-) :SPECIAL-LEXICAL-FORM-ASSIGN |x|)))
 
-(defun construct (idiom tokens &optional entity collected-axes)
-  (if (not tokens)
-      entity (multiple-value-bind (item type) (determine idiom (first tokens))
-               ;; (print (list :it item type entity))
-               (if (eq :axes type)
-                   (let ((processed-axes (mapcar (lambda (token-list) (construct idiom token-list))
-                                                 (rest item))))
-                     (construct idiom (rest tokens) entity (cons processed-axes collected-axes)))
-                   (let ((next-output (attach entity idiom item type collected-axes)))
-                     (if (not next-output) entity (construct idiom (rest tokens) next-output)))))))
 
 (defgeneric attach (entity idiom item type &optional axes))
 
@@ -222,6 +244,7 @@
   item)
 
 (defmethod express ((entity en-value) &rest params)
+  ;; (print (list :ee (ent-data entity) (exp-scope (base-expr entity))))
   (funcall (if (not (ent-axes entity))
                #'identity (lambda (form)
                             `(make-virtual
@@ -308,9 +331,12 @@
     ;;   (print (list :aa (exval-predicate (base-expr (base-expr entity)))))
     ;;   (print (list :aa (ent-data (exfun-primary (base-expr entity)))))
     ;;   )
-    (if (listp (ent-data entity))
+    (if (and (ent-data entity)
+             (listp (ent-data entity)))
         `(alambda (⍵ &OPTIONAL ⍺) (with (:meta)) ,@(mapcar #'express (ent-data entity)))
-        (list (if (vex::of-lexicons (base-idiom entity) (ent-data (exfun-primary (base-expr entity)))
+        (list (if (vex::of-lexicons (base-idiom entity)
+                                    ;; (ent-data (exfun-primary (base-expr entity)))
+                                    (ent-data entity)
                                     (if (or (and (base-expr (base-expr entity))
                                                  (exval-predicate (base-expr (base-expr entity))))
                                             (eq (getf params :valence) :dyadic))
