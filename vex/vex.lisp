@@ -644,9 +644,9 @@
                               (when matcher-output   ;; when a match is found...
                                 (incf code (1+ ix))  ;; increment the code as per the matched section type
                                 (push ix open-stack) ;; push the section index onto stack of open sections
-                                (when (nth ix exclusive-specs)
-                                  (setf exclusive-index ix
-                                        set-mirroring   t)))
+                                (when (nth ix exclusive-specs) ;; in the case of an exclusive section
+                                  (setf exclusive-index ix     ;; set the exclusive index and mirroring
+                                        set-mirroring   t)))   ;; property; this is for strings etc.
                               (when (and (not set-mirroring)
                                          open-stack (= ix (first open-stack))
                                          confirmer-stack
@@ -954,12 +954,18 @@
                  (loop :for c :across string-sym
                        :always (funcall (of-utilities idiom :match-token-character) c idiom))))
              (process-lines (string &optional space params output)
-               (funcall (of-utilities idiom :compile-form)
-                        (mapcar (if (not (assoc :cape-test options))
-                                    #'identity (of-utilities idiom :expresser-test))
-                                (funcall (if print-tokens #'print #'identity)
-                                         (construct string idiom space)))
-                        :space space :params params))
+               (if (assoc :cape options)
+                   (mapcar (lambda (item) (funcall (of-utilities idiom :expresser-use) item space))
+                           (funcall (if print-tokens #'print #'identity)
+                                    (construct string idiom space)))
+                   (funcall (of-utilities idiom :compile-form)
+                            (mapcar (if (not (assoc :cape-test options))
+                                        #'identity (lambda (item)
+                                                     (funcall (of-utilities idiom :expresser-test)
+                                                              item space)))
+                                    (funcall (if print-tokens #'print #'identity)
+                                             (construct string idiom space)))
+                            :space space :params params)))
              (get-item-refs (items-to-store &optional storing-functions)
                ;; Function or variable names passed as a string may be assigned literally as long as there are
                ;; no dashes present in them, so the variable name "iD" becomes iD within the idiom, whereas a

@@ -1,6 +1,8 @@
 ;;;; package.lisp
 
 (defpackage #:cape
-  (:use #:cl) ;; #:april)
-  ;; (:shadowing-import-from #:april #:process-value #:process-function #:process-operator)
-  )
+  (:use #:cl)
+  (:export #:attach #:express #:en-value #:en-function #:ex-value #:ex-function
+           #:base-idiom #:base-space #:base-expr #:ent-meta #:ent-data #:ent-axes
+           #:exp-scope #:exp-assigned  #:enfun-lexicon #:exval-object #:exval-function
+           #:exval-predicate #:exfun-primary #:exfun-operator #:exfun-composed))

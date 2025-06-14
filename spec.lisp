@@ -213,10 +213,14 @@
             ;;   (lambda (char idiom)
             ;;     (unless other-chars (setf other-chars (of-system idiom :supplemental-numeric-chars)))
             ;;     (or (digit-char-p char) (position char other-chars :test #'char=))))
-            :expresser-test
-            (lambda (line)
+            :expresser-use
+            (lambda (line space)
               (cape::provision-processors #'process-value #'process-function #'process-operator)
-              (print (cape::express (cape::construct *april-idiom* nil line)))
+              (cape::express (cape::construct *april-idiom* space nil line)))
+            :expresser-test
+            (lambda (line space)
+              (cape::provision-processors #'process-value #'process-function #'process-operator)
+              (print (cape::express (cape::construct *april-idiom* space nil line)))
               line)
             :match-token-character
             (let ((other-chars))

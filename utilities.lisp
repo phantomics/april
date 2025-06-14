@@ -1630,41 +1630,41 @@
          ,@body))))
 
 (defun provision-function-builder (&key default-args enclose-operator)
-  (lambda (form space &optional arguments properties closure-meta)
+  (lambda (form space &optional arguments properties meta)
     "Express an APL inline function like {⍵+5}."
-    ;; (print (list :def default-args (getf closure-meta :var-syms)))
-    (let ((arg-symbols (getf closure-meta :arg-syms))
+    ;; (print (list :def default-args (getf meta :var-syms)))
+    (let ((arg-symbols (getf meta :arg-syms))
           (side-refs) (var-refs)
-          (assigned-vars (loop :for sym :in (getf closure-meta :var-syms)
+          (assigned-vars (loop :for sym :in (getf meta :var-syms)
                                :when (not (or (position sym #(⍺ nil) :test #'eql)
                                               (member sym arguments)))
                                  :collect `(inws ,sym)))
-          (assigned-fns (loop :for sym :in (getf closure-meta :fn-syms)
+          (assigned-fns (loop :for sym :in (getf meta :fn-syms)
                               :collect `(inws ,sym)))
-          (assigned-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                      :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+          (assigned-ops (append (loop :for sym :in (getf meta :lop-syms)
+                                      :when (not (of-meta-hierarchy (rest (getf meta :parent))
                                                                     :lop-syms sym))
                                         :collect `(inws ,(intern (string sym))))
-                                (loop :for sym :in (getf closure-meta :pop-syms)
-                                      :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                (loop :for sym :in (getf meta :pop-syms)
+                                      :when (not (of-meta-hierarchy (rest (getf meta :parent))
                                                                     :pop-syms sym))
                                         :collect `(inws ,(intern (string sym))))))
-          (context-vars (loop :for sym :in (getf closure-meta :var-syms)
+          (context-vars (loop :for sym :in (getf meta :var-syms)
                               :when (and (not (position sym #(⍺ nil) :test #'eql))
                                          (not (member sym arguments))
-                                         (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                                         (not (of-meta-hierarchy (rest (getf meta :parent))
                                                                  :var-syms sym)))
                                 :collect `(inwsd, sym)))
-          (context-fns (loop :for sym :in (getf closure-meta :fn-syms)
-                             :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+          (context-fns (loop :for sym :in (getf meta :fn-syms)
+                             :when (not (of-meta-hierarchy (rest (getf meta :parent))
                                                            :var-syms sym))
                                :collect `(inwsd, sym)))
-          (context-ops (append (loop :for sym :in (getf closure-meta :lop-syms)
-                                     :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+          (context-ops (append (loop :for sym :in (getf meta :lop-syms)
+                                     :when (not (of-meta-hierarchy (rest (getf meta :parent))
                                                                    :lop-syms sym))
                                        :collect `(inwsd ,(intern (string sym))))
-                               (loop :for sym :in (getf closure-meta :pop-syms)
-                                     :when (not (of-meta-hierarchy (rest (getf closure-meta :parent))
+                               (loop :for sym :in (getf meta :pop-syms)
+                                     :when (not (of-meta-hierarchy (rest (getf meta :parent))
                                                                    :pop-syms sym))
                                        :collect `(inwsd ,(intern (string sym))))))
           ;; the list of side-effecting functions defined in this function's scope
@@ -1678,26 +1678,26 @@
       ;; is a lexical assignment of the variable within the function; this is because lexical
       ;; references to an outer scope are incompatible with multithreading
       (loop :for (key value) :on *system-variables* :by #'cddr
-            :do (when (and (not (member value (getf closure-meta :var-syms)))
-                           (of-meta-hierarchy closure-meta :var-syms value))
+            :do (when (and (not (member value (getf meta :var-syms)))
+                           (of-meta-hierarchy meta :var-syms value))
                   (push (list :dyn-mask value) side-refs)))
       
-      (dolist (vr (getf closure-meta :var-refs))
+      (dolist (vr (getf meta :var-refs))
         (if (member vr *system-variables*)
             (progn (push (list :dyn-mask vr) side-refs)
                    (push (list 'inwsd vr) var-refs))
-            (when (and (not (member vr (getf closure-meta :var-syms)))
-                       (of-meta-hierarchy closure-meta :var-syms vr))
+            (when (and (not (member vr (getf meta :var-syms)))
+                       (of-meta-hierarchy meta :var-syms vr))
               (push (list :lex-ref vr) side-refs))))
 
       ;; explicitly register a side effect in the case of [⎕RL random link] assignment
-      (when (member '*rngs* (getf closure-meta :var-syms))
-        (push :random-link-assignment (getf closure-meta :side-effects)))
+      (when (member '*rngs* (getf meta :var-syms))
+        (push :random-link-assignment (getf meta :side-effects)))
 
-      ;; (print (list :eeoo closure-meta context-vars context-fns context-ops
+      ;; (print (list :eeoo meta context-vars context-fns context-ops
       ;;              assigned-vars assigned-fns assigned-ops))
       
-      (if (getf closure-meta :variant-niladic)
+      (if (getf meta :variant-niladic)
           ;; produce the plain (aprgn) forms used to implement function variant implicit statements
           (cons 'aprgn form)
           (funcall (funcall enclose-operator arg-symbols)
@@ -1712,20 +1712,20 @@
                                                        '(error "This function cannot be inverted."))
                                                    '(error "This function cannot be inverted as it ~a"
                                                      "contains more than one statement.")))
-                                   :side-effects ',(getf closure-meta :side-effects)
+                                   :side-effects ',(getf meta :side-effects)
                                    :side-effecting-functions
                                    ',se-functions
                                    :side-refs ',side-refs
                                    ;; add the list of side-effecting functions called
                                    ;; in this function's scope, if any are present
-                                   ,@(when (getf closure-meta :sefns-called)
+                                   ,@(when (getf meta :sefns-called)
                                        (list :sefns-called
-                                             (list 'quote (getf closure-meta :sefns-called))))
+                                             (list 'quote (getf meta :sefns-called))))
                                    ;; the list of symbolic functions (represented by a symbol at the
                                    ;; top-level scope) called within this function's scope
-                                   ,@(when (getf closure-meta :symfns-called)
+                                   ,@(when (getf meta :symfns-called)
                                        (list :symfns-called
-                                             (list 'quote (getf closure-meta :symfns-called)))))
+                                             (list 'quote (getf meta :symfns-called)))))
                             (:sys-vars ,@var-refs)
                             (:space ,space))
                       ,@(if (not (or context-vars context-fns context-ops
@@ -2537,6 +2537,175 @@
                  (setq prove:*enable-colors* t)
                  (format t "~%~%")
                  ,tests-passed)))))))
+
+(defun find-space (entity)
+  (and (typep entity 'cape::base)
+       (or (base-space entity)
+           (find-space (base-expr entity)))))
+
+(defun find-meta (entity)
+  ;; (print (list :en entity))
+  (typecase entity
+    (cape::entity      (or (ent-meta entity)
+                           (and (typep entity 'cape::en-value)
+                                (find-meta (base-expr entity)))))
+    (cape::ex-value    (or (find-meta (exval-function entity))
+                           (find-meta (base-expr entity))))
+    (cape::ex-function (or (find-meta (exfun-primary entity))
+                           (find-meta (exfun-composed entity))))))
+
+(defmethod cape:express ((entity en-value) &rest params)
+  ;; (print (list :ee (ent-data entity) (exp-scope (base-expr entity))))
+  ;; (print (list :cc entity))
+  (let* ((meta (find-meta entity))
+         (formatted (mapcar (lambda (item)
+                              (typecase item
+                                (symbol (if (member item (getf (rest meta) :var-syms))
+                                            (list 'inws item) item))
+                                (t item)))
+                            (ent-data entity))))
+    ;; (print (list :fo formatted))
+    (funcall (if (not (ent-axes entity))
+                 #'identity (lambda (form)
+                              `(make-virtual
+                                'vader-select :base ,form :nested t :index-origin index-origin
+                                :argument ,(list 'list (express (caar (ent-axes entity)))))))
+             (if (second (ent-data entity))
+                 (cons 'svec formatted)
+                 (express (first formatted))))))
+
+(defmethod cape:express ((entity ex-value) &rest params)
+  (flet ((express-value (value)
+           (if (not (second value))
+               (first value) (cons 'svec value))))
+    (funcall (if (not (exp-assigned entity))
+                 #'identity (or (and (eq :missing (exp-assigned entity))
+                                     (error "No name found for assignment."))
+                                (lambda (form)
+                                  (let* ((meta (find-meta entity))
+                                         (symbol (intern (string (first (exp-assigned entity))))))
+                                    ;; (print (list :mt meta symbol))
+                                    (list 'a-set (list (if (member symbol (getf (rest meta) :var-syms))
+                                                           'inws 'inwsd)
+                                                       symbol)
+                                            form)))))
+             (if (exval-function entity)
+                 `(a-call ,(express (exval-function entity))
+                          ,(express (exval-object entity))
+                          ,@(let ((second (exval-predicate entity)))
+                              (and second (list (express second)))))
+                 (express (exval-object entity))))))
+
+(defmethod cape:express ((entity ex-function) &rest params)
+  (if (exfun-operator entity)
+      (let ((expfun1 (express (exfun-primary entity)))
+            (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
+        (append (list 'a-comp (intern (string (ent-data (exfun-operator entity)))))
+                (apply (symbol-function (find-symbol (format nil "~a-LEX-OP-~a"
+                                                             (vex::idiom-name (base-idiom entity))
+                                                             (ent-data (exfun-operator entity)))
+                                                     (string (vex::idiom-name (base-idiom entity)))
+                                                     ;; TODO: allow for different idiom and package name
+                                                     ))
+                       (cons expfun1 (if expfun2 (list expfun2))))))
+      ;; (april (with (:print-tokens) (:cape-test) (:compile-only)) "(*+-)1 2 3+1 2 3")
+      (if (or (getf params :train-preceding)
+              (and (not (base-expr entity))
+                   (typep (exfun-composed entity) 'ex-function)))
+          ;; if the functional expression is not linked to a value expression
+          ;; (i.e. it is expressed discretely as with (⊢,⌽)) then it is
+          ;; recognized as a function train
+          (let* ((omega (or (getf params :symbol-o) (gensym)))
+                 (alpha (or (getf params :symbol-a) (gensym)))
+                 ;; (left-value (if (typep expfun2 'en-value)
+                 ;;                 (express expfun2)))
+                 (right  (or (getf params :train-preceding)
+                             (express (express (exfun-primary entity))
+                                      :valence :dyadic :primary-only t)))
+                 (center (or (and (getf params :train-preceding)
+                                  (express (exfun-primary entity)))
+                             (and (exfun-composed entity)
+                                  (express (exfun-primary (exfun-composed entity))
+                                           :valence :dyadic))))
+                 (left   (or (and (getf params :train-preceding) (exfun-composed entity)
+                                  (express (exfun-primary (exfun-composed entity))))
+                             (and (exfun-composed entity) (exfun-composed (exfun-composed entity))
+                                  (typep (exfun-composed (exfun-composed entity)) 'ex-function)
+                                  (express (exfun-primary (exfun-composed (exfun-composed entity)))
+                                           :valence :dyadic))))
+                 (left-value nil)
+                 (containing (and left (exfun-composed (exfun-composed (exfun-composed entity))))))
+            ;; (print (list :en entity containing right center left))
+            (let ((code `(alambda (,omega &optional ,alpha)
+                           (with (:sys-vars index-origin))
+                           (if ,alpha (a-call ,center (a-call ,right ,omega ,alpha)
+                                              ,@(if left-value (list left-value)
+                                                    (if left `((a-call ,left ,omega ,alpha)))))
+                               (a-call ,center (a-call ,right ,omega)
+                                       ,@(if left-value (list left-value)
+                                             (if left `((a-call ,left ,omega)))))))))
+              (if (not containing)
+                  code (express containing :train-preceding code :symbol-o omega :symbol-a alpha))))
+          (express (exfun-primary entity)))))
+
+(defmethod cape:express ((entity en-function) &rest params)
+  (let ((valence (getf params :valence)))
+    ;; (print (list :aa (ent-data entity) (ent-meta entity)
+    ;;              (find-space entity)))
+    ;; (when (base-expr entity)
+    ;;   (print (list :aa (exval-predicate (base-expr (base-expr entity)))))
+    ;;   (print (list :aa (ent-data (exfun-primary (base-expr entity)))))
+    ;;   )
+    ;; (print (list :bi (base-idiom entity) entity (ent-data entity)))
+    (if (and (ent-data entity)
+             (listp (ent-data entity)))
+        (funcall (of-utilities *april-idiom* :output-function)
+                 (mapcar #'express (ent-data entity))
+                 (find-space entity) nil nil (rest (ent-meta entity)))
+        ;; `(alambda (⍵ &OPTIONAL ⍺) (with (:meta)) ,@(mapcar #'express (ent-data entity)))
+        (let* ((glyph (ent-data entity))
+               (iname (idiom-name (base-idiom entity)))
+               (fn-meta (handler-case (funcall (symbol-function (find-symbol
+                                                                 (format nil "~a-LEX-FN-~a" iname glyph)
+                                                                 ;; *package-name-string*
+                                                                 ;; TODO: decouple idiom and package names
+                                                                 iname))
+                                               :get-metadata)
+                          (error () nil))))
+          ;; (print (list :fm fn-meta))
+          (append (list (if (vex::of-lexicons (base-idiom entity)
+                                              ;; (ent-data (exfun-primary (base-expr entity)))
+                                              (ent-data entity)
+                                              (if (or (and (base-expr (base-expr entity))
+                                                           (exval-predicate (base-expr (base-expr entity))))
+                                                      (eq (getf params :valence) :dyadic))
+                                                  :functions-scalar-dyadic :functions-scalar-monadic))
+                            'apl-fn-s 'apl-fn)
+                        (intern (string (ent-data entity))))
+                  (getf fn-meta :implicit-args))))))
+
+;; 3/1
+;; 1760 3 12⊥⍣¯1⊢82
+;; 3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9
+;; (3 3⍴⍳9)∊1 2 3 4 8
+;; {⍵=1:2⋄3}¨ 1 2 1 0 0 1 2 1
+;; 2×1-⍨⍳4
+;; ⌊1000×⊃,/9 11○⊂(¯1 ¯7~⍨¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5
+;; ≡1 (2 3) (4 5 (6 7)) 8
+;; 1 2 3 4 8∊⍨3 3⍴⍳9
+;; ⍸(2 3 4⍴⍳9)∊3 5
+;; ,[1]3 3⍴⍳9
+;; ≡1 (2 3) (4 5 (6 7)) 8
+;; (3 6⍴⍳6)⍪[2]3 4⍴⍳9
+;; ↑(2 3⍴⍳5)(4 2⍴⍳8)
+;; 
+;; ↑[0.5](2 3⍴⍳5)(4 2⍴⍳8)
+;; (1⍴2)/8
+;; (⍳5)+⍤1⊢1 5⍴⍳5
+;; 1 -⍛- 1
+;; (2 3 4 5∘+) 5
+;; ⍬∘.=⍬
+;; ''∘.=''
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
