@@ -2562,6 +2562,7 @@
                               (typecase item
                                 (symbol (if (member item (getf (rest meta) :var-syms))
                                             (list 'inws item) item))
+                                (cape::base (cape:express item))
                                 (t item)))
                             (ent-data entity))))
     ;; (print (list :fo formatted))
@@ -2597,6 +2598,7 @@
                  (express (exval-object entity))))))
 
 (defmethod cape:express ((entity ex-function) &rest params)
+  ;; (setf iio entity)
   (if (exfun-operator entity)
       (let ((expfun1 (express (exfun-primary entity)))
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
@@ -2657,6 +2659,7 @@
     ;;   (print (list :aa (ent-data (exfun-primary (base-expr entity)))))
     ;;   )
     ;; (print (list :bi (base-idiom entity) entity (ent-data entity)))
+    ;; (print (list :en (ent-data entity)))
     (if (and (ent-data entity)
              (listp (ent-data entity)))
         (funcall (of-utilities *april-idiom* :output-function)
@@ -2673,39 +2676,31 @@
                                                :get-metadata)
                           (error () nil))))
           ;; (print (list :fm fn-meta))
-          (append (list (if (vex::of-lexicons (base-idiom entity)
-                                              ;; (ent-data (exfun-primary (base-expr entity)))
-                                              (ent-data entity)
-                                              (if (or (and (base-expr (base-expr entity))
-                                                           (exval-predicate (base-expr (base-expr entity))))
-                                                      (eq (getf params :valence) :dyadic))
-                                                  :functions-scalar-dyadic :functions-scalar-monadic))
-                            'apl-fn-s 'apl-fn)
-                        (intern (string (ent-data entity))))
-                  (getf fn-meta :implicit-args))))))
+          ;; (print (list :bi (base-idiom entity) (ent-data entity)))
+          (or (and (of-lexicons (base-idiom entity) (ent-data entity) :functions)
+                   (of-lexicons (base-idiom entity) (ent-data entity) :symbolic-forms)
+                   (symbol-value (find-symbol (format nil "~a-LEX-SY-~a" (idiom-name (base-idiom entity))
+                                                      (ent-data entity))
+                                              (string (idiom-name (base-idiom entity))))))
+              (append (list (if (vex::of-lexicons (base-idiom entity)
+                                                  ;; (ent-data (exfun-primary (base-expr entity)))
+                                                  (ent-data entity)
+                                                  (if (or (and (base-expr (base-expr entity))
+                                                               (exval-predicate
+                                                                (base-expr (base-expr entity))))
+                                                          (eq (getf params :valence) :dyadic))
+                                                      :functions-scalar-dyadic :functions-scalar-monadic))
+                                'apl-fn-s 'apl-fn)
+                            (intern (string (ent-data entity))))
+                      (getf fn-meta :implicit-args)))))))
 
-;; 3/1
-;; 1760 3 12⊥⍣¯1⊢82
 ;; 3 3⍴⌽⊃∨/1 2 3 4 8=⊂⍳9
-;; (3 3⍴⍳9)∊1 2 3 4 8
 ;; {⍵=1:2⋄3}¨ 1 2 1 0 0 1 2 1
-;; 2×1-⍨⍳4
 ;; ⌊1000×⊃,/9 11○⊂(¯1 ¯7~⍨¯8+⍳16) ∘.○ 0 ¯2 2 ¯2J2 2J3.5
-;; ≡1 (2 3) (4 5 (6 7)) 8
-;; 1 2 3 4 8∊⍨3 3⍴⍳9
-;; ⍸(2 3 4⍴⍳9)∊3 5
 ;; ,[1]3 3⍴⍳9
-;; ≡1 (2 3) (4 5 (6 7)) 8
 ;; (3 6⍴⍳6)⍪[2]3 4⍴⍳9
-;; ↑(2 3⍴⍳5)(4 2⍴⍳8)
-;; 
 ;; ↑[0.5](2 3⍴⍳5)(4 2⍴⍳8)
-;; (1⍴2)/8
-;; (⍳5)+⍤1⊢1 5⍴⍳5
-;; 1 -⍛- 1
 ;; (2 3 4 5∘+) 5
-;; ⍬∘.=⍬
-;; ''∘.=''
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
