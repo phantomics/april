@@ -2557,8 +2557,9 @@
 (defun scope-symbol (symbol meta)
   ;; (print (list :sy symbol))
   (typecase symbol
-    (symbol (list (if (member symbol (getf (rest meta) :var-syms)) 'inws 'inwsd)
-                  symbol))
+    (symbol (if (member symbol *idiom-native-symbols*)
+                symbol (list (if (member symbol (getf (rest meta) :var-syms)) 'inws 'inwsd)
+                             symbol)))
     (list
      (if (member (first symbol) '(avec svec))
          ;; APL vectors will have the symbol-scoping applied to symbols they contain
@@ -2632,7 +2633,7 @@
                           ,@(let ((second (exval-predicate entity)))
                               ;; (print (list :aaa second (express (exval-object entity))
                               ;;              (find-meta entity)))
-                              (and second (list (express second)))))
+                              (and second (list (scope-symbol (express second) (find-meta entity))))))
                  (scope-symbol (express (exval-object entity))
                                (find-meta entity))))))
 
@@ -2724,7 +2725,7 @@
                    (symbol-value (find-symbol (format nil "~a-LEX-SY-~a" (idiom-name (base-idiom entity))
                                                       (ent-data entity))
                                               (string (idiom-name (base-idiom entity))))))
-              (append (list (if (vex::of-lexicons (base-idiom entity)
+              (append (list (if (of-lexicons (base-idiom entity)
                                                   (ent-data entity)
                                                   (if (or (and (base-expr (base-expr entity))
                                                                (exval-predicate
@@ -2745,11 +2746,14 @@
            (mapcar #'cape:express (enstm-clauses entity))))
 
 ;; ∘.!⍨¯3+⍳7
-;; 2÷⍨⎕IO-⍨¯10+⍳21
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; ⊃,/(⊂1 1)/¨⊂2 3
 ;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
-;; ⊢/⍳5
+;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
+;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
+;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
+;; +⍨⍣¯1⊢64
+;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
