@@ -312,7 +312,7 @@
                    (if (exfun-operator (exval-function entity)) ;; if there's already an operator...
                        (if (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic))
                            ;; if this operator is an overloaded symbolic function, as for
-                           ;; X×.+Y, then set the composed function accordingly
+                           ;; X∘.+Y, then set the composed function accordingly
                            (setf (exfun-composed (exval-function entity))
                                  (make-instance 'en-function :data item :meta meta :axes axes
                                                              :idiom idiom :expr (exval-function entity)))
