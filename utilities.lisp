@@ -2554,9 +2554,21 @@
     (cape::ex-function (or (find-meta (exfun-primary entity))
                            (find-meta (exfun-composed entity))))))
 
+(defun scope-symbol (symbol meta)
+  ;; (print (list :sy symbol))
+  (typecase symbol
+    (symbol (list (if (member symbol (getf (rest meta) :var-syms)) 'inws 'inwsd)
+                  symbol))
+    (list
+     (if (member (first symbol) '(avec svec))
+         ;; APL vectors will have the symbol-scoping applied to symbols they contain
+         (cons (first symbol) (mapcar (lambda (item) (scope-symbol item meta))
+                                      (rest symbol)))
+         symbol))
+    (t symbol)))
+  
 (defmethod cape:express ((entity en-value) &rest params)
   ;; (print (list :ee (ent-data entity) (exp-scope (base-expr entity))))
-  ;; (print (list :cc entity))
   (let* ((meta (find-meta entity))
          (formatted (mapcar (lambda (item)
                               (typecase item
@@ -2576,26 +2588,53 @@
                  (express (first formatted))))))
 
 (defmethod cape:express ((entity ex-value) &rest params)
-  (flet ((express-value (value)
-           (if (not (second value))
-               (first value) (cons 'svec value))))
+  (labels ((express-value (value)
+             (if (not (second value))
+                 (first value) (cons 'svec value)))
+           ;; (scope-symbol (symbol)
+           ;;   (print (list :sy symbol))
+           ;;   (if (not (symbolp symbol))
+           ;;       symbol (let ((meta (find-meta entity)))
+           ;;                (list (if (member symbol (getf (rest meta) :var-syms))
+           ;;                          'inws 'inwsd)
+           ;;                      symbol))))
+           (format-assignment (form)
+             (let ((reference (first (exp-assigned entity))))
+               (typecase reference
+                 (list
+                  (list 'a-set (cons 'avec reference) form))
+                 (cape:ex-value
+                  (let ((meta (find-meta entity)))
+                    (list 'a-set (cons 'avec (mapcar (lambda (item)
+                                                       (scope-symbol (intern (string item)) meta))
+                                                     (cape:ent-data (cape:exval-object reference))))
+                          form)))
+                 (t (list 'a-set (scope-symbol (intern (string reference))
+                                               (find-meta entity))
+                          form))))))
     (funcall (if (not (exp-assigned entity))
                  #'identity (or (and (eq :missing (exp-assigned entity))
                                      (error "No name found for assignment."))
-                                (lambda (form)
-                                  (let* ((meta (find-meta entity))
-                                         (symbol (intern (string (first (exp-assigned entity))))))
-                                    ;; (print (list :mt meta symbol))
-                                    (list 'a-set (list (if (member symbol (getf (rest meta) :var-syms))
-                                                           'inws 'inwsd)
-                                                       symbol)
-                                            form)))))
+                                #'format-assignment
+                                ;; (lambda (form)
+                                ;;   (let* ((meta (find-meta entity))
+                                ;;          (symbol (intern (string (first (exp-assigned entity))))))
+                                ;;     ;; (print (list :mt meta symbol))
+                                ;;     (list 'a-set (list (if (member symbol (getf (rest meta) :var-syms))
+                                ;;                            'inws 'inwsd)
+                                ;;                        symbol)
+                                ;;           form)))
+
+                                ))
              (if (exval-function entity)
                  `(a-call ,(express (exval-function entity))
-                          ,(express (exval-object entity))
+                          ,(scope-symbol (express (exval-object entity)) (find-meta entity))
                           ,@(let ((second (exval-predicate entity)))
+                              ;; (print (list :aaa second (express (exval-object entity))
+                              ;;              (find-meta entity)))
                               (and second (list (express second)))))
-                 (express (exval-object entity))))))
+                 (scope-symbol (express (exval-object entity))
+                               (find-meta entity))))))
 
 (defmethod cape:express ((entity ex-function) &rest params)
   ;; (setf iio entity)
@@ -2706,16 +2745,9 @@
            (mapcar #'cape:express (enstm-clauses entity))))
 
 ;; ∘.!⍨¯3+⍳7
-;; 0=+/,3<?3 3⍴2
-;; 2×1-⍨⍳4
 ;; 2÷⍨⎕IO-⍨¯10+⍳21
-;; ⊃,[1]/(⊂3 3)⍴¨⍳5
-;; ,[⍬]5
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
-;; (1⍴3)/⍳5
-;; +/⊂⊂⍳3
 ;; ⊃,/(⊂1 1)/¨⊂2 3
-;; 1 0 1 0 1⌿⍳5
 ;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
 ;; ⊢/⍳5
 

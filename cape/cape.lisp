@@ -107,7 +107,9 @@
             ;; ((and (listp token) (eq :fn (first token)) (not (characterp (second token))))
             ;;  (values (mapcar (lambda (exp) (construct idiom space scope exp)) (third token))
             ;;          :function))
-            ((and (listp token) (not (keywordp (first token))))
+            ((and (listp token) (or (not (keywordp (first token)))
+                                    ;; account for special chars like ⍬ -- is there a better way?
+                                    (member (first token) '(:empty-array))))
              (values token  :closure))
             ((and (listp token) (eq :fn (first token)) (not (characterp (first (last token)))))
              (values :defn  :function (third token) (second token)))
@@ -144,7 +146,7 @@
                         (attach entity idiom meta st-form :value))))
            
           (t (let ((next-output (attach entity idiom meta item type collected-axes)))
-               ;; (print (list :nn next-output space))
+               ;; (print (list :nn entity next-output space))
 
                (setf (base-space next-output) space)
                (when (and scope (not (exp-scope next-output)))
@@ -192,7 +194,6 @@
 ;; (cape::provision-processors #'process-value #'process-function #'process-operator)
 ;; (express (construct '((:AX ((1))) 3 2 1 (:FN #\+) 1 (:FN #\-) :SPECIAL-LEXICAL-FORM-ASSIGN |x|)))
 
-
 (defgeneric attach (entity idiom meta item type &optional axes))
 
 (defmethod attach ((entity null) idiom meta item type &optional axes)
@@ -200,21 +201,23 @@
   (let ((output))
     (case type
       (:value
-       (setf output (make-instance 'ex-value :idiom idiom)
-             (exval-object output) (make-instance 'en-value :data (list item) :meta meta
-                                                            :axes axes :idiom idiom :expr output)))
+       (setf               output   (make-instance 'ex-value    :idiom idiom)
+             (exval-object output)  (make-instance 'en-value    :data (list item) :meta meta
+                                                                :axes axes :idiom idiom :expr output)))
       (:function
-       (setf output (make-instance 'ex-function :idiom idiom)
+       (setf                output  (make-instance 'ex-function :idiom idiom)
              (exfun-primary output) (make-instance 'en-function :data item :meta meta
                                                                 :axes axes :idiom idiom :expr output))))
     output))
 
 (defmethod attach ((entity ex-value) idiom meta item type &optional axes)
-  "Attach an item to a value expression."
+  "Attach a value to a value expression."
   (let ((to-return entity))
     ;; (print (list :it item)) ;; (setf iio entity)))
     (case type
       (:value ;; if the item to be attached represents a value
+       ;; (when (exp-assigned entity)
+       ;;   (print (list :an entity item (setf april::iioo entity))))
        (if (exp-assigned entity) ;; if assignment has been made, gather symbols for destination(s)
            (if (listp (exp-assigned entity))
                (push item (exp-assigned entity))
@@ -254,7 +257,9 @@
                                              :meta (ent-meta overloaded))))))
        
       (:function ;; if the item to be attached represents a function
-       ;; (print (list :ii item))
+       ;; (print (list :ii item entity (and entity (typep entity 'ex-value) (exval-object entity)
+       ;;                                   (and (typep (exval-object entity) 'en-value)
+       ;;                                        (ent-data (exval-object entity))))))
        (if (eq item :special-lexical-form-assign)
            (setf (exp-assigned entity) :missing)
            (if (exval-function entity)
@@ -267,11 +272,11 @@
                            ;; if the operator is lateral, then begin a new value expression; 
                            (setf to-return (attach (make-instance 'ex-value :object entity)
                                                    idiom meta item type axes))
-                           ;; otherwise set the "composed"/left operand
                            (if (and (exfun-composed (exval-function entity))
                                     (typep (exfun-composed (exval-function entity)) 'en-function))
                                (setf to-return (attach (make-instance 'ex-value :object entity)
                                                        idiom meta item type axes))
+                               ;; otherwise set the "composed"/left operand
                                (setf (exfun-composed (exval-function entity))
                                      (make-instance 'en-function :data item :axes axes
                                                                  :idiom idiom :meta meta
@@ -282,20 +287,23 @@
                                                          :expr (exval-function entity))))
                    ;; if a functional expression is encountered following a value as for
                    ;; -1 2+3 4, create a new value expression with the current entity as its object
-                   (setf to-return (make-instance 'ex-value :function (typecase item
-                                                                        (ex-function item)
-                                                                        (t (attach nil idiom meta
-                                                                                   item type axes)))
-                                                  :object entity :idiom idiom)))
+                   (setf to-return ;; (make-instance 'ex-value :function (typecase item
+                                   ;;                                      (ex-function item)
+                                   ;;                                      (t (attach nil idiom meta
+                                   ;;                                                 item type axes)))
+                                   ;;                          :object entity :idiom idiom)
+                         (attach (make-instance 'ex-value :object entity)
+                                 idiom meta item type axes)))
                (setf (exval-function entity) (typecase item
                                                (ex-function item)
                                                (t (attach nil idiom meta item type axes)))
                      (base-expr (exval-function entity)) entity))))
       
       (:operator ;; if the item to be attached represents an operator
-       ;; (print (list :op item type))
+       ;; (print (list :op item type entity))
        (if (and (exval-function entity) (exfun-operator (exval-function entity))
-                (position item (getf (vex::idiom-lexicons idiom) :operators))
+                ;; handle the case of an overloaded function/operator glyph like /
+                (position item (getf (vex::idiom-lexicons idiom) :operators)) nil
                 (position item (getf (vex::idiom-lexicons idiom) :functions)))
            (attach entity idiom meta item :function axes)
            (if (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=)
@@ -331,18 +339,22 @@
                                (setf (exfun-operator (exval-function entity)) ;; item
                                      (make-instance 'en-operator
                                                     :data item :meta meta :axes axes
-                                                    :idiom idiom :expr (exval-function entity))))))
+                                                    :idiom idiom :expr (exval-function entity)))
+                               ;; a lateral compositon preceding a monadic function call as in 2×1-⍨⍳4
+                               (setf to-return (attach (make-instance 'ex-value :object entity)
+                                                       idiom meta item type axes)))))
                    ;; the case of i.e. +/1 2 3 ; a lateral operator is seen before a function
                    (and (position item (getf (vex::idiom-lexicons idiom) :operators-lateral) :test #'char=)
                         (let ((operator (make-instance 'en-operator
                                                        :data item :meta meta :axes axes
                                                        :idiom idiom :expr (exval-function entity))))
+                          ;; (print (list :op operator (ent-data operator)))
                           (setf (exval-function entity)
                                 (make-instance 'ex-function :operator operator :idiom idiom)))))))))
     to-return))
 
 (defmethod attach ((entity ex-function) idiom meta item type &optional axes)
-  "Attach an item to a value expression."
+  "Attach a function to a value expression."
   (labels ((train-link (item expr)
              (if (exfun-composed expr)
                  (train-link item (exfun-composed expr))

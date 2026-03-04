@@ -220,7 +220,7 @@
             :expresser-test
             (lambda (line space)
               (cape::provision-processors #'process-value #'process-function #'process-operator)
-              (print (cape::express (cape::construct *april-idiom* space nil line)))
+              (cape::express (cape::construct *april-idiom* space nil line))
               line)
             :match-token-character
             (let ((other-chars))
