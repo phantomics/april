@@ -2589,7 +2589,7 @@
                  (express (first formatted))))))
 
 (defmethod cape:express ((entity ex-value) &rest params)
-  (labels ((express-value (value)
+   (labels ((express-value (value)
              (if (not (second value))
                  (first value) (cons 'svec value)))
            ;; (scope-symbol (symbol)
@@ -2644,13 +2644,13 @@
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
         ;; (print (list :ef expfun1 expfun2))
         (append (list 'a-comp (intern (string (ent-data (exfun-operator entity)))))
-                (apply (symbol-function (find-symbol (format nil "~a-LEX-OP-~a"
+                (apply (symbol-function (find-symbol (print (format nil "~a-LEX-OP-~a"
                                                              (vex::idiom-name (base-idiom entity))
-                                                             (ent-data (exfun-operator entity)))
+                                                             (ent-data (exfun-operator entity))))
                                                      (string (vex::idiom-name (base-idiom entity)))
                                                      ;; TODO: allow for different idiom and package name
                                                      ))
-                       (cons expfun1 (if expfun2 (list expfun2))))))
+                       (cons expfun1 (and expfun2 (list expfun2))))))
       ;; (april (with (:print-tokens) (:cape-test) (:compile-only)) "(*+-)1 2 3+1 2 3")
       (if (or (getf params :train-preceding)
               (and (not (base-expr entity))
@@ -2676,7 +2676,7 @@
                                   (typep (exfun-composed (exfun-composed entity)) 'ex-function)
                                   (express (exfun-primary (exfun-composed (exfun-composed entity)))
                                            :valence :dyadic))))
-                 (left-value nil)
+                 (left-value)
                  (containing (and left (exfun-composed (exfun-composed (exfun-composed entity))))))
             ;; (print (list :en entity containing right center left))
             (let ((code `(alambda (,omega &optional ,alpha)
@@ -2719,6 +2719,8 @@
           ;; (print (list :fm fn-meta (ent-data entity)))
           ;; (setf iio entity)
           ;; (print (list :bi (base-idiom entity) (ent-data entity)))
+          (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)))
+          (setf april::ggg entity)
           (or (and (characterp (ent-data entity))
                    (of-lexicons (base-idiom entity) (ent-data entity) :functions)
                    (of-lexicons (base-idiom entity) (ent-data entity) :symbolic-forms)
@@ -2726,12 +2728,12 @@
                                                       (ent-data entity))
                                               (string (idiom-name (base-idiom entity))))))
               (append (list (if (of-lexicons (base-idiom entity)
-                                                  (ent-data entity)
-                                                  (if (or (and (base-expr (base-expr entity))
-                                                               (exval-predicate
-                                                                (base-expr (base-expr entity))))
-                                                          (eq (getf params :valence) :dyadic))
-                                                      :functions-scalar-dyadic :functions-scalar-monadic))
+                                             (ent-data entity)
+                                             (if (or (and (base-expr (base-expr entity))
+                                                          (exval-predicate
+                                                           (base-expr (base-expr entity))))
+                                                     (eq (getf params :valence) :dyadic))
+                                                 :functions-scalar-dyadic :functions-scalar-monadic))
                                 'apl-fn-s 'apl-fn)
                             (intern (string (ent-data entity))))
                       (getf fn-meta :implicit-args)
@@ -2754,6 +2756,9 @@
 ;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; +⍨⍣¯1⊢64
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
+
+;; 1 2 3∘.+1 2 3
+;; ,∘⊂⌺3 3⊢3 3⍴⍳9
 
 ;; a secondary package containing tools for the extension of April idioms
 (defpackage #:april.idiom-extension-tools
