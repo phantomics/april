@@ -712,7 +712,7 @@
       (labels ((lex-chars (start end)
                  ;; this function calls the lexer on characters within a section
                  ;; given start and end points in the original string
-                 (let ((misses 0) (index start) (tklist tkeys)
+                 (let ((tries 0) (index start) (tklist tkeys)
                        (tokens (first output)) (limit (length tkeys)))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
@@ -720,7 +720,7 @@
                                           (getf especs (first tklist))
                                           string index end scratch tokens idiom)
 
-                               (incf misses)
+                               (incf tries)
                                (if (second tklist) (pop tklist)
                                    (setf tklist tkeys))
 
@@ -728,8 +728,8 @@
                                  (adjust-array scratch 128 :fill-pointer 0))
                                (if index-out (setf tokens tokens-out
                                                    index  index-out
-                                                   misses 0)
-                                   (and (= limit misses)
+                                                   tries  0)
+                                   (and (= limit tries)
                                         (error "Invalid character '~a'." (aref string index))))))
                    (setf output (cons tokens (rest output)))))
                (close-bound ()
