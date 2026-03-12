@@ -705,33 +705,31 @@
                               (lambda (&rest args) (first args)))))
       ;; (print (list :m map bounds tokenizers))
 
-      ;; (unless base-divider
-      ;;   (setf base-divider (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
-      ;;                            :by #'cddr :when (getf val :base) :return (getf val :divide))))
-
-      (unless nil ; tokenizers
+      (unless tkeys
         (setf tkeys (loop :for (key val) :on (getf (idiom-utilities idiom) :entity-specs)
                           :by #'cddr :when (getf val :process) :collect key)))
       
       (labels ((lex-chars (start end)
                  ;; this function calls the lexer on characters within a section
                  ;; given start and end points in the original string
-                 (let ((index start) (tklist tkeys) (tokens (first output))
-                       (tkindex 0) (limit (1- (length tkeys))))
+                 (let ((misses 0) (index start) (tklist tkeys)
+                       (tokens (first output)) (limit (length tkeys)))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
                                  (funcall (getf (getf especs (first tklist)) :process)
                                           (getf especs (first tklist))
                                           string index end scratch tokens idiom)
-                               (incf tkindex)
+
+                               (incf misses)
                                (if (second tklist) (pop tklist)
                                    (setf tklist tkeys))
+
                                (unless (zerop (fill-pointer scratch))
                                  (adjust-array scratch 128 :fill-pointer 0))
-                               (if index-out (setf tokens  tokens-out
-                                                   index   index-out
-                                                   tkindex 0)
-                                   (and (= limit tkindex)
+                               (if index-out (setf tokens tokens-out
+                                                   index  index-out
+                                                   misses 0)
+                                   (and (= limit misses)
                                         (error "Invalid character '~a'." (aref string index))))))
                    (setf output (cons tokens (rest output)))))
                (close-bound ()
