@@ -272,7 +272,7 @@
                            ;; if the operator is lateral, then begin a new value expression;
                            (progn
                              (print (list :ee))
-                             (setf april::ioio entity)
+                             ;; (setf april::ioio entity)
                              (setf (exfun-primary (exval-function entity))
                                    (attach (exfun-primary (exval-function entity))
                                            idiom meta item type axes))
@@ -316,21 +316,30 @@
       
       (:operator ;; if the item to be attached represents an operator
        ;; (print (list :op item type entity)) ; (vex::idiom-lexicons idiom)))
+       (print (list :ee item))
        (if (and (exval-function entity) (exfun-operator (exval-function entity))
                 ;; handle the case of an overloaded function/operator glyph like /
                 (position item (getf (vex::idiom-lexicons idiom) :operators)) nil
                 (position item (getf (vex::idiom-lexicons idiom) :functions)))
            (attach entity idiom meta item :function axes)
-           (if (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=)
+           (if (print (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=))
                (if (and (exval-function entity)         ;; the case of a pivotal operator composition
                         (not (exval-predicate entity))) ;; preceding a value expression like -∘+⊢1 2 3
                    (if (exfun-operator (exval-function entity)) ;; if there's already an operator...
-                       (if (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic))
+                       (if (print (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic)))
                            ;; if this operator is an overloaded symbolic function, as for
                            ;; X∘.+Y, then set the composed function accordingly
-                           (setf (exfun-composed (exval-function entity))
-                                 (make-instance 'en-function :data item :meta meta :axes axes
-                                                             :idiom idiom :expr (exval-function entity)))
+                           (progn
+                             (print (list :gg item)) ; (ent-data (exfun-primary (exval-function entity)))))
+                             ;; (setf april::eee entity)
+                             (setf (exfun-primary (exval-function entity))
+                                   (attach (exfun-primary (exval-function entity))
+                                           idiom meta item type axes))
+                             ;; (setf (exfun-composed (exval-function entity))
+                             ;;       (make-instance 'en-function :data item :meta meta :axes axes
+                             ;;                                   :idiom idiom :expr (exval-function entity)))
+
+                             )
                            (if (and (exfun-primary (exval-function entity))
                                     ;; for statements like ×.+⍨⍳10, the current item being the .
                                     (position (ent-data (exfun-operator (exval-function entity)))
@@ -338,7 +347,7 @@
                                (progn
                                  (print (list :hh item (ent-data (exfun-primary (exval-function entity)))))
                                  ;; (unless april::eee (setf april::eee entity))
-                                 (setf april::eee entity)
+                                 ;; (setf april::eee entity)
                                  ;; (make-instance 'ex-value :)
                                  ;; nil
                                  (let ((fn-out (make-instance
@@ -472,8 +481,13 @@
                  ;; implemented as a kind of linked list using function expressions
                  (train-link item entity))))
         (:operator
-         (setf (exfun-operator entity)
-               (make-instance 'en-operator :data item :meta meta :axes axes :idiom idiom :expr entity))))
+         ;; (print (list :ss item))
+         ;; (setf april::ggg entity)
+         (if (and nil (exfun-operator entity)
+                  (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic)))
+             (setf to-return (attach entity idiom meta item type axes))
+             (setf (exfun-operator entity)
+                   (make-instance 'en-operator :data item :meta meta :axes axes :idiom idiom :expr entity)))))
       to-return)))
 
 (defgeneric express (item &rest params))

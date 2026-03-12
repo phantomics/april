@@ -691,6 +691,7 @@
 
 (let ((base-divider) (tkeys))
   (defun construct (string idiom workspace)
+    "This is the core function used to build a token list, calling the tokenizing functions listed in the idiom spec's (entities) section to generate tokens from characters in the input string."
     (let* ((bounds (list (length string)))
            (cl-meta) (split) (formats) (index 0) (output (list nil nil))
            (especs (getf (idiom-utilities idiom) :entity-specs))
@@ -716,7 +717,7 @@
                  ;; this function calls the lexer on characters within a section
                  ;; given start and end points in the original string
                  (let ((index start) (tklist tkeys) (tokens (first output))
-                       (tkindex 0) (limit (length tkeys)))
+                       (tkindex 0) (limit (1- (length tkeys))))
                    (loop :while (< index end)
                          :do (multiple-value-bind (tokens-out index-out)
                                  (funcall (getf (getf especs (first tklist)) :process)
@@ -725,12 +726,13 @@
                                (incf tkindex)
                                (if (second tklist) (pop tklist)
                                    (setf tklist tkeys))
-                               (when (not (zerop (fill-pointer scratch)))
+                               (unless (zerop (fill-pointer scratch))
                                  (adjust-array scratch 128 :fill-pointer 0))
                                (if index-out (setf tokens  tokens-out
                                                    index   index-out
                                                    tkindex 0)
-                                   (if (= limit tkindex) (error "Invalid syntax.")))))
+                                   (and (= limit tkindex)
+                                        (error "Invalid character '~a'." (aref string index))))))
                    (setf output (cons tokens (rest output)))))
                (close-bound ()
                  ;; this closes out a section when its end comes before the next divider or section start point

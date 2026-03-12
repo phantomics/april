@@ -2644,9 +2644,9 @@
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
         ;; (print (list :ef expfun1 expfun2))
         (append (list 'a-comp (intern (string (ent-data (exfun-operator entity)))))
-                (apply (symbol-function (find-symbol (print (format nil "~a-LEX-OP-~a"
+                (apply (symbol-function (find-symbol (format nil "~a-LEX-OP-~a"
                                                              (vex::idiom-name (base-idiom entity))
-                                                             (ent-data (exfun-operator entity))))
+                                                             (ent-data (exfun-operator entity)))
                                                      (string (vex::idiom-name (base-idiom entity)))
                                                      ;; TODO: allow for different idiom and package name
                                                      ))
@@ -2750,13 +2750,13 @@
 ;; ∘.!⍨¯3+⍳7
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; ⊃,/(⊂1 1)/¨⊂2 3
-;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
 ;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
 ;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
 ;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; +⍨⍣¯1⊢64
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
 
+;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
 ;; 1 2 3∘.+1 2 3
 ;; ,∘⊂⌺3 3⊢3 3⍴⍳9
 
