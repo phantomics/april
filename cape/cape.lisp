@@ -317,10 +317,12 @@
       (:operator ;; if the item to be attached represents an operator
        ;; (print (list :op item type entity)) ; (vex::idiom-lexicons idiom)))
        (print (list :ee item))
-       (if (and (exval-function entity) (exfun-operator (exval-function entity))
-                ;; handle the case of an overloaded function/operator glyph like /
-                (position item (getf (vex::idiom-lexicons idiom) :operators)) nil
-                (position item (getf (vex::idiom-lexicons idiom) :functions)))
+       (if ;; (and (exval-function entity) (exfun-operator (exval-function entity))
+           ;;      ;; handle the case of an overloaded function/operator glyph like /
+           ;;      (position item (getf (vex::idiom-lexicons idiom) :operators)) nil
+           ;;      (position item (getf (vex::idiom-lexicons idiom) :functions)))
+           (and (exval-function entity)
+                (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic)))
            (attach entity idiom meta item :function axes)
            (if (print (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=))
                (if (and (exval-function entity)         ;; the case of a pivotal operator composition
