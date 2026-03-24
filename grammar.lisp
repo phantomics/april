@@ -1278,10 +1278,10 @@
           (when (and (listp function) (symbolp symbol)
                      (position (first function) #(alambda a-comp) :test #'eql)
                      (member symbol (getf (rest (getf (getf params :special) :closure-meta)) :var-syms)))
-              ;; for function assignments that aren't apparent to the lexer postprocessor like
-              ;; fn←×∘3, it's necessary to remove their references as variables in the closure
-              ;; metadata and create references to them as function symbols; this means that
-              ;; things like g←{fn/⍳⍵} ⋄ fn←×∘3 won't work as the fn definition needs to come first
+            ;; for function assignments that aren't apparent to the lexer postprocessor like
+            ;; fn←×∘3, it's necessary to remove their references as variables in the closure
+            ;; metadata and create references to them as function symbols; this means that
+            ;; things like g←{fn/⍳⍵} ⋄ fn←×∘3 won't work as the fn definition needs to come first
             (setf (getf (rest (getf (getf params :special) :closure-meta)) :var-syms)
                   (remove symbol (getf (rest (getf (getf params :special) :closure-meta))
                                        :var-syms)))

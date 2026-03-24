@@ -2544,7 +2544,10 @@
            (find-space (base-expr entity)))))
 
 (defun find-meta (entity)
-  ;; (print (list :en entity))
+  ;; (print (list :en entity (typep entity 'cape::entity)))
+  ;; (print (list :st steps (and steps (= steps 10)) entity))
+  ;; (if (and steps entity (= steps 10)) (setf afa entity))
+  ;; (if (or (not steps) (< steps 10))
   (typecase entity
     (cape::entity      (or (ent-meta entity)
                            (and (typep entity 'cape::en-value)
@@ -2552,7 +2555,9 @@
     (cape::ex-value    (or (find-meta (exval-function entity))
                            (find-meta (base-expr entity))))
     (cape::ex-function (or (find-meta (exfun-primary entity))
-                           (find-meta (exfun-composed entity))))))
+                           (find-meta (exfun-composed entity))
+                           (and (typep (base-expr entity) 'ex-function)
+                                (find-meta (base-expr entity)))))))
 
 (defun scope-symbol (symbol meta)
   ;; (print (list :sy symbol))
@@ -2600,7 +2605,11 @@
            ;;                          'inws 'inwsd)
            ;;                      symbol))))
            (format-assignment (form)
-             (let ((reference (first (exp-assigned entity))))
+             (let ((reference (first (exp-assigned entity)))
+                   (fn-datum  (and (cape:exval-function entity)
+                                   (cape:ent-data (cape:exfun-primary (cape:exval-function entity))))))
+               ;; (print (list :gg reference fn-datum))
+               ;; (setf iioo entity)
                (typecase reference
                  (list
                   (list 'a-set (cons 'avec reference) form))
@@ -2610,35 +2619,68 @@
                                                        (scope-symbol (intern (string item)) meta))
                                                      (cape:ent-data (cape:exval-object reference))))
                           form)))
-                 (t (list 'a-set (scope-symbol (intern (string reference))
-                                               (find-meta entity))
-                          form))))))
-    (funcall (if (not (exp-assigned entity))
-                 #'identity (or (and (eq :missing (exp-assigned entity))
-                                     (error "No name found for assignment."))
-                                #'format-assignment
-                                ;; (lambda (form)
-                                ;;   (let* ((meta (find-meta entity))
-                                ;;          (symbol (intern (string (first (exp-assigned entity))))))
-                                ;;     ;; (print (list :mt meta symbol))
-                                ;;     (list 'a-set (list (if (member symbol (getf (rest meta) :var-syms))
-                                ;;                            'inws 'inwsd)
-                                ;;                        symbol)
-                                ;;           form)))
+                 ;; (float
+                 ;;  (let ((assigned (gensym)))
+                 ;;    (reg-side-effect (list :assign-dynamic (intern (string syms) space))
+                 ;;                     (getf (getf params :special) :closure-meta))
+                 ;;    `(let ((,assigned (a-call ,function ,value ,symbol)))
+                 ;;       (when (boundp (quote (inwsd ,(intern (string syms)))))
+                 ;;         (setf (symbol-value (quote (inwsd ,(intern (string syms)))))
+                 ;;               ,assigned))
+                 ;;       (setq ,symbol ,assigned))))
+                 (t (if fn-datum
+                        (let ((assigned (gensym))
+                              (symbol (list 'inws reference))
+                              (function (typecase fn-datum
+                                          (character
+                                           ;; (print (list :fn fn-datum (base-expr entity)))
+                                           (list (if (of-lexicons (base-idiom entity)
+                                                                  fn-datum :functions-scalar-dyadic)
+                                                     'apl-fn-s 'apl-fn)
+                                                 (intern (string fn-datum))))
+                                          (t fn-datum))))
+                          ;; (reg-side-effect (list :assign-dynamic (intern (string syms) space))
+                          ;;                  (getf (getf params :special) :closure-meta))
+                          `(let ((,assigned (a-call ,function ,form ,symbol)))
+                             (when (boundp (quote (inwsd ,(intern (string reference)))))
+                               (setf (symbol-value (quote (inwsd ,(intern (string reference)))))
+                                     ,assigned))
+                             (setq ,symbol ,assigned)))
+                        
+                        (list 'a-set (scope-symbol (intern (string reference))
+                                                   (find-meta entity))
+                              form)))))))
 
-                                ))
-             (if (exval-function entity)
-                 `(a-call ,(express (exval-function entity))
-                          ,(scope-symbol (express (exval-object entity)) (find-meta entity))
-                          ,@(let ((second (exval-predicate entity)))
-                              ;; (print (list :aaa second (express (exval-object entity))
-                              ;;              (find-meta entity)))
-                              (and second (list (scope-symbol (express second) (find-meta entity))))))
-                 (scope-symbol (express (exval-object entity))
-                               (find-meta entity))))))
+     ;; (print (list :eee (setf iio entity) (type-of entity)))
+     (funcall (if (not (exp-assigned entity))
+                  #'identity (or (and (eq :missing (exp-assigned entity))
+                                      (error "No name found for assignment."))
+                                 #'format-assignment
+                                 ;; (lambda (form)
+                                 ;;   (let* ((meta (find-meta entity))
+                                 ;;          (symbol (intern (string (first (exp-assigned entity))))))
+                                 ;;     ;; (print (list :mt meta symbol))
+                                 ;;     (list 'a-set (list (if (member symbol (getf (rest meta) :var-syms))
+                                 ;;                            'inws 'inwsd)
+                                 ;;                        symbol)
+                                 ;;           form)))
+
+                                 ))
+              (if (exval-function entity)
+                  `(a-call ,(express (exval-function entity))
+                           ,(scope-symbol (express (exval-object entity)) (find-meta entity))
+                           ,@(let ((second (exval-predicate entity)))
+                               ;; (print (list :aaa second (express (exval-object entity))
+                               ;;              (find-meta entity)))
+                               (and second (list (scope-symbol (express second) (find-meta entity))))))
+                  (scope-symbol (express (exval-object entity))
+                                (find-meta entity))))))
 
 (defmethod cape:express ((entity ex-function) &rest params)
   ;; (setf iio entity)
+  (print (list :mm (find-meta entity)))
+  (when (find-meta entity)
+    (setf ioio entity))
   (if (exfun-operator entity)
       (let ((expfun1 (express (exfun-primary entity)))
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
@@ -2652,6 +2694,7 @@
                                                      ))
                        (cons expfun1 (and expfun2 (list expfun2))))))
       ;; (april (with (:print-tokens) (:cape-test) (:compile-only)) "(*+-)1 2 3+1 2 3")
+      ;; (if closure-meta (push symbol (getf closure-meta :fn-syms))
       (if (or (getf params :train-preceding)
               (and (not (base-expr entity))
                    (typep (exfun-composed entity) 'ex-function)))
@@ -2689,7 +2732,15 @@
                                              (if left `((a-call ,left ,omega)))))))))
               (if (not containing)
                   code (express containing :train-preceding code :symbol-o omega :symbol-a alpha))))
-          (express (exfun-primary entity)))))
+          (funcall (lambda (form)
+                     (if (not (exp-assigned entity))
+                         form (progn
+                                (print (list :fff (type-of entity) (find-meta entity)))
+                                (setf iio entity)
+                                (list 'a-set (scope-symbol (intern (string (exp-assigned entity)))
+                                                           (find-meta entity))
+                                      form))))
+                   (express (exfun-primary entity))))))
 
 (defmethod cape:express ((entity en-function) &rest params)
   (let ((valence (getf params :valence)))
@@ -2701,6 +2752,13 @@
     ;;   )
     ;; (print (list :bi (base-idiom entity) entity (ent-data entity)))
     ;; (print (list :en (ent-data entity)))
+    ;; (print (list :nnn entity))
+    ;; (setf iio entity)
+    ;; (flet ((may-assign (form)
+    ;;          (if (not (exp-assigned entity))
+    ;;              form (list 'a-set (scope-symbol (intern (string item))
+    ;;                                              (find-meta entity))
+    ;;                         form))))
     (if (and (ent-data entity)
              (listp (ent-data entity)))
         (funcall (of-utilities *april-idiom* :output-function)
@@ -2715,12 +2773,14 @@
                                                                  ;; TODO: decouple idiom and package names
                                                                  iname))
                                                :get-metadata)
-                          (error () nil))))
+                          (error () nil)))
+               (bases-base (base-expr (base-expr entity))))
           ;; (print (list :fm fn-meta (ent-data entity)))
           ;; (setf iio entity)
           ;; (print (list :bi (base-idiom entity) (ent-data entity)))
-          (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)))
-          (setf april::ggg entity)
+          (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)
+                       (base-expr (base-expr entity))))
+          ;; (setf april::ggg entity)
           (or (and (characterp (ent-data entity))
                    (of-lexicons (base-idiom entity) (ent-data entity) :functions)
                    (of-lexicons (base-idiom entity) (ent-data entity) :symbolic-forms)
@@ -2729,9 +2789,8 @@
                                               (string (idiom-name (base-idiom entity))))))
               (append (list (if (of-lexicons (base-idiom entity)
                                              (ent-data entity)
-                                             (if (or (and (base-expr (base-expr entity))
-                                                          (exval-predicate
-                                                           (base-expr (base-expr entity))))
+                                             (if (or (and bases-base (typep bases-base 'ex-value)
+                                                          (exval-predicate bases-base))
                                                      (eq (getf params :valence) :dyadic))
                                                  :functions-scalar-dyadic :functions-scalar-monadic))
                                 'apl-fn-s 'apl-fn)
@@ -2747,15 +2806,18 @@
                                          (string (idiom-name (base-idiom entity)))))
            (mapcar #'cape:express (enstm-clauses entity))))
 
-;; ∘.!⍨¯3+⍳7
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
-;; ⊃,/(⊂1 1)/¨⊂2 3
-;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
 ;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
 ;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; +⍨⍣¯1⊢64
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
 
+;; ∘.!⍨¯3+⍳7
+;; (⊂1 1)/¨⊂2 3
+;; 3 2/¨2 3
+;; ⊃,/(⊂1 1)/¨⊂2 3
+;; ⊃,/(1 2 3)(4 5 6)
+;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
 ;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
 ;; 1 2 3∘.+1 2 3
 ;; ,∘⊂⌺3 3⊢3 3⍴⍳9
