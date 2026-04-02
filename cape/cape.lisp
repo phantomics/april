@@ -98,6 +98,7 @@
   
   (defun determine (idiom space scope token)
     (let ((output))
+      ;; (print (list :ttt token))
       (cond ((and (listp token) (eq :ax (first token)))
              (values token  :axes))
             ((and (listp token) (eq :st (first token)))
@@ -120,10 +121,28 @@
             ((setf output (funcall process-operator token nil "APRIL-WORKSPACE-COMMON"))
              (values output :operator))))))
 
+(defun find-meta (entity)
+  ;; (print (list :en entity (typep entity 'cape::entity)))
+  ;; (print (list :st steps (and steps (= steps 10)) entity))
+  ;; (if (and steps entity (= steps 10)) (setf afa entity))
+  ;; (if (or (not steps) (< steps 10))
+  (typecase entity
+    (cape::entity      (or (ent-meta entity)
+                           (and (typep entity 'cape::en-value)
+                                (find-meta (base-expr entity)))))
+    (cape::ex-value    (or (find-meta (exval-function entity))
+                           (find-meta (base-expr entity))))
+    (cape::ex-function (or (find-meta (exfun-primary entity))
+                           (find-meta (exfun-composed entity))
+                           (and (typep (base-expr entity) 'ex-function)
+                                (find-meta (base-expr entity)))))))
+
 (defun construct (idiom space scope tokens &optional entity collected-axes)
+  (print (list :eie tokens space :scope scope entity))
   (if tokens
       (multiple-value-bind (item type subexprs meta) (determine idiom space scope (first tokens))
-        ;; (print (list :it item type entity))
+        (print (list :itx item type entity meta))
+        (print (list :xfm item (find-meta entity)))
         (case type
           (:axes
            (let ((processed-axes (mapcar (lambda (token-list) (construct idiom space scope token-list))
@@ -213,7 +232,7 @@
 (defmethod attach ((entity ex-value) idiom meta item type &optional axes)
   "Attach a value to a value expression."
   (let ((to-return entity))
-    ;; (print (list :it item)) ;; (setf iio entity)))
+    (print (list :aee item)) ;; (setf iio entity)))
     (case type
       (:value ;; if the item to be attached represents a value
        ;; (when (exp-assigned entity)
@@ -324,7 +343,8 @@
                                  idiom meta item type axes)))
                (setf (exval-function entity) (typecase item
                                                (ex-function item)
-                                               (t (attach nil idiom meta item type axes)))
+                                               (t (print (list :ooo item))
+                                                (attach nil idiom meta item type axes)))
                      (base-expr (exval-function entity)) entity))))
       
       (:operator ;; if the item to be attached represents an operator
@@ -697,20 +717,26 @@
          (print (list :oo item entity (base-expr entity)))
          (if (eq item :special-lexical-form-assign)
              (setf (exp-assigned entity) :missing)
-             (if (exfun-operator entity)
-                 (if (exfun-primary entity)
-                     ;; if a primary function and and operator are attached but no composed
-                     ;; function yet (as for the × in ×.+), register the composed function
-                     (setf (exfun-composed entity)
-                           (make-instance 'en-function :data item :axes axes :idiom idiom
-                                                       :meta meta :expr entity))
-                     ;; if no primary function is registered, set it
-                     (setf (exfun-primary  entity)
-                           (make-instance 'en-function :data item :axes axes :idiom idiom
-                                                       :meta meta :expr entity)))
-                 ;; join the function expression to another to create a train,
-                 ;; implemented as a kind of linked list using function expressions
-                 (train-link item entity))))
+             (if (eq :missing (exp-assigned entity))
+                 (setf (exp-assigned entity)
+                       (if (symbolp item)
+                           item (if (and (listp item) (symbolp (second item)))
+                                    (second item)
+                                    (error "Unrecognized assignment format."))))
+                 (if (exfun-operator entity)
+                     (if (exfun-primary entity)
+                         ;; if a primary function and and operator are attached but no composed
+                         ;; function yet (as for the × in ×.+), register the composed function
+                         (setf (exfun-composed entity)
+                               (make-instance 'en-function :data item :axes axes :idiom idiom
+                                                           :meta meta :expr entity))
+                         ;; if no primary function is registered, set it
+                         (setf (exfun-primary  entity)
+                               (make-instance 'en-function :data item :axes axes :idiom idiom
+                                                           :meta meta :expr entity)))
+                     ;; join the function expression to another to create a train,
+                     ;; implemented as a kind of linked list using function expressions
+                     (train-link item entity)))))
         (:operator
          ;; (print (list :ss item))
          ;; (setf april::ggg entity)
