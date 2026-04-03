@@ -2575,7 +2575,7 @@
     (t symbol)))
   
 (defmethod cape:express ((entity en-value) &rest params)
-  (print (list :ee (ent-data entity) (exp-scope (base-expr entity))))
+  (print (list :ee (ent-data entity) (find-meta (exp-scope (base-expr entity)))))
   (let* ((meta (find-meta entity))
          (formatted (mapcar (lambda (item)
                               (typecase item
@@ -2668,20 +2668,22 @@
 
                                 ))
              (if (exval-function entity)
-                 `(a-call ,(express (exval-function entity))
-                          ,(scope-symbol (express (exval-object entity)) (find-meta entity))
-                          ,@(let ((second (exval-predicate entity)))
-                              ;; (print (list :aaa second (express (exval-object entity))
-                              ;;              (find-meta entity)))
-                              (and second (list (scope-symbol (express second) (find-meta entity))))))
+                 (let ((exfun (express (exval-function entity))))
+                   `(a-call ,(if (not (and (listp exfun) (eql 'inwsd (first exfun))))
+                                 exfun (list 'function exfun))
+                            ,(scope-symbol (express (exval-object entity)) (find-meta entity))
+                            ,@(let ((second (exval-predicate entity)))
+                                ;; (print (list :aaa second (express (exval-object entity))
+                                ;;              (find-meta entity)))
+                                (and second (list (scope-symbol (express second) (find-meta entity)))))))
                  (scope-symbol (express (exval-object entity))
                                (find-meta entity))))))
 
 (defmethod cape:express ((entity ex-function) &rest params)
   ;; (setf iio entity)
-  (print (list :mm (find-meta entity)))
-  (when (find-meta entity)
-    (setf ioio entity))
+  ;; (print (list :mm (find-meta entity)))
+  ;; (when (find-meta entity)
+  ;;   (setf ioio entity))
   (if (exfun-operator entity)
       (let ((expfun1 (express (exfun-primary entity)))
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
@@ -2736,12 +2738,11 @@
                   code (express containing :train-preceding code :symbol-o omega :symbol-a alpha))))
           (funcall (lambda (form)
                      (if (not (exp-assigned entity))
-                         form (progn
-                                (print (list :fff (type-of entity) (find-meta entity)))
-                                (setf iio entity)
-                                (list 'a-set (scope-symbol (intern (string (exp-assigned entity)))
-                                                           (find-meta entity)
-                                                           :fn-syms)
+                         form (let ((asym (scope-symbol (intern (string (exp-assigned entity)))
+                                                        (find-meta entity) :fn-syms)))
+                                ;; (print (list :fff (type-of entity) (find-meta entity) form))
+                                (list 'a-set (if (not (and (listp asym) (eql 'inwsd (first asym))))
+                                                 asym (list 'symbol-function (list 'quote asym)))
                                       form))))
                    (express (exfun-primary entity))))))
 
@@ -2762,11 +2763,12 @@
     ;;              form (list 'a-set (scope-symbol (intern (string item))
     ;;                                              (find-meta entity))
     ;;                         form))))
+    ;; (print (list :ddd (ent-data entity)))
     (if (and (ent-data entity)
              (listp (ent-data entity)))
         (if (member (first (ent-data entity)) '(inws inwsd))
             ;; generate the call of i.e. (A-CALL #'⊑|fn| 100) for code fn 100
-            (list 'function (ent-data entity))
+            (ent-data entity)
             (funcall (of-utilities *april-idiom* :output-function)
                      (mapcar #'express (ent-data entity))
                      (find-space entity) nil nil (rest (ent-meta entity))))
@@ -2784,8 +2786,8 @@
           ;; (print (list :fm fn-meta (ent-data entity)))
           ;; (setf iio entity)
           ;; (print (list :bi (base-idiom entity) (ent-data entity)))
-          (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)
-                       (base-expr (base-expr entity))))
+          ;; (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)
+          ;;              (base-expr (base-expr entity))))
           ;; (setf april::ggg entity)
           (or (and (characterp (ent-data entity))
                    (of-lexicons (base-idiom entity) (ent-data entity) :functions)
@@ -2812,12 +2814,12 @@
                                          (string (idiom-name (base-idiom entity)))))
            (mapcar #'cape:express (enstm-clauses entity))))
 
-;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
 ;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
-;; +⍨⍣¯1⊢64
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
 
+;; +⍨⍣¯1⊢64
+;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; ∘.!⍨¯3+⍳7
 ;; (⊂1 1)/¨⊂2 3
 ;; 3 2/¨2 3
