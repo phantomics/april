@@ -241,7 +241,6 @@
     (case type
       (:value ;; if the item to be attached represents a value
        ;; (when (exp-assigned entity)
-       ;;   (print (list :an entity item (setf april::iioo entity))))
        (if (exp-assigned entity) ;; if assignment has been made, gather symbols for destination(s)
            (if (listp (exp-assigned entity))
                (push item (exp-assigned entity))
@@ -284,15 +283,17 @@
        (print (list :ii item entity (and entity (typep entity 'ex-value) (exval-object entity)
                                          (and (typep (exval-object entity) 'en-value)
                                               (ent-data (exval-object entity))))))
+       
+       (print (list :an entity item (setf april::iioo entity)))
        (if (eq item :special-lexical-form-assign)
            (setf (exp-assigned entity) :missing)
            (if (exval-function entity)
-               (if (exfun-operator (exval-function entity))
-                   (if (exfun-primary (exval-function entity))
+               (if (print (exfun-operator (exval-function entity)))
+                   (if (print (exfun-primary (exval-function entity)))
                        ;; if a primary function and and operator are attached but no composed
                        ;; function yet (as for the × in ×.+), attach the composed function
-                       (if (print (position (ent-data (exfun-operator (exval-function entity)))
-                                     (getf (vex::idiom-lexicons idiom) :operators-lateral)))
+                       (if (position (ent-data (exfun-operator (exval-function entity)))
+                                     (getf (vex::idiom-lexicons idiom) :operators-lateral))
                            ;; if the operator is lateral, then begin a new value expression;
                            
                                
@@ -346,9 +347,13 @@
                                    ;;                                     :idiom idiom :meta meta
                                    ;;                                     :expr (exval-function entity))))
                                    (setf (exfun-composed (exval-function entity))
-                                         (make-instance 'en-function :data item :axes axes
-                                                                     :idiom idiom :meta meta
-                                                                     :expr (exval-function entity))))))
+                                         ;; handle the case of the composition at left for i.e. (+∘5)⍣¯1⊢10
+                                         ;; if it's a lexical function, make an en-function instance
+                                         (if (typep item 'ex-function)
+                                             item (make-instance 'en-function
+                                                                 :data item :axes axes
+                                                                 :idiom idiom :meta meta
+                                                                 :expr (exval-function entity)))))))
                        ;; if no primary function is registered, set it
                        (setf (exfun-primary (exval-function entity))
                              (make-instance 'en-function :data item :axes axes :idiom idiom :meta meta
@@ -370,22 +375,22 @@
       
       (:operator ;; if the item to be attached represents an operator
        ;; (print (list :op item type entity)) ; (vex::idiom-lexicons idiom)))
-       ;; (print (list :ee item))
-       (if (and (exval-function entity) (exfun-operator (exval-function entity))
+       (print (list :ff item))
+       (if (print (and (exval-function entity) (exfun-operator (exval-function entity))
                 (position (ent-data (exfun-operator (exval-function entity)))
                           (getf (vex::idiom-lexicons idiom) :operators-lateral))
-                (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic)))
+                (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic))))
            ;; (and (exval-function entity) (exfun-operator (exval-function entity))
            ;;      ;; handle the case of an overloaded function/operator glyph like /
            ;;      (position item (getf (vex::idiom-lexicons idiom) :operators)) nil
            ;;      (position item (getf (vex::idiom-lexicons idiom) :functions)))
            (attach entity idiom meta item :function axes)
-           (if (print (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=))
+           (if (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=)
                (if (and (exval-function entity)         ;; the case of a pivotal operator composition
                         (not (exval-predicate entity))) ;; preceding a value expression like -∘+⊢1 2 3
 
                    (if (exfun-operator (exval-function entity)) ;; if there's already an operator... XX2
-                       (if (print (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic)))
+                       (if (position item (getf (vex::idiom-lexicons idiom) :functions-symbolic))
                            ;; if this operator is an overloaded symbolic function, as for
                            ;; X∘.+Y, then set the composed function accordingly
                            ;; (progn
@@ -404,6 +409,8 @@
                              ;; (print (list :ccoo item entity (ent-data (exfun-operator (exval-function entity)))))
                              ;; (setf april::eee (exval-function entity))
                              (if (exfun-composed (exval-function entity))
+                                 ;; composed is a function expression with operator
+                                 ;; but not primary yet, i.e. ⍨ awaiting + in +⍨⍣¯1⊢...
                                  (setf (exfun-composed (exval-function entity))
                                        (make-instance 'ex-function
                                                       :idiom idiom
@@ -412,6 +419,7 @@
                                                                                :data item :meta meta
                                                                                :axes axes :idiom idiom
                                                                                :expr (exval-function entity))))
+                                 ;; set composed of composed for cases like ,∘⊂⌺...
                                  (setf (exfun-composed (exval-function entity))
                                        (make-instance 'en-function :data item :meta meta
                                                                    :axes axes :idiom idiom
@@ -419,10 +427,11 @@
                            
                            (if (and (exfun-primary (exval-function entity))
                                     ;; for statements like ×.+⍨⍳10, the current item being the .
+                                    (print (typep (print (exfun-operator (exval-function entity))) 'entity))
                                     (position (ent-data (exfun-operator (exval-function entity)))
                                               (getf (vex::idiom-lexicons idiom) :operators-lateral)))
                                (progn
-                                 (print (list :hh item (ent-data (exfun-primary (exval-function entity)))))
+                                 ;; (print (list :hh item (ent-data (exfun-primary (exval-function entity)))))
                                  ;; (unless april::eee (setf april::eee entity))
                                  ;; (setf april::eee entity)
                                  ;; (make-instance 'ex-value :)
@@ -449,6 +458,7 @@
                                  ;;                                               :expr (exval-function entity))))
                                  )
                                (if (and (exfun-composed (exval-function entity))
+                                        ;; (typep (print (exfun-operator (exval-function entity))) 'entity)
                                         (position (ent-data (exfun-operator (exval-function entity)))
                                                   (getf (vex::idiom-lexicons idiom) :operators-pivotal)))
                                    (progn
@@ -472,11 +482,22 @@
                                          (setf (exfun-composed (exval-function entity))
                                                (make-instance 'en-function :data item :meta meta :axes axes
                                                                            :idiom idiom :expr (exval-function entity)))))
-                           ;; otherwise there are two consecutive pivotal operators, an error
-                                   (progn
-                                     (print (list :vv item))
-                                     (error "Two consecutive pivotal operators."))
-                                   )))
+                                   (if (and (not (exfun-composed (exval-function entity)))
+                                            (exfun-primary (exval-function entity))
+                                            (position (ent-data (exfun-operator (exval-function entity)))
+                                                      (getf (vex::idiom-lexicons idiom) :functions)
+                                                      :test #'char=))
+                                       ;; the case of i.e. (∘.×∘4 5 6) 1 2 3, where a function-aliased
+                                       ;; pivotal operator appears as part of a function expression
+                                       ;; preceding another pivotal operator
+                                       (setf (exfun-composed (exval-function entity))
+                                             (make-instance 'en-function :data item :meta meta :axes axes
+                                                            :idiom idiom :expr (exval-function entity)))
+                                       ;; otherwise there are two consecutive pivotal operators, an error
+                                       (progn
+                                         (print (list :vv item))
+                                         (error "Two consecutive pivotal operators."))
+                                       ))))
                        (progn
                          ;; (print (list :nn item entity (exfun-operator (exval-function entity))))
                          (setf (exfun-operator (exval-function entity))
@@ -486,18 +507,30 @@
                    
                    ;; the case of a pivotal operator with a value as right operand
                    ;;  preceded by a function composition, as for 1760 3 12⊤⍣¯1⊢2 0 10
-                   (if (exval-object entity)
-                       (let ((fn-expr (make-instance 'ex-function :idiom idiom
-                                                                  :primary (exval-predicate entity))))
-                         (setf (exfun-operator fn-expr) (make-instance 'en-operator
-                                                                       :data item :meta meta :axes axes
-                                                                       :idiom idiom :expr fn-expr)
-                               (exval-predicate entity) nil) ;; remove the apparent left argument...
-                         ;; and begin a new value composition with the operator composing its function
-                         (setf to-return (make-instance 'ex-value :function fn-expr
-                                                                  :object entity :idiom idiom)))
-                       (if (print (list (exfun-operator (exval-function entity))))
-                           :aaa)))
+                   (if (print (exval-object entity))
+                       (if (exval-predicate entity)
+                           (let ((fn-expr (make-instance 'ex-function :idiom idiom
+                                                                      :primary (exval-predicate entity))))
+                             (print (list :lll ;; (ent-data (exval-object entity))
+                                          (exval-predicate entity)))
+                             (setf (exfun-operator fn-expr) (make-instance 'en-operator
+                                                                           :data item :meta meta :axes axes
+                                                                           :idiom idiom :expr fn-expr)
+                                   (exval-predicate entity) nil) ;; remove the apparent left argument...
+                             ;; and begin a new value composition with the operator composing its function
+                             (setf to-return (make-instance 'ex-value :function fn-expr
+                                                                      :object entity :idiom idiom)))
+                           (setf to-return (make-instance 'ex-function
+                                                          :idiom idiom :primary (exval-object entity)
+                                                          :operator (make-instance
+                                                                     'en-operator :data item
+                                                                                  :meta meta :axes axes
+                                                                                  :idiom idiom
+                                                                                  :expr (base-expr entity)))))
+                       ;; (if (print (list (exfun-operator (exval-function entity))))
+                       ;;     :aaa)
+
+                       ))
                (if (progn (print :gg)
                           (print (exval-function entity)))
                    (if (exfun-operator (exval-function entity))
@@ -514,6 +547,7 @@
                            ;; handle successive operator compositions, as for ⊃¨⍴¨'one' 'a' 'two' 'three'
                            (if (and (not (exfun-composed (exval-function entity)))
                                     (position item (getf (vex::idiom-lexicons idiom) :operators-lateral)))
+                               ;; lateral operator forms the left operand of the present pivotal operator
                                (setf (exfun-composed (exval-function entity))
                                      (make-instance 'ex-function
                                                     :operator (make-instance 'en-operator
@@ -521,6 +555,7 @@
                                                                              :axes axes :idiom idiom
                                                                              :expr (exval-function entity))
                                                     :idiom idiom :expr entity))
+                               ;; wrap in a new value expression for genuine successive compositions
                                (setf to-return (attach (make-instance 'ex-value :object entity)
                                                        idiom meta item type axes))))
                        (if (exval-predicate entity)
@@ -538,12 +573,14 @@
                                (setf to-return (attach (make-instance 'ex-value :object entity)
                                                        idiom meta item type axes)))))
                    ;; the case of i.e. +/1 2 3 ; a lateral operator is seen before a function
-                   (and (position item (getf (vex::idiom-lexicons idiom) :operators-lateral) :test #'char=)
+                   (and (or (position item (getf (vex::idiom-lexicons idiom) :operators-lateral) :test #'char=)
+                            ;; (position item (getf (vex::idiom-lexicons idiom) :operators-pivotal) :test #'char=)
+                            )
                         (let ((operator (make-instance 'en-operator
                                                        :data item :meta meta :axes axes
                                                        :idiom idiom :expr (exval-function entity))))
-                          ;; (print (list :eeo (exval-function entity)))
-                          ;; (unless april::ioio (setf april::ioio entity))
+                          (print (list :eeo item (exval-function entity)))
+                          (unless april::ioio (setf april::ioio entity))
                           ;; (print (list :op operator (ent-data operator)))
                           (setf (exval-function entity)
                                 (make-instance 'ex-function :operator operator :idiom idiom)))))))))

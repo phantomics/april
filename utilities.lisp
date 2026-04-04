@@ -2783,12 +2783,12 @@
                                                :get-metadata)
                           (error () nil)))
                (bases-base (base-expr (base-expr entity))))
-          ;; (print (list :fm fn-meta (ent-data entity)))
+          (print (list :fm fn-meta (ent-data entity)))
           ;; (setf iio entity)
           ;; (print (list :bi (base-idiom entity) (ent-data entity)))
           ;; (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)
           ;;              (base-expr (base-expr entity))))
-          ;; (setf april::ggg entity)
+          (setf april::ggg entity)
           (or (and (characterp (ent-data entity))
                    (of-lexicons (base-idiom entity) (ent-data entity) :functions)
                    (of-lexicons (base-idiom entity) (ent-data entity) :symbolic-forms)
@@ -2815,10 +2815,11 @@
            (mapcar #'cape:express (enstm-clauses entity))))
 
 ;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
-;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
 
+;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; +⍨⍣¯1⊢64
+;; (+∘5) 1 2 3
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; ∘.!⍨¯3+⍳7
 ;; (⊂1 1)/¨⊂2 3
