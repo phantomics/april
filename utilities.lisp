@@ -2808,6 +2808,39 @@
                       (and (ent-axes entity)
                            (list (cons 'list (mapcar #'express (first (ent-axes entity))))))))))))
 
+;; (defmethod cape:express ((entity ex-operator) &rest params)
+;;   (let ((base exopr-alias))
+;;     `(setf ,(exp-assigned entity)
+;;            ,(if nil ; (not (characterp found-operator))
+;;                 nil ; found-operator
+;;                 `(lambda ,(if (of-lexicons (base-idiom entity)
+;;                                            (ent-data base)
+;;                                            :operators-monadic) ;; :functions-scalar-monadic))
+;;                               (if axes '(operand) '(operand &optional axes))
+;;                               (if (eq :pivotal operator-type) '(left right)))
+;;                    ,@(if (and (not axes)
+;;                               (eq :lateral operator-type))
+;;                          '((declare (ignorable axes)))
+;;                          (when (eq :pivotal operator-type)
+;;                            '((declare (ignorable left right)))))
+;;                    ,(multiple-value-bind (op-form op-postargs)
+;;                         (apply (symbol-function
+;;                                 (find-symbol (format nil "~a-LEX-OP-~a"
+;;                                                      (idiom-name local-idiom)
+;;                                                      found-operator)
+;;                                              (string (idiom-name local-idiom))))
+;;                                (if (eq :lateral operator-type)
+;;                                    '(operand) '(right left)))
+;;                       (append op-form (if axes (if (listp (first axes))
+;;                                                    (list :axis (cons 'list (first axes)))
+;;                                                    `(:axis (list ,(first axes))))
+;;                                           (when (member :axis op-postargs)
+;;                                             `(:axis (first axes))))))))
+;;            ,@(unless (getf (getf params :special) :closure-meta)
+;;                ;; assign operator metadata in output for operators defined at top level
+;;                `((symbol-value ',assign-symbol)
+;;                  (quote ,(symbol-value interned-sym))))))
+
 (defmethod cape:express ((entity en-statement) &rest params)
   (declare (ignore params))
   (funcall (symbol-function (find-symbol (format nil "~a-LEX-ST-~a" (idiom-name (base-idiom entity))
@@ -2815,20 +2848,21 @@
                                          (string (idiom-name (base-idiom entity)))))
            (mapcar #'cape:express (enstm-clauses entity))))
 
-;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
-
-;; ⌿∘2
 ;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
+;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
+;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
+
+;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
+;; {⌿∘⍵¨1 2 3} 'ab'
+;; ⌿∘2
 ;; +⍨⍣¯1⊢64
 ;; (+∘5) 1 2 3
-;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; ∘.!⍨¯3+⍳7
 ;; (⊂1 1)/¨⊂2 3
 ;; 3 2/¨2 3
 ;; ⊃,/(⊂1 1)/¨⊂2 3
 ;; ⊃,/(1 2 3)(4 5 6)
-;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
 ;; (3/⍪5 8 12)⊥3 3⍴2 2 5 1 4 9 6 6 7
 ;; 1 2 3∘.+1 2 3
 ;; ,∘⊂⌺3 3⊢3 3⍴⍳9
