@@ -2561,7 +2561,7 @@
                                 (find-meta (base-expr entity)))))))
 
 (defun scope-symbol (symbol meta &optional symbol-class)
-  ;; (print (list :sy symbol))
+  (print (list :sy symbol meta))
   (typecase symbol
     (symbol (if (member symbol *idiom-native-symbols*)
                 symbol (list (if (member symbol (getf (rest meta) (or symbol-class :var-syms)))
@@ -2849,7 +2849,6 @@
            (mapcar #'cape:express (enstm-clauses entity))))
 
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
-;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
 
@@ -2859,6 +2858,7 @@
 ;; +⍨⍣¯1⊢64
 ;; (+∘5) 1 2 3
 ;; ∘.!⍨¯3+⍳7
+;; (∘.×∘4 5 6)⍣¯1⊢1 2 3∘.×4 5 6
 ;; (⊂1 1)/¨⊂2 3
 ;; 3 2/¨2 3
 ;; ⊃,/(⊂1 1)/¨⊂2 3
