@@ -2575,7 +2575,7 @@
          symbol))
     (t symbol)))
   
-(defmethod cape:express ((entity en-value) &rest params)
+(defmethod express ((entity en-value) &rest params)
   ;; (print (list :ee (ent-data entity) (find-meta (exp-scope (base-expr entity)))))
   (let* ((meta (find-meta entity))
          (formatted (mapcar (lambda (item)
@@ -2595,7 +2595,7 @@
                  (cons 'svec formatted)
                  (express (first formatted))))))
 
-(defmethod cape:express ((entity ex-value) &rest params)
+(defmethod express ((entity ex-value) &rest params)
   (labels ((express-value (value)
              (if (not (second value))
                  (first value) (cons 'svec value)))
@@ -2745,7 +2745,7 @@
                                       form))))
                    (express (exfun-primary entity))))))
 
-(defmethod cape:express ((entity en-function) &rest params)
+(defmethod express ((entity en-function) &rest params)
   (let ((valence (getf params :valence)))
     ;; (print (list :aa (ent-data entity) (ent-meta entity)
     ;;              (find-space entity)))
@@ -2839,7 +2839,7 @@
 ;;                `((symbol-value ',assign-symbol)
 ;;                  (quote ,(symbol-value interned-sym))))))
 
-(defmethod cape:express ((entity en-statement) &rest params)
+(defmethod express ((entity en-statement) &rest params)
   (declare (ignore params))
   (funcall (symbol-function (find-symbol (format nil "~a-LEX-ST-~a" (idiom-name (base-idiom entity))
                                                  (ent-data entity))
