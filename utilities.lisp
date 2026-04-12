@@ -2549,7 +2549,7 @@
   ;; (if (and steps entity (= steps 10)) (setf afa entity))
   ;; (if (or (not steps) (< steps 10))
   (typecase entity
-    (t nil)
+    ;; (t nil)
     (cape::entity      (or (ent-meta entity)
                            (and (typep entity 'cape::en-value)
                                 (find-meta (base-expr entity)))))
@@ -2561,7 +2561,7 @@
                                 (find-meta (base-expr entity)))))))
 
 (defun scope-symbol (symbol meta &optional symbol-class)
-  (print (list :sy symbol meta))
+  ;; (print (list :sy symbol meta))
   (typecase symbol
     (symbol (if (member symbol *idiom-native-symbols*)
                 symbol (list (if (member symbol (getf (rest meta) (or symbol-class :var-syms)))
@@ -2576,7 +2576,7 @@
     (t symbol)))
   
 (defmethod cape:express ((entity en-value) &rest params)
-  (print (list :ee (ent-data entity) (find-meta (exp-scope (base-expr entity)))))
+  ;; (print (list :ee (ent-data entity) (find-meta (exp-scope (base-expr entity)))))
   (let* ((meta (find-meta entity))
          (formatted (mapcar (lambda (item)
                               (typecase item
@@ -2681,10 +2681,6 @@
                                (find-meta entity))))))
 
 (defmethod cape:express ((entity ex-function) &rest params)
-  ;; (setf iio entity)
-  ;; (print (list :mm (find-meta entity)))
-  ;; (when (find-meta entity)
-  ;;   (setf ioio entity))
   (if (exfun-operator entity)
       (let ((expfun1 (express (exfun-primary entity)))
             (expfun2 (and (exfun-composed entity) (express (exfun-composed entity)))))
@@ -2741,6 +2737,8 @@
                      (if (not (exp-assigned entity))
                          form (let ((asym (scope-symbol (intern (string (exp-assigned entity)))
                                                         (find-meta entity) :fn-syms)))
+                                ;; (print (list :ll ))
+                                ;; (setf ggg entity)
                                 ;; (print (list :fff (type-of entity) (find-meta entity) form))
                                 (list 'a-set (if (not (and (listp asym) (eql 'inwsd (first asym))))
                                                  asym (list 'symbol-function (list 'quote asym)))
@@ -2784,7 +2782,7 @@
                                                :get-metadata)
                           (error () nil)))
                (bases-base (base-expr (base-expr entity))))
-          (print (list :fm fn-meta (ent-data entity)))
+          ;; (print (list :fm fn-meta (ent-data entity)))
           ;; (setf iio entity)
           ;; (print (list :bi (base-idiom entity) (ent-data entity)))
           ;; (print (list :xxp (base-expr entity) (base-idiom entity) (ent-data entity)
@@ -2849,10 +2847,23 @@
            (mapcar #'cape:express (enstm-clauses entity))))
 
 ;; {k←⌸ ⋄ {⍴⍵}k ⍵} 'Apple' 'Orange' 'Apple' 'Pear' 'Orange' 'Peach'
+;; key←⌸ ⋄ {(2|⍳≢⍵)⊢key ⍵}10 2⍴⍳20
+;; {aa←{⍵+5} ⋄ bb←{cc←{⍺,aa ⍵} ⋄ ⍺ cc ⍵} ⋄ 9 bb ⍵} 100
+;; ((3+1,⍴)+)3 3 6⍴2
+;; (⊢⌽⍨(-⎕IO)+⍳∘≢)5 5⍴⍳25
+;; (!⍴-,÷)3
+;; (3 5⍴-,÷)5
+;; x←⍳8 ⋄ (3↑x)←20 ⋄ x
+;; {⍵[2;2]÷⍨@2⊢⍵} 3 3⍴⍳9
+;; fn←÷@(≤∘4) ⋄ fn ⍳9
+;; +\⍣¯1⊢+\⍳5
+;; ⌊100×.0000001+(3⍟⍣¯1⊢8),(3∘⍟⍣¯1⊢8),⍟∘3⍣¯1⊢8
+;; (3÷⍣¯1⊢8),(3∘÷⍣¯1⊢8),÷∘3⍣¯1⊢8
+;; ⌊10_000×1+∘÷⍣=1.0
+;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
+
 ;; {x←⊂[2] ⋄ x ⍵} 2 3 4⍴⍳9
 ;; x←5 ⋄ y←3 ⋄ $[y>2;x+←10;x+←20] ⋄ x
-
-;; {⌿∘⍵¨↓⌽⍉2⊥⍣¯1⊢¯1+⍳2*≢⍵} 'ab'
 ;; {⌿∘⍵¨1 2 3} 'ab'
 ;; ⌿∘2
 ;; +⍨⍣¯1⊢64

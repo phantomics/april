@@ -724,7 +724,7 @@
             (is "2⍷3 4⍴⍳9" #2A((0 1 0 0) (0 0 0 0) (0 0 1 0)))
             (is "(2 2⍴6 7 1 2)⍷2 3 4⍴⍳9" #3A(((0 0 0 0) (0 1 0 0) (0 0 0 0))
                                              ((0 0 1 0) (0 0 0 0) (0 0 0 0))))))
-  (⍸ (has :titlesg ("Where" "Interval Index"))
+  (⍸ (has :titles ("Where" "Interval Index"))
      (ambivalent (λω (make-instance 'vader-where :base omega :index-origin index-origin))
                  (λωα (make-instance 'vader-interval-index
                                      :base omega :argument alpha :index-origin index-origin)))

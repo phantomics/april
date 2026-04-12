@@ -255,7 +255,11 @@
                                                         (intern (string-upcase this-item)
                                                                 *package-name-string*))))
                        (if (listp idiom-function-object)
-                           idiom-function-object (list 'function idiom-function-object))))))))))
+                           idiom-function-object (list 'function idiom-function-object))))
+                    ((and (symbolp this-item) (getf properties :lexical-symbol))
+                     ;; the case of function-referencing symbols from CAPE's (determine) function,
+                     ;; used to reference lexically scoped (named in a defn) function symbols
+                     (list 'inws this-item))))))))
 
 (defun process-operator (this-item &optional properties space)
   "Process an operator token."
